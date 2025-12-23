@@ -13,5 +13,5 @@ public enum DIScope {
 @attached(member, names: named(init), named(Overrides))
 public macro DIContainer(validate: Bool = true, root: Bool = false) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
-@attached(accessor)
+@attached(peer)
 public macro Provide(_ scope: DIScope = .shared, factory: Any? = nil) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
