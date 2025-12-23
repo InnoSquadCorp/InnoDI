@@ -1,0 +1,181 @@
+---
+description: "InnoDI 프레임워크의 아키텍처, 매크로 확장, DI 컨테이너 생성, 정적 분석, 테스트 패턴에 대한 종합 가이드. 프레임워크 코드 작업, 새로운 기능 추가, 또는 아키텍처 이해가 필요할 때 적용."
+globs: ["Sources/**/*.swift"]
+alwaysApply: false
+---
+
+# InnoDI Framework Architecture
+
+## 프로젝트 개요
+
+InnoDI는 Swift 매크로를 사용하여 구현된 Swift 의존성 주입 프레임워크입니다. 컴파일 타임 DI 컨테이너 생성과 CLI 도구를 통한 정적 분석 검증을 제공합니다.
+
+## 모듈 구조
+
+```
+InnoDI/
+├── Sources/
+│   ├── InnoDI/              # Public API
+│   │   └── InnoDI.swift    # @DIContainer 및 @Provide 매크로 선언, DIScope enum
+│   ├── InnoDIMacros/       # 매크로 구현 (swift-syntax 사용)
+│   │   ├── DIContainerMacro.swift    # Member macro: init 및 Overrides struct 생성
+│   │   ├── ProvideMacro.swift        # Accessor macro (구문 검증용)
+│   │   └── Diagnostics.swift         # 커스텀 진단 메시지
+│   ├── InnoDICore/         # 공유 파싱 유틸리티
+│   │   └── Parsing.swift   # @Provide 및 @DIContainer 속성 파싱
+│   └── InnoDICLI/          # 정적 분석 CLI
+│       └── main.swift      # 컨테이너 사용 검증
+└── Tests/
+    ├── InnoDICoreTests/    # 코어 파싱 테스트
+    └── InnoDIMacrosTests/  # 매크로 확장 테스트
+```
+
+## 매크로 동작 방식
+
+### @DIContainer 매크로
+
+`@DIContainer`는 다음을 생성합니다:
+
+1. **init 메서드**:
+   - `.input` 범위 속성에 대한 필수 파라미터
+   - `.shared` 속성이 있는 경우: `overrides: Overrides = .init()` (선택적 파라미터)
+   - init 본문:
+     - `.shared` 속성: `let prop = overrides.prop ?? factory()`
+     - 모든 `.input` 속성 할당: `self.prop = prop`
+     - 모든 `.shared` 속성 할당: `self.prop = prop`
+
+2. **Overrides struct** (`.shared` 속성이 있는 경우에만):
+   - 각 `.shared` 의존성에 대한 선택적 속성
+   - 빈 `init()`
+
+### @Provide 매크로
+
+`@Provide`는 accessor macro로, 현재는 구문 검증만 수행합니다:
+
+- **`.shared`**: Singleton-like 의존성, init에서 factory로 생성 (requires `factory:` 파라미터)
+- **`.input`**: init 파라미터로 전달되는 의존성 (`factory:` 포함 불가)
+
+### 매크로 확장 예제
+
+```swift
+@DIContainer
+struct AppContainer {
+    @Provide(.shared, factory: APIClient())
+    var api: APIClient
+    
+    @Provide(.input)
+    var userId: String
+}
+
+// 확장 결과:
+struct AppContainer {
+    @Provide(.shared, factory: APIClient())
+    var api: APIClient
+    
+    @Provide(.input)
+    var userId: String
+    
+    public struct Overrides {
+        public var api: APIClient?
+        public init() {}
+    }
+    
+    public init(overrides: Overrides = .init(), userId: String) {
+        let api = overrides.api ?? APIClient()
+        self.userId = userId
+        self.api = api
+    }
+}
+```
+
+## 정적 분석 흐름 (CLI)
+
+1. **컨테이너 발견**: `ContainerCollector`가 모든 Swift 파일을 순회하여 `@DIContainer` 타입을 찾고 필수 `.input` 속성을 추출
+2. **사용 분석**: `ContainerUsageCollector`가 모든 컨테이너 초기화 호출을 찾고 기록:
+   - 어떤 레이블이 전달되었는지 (검증용)
+   - 컨테이너 간 엣지 (접근 가능성 분석용)
+3. **검증**:
+   - 필수 입력 누락: 모든 `.input` 속성이 인자로 전달되었는지 확인
+   - 접근 불가능한 컨테이너: root 컨테이너(명시적 `root: true` 또는 암시적)에서 그래프 순회를 수행하여 모든 컨테이너가 접근 가능한지 확인
+
+## 핵심 디자인 패턴
+
+### 중앙화된 파싱
+
+모든 속성 파싱 로직은 `InnoDICore`에 있어 매크로와 CLI가 `@Provide`와 `@DIContainer`를 동일하게 해석합니다. 새로운 매크로 파라미터를 추가할 때는 파싱 함수와 매크로 확장 로직을 모두 업데이트해야 합니다.
+
+### SwiftSyntaxBuilder 사용
+
+매크로는 AST 생성을 위해 문자열 연결보다 `SwiftSyntaxBuilder` API를 선호합니다. 이는 타입 안전성과 올바른 포맷팅을 제공합니다. `makeInitDecl()` 및 `makeOverridesStruct()`를 참조하세요.
+
+### 접근 수준 전파
+
+생성된 `init`과 `Overrides` struct는 `containerAccessLevel()`을 통해 컨테이너 타입의 접근 수준(public, internal, fileprivate, private)을 상속받습니다.
+
+## 일반적인 개발 작업
+
+### 매크로 동작 수정 시
+
+1. `InnoDICore/Parsing.swift`의 파싱 로직을 먼저 업데이트
+2. `InnoDIMacros/DIContainerMacro.swift`의 매크로 확장 업데이트
+3. `Tests/InnoDIMacrosTests/`에 테스트 케이스 추가
+4. `InnoDICLI/main.swift`의 CLI 영향 고려
+
+### 진단 추가 시
+
+- `SimpleDiagnostic`를 사용하여 오류 메시지 작성
+- 관련 구문 노드에 진단을 첨부하여 정확한 오류 위치 제공
+- 기존 패턴 따르기: `context.diagnose(Diagnostic(node:message:))`
+
+## 일반적인 패턴
+
+### 기본 컨테이너
+
+```swift
+@DIContainer
+struct AppContainer {
+    @Provide(.shared, factory: APIClient())
+    var api: APIClient
+    
+    @Provide(.shared, factory: Database())
+    var database: Database
+}
+```
+
+### 입력 의존성이 있는 컨테이너
+
+```swift
+@DIContainer
+struct UserContainer {
+    @Provide(.input)
+    var userId: String
+    
+    @Provide(.shared, factory: UserService(userId: userId))
+    var userService: UserService
+}
+```
+
+### Overrides를 사용한 테스트
+
+```swift
+let container = AppContainer(
+    overrides: .init(api: MockAPIClient()),
+    userId: "test-user"
+)
+```
+
+## 네이밍 규칙
+
+- **컨테이너**: `*Container` 접미사 사용 (예: `AppContainer`, `UserContainer`)
+- **의존성**: 명확하고 설명적인 이름 사용
+- **Factory**: 클로저 또는 생성자 호출 표현식
+
+## 플랫폼 요구사항
+
+- iOS 26.0+ / macOS 26.0+ / tvOS 26.0+ / watchOS 26.0+ / visionOS 26.0+
+- Swift 6.2+
+- Xcode 16.0+
+
+## 의존성
+
+- `swift-syntax` 600.0.0+ (매크로 구현용)

@@ -1,0 +1,71 @@
+---
+description: "InnoDI 프로젝트 개발 가이드라인: 프로젝트 개요, 빌드/테스트 명령, 모듈 구조, 개발 워크플로우"
+globs: 
+alwaysApply: true
+---
+
+# InnoDI Framework Development Assistant
+
+개발 작업을 시작하기 전에, 프로젝트 컨텍스트와 가이드라인을 이해하기 위해 다음 규칙 파일들을 항상 읽어보세요:
+
+- `developer-guidelines.mdc` - 개발자 기본 가이드라인 (언어 정책, 근본 원인 접근법, 품질 기준)
+- `innodi-framework.mdc` - InnoDI 프레임워크 아키텍처 및 패턴
+- `swift-package.mdc` - Swift 패키지 개발 가이드라인
+- `swift-concurrency.mdc` - Swift 6 엄격한 동시성 가이드라인
+- `swift-testing.mdc` - Swift Testing 프레임워크 패턴
+
+개발 작업에 따라 관련 규칙 파일을 사용하여 프로젝트 표준과의 일관성을 유지하세요.
+
+## 프로젝트 개요
+
+InnoDI는 Swift 매크로를 사용하여 구현된 Swift 의존성 주입 프레임워크입니다. 컴파일 타임 DI 컨테이너 생성과 CLI 도구를 통한 정적 분석 검증을 제공합니다.
+
+## 빌드 및 테스트 명령
+
+### 빌드
+```bash
+swift build                                    # 모든 타겟 빌드
+swift build --target InnoDI                    # 라이브러리만 빌드
+swift build --target InnoDICLI                 # CLI 도구만 빌드
+swift build --target InnoDIMacros              # 매크로만 빌드
+```
+
+### 테스트
+```bash
+swift test                                     # 모든 테스트 실행
+swift test --filter InnoDICoreTests            # 코어 파싱 테스트 실행
+swift test --filter InnoDIMacrosTests          # 매크로 확장 테스트 실행
+```
+
+### CLI 실행
+```bash
+swift run InnoDICLI --root /path/to/project   # 프로젝트의 DI 컨테이너 검증
+```
+
+## 모듈 구조
+
+프로젝트는 4개의 주요 모듈로 구성된 계층 아키텍처를 사용합니다:
+
+1. **InnoDI** (Public API)
+   - `@DIContainer` 및 `@Provide` 매크로 선언을 내보냄
+   - `DIScope` enum (`.shared`, `.input`) 정의
+   - 라이브러리 사용자가 import하는 모듈
+
+2. **InnoDIMacros** (Macro Implementation)
+   - `DIContainerMacro`: `init` 및 선택적 `Overrides` struct를 생성하는 member macro
+   - `ProvideMacro`: Accessor macro (현재 비어있음, 구문 검증용)
+   - `SimpleDiagnostic`: 매크로 오류를 위한 커스텀 진단 메시지
+   - 공유 파싱 로직을 위해 `InnoDICore`에 의존
+
+3. **InnoDICore** (Shared Parsing)
+   - 매크로와 CLI 모두에서 사용되는 파싱 유틸리티 포함
+   - `parseProvideArguments()`: `@Provide` 속성에서 scope와 factory 추출
+   - `parseDIContainerAttribute()`: `@DIContainer`에서 validate/root 플래그 추출
+   - `findAttribute()`: 구문 트리에서 속성을 찾는 헬퍼
+   - 파싱 로직 중복을 방지하는 모듈
+
+4. **InnoDICLI** (Static Analysis)
+   - 코드베이스 전체에서 DI 컨테이너 사용을 검증
+   - 컨테이너 초기화자가 모든 필수 `.input` 의존성을 받는지 확인
+   - 컨테이너가 root 컨테이너에서 접근 가능한지 확인
+   - 검증 실패 시 exit code 1 반환
