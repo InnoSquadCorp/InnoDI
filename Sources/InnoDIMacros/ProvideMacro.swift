@@ -6,12 +6,12 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-public struct ProvideMacro: AccessorMacro {
+public struct ProvideMacro: PeerMacro {
     public static func expansion(
         of attribute: AttributeSyntax,
-        providingAccessorsOf decl: some DeclSyntaxProtocol,
+        providingPeersOf decl: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
-    ) throws -> [AccessorDeclSyntax] {
+    ) throws -> [DeclSyntax] {
         []
     }
 }

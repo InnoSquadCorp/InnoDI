@@ -14,7 +14,7 @@ public struct DIContainerMacro: MemberMacro {
         of attribute: AttributeSyntax,
         providingMembersOf decl: some DeclGroupSyntax,
         conformingTo protocols: [TypeSyntax],
-        in context: MacroExpansionContext
+        in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         try expansion(of: attribute, providingMembersOf: decl, in: context)
     }
@@ -22,7 +22,7 @@ public struct DIContainerMacro: MemberMacro {
     public static func expansion(
         of attribute: AttributeSyntax,
         providingMembersOf decl: some DeclGroupSyntax,
-        in context: MacroExpansionContext
+        in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         if hasUserDefinedInit(in: decl) {
             return []
@@ -229,12 +229,13 @@ private func makeInitDecl(
             type: overridesType,
             ellipsis: nil,
             defaultValue: defaultValue,
-            trailingComma: nil
+            trailingComma: inputMembers.isEmpty ? nil : .commaToken()
         )
         params.append(overridesParam)
     }
 
-    for member in inputMembers {
+    for (index, member) in inputMembers.enumerated() {
+        let isLast = index == inputMembers.count - 1
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -242,7 +243,7 @@ private func makeInitDecl(
             type: member.type,
             ellipsis: nil,
             defaultValue: nil,
-            trailingComma: nil
+            trailingComma: isLast ? nil : .commaToken()
         )
         params.append(param)
     }
@@ -253,9 +254,12 @@ private func makeInitDecl(
 
     var statements: [CodeBlockItemSyntax] = []
 
-    for member in sharedMembers {
+    let inputNames = inputMembers.map { $0.name }
+
+    for (index, member) in sharedMembers.enumerated() {
         let name = TokenSyntax.identifier(member.name)
-        let factoryExpr = member.factory ?? ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("nil")))
+        let availableNames = inputNames + sharedMembers.prefix(index).map { $0.name }
+        let factoryExpr = makeFactoryExpr(factory: member.factory, availableNames: availableNames)
         let initializerExpr = ExprSyntax(
             InfixOperatorExprSyntax(
                 leftOperand: overridesMemberExpr(name: member.name),
@@ -293,6 +297,79 @@ private func makeInitDecl(
     )
 
     return DeclSyntax(initDecl)
+}
+
+private func makeFactoryExpr(factory: ExprSyntax?, availableNames: [String]) -> ExprSyntax {
+    guard let factory else {
+        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("nil")))
+    }
+
+    if let closure = factory.as(ClosureExprSyntax.self) {
+        let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
+        return ExprSyntax(callClosureExpr(closure: closure, argumentNames: argumentNames))
+    }
+
+    return factory
+}
+
+private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
+    guard let signature = closure.signature,
+          let parameterClause = signature.parameterClause else {
+        return []
+    }
+
+    var result: [String] = []
+
+    switch parameterClause {
+    case .simpleInput(let shorthandParameters):
+        for (index, param) in shorthandParameters.enumerated() {
+            result.append(matchClosureParameter(name: param.name.text, index: index, availableNames: availableNames))
+        }
+    case .parameterClause(let parameterClause):
+        for (index, param) in parameterClause.parameters.enumerated() {
+            let name = param.secondName?.text ?? param.firstName.text
+            result.append(matchClosureParameter(name: name, index: index, availableNames: availableNames))
+        }
+    }
+
+    return result
+}
+
+private func matchClosureParameter(name: String, index: Int, availableNames: [String]) -> String {
+    if availableNames.contains(name) {
+        return name
+    }
+
+    if index < availableNames.count {
+        return availableNames[index]
+    }
+
+    return name
+}
+
+private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]) -> ExprSyntax {
+    var arguments: [LabeledExprSyntax] = []
+
+    for (index, name) in argumentNames.enumerated() {
+        let isLast = index == argumentNames.count - 1
+        let expr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(name)))
+        let argument = LabeledExprSyntax(
+            label: nil,
+            colon: nil,
+            expression: expr,
+            trailingComma: isLast ? nil : .commaToken()
+        )
+        arguments.append(argument)
+    }
+
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(closure),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax(arguments),
+        rightParen: .rightParenToken()
+    )
+
+    return ExprSyntax(call)
 }
 
 private func dotInitExpr() -> ExprSyntax {
