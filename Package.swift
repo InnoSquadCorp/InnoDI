@@ -17,7 +17,7 @@ let package = Package(
         .executable(name: "InnoDIExamples", targets: ["InnoDIExamples"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-syntax.git", from: "600.0.0")
+        .package(url: "https://github.com/apple/swift-syntax.git", from: "602.0.0")
     ],
     targets: [
         .target(
