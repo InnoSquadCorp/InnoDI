@@ -13,6 +13,15 @@ public struct DIContainerMacro: MemberMacro {
     public static func expansion(
         of attribute: AttributeSyntax,
         providingMembersOf decl: some DeclGroupSyntax,
+        conformingTo protocols: [TypeSyntax],
+        in context: MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        try expansion(of: attribute, providingMembersOf: decl, in: context)
+    }
+
+    public static func expansion(
+        of attribute: AttributeSyntax,
+        providingMembersOf decl: some DeclGroupSyntax,
         in context: MacroExpansionContext
     ) throws -> [DeclSyntax] {
         if hasUserDefinedInit(in: decl) {
