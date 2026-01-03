@@ -154,6 +154,11 @@ private func collectProvideMembers(
             hadErrors = true
         }
 
+        if scope == .transient && parseResult.factoryExpr == nil {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr>.")))
+            hadErrors = true
+        }
+
         if scope == .input && parseResult.factoryExpr != nil {
             context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory.")))
             hadErrors = true
