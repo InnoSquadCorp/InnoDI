@@ -16,12 +16,14 @@ public struct ProvideArguments {
     public let scopeName: String?
     public let isDefaultScope: Bool
     public let factoryExpr: ExprSyntax?
+    public let concrete: Bool
 
-    public init(scope: ProvideScope?, scopeName: String?, isDefaultScope: Bool, factoryExpr: ExprSyntax?) {
+    public init(scope: ProvideScope?, scopeName: String?, isDefaultScope: Bool, factoryExpr: ExprSyntax?, concrete: Bool = false) {
         self.scope = scope
         self.scopeName = scopeName
         self.isDefaultScope = isDefaultScope
         self.factoryExpr = factoryExpr
+        self.concrete = concrete
     }
 }
 
@@ -30,12 +32,14 @@ public struct ProvideAttributeInfo {
     public let scope: ProvideScope?
     public let scopeName: String?
     public let factoryExpr: ExprSyntax?
+    public let concrete: Bool
 
-    public init(hasProvide: Bool, scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?) {
+    public init(hasProvide: Bool, scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?, concrete: Bool = false) {
         self.hasProvide = hasProvide
         self.scope = scope
         self.scopeName = scopeName
         self.factoryExpr = factoryExpr
+        self.concrete = concrete
     }
 }
 
@@ -65,11 +69,19 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var scopeName: String?
     var scope: ProvideScope?
     var factoryExpr: ExprSyntax?
+    var concrete: Bool = false
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
             if let label = argument.label?.text, label == "factory" {
                 factoryExpr = argument.expression
+                continue
+            }
+            
+            if let label = argument.label?.text, label == "concrete" {
+                if let value = parseBoolLiteral(argument.expression) {
+                    concrete = value
+                }
                 continue
             }
 
@@ -84,15 +96,15 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     if scopeName == nil {
         scopeName = ProvideScope.shared.rawValue
         scope = .shared
-        return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: true, factoryExpr: factoryExpr)
+        return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: true, factoryExpr: factoryExpr, concrete: concrete)
     }
 
-    return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: false, factoryExpr: factoryExpr)
+    return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: false, factoryExpr: factoryExpr, concrete: concrete)
 }
 
 public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideAttributeInfo {
     guard let attribute = findAttribute(named: "Provide", in: attributes) else {
-        return ProvideAttributeInfo(hasProvide: false, scope: nil, scopeName: nil, factoryExpr: nil)
+        return ProvideAttributeInfo(hasProvide: false, scope: nil, scopeName: nil, factoryExpr: nil, concrete: false)
     }
 
     let args = parseProvideArguments(attribute)
@@ -100,7 +112,8 @@ public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> Provide
         hasProvide: true,
         scope: args.scope,
         scopeName: args.scopeName,
-        factoryExpr: args.factoryExpr
+        factoryExpr: args.factoryExpr,
+        concrete: args.concrete
     )
 }
 
