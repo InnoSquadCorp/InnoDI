@@ -8,6 +8,7 @@ import SwiftSyntax
 public enum ProvideScope: String {
     case shared
     case input
+    case transient
 }
 
 public struct ProvideArguments {
