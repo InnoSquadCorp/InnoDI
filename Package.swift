@@ -14,7 +14,6 @@ let package = Package(
     ],
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
-        .executable(name: "InnoDIExamples", targets: ["InnoDIExamples"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-syntax.git", from: "602.0.0")
@@ -38,10 +37,7 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
         ),
-        .executableTarget(
-            name: "InnoDIExamples",
-            dependencies: ["InnoDI"]
-        ),
+
         .macro(
             name: "InnoDIMacros",
             dependencies: [
@@ -66,9 +62,6 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
-        .testTarget(
-            name: "InnoDIExamplesTests",
-            dependencies: ["InnoDI"]
-        ),
+
     ]
 )
