@@ -21,15 +21,20 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         }
         
         let parseResult = parseProvideArguments(attribute)
+        let name = identifier.identifier.text
         
-        if parseResult.scope == .transient {
-            let name = identifier.identifier.text
+        switch parseResult.scope {
+        case .transient:
             let overrideName = "_override_\(name)"
             let decl: DeclSyntax = "private let \(raw: overrideName): \(type)?"
             return [decl]
+        case .shared, .input:
+            let storageName = "_storage_\(name)"
+            let decl: DeclSyntax = "private let \(raw: storageName): \(type)"
+            return [decl]
+        case .none:
+            return []
         }
-        
-        return []
     }
     
     public static func expansion(
