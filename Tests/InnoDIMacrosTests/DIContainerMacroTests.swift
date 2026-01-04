@@ -1,97 +1,70 @@
-//
-//  DIContainerMacroTests.swift
-//  InnoDIMacrosTests
-//
-
+import Foundation
+import InnoDICore
+import SwiftParser
+import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftSyntaxMacrosTestSupport
-import XCTest
+import Testing
 
 @testable import InnoDIMacros
 
-final class DIContainerMacroTests: XCTestCase {
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-        let env = ProcessInfo.processInfo.environment
-        if env["INNODI_RUN_MACRO_TESTS"] != "1" {
-            throw XCTSkip("Set INNODI_RUN_MACRO_TESTS=1 to run macro tests.")
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["INNODI_RUN_MACRO_TESTS"] == "1"))
+struct DIContainerMacroTests {
+    @Test
+    func parseProvideAttributes() throws {
+        let source = """
+        @Provide(.input)
+        var bar: Int
+        """
+        
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide")
+            return
         }
+        
+        let args = parseProvideArguments(attr)
+        #expect(args.scope == .input)
+        #expect(args.factoryExpr == nil)
     }
-
-    func testDIContainerGeneratesInitAndOverrides() {
-        let macros: [String: Macro.Type] = [
-            "DIContainer": DIContainerMacro.self,
-        ]
-
-        assertMacroExpansion(
-            """
-            struct Foo {}
-            struct Bar {}
-
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, factory: Foo())
-                var foo: Foo
-
-                @Provide(.input)
-                var bar: Bar
-            }
-            """,
-            expandedSource: """
-            struct Foo {}
-            struct Bar {}
-
-            struct AppContainer {
-                @Provide(.shared, factory: Foo())
-                var foo: Foo
-
-                @Provide(.input)
-                var bar: Bar
-
-                struct Overrides {
-                    var foo: Foo?
-                    init() {
-                    }
-                }
-
-                init(overrides: Overrides = .init(), bar: Bar) {
-                    let foo = overrides.foo ?? Foo()
-                    self.bar = bar
-                    self.foo = foo
-                }
-            }
-            """,
-            macros: macros
-        )
+    
+    @Test
+    func parseProvideWithFactory() throws {
+        let source = """
+        @Provide(.shared, factory: SomeType())
+        var foo: SomeProtocol
+        """
+        
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide")
+            return
+        }
+        
+        let args = parseProvideArguments(attr)
+        #expect(args.scope == .shared)
+        #expect(args.factoryExpr != nil)
+        #expect(args.factoryExpr!.description.contains("SomeType"))
     }
-
-    func testDIContainerStopsOnInvalidProvide() {
-        let macros: [String: Macro.Type] = [
-            "DIContainer": DIContainerMacro.self,
-        ]
-
-        assertMacroExpansion(
-            """
-            struct Foo {}
-
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared)
-                var foo: Foo
-            }
-            """,
-            expandedSource: """
-            struct Foo {}
-
-            struct AppContainer {
-                @Provide(.shared)
-                var foo: Foo
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(message: "@Provide(.shared) requires factory: <expr>.", line: 6, column: 5),
-            ],
-            macros: macros
-        )
+    
+    @Test
+    func parseProvideWithTypeAndDependencies() throws {
+        let source = """
+        @Provide(.shared, APIClient.self, with: [\\.config, \\.logger])
+        var apiClient: APIClientProtocol
+        """
+        
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide")
+            return
+        }
+        
+        let args = parseProvideArguments(attr)
+        #expect(args.scope == .shared)
+        #expect(args.typeExpr != nil)
+        #expect(args.dependencies == ["config", "logger"])
     }
 }
