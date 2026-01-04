@@ -44,10 +44,6 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
     ) throws -> [AccessorDeclSyntax] {
         let parseResult = parseProvideArguments(attribute)
         
-        guard parseResult.scope == ProvideScope.transient else {
-            return []
-        }
-        
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
               let binding = varDecl.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
@@ -55,62 +51,91 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         }
 
         let name = identifier.identifier.text
-        let overrideName = "_override_\(name)"
         
-        let overrideCheck = CodeBlockItemSyntax(item: .stmt(StmtSyntax(
-            """
-            if let override = \(raw: overrideName) { return override }
-            """
-        )))
+        switch parseResult.scope {
+        case .shared, .input:
+            let storageName = "_storage_\(name)"
+            let getter = AccessorDeclSyntax(
+                accessorSpecifier: .keyword(.get),
+                body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: storageName)")))
+                ]))
+            )
+            return [getter]
+            
+        case .transient:
+            let overrideName = "_override_\(name)"
+            
+            let overrideCheck = CodeBlockItemSyntax(item: .stmt(StmtSyntax(
+                """
+                if let override = \(raw: overrideName) { return override }
+                """
+            )))
 
-        var createExpr: ExprSyntax
-        
-        if let factory = parseResult.factoryExpr {
-            if factory.is(ClosureExprSyntax.self) {
-                 createExpr = ExprSyntax(FunctionCallExprSyntax(
-                    calledExpression: factory,
+            var createExpr: ExprSyntax
+            
+            if let factory = parseResult.factoryExpr {
+                if factory.is(ClosureExprSyntax.self) {
+                     createExpr = ExprSyntax(FunctionCallExprSyntax(
+                        calledExpression: factory,
+                        leftParen: .leftParenToken(),
+                        arguments: [],
+                        rightParen: .rightParenToken()
+                    ))
+                } else {
+                    createExpr = factory
+                }
+            } else if let typeExpr = parseResult.typeExpr {
+                var args: [LabeledExprSyntax] = []
+                for dep in parseResult.dependencies {
+                    args.append(LabeledExprSyntax(
+                        label: .identifier(dep),
+                        colon: .colonToken(),
+                        expression: ExprSyntax(MemberAccessExprSyntax(
+                            base: DeclReferenceExprSyntax(baseName: .identifier("self")),
+                            declName: DeclReferenceExprSyntax(baseName: .identifier(dep))
+                        ))
+                    ))
+                }
+
+                createExpr = ExprSyntax(FunctionCallExprSyntax(
+                    calledExpression: typeExpr,
                     leftParen: .leftParenToken(),
-                    arguments: [],
+                    arguments: LabeledExprListSyntax(args),
                     rightParen: .rightParenToken()
                 ))
+            } else if let initializer = binding.initializer?.value {
+                createExpr = initializer
             } else {
-                createExpr = factory
-            }
-        } else if let typeExpr = parseResult.typeExpr {
-            var args: [LabeledExprSyntax] = []
-            for dep in parseResult.dependencies {
-                args.append(LabeledExprSyntax(
-                    label: .identifier(dep),
-                    colon: .colonToken(),
-                    expression: ExprSyntax(MemberAccessExprSyntax(
-                        base: DeclReferenceExprSyntax(baseName: .keyword(.self)),
-                        declName: DeclReferenceExprSyntax(baseName: .identifier(dep))
-                    ))
-                ))
+                let getter = AccessorDeclSyntax(
+                    accessorSpecifier: .keyword(.get),
+                    body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+                        CodeBlockItemSyntax(item: .stmt(StmtSyntax("fatalError(\"Missing factory for transient dependency\")")))
+                    ]))
+                )
+                return [getter]
             }
             
-            createExpr = ExprSyntax(FunctionCallExprSyntax(
-                calledExpression: typeExpr,
-                leftParen: .leftParenToken(),
-                arguments: LabeledExprListSyntax(args),
-                rightParen: .rightParenToken()
-            ))
-        } else {
-            // If neither factory nor type provided, return empty (will cause compile error elsewhere or runtime crash if used)
-            // Ideally we diagnose this in DIContainerMacro
-            return []
+            let getterBody = CodeBlockItemListSyntax([
+                overrideCheck,
+                CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(createExpr)")))
+            ])
+            
+            let getter = AccessorDeclSyntax(
+                accessorSpecifier: .keyword(.get),
+                body: CodeBlockSyntax(statements: getterBody)
+            )
+            
+            return [getter]
+            
+        case .none:
+            let getter = AccessorDeclSyntax(
+                accessorSpecifier: .keyword(.get),
+                body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("fatalError(\"Unknown scope\")")))
+                ]))
+            )
+            return [getter]
         }
-        
-        let getterBody = CodeBlockItemListSyntax([
-            overrideCheck,
-            CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(createExpr)")))
-        ])
-        
-        let getter = AccessorDeclSyntax(
-            accessorSpecifier: .keyword(.get),
-            body: CodeBlockSyntax(statements: getterBody)
-        )
-        
-        return [getter]
     }
 }
