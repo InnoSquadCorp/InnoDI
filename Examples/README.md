@@ -39,15 +39,20 @@ let service = container.userService
 
 Notes:
 - `.input` requires no `factory`.
-- `.shared` requires `factory: <expr>`.
-- The macro generates `init(...)` and an `Overrides` struct for shared members.
+- `.shared` requires `factory: <expr>` or `Type.self` with `with:`.
+- The macro generates `init(...)` with optional override parameters.
 
-Example with overrides (shared only):
+Example with init override:
 
 ```swift
-var overrides = AppContainer.Overrides()
-overrides.apiClient = APIClient(baseURL: "mock://")
-let container = AppContainer(overrides: overrides, config: Config(baseURL: "https://api.example.com"))
+// Production - factory creates the instance
+let container = AppContainer(config: Config(baseURL: "https://api.example.com"))
+
+// Testing - directly inject mock
+let testContainer = AppContainer(
+    config: Config(baseURL: "https://test.example.com"),
+    apiClient: MockAPIClient()
+)
 ```
 
 ### 2) CLI Usage (Static Analysis)

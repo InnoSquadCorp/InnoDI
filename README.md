@@ -5,10 +5,11 @@ A Swift Macro-based Dependency Injection library for clean, type-safe DI contain
 ## Features
 
 - **Compile-time safety**: Macro-based validation catches errors at build time
-- **Zero boilerplate**: Auto-generated initializers and override structs
+- **Zero boilerplate**: Auto-generated initializers with optional override parameters
 - **Multiple scopes**: `shared`, `input`, and `transient` lifecycle management
+- **AutoWiring**: Simplified syntax with `Type.self` and `with:` dependencies
+- **Init Override**: Direct mock injection via init parameters (no separate Overrides struct)
 - **Protocol-first design**: Encourage DIP compliance with `concrete` opt-in
-- **Static analysis CLI**: Detect missing dependencies and orphan containers
 
 ## Installation
 
@@ -48,7 +49,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, factory: APIClient(baseURL: baseURL))
+    @Provide(.shared, APIClient.self, with: [\.baseURL])
     var apiClient: APIClientProtocol
 }
 
@@ -57,11 +58,20 @@ let container = AppContainer(baseURL: "https://api.example.com")
 let client = container.apiClient
 ```
 
+For more control, use factory closures instead:
+
+```swift
+@Provide(.shared, factory: { (baseURL: String) in
+    APIClient(configuration: config, timeout: 30)
+})
+var apiClient: APIClientProtocol
+```
+
 ## API Reference
 
 ### `@DIContainer`
 
-Marks a struct as a DI container. Generates `init(...)` and `Overrides` struct.
+Marks a struct as a DI container. Generates `init(...)` with optional override parameters.
 
 ```swift
 @DIContainer(validate: Bool = true, root: Bool = false)
@@ -70,20 +80,21 @@ Marks a struct as a DI container. Generates `init(...)` and `Overrides` struct.
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `validate` | `true` | Enable compile-time validation |
-| `root` | `false` | Mark as root container for CLI analysis |
 
 ### `@Provide`
 
 Declares a dependency with its scope and factory.
 
 ```swift
-@Provide(_ scope: DIScope = .shared, factory: Any? = nil, concrete: Bool = false)
+@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, concrete: Bool = false)
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `scope` | `.shared` | Lifecycle scope (see below) |
-| `factory` | `nil` | Factory expression (required for `.shared` and `.transient`) |
+| `type` | `nil` | Concrete type for AutoWiring (alternative to factory) |
+| `with` | `[]` | Dependencies to inject via AutoWiring |
+| `factory` | `nil` | Factory expression (required for `.shared` and `.transient` if no type) |
 | `concrete` | `false` | Opt-in for concrete type usage (see DIP section) |
 
 ### `DIScope`
@@ -153,6 +164,42 @@ let vm1 = container.homeViewModel  // New instance
 let vm2 = container.homeViewModel  // Another new instance
 ```
 
+## AutoWiring
+
+For simpler cases, use `Type.self` with `with:` instead of verbose factory closures:
+
+```swift
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var config: AppConfig
+
+    @Provide(.input)
+    var logger: Logger
+
+    // AutoWiring: APIClient(config: self.config, logger: self.logger)
+    @Provide(.shared, APIClient.self, with: [\.config, \.logger])
+    var apiClient: APIClientProtocol
+}
+```
+
+**Requirements**:
+- The property names in `with:` must match the init parameter names of the concrete type
+- Example: `APIClient(config:logger:)` matches `with: [\.config, \.logger]`
+
+**When to use factory closure instead**:
+- Parameter names don't match property names
+- Complex initialization logic needed
+- Need to transform dependencies
+
+```swift
+// Factory closure for complex cases
+@Provide(.shared, factory: { (config: AppConfig) in
+    APIClient(configuration: config, timeout: 30)
+})
+var apiClient: APIClientProtocol
+```
+
 ## Dependency Inversion Principle (DIP)
 
 InnoDI encourages protocol-based dependencies. If you need to use a concrete type, explicitly opt-in with `concrete: true`:
@@ -172,47 +219,38 @@ struct AppContainer {
 
 This makes concrete type usage intentional and visible in code review.
 
-## Overrides (Testing)
+## Init Override (Testing)
 
-The macro generates an `Overrides` struct for dependency substitution:
+The generated init accepts optional parameters for `.shared` and `.transient` dependencies, allowing direct mock injection:
 
 ```swift
-// Production
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var baseURL: String
+
+    @Provide(.shared, factory: APIClient(baseURL: baseURL))
+    var apiClient: APIClientProtocol
+}
+
+// Production - factory creates the instance
 let container = AppContainer(baseURL: "https://api.example.com")
 
-// Testing
-var overrides = AppContainer.Overrides()
-overrides.apiClient = MockAPIClient()
-let testContainer = AppContainer(overrides: overrides, baseURL: "https://test.example.com")
+// Testing - directly inject mock
+let testContainer = AppContainer(
+    baseURL: "https://test.example.com",
+    apiClient: MockAPIClient()  // Override with mock!
+)
 ```
 
-## CLI Static Analysis
-
-Detect dependency issues at build time:
-
-```bash
-swift run InnoDICLI --root /path/to/your/project
-```
-
-Reports:
-- Missing required `.input` arguments
-- Containers not reachable from root containers
-
-Mark root containers for analysis:
-
+Generated init signature:
 ```swift
-@DIContainer(root: true)
-struct AppContainer { ... }
+init(baseURL: String, apiClient: APIClientProtocol? = nil)
 ```
 
-## Examples
-
-See [`Examples/README.md`](Examples/README.md) for runnable examples:
-
-1. DI + Macro Usage
-2. CLI Usage (Static Analysis)
-3. Core Parsing Tests
-4. Macro Expansion Tests
+- `.input` parameters are required
+- `.shared` and `.transient` parameters are optional with `nil` default
+- When `nil`, the factory creates the instance; when provided, uses the injected value
 
 ## License
 

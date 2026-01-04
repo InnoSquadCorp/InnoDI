@@ -55,7 +55,7 @@ struct FeatureContainer {
     @Provide(.shared, factory: AuthService(apiClient: apiClient, cache: cache))
     var authService: AuthService
 
-    @Provide(.shared, factory: UserRepository(database: Database(path: "app.db"), authService: authService))
+    @Provide(.shared, factory: { (authService: AuthService) in UserRepository(database: Database(path: "app.db"), authService: authService) })
     var userRepository: UserRepository
 }
 
@@ -73,10 +73,10 @@ struct AppContainer {
     @Provide(.shared, factory: Cache(maxEntries: 500))
     var cache: Cache
 
-    @Provide(.shared, factory: APIClient(baseURL: config.baseURL, logger: logger))
+    @Provide(.shared, APIClient.self, with: [\.config, \.logger])
     var apiClient: APIClient
 
-    @Provide(.shared, factory: Analytics(apiClient: apiClient, logger: logger))
+    @Provide(.shared, Analytics.self, with: [\.apiClient, \.logger])
     var analytics: Analytics
 
     @Provide(.shared, factory: FeatureFlags(environment: config.environment))
