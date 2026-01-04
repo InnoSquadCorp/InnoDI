@@ -318,8 +318,7 @@ private func makeFactoryExpr(member: ProvideMember, availableNames: [String]) ->
         return ExprSyntax(call)
     }
 
-    // Should be unreachable due to validation
-    return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("nil")))
+    fatalError("No factory expression available - validation should have caught this")
 }
 
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
@@ -350,6 +349,15 @@ private func matchClosureParameter(name: String, index: Int, availableNames: [St
         return name
     }
 
+    let nameWithoutPrefix = name.hasPrefix("_storage_") ? String(name.dropFirst(9)) : name
+
+    for (i, availableName) in availableNames.enumerated() {
+        let availableWithoutPrefix = availableName.hasPrefix("_storage_") ? String(availableName.dropFirst(9)) : availableName
+        if availableWithoutPrefix == nameWithoutPrefix {
+            return availableNames[i]
+        }
+    }
+
     if index < availableNames.count {
         return availableNames[index]
     }
@@ -357,12 +365,29 @@ private func matchClosureParameter(name: String, index: Int, availableNames: [St
     return name
 }
 
+private func mapDependencyNameToStorageName(_ dependencyName: String, availableNames: [String]) -> String {
+    if availableNames.contains(dependencyName) {
+        return dependencyName
+    }
+
+    for availableName in availableNames {
+        if availableName.hasPrefix("_storage_") {
+            let nameWithoutPrefix = String(availableName.dropFirst(9))
+            if nameWithoutPrefix == dependencyName {
+                return availableName
+            }
+        }
+    }
+
+    return dependencyName
+}
+
 private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]) -> ExprSyntax {
     var arguments: [LabeledExprSyntax] = []
-
+    
     for (index, name) in argumentNames.enumerated() {
         let isLast = index == argumentNames.count - 1
-        let expr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(name)))
+        let expr = selfMemberExpr(name: name)
         let argument = LabeledExprSyntax(
             label: nil,
             colon: nil,
@@ -371,19 +396,19 @@ private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]
         )
         arguments.append(argument)
     }
-
+    
     let call = FunctionCallExprSyntax(
         calledExpression: ExprSyntax(closure),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax(arguments),
         rightParen: .rightParenToken()
     )
-
+    
     return ExprSyntax(call)
 }
 
 private func selfMemberExpr(name: String) -> ExprSyntax {
-    let base = DeclReferenceExprSyntax(baseName: .keyword(.self))
+    let base = DeclReferenceExprSyntax(baseName: .identifier("self"))
     let memberAccess = MemberAccessExprSyntax(
         base: ExprSyntax(base),
         declName: DeclReferenceExprSyntax(baseName: .identifier(name))
