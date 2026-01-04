@@ -61,6 +61,7 @@ private struct ProvideMember {
     let scope: ProvideScope
     let factory: ExprSyntax?
     let typeExpr: ExprSyntax?
+    let initializer: ExprSyntax?
     let dependencies: [String]
     let syntax: Syntax
 }
@@ -141,11 +142,6 @@ private func collectProvideMembers(
             continue
         }
 
-        if binding.initializer != nil {
-            context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic("Remove property initializer and pass a factory in @Provide(...).")))
-            hadErrors = true
-        }
-
         let parseResult = parseProvideArguments(attribute)
         guard let scope = parseResult.scope else {
             if let name = parseResult.scopeName {
@@ -155,18 +151,21 @@ private func collectProvideMembers(
             continue
         }
 
-        if scope == .shared && parseResult.factoryExpr == nil && parseResult.typeExpr == nil {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.shared) requires factory: <expr> or type: Type.self.")))
+        let initializerExpr = binding.initializer?.value
+        let hasFactory = parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil
+
+        if scope == .shared && !hasFactory {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.")))
             hadErrors = true
         }
 
-        if scope == .transient && parseResult.factoryExpr == nil && parseResult.typeExpr == nil {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr> or type: Type.self.")))
+        if scope == .transient && !hasFactory {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.")))
             hadErrors = true
         }
 
-        if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil) {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory or type.")))
+        if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil) {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory, type, or initializer.")))
             hadErrors = true
         }
 
@@ -177,6 +176,7 @@ private func collectProvideMembers(
                 scope: scope,
                 factory: parseResult.factoryExpr,
                 typeExpr: parseResult.typeExpr,
+                initializer: initializerExpr,
                 dependencies: parseResult.dependencies,
                 syntax: Syntax(varDecl)
             )
@@ -315,20 +315,25 @@ private func makeFactoryExpr(member: ProvideMember, availableNames: [String]) ->
         }
         return factory
     }
-    
+
+    if let initializer = member.initializer {
+        return initializer
+    }
+
     if let typeExpr = member.typeExpr {
         var args: [LabeledExprSyntax] = []
         for dep in member.dependencies {
+            let storageName = mapDependencyNameToStorageName(dep, availableNames: availableNames)
             args.append(LabeledExprSyntax(
                 label: .identifier(dep),
                 colon: .colonToken(),
                 expression: ExprSyntax(MemberAccessExprSyntax(
-                    base: DeclReferenceExprSyntax(baseName: .keyword(.self)),
-                    declName: DeclReferenceExprSyntax(baseName: .identifier(dep))
+                    base: DeclReferenceExprSyntax(baseName: .identifier("self")),
+                    declName: DeclReferenceExprSyntax(baseName: .identifier(storageName))
                 ))
             ))
         }
-        
+
         let call = FunctionCallExprSyntax(
             calledExpression: typeExpr,
             leftParen: .leftParenToken(),
