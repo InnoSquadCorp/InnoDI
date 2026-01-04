@@ -195,7 +195,6 @@ private func makeInitDecl(
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
 
-    // 1. Input members (Required)
     for (index, member) in inputMembers.enumerated() {
         let isLast = index == inputMembers.count - 1 && sharedMembers.isEmpty && transientMembers.isEmpty
         let param = FunctionParameterSyntax(
@@ -210,31 +209,29 @@ private func makeInitDecl(
         params.append(param)
     }
     
-    // 2. Shared members (Optional override)
     for (index, member) in sharedMembers.enumerated() {
         let isLast = index == sharedMembers.count - 1 && transientMembers.isEmpty
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
             colon: .colonToken(),
-            type: TypeSyntax(OptionalTypeSyntax(wrappedType: member.type)), // Optional for override
+            type: TypeSyntax(OptionalTypeSyntax(wrappedType: member.type.trimmed)),
             ellipsis: nil,
-            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()), // default nil
+            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
             trailingComma: isLast ? nil : .commaToken()
         )
         params.append(param)
     }
     
-    // 3. Transient members (Optional override)
     for (index, member) in transientMembers.enumerated() {
         let isLast = index == transientMembers.count - 1
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
             colon: .colonToken(),
-            type: TypeSyntax(OptionalTypeSyntax(wrappedType: member.type)), // Optional for override
+            type: TypeSyntax(OptionalTypeSyntax(wrappedType: member.type.trimmed)),
             ellipsis: nil,
-            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()), // default nil
+            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
             trailingComma: isLast ? nil : .commaToken()
         )
         params.append(param)
