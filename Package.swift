@@ -29,15 +29,6 @@ let package = Package(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"]
         ),
-        .executableTarget(
-            name: "InnoDICLI",
-            dependencies: [
-                "InnoDICore",
-                .product(name: "SwiftSyntax", package: "swift-syntax"),
-                .product(name: "SwiftParser", package: "swift-syntax"),
-            ]
-        ),
-
         .macro(
             name: "InnoDIMacros",
             dependencies: [
@@ -62,6 +53,6 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
-
+ 
     ]
 )
