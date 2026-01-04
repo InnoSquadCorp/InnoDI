@@ -38,14 +38,18 @@ public struct DIContainerMacro: MemberMacro {
 
         let sharedMembers = provideMembers.filter { $0.scope == .shared }
         let inputMembers = provideMembers.filter { $0.scope == .input }
+        let transientMembers = provideMembers.filter { $0.scope == .transient }
 
         var generated: [DeclSyntax] = []
 
-        if !sharedMembers.isEmpty {
-            generated.append(makeOverridesStruct(sharedMembers: sharedMembers, accessLevel: accessLevel))
-        }
-
-        generated.append(makeInitDecl(sharedMembers: sharedMembers, inputMembers: inputMembers, accessLevel: accessLevel))
+        // No more Overrides struct
+        
+        generated.append(makeInitDecl(
+            sharedMembers: sharedMembers,
+            inputMembers: inputMembers,
+            transientMembers: transientMembers,
+            accessLevel: accessLevel
+        ))
 
         return generated
     }
@@ -56,6 +60,8 @@ private struct ProvideMember {
     let type: TypeSyntax
     let scope: ProvideScope
     let factory: ExprSyntax?
+    let typeExpr: ExprSyntax?
+    let dependencies: [String]
     let syntax: Syntax
 }
 
@@ -149,18 +155,18 @@ private func collectProvideMembers(
             continue
         }
 
-        if scope == .shared && parseResult.factoryExpr == nil {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.shared) requires factory: <expr>.")))
+        if scope == .shared && parseResult.factoryExpr == nil && parseResult.typeExpr == nil {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.shared) requires factory: <expr> or type: Type.self.")))
             hadErrors = true
         }
 
-        if scope == .transient && parseResult.factoryExpr == nil {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr>.")))
+        if scope == .transient && parseResult.factoryExpr == nil && parseResult.typeExpr == nil {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr> or type: Type.self.")))
             hadErrors = true
         }
 
-        if scope == .input && parseResult.factoryExpr != nil {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory.")))
+        if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil) {
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory or type.")))
             hadErrors = true
         }
 
@@ -170,6 +176,8 @@ private func collectProvideMembers(
                 type: typeAnnotation.type,
                 scope: scope,
                 factory: parseResult.factoryExpr,
+                typeExpr: parseResult.typeExpr,
+                dependencies: parseResult.dependencies,
                 syntax: Syntax(varDecl)
             )
         )
@@ -178,69 +186,18 @@ private func collectProvideMembers(
     return result
 }
 
-private func makeOverridesStruct(sharedMembers: [ProvideMember], accessLevel: String?) -> DeclSyntax {
-    let modifiers = accessModifiers(accessLevel)
-    var members: [MemberBlockItemSyntax] = []
-
-    for member in sharedMembers {
-        let name = TokenSyntax.identifier(member.name)
-        let optionalType = TypeSyntax(OptionalTypeSyntax(wrappedType: member.type))
-        let binding = PatternBindingSyntax(
-            pattern: IdentifierPatternSyntax(identifier: name),
-            typeAnnotation: TypeAnnotationSyntax(type: optionalType),
-            initializer: nil,
-            accessorBlock: nil,
-            trailingComma: nil
-        )
-        let varDecl = VariableDeclSyntax(
-            modifiers: modifiers,
-            bindingSpecifier: .keyword(.var),
-            bindings: PatternBindingListSyntax([binding])
-        )
-        members.append(MemberBlockItemSyntax(decl: DeclSyntax(varDecl)))
-    }
-
-    let initDecl = InitializerDeclSyntax(
-        modifiers: modifiers,
-        signature: FunctionSignatureSyntax(parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax([]))),
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([]))
-    )
-    members.append(MemberBlockItemSyntax(decl: DeclSyntax(initDecl)))
-
-    let structDecl = StructDeclSyntax(
-        modifiers: modifiers,
-        name: .identifier("Overrides"),
-        memberBlock: MemberBlockSyntax(members: MemberBlockItemListSyntax(members))
-    )
-
-    return DeclSyntax(structDecl)
-}
-
 private func makeInitDecl(
     sharedMembers: [ProvideMember],
     inputMembers: [ProvideMember],
+    transientMembers: [ProvideMember],
     accessLevel: String?
 ) -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
 
-    if !sharedMembers.isEmpty {
-        let overridesType = TypeSyntax(IdentifierTypeSyntax(name: .identifier("Overrides")))
-        let defaultValue = InitializerClauseSyntax(value: dotInitExpr())
-        let overridesParam = FunctionParameterSyntax(
-            firstName: .identifier("overrides"),
-            secondName: nil,
-            colon: .colonToken(),
-            type: overridesType,
-            ellipsis: nil,
-            defaultValue: defaultValue,
-            trailingComma: inputMembers.isEmpty ? nil : .commaToken()
-        )
-        params.append(overridesParam)
-    }
-
+    // 1. Input members (Required)
     for (index, member) in inputMembers.enumerated() {
-        let isLast = index == inputMembers.count - 1
+        let isLast = index == inputMembers.count - 1 && sharedMembers.isEmpty && transientMembers.isEmpty
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -252,6 +209,36 @@ private func makeInitDecl(
         )
         params.append(param)
     }
+    
+    // 2. Shared members (Optional override)
+    for (index, member) in sharedMembers.enumerated() {
+        let isLast = index == sharedMembers.count - 1 && transientMembers.isEmpty
+        let param = FunctionParameterSyntax(
+            firstName: .identifier(member.name),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(OptionalTypeSyntax(wrappedType: member.type)), // Optional for override
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()), // default nil
+            trailingComma: isLast ? nil : .commaToken()
+        )
+        params.append(param)
+    }
+    
+    // 3. Transient members (Optional override)
+    for (index, member) in transientMembers.enumerated() {
+        let isLast = index == transientMembers.count - 1
+        let param = FunctionParameterSyntax(
+            firstName: .identifier(member.name),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(OptionalTypeSyntax(wrappedType: member.type)), // Optional for override
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()), // default nil
+            trailingComma: isLast ? nil : .commaToken()
+        )
+        params.append(param)
+    }
 
     let signature = FunctionSignatureSyntax(
         parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params))
@@ -259,21 +246,35 @@ private func makeInitDecl(
 
     var statements: [CodeBlockItemSyntax] = []
 
-    let inputNames = inputMembers.map { $0.name }
+    // Assignments
+    
+    // Input: self.name = name
+    for member in inputMembers {
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: member.name, valueName: member.name))))
+    }
 
+    // Shared:
+    // let _name = name ?? Factory(...)
+    // self.name = _name
+    let inputNames = inputMembers.map { $0.name }
     for (index, member) in sharedMembers.enumerated() {
-        let name = TokenSyntax.identifier(member.name)
+        // let name = TokenSyntax.identifier(member.name) // Unused
         let availableNames = inputNames + sharedMembers.prefix(index).map { $0.name }
-        let factoryExpr = makeFactoryExpr(factory: member.factory, availableNames: availableNames)
+        
+        let factoryExpr = makeFactoryExpr(member: member, availableNames: availableNames)
+        
         let initializerExpr = ExprSyntax(
             InfixOperatorExprSyntax(
-                leftOperand: overridesMemberExpr(name: member.name),
+                leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))), // Parameter name
                 operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
                 rightOperand: factoryExpr
             )
         )
+        
+        // let _name = ...
+        let tempName = "_\(member.name)"
         let binding = PatternBindingSyntax(
-            pattern: IdentifierPatternSyntax(identifier: name),
+            pattern: IdentifierPatternSyntax(identifier: .identifier(tempName)),
             typeAnnotation: nil,
             initializer: InitializerClauseSyntax(value: initializerExpr),
             accessorBlock: nil,
@@ -285,14 +286,16 @@ private func makeInitDecl(
             bindings: PatternBindingListSyntax([binding])
         )
         statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(letDecl))))
+        
+        // self.name = _name
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: member.name, valueName: tempName))))
     }
-
-    for member in inputMembers {
-        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: member.name, valueName: member.name))))
-    }
-
-    for member in sharedMembers {
-        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: member.name, valueName: member.name))))
+    
+    // Transient:
+    // self._override_name = name
+    for member in transientMembers {
+        let overrideName = "_override_\(member.name)"
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: overrideName, valueName: member.name))))
     }
 
     let initDecl = InitializerDeclSyntax(
@@ -304,17 +307,39 @@ private func makeInitDecl(
     return DeclSyntax(initDecl)
 }
 
-private func makeFactoryExpr(factory: ExprSyntax?, availableNames: [String]) -> ExprSyntax {
-    guard let factory else {
-        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("nil")))
+private func makeFactoryExpr(member: ProvideMember, availableNames: [String]) -> ExprSyntax {
+    if let factory = member.factory {
+        if let closure = factory.as(ClosureExprSyntax.self) {
+             let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
+             return ExprSyntax(callClosureExpr(closure: closure, argumentNames: argumentNames))
+        }
+        return factory
+    }
+    
+    if let typeExpr = member.typeExpr {
+        var args: [LabeledExprSyntax] = []
+        for dep in member.dependencies {
+            args.append(LabeledExprSyntax(
+                label: .identifier(dep),
+                colon: .colonToken(),
+                expression: ExprSyntax(MemberAccessExprSyntax(
+                    base: DeclReferenceExprSyntax(baseName: .keyword(.self)),
+                    declName: DeclReferenceExprSyntax(baseName: .identifier(dep))
+                ))
+            ))
+        }
+        
+        let call = FunctionCallExprSyntax(
+            calledExpression: typeExpr,
+            leftParen: .leftParenToken(),
+            arguments: LabeledExprListSyntax(args),
+            rightParen: .rightParenToken()
+        )
+        return ExprSyntax(call)
     }
 
-    if let closure = factory.as(ClosureExprSyntax.self) {
-        let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
-        return ExprSyntax(callClosureExpr(closure: closure, argumentNames: argumentNames))
-    }
-
-    return factory
+    // Should be unreachable due to validation
+    return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("nil")))
 }
 
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
@@ -375,27 +400,6 @@ private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]
     )
 
     return ExprSyntax(call)
-}
-
-private func dotInitExpr() -> ExprSyntax {
-    let initDecl = DeclReferenceExprSyntax(baseName: .identifier("init"))
-    let memberAccess = MemberAccessExprSyntax(base: ExprSyntax?.none, declName: initDecl)
-    let call = FunctionCallExprSyntax(
-        calledExpression: memberAccess,
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([]),
-        rightParen: .rightParenToken()
-    )
-    return ExprSyntax(call)
-}
-
-private func overridesMemberExpr(name: String) -> ExprSyntax {
-    let base = DeclReferenceExprSyntax(baseName: .identifier("overrides"))
-    let memberAccess = MemberAccessExprSyntax(
-        base: ExprSyntax(base),
-        declName: DeclReferenceExprSyntax(baseName: .identifier(name))
-    )
-    return ExprSyntax(memberAccess)
 }
 
 private func selfMemberExpr(name: String) -> ExprSyntax {
