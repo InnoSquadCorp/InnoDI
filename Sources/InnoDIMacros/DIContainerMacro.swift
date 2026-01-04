@@ -246,53 +246,28 @@ private func makeInitDecl(
 
     var statements: [CodeBlockItemSyntax] = []
 
-    // Assignments
-    
-    // Input: self.name = name
     for member in inputMembers {
-        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: member.name, valueName: member.name))))
+        let storageName = "_storage_\(member.name)"
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: member.name))))
     }
 
-    // Shared:
-    // let _name = name ?? Factory(...)
-    // self.name = _name
-    let inputNames = inputMembers.map { $0.name }
+    let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
     for (index, member) in sharedMembers.enumerated() {
-        // let name = TokenSyntax.identifier(member.name) // Unused
-        let availableNames = inputNames + sharedMembers.prefix(index).map { $0.name }
-        
-        let factoryExpr = makeFactoryExpr(member: member, availableNames: availableNames)
+        let availableStorageNames = inputStorageNames + sharedMembers.prefix(index).map { "_storage_\($0.name)" }
+        let factoryExpr = makeFactoryExpr(member: member, availableNames: availableStorageNames)
         
         let initializerExpr = ExprSyntax(
             InfixOperatorExprSyntax(
-                leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))), // Parameter name
+                leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))),
                 operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
                 rightOperand: factoryExpr
             )
         )
         
-        // let _name = ...
-        let tempName = "_\(member.name)"
-        let binding = PatternBindingSyntax(
-            pattern: IdentifierPatternSyntax(identifier: .identifier(tempName)),
-            typeAnnotation: nil,
-            initializer: InitializerClauseSyntax(value: initializerExpr),
-            accessorBlock: nil,
-            trailingComma: nil
-        )
-        let letDecl = VariableDeclSyntax(
-            modifiers: DeclModifierListSyntax([]),
-            bindingSpecifier: .keyword(.let),
-            bindings: PatternBindingListSyntax([binding])
-        )
-        statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(letDecl))))
-        
-        // self.name = _name
-        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: member.name, valueName: tempName))))
+        let storageName = "_storage_\(member.name)"
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
     }
     
-    // Transient:
-    // self._override_name = name
     for member in transientMembers {
         let overrideName = "_override_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: overrideName, valueName: member.name))))
@@ -422,6 +397,15 @@ private func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
         leftOperand: selfMemberExpr(name: targetName),
         operator: AssignmentExprSyntax(),
         rightOperand: valueExpr
+    )
+    return ExprSyntax(assignment)
+}
+
+private func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprSyntax {
+    let assignment = InfixOperatorExprSyntax(
+        leftOperand: selfMemberExpr(name: targetName),
+        operator: AssignmentExprSyntax(),
+        rightOperand: value
     )
     return ExprSyntax(assignment)
 }
