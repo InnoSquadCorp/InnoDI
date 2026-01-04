@@ -252,6 +252,59 @@ init(baseURL: String, apiClient: APIClientProtocol? = nil)
 - `.shared` and `.transient` parameters are optional with `nil` default
 - When `nil`, the factory creates the instance; when provided, uses the injected value
 
+## Dependency Graph Visualization
+
+InnoDI includes a command-line tool to generate dependency graphs from your `@DIContainer` declarations. This helps visualize the relationships between containers and their dependencies.
+
+### Installation
+
+The CLI tool is included when you add InnoDI to your project. You can run it via Swift Package Manager:
+
+```bash
+swift run InnoDI-DependencyGraph --help
+```
+
+### Usage
+
+Generate a Mermaid diagram (default):
+
+```bash
+swift run InnoDI-DependencyGraph --root /path/to/your/project
+```
+
+Generate a DOT file for Graphviz:
+
+```bash
+swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.dot
+```
+
+Generate a PNG image directly (requires Graphviz installed):
+
+```bash
+swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
+```
+
+### Options
+
+- `--root <path>`: Root directory of the project (default: current directory)
+- `--format <mermaid|dot|ascii>`: Output format (default: mermaid)
+- `--output <file>`: Output file path (default: stdout)
+
+### Example Output
+
+```
+graph TD
+    AppContainer[root]
+    RepositoryContainer
+    UseCaseContainer
+    RemoteDataSourceContainer
+    FeatureContainer
+    ThirdPartyContainer
+    CoreContainer
+    AppContainer -->|loginBuilder| FeatureContainer
+    AppContainer --> RemoteDataSourceContainer
+```
+
 ## License
 
 MIT
