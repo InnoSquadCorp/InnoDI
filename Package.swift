@@ -6,17 +6,17 @@ import PackageDescription
 let package = Package(
     name: "InnoDI",
     platforms: [
-        .iOS("26.0"),
-        .macOS("26.0"),
-        .watchOS("26.0"),
-        .tvOS("26.0"),
-        .visionOS("26.0"),
+        .iOS(.v26),
+        .macOS(.v26),
+        .watchOS(.v26),
+        .tvOS(.v26),
+        .visionOS(.v26)
     ],
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-syntax.git", from: "602.0.0")
+        .package(url: "https://github.com/apple/swift-syntax.git", from: "602.0.0"),
     ],
     targets: [
         .target(
