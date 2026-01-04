@@ -23,8 +23,8 @@ InnoDI/
 │   │   └── Diagnostics.swift         # 커스텀 진단 메시지
 │   ├── InnoDICore/         # 공유 파싱 유틸리티
 │   │   └── Parsing.swift   # @Provide 및 @DIContainer 속성 파싱
-│   └── InnoDICLI/          # 정적 분석 CLI
-│       └── main.swift      # 컨테이너 사용 검증
+│   └── InnoDI-DependencyGraph/ # 의존성 그래프 시각화 CLI
+│       └── main.swift      # 컨테이너 관계 그래프 생성
 └── Tests/
     ├── InnoDICoreTests/    # 코어 파싱 테스트
     └── InnoDIMacrosTests/  # 매크로 확장 테스트
@@ -89,15 +89,15 @@ struct AppContainer {
 }
 ```
 
-## 정적 분석 흐름 (CLI)
+## 의존성 그래프 생성 흐름 (CLI)
 
-1. **컨테이너 발견**: `ContainerCollector`가 모든 Swift 파일을 순회하여 `@DIContainer` 타입을 찾고 필수 `.input` 속성을 추출
+1. **컨테이너 발견**: `ContainerCollector`가 모든 Swift 파일을 순회하여 `@DIContainer` 타입을 찾고 필수 `.input` 속성과 관계를 추출
 2. **사용 분석**: `ContainerUsageCollector`가 모든 컨테이너 초기화 호출을 찾고 기록:
-   - 어떤 레이블이 전달되었는지 (검증용)
-   - 컨테이너 간 엣지 (접근 가능성 분석용)
-3. **검증**:
-   - 필수 입력 누락: 모든 `.input` 속성이 인자로 전달되었는지 확인
-   - 접근 불가능한 컨테이너: root 컨테이너(명시적 `root: true` 또는 암시적)에서 그래프 순회를 수행하여 모든 컨테이너가 접근 가능한지 확인
+   - 어떤 레이블이 전달되었는지 (의존성 매핑용)
+   - 컨테이너 간 엣지 (그래프 시각화용)
+3. **그래프 생성**:
+   - 컨테이너 관계로부터 의존성 그래프 구축
+   - 지정된 형식으로 출력 (Mermaid, DOT, ASCII, Graphviz를 통한 PNG)
 
 ## 핵심 디자인 패턴
 
@@ -120,7 +120,7 @@ struct AppContainer {
 1. `InnoDICore/Parsing.swift`의 파싱 로직을 먼저 업데이트
 2. `InnoDIMacros/DIContainerMacro.swift`의 매크로 확장 업데이트
 3. `Tests/InnoDIMacrosTests/`에 테스트 케이스 추가
-4. `InnoDICLI/main.swift`의 CLI 영향 고려
+4. `InnoDI-DependencyGraph/main.swift`의 CLI 영향 고려
 
 ### 진단 추가 시
 

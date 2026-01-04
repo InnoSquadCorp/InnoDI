@@ -12,7 +12,7 @@ InnoDI is a Swift dependency injection framework implemented using Swift macros.
 ```bash
 swift build                                    # Build all targets
 swift build --target InnoDI                    # Build library only
-swift build --target InnoDICLI                 # Build CLI tool only
+swift build --target InnoDI-DependencyGraph    # Build CLI tool only
 swift build --target InnoDIMacros              # Build macros only
 ```
 
@@ -25,7 +25,7 @@ swift test --filter InnoDIMacrosTests          # Run macro expansion tests
 
 ### Running the CLI
 ```bash
-swift run InnoDICLI --root /path/to/project   # Validate DI containers in a project
+swift run InnoDI-DependencyGraph --root /path/to/project   # Generate dependency graph from DI containers
 ```
 
 ## Architecture
@@ -52,11 +52,11 @@ The project uses a layered architecture with four main modules:
    - `findAttribute()`: Helper for locating attributes in syntax trees
    - This module prevents parsing logic duplication
 
-4. **InnoDICLI** (Static Analysis)
-   - Validates DI container usage across a codebase
-   - Checks that container initializers receive all required `.input` dependencies
-   - Verifies containers are reachable from root containers
-   - Returns exit code 1 if validation fails
+4. **InnoDI-DependencyGraph** (Dependency Graph Visualization)
+   - Generates dependency graphs from DI container usage across a codebase
+   - Analyzes container relationships and generates visual graphs
+   - Supports multiple output formats (Mermaid, DOT, ASCII, PNG)
+   - Uses SwiftSyntax for parsing DI annotations
 
 ### How the Macros Work
 
@@ -104,7 +104,7 @@ When modifying macro behavior:
 1. Update parsing logic in `InnoDICore/Parsing.swift` first
 2. Update macro expansion in `InnoDIMacros/DIContainerMacro.swift`
 3. Add test cases to `Tests/InnoDIMacrosTests/`
-4. Consider CLI implications in `InnoDICLI/main.swift`
+4. Consider CLI implications in `InnoDI-DependencyGraph/main.swift`
 
 When adding diagnostics:
 - Use `SimpleDiagnostic` for error messages

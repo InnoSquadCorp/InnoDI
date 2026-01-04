@@ -4,7 +4,7 @@
 - `Sources/InnoDI`: Public API surface (macros declarations, core types).
 - `Sources/InnoDIMacros`: Macro implementations and diagnostics.
 - `Sources/InnoDICore`: Shared parsing/analysis utilities used by macros and CLI.
-- `Sources/InnoDICLI`: Static analysis CLI for validating container usage.
+- `Sources/InnoDI-DependencyGraph`: Static analysis CLI for generating dependency graphs.
 - `Tests/InnoDICoreTests`: SwiftTesting-based unit tests for core parsing.
 - `.github/workflows`: CI workflows (if present) for automated checks.
 
@@ -12,6 +12,7 @@
 - `swift build`: Build all targets (library, macros, CLI).
 - `swift test`: Run test suites (SwiftTesting); macro tests are CI-only.
 - `swift test --filter InnoDIMacrosTests`: Run macro tests when enabled in CI with `INNODI_RUN_MACRO_TESTS=1`.
+- `swift run InnoDI-DependencyGraph --root /path/to/project`: Generate dependency graph from DI containers.
 
 ## Coding Style & Naming Conventions
 - Swift: 4-space indentation; follow Swift API Design Guidelines.

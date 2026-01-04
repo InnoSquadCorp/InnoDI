@@ -23,10 +23,10 @@ The project is organized into a layered architecture with four primary modules:
     *   Centralizes parsing logic for attributes to ensure consistency between the Macros and the CLI.
     *   Handles parsing of `@Provide` arguments and `@DIContainer` flags.
 
-4.  **`InnoDICLI` (Static Analysis)**
-    *   Executable tool that validates DI usage across a project.
-    *   Checks for missing `.input` dependencies in container initializations.
-    *   Verifies that all containers are reachable from "root" containers.
+4.  **`InnoDI-DependencyGraph` (Dependency Graph Visualization)**
+    *   Executable tool that generates dependency graphs from DI usage across a project.
+    *   Analyzes container relationships and outputs visual graphs.
+    *   Supports multiple formats (Mermaid, DOT, ASCII, PNG).
 
 ## Key Concepts
 
@@ -60,8 +60,8 @@ swift test                     # Run all tests
 
 ### Run CLI
 ```bash
-# Validate a project at a specific path
-swift run InnoDICLI --root /path/to/project
+# Generate dependency graph from a project
+swift run InnoDI-DependencyGraph --root /path/to/project
 ```
 
 ## Development Conventions

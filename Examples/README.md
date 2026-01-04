@@ -55,17 +55,30 @@ let testContainer = AppContainer(
 )
 ```
 
-### 2) CLI Usage (Static Analysis)
+### 2) CLI Usage (Dependency Graph Visualization)
 
 Runnable example:
 - `Examples/SampleApp/AppContainer.swift`
 - `Examples/SampleApp/App.swift`
-- Run: `swift run InnoDICLI --root Examples/SampleApp`
+- Run: `swift run InnoDI-DependencyGraph --root Examples/SampleApp`
 
 Run the CLI from the package root or point it at another repo:
 
 ```bash
-swift run InnoDICLI --root /path/to/your/project
+swift run InnoDI-DependencyGraph --root /path/to/your/project
+```
+
+Generate different formats:
+
+```bash
+# Mermaid diagram (default)
+swift run InnoDI-DependencyGraph --root /path/to/your/project
+
+# DOT format for Graphviz
+swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.dot
+
+# PNG image (requires Graphviz)
+swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
 ```
 
 The CLI reports:
