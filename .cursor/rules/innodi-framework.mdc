@@ -54,6 +54,7 @@ InnoDI/
 
 - **`.shared`**: Singleton-like 의존성, init에서 factory로 생성 (requires `factory:` 파라미터)
 - **`.input`**: init 파라미터로 전달되는 의존성 (`factory:` 포함 불가)
+- **`.transient`**: 매번 접근 시 새로운 인스턴스 생성 (requires `factory:` 파라미터)
 
 ### 매크로 확장 예제
 

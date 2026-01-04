@@ -75,16 +75,17 @@ The project uses a layered architecture with four main modules:
 **@Provide** scope semantics:
 - `.shared`: Singleton-like dependencies created by factory in init (requires `factory:` parameter)
 - `.input`: Dependencies passed as init parameters (must not have `factory:`)
+- `.transient`: New instance created on every access (requires `factory:` parameter)
 
-### Static Analysis Flow (CLI)
+### Dependency Graph Generation Flow (CLI)
 
-1. **Container Discovery**: `ContainerCollector` walks all Swift files to find `@DIContainer` types and extract their required `.input` properties
+1. **Container Discovery**: `ContainerCollector` walks all Swift files to find `@DIContainer` types and extract their required `.input` properties and relationships
 2. **Usage Analysis**: `ContainerUsageCollector` finds all container initialization calls and records:
-   - Which labels were passed (for validation)
-   - Container-to-container edges (for reachability analysis)
-3. **Validation**:
-   - Missing required inputs: Checks that all `.input` properties are passed as arguments
-   - Unreachable containers: Performs graph traversal from root containers (explicit via `root: true` or implicit if no roots defined) to ensure all containers are reachable
+   - Which labels were passed (for dependency mapping)
+   - Container-to-container edges (for graph visualization)
+3. **Graph Generation**:
+   - Builds dependency graph from container relationships
+   - Outputs in specified format (Mermaid, DOT, ASCII, or PNG via Graphviz)
 
 ## Key Design Patterns
 

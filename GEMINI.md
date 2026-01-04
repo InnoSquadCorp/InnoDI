@@ -10,7 +10,7 @@ The project is organized into a layered architecture with four primary modules:
 
 1.  **`InnoDI` (Public API)**
     *   Contains the `@DIContainer` and `@Provide` macro declarations.
-    *   Defines the `DIScope` enum (`.shared`, `.input`).
+    *   Defines the `DIScope` enum (`.shared`, `.input`, `.transient`).
     *   This is the library imported by consumers.
 
 2.  **`InnoDIMacros` (Macro Implementation)**
@@ -37,19 +37,20 @@ The project is organized into a layered architecture with four primary modules:
 *   **`@Provide(scope, factory)`**: Applied to properties within a container.
     *   **`.shared`**: Singleton-like within the container. Requires a `factory` closure.
     *   **`.input`**: Dependency passed in from the parent/caller. Must *not* have a factory.
+    *   **`.transient`**: New instance created on every access. Requires a `factory` closure.
 
-### CLI Validation
-The CLI performs static analysis to ensure:
-*   All `.input` dependencies are satisfied when a container is initialized.
-*   All containers are part of a valid dependency graph rooted at containers marked `root: true`.
+### CLI Graph Generation
+The CLI performs static analysis to generate dependency graphs:
+*   Analyzes container relationships and initialization patterns.
+*   Outputs visual graphs in multiple formats (Mermaid, DOT, ASCII, PNG).
 
 ## Building and Running
 
 ### Build
 ```bash
-swift build                    # Build all targets
-swift build --target InnoDI    # Build library only
-swift build --target InnoDICLI # Build CLI tool only
+swift build                            # Build all targets
+swift build --target InnoDI            # Build library only
+swift build --target InnoDI-DependencyGraph # Build CLI tool only
 ```
 
 ### Test
