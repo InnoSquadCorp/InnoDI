@@ -17,13 +17,17 @@ public struct ProvideArguments {
     public let isDefaultScope: Bool
     public let factoryExpr: ExprSyntax?
     public let concrete: Bool
+    public let typeExpr: ExprSyntax?
+    public let dependencies: [String]
 
-    public init(scope: ProvideScope?, scopeName: String?, isDefaultScope: Bool, factoryExpr: ExprSyntax?, concrete: Bool = false) {
+    public init(scope: ProvideScope?, scopeName: String?, isDefaultScope: Bool, factoryExpr: ExprSyntax?, concrete: Bool = false, typeExpr: ExprSyntax? = nil, dependencies: [String] = []) {
         self.scope = scope
         self.scopeName = scopeName
         self.isDefaultScope = isDefaultScope
         self.factoryExpr = factoryExpr
         self.concrete = concrete
+        self.typeExpr = typeExpr
+        self.dependencies = dependencies
     }
 }
 
@@ -33,13 +37,17 @@ public struct ProvideAttributeInfo {
     public let scopeName: String?
     public let factoryExpr: ExprSyntax?
     public let concrete: Bool
+    public let typeExpr: ExprSyntax?
+    public let dependencies: [String]
 
-    public init(hasProvide: Bool, scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?, concrete: Bool = false) {
+    public init(hasProvide: Bool, scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?, concrete: Bool = false, typeExpr: ExprSyntax? = nil, dependencies: [String] = []) {
         self.hasProvide = hasProvide
         self.scope = scope
         self.scopeName = scopeName
         self.factoryExpr = factoryExpr
         self.concrete = concrete
+        self.typeExpr = typeExpr
+        self.dependencies = dependencies
     }
 }
 
@@ -70,25 +78,58 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var scope: ProvideScope?
     var factoryExpr: ExprSyntax?
     var concrete: Bool = false
+    var typeExpr: ExprSyntax?
+    var dependencies: [String] = []
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
-            if let label = argument.label?.text, label == "factory" {
-                factoryExpr = argument.expression
-                continue
-            }
-            
-            if let label = argument.label?.text, label == "concrete" {
-                if let value = parseBoolLiteral(argument.expression) {
-                    concrete = value
+            if let label = argument.label?.text {
+                if label == "factory" {
+                    factoryExpr = argument.expression
+                    continue
                 }
-                continue
-            }
-
-            if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
-                let name = memberAccess.declName.baseName.text
-                scopeName = name
-                scope = ProvideScope(rawValue: name)
+                if label == "concrete" {
+                    if let value = parseBoolLiteral(argument.expression) {
+                        concrete = value
+                    }
+                    continue
+                }
+                if label == "with" {
+                    if let arrayExpr = argument.expression.as(ArrayExprSyntax.self) {
+                        for element in arrayExpr.elements {
+                            // \.config, \.logger (KeyPathExprSyntax)
+                            if let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                               let property = keyPath.components.last?.component.as(KeyPathPropertyComponentSyntax.self)?.declName.baseName.text {
+                                dependencies.append(property)
+                            }
+                        }
+                    }
+                    continue
+                }
+            } else {
+                // Positional arguments
+                if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self),
+                   memberAccess.declName.baseName.text == "self" {
+                    // Type argument (e.g., APIClient.self)
+                    typeExpr = memberAccess.base
+                    continue
+                }
+                
+                if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self),
+                   let scope = ProvideScope(rawValue: memberAccess.declName.baseName.text) {
+                    scopeName = memberAccess.declName.baseName.text
+                    // Assign to outer scope variable
+                    _ = scope // Just to silence unused warning if any, but actually we need to assign to the outer `scope` var
+                }
+                
+                // Re-check for scope more robustly
+                if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
+                     let name = memberAccess.declName.baseName.text
+                     if let s = ProvideScope(rawValue: name) {
+                         scopeName = name
+                         scope = s
+                     }
+                }
             }
         }
     }
@@ -96,10 +137,10 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     if scopeName == nil {
         scopeName = ProvideScope.shared.rawValue
         scope = .shared
-        return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: true, factoryExpr: factoryExpr, concrete: concrete)
+        return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: true, factoryExpr: factoryExpr, concrete: concrete, typeExpr: typeExpr, dependencies: dependencies)
     }
 
-    return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: false, factoryExpr: factoryExpr, concrete: concrete)
+    return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: false, factoryExpr: factoryExpr, concrete: concrete, typeExpr: typeExpr, dependencies: dependencies)
 }
 
 public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideAttributeInfo {
@@ -113,7 +154,9 @@ public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> Provide
         scope: args.scope,
         scopeName: args.scopeName,
         factoryExpr: args.factoryExpr,
-        concrete: args.concrete
+        concrete: args.concrete,
+        typeExpr: args.typeExpr,
+        dependencies: args.dependencies
     )
 }
 

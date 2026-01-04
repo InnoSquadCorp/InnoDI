@@ -18,6 +18,8 @@ public macro DIContainer(validate: Bool = true, root: Bool = false) = #externalM
 @attached(accessor)
 public macro Provide(
     _ scope: DIScope = .shared,
+    _ type: Any.Type? = nil,
+    with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     concrete: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
