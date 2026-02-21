@@ -131,7 +131,7 @@ Run:
 swift test
 ```
 
-### 4) Macro Expansion Tests (CI-only by default)
+### 4) Macro Expansion Tests
 
 ```swift
 import SwiftSyntaxMacros
@@ -177,8 +177,8 @@ final class DIContainerMacroTests: XCTestCase {
 }
 ```
 
-Run (CI-style):
+Run:
 
 ```bash
-INNODI_RUN_MACRO_TESTS=1 swift test --filter InnoDIMacrosTests
+swift test --filter InnoDIMacrosTests
 ```

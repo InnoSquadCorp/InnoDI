@@ -10,8 +10,8 @@
 
 ## Build, Test, and Development Commands
 - `swift build`: Build all targets (library, macros, CLI).
-- `swift test`: Run test suites (SwiftTesting); macro tests are CI-only.
-- `swift test --filter InnoDIMacrosTests`: Run macro tests when enabled in CI with `INNODI_RUN_MACRO_TESTS=1`.
+- `swift test`: Run all SwiftTesting suites, including macro tests.
+- `swift test --filter InnoDIMacrosTests`: Run only macro-focused tests.
 - `swift run InnoDI-DependencyGraph --root /path/to/project`: Generate dependency graph from DI containers.
 
 ## Coding Style & Naming Conventions
