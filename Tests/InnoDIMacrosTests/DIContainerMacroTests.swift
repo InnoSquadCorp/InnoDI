@@ -229,6 +229,10 @@ struct DIContainerMacroTests {
         )
 
         #expect(!generated.isEmpty)
+        let initCode = generated.first?.description ?? ""
+        #expect(initCode.contains("apiClient"))
+        #expect(initCode.contains("_storage_apiClient"))
+        #expect(context.diagnostics.isEmpty)
     }
 
     @Test
@@ -257,6 +261,35 @@ struct DIContainerMacroTests {
 
         #expect(!generated.isEmpty)
         #expect(generated.first?.description.contains("Missing factory for shared dependency 'service'.") == true)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
+    func validateFalseStillRejectsInputFactory() throws {
+        let source = """
+        @DIContainer(validate: false)
+        struct AppContainer {
+            @Provide(.input, factory: Service())
+            var service: ServiceProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer(validate: false)")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("@Provide(.input) should not include a factory") })
     }
 }
 

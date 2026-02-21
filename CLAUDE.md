@@ -73,7 +73,7 @@ The project uses a layered architecture with four main modules:
 - `.shared`: Singleton-like dependencies created by factory in init (requires `factory:` parameter)
 - `.input`: Dependencies passed as init parameters (must not have `factory:`)
 - `.transient`: New instance created on every access (requires `factory:` parameter)
-- Concrete dependency types require `concrete: true` opt-in
+- Concrete dependency types require `concrete: true` opt-in (enforced even when `validate: false`)
 
 ### Dependency Graph Generation Flow (CLI)
 
