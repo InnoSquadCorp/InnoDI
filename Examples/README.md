@@ -141,7 +141,7 @@ import XCTest
 @testable import InnoDIMacros
 
 final class DIContainerMacroTests: XCTestCase {
-    func testDIContainerGeneratesInitAndOverrides() {
+    func testDIContainerGeneratesInitWithOptionalOverrideParameters() {
         let macros: [String: Macro.Type] = [
             "DIContainer": DIContainerMacro.self,
         ]
@@ -160,14 +160,8 @@ final class DIContainerMacroTests: XCTestCase {
             struct AppContainer {
                 @Provide(.shared, factory: Foo())
                 var foo: Foo
-                struct Overrides {
-                    var foo: Foo?
-                    init() {
-                    }
-                }
-                init(overrides: Overrides = .init()) {
-                    let foo = overrides.foo ?? Foo()
-                    self.foo = foo
+                init(foo: Foo? = nil) {
+                    self._storage_foo = foo ?? Foo()
                 }
             }
             """,

@@ -17,17 +17,18 @@ struct AppContainer {
     @Provide(.input)
     var config: Config
 
-    @Provide(.shared, factory: { (config: Config) in APIClient(baseURL: config.baseURL) })
+    @Provide(.shared, factory: { (config: Config) in APIClient(baseURL: config.baseURL) }, concrete: true)
     var apiClient: APIClient
 
-    @Provide(.shared, factory: { (apiClient: APIClient) in UserService(client: apiClient) })
+    @Provide(.shared, factory: { (apiClient: APIClient) in UserService(client: apiClient) }, concrete: true)
     var userService: UserService
 }
 
 let container = AppContainer(config: Config(baseURL: "https://api.example.com"))
 print("Live baseURL:", container.userService.client.baseURL)
 
-var overrides = AppContainer.Overrides()
-overrides.apiClient = APIClient(baseURL: "mock://")
-let mockContainer = AppContainer(overrides: overrides, config: Config(baseURL: "https://api.example.com"))
+let mockContainer = AppContainer(
+    config: Config(baseURL: "https://api.example.com"),
+    apiClient: APIClient(baseURL: "mock://")
+)
 print("Mock baseURL:", mockContainer.userService.client.baseURL)
