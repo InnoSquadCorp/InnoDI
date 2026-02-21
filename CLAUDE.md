@@ -40,8 +40,8 @@ The project uses a layered architecture with four main modules:
    - This is what library consumers import
 
 2. **InnoDIMacros** (Macro Implementation)
-   - `DIContainerMacro`: Member macro that generates an `init` and optional `Overrides` struct
-   - `ProvideMacro`: Accessor macro (currently empty, used for syntax validation)
+   - `DIContainerMacro`: Member macro that generates an `init` and validates `@Provide` usage
+   - `ProvideMacro`: Accessor macro that emits storage/accessor code per scope
    - `SimpleDiagnostic`: Custom diagnostic messages for macro errors
    - Depends on `InnoDICore` for shared parsing logic
 
@@ -63,19 +63,17 @@ The project uses a layered architecture with four main modules:
 **@DIContainer** generates:
 - An `init` with parameters for:
   - `.input` scoped properties (required parameters)
-  - `overrides: Overrides = .init()` (if any `.shared` properties exist)
+  - `.shared` and `.transient` scoped properties (optional override parameters)
 - The init body:
-  1. For `.shared` properties: `let prop = overrides.prop ?? factory()`
-  2. Assigns all `.input` properties: `self.prop = prop`
-  3. Assigns all `.shared` properties: `self.prop = prop`
-- An `Overrides` struct (only if `.shared` properties exist):
-  - Optional property for each `.shared` dependency
-  - Empty `init()`
+  1. Assigns all `.input` properties to generated storage
+  2. Resolves `.shared` properties with `override ?? factory`
+  3. Stores `.transient` overrides for accessor-time usage
 
 **@Provide** scope semantics:
 - `.shared`: Singleton-like dependencies created by factory in init (requires `factory:` parameter)
 - `.input`: Dependencies passed as init parameters (must not have `factory:`)
 - `.transient`: New instance created on every access (requires `factory:` parameter)
+- Concrete dependency types require `concrete: true` opt-in
 
 ### Dependency Graph Generation Flow (CLI)
 
@@ -93,10 +91,10 @@ The project uses a layered architecture with four main modules:
 All attribute parsing logic lives in `InnoDICore` to ensure macros and CLI interpret `@Provide` and `@DIContainer` identically. When adding new macro parameters, update both the parsing functions and the macro expansion logic.
 
 ### SwiftSyntaxBuilder Usage
-Macros prefer `SwiftSyntaxBuilder` APIs over string concatenation for AST generation. This provides type safety and correct formatting. See `makeInitDecl()` and `makeOverridesStruct()` for examples.
+Macros prefer `SwiftSyntaxBuilder` APIs over string concatenation for AST generation. This provides type safety and correct formatting. See `makeInitDecl()` for examples.
 
 ### Access Level Propagation
-The generated `init` and `Overrides` struct inherit the access level of the container type (public, internal, fileprivate, private) via `containerAccessLevel()`.
+The generated `init` inherits the access level of the container type (public, internal, fileprivate, private) via `containerAccessLevel()`.
 
 ## Common Development Tasks
 

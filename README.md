@@ -79,7 +79,7 @@ Marks a struct as a DI container. Generates `init(...)` with optional override p
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `validate` | `true` | Enable compile-time validation |
+| `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes checks and may emit runtime fallback traps for invalid shared factories |
 
 ### `@Provide`
 
@@ -95,7 +95,7 @@ Declares a dependency with its scope and factory.
 | `type` | `nil` | Concrete type for AutoWiring (alternative to factory) |
 | `with` | `[]` | Dependencies to inject via AutoWiring |
 | `factory` | `nil` | Factory expression (required for `.shared` and `.transient` if no type) |
-| `concrete` | `false` | Opt-in for concrete type usage (see DIP section) |
+| `concrete` | `false` | Required opt-in when the dependency property type is concrete (see DIP section) |
 
 ### `DIScope`
 
@@ -202,7 +202,7 @@ var apiClient: APIClientProtocol
 
 ## Dependency Inversion Principle (DIP)
 
-InnoDI encourages protocol-based dependencies. If you need to use a concrete type, explicitly opt-in with `concrete: true`:
+InnoDI enforces protocol-first dependencies for `.shared` and `.transient`. If you need to use a concrete type, explicitly opt-in with `concrete: true`:
 
 ```swift
 @DIContainer
