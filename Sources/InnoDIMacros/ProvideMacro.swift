@@ -76,12 +76,9 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             
             if let factory = parseResult.factoryExpr {
                 if factory.is(ClosureExprSyntax.self) {
-                     createExpr = ExprSyntax(FunctionCallExprSyntax(
-                        calledExpression: factory,
-                        leftParen: .leftParenToken(),
-                        arguments: [],
-                        rightParen: .rightParenToken()
-                    ))
+                    let closure = factory.as(ClosureExprSyntax.self)!
+                    let argumentNames = closureArgumentNames(closure: closure)
+                    createExpr = callClosureExpr(closure: closure, argumentNames: argumentNames)
                 } else {
                     createExpr = factory
                 }
@@ -138,4 +135,51 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return [getter]
         }
     }
+}
+
+private func closureArgumentNames(closure: ClosureExprSyntax) -> [String] {
+    guard let signature = closure.signature,
+          let parameterClause = signature.parameterClause else {
+        return []
+    }
+
+    var names: [String] = []
+    switch parameterClause {
+    case .simpleInput(let shorthandParameters):
+        for parameter in shorthandParameters {
+            names.append(parameter.name.text)
+        }
+    case .parameterClause(let parameters):
+        for parameter in parameters.parameters {
+            names.append(parameter.secondName?.text ?? parameter.firstName.text)
+        }
+    }
+
+    return names
+}
+
+private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]) -> ExprSyntax {
+    var arguments: [LabeledExprSyntax] = []
+    for (index, name) in argumentNames.enumerated() {
+        let isLast = index == argumentNames.count - 1
+        let argument = LabeledExprSyntax(
+            label: nil,
+            colon: nil,
+            expression: ExprSyntax(MemberAccessExprSyntax(
+                base: DeclReferenceExprSyntax(baseName: .identifier("self")),
+                declName: DeclReferenceExprSyntax(baseName: .identifier(name))
+            )),
+            trailingComma: isLast ? nil : .commaToken()
+        )
+        arguments.append(argument)
+    }
+
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(closure),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax(arguments),
+        rightParen: .rightParenToken()
+    )
+
+    return ExprSyntax(call)
 }
