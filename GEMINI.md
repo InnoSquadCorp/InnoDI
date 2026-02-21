@@ -33,12 +33,12 @@ The project is organized into a layered architecture with four primary modules:
 ### Macros
 *   **`@DIContainer(validate: Bool, root: Bool)`**: Applied to a class/struct to make it a DI container.
     *   Generates an `init` method.
-    *   `validate: false` relaxes compile-time scope/factory checks and emits runtime fallback traps for invalid shared factories.
+    *   `validate: false` relaxes compile-time missing-factory checks and emits runtime `fatalError` fallback for missing `.shared` factories. `.input` factory prohibition remains enforced.
 *   **`@Provide(scope, factory)`**: Applied to properties within a container.
     *   **`.shared`**: Singleton-like within the container. Requires a `factory` closure.
     *   **`.input`**: Dependency passed in from the parent/caller. Must *not* have a factory.
     *   **`.transient`**: New instance created on every access. Requires a `factory` closure.
-    *   Concrete types require explicit `concrete: true` opt-in.
+    *   Concrete types require explicit `concrete: true` opt-in (enforced even when `validate: false`).
 
 ### CLI Graph Generation
 The CLI performs static analysis to generate dependency graphs:

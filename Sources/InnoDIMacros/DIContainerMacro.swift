@@ -172,7 +172,7 @@ private func collectProvideMembers(
             hadErrors = true
         }
 
-        if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil) && validateEnabled {
+        if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil) {
             context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory, type, or initializer.")))
             hadErrors = true
         }

@@ -62,7 +62,7 @@ For more control, use factory closures instead:
 
 ```swift
 @Provide(.shared, factory: { (baseURL: String) in
-    APIClient(configuration: config, timeout: 30)
+    APIClient(baseURL: baseURL, timeout: 30)
 })
 var apiClient: APIClientProtocol
 ```
@@ -79,7 +79,7 @@ Marks a struct as a DI container. Generates `init(...)` with optional override p
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes checks and may emit runtime fallback traps for invalid shared factories |
+| `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes missing-factory checks for `.shared`/`.transient` and emits runtime `fatalError` fallback for missing `.shared` factories. `.input` factory prohibition and concrete opt-in remain enforced. |
 
 ### `@Provide`
 
