@@ -91,7 +91,62 @@ struct DIContainerMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("_override_viewModel"))
+        #expect(generated.contains("return"))
         #expect(generated.contains("self.apiClient"))
+    }
+
+    @Test
+    func transientFactoryClosureWithNoParametersDoesNotInjectDependencies() throws {
+        let source = """
+        @Provide(.transient, factory: { ViewModel() })
+        var viewModel: ViewModel
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide with parameterless transient factory closure")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: varDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("ViewModel()"))
+        #expect(generated.contains("{ ViewModel() }()"))
+        #expect(!generated.contains("self."))
+    }
+
+    @Test
+    func transientFactoryClosureInjectsAllDependenciesForMultipleParameters() throws {
+        let source = """
+        @Provide(.transient, factory: { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) })
+        var viewModel: ViewModel
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide with multi-parameter transient factory closure")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: varDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("self.apiClient"))
+        #expect(generated.contains("self.logger"))
     }
 }
 
