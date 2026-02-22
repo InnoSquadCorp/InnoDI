@@ -4,6 +4,7 @@
 //
 
 import InnoDICore
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
@@ -75,13 +76,18 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             var createExpr: ExprSyntax
             
             if let factory = parseResult.factoryExpr {
-                if factory.is(ClosureExprSyntax.self) {
-                     createExpr = ExprSyntax(FunctionCallExprSyntax(
-                        calledExpression: factory,
-                        leftParen: .leftParenToken(),
-                        arguments: [],
-                        rightParen: .rightParenToken()
-                    ))
+                if let closure = factory.as(ClosureExprSyntax.self) {
+                    let parsedArguments = closureArgumentNames(closure: closure)
+                    if parsedArguments.hasWildcard {
+                        context.diagnose(
+                            Diagnostic(
+                                node: Syntax(closure),
+                                message: SimpleDiagnostic("Transient factory closure parameters must be named for injection.")
+                            )
+                        )
+                        return [fatalErrorGetter("Transient factory closure parameters must be named for injection.")]
+                    }
+                    createExpr = callClosureExpr(closure: closure, argumentNames: parsedArguments.names)
                 } else {
                     createExpr = factory
                 }
@@ -107,13 +113,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             } else if let initializer = binding.initializer?.value {
                 createExpr = initializer
             } else {
-                let getter = AccessorDeclSyntax(
-                    accessorSpecifier: .keyword(.get),
-                    body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
-                        CodeBlockItemSyntax(item: .stmt(StmtSyntax("fatalError(\"Missing factory for transient dependency\")")))
-                    ]))
-                )
-                return [getter]
+                return [fatalErrorGetter("Missing factory for transient dependency")]
             }
             
             let getterBody = CodeBlockItemListSyntax([
@@ -138,4 +138,87 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return [getter]
         }
     }
+}
+
+private struct ClosureArgumentList {
+    let names: [String]
+    let hasWildcard: Bool
+}
+
+private func closureArgumentNames(closure: ClosureExprSyntax) -> ClosureArgumentList {
+    guard let signature = closure.signature,
+          let parameterClause = signature.parameterClause else {
+        return ClosureArgumentList(names: [], hasWildcard: false)
+    }
+
+    var names: [String] = []
+    var hasWildcard = false
+    switch parameterClause {
+    case .simpleInput(let shorthandParameters):
+        for parameter in shorthandParameters {
+            let name = parameter.name.text
+            if name == "_" {
+                hasWildcard = true
+                continue
+            }
+            names.append(name)
+        }
+    case .parameterClause(let parameters):
+        for parameter in parameters.parameters {
+            let name = parameter.secondName?.text ?? parameter.firstName.text
+            if name == "_" {
+                hasWildcard = true
+                continue
+            }
+            names.append(name)
+        }
+    }
+
+    return ClosureArgumentList(names: names, hasWildcard: hasWildcard)
+}
+
+private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]) -> ExprSyntax {
+    var arguments: [LabeledExprSyntax] = []
+    for (index, name) in argumentNames.enumerated() {
+        let isLast = index == argumentNames.count - 1
+        let argument = LabeledExprSyntax(
+            label: nil,
+            colon: nil,
+            expression: ExprSyntax(MemberAccessExprSyntax(
+                base: DeclReferenceExprSyntax(baseName: .identifier("self")),
+                declName: DeclReferenceExprSyntax(baseName: .identifier(name))
+            )),
+            trailingComma: isLast ? nil : .commaToken()
+        )
+        arguments.append(argument)
+    }
+
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(closure),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax(arguments),
+        rightParen: .rightParenToken()
+    )
+
+    return ExprSyntax(call)
+}
+
+private func fatalErrorGetter(_ message: String) -> AccessorDeclSyntax {
+    let fatalErrorCall = FunctionCallExprSyntax(
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([
+            LabeledExprSyntax(
+                expression: ExprSyntax(StringLiteralExprSyntax(content: message))
+            )
+        ]),
+        rightParen: .rightParenToken()
+    )
+
+    return AccessorDeclSyntax(
+        accessorSpecifier: .keyword(.get),
+        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+            CodeBlockItemSyntax(item: .expr(ExprSyntax(fatalErrorCall)))
+        ]))
+    )
 }
