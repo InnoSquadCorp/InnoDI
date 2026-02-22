@@ -130,6 +130,35 @@ private struct CLIRunResult {
     let stderr: String
 }
 
+private struct ExecutableNotFound: Error, LocalizedError {
+    let searchedPaths: [String]
+
+    init(searchedPaths: [String]) {
+        self.searchedPaths = searchedPaths
+    }
+
+    var errorDescription: String? {
+        "Could not find InnoDI-DependencyGraph executable. Searched paths: \(searchedPaths.joined(separator: ", "))"
+    }
+}
+
+private final class DataSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func set(_ value: Data) {
+        lock.lock()
+        data = value
+        lock.unlock()
+    }
+
+    func get() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
+    }
+}
+
 private func runCLI(_ arguments: [String]) throws -> CLIRunResult {
     let process = Process()
     process.executableURL = try dependencyGraphExecutableURL()
@@ -142,15 +171,39 @@ private func runCLI(_ arguments: [String]) throws -> CLIRunResult {
     process.standardError = stderrPipe
 
     try process.run()
-    process.waitUntilExit()
+    defer {
+        stdoutPipe.fileHandleForReading.closeFile()
+        stderrPipe.fileHandleForReading.closeFile()
+    }
 
-    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+    let readGroup = DispatchGroup()
+    let stdoutSink = DataSink()
+    let stderrSink = DataSink()
+
+    readGroup.enter()
+    DispatchQueue.global(qos: .userInitiated).async {
+        let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        stdoutSink.set(data)
+        readGroup.leave()
+    }
+
+    readGroup.enter()
+    DispatchQueue.global(qos: .userInitiated).async {
+        let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        stderrSink.set(data)
+        readGroup.leave()
+    }
+
+    process.waitUntilExit()
+    readGroup.wait()
+
+    let finalStdout = stdoutSink.get()
+    let finalStderr = stderrSink.get()
 
     return CLIRunResult(
         exitCode: process.terminationStatus,
-        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-        stderr: String(data: stderrData, encoding: .utf8) ?? ""
+        stdout: String(data: finalStdout, encoding: .utf8) ?? "",
+        stderr: String(data: finalStderr, encoding: .utf8) ?? ""
     )
 }
 
@@ -181,8 +234,8 @@ private func dependencyGraphExecutableURL() throws -> URL {
         }
     }
 
-    struct ExecutableNotFound: Error {}
-    throw ExecutableNotFound()
+    let searchedPaths = directCandidates.map { $0.path(percentEncoded: false) } + [buildURL.path(percentEncoded: false)]
+    throw ExecutableNotFound(searchedPaths: searchedPaths)
 }
 
 private func packageRootURL() -> URL {

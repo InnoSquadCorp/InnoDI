@@ -65,6 +65,7 @@ The project uses a layered architecture with four main modules:
 - An `init` with parameters for:
   - `.input` scoped properties (required parameters)
   - `.shared` and `.transient` scoped properties (optional override parameters)
+- No separate `Overrides` struct is generated in the current architecture
 - The init body:
   1. Assigns all `.input` properties to generated storage
   2. Resolves `.shared` properties with `override ?? factory`
@@ -104,7 +105,7 @@ When modifying macro behavior:
 1. Update parsing logic in `InnoDICore/Parsing.swift` first
 2. Update macro expansion in `InnoDIMacros/DIContainerMacro.swift`
 3. Add test cases to `Tests/InnoDIMacrosTests/`
-4. Consider CLI implications in `InnoDI-DependencyGraph/main.swift`
+4. Consider CLI implications in `Sources/InnoDI-DependencyGraph/` modules (`Collectors`, `Rendering`, `Output`, `CLI`)
 
 When adding diagnostics:
 - Use `SimpleDiagnostic` for error messages

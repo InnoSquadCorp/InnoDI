@@ -9,6 +9,8 @@ FILTER="InnoDIMacrosTests"
 BASELINE_FILE="Tools/macro-performance-baseline.json"
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
+PERF_LOG="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf.XXXXXX")"
+trap 'rm -f "$PERF_LOG"' EXIT
 
 usage() {
   cat <<USAGE
@@ -24,21 +26,37 @@ Options:
 USAGE
 }
 
+require_option_value() {
+  local option="$1"
+  local current="$2"
+  local value="${3:-}"
+
+  if [[ -z "$value" || "$value" == -* ]]; then
+    echo "Error: Option $option requires a value (current: $current)" >&2
+    usage
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --iterations)
+      require_option_value "--iterations" "$ITERATIONS" "${2:-}"
       ITERATIONS="$2"
       shift 2
       ;;
     --filter)
+      require_option_value "--filter" "$FILTER" "${2:-}"
       FILTER="$2"
       shift 2
       ;;
     --baseline)
+      require_option_value "--baseline" "$BASELINE_FILE" "${2:-}"
       BASELINE_FILE="$2"
       shift 2
       ;;
     --threshold)
+      require_option_value "--threshold" "$THRESHOLD_PERCENT" "${2:-}"
       THRESHOLD_PERCENT="$2"
       shift 2
       ;;
@@ -70,15 +88,15 @@ fi
 
 run_once_ms() {
   local started ended elapsed_ms
-  started="$(date +%s%N)"
-  swift test --filter "$FILTER" >/tmp/innodi-macro-perf.log 2>&1
-  ended="$(date +%s%N)"
+  started="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
+  swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
+  ended="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
   elapsed_ms="$(awk -v s="$started" -v e="$ended" 'BEGIN { printf "%.3f", (e - s) / 1000000.0 }')"
   echo "$elapsed_ms"
 }
 
 echo "[macro-perf] warmup: swift test --filter $FILTER"
-swift test --filter "$FILTER" >/tmp/innodi-macro-perf.log 2>&1
+swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
 
 declare -a samples
 for i in $(seq 1 "$ITERATIONS"); do
@@ -91,7 +109,7 @@ samples_lines="$(printf '%s\n' "${samples[@]}")"
 mean_ms="$(printf '%s\n' "$samples_lines" | awk '{sum += $1} END { printf "%.3f", sum / NR }')"
 min_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 < min { min = $1 } END { printf "%.3f", min }')"
 max_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 > max { max = $1 } END { printf "%.3f", max }')"
-stdev_ms="$(printf '%s\n' "$samples_lines" | awk -v mean="$mean_ms" '{sum += ($1 - mean)^2} END { printf "%.3f", sqrt(sum / NR) }')"
+stdev_ms="$(printf '%s\n' "$samples_lines" | awk -v mean="$mean_ms" '{sum += ($1 - mean)^2} END { if (NR <= 1) { printf "%.3f", 0.0 } else { printf "%.3f", sqrt(sum / (NR - 1)) } }')"
 
 swift_version="$(swift --version 2>/dev/null | head -n 1 | sed 's/"/\\"/g')"
 updated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -122,7 +140,15 @@ if [[ "$UPDATE_BASELINE" -eq 1 || ! -f "$BASELINE_FILE" ]]; then
   exit 0
 fi
 
-baseline_mean="$(sed -n 's/.*"mean_ms"[[:space:]]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' "$BASELINE_FILE" | head -n 1)"
+baseline_mean=""
+if command -v jq >/dev/null 2>&1; then
+  baseline_mean="$(jq -r '.mean_ms // empty' "$BASELINE_FILE" 2>/dev/null || true)"
+fi
+
+if [[ -z "$baseline_mean" ]]; then
+  baseline_mean="$(sed -n 's/.*"mean_ms"[[:space:]]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' "$BASELINE_FILE" | head -n 1)"
+fi
+
 if [[ -z "$baseline_mean" ]]; then
   echo "[macro-perf] failed to parse baseline mean_ms from $BASELINE_FILE" >&2
   exit 1
