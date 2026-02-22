@@ -117,23 +117,15 @@ final class ContainerUsageCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-        guard let calleeName = calledContainerName(node.calledExpression) else {
+        guard let sourceContainer = currentContainer,
+              let calleeName = calledContainerName(node.calledExpression) else {
             return .visitChildren
         }
 
-        var labels: Set<String> = []
-        for argument in node.arguments {
-            if let label = argument.label?.text {
-                labels.insert(label)
-            } else {
-                labels.insert("_")
-            }
-        }
-
         edges.append(DependencyEdge(
-            from: currentContainer ?? "",
+            from: sourceContainer,
             to: calleeName,
-            label: labels.contains("_") ? nil : labels.first
+            label: edgeLabel(from: node.arguments)
         ))
 
         return .visitChildren
@@ -147,13 +139,9 @@ final class ContainerUsageCollector: SyntaxVisitor {
         return containerNames.contains(name) ? name : nil
     }
 
-    private var currentFile: String = ""
-    private var currentTree: SourceFileSyntax = Parser.parse(source: "")
-
-    func walkFile(path: String, tree: SourceFileSyntax) {
-        currentFile = path
-        currentTree = tree
-        walk(tree)
+    private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {
+        guard let first = arguments.first else { return nil }
+        return first.label?.text
     }
 }
 
@@ -170,7 +158,7 @@ func loadSwiftFiles(rootPath: String) -> [String] {
         }
     }
 
-    return results
+    return results.sorted()
 }
 
 func shouldSkip(path: String) -> Bool {
@@ -291,14 +279,40 @@ func renderASCII(nodes: [ContainerNode], edges: [DependencyEdge]) -> String {
     return result
 }
 
+func normalizedNodes(_ nodes: [ContainerNode]) -> [ContainerNode] {
+    var map: [String: (isRoot: Bool, inputs: Set<String>)] = [:]
+    for node in nodes {
+        var entry = map[node.name] ?? (isRoot: false, inputs: [])
+        entry.isRoot = entry.isRoot || node.isRoot
+        entry.inputs.formUnion(node.requiredInputs)
+        map[node.name] = entry
+    }
+
+    return map.keys.sorted().map { name in
+        let entry = map[name]!
+        return ContainerNode(name: name, isRoot: entry.isRoot, requiredInputs: entry.inputs.sorted())
+    }
+}
+
+func deduplicatedEdges(_ edges: [DependencyEdge]) -> [DependencyEdge] {
+    var seen: Set<String> = []
+    var result: [DependencyEdge] = []
+
+    for edge in edges {
+        let key = "\(edge.from)->\(edge.to)|\(edge.label ?? "")"
+        if seen.insert(key).inserted {
+            result.append(edge)
+        }
+    }
+
+    return result
+}
+
 func main() -> Int32 {
-    print("Starting CLI")
     let (rootPath, format, output) = parseArguments()
-    print("Parsed arguments: root=\(rootPath), format=\(String(describing: format)), output=\(String(describing: output))")
     let outputFormat = format ?? .mermaid
 
     let files = loadSwiftFiles(rootPath: rootPath)
-    print("Found \(files.count) Swift files")
 
     let collector = ContainerCollector()
     for file in files {
@@ -306,15 +320,16 @@ func main() -> Int32 {
         collector.walk(tree)
     }
 
-    let containerNames: Set<String> = Set(collector.nodes.map { $0.name })
+    let nodes = normalizedNodes(collector.nodes)
+    let containerNames: Set<String> = Set(nodes.map { $0.name })
 
     let usageCollector = ContainerUsageCollector(containerNames: containerNames)
     for file in files {
         guard let tree = try? parseSourceFile(at: file) else { continue }
-        usageCollector.walkFile(path: file, tree: tree)
+        usageCollector.walk(tree)
     }
 
-    guard !collector.nodes.isEmpty else {
+    guard !nodes.isEmpty else {
         let errorMsg = "No @DIContainer found in project.\n"
         if let output = output {
             do {
@@ -328,14 +343,16 @@ func main() -> Int32 {
         return 1
     }
 
+    let edges = deduplicatedEdges(usageCollector.edges)
+
     let result: String
     switch outputFormat {
     case .mermaid:
-        result = renderMermaid(nodes: collector.nodes, edges: usageCollector.edges)
+        result = renderMermaid(nodes: nodes, edges: edges)
     case .dot:
-        result = renderDOT(nodes: collector.nodes, edges: usageCollector.edges)
+        result = renderDOT(nodes: nodes, edges: edges)
     case .ascii:
-        result = renderASCII(nodes: collector.nodes, edges: usageCollector.edges)
+        result = renderASCII(nodes: nodes, edges: edges)
     }
 
     if let outputPath = output {
