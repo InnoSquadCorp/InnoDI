@@ -1,16 +1,23 @@
-import SwiftSyntax
-
 protocol DeclarationPathTracking: AnyObject {
     var declarationPath: [String] { get set }
 }
 
 extension DeclarationPathTracking {
-    func pushDeclarationContext(named name: String) {
+    func beginDeclarationContext(named name: String) {
         declarationPath.append(name)
     }
 
     @discardableResult
-    func popDeclarationContext() -> String? {
+    func endDeclarationContext() -> String? {
         declarationPath.popLast()
+    }
+
+    func pushDeclarationContext(named name: String) {
+        beginDeclarationContext(named: name)
+    }
+
+    @discardableResult
+    func popDeclarationContext() -> String? {
+        endDeclarationContext()
     }
 }

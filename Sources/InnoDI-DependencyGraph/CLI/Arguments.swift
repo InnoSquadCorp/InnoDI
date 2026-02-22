@@ -20,22 +20,55 @@ func parseArguments() -> (root: String, format: OutputFormat?, output: String?) 
     var format: OutputFormat?
     var output: String?
 
-    var iterator = CommandLine.arguments.makeIterator()
-    _ = iterator.next()
+    let args = Array(CommandLine.arguments.dropFirst())
+    var index = 0
 
-    while let arg = iterator.next() {
-        if arg == "--root", let value = iterator.next() {
-            root = value
-        } else if arg == "--format", let value = iterator.next() {
-            format = OutputFormat(string: value)
-        } else if arg == "--output", let value = iterator.next() {
-            output = value
+    func requireOptionValue(_ option: String, at index: Int) -> String {
+        guard index + 1 < args.count else {
+            fputs("Error: Option \(option) requires a value\n", stderr)
+            printUsage()
+            exit(1)
+        }
+
+        let value = args[index + 1]
+        guard !value.hasPrefix("-") else {
+            fputs("Error: Option \(option) requires a value\n", stderr)
+            printUsage()
+            exit(1)
+        }
+
+        return value
+    }
+
+    while index < args.count {
+        let arg = args[index]
+
+        if arg == "--root" {
+            root = requireOptionValue(arg, at: index)
+            index += 2
+            continue
+        } else if arg == "--format" {
+            let value = requireOptionValue(arg, at: index)
+            guard let outputFormat = OutputFormat(string: value) else {
+                fputs("Error: Invalid --format value '\(value)'\n", stderr)
+                printUsage()
+                exit(1)
+            }
+            format = outputFormat
+            index += 2
+            continue
+        } else if arg == "--output" {
+            output = requireOptionValue(arg, at: index)
+            index += 2
+            continue
         } else if arg == "--help" || arg == "-h" {
             printUsage()
             exit(0)
         } else if arg.hasPrefix("-") {
             fputs("Warning: unrecognized option '\(arg)'\n", stderr)
         }
+
+        index += 1
     }
 
     return (root, format, output)

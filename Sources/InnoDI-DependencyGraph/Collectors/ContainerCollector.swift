@@ -16,7 +16,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visitPost(_ node: StructDeclSyntax) {
-        _ = popDeclarationContext()
+        _ = endDeclarationContext()
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -24,7 +24,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
-        _ = popDeclarationContext()
+        _ = endDeclarationContext()
     }
 
     override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -32,16 +32,16 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visitPost(_ node: ActorDeclSyntax) {
-        _ = popDeclarationContext()
+        _ = endDeclarationContext()
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        pushDeclarationContext(named: node.name.text)
+        beginDeclarationContext(named: node.name.text)
         return .visitChildren
     }
 
     override func visitPost(_ node: EnumDeclSyntax) {
-        _ = popDeclarationContext()
+        _ = endDeclarationContext()
     }
 
     func walkFile(relativePath: String, tree: SourceFileSyntax) {
@@ -51,7 +51,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     private func visitContainerDeclaration(_ node: some DeclGroupSyntax, name: String) -> SyntaxVisitorContinueKind {
-        pushDeclarationContext(named: name)
+        beginDeclarationContext(named: name)
         collectIfContainer(node, displayName: name)
         return .visitChildren
     }
@@ -70,7 +70,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             requiredInputs.append(pattern.identifier.text)
         }
 
-        let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+        let id = GraphIdentity.makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
         nodes.append(
             DependencyGraphNode(
                 id: id,

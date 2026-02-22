@@ -309,6 +309,24 @@ graph TD
     AppContainer --> RemoteDataSourceContainer
 ```
 
+## Macro Performance Check
+
+Use the included script to detect macro test performance regressions:
+
+```bash
+Tools/measure-macro-performance.sh
+```
+
+Update baseline after intentional performance changes:
+
+```bash
+Tools/measure-macro-performance.sh --iterations 5 --update-baseline
+```
+
+Default baseline file:
+
+- `Tools/macro-performance-baseline.json`
+
 ## License
 
 MIT

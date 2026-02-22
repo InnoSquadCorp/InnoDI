@@ -21,7 +21,8 @@ func writeGraphOutput(_ content: String, format: OutputFormat, outputPath: Strin
 
 private func writeDOTAsPNG(dotContent: String, outputPath: String) -> Int32 {
     do {
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("innodi_temp.dot")
+        let tempFileName = "innodi_temp_\(ProcessInfo.processInfo.globallyUniqueString).dot"
+        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(tempFileName)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         try dotContent.write(to: tempURL, atomically: true, encoding: .utf8)
@@ -59,12 +60,12 @@ private func resolveDotExecutable() throws -> String? {
     process.standardOutput = pipe
 
     try process.run()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
 
     guard process.terminationStatus == 0 else {
         return nil
     }
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 }

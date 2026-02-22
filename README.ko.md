@@ -190,3 +190,21 @@ CLI 동작 요약:
 - 컨테이너 내부 생성 호출에서 container-to-container 엣지 추출
 - stable identity(`relativeFilePath#declarationPath`)로 동일 이름 컨테이너 오병합 방지
 - 대상 컨테이너가 이름 충돌로 모호하면 엣지 생성을 생략
+
+## 매크로 성능 회귀 체크
+
+매크로 테스트 성능 회귀를 스크립트로 점검할 수 있습니다.
+
+```bash
+Tools/measure-macro-performance.sh
+```
+
+의도적으로 성능 특성이 바뀐 경우 baseline 갱신:
+
+```bash
+Tools/measure-macro-performance.sh --iterations 5 --update-baseline
+```
+
+기본 baseline 파일:
+
+- `Tools/macro-performance-baseline.json`

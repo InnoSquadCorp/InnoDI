@@ -29,7 +29,7 @@ func shouldSkip(path: String) -> Bool {
         "/Carthage/",
         "/.swiftpm/",
         "/.xcodeproj/",
-        "/xcworkspace/"
+        "/.xcworkspace/"
     ]
 
     for token in skipTokens where path.contains(token) {
@@ -44,8 +44,8 @@ func parseSourceFile(at path: String) throws -> SourceFileSyntax {
 }
 
 func relativePath(of path: String, fromRoot rootPath: String) -> String {
-    let rootURL = URL(fileURLWithPath: rootPath).standardizedFileURL
-    let pathURL = URL(fileURLWithPath: path).standardizedFileURL
+    let rootURL = URL(fileURLWithPath: rootPath).resolvingSymlinksInPath().standardizedFileURL
+    let pathURL = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
 
     let root = rootURL.path(percentEncoded: false)
     let fullPath = pathURL.path(percentEncoded: false)
@@ -59,5 +59,10 @@ func relativePath(of path: String, fromRoot rootPath: String) -> String {
         return String(fullPath.dropFirst(rootPrefix.count))
     }
 
-    return fullPath
+    let parentName = pathURL.deletingLastPathComponent().lastPathComponent
+    let fileName = pathURL.lastPathComponent
+    if parentName.isEmpty {
+        return "__external__/\(fileName)"
+    }
+    return "__external__/\(parentName)/\(fileName)"
 }
