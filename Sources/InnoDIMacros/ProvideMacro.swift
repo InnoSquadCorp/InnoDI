@@ -76,8 +76,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             var createExpr: ExprSyntax
             
             if let factory = parseResult.factoryExpr {
-                if factory.is(ClosureExprSyntax.self) {
-                    let closure = factory.as(ClosureExprSyntax.self)!
+                if let closure = factory.as(ClosureExprSyntax.self) {
                     let parsedArguments = closureArgumentNames(closure: closure)
                     if parsedArguments.hasWildcard {
                         context.diagnose(
