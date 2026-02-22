@@ -452,6 +452,34 @@ struct DIContainerMacroTests {
     }
 
     @Test
+    func validateFalseStillRejectsConcreteDependencyWithoutOptIn() throws {
+        let source = """
+        @DIContainer(validate: false)
+        struct AppContainer {
+            @Provide(.shared, factory: Service())
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer(validate: false)")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
+    }
+
+    @Test
     func validateFalseStillRejectsInputFactory() throws {
         let source = """
         @DIContainer(validate: false)

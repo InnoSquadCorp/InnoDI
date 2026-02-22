@@ -358,7 +358,7 @@ func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> St
         guard let alias = aliases[node.id] else { continue }
         let fill = node.isRoot ? "#e1f5fe" : "#e5e7eb"
         let label = escapeDOTLabel(displayLabel(for: node, duplicateDisplayNames: duplicateDisplayNames))
-        result += "  \"\(alias)\" [label=\"\(label)\", shape=box, style=rounded,filled, fillcolor=\(fill)];\n"
+        result += "  \"\(alias)\" [label=\"\(label)\", shape=box, style=\"rounded,filled\", fillcolor=\"\(fill)\"];\n"
     }
 
     result += "\n"
@@ -420,8 +420,14 @@ func main() -> Int32 {
 
     let files = loadSwiftFiles(rootPath: rootPath)
     let parsedFiles = files.compactMap { file -> (relativePath: String, tree: SourceFileSyntax)? in
-        guard let tree = try? parseSourceFile(at: file) else { return nil }
-        return (relativePath: relativePath(of: file, fromRoot: rootPath), tree: tree)
+        let relative = relativePath(of: file, fromRoot: rootPath)
+        do {
+            let tree = try parseSourceFile(at: file)
+            return (relativePath: relative, tree: tree)
+        } catch {
+            fputs("Warning: failed to parse '\(relative)' (\(file)): \(error)\n", stderr)
+            return nil
+        }
     }
 
     let collector = ContainerCollector()
@@ -469,6 +475,7 @@ func main() -> Int32 {
         if outputPath.hasSuffix(".png") && outputFormat == .dot {
             do {
                 let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("innodi_temp.dot")
+                defer { try? FileManager.default.removeItem(at: tempURL) }
                 try result.write(to: tempURL, atomically: true, encoding: .utf8)
 
                 let whichProcess = Process()
@@ -484,7 +491,7 @@ func main() -> Int32 {
                 if let dotPath, !dotPath.isEmpty {
                     let dotProcess = Process()
                     dotProcess.executableURL = URL(fileURLWithPath: dotPath)
-                    dotProcess.arguments = ["-Tpng", tempURL.path, "-o", outputPath]
+                    dotProcess.arguments = ["-Tpng", tempURL.path(percentEncoded: false), "-o", outputPath]
                     try dotProcess.run()
                     dotProcess.waitUntilExit()
                     if dotProcess.terminationStatus == 0 {
@@ -497,8 +504,6 @@ func main() -> Int32 {
                     fputs("dot command not found. Please install Graphviz.\n", stderr)
                     return 1
                 }
-
-                try? FileManager.default.removeItem(at: tempURL)
             } catch {
                 fputs("Error generating PNG: \(error)\n", stderr)
                 return 1
@@ -527,11 +532,11 @@ private func relativePath(of path: String, fromRoot rootPath: String) -> String 
     let rootURL = URL(fileURLWithPath: rootPath).standardizedFileURL
     let pathURL = URL(fileURLWithPath: path).standardizedFileURL
 
-    let root = rootURL.path
-    let fullPath = pathURL.path
+    let root = rootURL.path(percentEncoded: false)
+    let fullPath = pathURL.path(percentEncoded: false)
 
     if fullPath == root {
-        return pathURL.lastPathComponent
+        return (fullPath as NSString).lastPathComponent
     }
 
     let rootPrefix = root.hasSuffix("/") ? root : root + "/"
@@ -566,7 +571,9 @@ private func displayLabel(for node: DependencyGraphNode, duplicateDisplayNames: 
 }
 
 private func escapeMermaidLabel(_ label: String) -> String {
-    label.replacingOccurrences(of: "\"", with: "\\\"")
+    label
+        .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "|", with: "\\|")
 }
 
 private func escapeDOTLabel(_ label: String) -> String {
