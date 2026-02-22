@@ -15,43 +15,51 @@ enum OutputFormat {
         }
     }
 }
-struct ContainerNode {
-    let name: String
-    let isRoot: Bool
-    let requiredInputs: [String]
-}
-
-struct DependencyEdge {
-    let from: String
-    let to: String
-    let label: String?
-}
 
 final class ContainerCollector: SyntaxVisitor {
-    var nodes: [ContainerNode] = []
+    var nodes: [DependencyGraphNode] = []
+
+    private var currentRelativeFilePath: String = ""
+    private var declarationPath: [String] = []
 
     override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
         super.init(viewMode: viewMode)
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        collect(from: node)
-        return .skipChildren
+        declarationPath.append(node.name.text)
+        collectIfContainer(node)
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: StructDeclSyntax) {
+        _ = declarationPath.popLast()
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        collect(from: node)
-        return .skipChildren
+        declarationPath.append(node.name.text)
+        collectIfContainer(node)
+        return .visitChildren
     }
 
-    private func collect(from node: some DeclGroupSyntax) {
+    override func visitPost(_ node: ClassDeclSyntax) {
+        _ = declarationPath.popLast()
+    }
+
+    func walkFile(relativePath: String, tree: SourceFileSyntax) {
+        currentRelativeFilePath = relativePath
+        declarationPath.removeAll(keepingCapacity: true)
+        walk(tree)
+    }
+
+    private func collectIfContainer(_ node: some DeclGroupSyntax) {
         guard let containerAttr = parseDIContainerAttribute(node.attributes) else { return }
 
-        let name: String
+        let displayName: String
         if let structNode = node.as(StructDeclSyntax.self) {
-            name = structNode.name.text
+            displayName = structNode.name.text
         } else if let classNode = node.as(ClassDeclSyntax.self) {
-            name = classNode.name.text
+            displayName = classNode.name.text
         } else {
             return
         }
@@ -61,8 +69,7 @@ final class ContainerCollector: SyntaxVisitor {
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
             let provide = parseProvideAttribute(varDecl.attributes)
-            if !provide.hasProvide { continue }
-            if provide.scope != .input { continue }
+            if !provide.hasProvide || provide.scope != .input { continue }
 
             guard let binding = varDecl.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
@@ -72,71 +79,103 @@ final class ContainerCollector: SyntaxVisitor {
             requiredInputs.append(pattern.identifier.text)
         }
 
-        nodes.append(ContainerNode(
-            name: name,
-            isRoot: containerAttr.root,
-            requiredInputs: requiredInputs
-        ))
+        let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+
+        nodes.append(
+            DependencyGraphNode(
+                id: id,
+                displayName: displayName,
+                isRoot: containerAttr.root,
+                requiredInputs: requiredInputs
+            )
+        )
     }
 }
 
 final class ContainerUsageCollector: SyntaxVisitor {
-    let containerNames: Set<String>
-    var currentContainer: String?
-    var edges: [DependencyEdge] = []
+    let containerIDsByDisplayName: [String: [String]]
+    var edges: [DependencyGraphEdge] = []
 
-    init(containerNames: Set<String>, viewMode: SyntaxTreeViewMode = .sourceAccurate) {
-        self.containerNames = containerNames
+    private var currentRelativeFilePath: String = ""
+    private var declarationPath: [String] = []
+    private var activeContainerIDs: [String] = []
+
+    init(containerIDsByDisplayName: [String: [String]], viewMode: SyntaxTreeViewMode = .sourceAccurate) {
+        self.containerIDsByDisplayName = containerIDsByDisplayName
         super.init(viewMode: viewMode)
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        let previous = currentContainer
+        declarationPath.append(node.name.text)
+
         if parseDIContainerAttribute(node.attributes) != nil {
-            currentContainer = node.name.text
-            defer { currentContainer = previous }
-            for member in node.memberBlock.members {
-                walk(member)
-            }
-            return .skipChildren
+            let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+            activeContainerIDs.append(id)
         }
+
         return .visitChildren
+    }
+
+    override func visitPost(_ node: StructDeclSyntax) {
+        if parseDIContainerAttribute(node.attributes) != nil {
+            _ = activeContainerIDs.popLast()
+        }
+        _ = declarationPath.popLast()
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        let previous = currentContainer
+        declarationPath.append(node.name.text)
+
         if parseDIContainerAttribute(node.attributes) != nil {
-            currentContainer = node.name.text
-            defer { currentContainer = previous }
-            for member in node.memberBlock.members {
-                walk(member)
-            }
-            return .skipChildren
+            let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+            activeContainerIDs.append(id)
         }
+
         return .visitChildren
+    }
+
+    override func visitPost(_ node: ClassDeclSyntax) {
+        if parseDIContainerAttribute(node.attributes) != nil {
+            _ = activeContainerIDs.popLast()
+        }
+        _ = declarationPath.popLast()
     }
 
     override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-        guard let sourceContainer = currentContainer,
-              let calleeName = calledContainerName(node.calledExpression) else {
+        guard let sourceID = activeContainerIDs.last,
+              let destinationID = calledContainerID(node.calledExpression) else {
             return .visitChildren
         }
 
-        edges.append(DependencyEdge(
-            from: sourceContainer,
-            to: calleeName,
-            label: edgeLabel(from: node.arguments)
-        ))
+        edges.append(
+            DependencyGraphEdge(
+                fromID: sourceID,
+                toID: destinationID,
+                label: edgeLabel(from: node.arguments)
+            )
+        )
 
         return .visitChildren
     }
 
-    private func calledContainerName(_ expr: ExprSyntax) -> String? {
+    func walkFile(relativePath: String, tree: SourceFileSyntax) {
+        currentRelativeFilePath = relativePath
+        declarationPath.removeAll(keepingCapacity: true)
+        activeContainerIDs.removeAll(keepingCapacity: true)
+        walk(tree)
+    }
+
+    private func calledContainerID(_ expr: ExprSyntax) -> String? {
         let raw = expr.trimmedDescription
         let lastComponent = raw.split(separator: ".").last ?? ""
         let base = lastComponent.split(separator: "<").first ?? lastComponent
-        let name = String(base)
-        return containerNames.contains(name) ? name : nil
+        let displayName = String(base)
+
+        guard let candidateIDs = containerIDsByDisplayName[displayName], candidateIDs.count == 1 else {
+            return nil
+        }
+
+        return candidateIDs[0]
     }
 
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {
@@ -219,90 +258,97 @@ func printUsage() {
     print("  --help, -h       Show this help message")
 }
 
-func renderMermaid(nodes: [ContainerNode], edges: [DependencyEdge]) -> String {
+func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+    let aliases = nodeAliases(nodes: nodes)
+    let duplicateDisplayNames = duplicateDisplayNameSet(nodes: nodes)
+
     var result = "graph TD\n"
-    for node in nodes where node.isRoot {
-        result += "    \(node.name)[root]\n"
+    for node in nodes {
+        guard let alias = aliases[node.id] else { continue }
+        var label = displayLabel(for: node, duplicateDisplayNames: duplicateDisplayNames)
+        if node.isRoot {
+            label += " [root]"
+        }
+        result += "    \(alias)[\"\(escapeMermaidLabel(label))\"]\n"
     }
-    for node in nodes where !node.isRoot {
-        result += "    \(node.name)\n"
-    }
+
     for edge in edges {
-        let label = edge.label.map { "|\($0)|" } ?? ""
-        result += "    \(edge.from) -->\(label) \(edge.to)\n"
+        guard let fromAlias = aliases[edge.fromID],
+              let toAlias = aliases[edge.toID] else {
+            continue
+        }
+        let label = edge.label.map { "|\(escapeMermaidLabel($0))|" } ?? ""
+        result += "    \(fromAlias) -->\(label) \(toAlias)\n"
     }
+
     result += "\n"
     return result
 }
 
-func renderDOT(nodes: [ContainerNode], edges: [DependencyEdge]) -> String {
+func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+    let aliases = nodeAliases(nodes: nodes)
+    let duplicateDisplayNames = duplicateDisplayNameSet(nodes: nodes)
+
     var result = "digraph InnoDI {\n"
     result += "  rankdir=TB;\n"
     result += "\n"
     result += "  // Nodes\n"
+
     for node in nodes {
+        guard let alias = aliases[node.id] else { continue }
         let fill = node.isRoot ? "#e1f5fe" : "#e5e7eb"
-        result += "  \"\(node.name)\" [shape=box, style=rounded,filled, fillcolor=\(fill)];\n"
+        let label = escapeDOTLabel(displayLabel(for: node, duplicateDisplayNames: duplicateDisplayNames))
+        result += "  \"\(alias)\" [label=\"\(label)\", shape=box, style=rounded,filled, fillcolor=\(fill)];\n"
     }
+
     result += "\n"
     result += "  // Edges\n"
+
     for edge in edges {
+        guard let fromAlias = aliases[edge.fromID],
+              let toAlias = aliases[edge.toID] else {
+            continue
+        }
         if let label = edge.label {
-            result += "  \"\(edge.from)\" -> \"\(edge.to)\" [label=\"\(label)\"];\n"
+            result += "  \"\(fromAlias)\" -> \"\(toAlias)\" [label=\"\(escapeDOTLabel(label))\"];\n"
         } else {
-            result += "  \"\(edge.from)\" -> \"\(edge.to)\";\n"
+            result += "  \"\(fromAlias)\" -> \"\(toAlias)\";\n"
         }
     }
+
     result += "}\n"
     return result
 }
 
-func renderASCII(nodes: [ContainerNode], edges: [DependencyEdge]) -> String {
-    let maxNameLen = nodes.map { $0.name.count }.max() ?? 10
+func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+    let duplicateDisplayNames = duplicateDisplayNameSet(nodes: nodes)
+    let labelsByID = Dictionary(uniqueKeysWithValues: nodes.map {
+        ($0.id, displayLabel(for: $0, duplicateDisplayNames: duplicateDisplayNames))
+    })
+
+    let maxNameLen = labelsByID.values.map { $0.count }.max() ?? 10
 
     var result = "InnoDI Dependency Graph\n"
     result += String(repeating: "=", count: maxNameLen + 15) + "\n"
     result += "Nodes:\n"
+
     for node in nodes {
-        let padding = String(repeating: " ", count: maxNameLen - node.name.count)
+        let label = labelsByID[node.id] ?? node.id
+        let padding = String(repeating: " ", count: max(0, maxNameLen - label.count))
         let root = node.isRoot ? " [ROOT]" : ""
         let inputs = node.requiredInputs.isEmpty ? "" : " (inputs: \(node.requiredInputs.joined(separator: ", ")))"
-        result += "  \(padding)\(node.name)\(root)\(inputs)\n"
+        result += "  \(padding)\(label)\(root)\(inputs)\n"
     }
+
     result += "\n"
     result += "Edges:\n"
+
     for edge in edges {
+        let fromLabel = labelsByID[edge.fromID] ?? edge.fromID
+        let toLabel = labelsByID[edge.toID] ?? edge.toID
         let labelPart = edge.label.map { ":\($0)" } ?? ""
-        let padding = String(repeating: " ", count: maxNameLen - edge.from.count)
-        result += "  \(padding)\(edge.from) -->\(edge.to)\(labelPart)\n"
-    }
-    return result
-}
-
-func normalizedNodes(_ nodes: [ContainerNode]) -> [ContainerNode] {
-    var map: [String: (isRoot: Bool, inputs: Set<String>)] = [:]
-    for node in nodes {
-        var entry = map[node.name] ?? (isRoot: false, inputs: [])
-        entry.isRoot = entry.isRoot || node.isRoot
-        entry.inputs.formUnion(node.requiredInputs)
-        map[node.name] = entry
-    }
-
-    return map.keys.sorted().map { name in
-        let entry = map[name]!
-        return ContainerNode(name: name, isRoot: entry.isRoot, requiredInputs: entry.inputs.sorted())
-    }
-}
-
-func deduplicatedEdges(_ edges: [DependencyEdge]) -> [DependencyEdge] {
-    var seen: Set<String> = []
-    var result: [DependencyEdge] = []
-
-    for edge in edges {
-        let key = "\(edge.from)->\(edge.to)|\(edge.label ?? "")"
-        if seen.insert(key).inserted {
-            result.append(edge)
-        }
+        let padding = String(repeating: " ", count: max(0, maxNameLen - fromLabel.count))
+        result += "  \(padding)\(fromLabel) -->\(toLabel)\(labelPart)\n"
     }
 
     return result
@@ -317,23 +363,16 @@ func main() -> Int32 {
     let collector = ContainerCollector()
     for file in files {
         guard let tree = try? parseSourceFile(at: file) else { continue }
-        collector.walk(tree)
+        collector.walkFile(relativePath: relativePath(of: file, fromRoot: rootPath), tree: tree)
     }
 
-    let nodes = normalizedNodes(collector.nodes)
-    let containerNames: Set<String> = Set(nodes.map { $0.name })
-
-    let usageCollector = ContainerUsageCollector(containerNames: containerNames)
-    for file in files {
-        guard let tree = try? parseSourceFile(at: file) else { continue }
-        usageCollector.walk(tree)
-    }
+    let nodes = normalizeNodes(collector.nodes)
 
     guard !nodes.isEmpty else {
         let errorMsg = "No @DIContainer found in project.\n"
-        if let output = output {
+        if let outputPath = output {
             do {
-                try errorMsg.write(to: URL(fileURLWithPath: output), atomically: true, encoding: .utf8)
+                try errorMsg.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
             } catch {
                 fputs("Error writing to file: \(error)\n", stderr)
             }
@@ -343,7 +382,16 @@ func main() -> Int32 {
         return 1
     }
 
-    let edges = deduplicatedEdges(usageCollector.edges)
+    let containerIDsByDisplayName = Dictionary(grouping: nodes, by: { $0.displayName })
+        .mapValues { group in group.map(\.id).sorted() }
+
+    let usageCollector = ContainerUsageCollector(containerIDsByDisplayName: containerIDsByDisplayName)
+    for file in files {
+        guard let tree = try? parseSourceFile(at: file) else { continue }
+        usageCollector.walkFile(relativePath: relativePath(of: file, fromRoot: rootPath), tree: tree)
+    }
+
+    let edges = deduplicateEdges(usageCollector.edges)
 
     let result: String
     switch outputFormat {
@@ -357,12 +405,10 @@ func main() -> Int32 {
 
     if let outputPath = output {
         if outputPath.hasSuffix(".png") && outputFormat == .dot {
-            // Generate PNG using dot
             do {
                 let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("innodi_temp.dot")
                 try result.write(to: tempURL, atomically: true, encoding: .utf8)
-                
-                // Find dot path
+
                 let whichProcess = Process()
                 whichProcess.executableURL = URL(fileURLWithPath: "/bin/bash")
                 whichProcess.arguments = ["-c", "which dot"]
@@ -372,8 +418,8 @@ func main() -> Int32 {
                 whichProcess.waitUntilExit()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 let dotPath = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                if let dotPath = dotPath, !dotPath.isEmpty {
+
+                if let dotPath, !dotPath.isEmpty {
                     let dotProcess = Process()
                     dotProcess.executableURL = URL(fileURLWithPath: dotPath)
                     dotProcess.arguments = ["-Tpng", tempURL.path, "-o", outputPath]
@@ -389,8 +435,7 @@ func main() -> Int32 {
                     fputs("dot command not found. Please install Graphviz.\n", stderr)
                     return 1
                 }
-                
-                // Clean up temp file
+
                 try? FileManager.default.removeItem(at: tempURL)
             } catch {
                 fputs("Error generating PNG: \(error)\n", stderr)
@@ -409,6 +454,63 @@ func main() -> Int32 {
     }
 
     return 0
+}
+
+private func makeContainerID(fileRelativePath: String, declarationPath: [String]) -> String {
+    let path = declarationPath.joined(separator: ".")
+    return "\(fileRelativePath)#\(path)"
+}
+
+private func relativePath(of path: String, fromRoot rootPath: String) -> String {
+    let rootURL = URL(fileURLWithPath: rootPath).standardizedFileURL
+    let pathURL = URL(fileURLWithPath: path).standardizedFileURL
+
+    let root = rootURL.path
+    let fullPath = pathURL.path
+
+    if fullPath == root {
+        return pathURL.lastPathComponent
+    }
+
+    let rootPrefix = root.hasSuffix("/") ? root : root + "/"
+    if fullPath.hasPrefix(rootPrefix) {
+        return String(fullPath.dropFirst(rootPrefix.count))
+    }
+
+    return fullPath
+}
+
+private func nodeAliases(nodes: [DependencyGraphNode]) -> [String: String] {
+    var aliases: [String: String] = [:]
+    for (index, node) in nodes.enumerated() {
+        aliases[node.id] = "N\(index)"
+    }
+    return aliases
+}
+
+private func duplicateDisplayNameSet(nodes: [DependencyGraphNode]) -> Set<String> {
+    var counts: [String: Int] = [:]
+    for node in nodes {
+        counts[node.displayName, default: 0] += 1
+    }
+    return Set(counts.compactMap { name, count in count > 1 ? name : nil })
+}
+
+private func displayLabel(for node: DependencyGraphNode, duplicateDisplayNames: Set<String>) -> String {
+    if duplicateDisplayNames.contains(node.displayName) {
+        return "\(node.displayName) (\(node.id))"
+    }
+    return node.displayName
+}
+
+private func escapeMermaidLabel(_ label: String) -> String {
+    label.replacingOccurrences(of: "\"", with: "\\\"")
+}
+
+private func escapeDOTLabel(_ label: String) -> String {
+    label
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
 }
 
 exit(main())
