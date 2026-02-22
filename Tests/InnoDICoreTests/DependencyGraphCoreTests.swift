@@ -4,8 +4,8 @@ import Testing
 
 @Suite("DependencyGraphCore")
 struct DependencyGraphCoreTests {
-    @Test
-    func normalizeNodesMergesSameIDAndPropagatesMetadata() {
+    @Test("Merges duplicate node IDs and propagates root and inputs")
+    func normalizeNodesMergesSameIDAndPropagatesMetadata() throws {
         let nodes = [
             DependencyGraphNode(
                 id: "App.swift#AppContainer",
@@ -23,14 +23,14 @@ struct DependencyGraphCoreTests {
 
         let normalized = normalizeNodes(nodes)
 
-        #expect(normalized.count == 1)
+        try #require(normalized.count == 1)
         #expect(normalized[0].id == "App.swift#AppContainer")
         #expect(normalized[0].isRoot == true)
         #expect(normalized[0].requiredInputs == ["config", "logger"])
     }
 
-    @Test
-    func normalizeNodesKeepsSameDisplayNameWithDifferentIDsSeparate() {
+    @Test("Keeps same display names separate when node IDs differ")
+    func normalizeNodesKeepsSameDisplayNameWithDifferentIDsSeparate() throws {
         let nodes = [
             DependencyGraphNode(
                 id: "FeatureA/App.swift#AppContainer",
@@ -47,15 +47,22 @@ struct DependencyGraphCoreTests {
         ]
 
         let normalized = normalizeNodes(nodes)
+        let originalByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
 
         #expect(normalized.count == 2)
         #expect(normalized.map(\.id) == [
             "FeatureA/App.swift#AppContainer",
             "FeatureB/App.swift#AppContainer"
         ])
+
+        for item in normalized {
+            let original = try #require(originalByID[item.id])
+            #expect(item.isRoot == original.isRoot)
+            #expect(item.requiredInputs == original.requiredInputs)
+        }
     }
 
-    @Test
+    @Test("Normalizes nodes with deterministic ID ordering")
     func normalizeNodesProducesDeterministicIDOrder() {
         let nodes = [
             DependencyGraphNode(id: "z.swift#Z", displayName: "Z", isRoot: false, requiredInputs: []),
@@ -68,8 +75,8 @@ struct DependencyGraphCoreTests {
         #expect(normalized.map(\.id) == ["a.swift#A", "m.swift#M", "z.swift#Z"])
     }
 
-    @Test
-    func deduplicateEdgesRemovesDuplicatesAndKeepsFirstSeenOrder() {
+    @Test("Deduplicates identical edges while preserving first-seen order")
+    func deduplicateEdgesRemovesDuplicatesAndKeepsFirstSeenOrder() throws {
         let edges = [
             DependencyGraphEdge(fromID: "A", toID: "B", label: nil),
             DependencyGraphEdge(fromID: "A", toID: "B", label: nil),
@@ -80,7 +87,7 @@ struct DependencyGraphCoreTests {
 
         let deduplicated = deduplicateEdges(edges)
 
-        #expect(deduplicated.count == 3)
+        try #require(deduplicated.count == 3)
         #expect(deduplicated[0].fromID == "A")
         #expect(deduplicated[0].toID == "B")
         #expect(deduplicated[0].label == nil)
