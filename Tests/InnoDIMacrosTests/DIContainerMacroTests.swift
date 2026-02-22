@@ -148,6 +148,47 @@ struct DIContainerMacroTests {
         #expect(generated.contains("self.logger"))
     }
 
+    @Test("Transient type factory with with: injects dependencies via accessors")
+    func transientTypeFactoryWithDependenciesUsesAccessorInjection() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.transient, ViewModel.self, with: [\\.config])
+            var viewModel: ViewModel
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let targetVarDecl = decl.memberBlock.members
+                  .compactMap({ $0.decl.as(VariableDeclSyntax.self) })
+                  .first(where: { varDecl in
+                      guard let binding = varDecl.bindings.first,
+                            let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                          return false
+                      }
+                      return identifier.identifier.text == "viewModel"
+                  }),
+              let attr = targetVarDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse target @Provide(.transient, Type.self, with: ...)")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: targetVarDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("self.config"))
+        #expect(!generated.contains("_storage_config"))
+        #expect(context.diagnostics.isEmpty)
+    }
+
     @Test
     func transientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() throws {
         let source = """

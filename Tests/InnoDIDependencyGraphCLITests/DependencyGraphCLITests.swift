@@ -58,6 +58,33 @@ struct DependencyGraphCLITests {
         #expect(result.stdout.contains("InnoDI Dependency Graph"))
     }
 
+    @Test("Missing value for --root fails with usage")
+    func missingRootValueFailsWithUsage() throws {
+        let result = try runCLI([
+            "--root",
+            "--format", "ascii"
+        ])
+
+        #expect(result.exitCode == 1)
+        #expect(result.stderr.contains("Option --root requires a value"))
+        #expect(result.stdout.contains("Usage: InnoDI-DependencyGraph"))
+    }
+
+    @Test("Invalid --format value fails with usage")
+    func invalidFormatValueFailsWithUsage() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "invalid"
+        ])
+
+        #expect(result.exitCode == 1)
+        #expect(result.stderr.contains("Invalid --format value 'invalid'"))
+        #expect(result.stdout.contains("Usage: InnoDI-DependencyGraph"))
+    }
+
     @Test("PNG output handles Graphviz availability")
     func pngOutputHandlesGraphvizAvailability() throws {
         let fixtureURL = try makeFixtureProject()
@@ -79,6 +106,21 @@ struct DependencyGraphCLITests {
                 result.stderr.contains("dot command not found") || result.stderr.contains("Failed to generate PNG")
             )
         }
+    }
+
+    @Test("No container output write failure returns distinct exit code")
+    func noContainerWriteFailureReturnsDistinctExitCode() throws {
+        let fixtureURL = try makeNoContainerFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "ascii",
+            "--output", "/dev/null/nope.txt"
+        ])
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error writing to file"))
     }
 }
 
@@ -194,6 +236,27 @@ private func makeFixtureProject() throws -> URL {
 
     try featureContainerSource.write(
         to: fixtureURL.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeNoContainerFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-NoContainer-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    struct PlainType {
+        let value: Int
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("Plain.swift"),
         atomically: true,
         encoding: .utf8
     )
