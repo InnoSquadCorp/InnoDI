@@ -46,6 +46,25 @@ final class ContainerCollector: SyntaxVisitor {
         _ = declarationPath.popLast()
     }
 
+    override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
+        declarationPath.append(node.name.text)
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: EnumDeclSyntax) {
+        _ = declarationPath.popLast()
+    }
+
+    override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
+        declarationPath.append(node.name.text)
+        collectIfContainer(node)
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: ActorDeclSyntax) {
+        _ = declarationPath.popLast()
+    }
+
     func walkFile(relativePath: String, tree: SourceFileSyntax) {
         currentRelativeFilePath = relativePath
         declarationPath.removeAll(keepingCapacity: true)
@@ -60,6 +79,8 @@ final class ContainerCollector: SyntaxVisitor {
             displayName = structNode.name.text
         } else if let classNode = node.as(ClassDeclSyntax.self) {
             displayName = classNode.name.text
+        } else if let actorNode = node.as(ActorDeclSyntax.self) {
+            displayName = actorNode.name.text
         } else {
             return
         }
@@ -140,6 +161,37 @@ final class ContainerUsageCollector: SyntaxVisitor {
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
+        if activeContainerMarkers.popLast() == true {
+            _ = activeContainerIDs.popLast()
+        }
+        _ = declarationPath.popLast()
+    }
+
+    override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
+        declarationPath.append(node.name.text)
+        activeContainerMarkers.append(false)
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: EnumDeclSyntax) {
+        _ = activeContainerMarkers.popLast()
+        _ = declarationPath.popLast()
+    }
+
+    override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
+        declarationPath.append(node.name.text)
+
+        let isContainer = parseDIContainerAttribute(node.attributes) != nil
+        activeContainerMarkers.append(isContainer)
+        if isContainer {
+            let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+            activeContainerIDs.append(id)
+        }
+
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: ActorDeclSyntax) {
         if activeContainerMarkers.popLast() == true {
             _ = activeContainerIDs.popLast()
         }
