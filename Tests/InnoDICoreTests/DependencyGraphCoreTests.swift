@@ -2,6 +2,7 @@ import Testing
 
 @testable import InnoDICore
 
+@Suite("DependencyGraphCore")
 struct DependencyGraphCoreTests {
     @Test
     func normalizeNodesMergesSameIDAndPropagatesMetadata() {

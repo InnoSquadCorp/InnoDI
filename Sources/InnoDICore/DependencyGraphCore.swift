@@ -1,5 +1,3 @@
-import Foundation
-
 package struct DependencyGraphNode: Hashable {
     package let id: String
     package let displayName: String
@@ -53,11 +51,17 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
 }
 
 package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGraphEdge] {
-    var seen: Set<String> = []
+    struct EdgeKey: Hashable {
+        let fromID: String
+        let toID: String
+        let label: String?
+    }
+
+    var seen: Set<EdgeKey> = []
     var result: [DependencyGraphEdge] = []
 
     for edge in edges {
-        let key = "\(edge.fromID)->\(edge.toID)|\(edge.label ?? "")"
+        let key = EdgeKey(fromID: edge.fromID, toID: edge.toID, label: edge.label)
         if seen.insert(key).inserted {
             result.append(edge)
         }
