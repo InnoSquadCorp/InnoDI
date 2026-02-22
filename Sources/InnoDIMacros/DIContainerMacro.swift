@@ -403,13 +403,9 @@ private func normalizedConcreteCheckType(_ type: TypeSyntax) -> TypeSyntax {
 
     if let identifier = type.as(IdentifierTypeSyntax.self),
        identifier.name.text == "Optional",
-       let wrapped = identifier.genericArgumentClause?.arguments.first?.argument {
-        switch wrapped {
-        case .type(let wrappedType):
-            return normalizedConcreteCheckType(wrappedType)
-        default:
-            break
-        }
+       let wrapped = identifier.genericArgumentClause?.arguments.first?.argument,
+       let wrappedType = wrapped.as(TypeSyntax.self) {
+        return normalizedConcreteCheckType(wrappedType)
     }
 
     return type

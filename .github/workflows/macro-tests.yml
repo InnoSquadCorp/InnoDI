@@ -19,3 +19,6 @@ jobs:
           xcodebuild -version
       - name: Run Macro Tests
         run: swift test --filter InnoDIMacrosTests
+      - name: Macro Performance Check (non-blocking)
+        continue-on-error: true
+        run: Tools/measure-macro-performance.sh --iterations 5
