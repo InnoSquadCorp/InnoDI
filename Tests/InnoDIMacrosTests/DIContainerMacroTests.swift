@@ -203,6 +203,174 @@ struct DIContainerMacroTests {
     }
 
     @Test
+    func bareProtocolSharedDependencyRequiresOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: APIClientProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
+    }
+
+    @Test
+    func bareOptionalProtocolSharedDependencyRequiresOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: APIClientProtocol?
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
+    }
+
+    @Test
+    func anyProtocolSharedDependencyDoesNotRequireOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: any APIClientProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
+    func optionalAnyProtocolSharedDependencyDoesNotRequireOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: (any APIClientProtocol)?
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
+    func someProtocolSharedDependencyDoesNotRequireOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: some APIClientProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
+    func compositionSharedDependencyDoesNotRequireOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: APIClientProtocol & LoggerProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
     func concreteSharedDependencyWithOptInGeneratesInit() throws {
         let source = """
         @DIContainer
@@ -239,7 +407,7 @@ struct DIContainerMacroTests {
         @DIContainer(validate: false)
         struct AppContainer {
             @Provide(.shared)
-            var service: ServiceProtocol
+            var service: any ServiceProtocol
         }
         """
 
@@ -268,7 +436,7 @@ struct DIContainerMacroTests {
         @DIContainer(validate: false)
         struct AppContainer {
             @Provide(.input, factory: Service())
-            var service: ServiceProtocol
+            var service: any ServiceProtocol
         }
         """
 

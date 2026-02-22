@@ -70,7 +70,6 @@ private struct ProvideMember {
     let typeExpr: ExprSyntax?
     let initializer: ExprSyntax?
     let dependencies: [String]
-    let syntax: Syntax
 }
 
 private func hasUserDefinedInit(in decl: some DeclGroupSyntax) -> Bool {
@@ -197,8 +196,7 @@ private func collectProvideMembers(
                 factory: parseResult.factoryExpr,
                 typeExpr: parseResult.typeExpr,
                 initializer: initializerExpr,
-                dependencies: parseResult.dependencies,
-                syntax: Syntax(varDecl)
+                dependencies: parseResult.dependencies
             )
         )
     }
@@ -311,8 +309,8 @@ private func makeFactoryExpr(
 ) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
-             let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
-             return ExprSyntax(callClosureExpr(closure: closure, argumentNames: argumentNames))
+            let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
+            return makeClosureCallExpr(closure: closure, argumentNames: argumentNames)
         }
         return factory
     }
@@ -328,10 +326,7 @@ private func makeFactoryExpr(
             args.append(LabeledExprSyntax(
                 label: .identifier(dep),
                 colon: .colonToken(),
-                expression: ExprSyntax(MemberAccessExprSyntax(
-                    base: DeclReferenceExprSyntax(baseName: .identifier("self")),
-                    declName: DeclReferenceExprSyntax(baseName: .identifier(storageName))
-                ))
+                expression: makeSelfMemberAccessExpr(name: storageName)
             ))
         }
 
@@ -367,44 +362,68 @@ private func makeFactoryExpr(
 }
 
 private func requiresConcreteOptIn(type: TypeSyntax) -> Bool {
-    if let optional = type.as(OptionalTypeSyntax.self) {
-        return requiresConcreteOptIn(type: optional.wrappedType)
-    }
+    let normalized = normalizedConcreteCheckType(type)
 
-    if type.is(SomeOrAnyTypeSyntax.self) || type.is(CompositionTypeSyntax.self) {
+    if normalized.is(SomeOrAnyTypeSyntax.self) || normalized.is(CompositionTypeSyntax.self) {
         return false
     }
 
-    guard let identifier = type.as(IdentifierTypeSyntax.self) else {
-        return false
+    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
+        return !isExistentialIdentifier(identifier.name.text)
     }
 
-    let name = identifier.name.text
-    if name == "Any" || name == "AnyObject" || name.hasSuffix("Protocol") {
-        return false
+    if let member = normalized.as(MemberTypeSyntax.self) {
+        return !isExistentialIdentifier(member.name.text)
     }
 
     return true
 }
 
-private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
-    guard let signature = closure.signature,
-          let parameterClause = signature.parameterClause else {
-        return []
+private func normalizedConcreteCheckType(_ type: TypeSyntax) -> TypeSyntax {
+    if let optional = type.as(OptionalTypeSyntax.self) {
+        return normalizedConcreteCheckType(optional.wrappedType)
     }
 
+    if let implicitlyUnwrapped = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+        return normalizedConcreteCheckType(implicitlyUnwrapped.wrappedType)
+    }
+
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return normalizedConcreteCheckType(attributed.baseType)
+    }
+
+    if let tuple = type.as(TupleTypeSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.firstName == nil,
+       first.secondName == nil {
+        return normalizedConcreteCheckType(first.type)
+    }
+
+    if let identifier = type.as(IdentifierTypeSyntax.self),
+       identifier.name.text == "Optional",
+       let wrapped = identifier.genericArgumentClause?.arguments.first?.argument {
+        switch wrapped {
+        case .type(let wrappedType):
+            return normalizedConcreteCheckType(wrappedType)
+        default:
+            break
+        }
+    }
+
+    return type
+}
+
+private func isExistentialIdentifier(_ name: String) -> Bool {
+    name == "Any" || name == "AnyObject"
+}
+
+private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
+    let parsedArguments = parseClosureParameterNames(closure)
     var result: [String] = []
 
-    switch parameterClause {
-    case .simpleInput(let shorthandParameters):
-        for (index, param) in shorthandParameters.enumerated() {
-            result.append(matchClosureParameter(name: param.name.text, index: index, availableNames: availableNames))
-        }
-    case .parameterClause(let parameterClause):
-        for (index, param) in parameterClause.parameters.enumerated() {
-            let name = param.secondName?.text ?? param.firstName.text
-            result.append(matchClosureParameter(name: name, index: index, availableNames: availableNames))
-        }
+    for (index, name) in parsedArguments.names.enumerated() {
+        result.append(matchClosureParameter(name: name, index: index, availableNames: availableNames))
     }
 
     return result
@@ -448,44 +467,10 @@ private func mapDependencyNameToStorageName(_ dependencyName: String, availableN
     return dependencyName
 }
 
-private func callClosureExpr(closure: ClosureExprSyntax, argumentNames: [String]) -> ExprSyntax {
-    var arguments: [LabeledExprSyntax] = []
-    
-    for (index, name) in argumentNames.enumerated() {
-        let isLast = index == argumentNames.count - 1
-        let expr = selfMemberExpr(name: name)
-        let argument = LabeledExprSyntax(
-            label: nil,
-            colon: nil,
-            expression: expr,
-            trailingComma: isLast ? nil : .commaToken()
-        )
-        arguments.append(argument)
-    }
-    
-    let call = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(closure),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax(arguments),
-        rightParen: .rightParenToken()
-    )
-    
-    return ExprSyntax(call)
-}
-
-private func selfMemberExpr(name: String) -> ExprSyntax {
-    let base = DeclReferenceExprSyntax(baseName: .identifier("self"))
-    let memberAccess = MemberAccessExprSyntax(
-        base: ExprSyntax(base),
-        declName: DeclReferenceExprSyntax(baseName: .identifier(name))
-    )
-    return ExprSyntax(memberAccess)
-}
-
 private func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
     let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
     let assignment = InfixOperatorExprSyntax(
-        leftOperand: selfMemberExpr(name: targetName),
+        leftOperand: makeSelfMemberAccessExpr(name: targetName),
         operator: AssignmentExprSyntax(),
         rightOperand: valueExpr
     )
@@ -494,7 +479,7 @@ private func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
 
 private func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprSyntax {
     let assignment = InfixOperatorExprSyntax(
-        leftOperand: selfMemberExpr(name: targetName),
+        leftOperand: makeSelfMemberAccessExpr(name: targetName),
         operator: AssignmentExprSyntax(),
         rightOperand: value
     )

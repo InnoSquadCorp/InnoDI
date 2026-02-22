@@ -2,9 +2,8 @@
 
 ### 1) DI + Macro Usage
 
-Runnable example:
+Reference source:
 - `Sources/InnoDIExamples/main.swift`
-- Run: `swift run InnoDIExamples`
 
 ```swift
 import InnoDI
@@ -21,51 +20,44 @@ struct UserService {
     let client: APIClient
 }
 
-@DIContainer
+@DIContainer(root: true)
 struct AppContainer {
     @Provide(.input)
     var config: Config
 
-    @Provide(.shared, factory: APIClient(baseURL: config.baseURL), concrete: true)
+    @Provide(.shared, factory: { (config: Config) in APIClient(baseURL: config.baseURL) }, concrete: true)
     var apiClient: APIClient
 
-    @Provide(.shared, factory: UserService(client: apiClient), concrete: true)
+    @Provide(.shared, factory: { (apiClient: APIClient) in UserService(client: apiClient) }, concrete: true)
     var userService: UserService
 }
 
 let container = AppContainer(config: Config(baseURL: "https://api.example.com"))
-let service = container.userService
+print("Live baseURL:", container.userService.client.baseURL)
+
+let mockContainer = AppContainer(
+    config: Config(baseURL: "https://api.example.com"),
+    apiClient: APIClient(baseURL: "mock://")
+)
+print("Mock baseURL:", mockContainer.userService.client.baseURL)
 ```
 
 Notes:
-- `.input` requires no `factory`.
-- `.shared` requires `factory: <expr>` or `Type.self` with `with:`.
-- The macro generates `init(...)` with optional override parameters.
-
-Example with init override:
-
-```swift
-// Production - factory creates the instance
-let container = AppContainer(config: Config(baseURL: "https://api.example.com"))
-
-// Testing - directly inject mock
-let testContainer = AppContainer(
-    config: Config(baseURL: "https://test.example.com"),
-    apiClient: MockAPIClient()
-)
-```
+- `.input` does not accept `factory`.
+- `.shared` and `.transient` require `factory`, `Type.self` + `with:`, or an initializer expression.
+- For protocol-typed `.shared`/`.transient`, use explicit existential syntax (`any Protocol`).
+- Concrete `.shared`/`.transient` properties require `concrete: true`.
 
 ### 2) CLI Usage (Dependency Graph Visualization)
 
-Runnable example:
+Runnable sample files:
 - `Examples/SampleApp/AppContainer.swift`
 - `Examples/SampleApp/App.swift`
-- Run: `swift run InnoDI-DependencyGraph --root Examples/SampleApp`
 
-Run the CLI from the package root or point it at another repo:
+Run:
 
 ```bash
-swift run InnoDI-DependencyGraph --root /path/to/your/project
+swift run InnoDI-DependencyGraph --root Examples/SampleApp
 ```
 
 Generate different formats:
@@ -74,34 +66,48 @@ Generate different formats:
 # Mermaid diagram (default)
 swift run InnoDI-DependencyGraph --root /path/to/your/project
 
-# DOT format for Graphviz
+# DOT format
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.dot
+
+# ASCII format
+swift run InnoDI-DependencyGraph --root /path/to/your/project --format ascii
 
 # PNG image (requires Graphviz)
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
 ```
 
-The CLI reports:
-- Missing required `.input` arguments when constructing containers.
-- Containers that are not reachable from any root container.
+Current CLI behavior:
+- Collects all `@DIContainer` declarations and required `.input` fields.
+- Builds container-to-container edges from constructor calls found in container bodies.
+- Uses stable node identity (`relativeFilePath#declarationPath`) to avoid over-merging same display names.
+- Skips ambiguous edges when multiple destination containers share the same display name.
 
-You can mark a container as a root:
+You can mark a root container:
 
 ```swift
 @DIContainer(root: true)
 struct AppContainer { ... }
 ```
 
-### 3) Core Parsing Tests (SwiftTesting)
+### 3) Core Tests (Swift Testing)
 
-Runnable example:
-- `Tests/InnoDIExamplesTests/ExampleTests.swift`
-- Run: `swift test --filter InnoDIExamplesTests`
+Reference files:
+- `Tests/InnoDICoreTests/ParsingTests.swift`
+- `Tests/InnoDICoreTests/DependencyGraphCoreTests.swift`
+
+Run:
+
+```bash
+swift test --filter InnoDICoreTests
+```
+
+Example parsing test:
 
 ```swift
 import SwiftParser
 import SwiftSyntax
 import Testing
+
 @testable import InnoDICore
 
 struct ParsingTests {
@@ -125,54 +131,53 @@ struct ParsingTests {
 }
 ```
 
-Run:
+### 4) Macro Tests
 
-```bash
-swift test
-```
-
-### 4) Macro Expansion Tests
-
-```swift
-import SwiftSyntaxMacros
-import SwiftSyntaxMacrosTestSupport
-import XCTest
-
-@testable import InnoDIMacros
-
-final class DIContainerMacroTests: XCTestCase {
-    func testDIContainerGeneratesInitWithOptionalOverrideParameters() {
-        let macros: [String: Macro.Type] = [
-            "DIContainer": DIContainerMacro.self,
-        ]
-
-        assertMacroExpansion(
-            """
-            struct Foo {}
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, factory: Foo(), concrete: true)
-                var foo: Foo
-            }
-            """,
-            expandedSource: """
-            struct Foo {}
-            struct AppContainer {
-                @Provide(.shared, factory: Foo(), concrete: true)
-                var foo: Foo
-                init(foo: Foo? = nil) {
-                    self._storage_foo = foo ?? Foo()
-                }
-            }
-            """,
-            macros: macros
-        )
-    }
-}
-```
+Reference file:
+- `Tests/InnoDIMacrosTests/DIContainerMacroTests.swift`
 
 Run:
 
 ```bash
 swift test --filter InnoDIMacrosTests
+```
+
+Example:
+
+```swift
+import SwiftParser
+import SwiftSyntax
+import Testing
+
+@testable import InnoDIMacros
+
+struct DIContainerMacroTests {
+    @Test
+    func concreteSharedDependencyRequiresOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
+    }
+}
 ```
