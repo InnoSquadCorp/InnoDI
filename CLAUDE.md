@@ -36,7 +36,7 @@ The project uses a layered architecture with four main modules:
 
 1. **InnoDI** (Public API)
    - Exports the `@DIContainer` and `@Provide` macro declarations
-   - Defines `DIScope` enum (`.shared`, `.input`)
+   - Defines `DIScope` enum (`.shared`, `.input`, `.transient`)
    - This is what library consumers import
 
 2. **InnoDIMacros** (Macro Implementation)
