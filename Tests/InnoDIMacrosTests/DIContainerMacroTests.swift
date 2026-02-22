@@ -1,4 +1,3 @@
-import Foundation
 import InnoDICore
 import SwiftParser
 import SwiftDiagnostics
@@ -8,7 +7,6 @@ import Testing
 
 @testable import InnoDIMacros
 
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["INNODI_RUN_MACRO_TESTS"] == "1"))
 struct DIContainerMacroTests {
     @Test
     func parseProvideAttributes() throws {
