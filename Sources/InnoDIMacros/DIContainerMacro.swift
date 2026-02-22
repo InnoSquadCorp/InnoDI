@@ -132,19 +132,19 @@ private func collectProvideMembers(
         }
 
         guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
-            context.diagnose(Diagnostic(node: Syntax(varDecl), message: SimpleDiagnostic("@Provide supports a single variable binding.")))
+            context.diagnose(Diagnostic(node: Syntax(varDecl), message: SimpleDiagnostic.provideSingleBinding()))
             hadErrors = true
             continue
         }
 
         guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-            context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic("@Provide requires a named property.")))
+            context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideNamedPropertyRequired()))
             hadErrors = true
             continue
         }
 
         guard let typeAnnotation = binding.typeAnnotation else {
-            context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic("@Provide requires an explicit type.")))
+            context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideExplicitTypeRequired()))
             hadErrors = true
             continue
         }
@@ -152,7 +152,7 @@ private func collectProvideMembers(
         let parseResult = parseProvideArguments(attribute)
         guard let scope = parseResult.scope else {
             if let name = parseResult.scopeName {
-                context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("Unknown @Provide scope: \(name).")))
+                context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideUnknownScope(name)))
             }
             hadErrors = true
             continue
@@ -162,17 +162,17 @@ private func collectProvideMembers(
         let hasFactory = parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil
 
         if scope == .shared && !hasFactory && validateEnabled {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.")))
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideSharedFactoryRequired()))
             hadErrors = true
         }
 
         if scope == .transient && !hasFactory && validateEnabled {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.")))
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideTransientFactoryRequired()))
             hadErrors = true
         }
 
         if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil) {
-            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory, type, or initializer.")))
+            context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideInputInvalidConfiguration()))
             hadErrors = true
         }
 
@@ -180,8 +180,9 @@ private func collectProvideMembers(
             context.diagnose(
                 Diagnostic(
                     node: Syntax(attribute),
-                    message: SimpleDiagnostic(
-                        "Concrete dependency '\(identifier.identifier.text): \(typeAnnotation.type.trimmedDescription)' requires concrete: true. Prefer protocol types when possible."
+                    message: SimpleDiagnostic.provideConcreteOptInRequired(
+                        name: identifier.identifier.text,
+                        typeDescription: typeAnnotation.type.trimmedDescription
                     )
                 )
             )

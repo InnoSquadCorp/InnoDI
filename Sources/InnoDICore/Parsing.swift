@@ -5,20 +5,40 @@
 
 import SwiftSyntax
 
+/// Scope for a `@Provide` declaration.
 public enum ProvideScope: String {
+    /// Shared singleton-like instance in a container.
     case shared
+    /// Input value passed from outside the container.
     case input
+    /// New instance created on each access.
     case transient
 }
 
+/// Parsed arguments extracted from a single `@Provide` attribute.
 public struct ProvideArguments {
+    /// Parsed scope value (`.shared`, `.input`, `.transient`) when available.
     public let scope: ProvideScope?
+    /// Raw textual scope name.
     public let scopeName: String?
+    /// Factory expression passed via `factory:`.
     public let factoryExpr: ExprSyntax?
+    /// Whether concrete opt-in (`concrete: true`) was explicitly requested.
     public let concrete: Bool
+    /// Explicit type expression passed as positional `Type.self`.
     public let typeExpr: ExprSyntax?
+    /// Dependency key-path names passed via `with:`.
     public let dependencies: [String]
 
+    /// Creates a parsed `@Provide` argument model.
+    ///
+    /// - Parameters:
+    ///   - scope: Parsed scope value.
+    ///   - scopeName: Raw scope name text.
+    ///   - factoryExpr: Parsed factory expression.
+    ///   - concrete: Explicit concrete opt-in value.
+    ///   - typeExpr: Positional type expression.
+    ///   - dependencies: Parsed dependency names from `with:`.
     public init(scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?, concrete: Bool = false, typeExpr: ExprSyntax? = nil, dependencies: [String] = []) {
         self.scope = scope
         self.scopeName = scopeName
@@ -29,16 +49,30 @@ public struct ProvideArguments {
     }
 }
 
+/// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
+    /// Whether compile-time validation is enabled for the container.
     public let validate: Bool
+    /// Whether the container should be marked as graph root.
     public let root: Bool
 
+    /// Creates a parsed `@DIContainer` attribute model.
+    ///
+    /// - Parameters:
+    ///   - validate: Validation flag.
+    ///   - root: Root flag.
     public init(validate: Bool, root: Bool) {
         self.validate = validate
         self.root = root
     }
 }
 
+/// Finds the first attribute whose base name matches `name`.
+///
+/// - Parameters:
+///   - name: Attribute base name (for example, `"Provide"`).
+///   - attributes: Attribute list to search.
+/// - Returns: Matching `AttributeSyntax` when found; otherwise `nil`.
 public func findAttribute(named name: String, in attributes: AttributeListSyntax?) -> AttributeSyntax? {
     guard let attributes else { return nil }
     for attribute in attributes {

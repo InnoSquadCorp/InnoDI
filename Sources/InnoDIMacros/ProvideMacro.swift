@@ -82,7 +82,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                         context.diagnose(
                             Diagnostic(
                                 node: Syntax(closure),
-                                message: SimpleDiagnostic("Transient factory closure parameters must be named for injection.")
+                                message: SimpleDiagnostic.transientFactoryUnnamedParameters()
                             )
                         )
                         return [fatalErrorGetter("Transient factory closure parameters must be named for injection.")]

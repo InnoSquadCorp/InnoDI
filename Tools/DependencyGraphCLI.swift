@@ -246,9 +246,8 @@ func renderDOT(nodes: [ContainerNode], edges: [DependencyEdge]) {
     print()
     print("  // Nodes")
     for node in nodes {
-        let shape = node.isRoot ? "[root]" : "[]"
         let fill = node.isRoot ? "#e1f5fe" : "#e5e7eb"
-        print("  \"\\(node.name)\" \\(shape=box, style=rounded,filled, fillcolor=\\(fill)];")
+        print("  \"\\(node.name)\" [shape=box, style=rounded,filled, fillcolor=\\(fill)];")
     }
     print()
     print("  // Edges")

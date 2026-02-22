@@ -80,7 +80,7 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
         let padding = String(repeating: " ", count: max(0, maxNameLength - label.count))
         let rootSuffix = node.isRoot ? " [ROOT]" : ""
         let inputs = node.requiredInputs.isEmpty ? "" : " (inputs: \(node.requiredInputs.joined(separator: ", ")))"
-        result += "  \(padding)\(label)\(rootSuffix)\(inputs)\n"
+        result += "  \(label)\(padding)\(rootSuffix)\(inputs)\n"
     }
 
     result += "\n"
@@ -91,7 +91,7 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
         let toLabel = labelsByID[edge.toID] ?? edge.toID
         let labelPart = edge.label.map { ":\($0)" } ?? ""
         let padding = String(repeating: " ", count: max(0, maxNameLength - fromLabel.count))
-        result += "  \(padding)\(fromLabel) -->\(toLabel)\(labelPart)\n"
+        result += "  \(padding)\(fromLabel) --> \(toLabel)\(labelPart)\n"
     }
 
     return result

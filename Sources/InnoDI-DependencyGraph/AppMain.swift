@@ -58,6 +58,7 @@ private func writeNoContainersMessage(outputPath: String?) -> Int32 {
             try errorMessage.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
         } catch {
             fputs("Error writing to file: \(error)\n", stderr)
+            return 2
         }
     } else {
         fputs(errorMessage, stderr)

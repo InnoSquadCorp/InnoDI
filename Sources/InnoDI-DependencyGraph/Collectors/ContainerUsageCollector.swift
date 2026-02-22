@@ -2,13 +2,17 @@ import InnoDICore
 import SwiftSyntax
 
 final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
+    private struct DeclarationEntry {
+        let isContainer: Bool
+        let containerID: String?
+    }
+
     let containerIDsByDisplayName: [String: [String]]
     var edges: [DependencyGraphEdge] = []
 
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
-    private var activeContainerIDs: [String] = []
-    private var activeContainerMarkers: [Bool] = []
+    private var activeDeclarations: [DeclarationEntry] = []
 
     init(containerIDsByDisplayName: [String: [String]], viewMode: SyntaxTreeViewMode = .sourceAccurate) {
         self.containerIDsByDisplayName = containerIDsByDisplayName
@@ -48,7 +52,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-        guard let sourceID = activeContainerIDs.last,
+        guard let sourceID = activeContainerID,
               let destinationID = calledContainerID(node.calledExpression) else {
             return .visitChildren
         }
@@ -67,8 +71,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     func walkFile(relativePath: String, tree: SourceFileSyntax) {
         currentRelativeFilePath = relativePath
         declarationPath.removeAll(keepingCapacity: true)
-        activeContainerIDs.removeAll(keepingCapacity: true)
-        activeContainerMarkers.removeAll(keepingCapacity: true)
+        activeDeclarations.removeAll(keepingCapacity: true)
         walk(tree)
     }
 
@@ -78,35 +81,82 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     private func beginDeclaration(name: String, isContainer: Bool) -> SyntaxVisitorContinueKind {
-        pushDeclarationContext(named: name)
-        activeContainerMarkers.append(isContainer)
-
-        if isContainer {
-            let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
-            activeContainerIDs.append(id)
-        }
+        beginDeclarationContext(named: name)
+        let containerID = isContainer
+            ? GraphIdentity.makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+            : nil
+        activeDeclarations.append(DeclarationEntry(isContainer: isContainer, containerID: containerID))
 
         return .visitChildren
     }
 
     private func endDeclaration() {
-        if activeContainerMarkers.popLast() == true {
-            _ = activeContainerIDs.popLast()
+        _ = activeDeclarations.popLast()
+        _ = endDeclarationContext()
+    }
+
+    private var activeContainerID: String? {
+        for entry in activeDeclarations.reversed() where entry.isContainer {
+            if let containerID = entry.containerID {
+                return containerID
+            }
         }
-        _ = popDeclarationContext()
+        return nil
     }
 
     private func calledContainerID(_ expr: ExprSyntax) -> String? {
-        let raw = expr.trimmedDescription
-        let lastComponent = raw.split(separator: ".").last ?? ""
-        let base = lastComponent.split(separator: "<").first ?? lastComponent
-        let displayName = String(base)
+        guard let displayName = calledContainerDisplayName(from: expr) else {
+            return nil
+        }
 
         guard let candidateIDs = containerIDsByDisplayName[displayName], candidateIDs.count == 1 else {
             return nil
         }
 
         return candidateIDs[0]
+    }
+
+    private func calledContainerDisplayName(from expr: ExprSyntax) -> String? {
+        if let declReference = expr.as(DeclReferenceExprSyntax.self) {
+            return declReference.baseName.text
+        }
+
+        if let memberAccess = expr.as(MemberAccessExprSyntax.self) {
+            let memberName = memberAccess.declName.baseName.text
+            if memberName == "init", let base = memberAccess.base {
+                return calledContainerDisplayName(from: base)
+            }
+            if memberName == "self", let base = memberAccess.base {
+                return calledContainerDisplayName(from: base)
+            }
+            return memberName
+        }
+
+        if let genericSpecialization = expr.as(GenericSpecializationExprSyntax.self) {
+            return calledContainerDisplayName(from: genericSpecialization.expression)
+        }
+
+        if let functionCall = expr.as(FunctionCallExprSyntax.self) {
+            return calledContainerDisplayName(from: functionCall.calledExpression)
+        }
+
+        if let forceUnwrap = expr.as(ForceUnwrapExprSyntax.self) {
+            return calledContainerDisplayName(from: forceUnwrap.expression)
+        }
+
+        if let optionalChaining = expr.as(OptionalChainingExprSyntax.self) {
+            return calledContainerDisplayName(from: optionalChaining.expression)
+        }
+
+        if let tryExpr = expr.as(TryExprSyntax.self) {
+            return calledContainerDisplayName(from: tryExpr.expression)
+        }
+
+        if let awaitExpr = expr.as(AwaitExprSyntax.self) {
+            return calledContainerDisplayName(from: awaitExpr.expression)
+        }
+
+        return nil
     }
 
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {
