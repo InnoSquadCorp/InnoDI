@@ -7,6 +7,7 @@ import Testing
 
 @testable import InnoDIMacros
 
+@Suite("DIContainer Macro Tests")
 struct DIContainerMacroTests {
     @Test
     func parseProvideAttributes() throws {
@@ -174,6 +175,26 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.contains { $0.message.contains("must be named for injection") })
     }
 
+    @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
+    func parseClosureParameterNamesSkipsWildcard() throws {
+        let source = """
+        @Provide(.transient, factory: { (_: APIClient, logger: Logger) in ViewModel(logger: logger) })
+        var viewModel: ViewModel
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self),
+              let closure = parseProvideArguments(attr).factoryExpr?.as(ClosureExprSyntax.self) else {
+            Issue.record("Should parse transient factory closure")
+            return
+        }
+
+        let parameterList = parseClosureParameterNames(closure)
+        #expect(parameterList.hasWildcard == true)
+        #expect(parameterList.names == ["logger"])
+    }
+
     @Test
     func concreteSharedDependencyRequiresOptIn() throws {
         let source = """
@@ -202,7 +223,7 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
     }
 
-    @Test
+    @Test("Bare protocol type requires concrete opt-in for shared dependency")
     func bareProtocolSharedDependencyRequiresOptIn() throws {
         let source = """
         @DIContainer
@@ -230,7 +251,7 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
     }
 
-    @Test
+    @Test("Bare optional protocol type requires concrete opt-in for shared dependency")
     func bareOptionalProtocolSharedDependencyRequiresOptIn() throws {
         let source = """
         @DIContainer
@@ -258,7 +279,7 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
     }
 
-    @Test
+    @Test("Explicit any protocol shared dependency does not require concrete opt-in")
     func anyProtocolSharedDependencyDoesNotRequireOptIn() throws {
         let source = """
         @DIContainer
@@ -286,7 +307,7 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.isEmpty)
     }
 
-    @Test
+    @Test("Optional any protocol shared dependency does not require concrete opt-in")
     func optionalAnyProtocolSharedDependencyDoesNotRequireOptIn() throws {
         let source = """
         @DIContainer
@@ -314,13 +335,13 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.isEmpty)
     }
 
-    @Test
+    @Test("Opaque some protocol shared dependency does not require concrete opt-in")
     func someProtocolSharedDependencyDoesNotRequireOptIn() throws {
         let source = """
         @DIContainer
         struct AppContainer {
             @Provide(.shared, factory: APIClient())
-            var apiClient: some APIClientProtocol
+            var apiClient: some APIClientProtocol = APIClient()
         }
         """
 
@@ -342,7 +363,7 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.isEmpty)
     }
 
-    @Test
+    @Test("Protocol composition shared dependency does not require concrete opt-in")
     func compositionSharedDependencyDoesNotRequireOptIn() throws {
         let source = """
         @DIContainer

@@ -20,6 +20,7 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
             let name = parameter.name.text
             if name == "_" {
                 hasWildcard = true
+                continue
             }
             names.append(name)
         }
@@ -28,6 +29,7 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
             let name = parameter.secondName?.text ?? parameter.firstName.text
             if name == "_" {
                 hasWildcard = true
+                continue
             }
             names.append(name)
         }

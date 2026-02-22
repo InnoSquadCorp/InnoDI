@@ -99,6 +99,7 @@ final class ContainerUsageCollector: SyntaxVisitor {
     private var currentRelativeFilePath: String = ""
     private var declarationPath: [String] = []
     private var activeContainerIDs: [String] = []
+    private var activeContainerMarkers: [Bool] = []
 
     init(containerIDsByDisplayName: [String: [String]], viewMode: SyntaxTreeViewMode = .sourceAccurate) {
         self.containerIDsByDisplayName = containerIDsByDisplayName
@@ -108,7 +109,9 @@ final class ContainerUsageCollector: SyntaxVisitor {
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
         declarationPath.append(node.name.text)
 
-        if parseDIContainerAttribute(node.attributes) != nil {
+        let isContainer = parseDIContainerAttribute(node.attributes) != nil
+        activeContainerMarkers.append(isContainer)
+        if isContainer {
             let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
             activeContainerIDs.append(id)
         }
@@ -117,7 +120,7 @@ final class ContainerUsageCollector: SyntaxVisitor {
     }
 
     override func visitPost(_ node: StructDeclSyntax) {
-        if parseDIContainerAttribute(node.attributes) != nil {
+        if activeContainerMarkers.popLast() == true {
             _ = activeContainerIDs.popLast()
         }
         _ = declarationPath.popLast()
@@ -126,7 +129,9 @@ final class ContainerUsageCollector: SyntaxVisitor {
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         declarationPath.append(node.name.text)
 
-        if parseDIContainerAttribute(node.attributes) != nil {
+        let isContainer = parseDIContainerAttribute(node.attributes) != nil
+        activeContainerMarkers.append(isContainer)
+        if isContainer {
             let id = makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
             activeContainerIDs.append(id)
         }
@@ -135,7 +140,7 @@ final class ContainerUsageCollector: SyntaxVisitor {
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
-        if parseDIContainerAttribute(node.attributes) != nil {
+        if activeContainerMarkers.popLast() == true {
             _ = activeContainerIDs.popLast()
         }
         _ = declarationPath.popLast()
@@ -162,6 +167,7 @@ final class ContainerUsageCollector: SyntaxVisitor {
         currentRelativeFilePath = relativePath
         declarationPath.removeAll(keepingCapacity: true)
         activeContainerIDs.removeAll(keepingCapacity: true)
+        activeContainerMarkers.removeAll(keepingCapacity: true)
         walk(tree)
     }
 
@@ -359,11 +365,14 @@ func main() -> Int32 {
     let outputFormat = format ?? .mermaid
 
     let files = loadSwiftFiles(rootPath: rootPath)
+    let parsedFiles = files.compactMap { file -> (relativePath: String, tree: SourceFileSyntax)? in
+        guard let tree = try? parseSourceFile(at: file) else { return nil }
+        return (relativePath: relativePath(of: file, fromRoot: rootPath), tree: tree)
+    }
 
     let collector = ContainerCollector()
-    for file in files {
-        guard let tree = try? parseSourceFile(at: file) else { continue }
-        collector.walkFile(relativePath: relativePath(of: file, fromRoot: rootPath), tree: tree)
+    for parsed in parsedFiles {
+        collector.walkFile(relativePath: parsed.relativePath, tree: parsed.tree)
     }
 
     let nodes = normalizeNodes(collector.nodes)
@@ -386,9 +395,8 @@ func main() -> Int32 {
         .mapValues { group in group.map(\.id).sorted() }
 
     let usageCollector = ContainerUsageCollector(containerIDsByDisplayName: containerIDsByDisplayName)
-    for file in files {
-        guard let tree = try? parseSourceFile(at: file) else { continue }
-        usageCollector.walkFile(relativePath: relativePath(of: file, fromRoot: rootPath), tree: tree)
+    for parsed in parsedFiles {
+        usageCollector.walkFile(relativePath: parsed.relativePath, tree: parsed.tree)
     }
 
     let edges = deduplicateEdges(usageCollector.edges)
