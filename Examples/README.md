@@ -26,10 +26,10 @@ struct AppContainer {
     @Provide(.input)
     var config: Config
 
-    @Provide(.shared, factory: APIClient(baseURL: config.baseURL))
+    @Provide(.shared, factory: APIClient(baseURL: config.baseURL), concrete: true)
     var apiClient: APIClient
 
-    @Provide(.shared, factory: UserService(client: apiClient))
+    @Provide(.shared, factory: UserService(client: apiClient), concrete: true)
     var userService: UserService
 }
 
@@ -151,14 +151,14 @@ final class DIContainerMacroTests: XCTestCase {
             struct Foo {}
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Foo())
+                @Provide(.shared, factory: Foo(), concrete: true)
                 var foo: Foo
             }
             """,
             expandedSource: """
             struct Foo {}
             struct AppContainer {
-                @Provide(.shared, factory: Foo())
+                @Provide(.shared, factory: Foo(), concrete: true)
                 var foo: Foo
                 init(foo: Foo? = nil) {
                     self._storage_foo = foo ?? Foo()
