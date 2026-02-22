@@ -3,8 +3,6 @@
 //  InnoDI
 //
 
-import Foundation
-
 public enum DIScope {
     case shared
     case input

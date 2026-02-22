@@ -97,7 +97,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                     args.append(LabeledExprSyntax(
                         label: .identifier(dep),
                         colon: .colonToken(),
-                        expression: makeSelfMemberAccessExpr(name: dep)
+                        expression: makeSelfMemberAccessExpr(name: "_storage_\(dep)")
                     ))
                 }
 
