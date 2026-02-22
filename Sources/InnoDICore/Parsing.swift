@@ -14,34 +14,12 @@ public enum ProvideScope: String {
 public struct ProvideArguments {
     public let scope: ProvideScope?
     public let scopeName: String?
-    public let isDefaultScope: Bool
     public let factoryExpr: ExprSyntax?
     public let concrete: Bool
     public let typeExpr: ExprSyntax?
     public let dependencies: [String]
 
-    public init(scope: ProvideScope?, scopeName: String?, isDefaultScope: Bool, factoryExpr: ExprSyntax?, concrete: Bool = false, typeExpr: ExprSyntax? = nil, dependencies: [String] = []) {
-        self.scope = scope
-        self.scopeName = scopeName
-        self.isDefaultScope = isDefaultScope
-        self.factoryExpr = factoryExpr
-        self.concrete = concrete
-        self.typeExpr = typeExpr
-        self.dependencies = dependencies
-    }
-}
-
-public struct ProvideAttributeInfo {
-    public let hasProvide: Bool
-    public let scope: ProvideScope?
-    public let scopeName: String?
-    public let factoryExpr: ExprSyntax?
-    public let concrete: Bool
-    public let typeExpr: ExprSyntax?
-    public let dependencies: [String]
-
-    public init(hasProvide: Bool, scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?, concrete: Bool = false, typeExpr: ExprSyntax? = nil, dependencies: [String] = []) {
-        self.hasProvide = hasProvide
+    public init(scope: ProvideScope?, scopeName: String?, factoryExpr: ExprSyntax?, concrete: Bool = false, typeExpr: ExprSyntax? = nil, dependencies: [String] = []) {
         self.scope = scope
         self.scopeName = scopeName
         self.factoryExpr = factoryExpr
@@ -115,14 +93,6 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     continue
                 }
                 
-                if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self),
-                   let scope = ProvideScope(rawValue: memberAccess.declName.baseName.text) {
-                    scopeName = memberAccess.declName.baseName.text
-                    // Assign to outer scope variable
-                    _ = scope // Just to silence unused warning if any, but actually we need to assign to the outer `scope` var
-                }
-                
-                // Re-check for scope more robustly
                 if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
                      let name = memberAccess.declName.baseName.text
                      if let s = ProvideScope(rawValue: name) {
@@ -137,27 +107,16 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     if scopeName == nil {
         scopeName = ProvideScope.shared.rawValue
         scope = .shared
-        return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: true, factoryExpr: factoryExpr, concrete: concrete, typeExpr: typeExpr, dependencies: dependencies)
     }
 
-    return ProvideArguments(scope: scope, scopeName: scopeName, isDefaultScope: false, factoryExpr: factoryExpr, concrete: concrete, typeExpr: typeExpr, dependencies: dependencies)
+    return ProvideArguments(scope: scope, scopeName: scopeName, factoryExpr: factoryExpr, concrete: concrete, typeExpr: typeExpr, dependencies: dependencies)
 }
 
-public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideAttributeInfo {
+public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideArguments? {
     guard let attribute = findAttribute(named: "Provide", in: attributes) else {
-        return ProvideAttributeInfo(hasProvide: false, scope: nil, scopeName: nil, factoryExpr: nil, concrete: false)
+        return nil
     }
-
-    let args = parseProvideArguments(attribute)
-    return ProvideAttributeInfo(
-        hasProvide: true,
-        scope: args.scope,
-        scopeName: args.scopeName,
-        factoryExpr: args.factoryExpr,
-        concrete: args.concrete,
-        typeExpr: args.typeExpr,
-        dependencies: args.dependencies
-    )
+    return parseProvideArguments(attribute)
 }
 
 public func parseBoolLiteral(_ expr: ExprSyntax) -> Bool? {

@@ -59,9 +59,8 @@ final class ContainerCollector: SyntaxVisitor {
 
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
-            let provide = parseProvideAttribute(varDecl.attributes)
-            if !provide.hasProvide { continue }
-            if provide.scope != .input { continue }
+            guard let provide = parseProvideAttribute(varDecl.attributes),
+                  provide.scope == .input else { continue }
 
             guard let binding = varDecl.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {

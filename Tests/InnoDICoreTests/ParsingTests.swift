@@ -40,10 +40,10 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
-        #expect(info.scope == .shared)
-        #expect(info.scopeName == "shared")
-        #expect(info.factoryExpr != nil)
+        #expect(info != nil)
+        #expect(info?.scope == .shared)
+        #expect(info?.scopeName == "shared")
+        #expect(info?.factoryExpr != nil)
     }
 
     @Test
@@ -60,10 +60,10 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
-        #expect(info.scope == .input)
-        #expect(info.scopeName == "input")
-        #expect(info.factoryExpr == nil)
+        #expect(info != nil)
+        #expect(info?.scope == .input)
+        #expect(info?.scopeName == "input")
+        #expect(info?.factoryExpr == nil)
     }
     
     @Test
@@ -80,10 +80,10 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
-        #expect(info.scope == .transient)
-        #expect(info.scopeName == "transient")
-        #expect(info.factoryExpr != nil)
+        #expect(info != nil)
+        #expect(info?.scope == .transient)
+        #expect(info?.scopeName == "transient")
+        #expect(info?.factoryExpr != nil)
     }
     
     @Test
@@ -100,9 +100,9 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
-        #expect(info.scope == .shared)
-        #expect(info.concrete == true)
+        #expect(info != nil)
+        #expect(info?.scope == .shared)
+        #expect(info?.concrete == true)
     }
     
     @Test
@@ -119,8 +119,8 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
-        #expect(info.concrete == false)
+        #expect(info != nil)
+        #expect(info?.concrete == false)
     }
 }
 

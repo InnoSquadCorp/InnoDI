@@ -89,8 +89,8 @@ final class ContainerCollector: SyntaxVisitor {
 
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
-            let provide = parseProvideAttribute(varDecl.attributes)
-            if !provide.hasProvide || provide.scope != .input { continue }
+            guard let provide = parseProvideAttribute(varDecl.attributes),
+                  provide.scope == .input else { continue }
 
             guard let binding = varDecl.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
@@ -300,6 +300,8 @@ func parseArguments() -> (root: String, format: OutputFormat?, output: String?) 
         } else if arg == "--help" || arg == "-h" {
             printUsage()
             exit(0)
+        } else if arg.hasPrefix("-") {
+            fputs("Warning: unrecognized option '\(arg)'\n", stderr)
         }
     }
 
