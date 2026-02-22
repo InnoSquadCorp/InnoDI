@@ -28,9 +28,15 @@ public struct DIContainerMacro: MemberMacro {
             return []
         }
 
+        let containerOptions = parseDIContainerAttribute(decl.attributes) ?? DIContainerAttributeInfo(validate: true, root: false)
         let accessLevel = containerAccessLevel(for: decl)
         var hadErrors = false
-        let provideMembers = collectProvideMembers(in: decl, context: context, hadErrors: &hadErrors)
+        let provideMembers = collectProvideMembers(
+            in: decl,
+            context: context,
+            validateEnabled: containerOptions.validate,
+            hadErrors: &hadErrors
+        )
 
         if hadErrors || provideMembers.isEmpty {
             return []
@@ -48,7 +54,8 @@ public struct DIContainerMacro: MemberMacro {
             sharedMembers: sharedMembers,
             inputMembers: inputMembers,
             transientMembers: transientMembers,
-            accessLevel: accessLevel
+            accessLevel: accessLevel,
+            validateEnabled: containerOptions.validate
         ))
 
         return generated
@@ -107,6 +114,7 @@ private func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
 private func collectProvideMembers(
     in decl: some DeclGroupSyntax,
     context: MacroExpansionContext,
+    validateEnabled: Bool,
     hadErrors: inout Bool
 ) -> [ProvideMember] {
     var result: [ProvideMember] = []
@@ -154,18 +162,30 @@ private func collectProvideMembers(
         let initializerExpr = binding.initializer?.value
         let hasFactory = parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil
 
-        if scope == .shared && !hasFactory {
+        if scope == .shared && !hasFactory && validateEnabled {
             context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.")))
             hadErrors = true
         }
 
-        if scope == .transient && !hasFactory {
+        if scope == .transient && !hasFactory && validateEnabled {
             context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.")))
             hadErrors = true
         }
 
         if scope == .input && (parseResult.factoryExpr != nil || parseResult.typeExpr != nil || initializerExpr != nil) {
             context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic("@Provide(.input) should not include a factory, type, or initializer.")))
+            hadErrors = true
+        }
+
+        if scope != .input && !parseResult.concrete && requiresConcreteOptIn(type: typeAnnotation.type) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: SimpleDiagnostic(
+                        "Concrete dependency '\(identifier.identifier.text): \(typeAnnotation.type.trimmedDescription)' requires concrete: true. Prefer protocol types when possible."
+                    )
+                )
+            )
             hadErrors = true
         }
 
@@ -190,7 +210,8 @@ private func makeInitDecl(
     sharedMembers: [ProvideMember],
     inputMembers: [ProvideMember],
     transientMembers: [ProvideMember],
-    accessLevel: String?
+    accessLevel: String?,
+    validateEnabled: Bool
 ) -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
@@ -251,7 +272,11 @@ private func makeInitDecl(
     let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
     for (index, member) in sharedMembers.enumerated() {
         let availableStorageNames = inputStorageNames + sharedMembers.prefix(index).map { "_storage_\($0.name)" }
-        let factoryExpr = makeFactoryExpr(member: member, availableNames: availableStorageNames)
+        let factoryExpr = makeFactoryExpr(
+            member: member,
+            availableNames: availableStorageNames,
+            allowMissingFactoryFallback: !validateEnabled
+        )
         
         let initializerExpr = ExprSyntax(
             InfixOperatorExprSyntax(
@@ -279,7 +304,11 @@ private func makeInitDecl(
     return DeclSyntax(initDecl)
 }
 
-private func makeFactoryExpr(member: ProvideMember, availableNames: [String]) -> ExprSyntax {
+private func makeFactoryExpr(
+    member: ProvideMember,
+    availableNames: [String],
+    allowMissingFactoryFallback: Bool
+) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
              let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
@@ -315,7 +344,47 @@ private func makeFactoryExpr(member: ProvideMember, availableNames: [String]) ->
         return ExprSyntax(call)
     }
 
+    if allowMissingFactoryFallback {
+        return ExprSyntax(
+            FunctionCallExprSyntax(
+                calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
+                leftParen: .leftParenToken(),
+                arguments: LabeledExprListSyntax([
+                    LabeledExprSyntax(
+                        expression: ExprSyntax(
+                            StringLiteralExprSyntax(
+                                content: "Missing factory for shared dependency '\(member.name)'."
+                            )
+                        )
+                    )
+                ]),
+                rightParen: .rightParenToken()
+            )
+        )
+    }
+
     fatalError("No factory expression available - validation should have caught this")
+}
+
+private func requiresConcreteOptIn(type: TypeSyntax) -> Bool {
+    if let optional = type.as(OptionalTypeSyntax.self) {
+        return requiresConcreteOptIn(type: optional.wrappedType)
+    }
+
+    if type.is(SomeOrAnyTypeSyntax.self) || type.is(CompositionTypeSyntax.self) {
+        return false
+    }
+
+    guard let identifier = type.as(IdentifierTypeSyntax.self) else {
+        return false
+    }
+
+    let name = identifier.name.text
+    if name == "Any" || name == "AnyObject" || name.hasSuffix("Protocol") {
+        return false
+    }
+
+    return true
 }
 
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
