@@ -16,53 +16,53 @@ struct DIContainerMacroTests {
         @Provide(.input)
         var bar: Int
         """
-        
+
         let parsed = Parser.parse(source: source)
         guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
               let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse @Provide")
             return
         }
-        
+
         let args = parseProvideArguments(attr)
         #expect(args.scope == .input)
         #expect(args.factoryExpr == nil)
     }
-    
+
     @Test
     func parseProvideWithFactory() throws {
         let source = """
         @Provide(.shared, factory: SomeType())
         var foo: SomeProtocol
         """
-        
+
         let parsed = Parser.parse(source: source)
         guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
               let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse @Provide")
             return
         }
-        
+
         let args = parseProvideArguments(attr)
         #expect(args.scope == .shared)
         #expect(args.factoryExpr != nil)
         #expect(args.factoryExpr!.description.contains("SomeType"))
     }
-    
+
     @Test
     func parseProvideWithTypeAndDependencies() throws {
         let source = """
         @Provide(.shared, APIClient.self, with: [\\.config, \\.logger])
         var apiClient: APIClientProtocol
         """
-        
+
         let parsed = Parser.parse(source: source)
         guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
               let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse @Provide")
             return
         }
-        
+
         let args = parseProvideArguments(attr)
         #expect(args.scope == .shared)
         #expect(args.typeExpr != nil)
@@ -174,6 +174,122 @@ struct DIContainerMacroTests {
         #expect(generated.contains("Transient factory closure parameters must be named for injection."))
         #expect(!generated.contains("self._"))
         #expect(context.diagnostics.contains { $0.message.contains("must be named for injection") })
+    }
+
+    @Test
+    func concreteSharedDependencyRequiresOptIn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("requires concrete: true") })
+    }
+
+    @Test
+    func concreteSharedDependencyWithOptInGeneratesInit() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient(), concrete: true)
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(!generated.isEmpty)
+        let initCode = generated.first?.description ?? ""
+        #expect(initCode.contains("apiClient"))
+        #expect(initCode.contains("_storage_apiClient"))
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
+    func validateFalseAllowsMissingSharedFactoryWithRuntimeFallback() throws {
+        let source = """
+        @DIContainer(validate: false)
+        struct AppContainer {
+            @Provide(.shared)
+            var service: ServiceProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer(validate: false)")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(!generated.isEmpty)
+        #expect(generated.first?.description.contains("Missing factory for shared dependency 'service'.") == true)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test
+    func validateFalseStillRejectsInputFactory() throws {
+        let source = """
+        @DIContainer(validate: false)
+        struct AppContainer {
+            @Provide(.input, factory: Service())
+            var service: ServiceProtocol
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer(validate: false)")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("@Provide(.input) should not include a factory") })
     }
 }
 

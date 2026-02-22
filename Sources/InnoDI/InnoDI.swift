@@ -11,7 +11,7 @@ public enum DIScope {
     case transient
 }
 
-@attached(member, names: named(init), named(Overrides))
+@attached(member, names: named(init))
 public macro DIContainer(validate: Bool = true, root: Bool = false) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
 @attached(peer, names: prefixed(_storage_), prefixed(_override_))
