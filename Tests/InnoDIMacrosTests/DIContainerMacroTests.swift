@@ -92,7 +92,8 @@ struct DIContainerMacroTests {
 
         let generated = accessors.map(\.description).joined(separator: "\n")
         #expect(generated.contains("_override_viewModel"))
-        #expect(generated.contains("return"))
+        #expect(generated.contains("{ (apiClient: APIClient) in ViewModel(apiClient: apiClient) }"))
+        #expect(generated.contains("(self.apiClient)"))
         #expect(generated.contains("self.apiClient"))
     }
 
@@ -118,7 +119,6 @@ struct DIContainerMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("ViewModel()"))
         #expect(generated.contains("{ ViewModel() }()"))
         #expect(!generated.contains("self."))
     }
@@ -148,16 +148,46 @@ struct DIContainerMacroTests {
         #expect(generated.contains("self.apiClient"))
         #expect(generated.contains("self.logger"))
     }
+
+    @Test
+    func transientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() throws {
+        let source = """
+        @Provide(.transient, factory: { (_: APIClient, logger: Logger) in ViewModel(logger: logger) })
+        var viewModel: ViewModel
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide with underscore transient factory closure")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: varDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("Transient factory closure parameters must be named for injection."))
+        #expect(!generated.contains("self._"))
+        #expect(context.diagnostics.contains { $0.message.contains("must be named for injection") })
+    }
 }
 
 private final class TestMacroExpansionContext: MacroExpansionContext {
+    var diagnostics: [Diagnostic] = []
     var lexicalContext: [Syntax] { [] }
 
     func makeUniqueName(_ name: String) -> TokenSyntax {
         .identifier(name)
     }
 
-    func diagnose(_ diagnostic: Diagnostic) {}
+    func diagnose(_ diagnostic: Diagnostic) {
+        diagnostics.append(diagnostic)
+    }
 
     func location(
         of node: some SyntaxProtocol,
