@@ -177,5 +177,5 @@ private func isAsyncClosureExpression(_ expr: ExprSyntax) -> Bool {
     guard let closure = expr.as(ClosureExprSyntax.self) else {
         return false
     }
-    return closure.signature?.description.contains("async") == true
+    return closure.signature?.effectSpecifiers?.asyncSpecifier != nil
 }

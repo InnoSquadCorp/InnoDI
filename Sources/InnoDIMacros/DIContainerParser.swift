@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -13,7 +14,7 @@ struct DIContainerParser {
         declaration decl: some DeclGroupSyntax,
         context: some MacroExpansionContext
     ) -> DIContainerExpansionModel? {
-        let options = parseDIContainerAttribute(decl.attributes) ?? DIContainerAttributeInfo(
+        let options = InnoDICore.parseDIContainerAttribute(decl.attributes) ?? DIContainerAttributeInfo(
             validate: true,
             root: false,
             validateDAG: true,
@@ -42,7 +43,7 @@ struct DIContainerParser {
                 continue
             }
 
-            guard let attribute = findAttribute(named: "Provide", in: varDecl.attributes) else {
+            guard let attribute = InnoDICore.findAttribute(named: "Provide", in: varDecl.attributes) else {
                 continue
             }
 
@@ -64,7 +65,7 @@ struct DIContainerParser {
                 continue
             }
 
-            let parseResult = parseProvideArguments(attribute)
+            let parseResult = InnoDICore.parseProvideArguments(attribute)
             guard let scope = parseResult.scope else {
                 if let name = parseResult.scopeName {
                     context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideUnknownScope(name)))

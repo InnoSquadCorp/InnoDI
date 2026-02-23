@@ -11,13 +11,4 @@ extension DeclarationPathTracking {
     func endDeclarationContext() -> String? {
         declarationPath.popLast()
     }
-
-    func pushDeclarationContext(named name: String) {
-        beginDeclarationContext(named: name)
-    }
-
-    @discardableResult
-    func popDeclarationContext() -> String? {
-        endDeclarationContext()
-    }
 }
