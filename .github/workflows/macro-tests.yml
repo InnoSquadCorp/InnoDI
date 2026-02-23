@@ -7,14 +7,23 @@ on:
 
 jobs:
   macro-tests:
-    runs-on: macos-15
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Select Xcode
         run: |
+          if [[ -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
+          elif [[ -d /Applications/Xcode_26.2.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer
+          elif [[ -d /Applications/Xcode_26.1.1.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.1.1.app/Contents/Developer
+          else
+            echo "No supported Xcode 26.x installation found under /Applications."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
           sudo xcode-select -s "$DEVELOPER_DIR"
           xcodebuild -version
       - name: Run Macro Tests
