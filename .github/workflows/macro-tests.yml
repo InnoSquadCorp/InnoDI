@@ -34,7 +34,14 @@ jobs:
       - name: Build Extended Examples
         run: |
           (cd Examples/SwiftUIExample && swift build)
-          (cd Examples/TCAIntegrationExample && (swift build || swift build))
+          (
+            cd Examples/TCAIntegrationExample
+            swift build --disable-experimental-prebuilts || {
+              rm -rf .build
+              swift package reset
+              swift build --disable-experimental-prebuilts
+            }
+          )
           (cd Examples/PreviewInjectionExample && swift build)
       - name: Macro Performance Check (non-blocking)
         continue-on-error: true
