@@ -79,7 +79,9 @@ let package = Package(
         ),
         .testTarget(
             name: "InnoDIDependencyGraphCLITests",
-            dependencies: []
+            dependencies: [
+                "InnoDI-DependencyGraph"
+            ]
         ),
     ]
 )

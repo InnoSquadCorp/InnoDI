@@ -24,9 +24,13 @@
 ## Rules
 
 - `factory` and `asyncFactory` are mutually exclusive.
-- `.input` cannot declare `factory` or `asyncFactory`.
+- `.shared` and `.transient` must provide a construction strategy:
+  use `factory`, `asyncFactory`, or explicit `Type.self` + `with:` auto-wiring.
+- `.input` cannot declare `factory` or `asyncFactory`, so it is mutually exclusive with
+  those construction APIs.
 - `asyncFactory` must be an `async` closure.
-- Concrete value types/protocol-erased rules still follow `concrete` validation.
+- `concrete` validation is applied consistently for both concrete types and
+  protocol-erased declarations.
 
 ## Example
 
