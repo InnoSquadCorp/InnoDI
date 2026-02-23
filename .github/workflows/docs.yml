@@ -19,8 +19,12 @@ jobs:
           xcodebuild -version
       - name: Generate DocC
         run: Tools/generate-docc.sh
+      - name: Package DocC Artifact
+        run: |
+          mkdir -p .build/docc
+          tar -C .build/docc -czf .build/docc/innodi-docc.tar.gz InnoDI
       - name: Upload DocC Artifact
         uses: actions/upload-artifact@v4
         with:
           name: innodi-docc
-          path: .build/docc/InnoDI
+          path: .build/docc/innodi-docc.tar.gz
