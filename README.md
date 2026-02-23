@@ -335,7 +335,17 @@ Generate local DocC docs:
 Tools/generate-docc.sh
 ```
 
-CI publishes DocC artifacts from `.github/workflows/docs.yml`.
+Online DocC (GitHub Pages):
+
+- https://innosquadcorp.github.io/InnoDI/documentation/innodi/
+
+CI behavior from `.github/workflows/docs.yml`:
+
+- `pull_request`: uploads `innodi-docc` artifact for preview/download.
+- `push` to `main`: deploys DocC site to GitHub Pages.
+
+If this is your first Pages deployment, set repository Pages source to `GitHub Actions`
+in repository settings.
 
 ### Build Tool Plugin (DAG Validation)
 
