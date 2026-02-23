@@ -10,7 +10,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../../"),
-        .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.0.0"),
+        .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", exact: "1.23.2"),
     ],
     targets: [
         .executableTarget(
