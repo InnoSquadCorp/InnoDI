@@ -20,8 +20,12 @@ struct DiagnosticsTests {
             .provideSharedFactoryRequired,
             .provideTransientFactoryRequired,
             .provideConcreteOptInRequired,
+            .provideFactoryConflict,
+            .provideAsyncFactoryInvalidScope,
+            .provideAsyncFactoryMustBeAsync,
             .containerUnknownDependency,
             .containerDependencyCycle,
+            .containerMainActorConflict,
             .graphDependencyCycle,
             .graphAmbiguousContainerReference
         ]
@@ -47,8 +51,12 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideSharedFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.shared-factory-required")),
             (SimpleDiagnostic.provideTransientFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.transient-factory-required")),
             (SimpleDiagnostic.provideConcreteOptInRequired(name: "service", typeDescription: "Service"), MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")),
+            (SimpleDiagnostic.provideFactoryConflict(), MessageID(domain: "InnoDI.validation", id: "provide.factory-conflict")),
+            (SimpleDiagnostic.provideAsyncFactoryInvalidScope(), MessageID(domain: "InnoDI.validation", id: "provide.async-factory-invalid-scope")),
+            (SimpleDiagnostic.provideAsyncFactoryMustBeAsync(), MessageID(domain: "InnoDI.validation", id: "provide.async-factory-must-be-async")),
             (SimpleDiagnostic.containerUnknownDependency(dependencyName: "missing", memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.unknown-dependency")),
             (SimpleDiagnostic.containerDependencyCycle(path: "a -> b -> a"), MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")),
+            (SimpleDiagnostic.containerMainActorConflict(actorName: "FeatureActor"), MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")),
             (SimpleDiagnostic("Graph cycle", code: .graphDependencyCycle), MessageID(domain: "InnoDI.validation", id: "graph.dependency-cycle")),
             (SimpleDiagnostic("Ambiguous reference", code: .graphAmbiguousContainerReference), MessageID(domain: "InnoDI.validation", id: "graph.ambiguous-container-reference"))
         ]

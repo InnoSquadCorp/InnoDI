@@ -73,7 +73,7 @@ var apiClient: any APIClientProtocol
 ### `@DIContainer`
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true)
+@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
 ```
 
 | 파라미터 | 기본값 | 설명 |
@@ -81,11 +81,12 @@ var apiClient: any APIClientProtocol
 | `validate` | `true` | 스코프/팩토리 검증 활성화. `false`일 때 `.shared`/`.transient` 누락 팩토리는 런타임 `fatalError` fallback으로 처리. `.input`의 factory 금지와 concrete opt-in 규칙은 계속 강제됨. |
 | `root` | `false` | CLI 그래프에서 루트 컨테이너로 표시할지 여부 |
 | `validateDAG` | `true` | 이 컨테이너의 DAG 검증 참여 여부. `false`면 DAG 검증에서 제외 |
+| `mainActor` | `false` | 생성되는 init/accessor에 `@MainActor` 격리를 적용 |
 
 ### `@Provide`
 
 ```swift
-@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, concrete: Bool = false)
+@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, asyncFactory: Any? = nil, concrete: Bool = false)
 ```
 
 | 파라미터 | 기본값 | 설명 |
@@ -94,6 +95,7 @@ var apiClient: any APIClientProtocol
 | `type` | `nil` | AutoWiring용 concrete 타입 |
 | `with` | `[]` | AutoWiring 의존성 키패스 목록 |
 | `factory` | `nil` | 생성식 (또는 클로저) |
+| `asyncFactory` | `nil` | 비동기 생성 클로저 (`factory`와 동시 사용 불가) |
 | `concrete` | `false` | concrete 타입 사용 시 명시적 opt-in |
 
 ## 스코프 규칙
@@ -103,6 +105,23 @@ var apiClient: any APIClientProtocol
 | `.input` | 컨테이너 생성 시 외부 주입 | 필요 없음 |
 | `.shared` | 컨테이너 생명주기 동안 1회 생성/재사용 | 필요 |
 | `.transient` | 접근할 때마다 새로 생성 | 필요 |
+
+### Async Factory
+
+비동기 생성이 필요하면 `asyncFactory`를 사용합니다.
+
+```swift
+@Provide(.shared, asyncFactory: { (config: AppConfig) async throws in
+    try await APIClient.make(config: config)
+})
+var apiClient: any APIClientProtocol
+```
+
+규칙:
+
+- `factory`와 `asyncFactory`는 동시에 사용할 수 없습니다.
+- `.input` 스코프에서는 `asyncFactory`를 사용할 수 없습니다.
+- `asyncFactory`는 반드시 `async` 클로저여야 합니다.
 
 ## AutoWiring
 
@@ -199,6 +218,21 @@ CLI 동작 요약:
 - 대상 컨테이너가 이름 충돌로 모호하면 엣지 생성을 생략
 - `--validate-dag` 모드에서는 순환/모호성 발견 시 종료 코드 `3`으로 실패
 
+검증 보정 사항:
+
+- `@DIContainer(validateDAG: false)`로 표시된 컨테이너는 `--validate-dag`에서 순환/모호성 판정 모두에서 완전 제외됩니다.
+- 매크로 내부 순환 검증용 의존성 추출은 AST 기반으로 동작하며, 문자열 리터럴 토큰으로 인한 오탐 사이클을 방지합니다.
+
+## DocC 문서
+
+로컬 DocC 문서 생성:
+
+```bash
+Tools/generate-docc.sh
+```
+
+CI에서는 `.github/workflows/docs.yml`에서 DocC 아티팩트를 업로드합니다.
+
 ## Build Tool Plugin
 
 InnoDI는 DAG 검증용 SwiftPM 플러그인을 제공합니다.
@@ -241,3 +275,21 @@ Tools/measure-macro-performance.sh --iterations 5 --update-baseline
 기본 baseline 파일:
 
 - `Tools/macro-performance-baseline.json`
+
+## 벤치마크
+
+10/50/100/250 dependency 시나리오 벤치 실행:
+
+```bash
+Benchmarks/run-compile-bench.sh
+Benchmarks/run-runtime-bench.sh
+Benchmarks/compare.sh
+```
+
+결과 JSON:
+
+- `Benchmarks/results/compile.json`
+- `Benchmarks/results/runtime.json`
+- `Benchmarks/results/compare.json`
+
+Needle/SafeDI 비교 항목은 현재 non-blocking 스캐폴드로 리포트에 표시됩니다.

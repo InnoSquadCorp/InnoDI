@@ -1,0 +1,8 @@
+{
+  "kind": "runtime",
+  "generated_at": "2026-02-23T04:10:37Z",
+  "runs": 1,
+  "iterations_per_run": 1000,
+  "sizes": [10],
+  "results": [{"framework":"InnoDI","size":10,"runs":1,"iterations_per_run":1000,"samples_ns_per_op":[3.542],"mean_ns_per_op":3.542,"p50_ns_per_op":3.542,"p95_ns_per_op":3.542},{"framework":"Needle","size":10,"runs":1,"iterations_per_run":1000,"samples_ns_per_op":[966.541],"mean_ns_per_op":966.541,"p50_ns_per_op":966.541,"p95_ns_per_op":966.541},{"framework":"SafeDI","size":10,"runs":1,"iterations_per_run":1000,"samples_ns_per_op":[4.250],"mean_ns_per_op":4.250,"p50_ns_per_op":4.250,"p95_ns_per_op":4.250}]
+}

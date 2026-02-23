@@ -13,7 +13,7 @@ struct ParsingTests {
     @Test
     func parseDIContainerAttribute() {
         let source = """
-        @DIContainer(validate: false, root: true, validateDAG: false)
+        @DIContainer(validate: false, root: true, validateDAG: false, mainActor: true)
         struct AppContainer {}
         """
         guard let decl = firstStructDecl(in: source) else {
@@ -25,6 +25,7 @@ struct ParsingTests {
         #expect(info?.validate == false)
         #expect(info?.root == true)
         #expect(info?.validateDAG == false)
+        #expect(info?.mainActor == true)
     }
 
     @Test
@@ -42,6 +43,7 @@ struct ParsingTests {
         #expect(info?.validate == true)
         #expect(info?.root == false)
         #expect(info?.validateDAG == true)
+        #expect(info?.mainActor == false)
     }
 
     @Test
@@ -102,6 +104,26 @@ struct ParsingTests {
         #expect(info.scope == .transient)
         #expect(info.scopeName == "transient")
         #expect(info.factoryExpr != nil)
+    }
+
+    @Test
+    func parseProvideAttributeAsyncFactory() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(.transient, asyncFactory: { () async throws in try await ViewModel.load() })
+            var viewModel: ViewModel
+        }
+        """
+        guard let decl = firstVarDecl(in: source) else {
+            #expect(Bool(false), "Expected variable declaration.")
+            return
+        }
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.scope == .transient)
+        #expect(info.asyncFactoryExpr != nil)
+        #expect(info.asyncFactoryIsThrowing == true)
     }
     
     @Test

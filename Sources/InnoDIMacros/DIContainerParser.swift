@@ -1,4 +1,3 @@
-import Foundation
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -17,11 +16,22 @@ struct DIContainerParser {
         let options = parseDIContainerAttribute(decl.attributes) ?? DIContainerAttributeInfo(
             validate: true,
             root: false,
-            validateDAG: true
+            validateDAG: true,
+            mainActor: false
         )
         let accessLevel = containerAccessLevel(for: decl)
         var members: [ProvideMemberModel] = []
         var hadErrors = false
+
+        if options.mainActor, let conflictingActor = detectConflictingGlobalActor(in: decl.attributes) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(decl),
+                    message: SimpleDiagnostic.containerMainActorConflict(actorName: conflictingActor)
+                )
+            )
+            hadErrors = true
+        }
 
         for member in decl.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else {
@@ -66,19 +76,28 @@ struct DIContainerParser {
             let closureDependencies: [String]
             if let closure = parseResult.factoryExpr?.as(ClosureExprSyntax.self) {
                 closureDependencies = parseClosureParameterNames(closure).names
+            } else if let asyncClosure = parseResult.asyncFactoryExpr?.as(ClosureExprSyntax.self) {
+                closureDependencies = parseClosureParameterNames(asyncClosure).names
             } else {
                 closureDependencies = []
             }
 
             let factoryExpressionReferences: [String]
             if let factoryExpr = parseResult.factoryExpr, factoryExpr.as(ClosureExprSyntax.self) == nil {
-                factoryExpressionReferences = collectIdentifierReferences(in: factoryExpr)
+                factoryExpressionReferences = extractExpressionDependencyReferences(from: factoryExpr)
             } else {
                 factoryExpressionReferences = []
             }
 
+            let asyncFactoryExpressionReferences: [String]
+            if let asyncFactoryExpr = parseResult.asyncFactoryExpr, asyncFactoryExpr.as(ClosureExprSyntax.self) == nil {
+                asyncFactoryExpressionReferences = extractExpressionDependencyReferences(from: asyncFactoryExpr)
+            } else {
+                asyncFactoryExpressionReferences = []
+            }
+
             let initializerExpr = binding.initializer?.value
-            let initializerReferences = collectIdentifierReferences(in: initializerExpr)
+            let initializerReferences = extractExpressionDependencyReferences(from: initializerExpr)
 
             members.append(
                 ProvideMemberModel(
@@ -86,12 +105,14 @@ struct DIContainerParser {
                     type: typeAnnotation.type,
                     scope: scope,
                     factory: parseResult.factoryExpr,
+                    asyncFactory: parseResult.asyncFactoryExpr,
+                    asyncFactoryIsThrowing: parseResult.asyncFactoryIsThrowing,
                     typeExpr: parseResult.typeExpr,
                     initializer: initializerExpr,
                     concreteOptIn: parseResult.concrete,
                     withDependencies: parseResult.dependencies,
                     closureDependencies: closureDependencies,
-                    expressionReferences: deduplicateStrings(factoryExpressionReferences + initializerReferences),
+                    expressionReferences: deduplicateStrings(factoryExpressionReferences + asyncFactoryExpressionReferences + initializerReferences),
                     attribute: attribute,
                     bindingSyntax: binding
                 )
@@ -128,62 +149,18 @@ private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {
     return nil
 }
 
-private func collectIdentifierReferences(in expr: ExprSyntax?) -> [String] {
-    guard let expr else { return [] }
-    let text = expr.description
-    let pattern = #"\b[_A-Za-z][_A-Za-z0-9]*\b"#
-    guard let regex = try? NSRegularExpression(pattern: pattern) else {
-        return []
+private func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) -> String? {
+    guard let attributes else { return nil }
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        guard let identifier = attr.attributeName.as(IdentifierTypeSyntax.self) else { continue }
+        let name = identifier.name.text
+        if name == "DIContainer" || name == "MainActor" {
+            continue
+        }
+        if name.hasSuffix("Actor") {
+            return name
+        }
     }
-
-    let keywordBlacklist: Set<String> = [
-        "self",
-        "Self",
-        "super",
-        "true",
-        "false",
-        "nil",
-        "in",
-        "let",
-        "var",
-        "if",
-        "else",
-        "return",
-        "switch",
-        "case",
-        "default",
-        "try",
-        "catch",
-        "throw",
-        "throws",
-        "rethrows",
-        "await",
-        "async",
-        "where",
-        "for",
-        "while",
-        "repeat",
-        "guard",
-        "defer",
-        "break",
-        "continue",
-        "do",
-        "as",
-        "is",
-        "any",
-        "some"
-    ]
-
-    let range = NSRange(text.startIndex..<text.endIndex, in: text)
-    let matches = regex.matches(in: text, options: [], range: range)
-    let references: [String] = matches.compactMap { match in
-        guard let swiftRange = Range(match.range, in: text) else { return nil }
-        let token = String(text[swiftRange])
-        guard !keywordBlacklist.contains(token) else { return nil }
-        guard let first = token.first else { return nil }
-        guard first.isLowercase || first == "_" else { return nil }
-        return token
-    }
-
-    return deduplicateStrings(references)
+    return nil
 }

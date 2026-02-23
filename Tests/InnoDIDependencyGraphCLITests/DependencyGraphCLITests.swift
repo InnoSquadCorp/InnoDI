@@ -166,6 +166,37 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.contains("Ambiguous container references:"))
         #expect(result.stderr.contains("FeatureContainer"))
     }
+
+    @Test("Validate DAG ignores ambiguity when all matching destinations are opted out")
+    func validateDAGIgnoresAmbiguousOptedOutDestinations() throws {
+        let fixtureURL = try makeAmbiguousOptedOutReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(!result.stderr.contains("Ambiguous container references:"))
+    }
+
+    @Test("Validate DAG resolves mixed eligibility duplicates and still detects cycle")
+    func validateDAGResolvesMixedEligibilityAndDetectsCycle() throws {
+        let fixtureURL = try makeMixedEligibilityDuplicateNameCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("Detected dependency cycles:"))
+        #expect(result.stderr.contains("[graph.dependency-cycle]"))
+        #expect(!result.stderr.contains("Ambiguous container references:"))
+    }
 }
 
 private struct CLIRunResult {
@@ -477,6 +508,128 @@ private func makeAmbiguousReferenceFixtureProject() throws -> URL {
     )
     try featureBSource.write(
         to: featureBDirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeAmbiguousOptedOutReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Ambiguous-OptedOut-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+    let featureADirectory = fixtureURL.appendingPathComponent("FeatureA", isDirectory: true)
+    let featureBDirectory = fixtureURL.appendingPathComponent("FeatureB", isDirectory: true)
+    try FileManager.default.createDirectory(at: featureADirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: featureBDirectory, withIntermediateDirectories: true)
+
+    let appSource = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+    }
+    """
+
+    let featureASource = """
+    import InnoDI
+
+    @DIContainer(validateDAG: false)
+    struct FeatureContainer {
+        @Provide(.input)
+        var value: Int
+    }
+    """
+
+    let featureBSource = """
+    import InnoDI
+
+    enum Namespace {
+        @DIContainer(validateDAG: false)
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: String
+        }
+    }
+    """
+
+    try appSource.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureASource.write(
+        to: featureADirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureBSource.write(
+        to: featureBDirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeMixedEligibilityDuplicateNameCycleFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-MixedEligibility-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+    let featureDirectory = fixtureURL.appendingPathComponent("Feature", isDirectory: true)
+    let namespaceDirectory = fixtureURL.appendingPathComponent("Namespace", isDirectory: true)
+    try FileManager.default.createDirectory(at: featureDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: namespaceDirectory, withIntermediateDirectories: true)
+
+    let appSource = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+    }
+    """
+
+    let eligibleFeatureSource = """
+    import InnoDI
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """
+
+    let optedOutDuplicateSource = """
+    import InnoDI
+
+    enum Namespace {
+        @DIContainer(validateDAG: false)
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: String
+        }
+    }
+    """
+
+    try appSource.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try eligibleFeatureSource.write(
+        to: featureDirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try optedOutDuplicateSource.write(
+        to: namespaceDirectory.appendingPathComponent("FeatureContainer.swift"),
         atomically: true,
         encoding: .utf8
     )

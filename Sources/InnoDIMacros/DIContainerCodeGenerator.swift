@@ -5,12 +5,20 @@ struct DIContainerCodeGenerator {
     static func generateInit(for model: DIContainerExpansionModel) -> DeclSyntax {
         makeInitDecl(
             sharedMembers: model.sharedMembers,
+            syncSharedMembers: model.syncSharedMembers,
+            asyncSharedMembers: model.asyncSharedMembers,
             inputMembers: model.inputMembers,
             transientMembers: model.transientMembers,
             accessLevel: model.accessLevel,
-            validateEnabled: model.options.validate
+            validateEnabled: model.options.validate,
+            mainActorEnabled: model.options.mainActor
         )
     }
+}
+
+private struct AsyncTaskBinding {
+    let name: String
+    let isThrowing: Bool
 }
 
 private func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
@@ -29,10 +37,13 @@ private func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
 
 private func makeInitDecl(
     sharedMembers: [ProvideMemberModel],
+    syncSharedMembers: [ProvideMemberModel],
+    asyncSharedMembers: [ProvideMemberModel],
     inputMembers: [ProvideMemberModel],
     transientMembers: [ProvideMemberModel],
     accessLevel: String?,
-    validateEnabled: Bool
+    validateEnabled: Bool,
+    mainActorEnabled: Bool
 ) -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
@@ -84,15 +95,25 @@ private func makeInitDecl(
     )
 
     var statements: [CodeBlockItemSyntax] = []
+    var resolvedValueBindings: [String: String] = [:]
+    var taskBindings: [String: AsyncTaskBinding] = [:]
+    let needsResolvedBindings = !asyncSharedMembers.isEmpty
 
     for member in inputMembers {
         let storageName = "_storage_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: member.name))))
+
+        if needsResolvedBindings {
+            let resolvedName = "_resolved_\(member.name)"
+            let resolvedDecl: DeclSyntax = "let \(raw: resolvedName) = \(raw: member.name)"
+            statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
+            resolvedValueBindings[member.name] = resolvedName
+        }
     }
 
     let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
-    for (index, member) in sharedMembers.enumerated() {
-        let availableStorageNames = inputStorageNames + sharedMembers.prefix(index).map { "_storage_\($0.name)" }
+    for (index, member) in syncSharedMembers.enumerated() {
+        let availableStorageNames = inputStorageNames + syncSharedMembers.prefix(index).map { "_storage_\($0.name)" }
         let factoryExpr = makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
@@ -109,6 +130,44 @@ private func makeInitDecl(
 
         let storageName = "_storage_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
+
+        if needsResolvedBindings {
+            let resolvedName = "_resolved_\(member.name)"
+            let resolvedDecl: DeclSyntax = "let \(raw: resolvedName) = \(raw: storageName)"
+            statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
+            resolvedValueBindings[member.name] = resolvedName
+        }
+    }
+
+    for member in asyncSharedMembers {
+        let taskName = "_task_\(member.name)"
+        let successType = taskSuccessTypeDescription(for: member.type)
+        let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
+        let createExpr = makeAsyncFactoryExpr(
+            member: member,
+            resolvedValueBindings: resolvedValueBindings,
+            taskBindings: taskBindings
+        )
+        let factoryCall = createExpr.trimmedDescription
+        let awaitedFactoryCall = member.asyncFactoryIsThrowing
+            ? "try await \(factoryCall)"
+            : "await \(factoryCall)"
+
+        let taskDecl: DeclSyntax = """
+        let \(raw: taskName) = Task<\(raw: successType), \(raw: failureType)> {
+            if let override = \(raw: member.name) { return override }
+            return \(raw: awaitedFactoryCall)
+        }
+        """
+        statements.append(CodeBlockItemSyntax(item: .decl(taskDecl)))
+
+        let storageName = "_storage_task_\(member.name)"
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: taskName))))
+
+        let resolvedTaskName = "_resolved_task_\(member.name)"
+        let resolvedTaskDecl: DeclSyntax = "let \(raw: resolvedTaskName) = \(raw: taskName)"
+        statements.append(CodeBlockItemSyntax(item: .decl(resolvedTaskDecl)))
+        taskBindings[member.name] = AsyncTaskBinding(name: resolvedTaskName, isThrowing: member.asyncFactoryIsThrowing)
     }
 
     for member in transientMembers {
@@ -117,6 +176,7 @@ private func makeInitDecl(
     }
 
     let initDecl = InitializerDeclSyntax(
+        attributes: mainActorEnabled ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         signature: signature,
         body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
@@ -194,6 +254,52 @@ private func makeFactoryExpr(
     fatalError("No factory expression available - validation should have caught this")
 }
 
+private func makeAsyncFactoryExpr(
+    member: ProvideMemberModel,
+    resolvedValueBindings: [String: String],
+    taskBindings: [String: AsyncTaskBinding]
+) -> ExprSyntax {
+    guard let asyncFactory = member.asyncFactory else {
+        return ExprSyntax(
+            FunctionCallExprSyntax(
+                calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
+                leftParen: .leftParenToken(),
+                arguments: LabeledExprListSyntax([
+                    LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: "Missing async factory for shared dependency '\(member.name)'.")))
+                ]),
+                rightParen: .rightParenToken()
+            )
+        )
+    }
+
+    if let closure = asyncFactory.as(ClosureExprSyntax.self) {
+        let parsedArguments = parseClosureParameterNames(closure)
+        let expressions = parsedArguments.names.map { dependencyExpression(for: $0, resolvedValueBindings: resolvedValueBindings, taskBindings: taskBindings) }
+        return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
+    }
+
+    return asyncFactory
+}
+
+private func dependencyExpression(
+    for dependencyName: String,
+    resolvedValueBindings: [String: String],
+    taskBindings: [String: AsyncTaskBinding]
+) -> ExprSyntax {
+    if let resolvedName = resolvedValueBindings[dependencyName] {
+        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
+    }
+
+    if let taskBinding = taskBindings[dependencyName] {
+        if taskBinding.isThrowing {
+            return ExprSyntax("\(raw: "try await \(taskBinding.name).value")")
+        }
+        return ExprSyntax("\(raw: "await \(taskBinding.name).value")")
+    }
+
+    return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(dependencyName)))
+}
+
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
     let parsedArguments = parseClosureParameterNames(closure)
     var result: [String] = []
@@ -258,4 +364,22 @@ private func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprS
         rightOperand: value
     )
     return ExprSyntax(assignment)
+}
+
+private func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
+    let description = type.trimmedDescription
+    if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
+        return "(\(description))"
+    }
+    return description
+}
+
+private func mainActorAttributeList() -> AttributeListSyntax {
+    AttributeListSyntax([
+        AttributeListSyntax.Element(
+            AttributeSyntax(
+                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
+            )
+        )
+    ])
 }
