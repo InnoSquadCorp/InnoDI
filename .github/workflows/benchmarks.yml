@@ -1,14 +1,18 @@
-name: Docs
+name: Benchmarks
 
 on:
-  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 
 jobs:
-  docc:
+  benchmark-compare:
     runs-on: macos-26
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Select Xcode
         run: |
           if [[ -d /Applications/Xcode_26.2.app/Contents/Developer ]]; then
@@ -25,14 +29,13 @@ jobs:
           sudo xcode-select -s "$DEVELOPER_DIR"
           xcodebuild -version
           swift --version
-      - name: Generate DocC
-        run: Tools/generate-docc.sh
-      - name: Package DocC Artifact
-        run: |
-          mkdir -p .build/docc
-          tar -C .build/docc -czf .build/docc/innodi-docc.tar.gz InnoDI
-      - name: Upload DocC Artifact
+
+      - name: Run Framework Comparison Benchmarks
+        run: Benchmarks/compare.sh --compile-iterations 5 --runtime-runs 5 --runtime-iterations 100000
+
+      - name: Upload Benchmark Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: innodi-docc
-          path: .build/docc/innodi-docc.tar.gz
+          name: innodi-benchmarks
+          path: Benchmarks/results/*.json
