@@ -19,6 +19,13 @@ jobs:
           xcodebuild -version
       - name: Run Macro Tests
         run: swift test --filter InnoDIMacrosTests
+      - name: Validate Global DAG
+        run: swift run InnoDI-DependencyGraph --root . --validate-dag
+      - name: Build Extended Examples
+        run: |
+          (cd Examples/SwiftUIExample && swift build)
+          (cd Examples/TCAIntegrationExample && swift build)
+          (cd Examples/PreviewInjectionExample && swift build)
       - name: Macro Performance Check (non-blocking)
         continue-on-error: true
         run: Tools/measure-macro-performance.sh --iterations 5

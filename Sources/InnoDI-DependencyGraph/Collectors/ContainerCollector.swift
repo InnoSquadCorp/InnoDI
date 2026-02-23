@@ -76,6 +76,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                 id: id,
                 displayName: displayName,
                 isRoot: containerAttr.root,
+                validateDAG: containerAttr.validateDAG,
                 requiredInputs: requiredInputs
             )
         )

@@ -122,6 +122,50 @@ struct DependencyGraphCLITests {
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("Error writing to file"))
     }
+
+    @Test("Validate DAG fails on container cycle")
+    func validateDAGFailsOnCycle() throws {
+        let fixtureURL = try makeCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("DAG validation failed."))
+        #expect(result.stderr.contains("Detected dependency cycles:"))
+    }
+
+    @Test("Validate DAG ignores opted-out containers")
+    func validateDAGIgnoresOptedOutContainers() throws {
+        let fixtureURL = try makeValidateDAGOptOutFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+    }
+
+    @Test("Validate DAG fails on ambiguous container reference")
+    func validateDAGFailsOnAmbiguousContainerReference() throws {
+        let fixtureURL = try makeAmbiguousReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("Ambiguous container references:"))
+        #expect(result.stderr.contains("FeatureContainer"))
+    }
 }
 
 private struct CLIRunResult {
@@ -310,6 +354,129 @@ private func makeNoContainerFixtureProject() throws -> URL {
 
     try source.write(
         to: fixtureURL.appendingPathComponent("Plain.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeCycleFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Cycle-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("Cycle.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeValidateDAGOptOutFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Cycle-OptOut-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+    }
+
+    @DIContainer(validateDAG: false)
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("CycleOptOut.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeAmbiguousReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Ambiguous-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+    let featureADirectory = fixtureURL.appendingPathComponent("FeatureA", isDirectory: true)
+    let featureBDirectory = fixtureURL.appendingPathComponent("FeatureB", isDirectory: true)
+    try FileManager.default.createDirectory(at: featureADirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: featureBDirectory, withIntermediateDirectories: true)
+
+    let appSource = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+    }
+    """
+
+    let featureASource = """
+    import InnoDI
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.input)
+        var value: Int
+    }
+    """
+
+    let featureBSource = """
+    import InnoDI
+
+    enum Namespace {
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: String
+        }
+    }
+    """
+
+    try appSource.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureASource.write(
+        to: featureADirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureBSource.write(
+        to: featureBDirectory.appendingPathComponent("FeatureContainer.swift"),
         atomically: true,
         encoding: .utf8
     )

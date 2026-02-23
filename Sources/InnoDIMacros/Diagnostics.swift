@@ -20,13 +20,19 @@ enum InnoDIDiagnosticCode: String {
     case provideInputInvalidConfiguration = "provide.input-invalid-configuration"
     case provideConcreteOptInRequired = "provide.concrete-opt-in-required"
     case transientFactoryUnnamedParameters = "transient-factory.unnamed-parameters"
+    case containerUnknownDependency = "container.unknown-dependency"
+    case containerDependencyCycle = "container.dependency-cycle"
+    case graphDependencyCycle = "graph.dependency-cycle"
+    case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
 
     var category: InnoDIDiagnosticCategory {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
                 .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters:
             return .usage
-        case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired:
+        case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
+                .containerUnknownDependency, .containerDependencyCycle, .graphDependencyCycle,
+                .graphAmbiguousContainerReference:
             return .validation
         }
     }
@@ -95,6 +101,20 @@ extension SimpleDiagnostic {
         Self(
             "Transient factory closure parameters must be named for injection.",
             code: .transientFactoryUnnamedParameters
+        )
+    }
+
+    static func containerUnknownDependency(dependencyName: String, memberName: String) -> Self {
+        Self(
+            "Unknown dependency '\(dependencyName)' referenced by '\(memberName)'.",
+            code: .containerUnknownDependency
+        )
+    }
+
+    static func containerDependencyCycle(path: String) -> Self {
+        Self(
+            "Dependency cycle detected in container: \(path).",
+            code: .containerDependencyCycle
         )
     }
 }

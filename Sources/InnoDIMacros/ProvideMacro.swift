@@ -3,7 +3,6 @@
 //  InnoDIMacros
 //
 
-import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros

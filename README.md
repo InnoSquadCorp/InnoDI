@@ -76,12 +76,14 @@ var apiClient: any APIClientProtocol
 Marks a struct as a DI container. Generates `init(...)` with optional override parameters.
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false)
+@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true)
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes missing-factory checks for `.shared`/`.transient` and emits runtime `fatalError` fallback for missing `.shared` and `.transient` factories. `.input` factory prohibition and concrete opt-in remain enforced. |
+| `root` | `false` | Mark container as root in graph rendering. |
+| `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
 
 ### `@Provide`
 
@@ -288,11 +290,45 @@ Generate a PNG image directly (requires Graphviz installed):
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
 ```
 
+Validate global DAG (fails on cycle and ambiguous container references):
+
+```bash
+swift run InnoDI-DependencyGraph --root /path/to/your/project --validate-dag
+```
+
 ### Options
 
 - `--root <path>`: Root directory of the project (default: current directory)
 - `--format <mermaid|dot|ascii>`: Output format (default: mermaid)
 - `--output <file>`: Output file path (default: stdout)
+- `--validate-dag`: Validate global container DAG and fail on cycle/ambiguity
+
+### Build Tool Plugin (DAG Validation)
+
+InnoDI ships a SwiftPM build tool plugin:
+
+- `InnoDIDAGValidationPlugin`
+
+Attach it to your app target to fail builds when DAG validation fails:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: ["InnoDI"],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
+### Extended Examples
+
+See runnable examples in `/Examples`:
+
+- `/Examples/SwiftUIExample`
+- `/Examples/TCAIntegrationExample`
+- `/Examples/PreviewInjectionExample`
+- `/Examples/SampleApp`
 
 ### Example Output
 

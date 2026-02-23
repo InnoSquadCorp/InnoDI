@@ -1,6 +1,11 @@
 import InnoDICore
 import SwiftSyntax
 
+struct AmbiguousContainerReference: Hashable {
+    let sourceID: String
+    let destinationDisplayName: String
+}
+
 final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     private struct DeclarationEntry {
         let isContainer: Bool
@@ -9,6 +14,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
 
     let containerIDsByDisplayName: [String: [String]]
     var edges: [DependencyGraphEdge] = []
+    var ambiguousReferences: [AmbiguousContainerReference] = []
 
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
@@ -52,8 +58,11 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-        guard let sourceID = activeContainerID,
-              let destinationID = calledContainerID(node.calledExpression) else {
+        guard let sourceID = activeContainerID else {
+            return .visitChildren
+        }
+
+        guard let destinationID = calledContainerID(node.calledExpression, sourceID: sourceID) else {
             return .visitChildren
         }
 
@@ -104,12 +113,22 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         return nil
     }
 
-    private func calledContainerID(_ expr: ExprSyntax) -> String? {
+    private func calledContainerID(_ expr: ExprSyntax, sourceID: String) -> String? {
         guard let displayName = calledContainerDisplayName(from: expr) else {
             return nil
         }
 
-        guard let candidateIDs = containerIDsByDisplayName[displayName], candidateIDs.count == 1 else {
+        guard let candidateIDs = containerIDsByDisplayName[displayName] else {
+            return nil
+        }
+
+        if candidateIDs.count > 1 {
+            ambiguousReferences.append(
+                AmbiguousContainerReference(
+                    sourceID: sourceID,
+                    destinationDisplayName: displayName
+                )
+            )
             return nil
         }
 

@@ -11,12 +11,14 @@ struct DependencyGraphCoreTests {
                 id: "App.swift#AppContainer",
                 displayName: "AppContainer",
                 isRoot: false,
+                validateDAG: false,
                 requiredInputs: ["config"]
             ),
             DependencyGraphNode(
                 id: "App.swift#AppContainer",
                 displayName: "AppContainer",
                 isRoot: true,
+                validateDAG: true,
                 requiredInputs: ["logger", "config"]
             )
         ]
@@ -26,6 +28,7 @@ struct DependencyGraphCoreTests {
         try #require(normalized.count == 1)
         #expect(normalized[0].id == "App.swift#AppContainer")
         #expect(normalized[0].isRoot == true)
+        #expect(normalized[0].validateDAG == false)
         #expect(normalized[0].requiredInputs == ["config", "logger"])
     }
 
@@ -58,6 +61,7 @@ struct DependencyGraphCoreTests {
         for item in normalized {
             let original = try #require(originalByID[item.id])
             #expect(item.isRoot == original.isRoot)
+            #expect(item.validateDAG == original.validateDAG)
             #expect(item.requiredInputs == original.requiredInputs)
         }
     }
