@@ -13,7 +13,7 @@ struct ParsingTests {
     @Test
     func parseDIContainerAttribute() {
         let source = """
-        @DIContainer(validate: false, root: true)
+        @DIContainer(validate: false, root: true, validateDAG: false)
         struct AppContainer {}
         """
         guard let decl = firstStructDecl(in: source) else {
@@ -24,6 +24,24 @@ struct ParsingTests {
         let info = InnoDICore.parseDIContainerAttribute(decl.attributes)
         #expect(info?.validate == false)
         #expect(info?.root == true)
+        #expect(info?.validateDAG == false)
+    }
+
+    @Test
+    func parseDIContainerAttributeDefaultsValidateDAGToTrue() {
+        let source = """
+        @DIContainer
+        struct AppContainer {}
+        """
+        guard let decl = firstStructDecl(in: source) else {
+            #expect(Bool(false), "Expected struct declaration.")
+            return
+        }
+
+        let info = InnoDICore.parseDIContainerAttribute(decl.attributes)
+        #expect(info?.validate == true)
+        #expect(info?.root == false)
+        #expect(info?.validateDAG == true)
     }
 
     @Test

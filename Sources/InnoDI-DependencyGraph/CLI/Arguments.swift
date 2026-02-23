@@ -15,10 +15,11 @@ enum OutputFormat: Equatable {
     }
 }
 
-func parseArguments() -> (root: String, format: OutputFormat?, output: String?) {
+func parseArguments() -> (root: String, format: OutputFormat?, output: String?, validateDAG: Bool) {
     var root = FileManager.default.currentDirectoryPath
     var format: OutputFormat?
     var output: String?
+    var validateDAG = false
 
     let args = Array(CommandLine.arguments.dropFirst())
     var index = 0
@@ -61,6 +62,10 @@ func parseArguments() -> (root: String, format: OutputFormat?, output: String?) 
             output = requireOptionValue(arg, at: index)
             index += 2
             continue
+        } else if arg == "--validate-dag" {
+            validateDAG = true
+            index += 1
+            continue
         } else if arg == "--help" || arg == "-h" {
             printUsage()
             exit(0)
@@ -71,15 +76,16 @@ func parseArguments() -> (root: String, format: OutputFormat?, output: String?) 
         index += 1
     }
 
-    return (root, format, output)
+    return (root, format, output, validateDAG)
 }
 
 func printUsage() {
-    print("Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii>] [--output <file>]")
+    print("Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii>] [--output <file>] [--validate-dag]")
     print("")
     print("Options:")
     print("  --root <path>    Root directory of the project (default: current directory)")
     print("  --format <fmt>   Output format: mermaid (default), dot, ascii")
     print("  --output <file>  Output file path (default: stdout)")
+    print("  --validate-dag   Validate dependency graph DAG and fail on cycles/ambiguity")
     print("  --help, -h       Show this help message")
 }

@@ -14,6 +14,7 @@ let package = Package(
     ],
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
+        .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "602.0.0"),
@@ -24,6 +25,10 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax")
             ]
+        ),
+        .target(
+            name: "InnoDITestSupport",
+            path: "Tests/TestSupport"
         ),
         .target(
             name: "InnoDI",
@@ -37,11 +42,18 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
         ),
+        .plugin(
+            name: "InnoDIDAGValidationPlugin",
+            capability: .buildTool(),
+            dependencies: [
+                "InnoDI-DependencyGraph"
+            ]
+        ),
         .macro(
             name: "InnoDIMacros",
             dependencies: [
-                "InnoDICore",
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
                 .product(name: "SwiftDiagnostics", package: "swift-syntax"),
@@ -51,6 +63,7 @@ let package = Package(
             name: "InnoDICoreTests",
             dependencies: [
                 "InnoDICore",
+                "InnoDITestSupport",
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
         ),
@@ -58,6 +71,7 @@ let package = Package(
             name: "InnoDIMacrosTests",
             dependencies: [
                 "InnoDIMacros",
+                "InnoDITestSupport",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),

@@ -19,7 +19,11 @@ struct DiagnosticsTests {
         let validationCodes: [InnoDIDiagnosticCode] = [
             .provideSharedFactoryRequired,
             .provideTransientFactoryRequired,
-            .provideConcreteOptInRequired
+            .provideConcreteOptInRequired,
+            .containerUnknownDependency,
+            .containerDependencyCycle,
+            .graphDependencyCycle,
+            .graphAmbiguousContainerReference
         ]
 
         for code in usageCodes {
@@ -42,7 +46,11 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.transientFactoryUnnamedParameters(), MessageID(domain: "InnoDI.usage", id: "transient-factory.unnamed-parameters")),
             (SimpleDiagnostic.provideSharedFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.shared-factory-required")),
             (SimpleDiagnostic.provideTransientFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.transient-factory-required")),
-            (SimpleDiagnostic.provideConcreteOptInRequired(name: "service", typeDescription: "Service"), MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"))
+            (SimpleDiagnostic.provideConcreteOptInRequired(name: "service", typeDescription: "Service"), MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")),
+            (SimpleDiagnostic.containerUnknownDependency(dependencyName: "missing", memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.unknown-dependency")),
+            (SimpleDiagnostic.containerDependencyCycle(path: "a -> b -> a"), MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")),
+            (SimpleDiagnostic("Graph cycle", code: .graphDependencyCycle), MessageID(domain: "InnoDI.validation", id: "graph.dependency-cycle")),
+            (SimpleDiagnostic("Ambiguous reference", code: .graphAmbiguousContainerReference), MessageID(domain: "InnoDI.validation", id: "graph.ambiguous-container-reference"))
         ]
 
         for item in cases {

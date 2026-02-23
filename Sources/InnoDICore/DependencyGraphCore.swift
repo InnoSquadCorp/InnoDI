@@ -2,12 +2,14 @@ package struct DependencyGraphNode: Hashable {
     package let id: String
     package let displayName: String
     package let isRoot: Bool
+    package let validateDAG: Bool
     package let requiredInputs: [String]
 
-    package init(id: String, displayName: String, isRoot: Bool, requiredInputs: [String]) {
+    package init(id: String, displayName: String, isRoot: Bool, validateDAG: Bool = true, requiredInputs: [String]) {
         self.id = id
         self.displayName = displayName
         self.isRoot = isRoot
+        self.validateDAG = validateDAG
         self.requiredInputs = requiredInputs
     }
 }
@@ -25,11 +27,12 @@ package struct DependencyGraphEdge: Hashable {
 }
 
 package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphNode] {
-    var map: [String: (displayName: String, isRoot: Bool, inputs: Set<String>)] = [:]
+    var map: [String: (displayName: String, isRoot: Bool, validateDAG: Bool, inputs: Set<String>)] = [:]
 
     for node in nodes {
-        var entry = map[node.id] ?? (displayName: node.displayName, isRoot: false, inputs: [])
+        var entry = map[node.id] ?? (displayName: node.displayName, isRoot: false, validateDAG: true, inputs: [])
         entry.isRoot = entry.isRoot || node.isRoot
+        entry.validateDAG = entry.validateDAG && node.validateDAG
         entry.inputs.formUnion(node.requiredInputs)
 
         if entry.displayName.isEmpty {
@@ -45,6 +48,7 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
             id: id,
             displayName: entry.displayName,
             isRoot: entry.isRoot,
+            validateDAG: entry.validateDAG,
             requiredInputs: entry.inputs.sorted()
         )
     }

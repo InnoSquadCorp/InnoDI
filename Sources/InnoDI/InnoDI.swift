@@ -10,7 +10,7 @@ public enum DIScope {
 }
 
 @attached(member, names: named(init))
-public macro DIContainer(validate: Bool = true, root: Bool = false) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
+public macro DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
 @attached(peer, names: prefixed(_storage_), prefixed(_override_))
 @attached(accessor)

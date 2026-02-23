@@ -73,13 +73,14 @@ var apiClient: any APIClientProtocol
 ### `@DIContainer`
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false)
+@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true)
 ```
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
 | `validate` | `true` | 스코프/팩토리 검증 활성화. `false`일 때 `.shared`/`.transient` 누락 팩토리는 런타임 `fatalError` fallback으로 처리. `.input`의 factory 금지와 concrete opt-in 규칙은 계속 강제됨. |
 | `root` | `false` | CLI 그래프에서 루트 컨테이너로 표시할지 여부 |
+| `validateDAG` | `true` | 이 컨테이너의 DAG 검증 참여 여부. `false`면 DAG 검증에서 제외 |
 
 ### `@Provide`
 
@@ -184,12 +185,44 @@ PNG 출력(Graphviz 필요):
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
 ```
 
+DAG 검증:
+
+```bash
+swift run InnoDI-DependencyGraph --root /path/to/your/project --validate-dag
+```
+
 CLI 동작 요약:
 
 - `@DIContainer` 선언과 `.input` 요구값을 수집
 - 컨테이너 내부 생성 호출에서 container-to-container 엣지 추출
 - stable identity(`relativeFilePath#declarationPath`)로 동일 이름 컨테이너 오병합 방지
 - 대상 컨테이너가 이름 충돌로 모호하면 엣지 생성을 생략
+- `--validate-dag` 모드에서는 순환/모호성 발견 시 종료 코드 `3`으로 실패
+
+## Build Tool Plugin
+
+InnoDI는 DAG 검증용 SwiftPM 플러그인을 제공합니다.
+
+- `InnoDIDAGValidationPlugin`
+
+타깃에 연결 예시:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: ["InnoDI"],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
+## 확장 예제
+
+- `Examples/SwiftUIExample`
+- `Examples/TCAIntegrationExample`
+- `Examples/PreviewInjectionExample`
+- `Examples/SampleApp`
 
 ## 매크로 성능 회귀 체크
 

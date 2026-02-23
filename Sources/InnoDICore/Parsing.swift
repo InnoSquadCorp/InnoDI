@@ -55,15 +55,19 @@ public struct DIContainerAttributeInfo {
     public let validate: Bool
     /// Whether the container should be marked as graph root.
     public let root: Bool
+    /// Whether DAG validation is enabled for this container.
+    public let validateDAG: Bool
 
     /// Creates a parsed `@DIContainer` attribute model.
     ///
     /// - Parameters:
     ///   - validate: Validation flag.
     ///   - root: Root flag.
-    public init(validate: Bool, root: Bool) {
+    ///   - validateDAG: DAG validation flag.
+    public init(validate: Bool, root: Bool, validateDAG: Bool) {
         self.validate = validate
         self.root = root
+        self.validateDAG = validateDAG
     }
 }
 
@@ -169,6 +173,7 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
 
     var validate = true
     var root = false
+    var validateDAG = true
 
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -179,8 +184,11 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
             if label == "root", let value = parseBoolLiteral(argument.expression) {
                 root = value
             }
+            if label == "validateDAG", let value = parseBoolLiteral(argument.expression) {
+                validateDAG = value
+            }
         }
     }
 
-    return DIContainerAttributeInfo(validate: validate, root: root)
+    return DIContainerAttributeInfo(validate: validate, root: root, validateDAG: validateDAG)
 }
