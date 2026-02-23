@@ -154,6 +154,23 @@ if [[ -z "$baseline_mean" ]]; then
   exit 1
 fi
 
+baseline_swift_version=""
+if command -v jq >/dev/null 2>&1; then
+  baseline_swift_version="$(jq -r '.swift_version // empty' "$BASELINE_FILE" 2>/dev/null || true)"
+fi
+
+if [[ -z "$baseline_swift_version" ]]; then
+  baseline_swift_version="$(sed -n 's/.*"swift_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BASELINE_FILE" | head -n 1)"
+fi
+
+if [[ -n "$baseline_swift_version" && "$baseline_swift_version" != "$swift_version" ]]; then
+  echo "[macro-perf] baseline swift version mismatch; skipping regression gate"
+  echo "[macro-perf] baseline swift='${baseline_swift_version}'"
+  echo "[macro-perf] current swift='${swift_version}'"
+  echo "[macro-perf] update baseline with --update-baseline when toolchain migration stabilizes"
+  exit 0
+fi
+
 regression_pct="$(awk -v current="$mean_ms" -v baseline="$baseline_mean" 'BEGIN { if (baseline == 0) { print "0.00" } else { printf "%.2f", ((current - baseline) / baseline) * 100.0 } }')"
 
 echo "[macro-perf] baseline mean=${baseline_mean}ms, current mean=${mean_ms}ms, delta=${regression_pct}%"
