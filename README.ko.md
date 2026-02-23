@@ -231,7 +231,17 @@ CLI 동작 요약:
 Tools/generate-docc.sh
 ```
 
-CI에서는 `.github/workflows/docs.yml`에서 DocC 아티팩트를 업로드합니다.
+온라인 DocC (GitHub Pages):
+
+- https://innosquadcorp.github.io/InnoDI/documentation/innodi/
+
+`.github/workflows/docs.yml` 동작:
+
+- `pull_request`: `innodi-docc` 아티팩트를 업로드합니다.
+- `main` 브랜치 `push`: GitHub Pages로 DocC 사이트를 배포합니다.
+
+처음 Pages를 연결하는 저장소라면, Repository Settings에서 Pages Source를
+`GitHub Actions`로 설정해야 합니다.
 
 ## Build Tool Plugin
 
