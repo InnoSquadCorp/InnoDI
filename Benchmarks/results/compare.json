@@ -1,0 +1,90 @@
+{
+  "generated_at": "2026-02-23T04:10:58Z",
+  "compile": {
+    "kind": "compile",
+    "generated_at": "2026-02-23T04:01:37Z",
+    "iterations": 1,
+    "sizes": [
+      10
+    ],
+    "results": [
+      {
+        "framework": "InnoDI",
+        "size": 10,
+        "iterations": 1,
+        "samples_ms": [
+          5506.665
+        ],
+        "mean_ms": 5506.665,
+        "stdev_ms": 0.000
+      },
+      {
+        "framework": "Needle",
+        "size": 10,
+        "iterations": 1,
+        "samples_ms": [
+          4673.439
+        ],
+        "mean_ms": 4673.439,
+        "stdev_ms": 0.000
+      },
+      {
+        "framework": "SafeDI",
+        "size": 10,
+        "iterations": 1,
+        "samples_ms": [
+          250873.535
+        ],
+        "mean_ms": 250873.535,
+        "stdev_ms": 0.000
+      }
+    ]
+  },
+  "runtime": {
+    "kind": "runtime",
+    "generated_at": "2026-02-23T04:10:37Z",
+    "runs": 1,
+    "iterations_per_run": 1000,
+    "sizes": [
+      10
+    ],
+    "results": [
+      {
+        "framework": "InnoDI",
+        "size": 10,
+        "runs": 1,
+        "iterations_per_run": 1000,
+        "samples_ns_per_op": [
+          3.542
+        ],
+        "mean_ns_per_op": 3.542,
+        "p50_ns_per_op": 3.542,
+        "p95_ns_per_op": 3.542
+      },
+      {
+        "framework": "Needle",
+        "size": 10,
+        "runs": 1,
+        "iterations_per_run": 1000,
+        "samples_ns_per_op": [
+          966.541
+        ],
+        "mean_ns_per_op": 966.541,
+        "p50_ns_per_op": 966.541,
+        "p95_ns_per_op": 966.541
+      },
+      {
+        "framework": "SafeDI",
+        "size": 10,
+        "runs": 1,
+        "iterations_per_run": 1000,
+        "samples_ns_per_op": [
+          4.250
+        ],
+        "mean_ns_per_op": 4.250,
+        "p50_ns_per_op": 4.250,
+        "p95_ns_per_op": 4.250
+      }
+    ]
+  }
+}

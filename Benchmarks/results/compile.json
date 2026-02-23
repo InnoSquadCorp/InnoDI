@@ -1,0 +1,7 @@
+{
+  "kind": "compile",
+  "generated_at": "2026-02-23T04:01:37Z",
+  "iterations": 1,
+  "sizes": [10],
+  "results": [{"framework":"InnoDI","size":10,"iterations":1,"samples_ms":[5506.665],"mean_ms":5506.665,"stdev_ms":0.000},{"framework":"Needle","size":10,"iterations":1,"samples_ms":[4673.439],"mean_ms":4673.439,"stdev_ms":0.000},{"framework":"SafeDI","size":10,"iterations":1,"samples_ms":[250873.535],"mean_ms":250873.535,"stdev_ms":0.000}]
+}

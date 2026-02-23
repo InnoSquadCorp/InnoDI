@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-InnoDI is a Swift dependency injection framework implemented using Swift macros. It provides compile-time DI container generation with static analysis validation via a CLI tool.
+InnoDI is a Swift dependency injection framework implemented using Swift macros. It provides compile-time DI container generation with a CLI dependency graph visualizer.
 
 ## Build and Test Commands
 
@@ -19,7 +19,7 @@ swift build --target InnoDIMacros              # Build macros only
 ### Testing
 ```bash
 swift test                                     # Run all tests
-swift test --filter InnoDICoreTests            # Run core parsing tests
+swift test --filter InnoDICoreTests            # Run core parsing/graph tests
 swift test --filter InnoDIMacrosTests          # Run macro expansion tests
 ```
 
@@ -49,6 +49,7 @@ The project uses a layered architecture with four main modules:
    - Contains parsing utilities used by both macros and CLI
    - `parseProvideArguments()`: Extracts scope and factory from `@Provide` attributes
    - `parseDIContainerAttribute()`: Extracts validate/root flags from `@DIContainer`
+   - `DependencyGraphCore`: Shared graph normalization/deduplication helpers for CLI
    - `findAttribute()`: Helper for locating attributes in syntax trees
    - This module prevents parsing logic duplication
 
@@ -64,6 +65,7 @@ The project uses a layered architecture with four main modules:
 - An `init` with parameters for:
   - `.input` scoped properties (required parameters)
   - `.shared` and `.transient` scoped properties (optional override parameters)
+- No separate `Overrides` struct is generated in the current architecture
 - The init body:
   1. Assigns all `.input` properties to generated storage
   2. Resolves `.shared` properties with `override ?? factory`
@@ -73,6 +75,7 @@ The project uses a layered architecture with four main modules:
 - `.shared`: Singleton-like dependencies created by factory in init (requires `factory:` parameter)
 - `.input`: Dependencies passed as init parameters (must not have `factory:`)
 - `.transient`: New instance created on every access (requires `factory:` parameter)
+- Protocol-typed dependencies for `.shared`/`.transient` should use explicit existential syntax (`any Protocol`)
 - Concrete dependency types require `concrete: true` opt-in (enforced even when `validate: false`)
 
 ### Dependency Graph Generation Flow (CLI)
@@ -102,7 +105,7 @@ When modifying macro behavior:
 1. Update parsing logic in `InnoDICore/Parsing.swift` first
 2. Update macro expansion in `InnoDIMacros/DIContainerMacro.swift`
 3. Add test cases to `Tests/InnoDIMacrosTests/`
-4. Consider CLI implications in `InnoDI-DependencyGraph/main.swift`
+4. Consider CLI implications in `Sources/InnoDI-DependencyGraph/` modules (`Collectors`, `Rendering`, `Output`, `CLI`)
 
 When adding diagnostics:
 - Use `SimpleDiagnostic` for error messages

@@ -13,7 +13,7 @@ struct ParsingTests {
     @Test
     func parseDIContainerAttribute() {
         let source = """
-        @DIContainer(validate: false, root: true)
+        @DIContainer(validate: false, root: true, validateDAG: false, mainActor: true)
         struct AppContainer {}
         """
         guard let decl = firstStructDecl(in: source) else {
@@ -24,10 +24,30 @@ struct ParsingTests {
         let info = InnoDICore.parseDIContainerAttribute(decl.attributes)
         #expect(info?.validate == false)
         #expect(info?.root == true)
+        #expect(info?.validateDAG == false)
+        #expect(info?.mainActor == true)
     }
 
     @Test
-    func parseProvideAttributeSharedFactory() {
+    func parseDIContainerAttributeDefaultsValidateDAGToTrue() {
+        let source = """
+        @DIContainer
+        struct AppContainer {}
+        """
+        guard let decl = firstStructDecl(in: source) else {
+            #expect(Bool(false), "Expected struct declaration.")
+            return
+        }
+
+        let info = InnoDICore.parseDIContainerAttribute(decl.attributes)
+        #expect(info?.validate == true)
+        #expect(info?.root == false)
+        #expect(info?.validateDAG == true)
+        #expect(info?.mainActor == false)
+    }
+
+    @Test
+    func parseProvideAttributeSharedFactory() throws {
         let source = """
         struct AppContainer {
             @Provide(.shared, factory: Foo())
@@ -39,15 +59,15 @@ struct ParsingTests {
             return
         }
 
-        let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
         #expect(info.scope == .shared)
         #expect(info.scopeName == "shared")
         #expect(info.factoryExpr != nil)
     }
 
     @Test
-    func parseProvideAttributeInput() {
+    func parseProvideAttributeInput() throws {
         let source = """
         struct AppContainer {
             @Provide(.input)
@@ -59,15 +79,15 @@ struct ParsingTests {
             return
         }
 
-        let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
         #expect(info.scope == .input)
         #expect(info.scopeName == "input")
         #expect(info.factoryExpr == nil)
     }
     
     @Test
-    func parseProvideAttributeTransient() {
+    func parseProvideAttributeTransient() throws {
         let source = """
         struct AppContainer {
             @Provide(.transient, factory: { ViewModel() })
@@ -79,15 +99,35 @@ struct ParsingTests {
             return
         }
 
-        let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
         #expect(info.scope == .transient)
         #expect(info.scopeName == "transient")
         #expect(info.factoryExpr != nil)
     }
+
+    @Test
+    func parseProvideAttributeAsyncFactory() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(.transient, asyncFactory: { () async throws in try await ViewModel.load() })
+            var viewModel: ViewModel
+        }
+        """
+        guard let decl = firstVarDecl(in: source) else {
+            #expect(Bool(false), "Expected variable declaration.")
+            return
+        }
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.scope == .transient)
+        #expect(info.asyncFactoryExpr != nil)
+        #expect(info.asyncFactoryIsThrowing == true)
+    }
     
     @Test
-    func parseProvideAttributeConcrete() {
+    func parseProvideAttributeConcrete() throws {
         let source = """
         struct AppContainer {
             @Provide(.shared, factory: URLSession.shared, concrete: true)
@@ -99,14 +139,14 @@ struct ParsingTests {
             return
         }
 
-        let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
         #expect(info.scope == .shared)
         #expect(info.concrete == true)
     }
     
     @Test
-    func parseProvideAttributeConcreteDefault() {
+    func parseProvideAttributeConcreteDefault() throws {
         let source = """
         struct AppContainer {
             @Provide(.shared, factory: SomeService())
@@ -118,8 +158,8 @@ struct ParsingTests {
             return
         }
 
-        let info = InnoDICore.parseProvideAttribute(decl.attributes)
-        #expect(info.hasProvide == true)
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
         #expect(info.concrete == false)
     }
 }
