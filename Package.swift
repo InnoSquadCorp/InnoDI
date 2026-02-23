@@ -6,11 +6,11 @@ import PackageDescription
 let package = Package(
     name: "InnoDI",
     platforms: [
-        .iOS(.v26),
-        .macOS(.v26),
-        .watchOS(.v26),
-        .tvOS(.v26),
-        .visionOS(.v26)
+        .iOS(.v17),
+        .macOS(.v13),
+        .watchOS(.v10),
+        .tvOS(.v17),
+        .visionOS(.v1)
     ],
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
