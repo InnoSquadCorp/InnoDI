@@ -1,3 +1,4 @@
+import Foundation
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -7,7 +8,8 @@ final class TestMacroExpansionContext: MacroExpansionContext {
     var lexicalContext: [Syntax] { [] }
 
     func makeUniqueName(_ name: String) -> TokenSyntax {
-        .identifier(name)
+        let unique = UUID().uuidString.replacingOccurrences(of: "-", with: "_")
+        return .identifier("\(name)_\(unique)")
     }
 
     func diagnose(_ diagnostic: Diagnostic) {

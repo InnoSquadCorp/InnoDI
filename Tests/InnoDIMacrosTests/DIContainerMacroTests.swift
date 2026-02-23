@@ -1,4 +1,5 @@
 import SwiftParser
+import SwiftDiagnostics
 import SwiftSyntax
 import Testing
 
@@ -497,7 +498,11 @@ struct DIContainerMacroTests {
         let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
 
         #expect(generated.isEmpty)
-        #expect(context.diagnostics.contains { String(describing: $0.diagnosticID).contains("provide.factory-conflict") })
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.factory-conflict")
+            }
+        )
     }
 
     @Test("input scope rejects asyncFactory")
@@ -521,7 +526,11 @@ struct DIContainerMacroTests {
         let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
 
         #expect(generated.isEmpty)
-        #expect(context.diagnostics.contains { String(describing: $0.diagnosticID).contains("provide.async-factory-invalid-scope") })
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.async-factory-invalid-scope")
+            }
+        )
     }
 
     @Test("asyncFactory must be async closure")

@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -41,7 +42,10 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if member.scope == .input && member.asyncFactory != nil {
+            if member.scope == .input && member.asyncFactory != nil
+                && member.factory == nil
+                && member.typeExpr == nil
+                && member.initializer == nil {
                 context.diagnose(
                     Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideAsyncFactoryInvalidScope())
                 )
@@ -91,7 +95,7 @@ struct DIContainerValidator {
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }
 
-            let cycles = detectDependencyCycles(adjacency: adjacency)
+            let cycles = InnoDICore.detectDependencyCycles(adjacency: adjacency)
             if !cycles.isEmpty {
                 let memberByName = Dictionary(uniqueKeysWithValues: model.members.map { ($0.name, $0) })
                 for cycle in cycles {

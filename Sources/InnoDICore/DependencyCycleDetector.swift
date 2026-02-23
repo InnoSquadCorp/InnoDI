@@ -23,13 +23,28 @@ public func detectDependencyCycles(adjacency: [String: [String]]) -> [[String]] 
         let neighbors = (adjacency[node] ?? []).sorted()
         for neighbor in neighbors {
             if state[neighbor] == .visiting {
-                if let startIndex = indexByNode[neighbor] {
-                    let cycleCore = Array(stack[startIndex...])
-                    let cycle = cycleCore + [neighbor]
-                    let canonical = canonicalCycleString(cycleCore)
-                    if seenCanonical.insert(canonical).inserted {
-                        cycles.append(cycle)
-                    }
+                let startIndex: Int
+                if let mappedIndex = indexByNode[neighbor] {
+                    startIndex = mappedIndex
+                } else if let recoveredIndex = stack.firstIndex(of: neighbor) {
+                    assertionFailure(
+                        "DependencyCycleDetector invariant violated: missing indexByNode for visiting neighbor '\(neighbor)'; " +
+                        "state=\(String(describing: state[neighbor])), indexByNode=\(indexByNode)"
+                    )
+                    startIndex = recoveredIndex
+                } else {
+                    assertionFailure(
+                        "DependencyCycleDetector invariant violated: visiting neighbor '\(neighbor)' not found in stack; " +
+                        "state=\(String(describing: state[neighbor])), indexByNode=\(indexByNode), stack=\(stack)"
+                    )
+                    continue
+                }
+
+                let cycleCore = Array(stack[startIndex...])
+                let cycle = cycleCore + [neighbor]
+                let canonical = canonicalCycleString(cycleCore)
+                if seenCanonical.insert(canonical).inserted {
+                    cycles.append(cycle)
                 }
                 continue
             }

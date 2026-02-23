@@ -5,14 +5,14 @@ import Testing
 @Suite("DependencyCycleDetector")
 struct DependencyCycleDetectorTests {
     @Test("Detects a simple 2-node cycle")
-    func detectsSimpleCycle() {
+    func detectsSimpleCycle() throws {
         let adjacency: [String: [String]] = [
             "A": ["B"],
             "B": ["A"]
         ]
 
         let cycles = detectDependencyCycles(adjacency: adjacency)
-        #expect(cycles.count == 1)
+        try #require(cycles.count == 1)
         #expect(cycles[0] == ["A", "B", "A"] || cycles[0] == ["B", "A", "B"])
     }
 

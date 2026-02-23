@@ -130,7 +130,7 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                 if label == "asyncFactory" {
                     asyncFactoryExpr = argument.expression
                     if let closure = argument.expression.as(ClosureExprSyntax.self) {
-                        asyncFactoryIsThrowing = closure.signature?.description.contains("throws") == true
+                        asyncFactoryIsThrowing = closure.signature?.effectSpecifiers?.throwsClause != nil
                     }
                     continue
                 }
