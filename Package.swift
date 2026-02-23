@@ -53,6 +53,7 @@ let package = Package(
         .macro(
             name: "InnoDIMacros",
             dependencies: [
+                "InnoDICore",
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),

@@ -25,22 +25,36 @@ Options:
 USAGE
 }
 
+require_option_value() {
+  local option="$1"
+  local value="${2:-}"
+  if [[ -z "$value" || "$value" == -* ]]; then
+    echo "Missing value for $option" >&2
+    usage
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --runs)
-      SAMPLE_RUNS="$2"
+      require_option_value "$1" "${2:-}"
+      SAMPLE_RUNS="${2:-}"
       shift 2
       ;;
     --iterations)
-      RESOLVE_ITERATIONS="$2"
+      require_option_value "$1" "${2:-}"
+      RESOLVE_ITERATIONS="${2:-}"
       shift 2
       ;;
     --sizes)
-      SIZES_CSV="$2"
+      require_option_value "$1" "${2:-}"
+      SIZES_CSV="${2:-}"
       shift 2
       ;;
     --output)
-      RESULT_PATH="$2"
+      require_option_value "$1" "${2:-}"
+      RESULT_PATH="${2:-}"
       shift 2
       ;;
     --help)
