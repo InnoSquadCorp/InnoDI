@@ -1,0 +1,38 @@
+name: Docs
+
+on:
+  pull_request:
+
+jobs:
+  docc:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode
+        run: |
+          if [[ -d /Applications/Xcode_26.2.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer
+          elif [[ -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
+          elif [[ -d /Applications/Xcode_26.1.1.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.1.1.app/Contents/Developer
+          else
+            echo "No supported Xcode 26.x installation found under /Applications."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          xcodebuild -version
+          swift --version
+      - name: Generate DocC
+        run: Tools/generate-docc.sh
+      - name: Package DocC Artifact
+        run: |
+          mkdir -p .build/docc
+          tar -C .build/docc -czf .build/docc/innodi-docc.tar.gz InnoDI
+      - name: Upload DocC Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: innodi-docc
+          path: .build/docc/innodi-docc.tar.gz

@@ -5,7 +5,7 @@
 - `Sources/InnoDIMacros`: Macro implementations and diagnostics.
 - `Sources/InnoDICore`: Shared parsing/analysis utilities used by macros and CLI.
 - `Sources/InnoDI-DependencyGraph`: Static analysis CLI for generating dependency graphs.
-- `Tests/InnoDICoreTests`: SwiftTesting-based unit tests for core parsing.
+- `Tests/InnoDICoreTests`: SwiftTesting-based unit tests for core parsing and dependency graph normalization.
 - `.github/workflows`: CI workflows (if present) for automated checks.
 
 ## Build, Test, and Development Commands
@@ -31,5 +31,5 @@
 - PRs should include: summary of changes, test commands run, and any behavior changes or diagnostics updates.
 
 ## Architecture Notes
-- Keep macro parsing rules centralized in `InnoDICore` to prevent drift between `InnoDIMacros` and `InnoDICLI`.
+- Keep macro parsing rules centralized in `InnoDICore` to prevent drift between `InnoDIMacros` and `InnoDI-DependencyGraph`.
 - Treat `.shared` providers as app-level singletons; prefer `.input` for explicit, testable dependencies.

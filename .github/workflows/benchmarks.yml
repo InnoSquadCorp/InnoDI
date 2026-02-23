@@ -1,0 +1,41 @@
+name: Benchmarks
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  benchmark-compare:
+    runs-on: macos-26
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          if [[ -d /Applications/Xcode_26.2.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer
+          elif [[ -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
+          elif [[ -d /Applications/Xcode_26.1.1.app/Contents/Developer ]]; then
+            DEVELOPER_DIR=/Applications/Xcode_26.1.1.app/Contents/Developer
+          else
+            echo "No supported Xcode 26.x installation found under /Applications."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          xcodebuild -version
+          swift --version
+
+      - name: Run Framework Comparison Benchmarks
+        run: Benchmarks/compare.sh --compile-iterations 5 --runtime-runs 5 --runtime-iterations 100000
+
+      - name: Upload Benchmark Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: innodi-benchmarks
+          path: Benchmarks/results/*.json

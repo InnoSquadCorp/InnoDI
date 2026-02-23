@@ -1,0 +1,11 @@
+{
+  "updated_at": "2026-02-22T11:21:27Z",
+  "swift_version": "Apple Swift version 6.2.1 (swiftlang-6.2.1.4.8 clang-1700.4.4.1)",
+  "filter": "InnoDIMacrosTests",
+  "iterations": 3,
+  "mean_ms": 640.770,
+  "min_ms": 627.319,
+  "max_ms": 652.949,
+  "stdev_ms": 10.502,
+  "samples_ms": [642.043, 652.949, 627.319]
+}

@@ -1,5 +1,7 @@
 # InnoDI
 
+[English](README.md) | [한국어](README.ko.md)
+
 A Swift Macro-based Dependency Injection library for clean, type-safe DI containers.
 
 ## Features
@@ -17,7 +19,7 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/anthropics/InnoDI.git", from: "1.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "1.0.0")
 ]
 ```
 
@@ -50,7 +52,7 @@ struct AppContainer {
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\.baseURL])
-    var apiClient: APIClientProtocol
+    var apiClient: any APIClientProtocol
 }
 
 // Usage
@@ -64,7 +66,7 @@ For more control, use factory closures instead:
 @Provide(.shared, factory: { (baseURL: String) in
     APIClient(baseURL: baseURL, timeout: 30)
 })
-var apiClient: APIClientProtocol
+var apiClient: any APIClientProtocol
 ```
 
 ## API Reference
@@ -74,19 +76,22 @@ var apiClient: APIClientProtocol
 Marks a struct as a DI container. Generates `init(...)` with optional override parameters.
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false)
+@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes missing-factory checks for `.shared`/`.transient` and emits runtime `fatalError` fallback for missing `.shared` factories. `.input` factory prohibition and concrete opt-in remain enforced. |
+| `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes missing-factory checks for `.shared`/`.transient` and emits runtime `fatalError` fallback for missing `.shared` and `.transient` factories. `.input` factory prohibition and concrete opt-in remain enforced. |
+| `root` | `false` | Mark container as root in graph rendering. |
+| `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
+| `mainActor` | `false` | Apply `@MainActor` isolation to generated initializer/accessors. |
 
 ### `@Provide`
 
 Declares a dependency with its scope and factory.
 
 ```swift
-@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, concrete: Bool = false)
+@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, asyncFactory: Any? = nil, concrete: Bool = false)
 ```
 
 | Parameter | Default | Description |
@@ -95,6 +100,7 @@ Declares a dependency with its scope and factory.
 | `type` | `nil` | Concrete type for AutoWiring (alternative to factory) |
 | `with` | `[]` | Dependencies to inject via AutoWiring |
 | `factory` | `nil` | Factory expression (required for `.shared` and `.transient` if no type) |
+| `asyncFactory` | `nil` | Async factory closure (mutually exclusive with `factory`) |
 | `concrete` | `false` | Required opt-in when the dependency property type is concrete (see DIP section) |
 
 ### `DIScope`
@@ -104,6 +110,23 @@ Declares a dependency with its scope and factory.
 | `.input` | Provided at container initialization | No |
 | `.shared` | Created once, cached for container lifetime | Yes |
 | `.transient` | New instance created on every access | Yes |
+
+### Async Factory
+
+Use `asyncFactory` when construction is asynchronous:
+
+```swift
+@Provide(.shared, asyncFactory: { (config: AppConfig) async throws in
+    try await APIClient.make(config: config)
+})
+var apiClient: any APIClientProtocol
+```
+
+Rules:
+
+- `factory` and `asyncFactory` cannot be used together.
+- `.input` scope does not allow `asyncFactory`.
+- `asyncFactory` must be declared as an `async` closure.
 
 ## Scopes in Detail
 
@@ -135,10 +158,10 @@ Use for services that should be instantiated once and reused:
 @DIContainer
 struct AppContainer {
     @Provide(.shared, factory: URLSession.shared)
-    var session: URLSessionProtocol
+    var session: any URLSessionProtocol
 
     @Provide(.shared, factory: NetworkService(session: session))
-    var networkService: NetworkServiceProtocol
+    var networkService: any NetworkServiceProtocol
 }
 ```
 
@@ -150,7 +173,7 @@ Use for objects that need a new instance on each access (e.g., ViewModels):
 @DIContainer
 struct AppContainer {
     @Provide(.input)
-    var apiClient: APIClientProtocol
+    var apiClient: any APIClientProtocol
 
     @Provide(.transient, factory: HomeViewModel(api: apiClient))
     var homeViewModel: HomeViewModel
@@ -179,7 +202,7 @@ struct AppContainer {
 
     // AutoWiring: APIClient(config: self.config, logger: self.logger)
     @Provide(.shared, APIClient.self, with: [\.config, \.logger])
-    var apiClient: APIClientProtocol
+    var apiClient: any APIClientProtocol
 }
 ```
 
@@ -197,19 +220,21 @@ struct AppContainer {
 @Provide(.shared, factory: { (config: AppConfig) in
     APIClient(configuration: config, timeout: 30)
 })
-var apiClient: APIClientProtocol
+var apiClient: any APIClientProtocol
 ```
 
 ## Dependency Inversion Principle (DIP)
 
-InnoDI enforces protocol-first dependencies for `.shared` and `.transient`. If you need to use a concrete type, explicitly opt-in with `concrete: true`:
+InnoDI enforces protocol-first dependencies for `.shared` and `.transient`.
+Use explicit existential syntax (`any Protocol`) for protocol-typed dependencies.
+If you need to use a concrete type, explicitly opt-in with `concrete: true`:
 
 ```swift
 @DIContainer
 struct AppContainer {
     // Preferred: Protocol type
     @Provide(.shared, factory: APIClient())
-    var apiClient: APIClientProtocol
+    var apiClient: any APIClientProtocol
 
     // Allowed: Concrete type with explicit opt-in
     @Provide(.shared, factory: URLSession.shared, concrete: true)
@@ -230,7 +255,7 @@ struct AppContainer {
     var baseURL: String
 
     @Provide(.shared, factory: APIClient(baseURL: baseURL))
-    var apiClient: APIClientProtocol
+    var apiClient: any APIClientProtocol
 }
 
 // Production - factory creates the instance
@@ -245,7 +270,7 @@ let testContainer = AppContainer(
 
 Generated init signature:
 ```swift
-init(baseURL: String, apiClient: APIClientProtocol? = nil)
+init(baseURL: String, apiClient: (any APIClientProtocol)? = nil)
 ```
 
 - `.input` parameters are required
@@ -284,11 +309,60 @@ Generate a PNG image directly (requires Graphviz installed):
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
 ```
 
+Validate global DAG (fails on cycle and ambiguous container references):
+
+```bash
+swift run InnoDI-DependencyGraph --root /path/to/your/project --validate-dag
+```
+
 ### Options
 
 - `--root <path>`: Root directory of the project (default: current directory)
 - `--format <mermaid|dot|ascii>`: Output format (default: mermaid)
 - `--output <file>`: Output file path (default: stdout)
+- `--validate-dag`: Validate global container DAG and fail on cycle/ambiguity
+
+### Validation Notes
+
+- Containers annotated with `@DIContainer(validateDAG: false)` are fully excluded from global DAG validation (`--validate-dag`), including cycle and ambiguity checks.
+- Macro-level dependency extraction for cycle validation is AST-based, so string literal tokens no longer produce false-positive dependency edges.
+
+### DocC API Documentation
+
+Generate local DocC docs:
+
+```bash
+Tools/generate-docc.sh
+```
+
+CI publishes DocC artifacts from `.github/workflows/docs.yml`.
+
+### Build Tool Plugin (DAG Validation)
+
+InnoDI ships a SwiftPM build tool plugin:
+
+- `InnoDIDAGValidationPlugin`
+
+Attach it to your app target to fail builds when DAG validation fails:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: ["InnoDI"],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
+### Extended Examples
+
+See runnable examples in `/Examples`:
+
+- `/Examples/SwiftUIExample`
+- `/Examples/TCAIntegrationExample`
+- `/Examples/PreviewInjectionExample`
+- `/Examples/SampleApp`
 
 ### Example Output
 
@@ -304,6 +378,42 @@ graph TD
     AppContainer -->|loginBuilder| FeatureContainer
     AppContainer --> RemoteDataSourceContainer
 ```
+
+## Macro Performance Check
+
+Use the included script to detect macro test performance regressions:
+
+```bash
+Tools/measure-macro-performance.sh
+```
+
+## Benchmarks
+
+Run benchmark suites (10/50/100/250 dependencies):
+
+```bash
+Benchmarks/run-compile-bench.sh
+Benchmarks/run-runtime-bench.sh
+Benchmarks/compare.sh
+```
+
+Output JSON files:
+
+- `Benchmarks/results/compile.json`
+- `Benchmarks/results/runtime.json`
+- `Benchmarks/results/compare.json`
+
+Needle/SafeDI sections are currently scaffolded as non-blocking comparison slots in the report.
+
+Update baseline after intentional performance changes:
+
+```bash
+Tools/measure-macro-performance.sh --iterations 5 --update-baseline
+```
+
+Default baseline file:
+
+- `Tools/macro-performance-baseline.json`
 
 ## License
 

@@ -1,178 +1,90 @@
 ## InnoDI Examples
 
-### 1) DI + Macro Usage
+This folder contains runnable examples for real integration scenarios.
 
-Runnable example:
+### 1) Core DI Macro Usage
+
+Reference source:
 - `Sources/InnoDIExamples/main.swift`
-- Run: `swift run InnoDIExamples`
 
-```swift
-import InnoDI
+### 2) Dependency Graph CLI Sample
 
-struct Config {
-    let baseURL: String
-}
-
-struct APIClient {
-    let baseURL: String
-}
-
-struct UserService {
-    let client: APIClient
-}
-
-@DIContainer
-struct AppContainer {
-    @Provide(.input)
-    var config: Config
-
-    @Provide(.shared, factory: APIClient(baseURL: config.baseURL), concrete: true)
-    var apiClient: APIClient
-
-    @Provide(.shared, factory: UserService(client: apiClient), concrete: true)
-    var userService: UserService
-}
-
-let container = AppContainer(config: Config(baseURL: "https://api.example.com"))
-let service = container.userService
-```
-
-Notes:
-- `.input` requires no `factory`.
-- `.shared` requires `factory: <expr>` or `Type.self` with `with:`.
-- The macro generates `init(...)` with optional override parameters.
-
-Example with init override:
-
-```swift
-// Production - factory creates the instance
-let container = AppContainer(config: Config(baseURL: "https://api.example.com"))
-
-// Testing - directly inject mock
-let testContainer = AppContainer(
-    config: Config(baseURL: "https://test.example.com"),
-    apiClient: MockAPIClient()
-)
-```
-
-### 2) CLI Usage (Dependency Graph Visualization)
-
-Runnable example:
+Runnable sample files:
 - `Examples/SampleApp/AppContainer.swift`
 - `Examples/SampleApp/App.swift`
-- Run: `swift run InnoDI-DependencyGraph --root Examples/SampleApp`
 
-Run the CLI from the package root or point it at another repo:
+Run:
 
 ```bash
-swift run InnoDI-DependencyGraph --root /path/to/your/project
+swift run InnoDI-DependencyGraph --root Examples/SampleApp
 ```
 
-Generate different formats:
+Validate DAG (fails on cycle / ambiguous container reference):
+
+```bash
+swift run InnoDI-DependencyGraph --root Examples/SampleApp --validate-dag
+```
+
+### 3) SwiftUI Injection Example
+
+Path:
+- `Examples/SwiftUIExample`
+
+Build:
+
+```bash
+cd Examples/SwiftUIExample
+swift build
+```
+
+Highlights:
+- `@DIContainer` for SwiftUI view model wiring
+- Init override with mock service injection
+
+### 4) TCA Integration Example
+
+Path:
+- `Examples/TCAIntegrationExample`
+
+Build:
+
+```bash
+cd Examples/TCAIntegrationExample
+swift build
+```
+
+Highlights:
+- TCA reducer receives dependencies via InnoDI container
+- Test double override via generated `init` parameters
+
+### 5) Preview Injection Example
+
+Path:
+- `Examples/PreviewInjectionExample`
+
+Build:
+
+```bash
+cd Examples/PreviewInjectionExample
+swift build
+```
+
+Highlights:
+- `#Preview` with lightweight preview-only container input
+- Preview and live dependencies separated by injection
+
+### 6) Existing CLI Output Formats
 
 ```bash
 # Mermaid diagram (default)
 swift run InnoDI-DependencyGraph --root /path/to/your/project
 
-# DOT format for Graphviz
+# DOT format
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.dot
+
+# ASCII format
+swift run InnoDI-DependencyGraph --root /path/to/your/project --format ascii
 
 # PNG image (requires Graphviz)
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
-```
-
-The CLI reports:
-- Missing required `.input` arguments when constructing containers.
-- Containers that are not reachable from any root container.
-
-You can mark a container as a root:
-
-```swift
-@DIContainer(root: true)
-struct AppContainer { ... }
-```
-
-### 3) Core Parsing Tests (SwiftTesting)
-
-Runnable example:
-- `Tests/InnoDIExamplesTests/ExampleTests.swift`
-- Run: `swift test --filter InnoDIExamplesTests`
-
-```swift
-import SwiftParser
-import SwiftSyntax
-import Testing
-@testable import InnoDICore
-
-struct ParsingTests {
-    @Test
-    func parseProvideAttributeInput() {
-        let source = """
-        struct AppContainer {
-            @Provide(.input)
-            var config: Config
-        }
-        """
-
-        let file = Parser.parse(source: source)
-        let structDecl = file.statements.compactMap { $0.item.as(StructDeclSyntax.self) }.first
-        let varDecl = structDecl?.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }.first
-
-        let info = InnoDICore.parseProvideAttribute(varDecl?.attributes)
-        #expect(info.hasProvide == true)
-        #expect(info.scope == .input)
-    }
-}
-```
-
-Run:
-
-```bash
-swift test
-```
-
-### 4) Macro Expansion Tests
-
-```swift
-import SwiftSyntaxMacros
-import SwiftSyntaxMacrosTestSupport
-import XCTest
-
-@testable import InnoDIMacros
-
-final class DIContainerMacroTests: XCTestCase {
-    func testDIContainerGeneratesInitWithOptionalOverrideParameters() {
-        let macros: [String: Macro.Type] = [
-            "DIContainer": DIContainerMacro.self,
-        ]
-
-        assertMacroExpansion(
-            """
-            struct Foo {}
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, factory: Foo(), concrete: true)
-                var foo: Foo
-            }
-            """,
-            expandedSource: """
-            struct Foo {}
-            struct AppContainer {
-                @Provide(.shared, factory: Foo(), concrete: true)
-                var foo: Foo
-                init(foo: Foo? = nil) {
-                    self._storage_foo = foo ?? Foo()
-                }
-            }
-            """,
-            macros: macros
-        )
-    }
-}
-```
-
-Run:
-
-```bash
-swift test --filter InnoDIMacrosTests
 ```
