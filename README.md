@@ -76,7 +76,7 @@ var apiClient: any APIClientProtocol
 Marks a struct as a DI container. Generates `init(...)` with optional override parameters.
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true)
+@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
 ```
 
 | Parameter | Default | Description |
@@ -84,13 +84,14 @@ Marks a struct as a DI container. Generates `init(...)` with optional override p
 | `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes missing-factory checks for `.shared`/`.transient` and emits runtime `fatalError` fallback for missing `.shared` and `.transient` factories. `.input` factory prohibition and concrete opt-in remain enforced. |
 | `root` | `false` | Mark container as root in graph rendering. |
 | `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
+| `mainActor` | `false` | Apply `@MainActor` isolation to generated initializer/accessors. |
 
 ### `@Provide`
 
 Declares a dependency with its scope and factory.
 
 ```swift
-@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, concrete: Bool = false)
+@Provide(_ scope: DIScope = .shared, _ type: Type.self? = nil, with: [KeyPath] = [], factory: Any? = nil, asyncFactory: Any? = nil, concrete: Bool = false)
 ```
 
 | Parameter | Default | Description |
@@ -99,6 +100,7 @@ Declares a dependency with its scope and factory.
 | `type` | `nil` | Concrete type for AutoWiring (alternative to factory) |
 | `with` | `[]` | Dependencies to inject via AutoWiring |
 | `factory` | `nil` | Factory expression (required for `.shared` and `.transient` if no type) |
+| `asyncFactory` | `nil` | Async factory closure (mutually exclusive with `factory`) |
 | `concrete` | `false` | Required opt-in when the dependency property type is concrete (see DIP section) |
 
 ### `DIScope`
@@ -108,6 +110,23 @@ Declares a dependency with its scope and factory.
 | `.input` | Provided at container initialization | No |
 | `.shared` | Created once, cached for container lifetime | Yes |
 | `.transient` | New instance created on every access | Yes |
+
+### Async Factory
+
+Use `asyncFactory` when construction is asynchronous:
+
+```swift
+@Provide(.shared, asyncFactory: { (config: AppConfig) async throws in
+    try await APIClient.make(config: config)
+})
+var apiClient: any APIClientProtocol
+```
+
+Rules:
+
+- `factory` and `asyncFactory` cannot be used together.
+- `.input` scope does not allow `asyncFactory`.
+- `asyncFactory` must be declared as an `async` closure.
 
 ## Scopes in Detail
 
@@ -303,6 +322,21 @@ swift run InnoDI-DependencyGraph --root /path/to/your/project --validate-dag
 - `--output <file>`: Output file path (default: stdout)
 - `--validate-dag`: Validate global container DAG and fail on cycle/ambiguity
 
+### Validation Notes
+
+- Containers annotated with `@DIContainer(validateDAG: false)` are fully excluded from global DAG validation (`--validate-dag`), including cycle and ambiguity checks.
+- Macro-level dependency extraction for cycle validation is AST-based, so string literal tokens no longer produce false-positive dependency edges.
+
+### DocC API Documentation
+
+Generate local DocC docs:
+
+```bash
+Tools/generate-docc.sh
+```
+
+CI publishes DocC artifacts from `.github/workflows/docs.yml`.
+
 ### Build Tool Plugin (DAG Validation)
 
 InnoDI ships a SwiftPM build tool plugin:
@@ -352,6 +386,24 @@ Use the included script to detect macro test performance regressions:
 ```bash
 Tools/measure-macro-performance.sh
 ```
+
+## Benchmarks
+
+Run benchmark suites (10/50/100/250 dependencies):
+
+```bash
+Benchmarks/run-compile-bench.sh
+Benchmarks/run-runtime-bench.sh
+Benchmarks/compare.sh
+```
+
+Output JSON files:
+
+- `Benchmarks/results/compile.json`
+- `Benchmarks/results/runtime.json`
+- `Benchmarks/results/compare.json`
+
+Needle/SafeDI sections are currently scaffolded as non-blocking comparison slots in the report.
 
 Update baseline after intentional performance changes:
 

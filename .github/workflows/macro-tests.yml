@@ -29,3 +29,12 @@ jobs:
       - name: Macro Performance Check (non-blocking)
         continue-on-error: true
         run: Tools/measure-macro-performance.sh --iterations 5
+      - name: Framework Comparison Benchmarks (non-blocking)
+        continue-on-error: true
+        run: Benchmarks/compare.sh --compile-iterations 5 --runtime-runs 5 --runtime-iterations 100000
+      - name: Upload Benchmark Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: innodi-benchmarks
+          path: Benchmarks/results/*.json

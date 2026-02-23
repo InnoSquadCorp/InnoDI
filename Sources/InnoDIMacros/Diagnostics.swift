@@ -19,9 +19,13 @@ enum InnoDIDiagnosticCode: String {
     case provideTransientFactoryRequired = "provide.transient-factory-required"
     case provideInputInvalidConfiguration = "provide.input-invalid-configuration"
     case provideConcreteOptInRequired = "provide.concrete-opt-in-required"
+    case provideFactoryConflict = "provide.factory-conflict"
+    case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
+    case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
     case transientFactoryUnnamedParameters = "transient-factory.unnamed-parameters"
     case containerUnknownDependency = "container.unknown-dependency"
     case containerDependencyCycle = "container.dependency-cycle"
+    case containerMainActorConflict = "container.mainactor-conflict"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
 
@@ -31,7 +35,8 @@ enum InnoDIDiagnosticCode: String {
                 .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
-                .containerUnknownDependency, .containerDependencyCycle, .graphDependencyCycle,
+                .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
+                .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict, .graphDependencyCycle,
                 .graphAmbiguousContainerReference:
             return .validation
         }
@@ -97,6 +102,27 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func provideFactoryConflict() -> Self {
+        Self(
+            "@Provide cannot include both factory: and asyncFactory: at the same time.",
+            code: .provideFactoryConflict
+        )
+    }
+
+    static func provideAsyncFactoryInvalidScope() -> Self {
+        Self(
+            "@Provide(.input) should not include asyncFactory.",
+            code: .provideAsyncFactoryInvalidScope
+        )
+    }
+
+    static func provideAsyncFactoryMustBeAsync() -> Self {
+        Self(
+            "asyncFactory must be an async closure expression.",
+            code: .provideAsyncFactoryMustBeAsync
+        )
+    }
+
     static func transientFactoryUnnamedParameters() -> Self {
         Self(
             "Transient factory closure parameters must be named for injection.",
@@ -115,6 +141,13 @@ extension SimpleDiagnostic {
         Self(
             "Dependency cycle detected in container: \(path).",
             code: .containerDependencyCycle
+        )
+    }
+
+    static func containerMainActorConflict(actorName: String) -> Self {
+        Self(
+            "mainActor: true conflicts with existing global actor '@\(actorName)'.",
+            code: .containerMainActorConflict
         )
     }
 }

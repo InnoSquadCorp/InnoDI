@@ -1,3 +1,4 @@
+import Foundation
 import SwiftParser
 import SwiftSyntax
 import Testing
@@ -231,5 +232,115 @@ struct ProvideMacroTests {
         let parameterList = parseClosureParameterNames(closure)
         #expect(parameterList.hasWildcard == true)
         #expect(parameterList.names == ["logger"])
+    }
+
+    @Test("Async transient factory generates async accessor")
+    func asyncTransientFactoryGeneratesAsyncAccessor() throws {
+        let source = """
+        @Provide(.transient, asyncFactory: { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) })
+        var viewModel: ViewModel
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide with async transient factory closure")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: varDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("get async") || generated.contains("getasync"))
+        #expect(generated.contains("await"))
+        #expect(generated.contains("self.apiClient"))
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("Async shared factory generates task storage peer and async getter")
+    func asyncSharedFactoryGeneratesTaskStorageAndAsyncGetter() throws {
+        let source = """
+        @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+        var service: Service
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide with async shared factory closure")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peerDecls = try ProvideMacro.expansion(
+            of: attr,
+            providingPeersOf: varDecl,
+            in: context
+        )
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: varDecl,
+            in: context
+        )
+
+        let peerGenerated = peerDecls.map(\.description).joined(separator: "\n")
+        let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
+
+        #expect(peerGenerated.contains("_storage_task_service"))
+        #expect(peerGenerated.contains("Task<"))
+        #expect(accessorGenerated.contains("get async") || accessorGenerated.contains("getasync"))
+        #expect(accessorGenerated.contains("await _storage_task_service.value"))
+    }
+
+    @Test("Container mainActor option applies MainActor to generated accessor")
+    func mainActorContainerAppliesMainActorToAccessor() throws {
+        let source = """
+        @DIContainer(mainActor: true)
+        struct AppContainer {
+            @Provide(.transient, factory: Service(), concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let targetVarDecl = decl.memberBlock.members
+                .compactMap({ $0.decl.as(VariableDeclSyntax.self) })
+                .first,
+              let attr = targetVarDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer(mainActor: true) with @Provide")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: targetVarDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("@MainActor"))
+    }
+
+    @Test("Public Provide macro declaration allows async shared task storage peers")
+    func provideMacroDeclarationIncludesStorageTaskPrefix() throws {
+        let fileURL = URL(fileURLWithPath: #filePath)
+        let packageRoot = fileURL
+            .deletingLastPathComponent() // InnoDIMacrosTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // Package root
+
+        let publicAPISource = try String(
+            contentsOf: packageRoot.appendingPathComponent("Sources/InnoDI/InnoDI.swift"),
+            encoding: .utf8
+        )
+
+        #expect(publicAPISource.contains("prefixed(_storage_task_)"))
     }
 }

@@ -398,4 +398,184 @@ struct DIContainerMacroTests {
         #expect(!generated.isEmpty)
         #expect(context.diagnostics.isEmpty)
     }
+
+    @Test("String literal tokens do not trigger false dependency cycles")
+    func stringLiteralTokensDoNotTriggerFalseDependencyCycles() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, concrete: true)
+            var a: ServiceA = ServiceA(name: "b")
+
+            @Provide(.shared, concrete: true)
+            var b: ServiceB = ServiceB(name: "a")
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        #expect(!context.diagnostics.contains { $0.message.contains("Dependency cycle detected in container") })
+    }
+
+    @Test("mainActor: true annotates generated init with @MainActor")
+    func mainActorContainerGeneratesMainActorInit() throws {
+        let source = """
+        @DIContainer(mainActor: true)
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.last?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer(mainActor: true)")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        #expect(generated.first?.description.contains("@MainActor") == true)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("mainActor option conflicts with existing custom global actor")
+    func mainActorConflictProducesDiagnostic() throws {
+        let source = """
+        @FeatureActor
+        @DIContainer(mainActor: true)
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.last?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse conflicting actor attributes")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("FeatureActor") })
+    }
+
+    @Test("asyncFactory and factory cannot be used together")
+    func asyncFactoryAndFactoryConflictProducesDiagnostic() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.transient, factory: Service(), asyncFactory: { () async in Service() }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer with factory/asyncFactory conflict")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { String(describing: $0.diagnosticID).contains("provide.factory-conflict") })
+    }
+
+    @Test("input scope rejects asyncFactory")
+    func inputScopeRejectsAsyncFactory() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input, asyncFactory: { () async in Service() }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer input asyncFactory")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { String(describing: $0.diagnosticID).contains("provide.async-factory-invalid-scope") })
+    }
+
+    @Test("asyncFactory must be async closure")
+    func asyncFactoryMustBeAsyncClosure() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.transient, asyncFactory: { Service() }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer invalid asyncFactory")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("must be an async closure") })
+    }
+
+    @Test("async shared factory generates task-backed initialization")
+    func asyncSharedFactoryGeneratesTaskBackedInit() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.shared, asyncFactory: { (config: Config) async in Service(config: config) }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer async shared factory")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        let initCode = generated.first?.description ?? ""
+        #expect(initCode.contains("_storage_task_service"))
+        #expect(initCode.contains("Task<"))
+        #expect(initCode.contains("await"))
+        #expect(context.diagnostics.isEmpty)
+    }
 }

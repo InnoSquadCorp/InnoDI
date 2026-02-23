@@ -48,14 +48,19 @@ func makeSelfMemberAccessExpr(name: String, baseName: String = "self") -> ExprSy
 }
 
 func makeClosureCallExpr(closure: ClosureExprSyntax, argumentNames: [String], baseName: String = "self") -> ExprSyntax {
+    let expressions = argumentNames.map { makeSelfMemberAccessExpr(name: $0, baseName: baseName) }
+    return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
+}
+
+func makeClosureCallExpr(closure: ClosureExprSyntax, argumentExpressions: [ExprSyntax]) -> ExprSyntax {
     var arguments: [LabeledExprSyntax] = []
 
-    for (index, name) in argumentNames.enumerated() {
-        let isLast = index == argumentNames.count - 1
+    for (index, expression) in argumentExpressions.enumerated() {
+        let isLast = index == argumentExpressions.count - 1
         let argument = LabeledExprSyntax(
             label: nil,
             colon: nil,
-            expression: makeSelfMemberAccessExpr(name: name, baseName: baseName),
+            expression: expression,
             trailingComma: isLast ? nil : .commaToken()
         )
         arguments.append(argument)

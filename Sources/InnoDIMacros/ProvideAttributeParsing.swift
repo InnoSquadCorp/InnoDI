@@ -10,6 +10,8 @@ struct ProvideArguments {
     let scope: ProvideScope?
     let scopeName: String?
     let factoryExpr: ExprSyntax?
+    let asyncFactoryExpr: ExprSyntax?
+    let asyncFactoryIsThrowing: Bool
     let concrete: Bool
     let typeExpr: ExprSyntax?
     let dependencies: [String]
@@ -19,6 +21,7 @@ struct DIContainerAttributeInfo {
     let validate: Bool
     let root: Bool
     let validateDAG: Bool
+    let mainActor: Bool
 }
 
 func findAttribute(named name: String, in attributes: AttributeListSyntax?) -> AttributeSyntax? {
@@ -37,6 +40,8 @@ func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
     var scopeName: String?
     var scope: ProvideScope?
     var factoryExpr: ExprSyntax?
+    var asyncFactoryExpr: ExprSyntax?
+    var asyncFactoryIsThrowing = false
     var concrete = false
     var typeExpr: ExprSyntax?
     var dependencies: [String] = []
@@ -46,6 +51,13 @@ func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
             if let label = argument.label?.text {
                 if label == "factory" {
                     factoryExpr = argument.expression
+                    continue
+                }
+                if label == "asyncFactory" {
+                    asyncFactoryExpr = argument.expression
+                    if let closure = argument.expression.as(ClosureExprSyntax.self) {
+                        asyncFactoryIsThrowing = closure.signature?.description.contains("throws") == true
+                    }
                     continue
                 }
                 if label == "concrete" {
@@ -92,6 +104,8 @@ func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
         scope: scope,
         scopeName: scopeName,
         factoryExpr: factoryExpr,
+        asyncFactoryExpr: asyncFactoryExpr,
+        asyncFactoryIsThrowing: asyncFactoryIsThrowing,
         concrete: concrete,
         typeExpr: typeExpr,
         dependencies: dependencies
@@ -115,6 +129,7 @@ func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContaine
     var validate = true
     var root = false
     var validateDAG = true
+    var mainActor = false
 
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -128,8 +143,11 @@ func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContaine
             if label == "validateDAG", let value = parseBoolLiteral(argument.expression) {
                 validateDAG = value
             }
+            if label == "mainActor", let value = parseBoolLiteral(argument.expression) {
+                mainActor = value
+            }
         }
     }
 
-    return DIContainerAttributeInfo(validate: validate, root: root, validateDAG: validateDAG)
+    return DIContainerAttributeInfo(validate: validate, root: root, validateDAG: validateDAG, mainActor: mainActor)
 }

@@ -60,4 +60,37 @@ struct DependencyExtractionPropertyTests {
         #expect(dependencies.contains("config"))
         #expect(dependencies.contains("logger"))
     }
+
+    @Test("Dependency extraction ignores string literal tokens while keeping real identifiers", arguments: Array(0..<200))
+    func dependencyExtractionIgnoresStringLiteralTokens(seed: Int) throws {
+        var rng = SeededRandom(seed: UInt64(seed + 12000))
+        let literalTokens = ["logger", "service", "_storage_config", "dependency", "appContainer"]
+        let literalToken = literalTokens[rng.nextInt(upperBound: literalTokens.count)]
+
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: String
+
+            @Provide(.shared, concrete: true)
+            var service: Service = Service(text: config + " \(literalToken)")
+        }
+        """
+
+        let file = Parser.parse(source: source)
+        guard let decl = file.statements.first?.item.as(StructDeclSyntax.self) else {
+            Issue.record("Expected @DIContainer struct.")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let model = DIContainerParser.parse(declaration: decl, context: context)
+        let parsedModel = try #require(model)
+        let service = try #require(parsedModel.members.first(where: { $0.name == "service" }))
+        let dependencies = Set(service.graphDependencyCandidates)
+
+        #expect(dependencies.contains("config"))
+        #expect(!dependencies.contains(literalToken))
+    }
 }

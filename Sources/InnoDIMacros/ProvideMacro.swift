@@ -28,7 +28,18 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             let overrideName = "_override_\(name)"
             let decl: DeclSyntax = "private let \(raw: overrideName): \(type)?"
             return [decl]
-        case .shared, .input:
+        case .shared:
+            if parseResult.asyncFactoryExpr != nil {
+                let storageName = "_storage_task_\(name)"
+                let successType = taskSuccessTypeDescription(from: type)
+                let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
+                let decl: DeclSyntax = "private let \(raw: storageName): Task<\(raw: successType), \(raw: failureType)>"
+                return [decl]
+            }
+            let storageName = "_storage_\(name)"
+            let decl: DeclSyntax = "private let \(raw: storageName): \(type)"
+            return [decl]
+        case .input:
             let storageName = "_storage_\(name)"
             let decl: DeclSyntax = "private let \(raw: storageName): \(type)"
             return [decl]
@@ -50,16 +61,50 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return []
         }
 
+        let enclosingContainerMainActor = enclosingDIContainerInfo(for: declaration)?.mainActor == true
         let name = identifier.identifier.text
         
         switch parseResult.scope {
-        case .shared, .input:
+        case .shared:
+            if parseResult.asyncFactoryExpr != nil {
+                let storageName = "_storage_task_\(name)"
+                let valueExpr: String
+                if parseResult.asyncFactoryIsThrowing {
+                    valueExpr = "try await \(storageName).value"
+                } else {
+                    valueExpr = "await \(storageName).value"
+                }
+                let getter = makeGetter(
+                    statements: [
+                        CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: valueExpr)")))
+                    ],
+                    isAsync: true,
+                    isThrowing: parseResult.asyncFactoryIsThrowing,
+                    isMainActor: enclosingContainerMainActor
+                )
+                return [getter]
+            }
+
             let storageName = "_storage_\(name)"
-            let getter = AccessorDeclSyntax(
-                accessorSpecifier: .keyword(.get),
-                body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+            let getter = makeGetter(
+                statements: [
                     CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: storageName)")))
-                ]))
+                ],
+                isAsync: false,
+                isThrowing: false,
+                isMainActor: enclosingContainerMainActor
+            )
+            return [getter]
+
+        case .input:
+            let storageName = "_storage_\(name)"
+            let getter = makeGetter(
+                statements: [
+                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: storageName)")))
+                ],
+                isAsync: false,
+                isThrowing: false,
+                isMainActor: enclosingContainerMainActor
             )
             return [getter]
             
@@ -72,8 +117,51 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                 """
             )))
 
+            if let asyncFactory = parseResult.asyncFactoryExpr {
+                var createExpr: ExprSyntax
+
+                if let closure = asyncFactory.as(ClosureExprSyntax.self) {
+                    let parsedArguments = parseClosureParameterNames(closure)
+                    if parsedArguments.hasWildcard {
+                        context.diagnose(
+                            Diagnostic(
+                                node: Syntax(closure),
+                                message: SimpleDiagnostic.transientFactoryUnnamedParameters()
+                            )
+                        )
+                        return [fatalErrorGetter(
+                            "Transient factory closure parameters must be named for injection.",
+                            isAsync: true,
+                            isThrowing: parseResult.asyncFactoryIsThrowing,
+                            isMainActor: enclosingContainerMainActor
+                        )]
+                    }
+                    createExpr = makeClosureCallExpr(closure: closure, argumentNames: parsedArguments.names)
+                } else {
+                    createExpr = asyncFactory
+                }
+
+                let awaitedExpr: String
+                if parseResult.asyncFactoryIsThrowing {
+                    awaitedExpr = "try await \(createExpr)"
+                } else {
+                    awaitedExpr = "await \(createExpr)"
+                }
+
+                let getter = makeGetter(
+                    statements: [
+                        overrideCheck,
+                        CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: awaitedExpr)")))
+                    ],
+                    isAsync: true,
+                    isThrowing: parseResult.asyncFactoryIsThrowing,
+                    isMainActor: enclosingContainerMainActor
+                )
+                return [getter]
+            }
+
             var createExpr: ExprSyntax
-            
+
             if let factory = parseResult.factoryExpr {
                 if let closure = factory.as(ClosureExprSyntax.self) {
                     let parsedArguments = parseClosureParameterNames(closure)
@@ -84,7 +172,12 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                                 message: SimpleDiagnostic.transientFactoryUnnamedParameters()
                             )
                         )
-                        return [fatalErrorGetter("Transient factory closure parameters must be named for injection.")]
+                        return [fatalErrorGetter(
+                            "Transient factory closure parameters must be named for injection.",
+                            isAsync: false,
+                            isThrowing: false,
+                            isMainActor: enclosingContainerMainActor
+                        )]
                     }
                     createExpr = makeClosureCallExpr(closure: closure, argumentNames: parsedArguments.names)
                 } else {
@@ -109,34 +202,46 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             } else if let initializer = binding.initializer?.value {
                 createExpr = initializer
             } else {
-                return [fatalErrorGetter("Missing factory for transient dependency")]
+                return [fatalErrorGetter(
+                    "Missing factory for transient dependency",
+                    isAsync: false,
+                    isThrowing: false,
+                    isMainActor: enclosingContainerMainActor
+                )]
             }
             
-            let getterBody = CodeBlockItemListSyntax([
-                overrideCheck,
-                CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(createExpr)")))
-            ])
-            
-            let getter = AccessorDeclSyntax(
-                accessorSpecifier: .keyword(.get),
-                body: CodeBlockSyntax(statements: getterBody)
+            let getter = makeGetter(
+                statements: [
+                    overrideCheck,
+                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(createExpr)")))
+                ],
+                isAsync: false,
+                isThrowing: false,
+                isMainActor: enclosingContainerMainActor
             )
             
             return [getter]
             
         case .none:
-            let getter = AccessorDeclSyntax(
-                accessorSpecifier: .keyword(.get),
-                body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+            let getter = makeGetter(
+                statements: [
                     CodeBlockItemSyntax(item: .stmt(StmtSyntax("fatalError(\"Unknown scope\")")))
-                ]))
+                ],
+                isAsync: false,
+                isThrowing: false,
+                isMainActor: enclosingContainerMainActor
             )
             return [getter]
         }
     }
 }
 
-private func fatalErrorGetter(_ message: String) -> AccessorDeclSyntax {
+private func fatalErrorGetter(
+    _ message: String,
+    isAsync: Bool,
+    isThrowing: Bool,
+    isMainActor: Bool
+) -> AccessorDeclSyntax {
     let fatalErrorCall = FunctionCallExprSyntax(
         calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
         leftParen: .leftParenToken(),
@@ -148,10 +253,84 @@ private func fatalErrorGetter(_ message: String) -> AccessorDeclSyntax {
         rightParen: .rightParenToken()
     )
 
-    return AccessorDeclSyntax(
-        accessorSpecifier: .keyword(.get),
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+    return makeGetter(
+        statements: [
             CodeBlockItemSyntax(item: .expr(ExprSyntax(fatalErrorCall)))
-        ]))
+        ],
+        isAsync: isAsync,
+        isThrowing: isThrowing,
+        isMainActor: isMainActor
     )
+}
+
+private func makeGetter(
+    statements: [CodeBlockItemSyntax],
+    isAsync: Bool,
+    isThrowing: Bool,
+    isMainActor: Bool
+) -> AccessorDeclSyntax {
+    var getter = AccessorDeclSyntax(
+        accessorSpecifier: .keyword(.get),
+        effectSpecifiers: makeAccessorEffectSpecifiers(isAsync: isAsync, isThrowing: isThrowing),
+        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
+    )
+    if isMainActor {
+        getter = getter.with(\.attributes, mainActorAccessorAttributes())
+    }
+    return getter
+}
+
+private func makeAccessorEffectSpecifiers(
+    isAsync: Bool,
+    isThrowing: Bool
+) -> AccessorEffectSpecifiersSyntax? {
+    guard isAsync else { return nil }
+    let throwsClause: ThrowsClauseSyntax? = isThrowing
+        ? ThrowsClauseSyntax(throwsSpecifier: .keyword(.throws))
+        : nil
+    return AccessorEffectSpecifiersSyntax(
+        asyncSpecifier: .keyword(.async),
+        throwsClause: throwsClause
+    )
+}
+
+private func mainActorAccessorAttributes() -> AttributeListSyntax {
+    AttributeListSyntax([
+        AttributeListSyntax.Element(
+            AttributeSyntax(
+                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
+            )
+        )
+    ])
+}
+
+private func taskSuccessTypeDescription(from type: TypeSyntax) -> String {
+    let description = type.trimmedDescription
+    if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
+        return "(\(description))"
+    }
+    return description
+}
+
+private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) -> DIContainerAttributeInfo? {
+    var current: Syntax? = Syntax(declaration).parent
+
+    while let node = current {
+        if let structDecl = node.as(StructDeclSyntax.self),
+           let info = parseDIContainerAttribute(structDecl.attributes) {
+            return info
+        }
+        if let classDecl = node.as(ClassDeclSyntax.self),
+           let info = parseDIContainerAttribute(classDecl.attributes) {
+            return info
+        }
+        if let actorDecl = node.as(ActorDeclSyntax.self),
+           let info = parseDIContainerAttribute(actorDecl.attributes) {
+            return info
+        }
+
+        current = node.parent
+    }
+
+    return nil
 }

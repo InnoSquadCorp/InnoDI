@@ -30,10 +30,15 @@ func runDependencyGraphCLI() -> Int32 {
         return writeNoContainersMessage(outputPath: outputPath)
     }
 
-    let containerIDsByDisplayName = Dictionary(grouping: nodes, by: { $0.displayName })
+    let containerIDsByDisplayNameAll = Dictionary(grouping: nodes, by: { $0.displayName })
+        .mapValues { group in group.map(\.id).sorted() }
+    let eligibleNodes = nodes.filter(\.validateDAG)
+    let containerIDsByDisplayNameEligible = Dictionary(grouping: eligibleNodes, by: { $0.displayName })
         .mapValues { group in group.map(\.id).sorted() }
 
-    let usageCollector = ContainerUsageCollector(containerIDsByDisplayName: containerIDsByDisplayName)
+    let usageCollector = ContainerUsageCollector(
+        containerIDsByDisplayName: validateDAG ? containerIDsByDisplayNameEligible : containerIDsByDisplayNameAll
+    )
     for parsed in parsedFiles {
         usageCollector.walkFile(relativePath: parsed.relativePath, tree: parsed.tree)
     }

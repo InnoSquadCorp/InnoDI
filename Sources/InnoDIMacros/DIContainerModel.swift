@@ -9,6 +9,14 @@ struct DIContainerExpansionModel {
         members.filter { $0.scope == .shared }
     }
 
+    var asyncSharedMembers: [ProvideMemberModel] {
+        sharedMembers.filter(\.isAsyncFactory)
+    }
+
+    var syncSharedMembers: [ProvideMemberModel] {
+        sharedMembers.filter { !$0.isAsyncFactory }
+    }
+
     var inputMembers: [ProvideMemberModel] {
         members.filter { $0.scope == .input }
     }
@@ -23,6 +31,8 @@ struct ProvideMemberModel {
     let type: TypeSyntax
     let scope: ProvideScope
     let factory: ExprSyntax?
+    let asyncFactory: ExprSyntax?
+    let asyncFactoryIsThrowing: Bool
     let typeExpr: ExprSyntax?
     let initializer: ExprSyntax?
     let concreteOptIn: Bool
@@ -38,6 +48,10 @@ struct ProvideMemberModel {
 
     var graphDependencyCandidates: [String] {
         deduplicateStrings(explicitDependencies + expressionReferences)
+    }
+
+    var isAsyncFactory: Bool {
+        asyncFactory != nil
     }
 }
 

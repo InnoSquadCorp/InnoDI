@@ -11,7 +11,14 @@ struct DIContainerValidator {
         let knownNames = Set(model.members.map(\.name))
 
         for member in model.members {
-            let hasFactory = member.factory != nil || member.typeExpr != nil || member.initializer != nil
+            let hasFactory = member.factory != nil || member.asyncFactory != nil || member.typeExpr != nil || member.initializer != nil
+
+            if member.factory != nil, member.asyncFactory != nil {
+                context.diagnose(
+                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideFactoryConflict())
+                )
+                hadErrors = true
+            }
 
             if member.scope == .shared && !hasFactory && model.options.validate {
                 context.diagnose(
@@ -30,6 +37,20 @@ struct DIContainerValidator {
             if member.scope == .input && hasFactory {
                 context.diagnose(
                     Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideInputInvalidConfiguration())
+                )
+                hadErrors = true
+            }
+
+            if member.scope == .input && member.asyncFactory != nil {
+                context.diagnose(
+                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideAsyncFactoryInvalidScope())
+                )
+                hadErrors = true
+            }
+
+            if let asyncFactory = member.asyncFactory, !isAsyncClosureExpression(asyncFactory) {
+                context.diagnose(
+                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideAsyncFactoryMustBeAsync())
                 )
                 hadErrors = true
             }
@@ -150,4 +171,11 @@ private func normalizedConcreteCheckType(_ type: TypeSyntax) -> TypeSyntax {
 
 private func isExistentialIdentifier(_ name: String) -> Bool {
     name == "Any" || name == "AnyObject"
+}
+
+private func isAsyncClosureExpression(_ expr: ExprSyntax) -> Bool {
+    guard let closure = expr.as(ClosureExprSyntax.self) else {
+        return false
+    }
+    return closure.signature?.description.contains("async") == true
 }
