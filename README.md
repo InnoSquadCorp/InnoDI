@@ -4,6 +4,18 @@
 
 A Swift Macro-based Dependency Injection library for clean, type-safe DI containers.
 
+## State Ownership
+
+InnoDI is a **static dependency graph and scope validation** framework.
+
+- Use `DIScope` to describe construction lifetime.
+- Use DAG validation and diagnostics to catch graph problems early.
+- Do not treat container resolution as a runtime state machine.
+
+Across the InnoSquad stack, runtime state transitions belong in `InnoFlow`,
+navigation transitions belong in `InnoRouter`, and transport/session lifecycle
+belongs in `InnoNetwork`.
+
 ## Features
 
 - **Compile-time safety**: Macro-based validation catches errors at build time
