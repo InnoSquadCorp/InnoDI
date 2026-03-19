@@ -7,6 +7,29 @@ import InnoDITestSupport
 
 @Suite("Parsing Property Tests")
 struct ParsingPropertyTests {
+    @Test("parseProvideArguments defaults scope to shared when omitted")
+    func parseProvideArgumentsDefaultsToShared() throws {
+        let source = """
+        struct Container {
+            @Provide(factory: Service())
+            var value: Value
+        }
+        """
+
+        let file = Parser.parse(source: source)
+        guard let structDecl = file.statements.first?.item.as(StructDeclSyntax.self),
+              let varDecl = structDecl.memberBlock.members.first?.decl.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Expected container and @Provide declaration.")
+            return
+        }
+
+        let parsed = parseProvideArguments(attr)
+
+        #expect(parsed.scope == .shared)
+        #expect(parsed.scopeName == "shared")
+    }
+
     @Test("parseProvideArguments keeps semantic result across shuffled arguments", arguments: Array(0..<200))
     func parseProvideArgumentsIsOrderStable(seed: Int) throws {
         var rng = SeededRandom(seed: UInt64(seed + 1))
@@ -54,5 +77,29 @@ struct ParsingPropertyTests {
         #expect((parsed.factoryExpr != nil) == includeFactory)
         #expect(parsed.concrete == includeConcrete)
         #expect(parsed.dependencies == (includeWith ? ["config", "logger"] : []))
+    }
+
+    @Test("parseProvideArguments preserves each declared scope")
+    func parseProvideArgumentsRoundTripsScopes() throws {
+        for scope in [ProvideScope.shared, .input, .transient] {
+            let source = """
+            struct Container {
+                @Provide(.\(scope.rawValue))
+                var value: Value
+            }
+            """
+
+            let file = Parser.parse(source: source)
+            guard let structDecl = file.statements.first?.item.as(StructDeclSyntax.self),
+                  let varDecl = structDecl.memberBlock.members.first?.decl.as(VariableDeclSyntax.self),
+                  let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+                Issue.record("Expected container and @Provide declaration.")
+                return
+            }
+
+            let parsed = parseProvideArguments(attr)
+            #expect(parsed.scope == scope)
+            #expect(parsed.scopeName == scope.rawValue)
+        }
     }
 }

@@ -23,9 +23,13 @@ struct DiagnosticsTests {
             .provideFactoryConflict,
             .provideAsyncFactoryInvalidScope,
             .provideAsyncFactoryMustBeAsync,
+            .provideUnresolvedFactoryParameter,
+            .provideUnavailableDependencyReference,
+            .provideUnresolvedWithDependency,
             .containerUnknownDependency,
             .containerDependencyCycle,
             .containerMainActorConflict,
+            .containerCustomInitUnsupported,
             .graphDependencyCycle,
             .graphAmbiguousContainerReference
         ]
@@ -54,9 +58,13 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideFactoryConflict(), MessageID(domain: "InnoDI.validation", id: "provide.factory-conflict")),
             (SimpleDiagnostic.provideAsyncFactoryInvalidScope(), MessageID(domain: "InnoDI.validation", id: "provide.async-factory-invalid-scope")),
             (SimpleDiagnostic.provideAsyncFactoryMustBeAsync(), MessageID(domain: "InnoDI.validation", id: "provide.async-factory-must-be-async")),
+            (SimpleDiagnostic.provideUnresolvedFactoryParameter(memberName: "service", parameterName: "missing"), MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")),
+            (SimpleDiagnostic.provideUnavailableDependencyReference(memberName: "service", dependencyName: "later"), MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")),
+            (SimpleDiagnostic.provideUnresolvedWithDependency(memberName: "service", dependencyName: "missing"), MessageID(domain: "InnoDI.validation", id: "provide.unresolved-with-dependency")),
             (SimpleDiagnostic.containerUnknownDependency(dependencyName: "missing", memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.unknown-dependency")),
             (SimpleDiagnostic.containerDependencyCycle(path: "a -> b -> a"), MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")),
             (SimpleDiagnostic.containerMainActorConflict(actorName: "FeatureActor"), MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")),
+            (SimpleDiagnostic.containerCustomInitUnsupported(), MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")),
             (SimpleDiagnostic("Graph cycle", code: .graphDependencyCycle), MessageID(domain: "InnoDI.validation", id: "graph.dependency-cycle")),
             (SimpleDiagnostic("Ambiguous reference", code: .graphAmbiguousContainerReference), MessageID(domain: "InnoDI.validation", id: "graph.ambiguous-container-reference"))
         ]

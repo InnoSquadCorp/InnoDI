@@ -4,6 +4,7 @@
 //
 
 import SwiftDiagnostics
+import SwiftSyntax
 
 enum InnoDIDiagnosticCategory: String {
     case usage
@@ -22,10 +23,14 @@ enum InnoDIDiagnosticCode: String {
     case provideFactoryConflict = "provide.factory-conflict"
     case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
+    case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
+    case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
+    case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
     case transientFactoryUnnamedParameters = "transient-factory.unnamed-parameters"
     case containerUnknownDependency = "container.unknown-dependency"
     case containerDependencyCycle = "container.dependency-cycle"
     case containerMainActorConflict = "container.mainactor-conflict"
+    case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
 
@@ -36,10 +41,18 @@ enum InnoDIDiagnosticCode: String {
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
-                .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict, .graphDependencyCycle,
+                .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
+                .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
+                .containerCustomInitUnsupported, .graphDependencyCycle,
                 .graphAmbiguousContainerReference:
             return .validation
         }
+    }
+}
+
+extension InnoDIDiagnosticCode {
+    var messageID: MessageID {
+        MessageID(domain: "InnoDI.\(category.rawValue)", id: rawValue)
     }
 }
 
@@ -54,6 +67,26 @@ struct SimpleDiagnostic: DiagnosticMessage {
         self.code = code
         self.diagnosticID = MessageID(domain: "InnoDI.\(code.category.rawValue)", id: code.rawValue)
         self.severity = severity
+    }
+}
+
+struct SimpleNote: NoteMessage {
+    let message: String
+    let noteID: MessageID
+
+    init(_ message: String, code: InnoDIDiagnosticCode, suffix: String) {
+        self.message = message
+        self.noteID = MessageID(domain: "InnoDI.\(code.category.rawValue)", id: "\(code.rawValue).note.\(suffix)")
+    }
+}
+
+struct SimpleFixIt: FixItMessage {
+    let message: String
+    let fixItID: MessageID
+
+    init(_ message: String, code: InnoDIDiagnosticCode, suffix: String) {
+        self.message = message
+        self.fixItID = MessageID(domain: "InnoDI.\(code.category.rawValue)", id: "\(code.rawValue).fixit.\(suffix)")
     }
 }
 
@@ -123,9 +156,30 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func provideUnresolvedFactoryParameter(memberName: String, parameterName: String) -> Self {
+        Self(
+            "Factory parameter '\(parameterName)' for '\(memberName)' does not match any injectable container member.",
+            code: .provideUnresolvedFactoryParameter
+        )
+    }
+
+    static func provideUnavailableDependencyReference(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this declaration order or scope.",
+            code: .provideUnavailableDependencyReference
+        )
+    }
+
+    static func provideUnresolvedWithDependency(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Dependency '\(dependencyName)' in with: for '\(memberName)' does not match any injectable container member.",
+            code: .provideUnresolvedWithDependency
+        )
+    }
+
     static func transientFactoryUnnamedParameters() -> Self {
         Self(
-            "Transient factory closure parameters must be named for injection.",
+            "Factory closure parameters must be named for injection.",
             code: .transientFactoryUnnamedParameters
         )
     }
@@ -148,6 +202,13 @@ extension SimpleDiagnostic {
         Self(
             "mainActor: true conflicts with existing global actor '@\(actorName)'.",
             code: .containerMainActorConflict
+        )
+    }
+
+    static func containerCustomInitUnsupported() -> Self {
+        Self(
+            "@DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring.",
+            code: .containerCustomInitUnsupported
         )
     }
 }

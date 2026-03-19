@@ -197,6 +197,50 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.contains("[graph.dependency-cycle]"))
         #expect(!result.stderr.contains("Ambiguous container references:"))
     }
+
+    @Test("Validate DAG resolves top-level typealias container references")
+    func validateDAGResolvesTopLevelTypeAliasReferences() throws {
+        let fixtureURL = try makeTypeAliasReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+    }
+
+    @Test("Validate DAG resolves nested typealias chains")
+    func validateDAGResolvesNestedTypeAliasChains() throws {
+        let fixtureURL = try makeNestedTypeAliasReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+    }
+
+    @Test("Validate DAG reports unresolved semantic references")
+    func validateDAGReportsUnresolvedSemanticReferences() throws {
+        let fixtureURL = try makeUnresolvedReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("Unresolved container references:"))
+        #expect(result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(result.stderr.contains("MissingFeatureContainer"))
+    }
 }
 
 private struct CLIRunResult {
@@ -371,6 +415,100 @@ private func makeFixtureProject() throws -> URL {
     return fixtureURL
 }
 
+private func makeTypeAliasReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-TypeAlias-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var config: String
+    }
+
+    typealias ActiveContainer = AppContainer
+
+    func buildFeature(config: String) {
+        _ = ActiveContainer(config: config)
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("TypeAliasFeature.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeNestedTypeAliasReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Nested-TypeAlias-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    enum Feature {
+        @DIContainer
+        struct LiveContainer {
+            @Provide(.input)
+            var config: String
+        }
+
+        typealias ActiveContainer = LiveContainer
+    }
+
+    typealias RootAlias = Feature.ActiveContainer
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var config: String
+    }
+
+    func buildFeature(config: String) {
+        _ = RootAlias(config: config)
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("NestedTypeAliasFeature.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeUnresolvedReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Unresolved-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var config: String
+        
+        @Provide(.shared, factory: MissingFeatureContainer(config: config), concrete: true)
+        var feature: MissingFeatureContainer
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("UnresolvedFeature.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
 private func makeNoContainerFixtureProject() throws -> URL {
     let fixtureURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("InnoDI-CLI-NoContainer-\(UUID().uuidString)", isDirectory: true)
@@ -477,17 +615,19 @@ private func makeAmbiguousReferenceFixtureProject() throws -> URL {
     let featureASource = """
     import InnoDI
 
-    @DIContainer
-    struct FeatureContainer {
-        @Provide(.input)
-        var value: Int
+    enum FeatureA {
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: Int
+        }
     }
     """
 
     let featureBSource = """
     import InnoDI
 
-    enum Namespace {
+    enum FeatureB {
         @DIContainer
         struct FeatureContainer {
             @Provide(.input)
@@ -538,17 +678,19 @@ private func makeAmbiguousOptedOutReferenceFixtureProject() throws -> URL {
     let featureASource = """
     import InnoDI
 
-    @DIContainer(validateDAG: false)
-    struct FeatureContainer {
-        @Provide(.input)
-        var value: Int
+    enum FeatureA {
+        @DIContainer(validateDAG: false)
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: Int
+        }
     }
     """
 
     let featureBSource = """
     import InnoDI
 
-    enum Namespace {
+    enum FeatureB {
         @DIContainer(validateDAG: false)
         struct FeatureContainer {
             @Provide(.input)

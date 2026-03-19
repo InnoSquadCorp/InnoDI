@@ -30,14 +30,25 @@ func runDependencyGraphCLI() -> Int32 {
         return writeNoContainersMessage(outputPath: outputPath)
     }
 
-    let containerIDsByDisplayNameAll = Dictionary(grouping: nodes, by: { $0.displayName })
+    let semanticResolver = SemanticResolverIndex(
+        nominalTypes: nodes.map {
+            SemanticNominalTypeRecord(
+                path: $0.semanticPath,
+                components: $0.semanticPath.split(separator: ".").map(String.init)
+            )
+        },
+        topLevelTypeAliases: collector.typeAliases
+    )
+    let containerIDsBySemanticPathAll = Dictionary(grouping: nodes, by: { $0.semanticPath })
         .mapValues { group in group.map(\.id).sorted() }
     let eligibleNodes = nodes.filter(\.validateDAG)
-    let containerIDsByDisplayNameEligible = Dictionary(grouping: eligibleNodes, by: { $0.displayName })
+    let containerIDsBySemanticPathEligible = Dictionary(grouping: eligibleNodes, by: { $0.semanticPath })
         .mapValues { group in group.map(\.id).sorted() }
 
     let usageCollector = ContainerUsageCollector(
-        containerIDsByDisplayName: validateDAG ? containerIDsByDisplayNameEligible : containerIDsByDisplayNameAll
+        allContainerIDsBySemanticPath: containerIDsBySemanticPathAll,
+        eligibleContainerIDsBySemanticPath: validateDAG ? containerIDsBySemanticPathEligible : containerIDsBySemanticPathAll,
+        semanticResolver: semanticResolver
     )
     for parsed in parsedFiles {
         usageCollector.walkFile(relativePath: parsed.relativePath, tree: parsed.tree)
@@ -48,7 +59,7 @@ func runDependencyGraphCLI() -> Int32 {
         return runDAGValidation(
             nodes: nodes,
             edges: edges,
-            ambiguousReferences: usageCollector.ambiguousReferences,
+            semanticIssues: usageCollector.semanticIssues,
             outputPath: outputPath
         )
     }
@@ -69,7 +80,7 @@ func runDependencyGraphCLI() -> Int32 {
 private func runDAGValidation(
     nodes: [DependencyGraphNode],
     edges: [DependencyGraphEdge],
-    ambiguousReferences: [AmbiguousContainerReference],
+    semanticIssues: [SemanticContainerReferenceIssue],
     outputPath: String?
 ) -> Int32 {
     let eligibleNodes = nodes.filter(\.validateDAG)
@@ -79,7 +90,7 @@ private func runDAGValidation(
 
     let nodeIDs = Set(eligibleNodes.map(\.id))
     let eligibleEdges = edges.filter { nodeIDs.contains($0.fromID) && nodeIDs.contains($0.toID) }
-    let eligibleAmbiguous = ambiguousReferences.filter { nodeIDs.contains($0.sourceID) }
+    let eligibleSemanticIssues = semanticIssues.filter { nodeIDs.contains($0.sourceID) }
 
     var adjacency: [String: [String]] = [:]
     for node in eligibleNodes {
@@ -90,16 +101,20 @@ private func runDAGValidation(
     }
 
     let cycles = detectDependencyCycles(adjacency: adjacency)
-    if cycles.isEmpty && eligibleAmbiguous.isEmpty {
+    if cycles.isEmpty && eligibleSemanticIssues.isEmpty {
         return writeValidationMessage("DAG validation passed.\n", outputPath: outputPath)
     }
 
     let labelsByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.displayName) })
     var lines: [String] = ["DAG validation failed."]
 
-    if !eligibleAmbiguous.isEmpty {
+    let ambiguousIssues = eligibleSemanticIssues.filter { $0.state == .ambiguous }
+    let unresolvedIssues = eligibleSemanticIssues.filter { $0.state == .unresolved }
+    let excludedIssues = eligibleSemanticIssues.filter { $0.state == .excluded }
+
+    if !ambiguousIssues.isEmpty {
         lines.append("Ambiguous container references:")
-        let unique = Set(eligibleAmbiguous).sorted { lhs, rhs in
+        let unique = Set(ambiguousIssues).sorted { lhs, rhs in
             if lhs.sourceID == rhs.sourceID {
                 return lhs.destinationDisplayName < rhs.destinationDisplayName
             }
@@ -107,7 +122,43 @@ private func runDAGValidation(
         }
         for item in unique {
             let source = labelsByID[item.sourceID] ?? item.sourceID
-            lines.append("- [graph.ambiguous-container-reference] \(source) -> \(item.destinationDisplayName)")
+            if item.destinationCandidates.isEmpty {
+                lines.append("- [graph.ambiguous-container-reference] \(source) -> \(item.destinationDisplayName)")
+            } else {
+                let candidateSummary = item.destinationCandidates.joined(separator: ", ")
+                lines.append(
+                    "- [graph.ambiguous-container-reference] \(source) -> \(item.destinationDisplayName) candidates: \(candidateSummary)"
+                )
+            }
+        }
+    }
+
+    if !unresolvedIssues.isEmpty {
+        lines.append("Unresolved container references:")
+        let unique = Set(unresolvedIssues).sorted { lhs, rhs in
+            if lhs.sourceID == rhs.sourceID {
+                return lhs.destinationDisplayName < rhs.destinationDisplayName
+            }
+            return lhs.sourceID < rhs.sourceID
+        }
+        for item in unique {
+            let source = labelsByID[item.sourceID] ?? item.sourceID
+            lines.append("- [graph.unresolved-container-reference] \(source) -> \(item.destinationDisplayName)")
+        }
+    }
+
+    if !excludedIssues.isEmpty {
+        lines.append("Excluded container references:")
+        let unique = Set(excludedIssues).sorted { lhs, rhs in
+            if lhs.sourceID == rhs.sourceID {
+                return lhs.destinationDisplayName < rhs.destinationDisplayName
+            }
+            return lhs.sourceID < rhs.sourceID
+        }
+        for item in unique {
+            let source = labelsByID[item.sourceID] ?? item.sourceID
+            let detail = item.excludedReason ?? "unsupported semantic reference shape"
+            lines.append("- [graph.excluded-container-reference] \(source) -> \(item.destinationDisplayName) reason: \(detail)")
         }
     }
 

@@ -2,16 +2,18 @@ import SwiftSyntax
 
 struct ClosureParameterList {
     let names: [String]
+    let references: [ClosureParameterReference]
     let hasWildcard: Bool
 }
 
 func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParameterList {
     guard let signature = closure.signature,
           let parameterClause = signature.parameterClause else {
-        return ClosureParameterList(names: [], hasWildcard: false)
+        return ClosureParameterList(names: [], references: [], hasWildcard: false)
     }
 
     var names: [String] = []
+    var references: [ClosureParameterReference] = []
     var hasWildcard = false
 
     switch parameterClause {
@@ -23,19 +25,22 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
                 continue
             }
             names.append(name)
+            references.append(ClosureParameterReference(name: name, token: parameter.name))
         }
     case .parameterClause(let parameters):
         for parameter in parameters.parameters {
-            let name = parameter.secondName?.text ?? parameter.firstName.text
+            let token = parameter.secondName ?? parameter.firstName
+            let name = token.text
             if name == "_" {
                 hasWildcard = true
                 continue
             }
             names.append(name)
+            references.append(ClosureParameterReference(name: name, token: token))
         }
     }
 
-    return ClosureParameterList(names: names, hasWildcard: hasWildcard)
+    return ClosureParameterList(names: names, references: references, hasWildcard: hasWildcard)
 }
 
 func makeSelfMemberAccessExpr(name: String, baseName: String = "self") -> ExprSyntax {

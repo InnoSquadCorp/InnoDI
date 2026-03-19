@@ -1,5 +1,6 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
+import SwiftDiagnostics
 
 public struct DIContainerMacro: MemberMacro {
     public static func expansion(
@@ -16,7 +17,34 @@ public struct DIContainerMacro: MemberMacro {
         providingMembersOf decl: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        if DIContainerParser.hasUserDefinedInit(in: decl) {
+        let userDefinedInitializers = DIContainerParser.userDefinedInitializers(in: decl)
+        if !userDefinedInitializers.isEmpty {
+            for initializer in userDefinedInitializers {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(initializer),
+                        message: SimpleDiagnostic.containerCustomInitUnsupported(),
+                        notes: [
+                            Note(
+                                node: Syntax(attribute),
+                                message: SimpleNote(
+                                    "The synthesized container initializer already covers .input members and optional dependency overrides.",
+                                    code: .containerCustomInitUnsupported,
+                                    suffix: "synthesized-init"
+                                )
+                            ),
+                            Note(
+                                node: Syntax(initializer),
+                                message: SimpleNote(
+                                    "Remove this custom initializer, or remove @DIContainer and wire the container manually.",
+                                    code: .containerCustomInitUnsupported,
+                                    suffix: "manual-wiring"
+                                )
+                            )
+                        ]
+                    )
+                )
+            }
             return []
         }
 
