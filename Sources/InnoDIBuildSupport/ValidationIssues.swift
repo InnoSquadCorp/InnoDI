@@ -73,7 +73,11 @@ package struct ValidationIssueReport: Codable, Equatable, Sendable {
 
 package enum ValidationIssueRenderer {
     package static func renderStderr(issues: [ValidationIssue]) -> String {
-        issues
+        guard !issues.isEmpty else {
+            return ""
+        }
+
+        return issues
             .map(renderStderr(issue:))
             .joined(separator: "\n") + "\n"
     }

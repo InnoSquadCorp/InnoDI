@@ -15,6 +15,7 @@ if [[ ! -f "$changelog" ]]; then
   exit 1
 fi
 
+awk_status=0
 notes="$(
   awk -v tag="$tag" '
     $0 == "## " tag { found = 1; next }
@@ -26,7 +27,14 @@ notes="$(
       }
     }
   ' "$changelog"
-)"
+)" || awk_status=$?
+
+if [[ $awk_status -eq 2 ]]; then
+  echo "no release notes found for tag $tag in $changelog" >&2
+  exit 1
+elif [[ $awk_status -ne 0 ]]; then
+  exit "$awk_status"
+fi
 
 if [[ -z "${notes//[$' \t\r\n']/}" ]]; then
   echo "no release notes found for tag $tag in $changelog" >&2

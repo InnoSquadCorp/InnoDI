@@ -88,7 +88,7 @@ package enum ValidationCoordinator {
         runner: Runner,
         verboseLoggingEnabled: Bool = ValidationLogging.isVerboseEnabled()
     ) throws -> ValidationExecutionOutcome {
-        let coordinatorStartTime = CFAbsoluteTimeGetCurrent()
+        let coordinatorStartTime = validationNow()
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
         let outputDirectoryURL = URL(fileURLWithPath: outputDirectoryPath, isDirectory: true)
@@ -96,7 +96,7 @@ package enum ValidationCoordinator {
         try fileManager.createDirectory(at: stateDirectoryURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: outputDirectoryURL, withIntermediateDirectories: true)
 
-        let signatureCollectionStartTime = CFAbsoluteTimeGetCurrent()
+        let signatureCollectionStartTime = validationNow()
         let signatureCollection = try collectValidationSignatureWithMetrics(
             rootPath: rootPath,
             stateDirectoryPath: stateDirectoryPath
@@ -172,7 +172,7 @@ package enum ValidationCoordinator {
                 }
 
                 let result: ValidationCommandResult
-                let customInitStartTime = CFAbsoluteTimeGetCurrent()
+                let customInitStartTime = validationNow()
                 let customInitValidation = try CustomInitBuildValidator.validate(rootPath: rootPath)
                 let customInitFailure = customInitValidation.asCommandResult()
                 let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
@@ -186,7 +186,7 @@ package enum ValidationCoordinator {
                     liveRunReasonCodes = [.liveRunCustomInitFailure]
                     issues = customInitValidation.issues
                 } else {
-                    let dagValidationStartTime = CFAbsoluteTimeGetCurrent()
+                    let dagValidationStartTime = validationNow()
                     result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
                     dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
                     liveRunReasonCodes = [.liveRunDAGValidation]

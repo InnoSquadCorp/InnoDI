@@ -247,7 +247,7 @@ private func makeUnresolvedWithDependencyDiagnostic(
         Note(
             node: Syntax(member.attribute),
             message: SimpleNote(
-                "Use a key path that points to an injectable container member, or replace with: with an explicit factory closure.",
+                "Use a key path that points to an injectable container member, or replace this with an explicit factory closure.",
                 code: .provideUnresolvedWithDependency,
                 suffix: "resolution"
             )

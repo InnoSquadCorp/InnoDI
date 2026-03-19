@@ -2,7 +2,7 @@
 
 This document defines the minimum release quality bar for InnoDI.
 
-Current stable public release target: `2.1.0`
+Current stable public release target: `3.0.0`
 
 ## Release Checklist
 

@@ -65,7 +65,7 @@ struct SimpleDiagnostic: DiagnosticMessage {
     init(_ message: String, code: InnoDIDiagnosticCode, severity: DiagnosticSeverity = .error) {
         self.message = message
         self.code = code
-        self.diagnosticID = MessageID(domain: "InnoDI.\(code.category.rawValue)", id: code.rawValue)
+        self.diagnosticID = code.messageID
         self.severity = severity
     }
 }
