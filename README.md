@@ -4,12 +4,25 @@
 
 A Swift Macro-based Dependency Injection library for clean, type-safe DI containers.
 
+## State Ownership
+
+InnoDI is a **static dependency graph and scope validation** framework.
+
+- Use `DIScope` to describe construction lifetime.
+- Use DAG validation and diagnostics to catch graph problems early.
+- Do not treat container resolution as a runtime state machine.
+
+Across the InnoSquad stack, runtime state transitions belong in `InnoFlow`,
+navigation transitions belong in `InnoRouter`, and transport/session lifecycle
+belongs in `InnoNetwork`.
+
 ## Features
 
 - **Compile-time safety**: Macro-based validation catches errors at build time
 - **Zero boilerplate**: Auto-generated initializers with optional override parameters
 - **Multiple scopes**: `shared`, `input`, and `transient` lifecycle management
 - **AutoWiring**: Simplified syntax with `Type.self` and `with:` dependencies
+- **Strict name-based resolution**: Factory parameters and `with:` dependencies resolve by member name only
 - **Init Override**: Direct mock injection via init parameters (no separate Overrides struct)
 - **Protocol-first design**: Encourage DIP compliance with `concrete` opt-in
 
@@ -19,7 +32,7 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "1.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "3.0.0")
 ]
 ```
 
@@ -69,11 +82,30 @@ For more control, use factory closures instead:
 var apiClient: any APIClientProtocol
 ```
 
+## Start Here
+
+If you are new to InnoDI, read the docs in this order:
+
+1. This README for installation, container syntax, and the supported model.
+2. [Validation](Sources/InnoDI/InnoDI.docc/Validation.md) for local/build/global validation and observability artifacts.
+3. [PolicyBoundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md) for exact matching rules, exclusions, and fallback behavior.
+4. [ModuleWideInitDetection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md) for the custom `init` restriction model.
+
+Release and maintenance references:
+
+- [CHANGELOG.md](CHANGELOG.md)
+- [RELEASING.md](RELEASING.md)
+- [MIGRATION.md](MIGRATION.md)
+
 ## API Reference
 
 ### `@DIContainer`
 
 Marks a struct as a DI container. Generates `init(...)` with optional override parameters.
+
+`@DIContainer` does not support user-defined `init` declarations in the annotated type or any extension.
+Macro validation rejects body and same-file extension `init` declarations, and the build plugin extends the same rule to cross-file extensions. Boundary details such as generic/constrained exclusions and conservative fallback rules are documented in `PolicyBoundaries`.
+Use the synthesized initializer, or remove the macro and wire the type manually.
 
 ```swift
 @DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
@@ -81,7 +113,7 @@ Marks a struct as a DI container. Generates `init(...)` with optional override p
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `validate` | `true` | Enable compile-time scope/factory validation. `false` relaxes missing-factory checks for `.shared`/`.transient` and emits runtime `fatalError` fallback for missing `.shared` and `.transient` factories. `.input` factory prohibition and concrete opt-in remain enforced. |
+| `validate` | `true` | Reserved compatibility flag. Core construction invariants such as `.shared`/`.transient` factory requirements, `.input` restrictions, and `concrete: true` opt-in remain compile-time enforced. |
 | `root` | `false` | Mark container as root in graph rendering. |
 | `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
 | `mainActor` | `false` | Apply `@MainActor` isolation to generated initializer/accessors. |
@@ -110,6 +142,11 @@ Declares a dependency with its scope and factory.
 | `.input` | Provided at container initialization | No |
 | `.shared` | Created once, cached for container lifetime | Yes |
 | `.transient` | New instance created on every access | Yes |
+
+Scope laws:
+- `.input` is external data and must come from container initialization.
+- `.shared` is stable for one container instance and should be reused on repeated access.
+- `.transient` must produce fresh instances and should not be treated as cached state.
 
 ### Async Factory
 
@@ -353,6 +390,9 @@ InnoDI ships a SwiftPM build tool plugin:
 
 - `InnoDIDAGValidationPlugin`
 
+The plugin coordinates validation once per package input state and reuses the shared result across targets,
+instead of rescanning the package graph independently for every target.
+
 Attach it to your app target to fail builds when DAG validation fails:
 
 ```swift
@@ -369,9 +409,9 @@ Attach it to your app target to fail builds when DAG validation fails:
 
 See runnable examples in `/Examples`:
 
-- `/Examples/SwiftUIExample`
+- `/Examples/SwiftUIExample` - a single feature root demonstrates navigation, loading skeletons, recoverable error/retry flow, and cancellation around local `@Observable` state
 - `/Examples/TCAIntegrationExample`
-- `/Examples/PreviewInjectionExample`
+- `/Examples/PreviewInjectionExample` - live, preview, and failure roots render a richer preview matrix by swapping multiple services at the environment boundary
 - `/Examples/SampleApp`
 
 ### Example Output
@@ -428,3 +468,5 @@ Default baseline file:
 ## License
 
 MIT
+
+See [LICENSE](LICENSE).

@@ -10,6 +10,7 @@ Swift Macro 기반의 타입 안전한 의존성 주입 라이브러리입니다
 - 보일러플레이트 최소화: `init(...)` 자동 생성
 - 스코프 지원: `shared`, `input`, `transient`
 - AutoWiring: `Type.self` + `with:`로 간결한 선언
+- 엄격한 이름 기반 해석: 팩토리 파라미터와 `with:` 의존성은 멤버 이름으로만 해석
 - Init Override: 테스트 시 의존성 직접 주입 가능
 - DIP 지향: concrete 타입 사용 시 `concrete: true` 명시 강제
 
@@ -19,7 +20,7 @@ Swift Macro 기반의 타입 안전한 의존성 주입 라이브러리입니다
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "1.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "3.0.0")
 ]
 ```
 
@@ -68,6 +69,21 @@ let client = container.apiClient
 var apiClient: any APIClientProtocol
 ```
 
+## Start Here
+
+처음 보는 사용자는 아래 순서로 읽는 것을 권장합니다.
+
+1. 이 README에서 설치, 컨테이너 문법, 지원 모델을 먼저 확인합니다.
+2. [Validation](Sources/InnoDI/InnoDI.docc/Validation.md) 에서 local/build/global validation과 observability artifact를 확인합니다.
+3. [PolicyBoundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md) 에서 정확한 matching 규칙, 제외 규칙, fallback 동작을 확인합니다.
+4. [ModuleWideInitDetection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md) 에서 custom `init` 제한 정책을 확인합니다.
+
+릴리스/운영 문서:
+
+- [CHANGELOG.md](CHANGELOG.md)
+- [RELEASING.md](RELEASING.md)
+- [MIGRATION.md](MIGRATION.md)
+
 ## API 요약
 
 ### `@DIContainer`
@@ -76,9 +92,13 @@ var apiClient: any APIClientProtocol
 @DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
 ```
 
+`@DIContainer`가 붙은 타입과 extension 전체에서 사용자 정의 `init`을 지원하지 않습니다.
+매크로는 type body와 같은 파일의 동일 타입 extension을 막고, build plugin은 다른 파일의 extension까지 같은 규칙으로 확장합니다.
+생성된 init을 사용하거나, 수동 wiring이 필요하면 매크로를 제거해야 합니다.
+
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
-| `validate` | `true` | 스코프/팩토리 검증 활성화. `false`일 때 `.shared`/`.transient` 누락 팩토리는 런타임 `fatalError` fallback으로 처리. `.input`의 factory 금지와 concrete opt-in 규칙은 계속 강제됨. |
+| `validate` | `true` | 호환성 유지를 위한 플래그입니다. `.shared`/`.transient`의 factory 요구사항, `.input` 제약, `concrete: true` opt-in 같은 핵심 생성 불변식은 값과 무관하게 컴파일 타임에 계속 강제됩니다. |
 | `root` | `false` | CLI 그래프에서 루트 컨테이너로 표시할지 여부 |
 | `validateDAG` | `true` | 이 컨테이너의 DAG 검증 참여 여부. `false`면 DAG 검증에서 제외 |
 | `mainActor` | `false` | 생성되는 init/accessor에 `@MainActor` 격리를 적용 |
@@ -243,11 +263,20 @@ Tools/generate-docc.sh
 처음 Pages를 연결하는 저장소라면, Repository Settings에서 Pages Source를
 `GitHub Actions`로 설정해야 합니다.
 
+## License
+
+MIT
+
+[LICENSE](LICENSE) 파일을 참고하세요.
+
 ## Build Tool Plugin
 
 InnoDI는 DAG 검증용 SwiftPM 플러그인을 제공합니다.
 
 - `InnoDIDAGValidationPlugin`
+
+이 플러그인은 패키지 입력 상태별로 검증을 한 번만 수행하고, 같은 결과를 타깃 간에 재사용합니다.
+즉, 각 타깃마다 전체 패키지 그래프를 다시 스캔하지 않습니다.
 
 타깃에 연결 예시:
 
@@ -263,9 +292,9 @@ InnoDI는 DAG 검증용 SwiftPM 플러그인을 제공합니다.
 
 ## 확장 예제
 
-- `Examples/SwiftUIExample`
+- `Examples/SwiftUIExample` - 단일 feature root에서 navigation, loading skeleton, recoverable error/retry, cancellation을 로컬 `@Observable` 상태로 관리
 - `Examples/TCAIntegrationExample`
-- `Examples/PreviewInjectionExample`
+- `Examples/PreviewInjectionExample` - preview/live/failure 루트가 여러 서비스를 environment 경계에서 교체하며 richer preview matrix를 보여줌
 - `Examples/SampleApp`
 
 ## 매크로 성능 회귀 체크

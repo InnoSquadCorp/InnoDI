@@ -110,6 +110,19 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             
         case .transient:
             let overrideName = "_override_\(name)"
+
+            if transientDependencyResolutionShouldFail(
+                declaration: declaration,
+                parseResult: parseResult,
+                memberName: name
+            ) {
+                return [fatalErrorGetter(
+                    "Transient dependency resolution failed validation.",
+                    isAsync: parseResult.asyncFactoryExpr != nil,
+                    isThrowing: parseResult.asyncFactoryIsThrowing,
+                    isMainActor: enclosingContainerMainActor
+                )]
+            }
             
             let overrideCheck = CodeBlockItemSyntax(item: .stmt(StmtSyntax(
                 """
@@ -333,4 +346,86 @@ private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) 
     }
 
     return nil
+}
+
+private func transientDependencyResolutionShouldFail(
+    declaration: some DeclSyntaxProtocol,
+    parseResult: ProvideArguments,
+    memberName: String
+) -> Bool {
+    guard let members = enclosingProvideMemberNames(for: declaration) else {
+        return false
+    }
+
+    let knownNames = Set(members)
+
+    for dependency in parseResult.dependencies where !knownNames.contains(dependency) {
+        return true
+    }
+
+    let parameterNames: [String]
+    if let closure = parseResult.factoryExpr?.as(ClosureExprSyntax.self) {
+        parameterNames = parseClosureParameterNames(closure).names
+    } else if let closure = parseResult.asyncFactoryExpr?.as(ClosureExprSyntax.self) {
+        parameterNames = parseClosureParameterNames(closure).names
+    } else {
+        parameterNames = []
+    }
+
+    for dependency in parameterNames where !knownNames.contains(dependency) {
+        return true
+    }
+
+    if !knownNames.contains(memberName) {
+        return true
+    }
+
+    return false
+}
+
+private func enclosingProvideMemberNames(for declaration: some DeclSyntaxProtocol) -> [String]? {
+    var current: Syntax? = Syntax(declaration).parent
+
+    while let node = current {
+        let declGroup: (any DeclGroupSyntax)?
+        switch true {
+        case node.is(StructDeclSyntax.self):
+            declGroup = node.as(StructDeclSyntax.self)
+        case node.is(ClassDeclSyntax.self):
+            declGroup = node.as(ClassDeclSyntax.self)
+        case node.is(ActorDeclSyntax.self):
+            declGroup = node.as(ActorDeclSyntax.self)
+        default:
+            declGroup = nil
+        }
+
+        if let declGroup,
+           parseDIContainerAttribute(declGroup.attributes) != nil {
+            return declGroup.memberBlock.members.compactMap { member in
+                guard let varDecl = member.decl.as(VariableDeclSyntax.self),
+                      hasProvideAttribute(varDecl.attributes),
+                      let binding = varDecl.bindings.first,
+                      let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                    return nil
+                }
+                return identifier.identifier.text
+            }
+        }
+
+        current = node.parent
+    }
+
+    return nil
+}
+
+private func hasProvideAttribute(_ attributes: AttributeListSyntax?) -> Bool {
+    guard let attributes else { return false }
+
+    return attributes.contains { element in
+        guard let attribute = element.as(AttributeSyntax.self),
+              let identifier = attribute.attributeName.as(IdentifierTypeSyntax.self) else {
+            return false
+        }
+        return identifier.name.text == "Provide"
+    }
 }

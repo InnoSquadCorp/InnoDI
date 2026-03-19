@@ -15,6 +15,10 @@ let package = Package(
         .executableTarget(
             name: "PreviewInjectionExample",
             dependencies: ["InnoDI"]
+        ),
+        .testTarget(
+            name: "PreviewInjectionExampleTests",
+            dependencies: ["PreviewInjectionExample"]
         )
     ]
 )

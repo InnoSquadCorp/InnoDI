@@ -8,19 +8,23 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
             return []
         }
 
-        let tool = try context.tool(named: "InnoDI-DependencyGraph")
+        let coordinator = try context.tool(named: "InnoDI-DAGValidationCoordinator")
+        let dependencyGraphTool = try context.tool(named: "InnoDI-DependencyGraph")
         let outputDirectory = context.pluginWorkDirectoryURL
         let rootPath = context.package.directoryURL.path
+        let sharedStateDirectory = context.package.directoryURL
+            .appending(path: ".build", directoryHint: .isDirectory)
+            .appending(path: "innodi-dag-validation", directoryHint: .isDirectory)
 
         return [
             .prebuildCommand(
                 displayName: "Validate InnoDI DAG for \(target.name)",
-                executable: tool.url,
+                executable: coordinator.url,
                 arguments: [
                     "--root", rootPath,
-                    "--validate-dag",
-                    "--format", "ascii",
-                    "--output", outputDirectory.appending(path: "dag-validation-\(target.name).txt").path,
+                    "--tool", dependencyGraphTool.url.path,
+                    "--state-dir", sharedStateDirectory.path,
+                    "--output-dir", outputDirectory.path,
                 ],
                 outputFilesDirectory: outputDirectory
             )
