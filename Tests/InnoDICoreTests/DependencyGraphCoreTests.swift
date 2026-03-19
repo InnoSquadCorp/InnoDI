@@ -10,6 +10,7 @@ struct DependencyGraphCoreTests {
             DependencyGraphNode(
                 id: "App.swift#AppContainer",
                 displayName: "AppContainer",
+                semanticPath: "AppContainer",
                 isRoot: false,
                 validateDAG: false,
                 requiredInputs: ["config"]
@@ -17,6 +18,7 @@ struct DependencyGraphCoreTests {
             DependencyGraphNode(
                 id: "App.swift#AppContainer",
                 displayName: "AppContainer",
+                semanticPath: "AppContainer",
                 isRoot: true,
                 validateDAG: true,
                 requiredInputs: ["logger", "config"]
@@ -38,12 +40,14 @@ struct DependencyGraphCoreTests {
             DependencyGraphNode(
                 id: "FeatureA/App.swift#AppContainer",
                 displayName: "AppContainer",
+                semanticPath: "FeatureA.AppContainer",
                 isRoot: false,
                 requiredInputs: []
             ),
             DependencyGraphNode(
                 id: "FeatureB/App.swift#AppContainer",
                 displayName: "AppContainer",
+                semanticPath: "FeatureB.AppContainer",
                 isRoot: true,
                 requiredInputs: ["env"]
             )
@@ -53,7 +57,7 @@ struct DependencyGraphCoreTests {
         let originalByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
 
         #expect(normalized.count == 2)
-        #expect(normalized.map(\.id) == [
+        #expect(normalized.map { $0.id } == [
             "FeatureA/App.swift#AppContainer",
             "FeatureB/App.swift#AppContainer"
         ])
@@ -69,14 +73,14 @@ struct DependencyGraphCoreTests {
     @Test("Normalizes nodes with deterministic ID ordering")
     func normalizeNodesProducesDeterministicIDOrder() {
         let nodes = [
-            DependencyGraphNode(id: "z.swift#Z", displayName: "Z", isRoot: false, requiredInputs: []),
-            DependencyGraphNode(id: "a.swift#A", displayName: "A", isRoot: false, requiredInputs: []),
-            DependencyGraphNode(id: "m.swift#M", displayName: "M", isRoot: false, requiredInputs: [])
+            DependencyGraphNode(id: "z.swift#Z", displayName: "Z", semanticPath: "Z", isRoot: false, requiredInputs: []),
+            DependencyGraphNode(id: "a.swift#A", displayName: "A", semanticPath: "A", isRoot: false, requiredInputs: []),
+            DependencyGraphNode(id: "m.swift#M", displayName: "M", semanticPath: "M", isRoot: false, requiredInputs: [])
         ]
 
         let normalized = normalizeNodes(nodes)
 
-        #expect(normalized.map(\.id) == ["a.swift#A", "m.swift#M", "z.swift#Z"])
+        #expect(normalized.map { $0.id } == ["a.swift#A", "m.swift#M", "z.swift#Z"])
     }
 
     @Test("Deduplicates identical edges while preserving first-seen order")

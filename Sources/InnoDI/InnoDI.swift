@@ -17,7 +17,7 @@ public enum DIScope {
 /// Marks a type as an InnoDI container and synthesizes initialization/validation behavior.
 ///
 /// - Parameters:
-///   - validate: Enables container-level compile-time validation.
+///   - validate: Reserved compatibility flag. Core construction invariants remain enforced regardless of this value.
 ///   - root: Marks this container as a root for dependency graph rendering.
 ///   - validateDAG: Includes this container in global/local DAG validation.
 ///   - mainActor: Isolates generated container API on the main actor.

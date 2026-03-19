@@ -235,7 +235,7 @@ struct DIContainerMacroTests {
     }
 
     @Test
-    func validateFalseAllowsMissingSharedFactoryWithRuntimeFallback() throws {
+    func validateFalseStillRejectsMissingSharedFactory() throws {
         let source = """
         @DIContainer(validate: false)
         struct AppContainer {
@@ -258,9 +258,8 @@ struct DIContainerMacroTests {
             in: context
         )
 
-        #expect(!generated.isEmpty)
-        #expect(generated.first?.description.contains("Missing factory for shared dependency 'service'.") == true)
-        #expect(context.diagnostics.isEmpty)
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.") })
     }
 
     @Test
@@ -319,15 +318,54 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.contains { $0.message.contains("@Provide(.input) should not include a factory") })
     }
 
+    @Test("input scope rejects type-based dependency wiring")
+    func inputScopeRejectsWithDependencies() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.input, APIClient.self, with: [\\.config])
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @DIContainer with invalid input wiring")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(
+            of: attr,
+            providingMembersOf: decl,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.message.contains("@Provide(.input) should not include a factory")
+            }
+        )
+    }
+
     @Test
     func detectsContainerDependencyCycle() throws {
         let source = """
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, factory: ServiceA(serviceB: serviceB), concrete: true)
+            @Provide(.transient, factory: { (serviceB: ServiceB) in
+                ServiceA(serviceB: serviceB)
+            }, concrete: true)
             var serviceA: ServiceA
 
-            @Provide(.shared, factory: ServiceB(serviceA: serviceA), concrete: true)
+            @Provide(.transient, factory: { (serviceA: ServiceA) in
+                ServiceB(serviceA: serviceA)
+            }, concrete: true)
             var serviceB: ServiceB
         }
         """
@@ -370,7 +408,10 @@ struct DIContainerMacroTests {
         let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
 
         #expect(generated.isEmpty)
-        #expect(context.diagnostics.contains { $0.message.contains("Unknown dependency 'missing'") })
+        #expect(context.diagnostics.contains { $0.message.contains("missing") })
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-with-dependency")
+        })
     }
 
     @Test
@@ -378,10 +419,14 @@ struct DIContainerMacroTests {
         let source = """
         @DIContainer(validateDAG: false)
         struct AppContainer {
-            @Provide(.shared, factory: ServiceA(serviceB: serviceB), concrete: true)
+            @Provide(.transient, factory: { (serviceB: ServiceB) in
+                ServiceA(serviceB: serviceB)
+            }, concrete: true)
             var serviceA: ServiceA
 
-            @Provide(.shared, factory: ServiceB(serviceA: serviceA), concrete: true)
+            @Provide(.transient, factory: { (serviceA: ServiceA) in
+                ServiceB(serviceA: serviceA)
+            }, concrete: true)
             var serviceB: ServiceB
         }
         """
@@ -586,5 +631,657 @@ struct DIContainerMacroTests {
         #expect(initCode.contains("Task<"))
         #expect(initCode.contains("await"))
         #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("Factory parameter names must resolve by name without positional fallback")
+    func factoryParameterNamesMustResolveStrictly() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.input)
+            var logger: Logger
+
+            @Provide(.shared, factory: { (wrongName: Config, logger: Logger) in
+                Service(config: wrongName, logger: logger)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse strict factory parameter case")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("wrongName") })
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        })
+    }
+
+    @Test("Reordered factory parameters are allowed when names match")
+    func reorderedFactoryParametersRemainValid() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.input)
+            var logger: Logger
+
+            @Provide(.shared, factory: { (logger: Logger, config: Config) in
+                Service(config: config, logger: logger)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse reordered factory parameter case")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("Sync shared dependencies cannot reference later shared members")
+    func syncSharedDependenciesRejectForwardReferences() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.shared, factory: { (laterService: LaterService) in
+                Service(laterService: laterService)
+            }, concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(config: config), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse forward reference case")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("laterService") })
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
+        })
+    }
+
+    @Test("with: dependencies reject later shared members")
+    func withDependenciesRejectForwardReferences() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.shared, Service.self, with: [\\.laterService], concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(config: config), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse with forward reference case")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("laterService") })
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
+        })
+    }
+
+    @Test("Async shared dependencies cannot reference later async shared members")
+    func asyncSharedDependenciesRejectForwardReferences() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.shared, asyncFactory: { (laterService: LaterService) async in
+                Service(laterService: laterService)
+            }, concrete: true)
+            var service: Service
+
+            @Provide(.shared, asyncFactory: { (config: Config) async in
+                LaterService(config: config)
+            }, concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse async forward reference case")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains { $0.message.contains("laterService") })
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
+        })
+    }
+
+    @Test("Custom init inside container body is rejected explicitly")
+    func customInitInsideContainerBodyIsRejected() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            init(config: Config) {
+                self.config = config
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse custom init container")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
+        })
+    }
+
+    @Test("Custom init inside same-file extension is rejected explicitly")
+    func customInitInsideSameFileExtensionIsRejected() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+
+        extension AppContainer {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse container with same-file extension init")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
+        })
+    }
+
+    @Test("Other same-file extensions do not trigger custom init rejection")
+    func customInitInOtherSameFileExtensionDoesNotTriggerRejection() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+
+        struct Helper {
+            let value: Int
+        }
+
+        extension Helper {
+            init(value: Int, doubled: Bool) {
+                self.init(value: value * (doubled ? 2 : 1))
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse container with unrelated extension init")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("All offending initializers in body and same-file extension are diagnosed")
+    func allOffendingInitializersAreDiagnosed() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            init(config: Config) {
+                self.config = config
+            }
+        }
+
+        extension AppContainer {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+
+            init(config: Config, retries: Int) {
+                self.init(config: config)
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse container with multiple offending inits")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let diagnostics = context.diagnostics.filter {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
+        }
+
+        #expect(generated.isEmpty)
+        #expect(diagnostics.count == 3)
+    }
+
+    @Test("Cross-file extension initializers are outside the current detection policy")
+    func crossFileExtensionInitializersAreIgnored() throws {
+        let containerSource = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+        """
+        let extensionSource = """
+        extension AppContainer {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+        }
+        """
+
+        let parsedContainer = Parser.parse(source: containerSource)
+        _ = Parser.parse(source: extensionSource)
+
+        guard let decl = parsedContainer.statements.first?.item.as(StructDeclSyntax.self) else {
+            Issue.record("Should parse cross-file policy fixture")
+            return
+        }
+
+        let initializers = DIContainerParser.userDefinedInitializers(in: decl)
+        #expect(initializers.isEmpty)
+    }
+
+    @Test("Nested same-file extensions for the annotated type are rejected")
+    func nestedSameFileExtensionInitializersAreRejected() throws {
+        let source = """
+        struct Outer {
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+            }
+        }
+
+        extension Outer.AppContainer {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let outerDecl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let nestedDecl = outerDecl.memberBlock.members.first?.decl.as(StructDeclSyntax.self),
+              let attr = nestedDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse nested container")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: nestedDecl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
+        })
+    }
+
+    @Test("Generic argument same-file extensions are excluded from custom init detection")
+    func genericArgumentExtensionsAreExcluded() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer<T> {
+            @Provide(.input)
+            var config: Config
+        }
+
+        extension AppContainer<String> {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse generic argument extension fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("Constrained same-file extensions are excluded from custom init detection")
+    func constrainedExtensionsAreExcluded() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer<T> {
+            @Provide(.input)
+            var config: Config
+        }
+
+        extension AppContainer where T: Sendable {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse constrained extension fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(!generated.isEmpty)
+        #expect(context.diagnostics.isEmpty)
+    }
+
+    @Test("Factory parameter diagnostics include notes and a unique rename fix-it")
+    func unresolvedFactoryParameterDiagnosticsIncludeRenameFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var baseURL: String
+
+            @Provide(.shared, factory: { (base_url: String) in
+                Service(baseURL: base_url)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(!diagnostic.notes.isEmpty)
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("baseURL") == true)
+    }
+
+    @Test("Factory parameter diagnostics skip fix-its when multiple candidates exist")
+    func unresolvedFactoryParameterDiagnosticsSkipAmbiguousFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var apiClient: APIClient
+
+            @Provide(.input)
+            var api_client: APIClient
+
+            @Provide(.shared, factory: { (apiclient: APIClient) in
+                Service(client: apiclient)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse ambiguous unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(diagnostic.notes.count == 2)
+        #expect(diagnostic.fixIts.isEmpty)
+    }
+
+    @Test("with dependency diagnostics include notes and a unique replacement fix-it")
+    func unresolvedWithDependencyDiagnosticsIncludeReplacementFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var baseURL: String
+
+            @Provide(.shared, Service.self, with: [\\.base_url], concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse unresolved with dependency fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-with-dependency")
+        }) else {
+            Issue.record("Expected unresolved with dependency diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(!diagnostic.notes.isEmpty)
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("\\.baseURL") == true)
+    }
+
+    @Test("Unavailable dependency diagnostics explain declaration-order constraints")
+    func unavailableDependencyDiagnosticsIncludeNotes() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: { (laterService: LaterService) in
+                Service(laterService: laterService)
+            }, concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse unavailable dependency fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
+        }) else {
+            Issue.record("Expected unavailable dependency diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(!diagnostic.notes.isEmpty)
+        #expect(diagnostic.fixIts.isEmpty)
+    }
+
+    @Test("Custom init diagnostics include guidance notes and no fix-it")
+    func customInitDiagnosticsIncludeGuidanceNotes() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            init(config: Config) {
+                self.config = config
+            }
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse custom init guidance fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
+        }) else {
+            Issue.record("Expected custom init diagnostic")
+            return
+        }
+
+        #expect(diagnostic.notes.count == 2)
+        #expect(diagnostic.fixIts.isEmpty)
+    }
+
+    @Test("Concrete opt-in diagnostics include guidance notes and a safe fix-it")
+    func concreteOptInDiagnosticsIncludeSafeFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient())
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse concrete opt-in fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
+        }) else {
+            Issue.record("Expected concrete opt-in diagnostic")
+            return
+        }
+
+        #expect(diagnostic.notes.count == 2)
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
     }
 }

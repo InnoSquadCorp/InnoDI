@@ -4,10 +4,23 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 struct DIContainerParser {
-    static func hasUserDefinedInit(in decl: some DeclGroupSyntax) -> Bool {
-        decl.memberBlock.members.contains { member in
-            member.decl.is(InitializerDeclSyntax.self)
+    static func userDefinedInitializers(in decl: some DeclGroupSyntax) -> [InitializerDeclSyntax] {
+        let bodyInitializers = decl.memberBlock.members.compactMap { $0.decl.as(InitializerDeclSyntax.self) }
+
+        guard let sourceFile = sourceFile(containing: Syntax(decl)),
+              let declarationPath = nominalDeclarationPath(containing: Syntax(decl)) else {
+            return bodyInitializers
         }
+
+        let extensionInitializers = sourceFile.statements.compactMap { statement in
+            statement.item.as(ExtensionDeclSyntax.self)
+        }
+        .filter { matchesSameFileContainerExtension($0, declarationPath: declarationPath) }
+        .flatMap { extensionDecl in
+            extensionDecl.memberBlock.members.compactMap { $0.decl.as(InitializerDeclSyntax.self) }
+        }
+
+        return bodyInitializers + extensionInitializers
     }
 
     static func parse(
@@ -74,13 +87,13 @@ struct DIContainerParser {
                 continue
             }
 
-            let closureDependencies: [String]
+            let closureParameterList: ClosureParameterList
             if let closure = parseResult.factoryExpr?.as(ClosureExprSyntax.self) {
-                closureDependencies = parseClosureParameterNames(closure).names
+                closureParameterList = parseClosureParameterNames(closure)
             } else if let asyncClosure = parseResult.asyncFactoryExpr?.as(ClosureExprSyntax.self) {
-                closureDependencies = parseClosureParameterNames(asyncClosure).names
+                closureParameterList = parseClosureParameterNames(asyncClosure)
             } else {
-                closureDependencies = []
+                closureParameterList = ClosureParameterList(names: [], references: [], hasWildcard: false)
             }
 
             let factoryExpressionReferences: [String]
@@ -99,6 +112,7 @@ struct DIContainerParser {
 
             let initializerExpr = binding.initializer?.value
             let initializerReferences = extractExpressionDependencyReferences(from: initializerExpr)
+            let withDependencyReferences = extractWithDependencyReferences(from: attribute)
 
             members.append(
                 ProvideMemberModel(
@@ -112,7 +126,10 @@ struct DIContainerParser {
                     initializer: initializerExpr,
                     concreteOptIn: parseResult.concrete,
                     withDependencies: parseResult.dependencies,
-                    closureDependencies: closureDependencies,
+                    withDependencyReferences: withDependencyReferences,
+                    closureDependencies: closureParameterList.names,
+                    closureParameterReferences: closureParameterList.references,
+                    closureHasWildcard: closureParameterList.hasWildcard,
                     expressionReferences: deduplicateStrings(factoryExpressionReferences + asyncFactoryExpressionReferences + initializerReferences),
                     attribute: attribute,
                     bindingSyntax: binding
@@ -130,6 +147,83 @@ struct DIContainerParser {
             members: members
         )
     }
+}
+
+private func sourceFile(containing syntax: Syntax) -> SourceFileSyntax? {
+    var current: Syntax? = syntax
+
+    while let node = current {
+        if let sourceFile = node.as(SourceFileSyntax.self) {
+            return sourceFile
+        }
+        current = node.parent
+    }
+
+    return nil
+}
+
+private func nominalDeclarationPath(containing syntax: Syntax) -> String? {
+    var current: Syntax? = syntax
+    var components: [String] = []
+
+    while let node = current {
+        if let name = nominalDeclarationName(for: node) {
+            components.append(name)
+        }
+        current = node.parent
+    }
+
+    guard !components.isEmpty else {
+        return nil
+    }
+
+    return components.reversed().joined(separator: ".")
+}
+
+private func nominalDeclarationName(for syntax: Syntax) -> String? {
+    if let structDecl = syntax.as(StructDeclSyntax.self) {
+        return structDecl.name.text
+    }
+    if let classDecl = syntax.as(ClassDeclSyntax.self) {
+        return classDecl.name.text
+    }
+    if let actorDecl = syntax.as(ActorDeclSyntax.self) {
+        return actorDecl.name.text
+    }
+    if let enumDecl = syntax.as(EnumDeclSyntax.self) {
+        return enumDecl.name.text
+    }
+    return nil
+}
+
+private func matchesSameFileContainerExtension(_ extensionDecl: ExtensionDeclSyntax, declarationPath: String) -> Bool {
+    guard extensionDecl.genericWhereClause == nil else {
+        return false
+    }
+
+    return normalizedSemanticTypeReference(extensionDecl.extendedType)?.displayPath == declarationPath
+}
+
+private func extractWithDependencyReferences(from attribute: AttributeSyntax) -> [WithDependencyReference] {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return []
+    }
+
+    for argument in arguments where argument.label?.text == "with" {
+        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+            return []
+        }
+
+        return arrayExpr.elements.compactMap { element in
+            guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                  let property = keyPath.components.last?.component.as(KeyPathPropertyComponentSyntax.self)?.declName.baseName.text else {
+                return nil
+            }
+            return WithDependencyReference(name: property, keyPath: keyPath)
+        }
+    }
+
+    return []
 }
 
 private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {

@@ -35,6 +35,15 @@ let package = Package(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"]
         ),
+        .target(
+            name: "InnoDIBuildSupport"
+            ,
+            dependencies: [
+                "InnoDICore",
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+            ]
+        ),
         .executableTarget(
             name: "InnoDI-DependencyGraph",
             dependencies: [
@@ -43,10 +52,17 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
         ),
+        .executableTarget(
+            name: "InnoDI-DAGValidationCoordinator",
+            dependencies: [
+                "InnoDIBuildSupport"
+            ]
+        ),
         .plugin(
             name: "InnoDIDAGValidationPlugin",
             capability: .buildTool(),
             dependencies: [
+                "InnoDI-DAGValidationCoordinator",
                 "InnoDI-DependencyGraph"
             ]
         ),
@@ -81,6 +97,13 @@ let package = Package(
             name: "InnoDIDependencyGraphCLITests",
             dependencies: [
                 "InnoDI-DependencyGraph"
+            ]
+        ),
+        .testTarget(
+            name: "InnoDIBuildSupportTests",
+            dependencies: [
+                "InnoDIBuildSupport",
+                "InnoDICore"
             ]
         ),
     ]

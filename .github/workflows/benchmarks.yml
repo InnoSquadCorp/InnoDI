@@ -31,11 +31,13 @@ jobs:
           swift --version
 
       - name: Run Framework Comparison Benchmarks
-        run: Benchmarks/compare.sh --compile-iterations 5 --runtime-runs 5 --runtime-iterations 100000
+        run: Benchmarks/compare.sh --preset local --compile-iterations 5 --runtime-runs 5 --runtime-iterations 100000
 
       - name: Upload Benchmark Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: innodi-benchmarks
-          path: Benchmarks/results/*.json
+          path: |
+            Benchmarks/results/*.json
+            Benchmarks/results/*.md

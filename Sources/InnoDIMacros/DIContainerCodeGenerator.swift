@@ -10,7 +10,6 @@ struct DIContainerCodeGenerator {
             inputMembers: model.inputMembers,
             transientMembers: model.transientMembers,
             accessLevel: model.accessLevel,
-            validateEnabled: model.options.validate,
             mainActorEnabled: model.options.mainActor
         )
     }
@@ -42,7 +41,6 @@ private func makeInitDecl(
     inputMembers: [ProvideMemberModel],
     transientMembers: [ProvideMemberModel],
     accessLevel: String?,
-    validateEnabled: Bool,
     mainActorEnabled: Bool
 ) -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
@@ -116,8 +114,7 @@ private func makeInitDecl(
         let availableStorageNames = inputStorageNames + syncSharedMembers.prefix(index).map { "_storage_\($0.name)" }
         let factoryExpr = makeFactoryExpr(
             member: member,
-            availableNames: availableStorageNames,
-            allowMissingFactoryFallback: !validateEnabled
+            availableNames: availableStorageNames
         )
 
         let initializerExpr = ExprSyntax(
@@ -197,8 +194,7 @@ private func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
 
 private func makeFactoryExpr(
     member: ProvideMemberModel,
-    availableNames: [String],
-    allowMissingFactoryFallback: Bool
+    availableNames: [String]
 ) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
@@ -230,25 +226,6 @@ private func makeFactoryExpr(
             rightParen: .rightParenToken()
         )
         return ExprSyntax(call)
-    }
-
-    if allowMissingFactoryFallback {
-        return ExprSyntax(
-            FunctionCallExprSyntax(
-                calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
-                leftParen: .leftParenToken(),
-                arguments: LabeledExprListSyntax([
-                    LabeledExprSyntax(
-                        expression: ExprSyntax(
-                            StringLiteralExprSyntax(
-                                content: "Missing factory for shared dependency '\(member.name)'."
-                            )
-                        )
-                    )
-                ]),
-                rightParen: .rightParenToken()
-            )
-        )
     }
 
     fatalError("No factory expression available - validation should have caught this")
@@ -297,7 +274,7 @@ private func dependencyExpression(
         return ExprSyntax("\(raw: "await \(taskBinding.name).value")")
     }
 
-    return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(dependencyName)))
+    fatalError("Unresolved async dependency '\(dependencyName)' reached code generation.")
 }
 
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
@@ -305,31 +282,30 @@ private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [S
     var result: [String] = []
 
     for (index, name) in parsedArguments.names.enumerated() {
-        result.append(matchClosureParameter(name: name, index: index, availableNames: availableNames))
+        guard let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) else {
+            fatalError("Unresolved closure parameter '\(name)' reached code generation at index \(index).")
+        }
+        result.append(resolvedName)
     }
 
     return result
 }
 
-private func matchClosureParameter(name: String, index: Int, availableNames: [String]) -> String {
+private func resolveClosureParameter(name: String, availableNames: [String]) -> String? {
     if availableNames.contains(name) {
         return name
     }
 
     let nameWithoutPrefix = name.hasPrefix("_storage_") ? String(name.dropFirst(9)) : name
 
-    for (i, availableName) in availableNames.enumerated() {
+    for availableName in availableNames {
         let availableWithoutPrefix = availableName.hasPrefix("_storage_") ? String(availableName.dropFirst(9)) : availableName
         if availableWithoutPrefix == nameWithoutPrefix {
-            return availableNames[i]
+            return availableName
         }
     }
 
-    if index < availableNames.count {
-        return availableNames[index]
-    }
-
-    return name
+    return nil
 }
 
 private func mapDependencyNameToStorageName(_ dependencyName: String, availableNames: [String]) -> String {
@@ -344,7 +320,7 @@ private func mapDependencyNameToStorageName(_ dependencyName: String, availableN
         }
     }
 
-    return dependencyName
+    fatalError("Unresolved dependency '\(dependencyName)' reached code generation.")
 }
 
 private func assignExpr(targetName: String, valueName: String) -> ExprSyntax {

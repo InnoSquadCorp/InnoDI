@@ -214,6 +214,47 @@ struct ProvideMacroTests {
         #expect(context.diagnostics.contains { $0.message.contains("must be named for injection") })
     }
 
+    @Test("Transient accessor avoids generating broken self references for unknown parameters")
+    func transientFactoryClosureWithUnknownParameterFallsBackToFatalErrorGetter() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var apiClient: APIClient
+
+            @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) })
+            var viewModel: ViewModel
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let targetVarDecl = decl.memberBlock.members
+                  .compactMap({ $0.decl.as(VariableDeclSyntax.self) })
+                  .first(where: { varDecl in
+                      guard let binding = varDecl.bindings.first,
+                            let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                          return false
+                      }
+                      return identifier.identifier.text == "viewModel"
+                  }),
+              let attr = targetVarDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse transient unknown parameter case")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: targetVarDecl,
+            in: context
+        )
+
+        let generated = accessors.map(\.description).joined(separator: "\n")
+        #expect(generated.contains("fatalError"))
+        #expect(!generated.contains("self.missing"))
+    }
+
     @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
     func parseClosureParameterNamesSkipsWildcard() throws {
         let source = """

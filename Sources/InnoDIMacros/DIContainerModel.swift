@@ -1,5 +1,15 @@
 import SwiftSyntax
 
+struct ClosureParameterReference {
+    let name: String
+    let token: TokenSyntax
+}
+
+struct WithDependencyReference {
+    let name: String
+    let keyPath: KeyPathExprSyntax
+}
+
 struct DIContainerExpansionModel {
     let options: DIContainerAttributeInfo
     let accessLevel: String?
@@ -37,7 +47,10 @@ struct ProvideMemberModel {
     let initializer: ExprSyntax?
     let concreteOptIn: Bool
     let withDependencies: [String]
+    let withDependencyReferences: [WithDependencyReference]
     let closureDependencies: [String]
+    let closureParameterReferences: [ClosureParameterReference]
+    let closureHasWildcard: Bool
     let expressionReferences: [String]
     let attribute: AttributeSyntax
     let bindingSyntax: PatternBindingSyntax
