@@ -240,6 +240,33 @@ struct ValidationCoordinatorTests {
         #expect(ValidationIssueRenderer.renderStderr(issues: []) == "")
     }
 
+    @Test("Validation issue renderer sanitizes markdown and stderr content")
+    func validationIssueRendererSanitizesRenderedContent() {
+        let issue = ValidationIssue(
+            code: "validation.issue",
+            severity: .error,
+            message: "bad `message`\nnext line",
+            location: ValidationIssueLocation(filePath: "Sources/Feature`\n.swift", line: 3, column: 7),
+            notes: [
+                ValidationIssueNote(
+                    message: "note with\nbreak",
+                    location: ValidationIssueLocation(filePath: "Sources/Note.swift", line: 1, column: 2)
+                )
+            ],
+            remediation: "fix\nthis",
+            metadata: ["reason": "uses `code`\nblock"]
+        )
+
+        let markdown = ValidationIssueRenderer.renderMarkdown(issues: [issue])
+        let stderr = ValidationIssueRenderer.renderStderr(issues: [issue])
+
+        #expect(markdown.contains("bad 'message' next line"))
+        #expect(markdown.contains("Sources/Feature' .swift:3:7"))
+        #expect(markdown.contains("uses 'code' block"))
+        #expect(stderr.contains("[validation.issue] bad 'message' next line"))
+        #expect(stderr.contains("note: note with break"))
+    }
+
     @Test("Validation issue report only fails on error severity")
     func validationIssueReportOnlyFailsOnErrors() {
         let location = ValidationIssueLocation(filePath: "Feature.swift", line: 1, column: 1)
@@ -713,14 +740,23 @@ struct ValidationCoordinatorTests {
 }
 
 private final class MockValidationSyntaxParser: @unchecked Sendable, ValidationSyntaxParsing {
-    private(set) var parsedSources: [String] = []
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var parsedSources: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
 
     var parseCount: Int {
         parsedSources.count
     }
 
     func parse(source: String) -> SourceFileSyntax {
-        parsedSources.append(source)
+        lock.lock()
+        storage.append(source)
+        lock.unlock()
         return Parser.parse(source: source)
     }
 }

@@ -90,23 +90,23 @@ package enum ValidationIssueRenderer {
 
         var lines: [String] = ["## Build Issues", ""]
         for issue in issues {
-            lines.append("### `[\(issue.code)]` \(issue.message)")
+            lines.append("### `[\(sanitizeInline(issue.code))]` \(sanitizeInline(issue.message))")
             lines.append("")
-            lines.append("- Severity: `\(issue.severity.rawValue)`")
-            lines.append("- Location: `\(issue.location.filePath):\(issue.location.line):\(issue.location.column)`")
+            lines.append("- Severity: `\(sanitizeInline(issue.severity.rawValue))`")
+            lines.append("- Location: `\(renderLocation(issue.location))`")
             if let remediation = issue.remediation {
-                lines.append("- Remediation: \(remediation)")
+                lines.append("- Remediation: \(sanitizeInline(remediation))")
             }
             if !issue.metadata.isEmpty {
                 for key in issue.metadata.keys.sorted() {
-                    lines.append("- \(key): `\(issue.metadata[key] ?? "")`")
+                    lines.append("- \(sanitizeInline(key)): `\(sanitizeInline(issue.metadata[key] ?? ""))`")
                 }
             }
             for note in issue.notes {
                 if let location = note.location {
-                    lines.append("- Note: \(note.message) (`\(location.filePath):\(location.line):\(location.column)`)")   
+                    lines.append("- Note: \(sanitizeInline(note.message)) (`\(renderLocation(location))`)")
                 } else {
-                    lines.append("- Note: \(note.message)")
+                    lines.append("- Note: \(sanitizeInline(note.message))")
                 }
             }
             lines.append("")
@@ -116,21 +116,36 @@ package enum ValidationIssueRenderer {
 
     private static func renderStderr(issue: ValidationIssue) -> String {
         var lines: [String] = [
-            "\(issue.location.filePath):\(issue.location.line):\(issue.location.column): \(issue.severity.rawValue): [\(issue.code)] \(issue.message)"
+            "\(renderLocation(issue.location)): \(sanitizeInline(issue.severity.rawValue)): [\(sanitizeInline(issue.code))] \(sanitizeInline(issue.message))"
         ]
 
         for note in issue.notes {
             if let location = note.location {
-                lines.append("\(location.filePath):\(location.line):\(location.column): note: \(note.message)")
+                lines.append("\(renderLocation(location)): note: \(sanitizeInline(note.message))")
             } else {
-                lines.append("note: \(note.message)")
+                lines.append("note: \(sanitizeInline(note.message))")
             }
         }
 
         if let remediation = issue.remediation {
-            lines.append("note: Remediation: \(remediation)")
+            lines.append("note: Remediation: \(sanitizeInline(remediation))")
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func renderLocation(_ location: ValidationIssueLocation) -> String {
+        "\(sanitizeInline(location.filePath)):\(location.line):\(location.column)"
+    }
+
+    private static func sanitizeInline(_ text: String) -> String {
+        let sanitizedScalars = text.unicodeScalars.map { scalar in
+            CharacterSet.controlCharacters.contains(scalar) ? " " : String(scalar)
+        }
+        return sanitizedScalars
+            .joined()
+            .replacingOccurrences(of: "`", with: "'")
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
     }
 }
