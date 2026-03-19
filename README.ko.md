@@ -20,7 +20,7 @@ Swift Macro 기반의 타입 안전한 의존성 주입 라이브러리입니다
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "2.1.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "3.0.0")
 ]
 ```
 

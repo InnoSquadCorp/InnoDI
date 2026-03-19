@@ -210,6 +210,36 @@ struct ValidationCoordinatorTests {
         #expect(third.metrics.astReparseCount == 0)
     }
 
+    @Test("Validation signature collection result is codable")
+    func validationSignatureCollectionResultIsCodable() throws {
+        let result = ValidationSignatureCollectionResult(
+            signature: "abc123",
+            metrics: ValidationSignatureMetrics(
+                scannedFileCount: 3,
+                metadataCacheHitCount: 1,
+                contentHashReuseCount: 1,
+                astReparseCount: 1
+            ),
+            reasonCodes: [.cacheHitMetadata, .cacheMissContentChanged],
+            fileChanges: ValidationFileChangeDetails(
+                newFiles: ["Added.swift"],
+                deletedFiles: ["Removed.swift"],
+                reparsedFiles: ["Feature.swift"],
+                contentHashReusedFiles: ["Stable.swift"]
+            )
+        )
+
+        let data = try JSONEncoder().encode(result)
+        let decoded = try JSONDecoder().decode(ValidationSignatureCollectionResult.self, from: data)
+
+        #expect(decoded == result)
+    }
+
+    @Test("Validation issue renderer emits an empty stderr string for no issues")
+    func validationIssueRendererReturnsEmptyStringForNoIssues() {
+        #expect(ValidationIssueRenderer.renderStderr(issues: []) == "")
+    }
+
     @Test("Success result is reused for identical input signature")
     func successResultIsReused() throws {
         let fixture = try makeFixture()
@@ -595,6 +625,13 @@ struct ValidationCoordinatorTests {
             for: SemanticTypeReference(displayPath: "NestedAlias", components: ["NestedAlias"]),
             candidatePaths: ["Feature.Nested.AppContainer"]
         )
+        let shortReverseSuffix = resolver.resolvePath(
+            for: SemanticTypeReference(
+                displayPath: "PreviewModule.AppContainer",
+                components: ["PreviewModule", "AppContainer"]
+            ),
+            candidatePaths: ["AppContainer"]
+        )
 
         #expect(aliasResolved.state == .resolved)
         #expect(aliasResolved.resolvedPath == "Feature.AppContainer")
@@ -607,6 +644,7 @@ struct ValidationCoordinatorTests {
         #expect(nestedAliasResolved.state == .resolved)
         #expect(nestedAliasResolved.resolvedPath == "Feature.Nested.AppContainer")
         #expect(nestedAliasResolved.aliasExpansionTrace == ["NestedAlias", "Aliases.Active"])
+        #expect(shortReverseSuffix.state == .unresolved)
     }
 }
 

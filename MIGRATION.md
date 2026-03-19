@@ -2,7 +2,7 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
-## 2.1.0
+## 3.0.0
 
 ### Who is affected
 
@@ -11,12 +11,14 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
 
 ### Required action
 
-- No code migration is required for normal package consumers.
+- Review containers that previously relied on permissive validation behavior.
+- Existing code may now fail earlier when strict name-based resolution, declaration-order enforcement, or cross-file custom `init` validation detects invalid wiring.
 - If you parse validation or benchmark JSON artifacts, verify the documented schema versions in `RELEASING.md`.
 
 ### Notes
 
-- This release formalizes OSS release documents and release-gate workflows.
+- This major release formalizes OSS release documents and release-gate workflows.
+- The version bump reflects stricter validation and semantic enforcement rather than a new public macro surface.
 
 ## When To Add An Entry
 

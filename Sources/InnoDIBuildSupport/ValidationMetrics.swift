@@ -48,7 +48,7 @@ package struct ValidationFileChangeDetails: Codable, Equatable, Sendable {
     }
 }
 
-package struct ValidationSignatureCollectionResult: Equatable, Sendable {
+package struct ValidationSignatureCollectionResult: Codable, Equatable, Sendable {
     package let signature: String
     package let metrics: ValidationSignatureMetrics
     package let reasonCodes: [ValidationReasonCode]
@@ -193,8 +193,12 @@ package enum ValidationLogging {
     }
 }
 
+package func validationNow() -> TimeInterval {
+    ProcessInfo.processInfo.systemUptime
+}
+
 package func validationElapsedMilliseconds(since startTime: TimeInterval) -> Double {
-    max(0, (CFAbsoluteTimeGetCurrent() - startTime) * 1_000)
+    max(0, (validationNow() - startTime) * 1_000)
 }
 
 private func isTruthy(_ value: String?) -> Bool {

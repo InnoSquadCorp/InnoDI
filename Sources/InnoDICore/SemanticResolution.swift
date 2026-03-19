@@ -129,6 +129,9 @@ package struct SemanticResolverIndex: Equatable, Sendable {
                     return Array(candidateComponents.suffix(components.count)) == components
                 }
 
+                guard candidateComponents.count > 1 else {
+                    return false
+                }
                 return Array(components.suffix(candidateComponents.count)) == candidateComponents
             }
             .sorted()
@@ -255,6 +258,14 @@ private struct ResolutionMatch {
     let usedSuffixFallback: Bool
 }
 
+/// Returns a normalized semantic reference for nominal type syntax.
+///
+/// - Important: Generic `IdentifierTypeSyntax` and `MemberTypeSyntax` values
+///   return `nil` because the resolver currently excludes generic shapes from
+///   semantic matching.
+/// - Note: `AttributedTypeSyntax` delegates to its `baseType`.
+/// - Returns: A normalized reference, or `nil` when the type shape is excluded
+///   and the caller must handle the unsupported case conservatively.
 package func normalizedSemanticTypeReference(_ type: TypeSyntax) -> SemanticTypeReference? {
     if let identifier = type.as(IdentifierTypeSyntax.self) {
         guard identifier.genericArgumentClause == nil else {

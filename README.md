@@ -32,7 +32,7 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "2.1.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "3.0.0")
 ]
 ```
 

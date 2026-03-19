@@ -1,7 +1,7 @@
 import InnoDICore
 import SwiftSyntax
 
-struct SemanticContainerReferenceIssue: Hashable {
+struct SemanticContainerReferenceIssue: Hashable, Sendable {
     let sourceID: String
     let destinationDisplayName: String
     let state: SemanticResolutionState
@@ -20,6 +20,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     let allContainerIDsBySemanticPath: [String: [String]]
     let eligibleContainerIDsBySemanticPath: [String: [String]]
     let semanticResolver: SemanticResolverIndex
+    private let candidatePaths: Set<String>
     var edges: [DependencyGraphEdge] = []
     var semanticIssues: [SemanticContainerReferenceIssue] = []
     var fallbackMatchedReferences: [String] = []
@@ -37,6 +38,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         self.allContainerIDsBySemanticPath = allContainerIDsBySemanticPath
         self.eligibleContainerIDsBySemanticPath = eligibleContainerIDsBySemanticPath
         self.semanticResolver = semanticResolver
+        self.candidatePaths = Set(allContainerIDsBySemanticPath.keys)
         super.init(viewMode: viewMode)
     }
 
@@ -74,6 +76,10 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
 
     override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
         guard let sourceID = activeContainerID else {
+            return .visitChildren
+        }
+
+        guard shouldCollectContainerReference(for: node) else {
             return .visitChildren
         }
 
@@ -135,7 +141,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
 
         let resolution = semanticResolver.resolvePath(
             for: reference,
-            candidatePaths: Set(allContainerIDsBySemanticPath.keys)
+            candidatePaths: candidatePaths
         )
 
         switch resolution.state {
@@ -207,5 +213,56 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {
         guard let first = arguments.first else { return nil }
         return first.label?.text
+    }
+
+    private func shouldCollectContainerReference(for node: FunctionCallExprSyntax) -> Bool {
+        guard isInsideProvideAttribute(Syntax(node)),
+              let calledReference = normalizedSemanticExpressionReference(node.calledExpression) else {
+            return false
+        }
+
+        let resolution = semanticResolver.resolvePath(for: calledReference, candidatePaths: candidatePaths)
+        switch resolution.state {
+        case .resolved, .ambiguous:
+            return true
+        case .excluded:
+            return true
+        case .unresolved:
+            break
+        }
+
+        guard let propertyTypeReference = enclosingProvideBindingTypeReference(from: Syntax(node)),
+              propertyTypeReference.displayPath == calledReference.displayPath,
+              calledReference.components.last?.hasSuffix("Container") == true else {
+            return false
+        }
+
+        return true
+    }
+
+    private func isInsideProvideAttribute(_ syntax: Syntax) -> Bool {
+        var current = syntax.parent
+        while let node = current {
+            if let attribute = node.as(AttributeSyntax.self),
+               attribute.attributeName.trimmedDescription == "Provide" {
+                return true
+            }
+            current = node.parent
+        }
+        return false
+    }
+
+    private func enclosingProvideBindingTypeReference(from syntax: Syntax) -> SemanticTypeReference? {
+        var current = syntax.parent
+        while let node = current {
+            if let variable = node.as(VariableDeclSyntax.self),
+               parseProvideAttribute(variable.attributes) != nil,
+               let binding = variable.bindings.first,
+               let typeAnnotation = binding.typeAnnotation {
+                return normalizedSemanticTypeReference(typeAnnotation.type)
+            }
+            current = node.parent
+        }
+        return nil
     }
 }

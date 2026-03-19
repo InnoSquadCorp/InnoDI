@@ -8,7 +8,11 @@ Security fixes are provided for the latest stable release line only.
 
 Please do not open a public issue for a suspected security vulnerability.
 
-Instead, contact the maintainers privately and include:
+Instead, use GitHub Security Advisories for private reporting:
+
+- <https://github.com/InnoSquadCorp/InnoDI/security/advisories/new>
+
+Include:
 
 - affected version or tag
 - impact summary

@@ -1,7 +1,7 @@
 # DIContainer
 
 `@DIContainer` marks a type as a dependency container and generates an initializer from declared members.
-User-defined `init` declarations are unsupported inside the annotated type and its same-file extensions.
+User-defined `init` declarations are unsupported inside the annotated type and any extension.
 
 ## Declaration
 

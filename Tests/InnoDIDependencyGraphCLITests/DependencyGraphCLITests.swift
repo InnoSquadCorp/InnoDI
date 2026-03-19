@@ -241,6 +241,23 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.contains("[graph.unresolved-container-reference]"))
         #expect(result.stderr.contains("MissingFeatureContainer"))
     }
+
+    @Test("@Provide service construction is not reported as a container edge")
+    func validateDAGIgnoresProvideServiceConstruction() throws {
+        let fixtureURL = try makeProvideConstructionFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(!result.stderr.contains("Unresolved container references:"))
+        #expect(!result.stderr.contains("APIClient"))
+        #expect(!result.stderr.contains("LiveGreetingService"))
+    }
 }
 
 private struct CLIRunResult {
@@ -408,6 +425,36 @@ private func makeFixtureProject() throws -> URL {
 
     try featureContainerSource.write(
         to: fixtureURL.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeProvideConstructionFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Provide-Construction-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    protocol GreetingService {}
+    struct LiveGreetingService: GreetingService {}
+    struct APIClient {}
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: APIClient(), concrete: true)
+        var apiClient: APIClient
+
+        @Provide(.shared, factory: LiveGreetingService())
+        var greetingService: any GreetingService
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("AppContainer.swift"),
         atomically: true,
         encoding: .utf8
     )

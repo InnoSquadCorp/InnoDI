@@ -8,7 +8,7 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 
 - No unreleased entries yet.
 
-## 2.1.0
+## 3.0.0
 
 ### Added
 
@@ -22,3 +22,4 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 ### Changed
 
 - Validation benchmark workflow now distinguishes local exploration from CI regression gating.
+- Promoted strict validation, semantic enforcement, and build-stage release contracts as the new major-version baseline for OSS consumers.
