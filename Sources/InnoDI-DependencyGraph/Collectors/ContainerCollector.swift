@@ -3,6 +3,7 @@ import SwiftSyntax
 
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     var nodes: [DependencyGraphNode] = []
+    var typeAliases: [SemanticTypeAliasRecord] = []
 
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
@@ -44,6 +45,24 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         _ = endDeclarationContext()
     }
 
+    override func visit(_ node: TypeAliasDeclSyntax) -> SyntaxVisitorContinueKind {
+        guard let target = normalizedSemanticTypeReference(node.initializer.value) else {
+            return .skipChildren
+        }
+
+        let components = declarationPath + [node.name.text]
+        let path = components.joined(separator: ".")
+
+        typeAliases.append(
+            SemanticTypeAliasRecord(
+                path: path,
+                components: components,
+                target: target
+            )
+        )
+        return .skipChildren
+    }
+
     func walkFile(relativePath: String, tree: SourceFileSyntax) {
         currentRelativeFilePath = relativePath
         declarationPath.removeAll(keepingCapacity: true)
@@ -58,6 +77,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
     private func collectIfContainer(_ node: some DeclGroupSyntax, displayName: String) {
         guard let containerAttr = parseDIContainerAttribute(node.attributes) else { return }
+        let semanticPath = declarationPath.joined(separator: ".")
 
         var requiredInputs: [String] = []
         for member in node.memberBlock.members {
@@ -75,6 +95,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             DependencyGraphNode(
                 id: id,
                 displayName: displayName,
+                semanticPath: semanticPath,
                 isRoot: containerAttr.root,
                 validateDAG: containerAttr.validateDAG,
                 requiredInputs: requiredInputs

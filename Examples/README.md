@@ -35,11 +35,14 @@ Build:
 ```bash
 cd Examples/SwiftUIExample
 swift build
+swift test
 ```
 
 Highlights:
-- `@DIContainer` for SwiftUI view model wiring
-- Init override with mock service injection
+- a single feature root demonstrates navigation, loading skeletons, recoverable errors, retry, and cancellation
+- multiple services are injected through `Environment` while local `@Observable` state owns screen behavior
+- live, mock, and failing roots still use generated init overrides
+- lightweight behavior tests validate model transitions and root composition scenarios
 
 ### 4) TCA Integration Example
 
@@ -67,11 +70,14 @@ Build:
 ```bash
 cd Examples/PreviewInjectionExample
 swift build
+swift test
 ```
 
 Highlights:
-- `#Preview` with lightweight preview-only container input
-- Preview and live dependencies separated by injection
+- `#Preview` keeps live and preview roots while adding a richer preview matrix
+- multiple root overrides render loading, ready, and failure states without changing feature code
+- local `@Observable` state still owns async loading, retry, and cancellation
+- lightweight behavior tests validate retry, cancellation, and preview matrix inputs
 
 ### 6) Existing CLI Output Formats
 

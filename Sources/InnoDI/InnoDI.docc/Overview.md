@@ -9,6 +9,12 @@ The goal is to keep DI wiring explicit while catching invalid graph configuratio
 
 ## Topics
 
+### Start Here
+
+- <doc:Validation>
+- <doc:PolicyBoundaries>
+- <doc:ModuleWideInitDetection>
+
 ### Container API
 
 - <doc:DIContainer>

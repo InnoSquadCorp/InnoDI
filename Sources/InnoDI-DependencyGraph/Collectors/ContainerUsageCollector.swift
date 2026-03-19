@@ -1,9 +1,14 @@
 import InnoDICore
 import SwiftSyntax
 
-struct AmbiguousContainerReference: Hashable {
+struct SemanticContainerReferenceIssue: Hashable {
     let sourceID: String
     let destinationDisplayName: String
+    let state: SemanticResolutionState
+    let destinationCandidates: [String]
+    let excludedReason: String?
+    let aliasExpansionTrace: [String]
+    let usedSuffixFallback: Bool
 }
 
 final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
@@ -12,16 +17,26 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         let containerID: String?
     }
 
-    let containerIDsByDisplayName: [String: [String]]
+    let allContainerIDsBySemanticPath: [String: [String]]
+    let eligibleContainerIDsBySemanticPath: [String: [String]]
+    let semanticResolver: SemanticResolverIndex
     var edges: [DependencyGraphEdge] = []
-    var ambiguousReferences: [AmbiguousContainerReference] = []
+    var semanticIssues: [SemanticContainerReferenceIssue] = []
+    var fallbackMatchedReferences: [String] = []
 
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
     private var activeDeclarations: [DeclarationEntry] = []
 
-    init(containerIDsByDisplayName: [String: [String]], viewMode: SyntaxTreeViewMode = .sourceAccurate) {
-        self.containerIDsByDisplayName = containerIDsByDisplayName
+    init(
+        allContainerIDsBySemanticPath: [String: [String]],
+        eligibleContainerIDsBySemanticPath: [String: [String]],
+        semanticResolver: SemanticResolverIndex,
+        viewMode: SyntaxTreeViewMode = .sourceAccurate
+    ) {
+        self.allContainerIDsBySemanticPath = allContainerIDsBySemanticPath
+        self.eligibleContainerIDsBySemanticPath = eligibleContainerIDsBySemanticPath
+        self.semanticResolver = semanticResolver
         super.init(viewMode: viewMode)
     }
 
@@ -114,68 +129,79 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     private func calledContainerID(_ expr: ExprSyntax, sourceID: String) -> String? {
-        guard let displayName = calledContainerDisplayName(from: expr) else {
+        guard let reference = normalizedSemanticExpressionReference(expr) else {
             return nil
         }
 
-        guard let candidateIDs = containerIDsByDisplayName[displayName] else {
-            return nil
-        }
+        let resolution = semanticResolver.resolvePath(
+            for: reference,
+            candidatePaths: Set(allContainerIDsBySemanticPath.keys)
+        )
 
-        if candidateIDs.count > 1 {
-            ambiguousReferences.append(
-                AmbiguousContainerReference(
+        switch resolution.state {
+        case .resolved:
+            guard let resolvedPath = resolution.resolvedPath,
+                  let allCandidateIDs = allContainerIDsBySemanticPath[resolvedPath] else {
+                return nil
+            }
+            let candidateIDs = eligibleContainerIDsBySemanticPath[resolvedPath] ?? []
+            if candidateIDs.isEmpty && !allCandidateIDs.isEmpty {
+                return nil
+            }
+
+            if candidateIDs.count > 1 {
+                semanticIssues.append(
+                    SemanticContainerReferenceIssue(
+                        sourceID: sourceID,
+                        destinationDisplayName: reference.displayPath,
+                        state: .ambiguous,
+                        destinationCandidates: candidateIDs,
+                        excludedReason: nil,
+                        aliasExpansionTrace: resolution.aliasExpansionTrace,
+                        usedSuffixFallback: resolution.usedSuffixFallback
+                    )
+                )
+                return nil
+            }
+
+            if resolution.usedSuffixFallback {
+                fallbackMatchedReferences.append("\(sourceID) -> \(reference.displayPath)")
+            }
+            return candidateIDs[0]
+        case .ambiguous:
+            let eligibleCandidates = resolution.candidates.flatMap { eligibleContainerIDsBySemanticPath[$0] ?? [] }.sorted()
+            if eligibleCandidates.isEmpty {
+                return nil
+            }
+            if eligibleCandidates.count == 1 {
+                return eligibleCandidates[0]
+            }
+            semanticIssues.append(
+                SemanticContainerReferenceIssue(
                     sourceID: sourceID,
-                    destinationDisplayName: displayName
+                    destinationDisplayName: reference.displayPath,
+                    state: .ambiguous,
+                    destinationCandidates: eligibleCandidates,
+                    excludedReason: nil,
+                    aliasExpansionTrace: resolution.aliasExpansionTrace,
+                    usedSuffixFallback: resolution.usedSuffixFallback
+                )
+            )
+            return nil
+        case .excluded, .unresolved:
+            semanticIssues.append(
+                SemanticContainerReferenceIssue(
+                    sourceID: sourceID,
+                    destinationDisplayName: reference.displayPath,
+                    state: resolution.state,
+                    destinationCandidates: resolution.candidates,
+                    excludedReason: resolution.excludedReason,
+                    aliasExpansionTrace: resolution.aliasExpansionTrace,
+                    usedSuffixFallback: resolution.usedSuffixFallback
                 )
             )
             return nil
         }
-
-        return candidateIDs[0]
-    }
-
-    private func calledContainerDisplayName(from expr: ExprSyntax) -> String? {
-        if let declReference = expr.as(DeclReferenceExprSyntax.self) {
-            return declReference.baseName.text
-        }
-
-        if let memberAccess = expr.as(MemberAccessExprSyntax.self) {
-            let memberName = memberAccess.declName.baseName.text
-            if memberName == "init", let base = memberAccess.base {
-                return calledContainerDisplayName(from: base)
-            }
-            if memberName == "self", let base = memberAccess.base {
-                return calledContainerDisplayName(from: base)
-            }
-            return memberName
-        }
-
-        if let genericSpecialization = expr.as(GenericSpecializationExprSyntax.self) {
-            return calledContainerDisplayName(from: genericSpecialization.expression)
-        }
-
-        if let functionCall = expr.as(FunctionCallExprSyntax.self) {
-            return calledContainerDisplayName(from: functionCall.calledExpression)
-        }
-
-        if let forceUnwrap = expr.as(ForceUnwrapExprSyntax.self) {
-            return calledContainerDisplayName(from: forceUnwrap.expression)
-        }
-
-        if let optionalChaining = expr.as(OptionalChainingExprSyntax.self) {
-            return calledContainerDisplayName(from: optionalChaining.expression)
-        }
-
-        if let tryExpr = expr.as(TryExprSyntax.self) {
-            return calledContainerDisplayName(from: tryExpr.expression)
-        }
-
-        if let awaitExpr = expr.as(AwaitExprSyntax.self) {
-            return calledContainerDisplayName(from: awaitExpr.expression)
-        }
-
-        return nil
     }
 
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {

@@ -1,25 +1,168 @@
 import InnoDI
+import Observation
 import SwiftUI
 
-protocol GreetingServiceProtocol {
-    func message() -> String
+struct DashboardSummary: Sendable {
+    let headline: String
+    let status: String
+}
+
+struct ActivityHighlight: Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let detail: String
+}
+
+protocol GreetingServiceProtocol: Sendable {
+    func loadSummary(for username: String) async throws -> DashboardSummary
+}
+
+protocol ActivityServiceProtocol: Sendable {
+    func loadHighlights(for username: String) async throws -> [ActivityHighlight]
+}
+
+enum ExampleServiceError: Error, LocalizedError, Sendable {
+    case offline
+
+    var errorDescription: String? {
+        switch self {
+        case .offline:
+            return "The live feature root is offline. Retry with a different environment override."
+        }
+    }
 }
 
 struct LiveGreetingService: GreetingServiceProtocol {
-    let username: String
-    func message() -> String { "Hello, \(username)!" }
+    func loadSummary(for username: String) async throws -> DashboardSummary {
+        try await Task.sleep(for: .milliseconds(160))
+        return DashboardSummary(
+            headline: "Hello, \(username)! Your feature root is live.",
+            status: "Two environment services are composed before the first screen appears."
+        )
+    }
+}
+
+struct LiveActivityService: ActivityServiceProtocol {
+    func loadHighlights(for username: String) async throws -> [ActivityHighlight] {
+        try await Task.sleep(for: .milliseconds(120))
+        return [
+            ActivityHighlight(id: "inject", title: "Inject services", detail: "Both services are provided at the root boundary for \(username)."),
+            ActivityHighlight(id: "load", title: "Load asynchronously", detail: "The local @Observable model owns the initial task and cancellation."),
+            ActivityHighlight(id: "navigate", title: "Navigate deeper", detail: "NavigationStack and destination views stay independent of the container.")
+        ]
+    }
 }
 
 struct MockGreetingService: GreetingServiceProtocol {
-    let text: String
-    func message() -> String { text }
+    let headline: String
+    let status: String
+
+    func loadSummary(for username: String) async throws -> DashboardSummary {
+        DashboardSummary(headline: headline, status: status)
+    }
 }
 
-final class GreetingViewModel: ObservableObject {
-    @Published private(set) var text: String
+struct MockActivityService: ActivityServiceProtocol {
+    let highlights: [ActivityHighlight]
 
-    init(service: any GreetingServiceProtocol) {
-        text = service.message()
+    func loadHighlights(for username: String) async throws -> [ActivityHighlight] {
+        highlights
+    }
+}
+
+struct FailingGreetingService: GreetingServiceProtocol {
+    func loadSummary(for username: String) async throws -> DashboardSummary {
+        try await Task.sleep(for: .milliseconds(90))
+        throw ExampleServiceError.offline
+    }
+}
+
+private struct GreetingServiceKey: EnvironmentKey {
+    static let defaultValue: any GreetingServiceProtocol = MockGreetingService(
+        headline: "Missing greeting service",
+        status: "Inject a root service through EnvironmentValues.greetingService."
+    )
+}
+
+private struct ActivityServiceKey: EnvironmentKey {
+    static let defaultValue: any ActivityServiceProtocol = MockActivityService(
+        highlights: [
+            ActivityHighlight(
+                id: "missing",
+                title: "Missing activity service",
+                detail: "Inject a root service through EnvironmentValues.activityService."
+            )
+        ]
+    )
+}
+
+extension EnvironmentValues {
+    var greetingService: any GreetingServiceProtocol {
+        get { self[GreetingServiceKey.self] }
+        set { self[GreetingServiceKey.self] = newValue }
+    }
+
+    var activityService: any ActivityServiceProtocol {
+        get { self[ActivityServiceKey.self] }
+        set { self[ActivityServiceKey.self] = newValue }
+    }
+}
+
+struct DashboardContent: Sendable {
+    let summary: DashboardSummary
+    let highlights: [ActivityHighlight]
+}
+
+enum DashboardLoadState: Sendable {
+    case idle
+    case loading
+    case loaded(DashboardContent)
+    case failed(String)
+}
+
+@MainActor
+@Observable
+final class DashboardFeatureModel {
+    var navigationTitle = "InnoDI Feature Root"
+    var state: DashboardLoadState = .idle
+
+    private var loadTask: Task<Void, Never>?
+
+    func load(
+        username: String,
+        greetingService: any GreetingServiceProtocol,
+        activityService: any ActivityServiceProtocol
+    ) {
+        cancel()
+        state = .loading
+
+        loadTask = Task { [weak self] in
+            do {
+                async let summary = greetingService.loadSummary(for: username)
+                async let highlights = activityService.loadHighlights(for: username)
+                let content = DashboardContent(summary: try await summary, highlights: try await highlights)
+
+                guard !Task.isCancelled, let self else { return }
+                self.state = .loaded(content)
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                let message = (error as? LocalizedError)?.errorDescription ?? "An unknown feature-root error occurred."
+                self.state = .failed(message)
+            }
+        }
+    }
+
+    func retry(
+        username: String,
+        greetingService: any GreetingServiceProtocol,
+        activityService: any ActivityServiceProtocol
+    ) {
+        load(username: username, greetingService: greetingService, activityService: activityService)
+    }
+
+    func cancel() {
+        loadTask?.cancel()
+        loadTask = nil
     }
 }
 
@@ -28,42 +171,217 @@ struct AppContainer {
     @Provide(.input)
     var username: String
 
-    @Provide(
-        .shared,
-        factory: { (username: String) in
-            LiveGreetingService(username: username)
-        }
-    )
+    @Provide(.shared, factory: { LiveGreetingService() })
     var greetingService: any GreetingServiceProtocol
 
-    @Provide(
-        .transient,
-        factory: { (greetingService: any GreetingServiceProtocol) in
-            GreetingViewModel(service: greetingService)
-        },
-        concrete: true
-    )
-    var greetingViewModel: GreetingViewModel
+    @Provide(.shared, factory: { LiveActivityService() })
+    var activityService: any ActivityServiceProtocol
 }
 
-struct GreetingView: View {
-    @ObservedObject var viewModel: GreetingViewModel
+struct DashboardSkeletonView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.quaternary)
+                .frame(height: 90)
+            ForEach(0..<3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.quaternary.opacity(0.7))
+                    .frame(height: 58)
+            }
+        }
+        .redacted(reason: .placeholder)
+    }
+}
+
+struct DashboardErrorView: View {
+    let message: String
+    let retry: () -> Void
 
     var body: some View {
-        Text(viewModel.text)
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recoverable error")
+                .font(.title3.weight(.semibold))
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Retry", action: retry)
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+struct DashboardLoadedView: View {
+    let content: DashboardContent
+
+    var body: some View {
+        List {
+            Section("Summary") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(content.summary.headline)
+                        .font(.headline)
+                    Text(content.summary.status)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Highlights") {
+                ForEach(content.highlights) { highlight in
+                    NavigationLink(value: highlight) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(highlight.title)
+                                .font(.body.weight(.semibold))
+                            Text(highlight.detail)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+        }
+        .listStyle(.automatic)
+    }
+}
+
+struct HighlightDetailView: View {
+    let highlight: ActivityHighlight
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(highlight.title)
+                .font(.largeTitle.bold())
+            Text(highlight.detail)
+                .font(.body)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(24)
+        .navigationTitle("Detail")
+    }
+}
+
+struct DashboardFeatureRootView: View {
+    let username: String
+
+    @Environment(\.greetingService) private var greetingService
+    @Environment(\.activityService) private var activityService
+    @State private var model = DashboardFeatureModel()
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch model.state {
+                case .idle, .loading:
+                    DashboardSkeletonView()
+                        .padding(24)
+                case let .loaded(content):
+                    DashboardLoadedView(content: content)
+                case let .failed(message):
+                    DashboardErrorView(message: message) {
+                        model.retry(
+                            username: username,
+                            greetingService: greetingService,
+                            activityService: activityService
+                        )
+                    }
+                    .padding(24)
+                }
+            }
+            .navigationTitle(model.navigationTitle)
+            .navigationDestination(for: ActivityHighlight.self) { highlight in
+                HighlightDetailView(highlight: highlight)
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Reload") {
+                        model.retry(
+                            username: username,
+                            greetingService: greetingService,
+                            activityService: activityService
+                        )
+                    }
+                }
+            }
+        }
+        .task {
+            model.load(
+                username: username,
+                greetingService: greetingService,
+                activityService: activityService
+            )
+        }
+        .onDisappear {
+            model.cancel()
+        }
+    }
+}
+
+struct DashboardAppRootView: View {
+    let container: AppContainer
+
+    var body: some View {
+        DashboardFeatureRootView(username: container.username)
+            .environment(\.greetingService, container.greetingService)
+            .environment(\.activityService, container.activityService)
+    }
+}
+
+struct DashboardRootScenario {
+    let title: String
+    let container: AppContainer
+
+    static func live(username: String = "InnoDI") -> Self {
+        Self(
+            title: "Live",
+            container: AppContainer(username: username)
+        )
+    }
+
+    static func preview(username: String = "Preview") -> Self {
+        Self(
+            title: "Preview",
+            container: AppContainer(
+                username: username,
+                greetingService: MockGreetingService(
+                    headline: "Preview greeting injected at the feature root.",
+                    status: "Mock services can override both environment dependencies at the root boundary."
+                ),
+                activityService: MockActivityService(
+                    highlights: [
+                        ActivityHighlight(id: "preview-1", title: "Preview override", detail: "Generated init parameters still provide root-level overrides."),
+                        ActivityHighlight(id: "preview-2", title: "Retry flow", detail: "The view keeps retry and cancellation logic local to the screen model.")
+                    ]
+                )
+            )
+        )
+    }
+
+    static func failure(username: String = "Offline") -> Self {
+        Self(
+            title: "Failure",
+            container: AppContainer(
+                username: username,
+                greetingService: FailingGreetingService(),
+                activityService: MockActivityService(highlights: [])
+            )
+        )
     }
 }
 
 @main
 struct SwiftUIExampleMain {
     static func main() {
-        let liveContainer = AppContainer(username: "InnoDI")
-        _ = GreetingView(viewModel: liveContainer.greetingViewModel)
-
-        let mockContainer = AppContainer(
-            username: "Ignored",
-            greetingService: MockGreetingService(text: "Hello from mock")
-        )
-        _ = GreetingView(viewModel: mockContainer.greetingViewModel)
+        let liveScenario = DashboardRootScenario.live()
+        _ = DashboardAppRootView(container: liveScenario.container)
+        _ = DashboardAppRootView(container: DashboardRootScenario.preview().container)
+        _ = DashboardAppRootView(container: DashboardRootScenario.failure().container)
     }
 }

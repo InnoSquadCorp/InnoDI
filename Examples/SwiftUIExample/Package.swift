@@ -15,6 +15,10 @@ let package = Package(
         .executableTarget(
             name: "SwiftUIExample",
             dependencies: ["InnoDI"]
+        ),
+        .testTarget(
+            name: "SwiftUIExampleTests",
+            dependencies: ["SwiftUIExample"]
         )
     ]
 )
