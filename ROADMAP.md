@@ -26,6 +26,8 @@ or release hardening discussions and are not release blockers for `3.0.0`.
   explicit task lifecycle control.
 - Deduplicate polling and waiting helpers used across tests where it improves
   clarity without obscuring intent.
+- Add suite-level metadata tags/traits to larger Swift Testing suites once the
+  project standardizes on a single categorization convention and syntax.
 
 ### CLI and documentation polish
 - Add explicit `--help` coverage and usage tests for developer-facing tools.
