@@ -58,7 +58,7 @@ package struct ValidationIssueReport: Codable, Equatable, Sendable {
     }
 
     package var hasFailures: Bool {
-        !issues.isEmpty
+        issues.contains { $0.severity == .error }
     }
 
     package func asCommandResult() -> ValidationCommandResult? {
@@ -66,7 +66,8 @@ package struct ValidationIssueReport: Codable, Equatable, Sendable {
             return nil
         }
 
-        let stderr = ValidationIssueRenderer.renderStderr(issues: issues)
+        let failingIssues = issues.filter { $0.severity == .error }
+        let stderr = ValidationIssueRenderer.renderStderr(issues: failingIssues)
         return ValidationCommandResult(exitCode: 1, stdout: "", stderr: stderr)
     }
 }

@@ -50,11 +50,23 @@ package struct LiveValidationCommandRunner: ValidationCommandRunning {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        let stdoutBuffer = LockedDataBuffer()
+        let stderrBuffer = LockedDataBuffer()
+        installReadHandler(on: stdoutPipe.fileHandleForReading, buffer: stdoutBuffer)
+        installReadHandler(on: stderrPipe.fileHandleForReading, buffer: stderrBuffer)
+
         try process.run()
         process.waitUntilExit()
 
-        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stdoutHandle = stdoutPipe.fileHandleForReading
+        let stderrHandle = stderrPipe.fileHandleForReading
+        stdoutHandle.readabilityHandler = nil
+        stderrHandle.readabilityHandler = nil
+        stdoutBuffer.append(stdoutHandle.readDataToEndOfFile())
+        stderrBuffer.append(stderrHandle.readDataToEndOfFile())
+
+        let stdout = String(data: stdoutBuffer.data, encoding: .utf8) ?? ""
+        let stderr = String(data: stderrBuffer.data, encoding: .utf8) ?? ""
 
         return ValidationCommandResult(
             exitCode: process.terminationStatus,
@@ -345,5 +357,38 @@ private struct POSIXLockError: LocalizedError {
 
     var errorDescription: String? {
         "Failed to acquire validation lock at '\(path)' (errno: \(code))."
+    }
+}
+
+private final class LockedDataBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = Data()
+
+    var data: Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else {
+            return
+        }
+
+        lock.lock()
+        storage.append(chunk)
+        lock.unlock()
+    }
+}
+
+private func installReadHandler(on handle: FileHandle, buffer: LockedDataBuffer) {
+    handle.readabilityHandler = { readableHandle in
+        let chunk = readableHandle.availableData
+        if chunk.isEmpty {
+            readableHandle.readabilityHandler = nil
+            return
+        }
+
+        buffer.append(chunk)
     }
 }
