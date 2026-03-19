@@ -240,6 +240,70 @@ struct ValidationCoordinatorTests {
         #expect(ValidationIssueRenderer.renderStderr(issues: []) == "")
     }
 
+    @Test("Validation issue report only fails on error severity")
+    func validationIssueReportOnlyFailsOnErrors() {
+        let location = ValidationIssueLocation(filePath: "Feature.swift", line: 1, column: 1)
+        let warning = ValidationIssue(
+            code: "validation.warning",
+            severity: .warning,
+            message: "warning only",
+            location: location
+        )
+        let note = ValidationIssue(
+            code: "validation.note",
+            severity: .note,
+            message: "note only",
+            location: location
+        )
+        let error = ValidationIssue(
+            code: "validation.error",
+            severity: .error,
+            message: "error only",
+            location: location
+        )
+
+        let nonFailingReport = ValidationIssueReport(issues: [warning, note])
+        #expect(nonFailingReport.hasFailures == false)
+        #expect(nonFailingReport.asCommandResult() == nil)
+
+        let failingReport = ValidationIssueReport(issues: [warning, error, note])
+        let commandResult = failingReport.asCommandResult()
+        #expect(failingReport.hasFailures == true)
+        #expect(commandResult?.exitCode == 1)
+        #expect(commandResult?.stderr.contains("[validation.error] error only") == true)
+        #expect(commandResult?.stderr.contains("[validation.warning]") == false)
+    }
+
+    @Test("Live validation command runner drains large process output without deadlock")
+    func liveValidationCommandRunnerHandlesLargeOutput() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let scriptURL = fixture.rootURL.appendingPathComponent("emit-large-output.sh")
+        try """
+        #!/bin/sh
+        i=0
+        while [ "$i" -lt 3000 ]; do
+          printf '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\\n'
+          i=$((i + 1))
+        done
+        printf 'stderr complete\\n' >&2
+        """.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: scriptURL.path(percentEncoded: false)
+        )
+
+        let result = try LiveValidationCommandRunner().runValidationTool(
+            toolPath: scriptURL.path(percentEncoded: false),
+            rootPath: fixture.rootURL.path(percentEncoded: false)
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.count > 150_000)
+        #expect(result.stderr.contains("stderr complete"))
+    }
+
     @Test("Success result is reused for identical input signature")
     func successResultIsReused() throws {
         let fixture = try makeFixture()
