@@ -8,6 +8,13 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 
 - No unreleased entries yet.
 
+## 3.0.1
+
+### Changed
+
+- Removed `swift-docc-plugin` from the main consumer package graph so SwiftPM users only resolve runtime/build dependencies needed to use InnoDI.
+- Updated DocC generation to inject the DocC plugin only inside a temporary docs-only package during documentation builds.
+
 ## 3.0.0
 
 ### Added

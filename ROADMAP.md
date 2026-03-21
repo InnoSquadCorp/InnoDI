@@ -2,9 +2,9 @@
 
 This document tracks follow-up work that is intentionally deferred from the
 current release candidate. Items listed here came from open PR review feedback
-or release hardening discussions and are not release blockers for `3.0.0`.
+or release hardening discussions and are not release blockers for `3.0.1`.
 
-## Post-3.0.0 Follow-ups
+## Post-3.0.1 Follow-ups
 
 ### Validation coordinator robustness
 - Detect and recover stale lock files in

@@ -2,6 +2,21 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## 3.0.1
+
+### Who is affected
+
+- SwiftPM consumers that inspect resolved dependencies for InnoDI.
+
+### Required action
+
+- No code migration is required.
+
+### Notes
+
+- This patch release removes `swift-docc-plugin` from the consumer dependency graph.
+- DocC generation remains available for maintainers and CI through the docs-only generation flow.
+
 ## 3.0.0
 
 ### Who is affected
