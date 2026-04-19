@@ -13,7 +13,7 @@ public enum DIScope {
     case transient
 }
 
-@attached(member, names: named(init))
+@attached(member, names: named(init), named(Overrides), named(withOverrides))
 /// Marks a type as an InnoDI container and synthesizes initialization/validation behavior.
 ///
 /// - Parameters:

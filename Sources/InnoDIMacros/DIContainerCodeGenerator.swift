@@ -13,6 +13,25 @@ struct DIContainerCodeGenerator {
             mainActorEnabled: model.options.mainActor
         )
     }
+
+    /// Generates the full member set: primary init + (if applicable) `Overrides`
+    /// struct + convenience init + 4 `withOverrides` effect overloads.
+    ///
+    /// When the container has no `.shared`/`.transient` members, the overrides
+    /// scaffolding is skipped silently — an empty `Overrides` builder would
+    /// only add autocomplete noise.
+    static func generateAll(for model: DIContainerExpansionModel) -> [DeclSyntax] {
+        var decls: [DeclSyntax] = [generateInit(for: model)]
+
+        guard let overridesStruct = makeOverridesStructDecl(model: model) else {
+            return decls
+        }
+
+        decls.append(overridesStruct)
+        decls.append(makeConvenienceInitDecl(model: model))
+        decls.append(contentsOf: makeWithOverridesMethods(model: model))
+        return decls
+    }
 }
 
 private struct AsyncTaskBinding {
@@ -366,4 +385,331 @@ private func mainActorAttributeList() -> AttributeListSyntax {
             )
         )
     ])
+}
+
+// MARK: - Overrides builder
+
+private func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [ProvideMemberModel] {
+    model.sharedMembers + model.transientMembers
+}
+
+private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax? {
+    let candidates = overrideCandidateMembers(model)
+    guard !candidates.isEmpty else { return nil }
+
+    let modifiers = accessModifiers(model.accessLevel)
+    let memberDecls: [MemberBlockItemSyntax] = candidates.map { member in
+        let variableDecl = VariableDeclSyntax(
+            bindingSpecifier: .keyword(.var),
+            bindings: PatternBindingListSyntax([
+                PatternBindingSyntax(
+                    pattern: IdentifierPatternSyntax(identifier: .identifier(member.name)),
+                    typeAnnotation: TypeAnnotationSyntax(type: optionalParameterType(for: member.type)),
+                    initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
+                )
+            ])
+        )
+        return MemberBlockItemSyntax(decl: variableDecl)
+    }
+
+    let structDecl = StructDeclSyntax(
+        modifiers: modifiers,
+        name: .identifier("Overrides"),
+        memberBlock: MemberBlockSyntax(
+            members: MemberBlockItemListSyntax(memberDecls)
+        )
+    )
+
+    return DeclSyntax(structDecl)
+}
+
+private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSyntax {
+    let modifiers = accessModifiers(model.accessLevel)
+    let inputMembers = model.inputMembers
+    var params: [FunctionParameterSyntax] = []
+
+    for member in inputMembers {
+        // All input params have a trailing comma because the closure param
+        // always follows them.
+        let param = FunctionParameterSyntax(
+            firstName: .identifier(member.name),
+            secondName: nil,
+            colon: .colonToken(),
+            type: member.type,
+            ellipsis: nil,
+            defaultValue: nil,
+            trailingComma: .commaToken()
+        )
+        params.append(param)
+    }
+
+    // Final unnamed trailing closure parameter:
+    //   _ applyOverrides: (inout Overrides) -> Void
+    let overridesClosureType = TypeSyntax(stringLiteral: "(inout Overrides) -> Void")
+    let closureParam = FunctionParameterSyntax(
+        firstName: .wildcardToken(),
+        secondName: .identifier("applyOverrides"),
+        colon: .colonToken(),
+        type: overridesClosureType,
+        ellipsis: nil,
+        defaultValue: nil,
+        trailingComma: nil
+    )
+    params.append(closureParam)
+
+    let signature = FunctionSignatureSyntax(
+        parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params))
+    )
+
+    var statements: [CodeBlockItemSyntax] = []
+
+    // var overrides = Overrides()
+    let makeOverrides = VariableDeclSyntax(
+        bindingSpecifier: .keyword(.var),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier("overrides")),
+                initializer: InitializerClauseSyntax(
+                    value: FunctionCallExprSyntax(
+                        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("Overrides")),
+                        leftParen: .leftParenToken(),
+                        arguments: LabeledExprListSyntax([]),
+                        rightParen: .rightParenToken()
+                    )
+                )
+            )
+        ])
+    )
+    statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(makeOverrides))))
+
+    // applyOverrides(&overrides)
+    let applyCall = FunctionCallExprSyntax(
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("applyOverrides")),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([
+            LabeledExprSyntax(
+                expression: InOutExprSyntax(
+                    expression: DeclReferenceExprSyntax(baseName: .identifier("overrides"))
+                )
+            )
+        ]),
+        rightParen: .rightParenToken()
+    )
+    statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(applyCall))))
+
+    // self.init(<input args...>, <shared args...>, <transient args...>)
+    var callArgs: [LabeledExprSyntax] = []
+    let allForwardingMembers = inputMembers + model.sharedMembers + model.transientMembers
+    for (index, member) in allForwardingMembers.enumerated() {
+        let isLast = index == allForwardingMembers.count - 1
+        let valueExpr: ExprSyntax
+        if member.scope == .input {
+            // Input parameter forwarded from the outer init.
+            valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name)))
+        } else {
+            // shared / transient value pulled out of the overrides builder.
+            valueExpr = ExprSyntax(
+                MemberAccessExprSyntax(
+                    base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("overrides"))),
+                    declName: DeclReferenceExprSyntax(baseName: .identifier(member.name))
+                )
+            )
+        }
+
+        callArgs.append(
+            LabeledExprSyntax(
+                label: .identifier(member.name),
+                colon: .colonToken(),
+                expression: valueExpr,
+                trailingComma: isLast ? nil : .commaToken()
+            )
+        )
+    }
+
+    let selfInitCall = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(
+            MemberAccessExprSyntax(
+                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .keyword(.self))),
+                declName: DeclReferenceExprSyntax(baseName: .keyword(.`init`))
+            )
+        ),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax(callArgs),
+        rightParen: .rightParenToken()
+    )
+    statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(selfInitCall))))
+
+    let initDecl = InitializerDeclSyntax(
+        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        modifiers: modifiers,
+        signature: signature,
+        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
+    )
+
+    return DeclSyntax(initDecl)
+}
+
+private func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
+    let candidates = overrideCandidateMembers(model)
+    guard !candidates.isEmpty else { return [] }
+
+    return [
+        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false),
+        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true),
+        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: false),
+        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: true),
+    ]
+}
+
+private func makeWithOverridesMethod(
+    model: DIContainerExpansionModel,
+    isAsync: Bool,
+    isThrowing: Bool
+) -> DeclSyntax {
+    let accessModifiers = accessModifiers(model.accessLevel)
+    var modifiers = accessModifiers
+    modifiers.append(DeclModifierSyntax(name: .keyword(.static)))
+
+    let inputMembers = model.inputMembers
+    var params: [FunctionParameterSyntax] = []
+
+    for member in inputMembers {
+        let param = FunctionParameterSyntax(
+            firstName: .identifier(member.name),
+            secondName: nil,
+            colon: .colonToken(),
+            type: member.type,
+            ellipsis: nil,
+            defaultValue: nil,
+            trailingComma: .commaToken()
+        )
+        params.append(param)
+    }
+
+    let applyOverridesParam = FunctionParameterSyntax(
+        firstName: .wildcardToken(),
+        secondName: .identifier("applyOverrides"),
+        colon: .colonToken(),
+        type: TypeSyntax(stringLiteral: "(inout Overrides) -> Void"),
+        ellipsis: nil,
+        defaultValue: nil,
+        trailingComma: .commaToken()
+    )
+    params.append(applyOverridesParam)
+
+    // operation: (Self) [async] [throws] -> T
+    var operationTypeDescription = "(Self) "
+    if isAsync { operationTypeDescription += "async " }
+    if isThrowing { operationTypeDescription += "throws " }
+    operationTypeDescription += "-> T"
+    let operationParam = FunctionParameterSyntax(
+        firstName: .identifier("operation"),
+        secondName: nil,
+        colon: .colonToken(),
+        type: TypeSyntax(stringLiteral: operationTypeDescription),
+        ellipsis: nil,
+        defaultValue: nil,
+        trailingComma: nil
+    )
+    params.append(operationParam)
+
+    // <T>
+    let genericParameterClause = GenericParameterClauseSyntax(
+        leftAngle: .leftAngleToken(),
+        parameters: GenericParameterListSyntax([
+            GenericParameterSyntax(name: .identifier("T"))
+        ]),
+        rightAngle: .rightAngleToken()
+    )
+
+    // `async throws` effects
+    var effectSpecifiers: FunctionEffectSpecifiersSyntax? = nil
+    if isAsync || isThrowing {
+        effectSpecifiers = FunctionEffectSpecifiersSyntax(
+            asyncSpecifier: isAsync ? .keyword(.async) : nil,
+            throwsClause: isThrowing
+                ? ThrowsClauseSyntax(throwsSpecifier: .keyword(.throws))
+                : nil
+        )
+    }
+
+    let returnClause = ReturnClauseSyntax(
+        arrow: .arrowToken(),
+        type: TypeSyntax(stringLiteral: "T")
+    )
+
+    let signature = FunctionSignatureSyntax(
+        parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params)),
+        effectSpecifiers: effectSpecifiers,
+        returnClause: returnClause
+    )
+
+    // Body: let container = Self(<inputs...>, applyOverrides)
+    //       return [try] [await] operation(container)
+    var statements: [CodeBlockItemSyntax] = []
+
+    var callArgs: [LabeledExprSyntax] = []
+    for member in inputMembers {
+        callArgs.append(
+            LabeledExprSyntax(
+                label: .identifier(member.name),
+                colon: .colonToken(),
+                expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))),
+                trailingComma: .commaToken()
+            )
+        )
+    }
+    callArgs.append(
+        LabeledExprSyntax(
+            expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("applyOverrides")))
+        )
+    )
+
+    let selfCall = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(DeclReferenceExprSyntax(baseName: .keyword(.Self))),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax(callArgs),
+        rightParen: .rightParenToken()
+    )
+
+    let containerDecl = VariableDeclSyntax(
+        bindingSpecifier: .keyword(.let),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier("container")),
+                initializer: InitializerClauseSyntax(value: selfCall)
+            )
+        ])
+    )
+    statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(containerDecl))))
+
+    let operationCall = FunctionCallExprSyntax(
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("operation")),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([
+            LabeledExprSyntax(expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("container"))))
+        ]),
+        rightParen: .rightParenToken()
+    )
+    var returnExpr: ExprSyntax = ExprSyntax(operationCall)
+    if isAsync {
+        returnExpr = ExprSyntax(AwaitExprSyntax(expression: returnExpr))
+    }
+    if isThrowing {
+        returnExpr = ExprSyntax(TryExprSyntax(expression: returnExpr))
+    }
+
+    let returnStmt = ReturnStmtSyntax(expression: returnExpr)
+    statements.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(returnStmt))))
+
+    let funcDecl = FunctionDeclSyntax(
+        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        modifiers: modifiers,
+        name: .identifier("withOverrides"),
+        genericParameterClause: genericParameterClause,
+        signature: signature,
+        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
+    )
+
+    return DeclSyntax(funcDecl)
 }
