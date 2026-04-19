@@ -116,15 +116,42 @@ The project uses a layered architecture with four main modules:
 
 ### How the Macros Work
 
-**@DIContainer** generates:
-- An `init` with parameters for:
-  - `.input` scoped properties (required parameters)
-  - `.shared` and `.transient` scoped properties (optional override parameters)
-- No separate `Overrides` struct is generated in the current architecture
-- The init body:
-  1. Assigns all `.input` properties to generated storage
-  2. Resolves `.shared` properties with `override ?? factory`
-  3. Stores `.transient` overrides for accessor-time usage
+**@DIContainer** generates up to four kinds of declarations:
+
+1. **Primary `init`** with parameters for:
+   - `.input` scoped properties (required parameters)
+   - `.shared` and `.transient` scoped properties (optional override parameters)
+   The init body:
+   1. Assigns all `.input` properties to generated storage
+   2. Resolves `.shared` properties with `override ?? factory`
+   3. Stores `.transient` overrides for accessor-time usage
+
+2. **Nested `struct Overrides`** — one optional stored property per `.shared` /
+   `.transient` member, all defaulting to `nil`. Access level mirrors the
+   container. Emitted only when the container has at least one `.shared` or
+   `.transient` member (input-only containers skip all builder scaffolding).
+
+3. **Convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)`**
+   that constructs an `Overrides`, lets the closure populate named members,
+   then delegates to the primary init. Propagates `@MainActor` when set.
+
+4. **Four `static func withOverrides<T>` effect overloads**
+   (`sync` / `throws` / `async` / `async throws`) — thin wrappers that call
+   the convenience init with a `Self(...)` and run a caller-supplied
+   `operation` closure against it.
+
+The `@attached(member, names:)` declaration in `Sources/InnoDI/InnoDI.swift`
+must enumerate `named(init)`, `named(Overrides)`, and `named(withOverrides)`;
+omitting any of these causes the Swift compiler to reject the synthesized
+declarations at use sites.
+
+**User-defined `Overrides` type caveat**: If the container body already
+declares a nested `Overrides` (struct/class/enum/actor/typealias), the macro
+emits the `container.overrides-name-conflict` warning (see
+`Sources/InnoDIMacros/DIContainerParser.swift::findOverridesNameConflict`)
+and skips generating (2)–(4); only the primary init is emitted. Detection
+lives in `DIContainerParser` and short-circuits inside
+`DIContainerMacro.expansion(...)` before `generateAll`.
 
 **@Provide** scope semantics:
 - `.shared`: Singleton-like dependencies created by factory in init (requires `factory:` parameter)
@@ -159,8 +186,16 @@ The generated `init` inherits the access level of the container type (public, in
 When modifying macro behavior:
 1. Update parsing logic in `InnoDICore/Parsing.swift` first
 2. Update macro expansion in `InnoDIMacros/DIContainerMacro.swift`
-3. Add test cases to `Tests/InnoDIMacrosTests/`
-4. Consider CLI implications in `Sources/InnoDI-DependencyGraph/` modules (`Collectors`, `Rendering`, `Output`, `CLI`)
+3. If you introduce a new generated declaration name, add it to
+   `@attached(member, names: …)` in `Sources/InnoDI/InnoDI.swift` — otherwise
+   the compiler rejects the synthesized decls at use sites (this burned the
+   `Overrides` / `withOverrides` builder rollout; failure mode was
+   "type has no member 'withOverrides'").
+4. Add test cases to `Tests/InnoDIMacrosTests/` (and
+   `Tests/InnoDIRuntimeTests/` when the change is observable at runtime — the
+   runtime target depends on `InnoDI` only, so it compiles against real macro
+   output end-to-end).
+5. Consider CLI implications in `Sources/InnoDI-DependencyGraph/` modules (`Collectors`, `Rendering`, `Output`, `CLI`)
 
 When adding diagnostics:
 - Use `SimpleDiagnostic` for error messages
