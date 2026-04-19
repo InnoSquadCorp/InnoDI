@@ -28,6 +28,13 @@ let package = Package(
         ),
         .target(
             name: "InnoDITestSupport",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacroExpansion", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
+            ],
             path: "Tests/TestSupport"
         ),
         .target(
@@ -90,7 +97,9 @@ let package = Package(
                 "InnoDIMacros",
                 "InnoDITestSupport",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-            ]
+                .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
+            ],
+            exclude: ["__Snapshots__"]
         ),
         .testTarget(
             name: "InnoDIDependencyGraphCLITests",
