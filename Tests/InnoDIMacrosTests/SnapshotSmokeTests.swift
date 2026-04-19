@@ -125,7 +125,11 @@ struct SnapshotSmokeTests {
 ///
 /// All tests write into `FileManager.default.temporaryDirectory` and clean
 /// up in `defer`, so the real `__Snapshots__` tree is never touched.
-@Suite("Snapshot storage helpers")
+///
+/// This suite runs serialized because `isSnapshotRecordModeEnabled()` reads a
+/// process-global environment variable that other snapshot tests also consult
+/// at runtime.
+@Suite("Snapshot storage helpers", .serialized)
 struct SnapshotStorageTests {
     @Test("Record-mode detection follows the env var")
     func recordModeTogglesWithEnvVar() throws {
