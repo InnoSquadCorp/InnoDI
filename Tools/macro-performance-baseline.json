@@ -1,11 +1,11 @@
 {
-  "updated_at": "2026-02-22T11:21:27Z",
-  "swift_version": "Apple Swift version 6.2.1 (swiftlang-6.2.1.4.8 clang-1700.4.4.1)",
+  "updated_at": "2026-04-19T08:27:16Z",
+  "swift_version": "Apple Swift version 6.3 (swiftlang-6.3.0.123.5 clang-2100.0.123.102)",
   "filter": "InnoDIMacrosTests",
-  "iterations": 3,
-  "mean_ms": 640.770,
-  "min_ms": 627.319,
-  "max_ms": 652.949,
-  "stdev_ms": 10.502,
-  "samples_ms": [642.043, 652.949, 627.319]
+  "iterations": 5,
+  "mean_ms": 914.524,
+  "min_ms": 877.946,
+  "max_ms": 957.847,
+  "stdev_ms": 30.269,
+  "samples_ms": [929.141, 957.847, 901.829, 905.857, 877.946]
 }
