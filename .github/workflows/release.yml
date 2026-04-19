@@ -17,20 +17,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select Xcode 26.3
+        # Pin to Xcode 26.3 (Swift 6.3). Release gate runs the validation
+        # benchmark and DocC generation — consistency across runs requires a
+        # single known toolchain.
         run: |
-          if [[ -d /Applications/Xcode_26.2.app/Contents/Developer ]]; then
-            DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer
-          elif [[ -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
-            DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
-          elif [[ -d /Applications/Xcode_26.1.1.app/Contents/Developer ]]; then
-            DEVELOPER_DIR=/Applications/Xcode_26.1.1.app/Contents/Developer
-          else
-            echo "No supported Xcode 26.x installation found under /Applications."
+          if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+            echo "Xcode 26.3 not installed on this runner."
             ls -1 /Applications | grep '^Xcode' || true
             exit 1
           fi
-          sudo xcode-select -s "$DEVELOPER_DIR"
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
           swift --version
 

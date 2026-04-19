@@ -1,12 +1,21 @@
 import Foundation
+import InnoDITestSupport
 import SwiftParser
 import SwiftSyntax
+import SwiftSyntaxMacros
 import Testing
 
 @testable import InnoDIMacros
 
 @Suite("Provide Macro Tests")
 struct ProvideMacroTests {
+    private static let macros: [String: any Macro.Type] = [
+        "DIContainer": DIContainerMacro.self,
+        "Provide": ProvideMacro.self,
+    ]
+
+    // MARK: - Parsing tests (no expansion)
+
     @Test
     func parseProvideAttributes() throws {
         let source = """
@@ -66,193 +75,6 @@ struct ProvideMacroTests {
         #expect(args.dependencies == ["config", "logger"])
     }
 
-    @Test
-    func transientFactoryClosureInjectsDependenciesByParameterName() throws {
-        let source = """
-        @Provide(.transient, factory: { (apiClient: APIClient) in ViewModel(apiClient: apiClient) })
-        var viewModel: ViewModel
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide with transient factory closure")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: varDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"get{if let override = _override_viewModel { return override }return { (apiClient: APIClient) in ViewModel(apiClient: apiClient) }(self.apiClient)}"#
-        #expect(generated == expected)
-    }
-
-    @Test
-    func transientFactoryClosureWithNoParametersDoesNotInjectDependencies() throws {
-        let source = """
-        @Provide(.transient, factory: { ViewModel() })
-        var viewModel: ViewModel
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide with parameterless transient factory closure")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: varDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"get{if let override = _override_viewModel { return override }return { ViewModel() }()}"#
-        #expect(generated == expected)
-    }
-
-    @Test
-    func transientFactoryClosureInjectsAllDependenciesForMultipleParameters() throws {
-        let source = """
-        @Provide(.transient, factory: { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) })
-        var viewModel: ViewModel
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide with multi-parameter transient factory closure")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: varDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"get{if let override = _override_viewModel { return override }return { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) }(self.apiClient,self.logger)}"#
-        #expect(generated == expected)
-    }
-
-    @Test("Transient type factory with with: injects dependencies via accessors")
-    func transientTypeFactoryWithDependenciesUsesAccessorInjection() throws {
-        let source = """
-        struct AppContainer {
-            @Provide(.input)
-            var config: Config
-
-            @Provide(.transient, ViewModel.self, with: [\\.config])
-            var viewModel: ViewModel
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let targetVarDecl = decl.memberBlock.members
-                  .compactMap({ $0.decl.as(VariableDeclSyntax.self) })
-                  .first(where: { varDecl in
-                      guard let binding = varDecl.bindings.first,
-                            let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-                          return false
-                      }
-                      return identifier.identifier.text == "viewModel"
-                  }),
-              let attr = targetVarDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse target @Provide(.transient, Type.self, with: ...)")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: targetVarDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"get{if let override = _override_viewModel { return override }return ViewModel(config:self.config)}"#
-        #expect(generated == expected)
-        #expect(context.diagnostics.isEmpty)
-    }
-
-    @Test
-    func transientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() throws {
-        let source = """
-        @Provide(.transient, factory: { (_: APIClient, logger: Logger) in ViewModel(logger: logger) })
-        var viewModel: ViewModel
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide with underscore transient factory closure")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: varDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"get{fatalError("Transient factory closure parameters must be named for injection.")}"#
-        #expect(generated == expected)
-        #expect(context.diagnostics.map(\.diagnosticID) == [InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID])
-    }
-
-    @Test("Transient accessor avoids generating broken self references for unknown parameters")
-    func transientFactoryClosureWithUnknownParameterFallsBackToFatalErrorGetter() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input)
-            var apiClient: APIClient
-
-            @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) })
-            var viewModel: ViewModel
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let targetVarDecl = decl.memberBlock.members
-                  .compactMap({ $0.decl.as(VariableDeclSyntax.self) })
-                  .first(where: { varDecl in
-                      guard let binding = varDecl.bindings.first,
-                            let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-                          return false
-                      }
-                      return identifier.identifier.text == "viewModel"
-                  }),
-              let attr = targetVarDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse transient unknown parameter case")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: targetVarDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"get{fatalError("Transient dependency resolution failed validation.")}"#
-        #expect(generated == expected)
-    }
-
     @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
     func parseClosureParameterNamesSkipsWildcard() throws {
         let source = """
@@ -273,32 +95,166 @@ struct ProvideMacroTests {
         #expect(parameterList.names == ["logger"])
     }
 
-    @Test("Async transient factory generates async accessor")
-    func asyncTransientFactoryGeneratesAsyncAccessor() throws {
-        let source = """
-        @Provide(.transient, asyncFactory: { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) })
-        var viewModel: ViewModel
-        """
+    // MARK: - Accessor/peer expansion tests (migrated to snapshot/inline)
 
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide with async transient factory closure")
-            return
-        }
+    @Test("Transient factory closure injects dependencies by parameter name")
+    func transientFactoryClosureInjectsDependenciesByParameterName() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
 
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: varDecl,
-            in: context
+                @Provide(.transient, factory: { (apiClient: APIClient) in ViewModel(apiClient: apiClient) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """,
+            matches: "transientFactoryClosureInjectsDependenciesByParameterName",
+            macros: Self.macros
         )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"getasync{if let override = _override_viewModel { return override }return await { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) }(self.apiClient)}"#
-        #expect(generated == expected)
-        #expect(context.diagnostics.isEmpty)
     }
+
+    @Test("Transient factory closure with no parameters does not inject dependencies")
+    func transientFactoryClosureWithNoParametersDoesNotInjectDependencies() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { ViewModel() }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """,
+            matches: "transientFactoryClosureWithNoParametersDoesNotInjectDependencies",
+            macros: Self.macros
+        )
+    }
+
+    @Test("Transient factory closure injects all dependencies for multiple parameters")
+    func transientFactoryClosureInjectsAllDependenciesForMultipleParameters() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.input)
+                var logger: Logger
+
+                @Provide(.transient, factory: { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """,
+            matches: "transientFactoryClosureInjectsAllDependenciesForMultipleParameters",
+            macros: Self.macros
+        )
+    }
+
+    @Test("Transient type factory with with: injects dependencies via accessors")
+    func transientTypeFactoryWithDependenciesUsesAccessorInjection() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, ViewModel.self, with: [\\.config], concrete: true)
+                var viewModel: ViewModel
+            }
+            """,
+            matches: "transientTypeFactoryWithDependenciesUsesAccessorInjection",
+            macros: Self.macros
+        )
+    }
+
+    @Test("Transient factory closure with underscore parameter emits diagnostic")
+    func transientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() {
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var logger: Logger
+
+                @Provide(.transient, factory: { (_: APIClient, logger: Logger) in ViewModel(logger: logger) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [
+                // Emitted by the container validator (DIContainer phase) and
+                // again by the accessor macro when it encounters the wildcard
+                // parameter — both are intentional and surface at different
+                // source locations.
+                InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
+                InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Transient accessor avoids generating broken self references for unknown parameters")
+    func transientFactoryClosureWithUnknownParameterFallsBackToFatalErrorGetter() {
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [InnoDIDiagnosticCode.provideUnresolvedFactoryParameter.messageID],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Async transient factory generates async accessor")
+    func asyncTransientFactoryGeneratesAsyncAccessor() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, asyncFactory: { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """,
+            matches: "asyncTransientFactoryGeneratesAsyncAccessor",
+            macros: Self.macros
+        )
+    }
+
+    @Test("Container mainActor option applies MainActor to generated accessor")
+    func mainActorContainerAppliesMainActorToAccessor() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.transient, factory: Service(), concrete: true)
+                var service: Service
+            }
+            """,
+            matches: "mainActorContainerAppliesMainActorToAccessor",
+            macros: Self.macros
+        )
+    }
+
+    // MARK: - Peer + accessor dual-phase verification (kept as direct expansion)
+    //
+    // This test intentionally calls both PeerMacro and AccessorMacro phases
+    // separately to verify the Task storage peer decl is generated alongside
+    // the async getter. Full-expansion assertions would drop the peer decl
+    // because SwiftSyntaxMacroExpansion inlines peers into the enclosing type.
 
     @Test("Async shared factory generates task storage peer and async getter")
     func asyncSharedFactoryGeneratesTaskStorageAndAsyncGetter() throws {
@@ -332,37 +288,7 @@ struct ProvideMacroTests {
         #expect(accessorGenerated == #"getasync{return await _storage_task_service.value}"#)
     }
 
-    @Test("Container mainActor option applies MainActor to generated accessor")
-    func mainActorContainerAppliesMainActorToAccessor() throws {
-        let source = """
-        @DIContainer(mainActor: true)
-        struct AppContainer {
-            @Provide(.transient, factory: Service(), concrete: true)
-            var service: Service
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let targetVarDecl = decl.memberBlock.members
-                .compactMap({ $0.decl.as(VariableDeclSyntax.self) })
-                .first,
-              let attr = targetVarDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @DIContainer(mainActor: true) with @Provide")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
-            providingAccessorsOf: targetVarDecl,
-            in: context
-        )
-
-        let generated = accessors.map(\.description).joined(separator: "\n")
-        let expected = #"@MainActorget{if let override = _override_service { return override }return Service()}"#
-        #expect(generated == expected)
-    }
+    // MARK: - Public API presence
 
     @Test("Public Provide macro declaration allows async shared task storage peers")
     func provideMacroDeclarationIncludesStorageTaskPrefix() throws {
