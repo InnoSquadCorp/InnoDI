@@ -26,23 +26,23 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         switch parseResult.scope {
         case .transient:
             let overrideName = "_override_\(name)"
-            let decl: DeclSyntax = "private let \(raw: overrideName): \(type)?"
-            return [decl]
+            return [storagePeerDecl(name: overrideName, type: type, optional: true)]
         case .shared:
             if parseResult.asyncFactoryExpr != nil {
                 let storageName = "_storage_task_\(name)"
                 let successType = taskSuccessTypeDescription(from: type)
                 let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
-                let decl: DeclSyntax = "private let \(raw: storageName): Task<\(raw: successType), \(raw: failureType)>"
-                return [decl]
+                return [taskStoragePeerDecl(
+                    name: storageName,
+                    successType: successType,
+                    failureType: failureType
+                )]
             }
             let storageName = "_storage_\(name)"
-            let decl: DeclSyntax = "private let \(raw: storageName): \(type)"
-            return [decl]
+            return [storagePeerDecl(name: storageName, type: type, optional: false)]
         case .input:
             let storageName = "_storage_\(name)"
-            let decl: DeclSyntax = "private let \(raw: storageName): \(type)"
-            return [decl]
+            return [storagePeerDecl(name: storageName, type: type, optional: false)]
         case .none:
             return []
         }
@@ -68,15 +68,16 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         case .shared:
             if parseResult.asyncFactoryExpr != nil {
                 let storageName = "_storage_task_\(name)"
-                let valueExpr: String
-                if parseResult.asyncFactoryIsThrowing {
-                    valueExpr = "try await \(storageName).value"
-                } else {
-                    valueExpr = "await \(storageName).value"
-                }
+                let valueExpr = ExprSyntax(MemberAccessExprSyntax(
+                    base: DeclReferenceExprSyntax(baseName: .identifier(storageName)),
+                    declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+                ))
                 let getter = makeGetter(
                     statements: [
-                        CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: valueExpr)")))
+                        awaitedReturnStmt(
+                            expr: valueExpr,
+                            isThrowing: parseResult.asyncFactoryIsThrowing
+                        )
                     ],
                     isAsync: true,
                     isThrowing: parseResult.asyncFactoryIsThrowing,
@@ -88,7 +89,9 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             let storageName = "_storage_\(name)"
             let getter = makeGetter(
                 statements: [
-                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: storageName)")))
+                    returnStmt(expr: ExprSyntax(
+                        DeclReferenceExprSyntax(baseName: .identifier(storageName))
+                    ))
                 ],
                 isAsync: false,
                 isThrowing: false,
@@ -100,7 +103,9 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             let storageName = "_storage_\(name)"
             let getter = makeGetter(
                 statements: [
-                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: storageName)")))
+                    returnStmt(expr: ExprSyntax(
+                        DeclReferenceExprSyntax(baseName: .identifier(storageName))
+                    ))
                 ],
                 isAsync: false,
                 isThrowing: false,
@@ -124,11 +129,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                 )]
             }
             
-            let overrideCheck = CodeBlockItemSyntax(item: .stmt(StmtSyntax(
-                """
-                if let override = \(raw: overrideName) { return override }
-                """
-            )))
+            let overrideCheck = overrideCheckStmt(overrideName: overrideName)
 
             if let asyncFactory = parseResult.asyncFactoryExpr {
                 var createExpr: ExprSyntax
@@ -154,17 +155,13 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                     createExpr = asyncFactory
                 }
 
-                let awaitedExpr: String
-                if parseResult.asyncFactoryIsThrowing {
-                    awaitedExpr = "try await \(createExpr)"
-                } else {
-                    awaitedExpr = "await \(createExpr)"
-                }
-
                 let getter = makeGetter(
                     statements: [
                         overrideCheck,
-                        CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(raw: awaitedExpr)")))
+                        awaitedReturnStmt(
+                            expr: createExpr,
+                            isThrowing: parseResult.asyncFactoryIsThrowing
+                        )
                     ],
                     isAsync: true,
                     isThrowing: parseResult.asyncFactoryIsThrowing,
@@ -226,19 +223,19 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             let getter = makeGetter(
                 statements: [
                     overrideCheck,
-                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("return \(createExpr)")))
+                    returnStmt(expr: createExpr)
                 ],
                 isAsync: false,
                 isThrowing: false,
                 isMainActor: enclosingContainerMainActor
             )
-            
+
             return [getter]
-            
+
         case .none:
             let getter = makeGetter(
                 statements: [
-                    CodeBlockItemSyntax(item: .stmt(StmtSyntax("fatalError(\"Unknown scope\")")))
+                    fatalErrorStmt(message: "Unknown scope")
                 ],
                 isAsync: false,
                 isThrowing: false,
