@@ -4,5 +4,11 @@
 Tests/InnoDIMacrosTests/__Snapshots__/**/*.swift linguist-generated=true
 Tests/InnoDIMacrosTests/__Snapshots__/**/*.swift text eol=lf
 
+# CLI 렌더러 스냅샷 (Mermaid/DOT/ASCII stdout)은 `Tools/record-cli-snapshots.sh`
+# 또는 `INNODI_RECORD_SNAPSHOTS=1 swift test --filter InnoDIDependencyGraphCLITests`
+# 로 재기록한다. 역시 손으로 편집하지 말 것.
+Tests/InnoDIDependencyGraphCLITests/__Snapshots__/**/*.txt linguist-generated=true
+Tests/InnoDIDependencyGraphCLITests/__Snapshots__/**/*.txt text eol=lf
+
 # NOTE: 향후 swift-format / SwiftLint 등을 도입하는 경우 이 경로를 제외 룰에
 # 추가해 포매터가 스냅샷을 자동 재작성해 비교가 깨지는 것을 막을 것.
