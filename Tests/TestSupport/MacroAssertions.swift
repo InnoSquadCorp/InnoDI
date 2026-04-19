@@ -4,7 +4,7 @@ import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxMacroExpansion
 import SwiftSyntaxMacros
-import SwiftSyntaxMacrosGenericTestSupport
+@_spi(Testing) import SwiftSyntaxMacrosGenericTestSupport
 import Testing
 
 /// Environment variable that, when set to "1", makes snapshot assertions record
@@ -84,13 +84,15 @@ public func assertMacroExpansionSnapshot(
         column: Int(column)
     )
 
-    let (expansion, contextDiagnostics) = expand(
+    let expansionResult = expand(
         originalSource,
         macros: macros,
         testModuleName: testModuleName,
         testFileName: testFileName,
         indentationWidth: indentationWidth
     )
+    let expansion = expansionResult.expansion
+    let contextDiagnostics = expansionResult.diagnostics
 
     if contextDiagnostics.count != diagnostics.count {
         let debug = contextDiagnostics.map(\.debugDescription).joined(separator: "\n")
@@ -99,6 +101,17 @@ public func assertMacroExpansionSnapshot(
             \(debug)
             """
         Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
+    } else {
+        let expansionContext = DiagnosticAssertionContext.macroExpansion(expansionResult.context)
+
+        for (actual, expected) in zip(contextDiagnostics, diagnostics) {
+            assertDiagnostic(
+                actual,
+                in: expansionContext,
+                expected: expected,
+                failureHandler: recordFailure(_:)
+            )
+        }
     }
 
     let snapshotURL = snapshotFileURL(for: snapshot, callerFilePath: "\(filePath)")
@@ -174,13 +187,14 @@ public func assertMacroExpansionDiagnosticCodes(
         column: Int(column)
     )
 
-    let (_, contextDiagnostics) = expand(
+    let expansionResult = expand(
         originalSource,
         macros: macros,
         testModuleName: testModuleName,
         testFileName: testFileName,
         indentationWidth: indentationWidth
     )
+    let contextDiagnostics = expansionResult.diagnostics
 
     let observed = contextDiagnostics.map { $0.diagnosticID }
     let expectedCounts = frequencyMap(expectedCodes)
@@ -210,9 +224,9 @@ private func frequencyMap(_ ids: [MessageID]) -> [String: Int] {
 }
 
 private func describe(_ id: MessageID) -> String {
-    // MessageID's stored properties are private; fall back to its own stable
-    // `debugDescription`, which is formatted as `<domain>/<id>`.
-    String(describing: id)
+    // MessageID's stored properties are private; use its reflected debug-style
+    // representation, which is formatted as `<domain>/<id>`.
+    String(reflecting: id)
 }
 
 // MARK: - Internals
@@ -223,7 +237,11 @@ private func expand(
     testModuleName: String,
     testFileName: String,
     indentationWidth: Trivia
-) -> (expansion: String, diagnostics: [SwiftDiagnostics.Diagnostic]) {
+) -> (
+    expansion: String,
+    diagnostics: [SwiftDiagnostics.Diagnostic],
+    context: BasicMacroExpansionContext
+) {
     let specs = macros.mapValues { MacroSpec(type: $0) }
     let origSourceFile = Parser.parse(source: originalSource)
     let context = BasicMacroExpansionContext(
@@ -236,7 +254,7 @@ private func expand(
         },
         indentationWidth: indentationWidth
     )
-    return (expandedSourceFile.description, context.diagnostics)
+    return (expandedSourceFile.description, context.diagnostics, context)
 }
 
 private func snapshotFileURL(for snapshot: String, callerFilePath: String) -> URL {

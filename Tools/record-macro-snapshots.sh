@@ -26,10 +26,15 @@ echo "Recording macro snapshots with filter: ${FILTER}"
 echo "(INNODI_RECORD_SNAPSHOTS=1 — snapshot files will be (re)written.)"
 echo
 
+set +e
 INNODI_RECORD_SNAPSHOTS=1 swift test --filter "${FILTER}"
+test_exit_code=$?
+set -e
 
 echo
 echo "Snapshot recording complete. Review the diff and re-run tests without"
 echo "INNODI_RECORD_SNAPSHOTS to verify the new snapshots compare cleanly:"
 echo
 echo "    swift test --filter ${FILTER}"
+
+exit "${test_exit_code}"

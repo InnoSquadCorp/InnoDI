@@ -1,4 +1,5 @@
 import InnoDITestSupport
+import SwiftDiagnostics
 import SwiftSyntaxMacros
 import Testing
 
@@ -53,6 +54,44 @@ struct SnapshotSmokeTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
+                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. Prefer protocol types when possible.",
+                    line: 3,
+                    column: 5,
+                    notes: [
+                        NoteSpec(
+                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            line: 3,
+                            column: 5
+                        ),
+                        NoteSpec(
+                            message: "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
+                            line: 4,
+                            column: 9
+                        ),
+                    ],
+                    fixIts: [FixItSpec(message: "Add concrete: true")]
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Snapshot helper validates diagnostics when requested")
+    func concreteOptInDiagnosticSnapshot() {
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: APIClient())
+                var apiClient: APIClient
+            }
+            """
+
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "concreteOptInDiagnosticSnapshot",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
                     message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. Prefer protocol types when possible.",
                     line: 3,
                     column: 5,
