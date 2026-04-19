@@ -23,7 +23,8 @@ belongs in `InnoNetwork`.
 - **Multiple scopes**: `shared`, `input`, and `transient` lifecycle management
 - **AutoWiring**: Simplified syntax with `Type.self` and `with:` dependencies
 - **Strict name-based resolution**: Factory parameters and `with:` dependencies resolve by member name only
-- **Init Override**: Direct mock injection via init parameters (no separate Overrides struct)
+- **Init Override**: Direct mock injection via init parameters, plus a named `Overrides` builder with a trailing-closure convenience init and `withOverrides` helpers
+
 - **Protocol-first design**: Encourage DIP compliance with `concrete` opt-in
 
 ## Installation
@@ -101,7 +102,14 @@ Release and maintenance references:
 
 ### `@DIContainer`
 
-Marks a struct as a DI container. Generates `init(...)` with optional override parameters.
+Marks a struct as a DI container. Generates:
+
+1. A primary `init(...)` with required `.input` parameters and optional overrides for `.shared` / `.transient` members.
+2. When the container declares any `.shared` or `.transient` member, a nested `struct Overrides` (see [Testing with the Overrides builder](#testing-with-the-overrides-builder)).
+3. A convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` that funnels named overrides into the primary init.
+4. Four `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)` effect overloads — `sync` / `throws` / `async` / `async throws` — that build a scoped container and run an operation against it.
+
+Input-only containers, and containers where the user declares their own nested `Overrides` type, skip the scaffolding (see [User-defined Overrides conflict](#user-defined-overrides-conflict)).
 
 `@DIContainer` does not support user-defined `init` declarations in the annotated type or any extension.
 Macro validation rejects body and same-file extension `init` declarations, and the build plugin extends the same rule to cross-file extensions. Boundary details such as generic/constrained exclusions and conservative fallback rules are documented in `PolicyBoundaries`.
@@ -313,6 +321,96 @@ init(baseURL: String, apiClient: (any APIClientProtocol)? = nil)
 - `.input` parameters are required
 - `.shared` and `.transient` parameters are optional with `nil` default
 - When `nil`, the factory creates the instance; when provided, uses the injected value
+
+## Testing with the Overrides builder
+
+Positional overrides on the generated init work, but they force every test to
+restate every optional parameter. For containers with any `.shared` or
+`.transient` member, `@DIContainer` additionally emits a named builder so tests
+only touch the members they actually want to replace.
+
+### Convenience init with a trailing closure
+
+Use the trailing-closure convenience init when you want to hold on to the
+container yourself:
+
+```swift
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var baseURL: String
+
+    @Provide(.shared, factory: { APIClient(baseURL: baseURL) })
+    var apiClient: any APIClientProtocol
+
+    @Provide(.transient, factory: { (apiClient: any APIClientProtocol) in
+        HomeViewModel(api: apiClient)
+    }, concrete: true)
+    var homeViewModel: HomeViewModel
+}
+
+let container = AppContainer(baseURL: "https://test.example.com") {
+    $0.apiClient = MockAPIClient()
+}
+// container.apiClient is MockAPIClient
+// container.homeViewModel resolves through the mocked apiClient
+```
+
+Only the members you set on the builder are overridden; the rest still flow
+through the original factories. Shared overrides cascade: downstream
+`.transient` factories that read the shared member observe the mock.
+
+### `withOverrides` scoped operation
+
+When you want override lifetime bound to a single operation — mirroring
+`swift-dependencies`' `withDependencies { } operation:` style — use the
+generated `static withOverrides`:
+
+```swift
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.homeViewModel.load()
+}
+```
+
+Four overloads are generated for every effect shape, so you never have to
+`try await` a synchronous callsite:
+
+| Overload | Signature shape |
+|---|---|
+| sync, non-throwing | `(Container) -> T` |
+| sync, throwing | `(Container) throws -> T` |
+| async, non-throwing | `(Container) async -> T` |
+| async, throwing | `(Container) async throws -> T` |
+
+All generated builder surfaces inherit the container's access level (`public`
+containers produce `public` builders) and propagate `@MainActor` when the
+container is main-actor isolated.
+
+### Async `.shared` overrides
+
+Async-factory `.shared` members appear on the builder as plain optional values
+(`var apiClient: APIClient? = nil`), *not* as `Task<APIClient, …>?`. The
+generated init still wraps the resolved value in the same task-backed accessor
+used in production — overriding just short-circuits the factory with the value
+you supplied.
+
+### `.transient` overrides return the stored value
+
+Setting a `.transient` override returns **that exact value** on every access
+of the accessor (overrides bypass the per-access factory). This matches the
+convenience init's semantics and makes it trivial to pin a single value for
+assertion.
+
+### User-defined `Overrides` conflict
+
+If your container already declares a nested `Overrides` type (`struct`,
+`class`, `enum`, `actor`, or `typealias`), the macro emits the
+`container.overrides-name-conflict` warning and **skips generating** the
+`Overrides` struct, the convenience init, and the `withOverrides` overloads —
+the primary init is unchanged. Rename your type to restore the builder API, or
+leave it in place to keep your own implementation.
 
 ## Dependency Graph Visualization
 

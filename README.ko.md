@@ -11,7 +11,7 @@ Swift Macro 기반의 타입 안전한 의존성 주입 라이브러리입니다
 - 스코프 지원: `shared`, `input`, `transient`
 - AutoWiring: `Type.self` + `with:`로 간결한 선언
 - 엄격한 이름 기반 해석: 팩토리 파라미터와 `with:` 의존성은 멤버 이름으로만 해석
-- Init Override: 테스트 시 의존성 직접 주입 가능
+- Init Override: 테스트 시 의존성 직접 주입 가능 (위치 파라미터 + 명명 `Overrides` 빌더 + `withOverrides` 스코프 헬퍼)
 - DIP 지향: concrete 타입 사용 시 `concrete: true` 명시 강제
 
 ## 설치
@@ -95,6 +95,18 @@ var apiClient: any APIClientProtocol
 `@DIContainer`가 붙은 타입과 extension 전체에서 사용자 정의 `init`을 지원하지 않습니다.
 매크로는 type body와 같은 파일의 동일 타입 extension을 막고, build plugin은 다른 파일의 extension까지 같은 규칙으로 확장합니다.
 생성된 init을 사용하거나, 수동 wiring이 필요하면 매크로를 제거해야 합니다.
+
+`@DIContainer`는 아래 네 종류 선언을 생성합니다:
+
+1. primary `init(...)` — 필수 `.input` 파라미터 + optional `.shared`/`.transient` override 파라미터
+2. `.shared` / `.transient` 멤버가 하나라도 있을 때 nested `struct Overrides`
+   (아래 [Overrides 빌더로 테스트하기](#overrides-빌더로-테스트하기) 참고)
+3. convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` — 명명 override를 primary init으로 연결
+4. sync / throws / async / async throws 4가지 effect 조합의
+   `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)`
+
+input-only 컨테이너, 그리고 사용자가 직접 `Overrides` 타입을 선언한 컨테이너는
+빌더 생성을 생략합니다 (뒤 [사용자 정의 `Overrides` 충돌](#사용자-정의-overrides-충돌) 참고).
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
@@ -201,6 +213,84 @@ let test = AppContainer(baseURL: "https://test.example.com", apiClient: MockAPIC
 ```swift
 init(baseURL: String, apiClient: (any APIClientProtocol)? = nil)
 ```
+
+## Overrides 빌더로 테스트하기
+
+`.shared` / `.transient` 멤버가 하나라도 있으면, `@DIContainer`는 위 위치
+파라미터 외에 **명명 override** 빌더도 함께 생성합니다. 테스트가 바꾸려는
+멤버만 지정하면 나머지는 그대로 원래 factory로 해석됩니다.
+
+### 트레일링 클로저 convenience init
+
+```swift
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var baseURL: String
+
+    @Provide(.shared, factory: { APIClient(baseURL: baseURL) })
+    var apiClient: any APIClientProtocol
+
+    @Provide(.transient, factory: { (apiClient: any APIClientProtocol) in
+        HomeViewModel(api: apiClient)
+    }, concrete: true)
+    var homeViewModel: HomeViewModel
+}
+
+let container = AppContainer(baseURL: "https://test.example.com") {
+    $0.apiClient = MockAPIClient()
+}
+// container.apiClient 는 MockAPIClient
+// container.homeViewModel 은 mock 을 타고 흐른 상태로 해석됨
+```
+
+shared override는 downstream transient factory에도 전파됩니다.
+
+### `withOverrides` 스코프 연산
+
+`swift-dependencies`의 `withDependencies { } operation:` 스타일과 동일하게,
+override 수명을 하나의 연산에 묶고 싶을 때 사용합니다:
+
+```swift
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.homeViewModel.load()
+}
+```
+
+4가지 effect 조합이 모두 생성되므로 sync 호출에서 `try await`를 붙일 필요는
+없습니다:
+
+| 오버로드 | 시그니처 형태 |
+|---|---|
+| sync, non-throwing | `(Container) -> T` |
+| sync, throwing | `(Container) throws -> T` |
+| async, non-throwing | `(Container) async -> T` |
+| async, throwing | `(Container) async throws -> T` |
+
+생성되는 모든 선언은 컨테이너의 access level을 미러링하고 (`public` 컨테이너
+→ `public` 빌더), `@MainActor` 컨테이너에는 `@MainActor`가 전파됩니다.
+
+### async `.shared` override
+
+`asyncFactory`로 선언된 `.shared` 멤버도 빌더에서는 평범한 옵셔널
+(`var apiClient: APIClient? = nil`) 로 노출됩니다. `Task<…>` 로 감쌀 필요가
+없고, 생성 시점에 값만 넘기면 primary init이 동일한 task-backed accessor로
+감싸 줍니다.
+
+### `.transient` override는 저장값을 반환
+
+`.transient` override는 매 접근 때 **같은 저장값을 그대로 반환**합니다.
+테스트에서 특정 값을 고정해두고 assertion 하기 쉬운 의도된 동작입니다.
+
+### 사용자 정의 `Overrides` 충돌
+
+컨테이너 내부에 이미 `Overrides` 타입(struct/class/enum/actor/typealias)이
+있으면 매크로는 `container.overrides-name-conflict` 경고를 발행하고
+`Overrides` / convenience init / `withOverrides` 생성을 **전부 생략**합니다.
+primary init만 그대로 생성되므로 기존 호출부는 영향이 없습니다. 빌더 API를
+되살리려면 사용자 정의 타입을 rename 하거나 제거하면 됩니다.
 
 ## Dependency Graph CLI
 
