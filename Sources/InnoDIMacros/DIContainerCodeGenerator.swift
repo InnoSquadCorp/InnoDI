@@ -103,7 +103,7 @@ private func makeInitDecl(
 
         if needsResolvedBindings {
             let resolvedName = "_resolved_\(member.name)"
-            let resolvedDecl: DeclSyntax = "let \(raw: resolvedName) = \(raw: member.name)"
+            let resolvedDecl = letBinding(name: resolvedName, value: member.name)
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }
@@ -130,7 +130,7 @@ private func makeInitDecl(
 
         if needsResolvedBindings {
             let resolvedName = "_resolved_\(member.name)"
-            let resolvedDecl: DeclSyntax = "let \(raw: resolvedName) = \(raw: storageName)"
+            let resolvedDecl = letBinding(name: resolvedName, value: storageName)
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }
@@ -145,24 +145,26 @@ private func makeInitDecl(
             resolvedValueBindings: resolvedValueBindings,
             taskBindings: taskBindings
         )
-        let factoryCall = createExpr.trimmedDescription
-        let awaitedFactoryCall = member.asyncFactoryIsThrowing
-            ? "try await \(factoryCall)"
-            : "await \(factoryCall)"
 
-        let taskDecl: DeclSyntax = """
-        let \(raw: taskName) = Task<\(raw: successType), \(raw: failureType)> {
-            if let override = \(raw: member.name) { return override }
-            return \(raw: awaitedFactoryCall)
-        }
-        """
+        let awaited = ExprSyntax(AwaitExprSyntax(expression: createExpr))
+        let awaitedFactoryExpr: ExprSyntax = member.asyncFactoryIsThrowing
+            ? ExprSyntax(TryExprSyntax(expression: awaited))
+            : awaited
+
+        let taskDecl = makeAsyncTaskDecl(
+            taskName: taskName,
+            overrideName: member.name,
+            successType: successType,
+            failureType: failureType,
+            awaitedFactoryExpr: awaitedFactoryExpr
+        )
         statements.append(CodeBlockItemSyntax(item: .decl(taskDecl)))
 
         let storageName = "_storage_task_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: taskName))))
 
         let resolvedTaskName = "_resolved_task_\(member.name)"
-        let resolvedTaskDecl: DeclSyntax = "let \(raw: resolvedTaskName) = \(raw: taskName)"
+        let resolvedTaskDecl = letBinding(name: resolvedTaskName, value: taskName)
         statements.append(CodeBlockItemSyntax(item: .decl(resolvedTaskDecl)))
         taskBindings[member.name] = AsyncTaskBinding(name: resolvedTaskName, isThrowing: member.asyncFactoryIsThrowing)
     }
@@ -268,10 +270,16 @@ private func dependencyExpression(
     }
 
     if let taskBinding = taskBindings[dependencyName] {
+        // <taskBinding.name>.value
+        let valueAccess = MemberAccessExprSyntax(
+            base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(taskBinding.name))),
+            declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+        )
+        let awaited = ExprSyntax(AwaitExprSyntax(expression: ExprSyntax(valueAccess)))
         if taskBinding.isThrowing {
-            return ExprSyntax("\(raw: "try await \(taskBinding.name).value")")
+            return ExprSyntax(TryExprSyntax(expression: awaited))
         }
-        return ExprSyntax("\(raw: "await \(taskBinding.name).value")")
+        return awaited
     }
 
     fatalError("Unresolved async dependency '\(dependencyName)' reached code generation.")
@@ -342,12 +350,106 @@ private func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprS
     return ExprSyntax(assignment)
 }
 
+/// `let <bindingName> = <valueName>` 형태의 로컬 바인딩 DeclSyntax를
+/// SwiftSyntaxBuilder로 조립한다. 문자열 interpolation 대신 AST를 직접
+/// 만들어 trivia 차이를 방지한다.
+private func letBinding(name bindingName: String, value valueName: String) -> DeclSyntax {
+    let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
+    return letBinding(name: bindingName, value: valueExpr)
+}
+
+/// 임의 표현식을 값으로 갖는 `let <bindingName> = <value>` 바인딩 생성.
+private func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyntax {
+    DeclSyntax(
+        VariableDeclSyntax(
+            bindingSpecifier: .keyword(.let),
+            bindings: PatternBindingListSyntax([
+                PatternBindingSyntax(
+                    pattern: IdentifierPatternSyntax(identifier: .identifier(bindingName)),
+                    initializer: InitializerClauseSyntax(value: value)
+                )
+            ])
+        )
+    )
+}
+
 private func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
     let description = type.trimmedDescription
     if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
         return "(\(description))"
     }
     return description
+}
+
+/// `let <taskName> = Task<Success, Failure> { if let override = <overrideName> { return override }; return <awaitedFactoryExpr> }`
+/// 형태의 DeclSyntax를 SwiftSyntaxBuilder AST로 조립한다.
+private func makeAsyncTaskDecl(
+    taskName: String,
+    overrideName: String,
+    successType: String,
+    failureType: String,
+    awaitedFactoryExpr: ExprSyntax
+) -> DeclSyntax {
+    // Task<Success, Failure>
+    let genericClause = GenericArgumentClauseSyntax(
+        arguments: GenericArgumentListSyntax([
+            GenericArgumentSyntax(
+                argument: .type(TypeSyntax("\(raw: successType)")),
+                trailingComma: .commaToken()
+            ),
+            GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
+        ])
+    )
+    let taskRef = GenericSpecializationExprSyntax(
+        expression: DeclReferenceExprSyntax(baseName: .identifier("Task")),
+        genericArgumentClause: genericClause
+    )
+
+    // if let override = <overrideName> { return override }
+    let ifStmt = IfExprSyntax(
+        conditions: ConditionElementListSyntax([
+            ConditionElementSyntax(
+                condition: .optionalBinding(
+                    OptionalBindingConditionSyntax(
+                        bindingSpecifier: .keyword(.let),
+                        pattern: IdentifierPatternSyntax(identifier: .identifier("override")),
+                        initializer: InitializerClauseSyntax(
+                            value: DeclReferenceExprSyntax(baseName: .identifier(overrideName))
+                        )
+                    )
+                )
+            )
+        ]),
+        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+            CodeBlockItemSyntax(item: .stmt(StmtSyntax(
+                ReturnStmtSyntax(
+                    expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("override")))
+                )
+            )))
+        ]))
+    )
+    let ifItem = CodeBlockItemSyntax(
+        item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifStmt))))
+    )
+
+    // return <awaitedFactoryExpr>
+    let returnItem = CodeBlockItemSyntax(
+        item: .stmt(StmtSyntax(ReturnStmtSyntax(expression: awaitedFactoryExpr)))
+    )
+
+    // Task<...> { ... }
+    let closure = ClosureExprSyntax(
+        statements: CodeBlockItemListSyntax([ifItem, returnItem])
+    )
+    let taskCall = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(taskRef),
+        leftParen: nil,
+        arguments: LabeledExprListSyntax([]),
+        rightParen: nil,
+        trailingClosure: closure
+    )
+
+    return letBinding(name: taskName, value: ExprSyntax(taskCall))
 }
 
 private func mainActorAttributeList() -> AttributeListSyntax {
