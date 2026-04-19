@@ -61,6 +61,16 @@ public struct DIContainerMacro: MemberMacro {
             return []
         }
 
-        return [DIContainerCodeGenerator.generateInit(for: model)]
+        if let conflict = DIContainerParser.findOverridesNameConflict(in: decl) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(conflict.node),
+                    message: SimpleDiagnostic.containerOverridesNameConflict(kind: conflict.kind)
+                )
+            )
+            return [DIContainerCodeGenerator.generateInit(for: model)]
+        }
+
+        return DIContainerCodeGenerator.generateAll(for: model)
     }
 }

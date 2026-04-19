@@ -29,4 +29,34 @@ struct AppContainer {
         self._storage_task_service = _task_service
         let _resolved_task_service = _task_service
     }
+
+    struct Overrides {
+        var service: Service? = nil
+    }
+
+    init(config: Config, _ applyOverrides: (inout Overrides) -> Void) {
+        var overrides = Overrides()
+        applyOverrides(&overrides)
+        self.init(config: config, service: overrides.service)
+    }
+
+    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+        let container = Self(config: config, applyOverrides)
+        return operation(container)
+    }
+
+    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+        let container = Self(config: config, applyOverrides)
+        return try operation(container)
+    }
+
+    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+        let container = Self(config: config, applyOverrides)
+        return await operation(container)
+    }
+
+    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+        let container = Self(config: config, applyOverrides)
+        return try await operation(container)
+    }
 }

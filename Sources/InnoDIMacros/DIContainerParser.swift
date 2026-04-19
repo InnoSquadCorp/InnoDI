@@ -4,6 +4,37 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 struct DIContainerParser {
+    struct OverridesNameConflict {
+        let node: any SyntaxProtocol
+        let kind: String
+    }
+
+    /// Scans the container body for a user declaration named `Overrides` that
+    /// would clash with the synthesized builder struct. Returns the offending
+    /// declaration along with its kind ("struct", "class", "typealias", etc.)
+    /// so callers can emit a clear warning.
+    static func findOverridesNameConflict(in decl: some DeclGroupSyntax) -> OverridesNameConflict? {
+        for member in decl.memberBlock.members {
+            let d = member.decl
+            if let s = d.as(StructDeclSyntax.self), s.name.text == "Overrides" {
+                return OverridesNameConflict(node: s, kind: "struct")
+            }
+            if let c = d.as(ClassDeclSyntax.self), c.name.text == "Overrides" {
+                return OverridesNameConflict(node: c, kind: "class")
+            }
+            if let e = d.as(EnumDeclSyntax.self), e.name.text == "Overrides" {
+                return OverridesNameConflict(node: e, kind: "enum")
+            }
+            if let a = d.as(ActorDeclSyntax.self), a.name.text == "Overrides" {
+                return OverridesNameConflict(node: a, kind: "actor")
+            }
+            if let t = d.as(TypeAliasDeclSyntax.self), t.name.text == "Overrides" {
+                return OverridesNameConflict(node: t, kind: "typealias")
+            }
+        }
+        return nil
+    }
+
     static func userDefinedInitializers(in decl: some DeclGroupSyntax) -> [InitializerDeclSyntax] {
         let bodyInitializers = decl.memberBlock.members.compactMap { $0.decl.as(InitializerDeclSyntax.self) }
 
