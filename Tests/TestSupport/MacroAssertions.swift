@@ -7,9 +7,10 @@ import SwiftSyntaxMacros
 @_spi(Testing) import SwiftSyntaxMacrosGenericTestSupport
 import Testing
 
-/// Environment variable that, when set to "1", makes snapshot assertions record
-/// the current macro expansion output to disk instead of comparing against it.
-public let innoDISnapshotRecordEnvVar = "INNODI_RECORD_SNAPSHOTS"
+// Note: `innoDISnapshotRecordEnvVar`, `snapshotFileURL(for:callerFilePath:fileExtension:)`,
+// `trimBlankBoundaries`, `writeSnapshot`, `readSnapshot`, and
+// `isSnapshotRecordModeEnabled()` now live in `SnapshotStorage.swift` and are
+// shared with `TextSnapshotAssertions`.
 
 public typealias DiagnosticSpec = SwiftSyntaxMacrosGenericTestSupport.DiagnosticSpec
 public typealias NoteSpec = SwiftSyntaxMacrosGenericTestSupport.NoteSpec
@@ -115,16 +116,12 @@ public func assertMacroExpansionSnapshot(
     }
 
     let snapshotURL = snapshotFileURL(for: snapshot, callerFilePath: "\(filePath)")
-    let recordMode = ProcessInfo.processInfo.environment[innoDISnapshotRecordEnvVar] == "1"
+    let recordMode = isSnapshotRecordModeEnabled()
     let fileExists = FileManager.default.fileExists(atPath: snapshotURL.path)
 
     if recordMode || !fileExists {
         do {
-            try FileManager.default.createDirectory(
-                at: snapshotURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try expansion.write(to: snapshotURL, atomically: true, encoding: String.Encoding.utf8)
+            try writeSnapshot(expansion, to: snapshotURL)
             let message = "Recorded snapshot at \(snapshotURL.path). Re-run tests to verify."
             Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
         } catch {
@@ -135,7 +132,7 @@ public func assertMacroExpansionSnapshot(
     }
 
     do {
-        let expected = try String(contentsOf: snapshotURL, encoding: String.Encoding.utf8)
+        let expected = try readSnapshot(at: snapshotURL)
         let actualTrimmed = trimBlankBoundaries(expansion)
         let expectedTrimmed = trimBlankBoundaries(expected)
         if actualTrimmed != expectedTrimmed {
@@ -255,23 +252,6 @@ private func expand(
         indentationWidth: indentationWidth
     )
     return (expandedSourceFile.description, context.diagnostics, context)
-}
-
-private func snapshotFileURL(for snapshot: String, callerFilePath: String) -> URL {
-    let callerURL = URL(fileURLWithPath: callerFilePath)
-    let testFileBase = callerURL.deletingPathExtension().lastPathComponent
-    let testDir = callerURL.deletingLastPathComponent()
-    return testDir
-        .appendingPathComponent("__Snapshots__", isDirectory: true)
-        .appendingPathComponent(testFileBase, isDirectory: true)
-        .appendingPathComponent("\(snapshot).swift", isDirectory: false)
-}
-
-private func trimBlankBoundaries(_ source: String) -> String {
-    var scalars = Substring(source)
-    while let first = scalars.first, first.isNewline { scalars = scalars.dropFirst() }
-    while let last = scalars.last, last.isNewline { scalars = scalars.dropLast() }
-    return String(scalars)
 }
 
 private func recordFailure(_ spec: SwiftSyntaxMacrosGenericTestSupport.TestFailureSpec) {
