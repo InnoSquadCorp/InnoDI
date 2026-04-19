@@ -7,6 +7,12 @@
 //  helpers over string-interpolated `DeclSyntax`/`StmtSyntax` literals so that
 //  trivia and structure are locked in at compile time.
 //
+//  Note: these builders must be self-sufficient even when their output is
+//  rendered via raw `.description` (e.g. from `ProvideMacro` accessor tests
+//  that compare against exact strings). The AST therefore attaches explicit
+//  whitespace trivia to tokens wherever the old string-parsed equivalent
+//  would have produced spaces.
+//
 
 import SwiftSyntax
 import SwiftSyntaxBuilder
@@ -25,11 +31,14 @@ internal func letBinding(name bindingName: String, value valueName: String) -> D
 internal func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyntax {
     DeclSyntax(
         VariableDeclSyntax(
-            bindingSpecifier: .keyword(.let),
+            bindingSpecifier: .keyword(.let, trailingTrivia: .space),
             bindings: PatternBindingListSyntax([
                 PatternBindingSyntax(
                     pattern: IdentifierPatternSyntax(identifier: .identifier(bindingName)),
-                    initializer: InitializerClauseSyntax(value: value)
+                    initializer: InitializerClauseSyntax(
+                        equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                        value: value
+                    )
                 )
             ])
         )
@@ -51,13 +60,16 @@ internal func storagePeerDecl(
 
     let decl = VariableDeclSyntax(
         modifiers: DeclModifierListSyntax([
-            DeclModifierSyntax(name: .keyword(.private))
+            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
         ]),
-        bindingSpecifier: .keyword(.let),
+        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
         bindings: PatternBindingListSyntax([
             PatternBindingSyntax(
                 pattern: IdentifierPatternSyntax(identifier: .identifier(name)),
-                typeAnnotation: TypeAnnotationSyntax(type: storedType)
+                typeAnnotation: TypeAnnotationSyntax(
+                    colon: .colonToken(trailingTrivia: .space),
+                    type: storedType
+                )
             )
         ])
     )
@@ -75,7 +87,7 @@ internal func taskStoragePeerDecl(
         arguments: GenericArgumentListSyntax([
             GenericArgumentSyntax(
                 argument: .type(TypeSyntax("\(raw: successType)")),
-                trailingComma: .commaToken()
+                trailingComma: .commaToken(trailingTrivia: .space)
             ),
             GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
         ])
@@ -89,13 +101,16 @@ internal func taskStoragePeerDecl(
 
     let decl = VariableDeclSyntax(
         modifiers: DeclModifierListSyntax([
-            DeclModifierSyntax(name: .keyword(.private))
+            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
         ]),
-        bindingSpecifier: .keyword(.let),
+        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
         bindings: PatternBindingListSyntax([
             PatternBindingSyntax(
                 pattern: IdentifierPatternSyntax(identifier: .identifier(name)),
-                typeAnnotation: TypeAnnotationSyntax(type: taskType)
+                typeAnnotation: TypeAnnotationSyntax(
+                    colon: .colonToken(trailingTrivia: .space),
+                    type: taskType
+                )
             )
         ])
     )
@@ -106,17 +121,25 @@ internal func taskStoragePeerDecl(
 
 /// `return <expr>` 형태의 `CodeBlockItemSyntax`.
 internal func returnStmt(expr: ExprSyntax) -> CodeBlockItemSyntax {
-    CodeBlockItemSyntax(
-        item: .stmt(StmtSyntax(ReturnStmtSyntax(expression: expr)))
+    let ret = ReturnStmtSyntax(
+        returnKeyword: .keyword(.return, trailingTrivia: .space),
+        expression: expr
     )
+    return CodeBlockItemSyntax(item: .stmt(StmtSyntax(ret)))
 }
 
 /// `return [try] await <expr>` 형태의 `CodeBlockItemSyntax`.
 /// `isThrowing`이 true이면 `try await`, false이면 `await`만 적용한다.
 internal func awaitedReturnStmt(expr: ExprSyntax, isThrowing: Bool) -> CodeBlockItemSyntax {
-    let awaited = ExprSyntax(AwaitExprSyntax(expression: expr))
+    let awaited = ExprSyntax(AwaitExprSyntax(
+        awaitKeyword: .keyword(.await, trailingTrivia: .space),
+        expression: expr
+    ))
     let wrapped: ExprSyntax = isThrowing
-        ? ExprSyntax(TryExprSyntax(expression: awaited))
+        ? ExprSyntax(TryExprSyntax(
+            tryKeyword: .keyword(.try, trailingTrivia: .space),
+            expression: awaited
+        ))
         : awaited
     return returnStmt(expr: wrapped)
 }
@@ -125,22 +148,36 @@ internal func awaitedReturnStmt(expr: ExprSyntax, isThrowing: Bool) -> CodeBlock
 /// `CodeBlockItemSyntax`. `@Provide(.transient, ...)`의 override 분기에 쓰인다.
 internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
     let ifStmt = IfExprSyntax(
+        ifKeyword: .keyword(.if, trailingTrivia: .space),
         conditions: ConditionElementListSyntax([
             ConditionElementSyntax(
                 condition: .optionalBinding(
                     OptionalBindingConditionSyntax(
-                        bindingSpecifier: .keyword(.let),
-                        pattern: IdentifierPatternSyntax(identifier: .identifier("override")),
+                        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
+                        pattern: IdentifierPatternSyntax(
+                            identifier: .identifier("override", trailingTrivia: .space)
+                        ),
                         initializer: InitializerClauseSyntax(
-                            value: DeclReferenceExprSyntax(baseName: .identifier(overrideName))
+                            equal: .equalToken(trailingTrivia: .space),
+                            value: DeclReferenceExprSyntax(
+                                baseName: .identifier(overrideName, trailingTrivia: .space)
+                            )
                         )
                     )
                 )
             )
         ]),
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
-            returnStmt(expr: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("override"))))
-        ]))
+        body: CodeBlockSyntax(
+            leftBrace: .leftBraceToken(trailingTrivia: .space),
+            statements: CodeBlockItemListSyntax([
+                returnStmt(expr: ExprSyntax(
+                    DeclReferenceExprSyntax(
+                        baseName: .identifier("override", trailingTrivia: .space)
+                    )
+                ))
+            ]),
+            rightBrace: .rightBraceToken()
+        )
     )
     return CodeBlockItemSyntax(
         item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifStmt))))
@@ -178,7 +215,7 @@ internal func makeAsyncTaskDecl(
         arguments: GenericArgumentListSyntax([
             GenericArgumentSyntax(
                 argument: .type(TypeSyntax("\(raw: successType)")),
-                trailingComma: .commaToken()
+                trailingComma: .commaToken(trailingTrivia: .space)
             ),
             GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
         ])
