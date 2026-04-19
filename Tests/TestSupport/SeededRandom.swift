@@ -33,4 +33,15 @@ public struct SeededRandom {
         }
         return values
     }
+
+    /// `options` 중 하나를 균등 확률로 선택해 반환한다.
+    public mutating func nextChoice<T>(_ options: [T]) -> T {
+        precondition(!options.isEmpty, "nextChoice requires a non-empty options array")
+        return options[nextInt(upperBound: options.count)]
+    }
+
+    /// 테스트용 공백 조합 하나를 선택한다. 스페이스, 탭, 줄바꿈, 혼합 형태를 포함한다.
+    public mutating func nextWhitespace() -> String {
+        nextChoice([" ", "  ", "\t", " \t", "\n", "\n    ", " // trailing comment\n", " /* inline */ "])
+    }
 }

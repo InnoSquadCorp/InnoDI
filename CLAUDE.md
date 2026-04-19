@@ -23,6 +23,34 @@ swift test --filter InnoDICoreTests            # Run core parsing/graph tests
 swift test --filter InnoDIMacrosTests          # Run macro expansion tests
 ```
 
+### Macro expansion snapshots
+
+Macro tests under `Tests/InnoDIMacrosTests/` use three assertion styles, all
+provided by `Tests/TestSupport/MacroAssertions.swift`:
+
+- `assertMacroExpansionSnapshot` — expansion is compared to a file under
+  `Tests/InnoDIMacrosTests/__Snapshots__/<TestFile>/<name>.swift`. Use for full
+  generated-code verification.
+- `assertMacroExpansionInline` — expected source is inlined in the test body.
+  Use for short expansions or when diagnostics with full `DiagnosticSpec`
+  (line/column, notes, fix-its) matter.
+- `assertMacroExpansionDiagnosticCodes` — asserts only the set of
+  `SwiftDiagnostics.MessageID`s emitted (as a multiset). Preferred over
+  message-substring matching so tests don't break when diagnostic wording
+  changes.
+
+When macro output changes intentionally, regenerate snapshot files:
+
+```bash
+Tools/record-macro-snapshots.sh                # record/refresh all snapshots
+Tools/record-macro-snapshots.sh DIContainerMacroTests   # filter like swift test
+```
+
+The script runs the macro tests with `INNODI_RECORD_SNAPSHOTS=1`, which makes
+the snapshot helper write current expansions to disk. Review the resulting
+diff, then re-run `swift test --filter InnoDIMacrosTests` without the env var
+to verify.
+
 ### Running the CLI
 ```bash
 swift run InnoDI-DependencyGraph --root /path/to/project   # Generate dependency graph from DI containers
@@ -76,7 +104,7 @@ The project uses a layered architecture with four main modules:
 - `.input`: Dependencies passed as init parameters (must not have `factory:`)
 - `.transient`: New instance created on every access (requires `factory:` parameter)
 - Protocol-typed dependencies for `.shared`/`.transient` should use explicit existential syntax (`any Protocol`)
-- Concrete dependency types require `concrete: true` opt-in (enforced even when `validate: false`)
+- Concrete dependency types require `concrete: true` opt-in
 
 ### Dependency Graph Generation Flow (CLI)
 
@@ -111,3 +139,49 @@ When adding diagnostics:
 - Use `SimpleDiagnostic` for error messages
 - Attach diagnostics to the relevant syntax node for precise error location
 - Follow existing patterns: `context.diagnose(Diagnostic(node:message:))`
+
+### Same-file extension 검출 테스트 제약
+
+`DIContainerParser.sourceFile(containing:)`는 대상 decl의 parent chain을 거슬러
+올라가 `SourceFileSyntax`를 찾아 같은 파일 내 형제 extension의 `init`을 수집한다.
+그러나 `SwiftSyntaxMacroExpansion.expand()` 파이프라인
+(`Tests/TestSupport/MacroAssertions.swift`의 `assertMacroExpansion*` 헬퍼들이
+내부적으로 사용)은 확장 대상 decl을 parent에서 detach하므로 이 walk가 `nil`을
+반환하고 형제 extension init이 수집되지 않는다.
+
+따라서 sibling extension init 검출이 필요한 테스트(예:
+`customInitInsideSameFileExtensionIsRejected`,
+`allOffendingInitializersAreDiagnosed`,
+`nestedSameFileExtensionInitializersAreRejected`)는 `Parser.parse` +
+`DIContainerMacro.expansion(of:providingMembersOf:in:)`을 직접 호출하는
+기존 패턴을 유지한다. 이 패턴에서는 `context.diagnostics`의 `diagnosticID`를
+직접 확인해 code 기반 검증을 유지할 수 있다.
+
+### SwiftSyntaxBuilder 리팩토링 워크플로우
+
+문자열 interpolation(`DeclSyntax = "let \(raw: x) = ..."` 류)으로 생성하던
+매크로 출력을 `SwiftSyntaxBuilder` AST 조립으로 전환할 때의 표준 절차:
+
+1. **안전망 확인**: 대상 매크로 출력을 덮는 스냅샷이
+   `Tests/InnoDIMacrosTests/__Snapshots__/`에 있는지 확인. 없으면 먼저
+   `assertMacroExpansionSnapshot`으로 테스트를 추가한 뒤
+   `Tools/record-macro-snapshots.sh`로 기록.
+2. **기본 원칙**: 빌더 전환의 성공 기준은 **스냅샷이 변하지 않는 것**이다.
+   동일한 출력 문자열을 AST로 다시 만들 수 있으면 회귀가 없다는 뜻.
+3. 문자열 interpolation 한 곳을 `VariableDeclSyntax` / `FunctionCallExprSyntax` /
+   `ClosureExprSyntax` / `IfExprSyntax` / `AwaitExprSyntax` / `TryExprSyntax`
+   등으로 치환 후 `swift test --filter InnoDIMacrosTests` 실행.
+4. 스냅샷이 깨지면 diff로 trivia(토큰 전후 공백, 줄바꿈, 키워드 기본 trivia)
+   차이를 파악해 AST 조립을 조정. 기존에 `SwiftSyntaxMacroExpansion`이
+   자동 포매팅하는 부분과 어긋나면 `trailingTrivia:`/`leadingTrivia:`
+   파라미터로 보정.
+5. **의도적으로 출력을 바꾼 경우**에만 `Tools/record-macro-snapshots.sh`로
+   재기록하고 diff를 커밋/PR에 첨부 — 리뷰어가 의도 변경을 확인할 수 있도록.
+   `.gitattributes`의 `linguist-generated=true`로 인해 스냅샷 diff는 기본
+   접혀 표시되므로 PR 본문에 요약을 적는 것이 좋다.
+
+참고 사례: [Sources/InnoDIMacros/DIContainerCodeGenerator.swift](Sources/InnoDIMacros/DIContainerCodeGenerator.swift)의
+`letBinding(name:value:)` / `makeAsyncTaskDecl(...)` / `dependencyExpression(...)`
+헬퍼가 A-phase 빌더 전환의 결과물이다. `Task<S, F> { if let override ... }`
+같은 멀티라인 출력도 `GenericSpecializationExprSyntax` + `IfExprSyntax` +
+`ClosureExprSyntax` 조합으로 표현 가능하다.
