@@ -350,106 +350,12 @@ private func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprS
     return ExprSyntax(assignment)
 }
 
-/// `let <bindingName> = <valueName>` 형태의 로컬 바인딩 DeclSyntax를
-/// SwiftSyntaxBuilder로 조립한다. 문자열 interpolation 대신 AST를 직접
-/// 만들어 trivia 차이를 방지한다.
-private func letBinding(name bindingName: String, value valueName: String) -> DeclSyntax {
-    let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
-    return letBinding(name: bindingName, value: valueExpr)
-}
-
-/// 임의 표현식을 값으로 갖는 `let <bindingName> = <value>` 바인딩 생성.
-private func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyntax {
-    DeclSyntax(
-        VariableDeclSyntax(
-            bindingSpecifier: .keyword(.let),
-            bindings: PatternBindingListSyntax([
-                PatternBindingSyntax(
-                    pattern: IdentifierPatternSyntax(identifier: .identifier(bindingName)),
-                    initializer: InitializerClauseSyntax(value: value)
-                )
-            ])
-        )
-    )
-}
-
 private func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
     let description = type.trimmedDescription
     if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
         return "(\(description))"
     }
     return description
-}
-
-/// `let <taskName> = Task<Success, Failure> { if let override = <overrideName> { return override }; return <awaitedFactoryExpr> }`
-/// 형태의 DeclSyntax를 SwiftSyntaxBuilder AST로 조립한다.
-private func makeAsyncTaskDecl(
-    taskName: String,
-    overrideName: String,
-    successType: String,
-    failureType: String,
-    awaitedFactoryExpr: ExprSyntax
-) -> DeclSyntax {
-    // Task<Success, Failure>
-    let genericClause = GenericArgumentClauseSyntax(
-        arguments: GenericArgumentListSyntax([
-            GenericArgumentSyntax(
-                argument: .type(TypeSyntax("\(raw: successType)")),
-                trailingComma: .commaToken()
-            ),
-            GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
-        ])
-    )
-    let taskRef = GenericSpecializationExprSyntax(
-        expression: DeclReferenceExprSyntax(baseName: .identifier("Task")),
-        genericArgumentClause: genericClause
-    )
-
-    // if let override = <overrideName> { return override }
-    let ifStmt = IfExprSyntax(
-        conditions: ConditionElementListSyntax([
-            ConditionElementSyntax(
-                condition: .optionalBinding(
-                    OptionalBindingConditionSyntax(
-                        bindingSpecifier: .keyword(.let),
-                        pattern: IdentifierPatternSyntax(identifier: .identifier("override")),
-                        initializer: InitializerClauseSyntax(
-                            value: DeclReferenceExprSyntax(baseName: .identifier(overrideName))
-                        )
-                    )
-                )
-            )
-        ]),
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
-            CodeBlockItemSyntax(item: .stmt(StmtSyntax(
-                ReturnStmtSyntax(
-                    expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("override")))
-                )
-            )))
-        ]))
-    )
-    let ifItem = CodeBlockItemSyntax(
-        item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifStmt))))
-    )
-
-    // return <awaitedFactoryExpr>
-    let returnItem = CodeBlockItemSyntax(
-        item: .stmt(StmtSyntax(ReturnStmtSyntax(expression: awaitedFactoryExpr)))
-    )
-
-    // Task<...> { ... }
-    let closure = ClosureExprSyntax(
-        statements: CodeBlockItemListSyntax([ifItem, returnItem])
-    )
-    let taskCall = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(taskRef),
-        leftParen: nil,
-        arguments: LabeledExprListSyntax([]),
-        rightParen: nil,
-        trailingClosure: closure
-    )
-
-    return letBinding(name: taskName, value: ExprSyntax(taskCall))
 }
 
 private func mainActorAttributeList() -> AttributeListSyntax {

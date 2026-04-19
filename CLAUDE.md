@@ -51,6 +51,33 @@ the snapshot helper write current expansions to disk. Review the resulting
 diff, then re-run `swift test --filter InnoDIMacrosTests` without the env var
 to verify.
 
+### CLI renderer snapshots
+
+`Sources/InnoDI-DependencyGraph/`의 Mermaid / DOT / ASCII 렌더러 출력도
+스냅샷으로 회귀를 잡는다. 위치:
+
+```
+Tests/InnoDIDependencyGraphCLITests/__Snapshots__/GraphRendererSnapshotTests/*.txt
+```
+
+`Tests/InnoDIDependencyGraphCLITests/GraphRendererSnapshotTests.swift`가
+최소 two-container fixture를 `swift run InnoDI-DependencyGraph`로 돌려
+stdout을 `assertTextSnapshot`으로 비교한다. 전체 CLI 통합 테스트
+(`DependencyGraphCLITests.swift`)의 substring assertion과 상호 보완한다.
+
+렌더러를 의도적으로 수정했을 때 재기록:
+
+```bash
+Tools/record-cli-snapshots.sh                                    # 기본 필터
+Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests      # 다른 필터도 가능
+```
+
+`assertTextSnapshot`은 `INNODI_RECORD_SNAPSHOTS=1`을 공유하므로 매크로
+스냅샷과 같은 워크플로우로 운영된다. 공통 파일 I/O 로직은
+`Tests/TestSupport/SnapshotStorage.swift`(public helpers)에 있고,
+`Tests/InnoDIMacrosTests/SnapshotSmokeTests.swift`의
+`SnapshotStorageTests`가 record-mode 토글/쓰기/읽기를 직접 검증한다.
+
 ### Running the CLI
 ```bash
 swift run InnoDI-DependencyGraph --root /path/to/project   # Generate dependency graph from DI containers
@@ -185,3 +212,23 @@ When adding diagnostics:
 헬퍼가 A-phase 빌더 전환의 결과물이다. `Task<S, F> { if let override ... }`
 같은 멀티라인 출력도 `GenericSpecializationExprSyntax` + `IfExprSyntax` +
 `ClosureExprSyntax` 조합으로 표현 가능하다.
+
+**공용 AST 빌더 위치**: [Sources/InnoDIMacros/SyntaxBuilders.swift](Sources/InnoDIMacros/SyntaxBuilders.swift)
+에 `DIContainerMacro`/`ProvideMacro`가 공유하는 internal 자유 함수
+(`letBinding`, `storagePeerDecl`, `taskStoragePeerDecl`, `returnStmt`,
+`awaitedReturnStmt`, `overrideCheckStmt`, `fatalErrorStmt`,
+`makeAsyncTaskDecl` 등)이 모여 있다. 새 매크로 출력을 추가할 때 여기 먼저
+두고 양쪽에서 쓰는 것을 우선한다. `accessors.map(\.description)` 류로
+포매터를 우회하는 호출자를 가정해야 하므로 **모든 토큰에 explicit
+`.space`/`.newline` trivia를 명시**해야 회귀가 없다 — SwiftSyntaxBuilder
+기본 trivia는 문맥에 따라 비어 있을 수 있다.
+
+### CI Xcode 버전 pin
+
+`.github/workflows/*.yml`은 Xcode 26.3(Swift 6.3) 하나로 고정되어 있다.
+이전에는 26.2 → 26.3 → 26.1.1 fallback 체인이었는데, 26.2에 걸리면
+`Tools/macro-performance-baseline.json`(Swift 6.3 기준)과 버전이 어긋나
+`Tools/measure-macro-performance.sh`가 회귀 게이트를 조용히 skip하는 문제가
+있었다. 러너에 26.3 이미지가 없으면 즉시 실패하도록 해 "silent skip"을
+막는다. 새 Xcode 메이저가 나와 toolchain을 올릴 때는 3개 워크플로우를
+함께 업데이트하고 `macro-performance-baseline.json`도 재기록한다.
