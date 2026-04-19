@@ -42,8 +42,8 @@ struct ProvideMacroTests {
 
         let args = parseProvideArguments(attr)
         #expect(args.scope == .shared)
-        #expect(args.factoryExpr != nil)
-        #expect(args.factoryExpr!.description.contains("SomeType"))
+        let factoryExpr = try #require(args.factoryExpr)
+        #expect(factoryExpr.trimmedDescription == "SomeType()")
     }
 
     @Test
@@ -88,10 +88,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("_override_viewModel"))
-        #expect(generated.contains("{ (apiClient: APIClient) in ViewModel(apiClient: apiClient) }"))
-        #expect(generated.contains("(self.apiClient)"))
-        #expect(generated.contains("self.apiClient"))
+        let expected = #"get{if let override = _override_viewModel { return override }return { (apiClient: APIClient) in ViewModel(apiClient: apiClient) }(self.apiClient)}"#
+        #expect(generated == expected)
     }
 
     @Test
@@ -116,8 +114,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("{ ViewModel() }()"))
-        #expect(!generated.contains("self."))
+        let expected = #"get{if let override = _override_viewModel { return override }return { ViewModel() }()}"#
+        #expect(generated == expected)
     }
 
     @Test
@@ -142,8 +140,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("self.apiClient"))
-        #expect(generated.contains("self.logger"))
+        let expected = #"get{if let override = _override_viewModel { return override }return { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) }(self.apiClient,self.logger)}"#
+        #expect(generated == expected)
     }
 
     @Test("Transient type factory with with: injects dependencies via accessors")
@@ -182,8 +180,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("self.config"))
-        #expect(!generated.contains("_storage_config"))
+        let expected = #"get{if let override = _override_viewModel { return override }return ViewModel(config:self.config)}"#
+        #expect(generated == expected)
         #expect(context.diagnostics.isEmpty)
     }
 
@@ -209,9 +207,9 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("Transient factory closure parameters must be named for injection."))
-        #expect(!generated.contains("self._"))
-        #expect(context.diagnostics.contains { $0.message.contains("must be named for injection") })
+        let expected = #"get{fatalError("Transient factory closure parameters must be named for injection.")}"#
+        #expect(generated == expected)
+        #expect(context.diagnostics.map(\.diagnosticID) == [InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID])
     }
 
     @Test("Transient accessor avoids generating broken self references for unknown parameters")
@@ -251,8 +249,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("fatalError"))
-        #expect(!generated.contains("self.missing"))
+        let expected = #"get{fatalError("Transient dependency resolution failed validation.")}"#
+        #expect(generated == expected)
     }
 
     @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
@@ -297,9 +295,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("get async") || generated.contains("getasync"))
-        #expect(generated.contains("await"))
-        #expect(generated.contains("self.apiClient"))
+        let expected = #"getasync{if let override = _override_viewModel { return override }return await { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) }(self.apiClient)}"#
+        #expect(generated == expected)
         #expect(context.diagnostics.isEmpty)
     }
 
@@ -331,11 +328,8 @@ struct ProvideMacroTests {
 
         let peerGenerated = peerDecls.map(\.description).joined(separator: "\n")
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
-
-        #expect(peerGenerated.contains("_storage_task_service"))
-        #expect(peerGenerated.contains("Task<"))
-        #expect(accessorGenerated.contains("get async") || accessorGenerated.contains("getasync"))
-        #expect(accessorGenerated.contains("await _storage_task_service.value"))
+        #expect(peerGenerated == "private let _storage_task_service: Task<Service, Never>")
+        #expect(accessorGenerated == #"getasync{return await _storage_task_service.value}"#)
     }
 
     @Test("Container mainActor option applies MainActor to generated accessor")
@@ -366,7 +360,8 @@ struct ProvideMacroTests {
         )
 
         let generated = accessors.map(\.description).joined(separator: "\n")
-        #expect(generated.contains("@MainActor"))
+        let expected = #"@MainActorget{if let override = _override_service { return override }return Service()}"#
+        #expect(generated == expected)
     }
 
     @Test("Public Provide macro declaration allows async shared task storage peers")
