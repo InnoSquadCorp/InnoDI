@@ -1,0 +1,10 @@
+digraph InnoDI {
+  rankdir=TB;
+
+  // Nodes
+  "N0" [label="AppContainer", shape=box, style="rounded,filled", fillcolor="#e1f5fe"];
+  "N1" [label="FeatureContainer", shape=box, style="rounded,filled", fillcolor="#e5e7eb"];
+
+  // Edges
+}
+

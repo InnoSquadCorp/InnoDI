@@ -104,8 +104,10 @@ let package = Package(
         .testTarget(
             name: "InnoDIDependencyGraphCLITests",
             dependencies: [
-                "InnoDI-DependencyGraph"
-            ]
+                "InnoDI-DependencyGraph",
+                "InnoDITestSupport",
+            ],
+            exclude: ["__Snapshots__"]
         ),
         .testTarget(
             name: "InnoDIBuildSupportTests",
