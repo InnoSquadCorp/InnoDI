@@ -1,0 +1,8 @@
+# 매크로 expansion 스냅샷은 Tools/record-macro-snapshots.sh가 생성하는 결과물이다.
+# GitHub PR 뷰에서 기본으로 접혀 표시되고, 언어 통계에서도 제외된다. 스냅샷을
+# 손으로 편집하지 말고 `Tools/record-macro-snapshots.sh`로 재기록할 것.
+Tests/InnoDIMacrosTests/__Snapshots__/**/*.swift linguist-generated=true
+Tests/InnoDIMacrosTests/__Snapshots__/**/*.swift text eol=lf
+
+# NOTE: 향후 swift-format / SwiftLint 등을 도입하는 경우 이 경로를 제외 룰에
+# 추가해 포매터가 스냅샷을 자동 재작성해 비교가 깨지는 것을 막을 것.
