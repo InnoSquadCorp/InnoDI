@@ -65,17 +65,23 @@ private func makeInitDecl(
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
 
-    // Phase K: compute the set of members that are the target of at least one
-    // soft (Lazy<T>) factory-parameter edge. Shared/input targets store a
-    // concrete value into `_LazyCell`; transient targets bind a late resolver
-    // after the accessor becomes available.
-    let allMembersForSoft = inputMembers + sharedMembers + transientMembers
-    let softTargetNames = Set(allMembersForSoft.flatMap(\.softClosureDependencies))
-    let softTargetMembers = allMembersForSoft.filter { member in
-        softTargetNames.contains(member.name)
+    // Phase K / Phase L: compute the set of members that are the target of at
+    // least one deferred factory-parameter edge (Lazy<T> soft edge or
+    // Provider<T> provider edge). Shared/input targets store a concrete value
+    // into `_LazyCell`; transient targets bind a late resolver after the
+    // accessor becomes available. Both edge kinds reuse `_LazyCell` because
+    // `_LazyCell.resolve()` covers both the "cached concrete value" path
+    // (Lazy against shared/input) and the "fresh resolver" path (Lazy or
+    // Provider against transient).
+    let allMembersForDeferred = inputMembers + sharedMembers + transientMembers
+    let deferredTargetNames = Set(
+        allMembersForDeferred.flatMap { $0.softClosureDependencies + $0.providerClosureDependencies }
+    )
+    let deferredTargetMembers = allMembersForDeferred.filter { member in
+        deferredTargetNames.contains(member.name)
             && member.supportsLazySoftTarget
     }
-    let softTargetNameSet = Set(softTargetMembers.map(\.name))
+    let deferredTargetNameSet = Set(deferredTargetMembers.map(\.name))
 
     for (index, member) in inputMembers.enumerated() {
         let isLast = index == inputMembers.count - 1 && sharedMembers.isEmpty && transientMembers.isEmpty
@@ -135,7 +141,7 @@ private func makeInitDecl(
     // is assigned. For struct containers, this avoids the "cannot capture
     // self in init" problem entirely because the box is a local `let`, not
     // a reference to `self`.
-    for target in softTargetMembers {
+    for target in deferredTargetMembers {
         statements.append(
             CodeBlockItemSyntax(item: .decl(makeLazyCellDecl(name: target.name, type: target.type)))
         )
@@ -152,7 +158,7 @@ private func makeInitDecl(
             resolvedValueBindings[member.name] = resolvedName
         }
 
-        if softTargetNameSet.contains(member.name) {
+        if deferredTargetNameSet.contains(member.name) {
             // _lazyCell_<name>.store(self._storage_<name>)
             statements.append(
                 CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
@@ -166,7 +172,7 @@ private func makeInitDecl(
         let factoryExpr = makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
-            softTargetNameSet: softTargetNameSet
+            deferredTargetNameSet: deferredTargetNameSet
         )
 
         let initializerExpr = ExprSyntax(
@@ -187,7 +193,7 @@ private func makeInitDecl(
             resolvedValueBindings[member.name] = resolvedName
         }
 
-        if softTargetNameSet.contains(member.name) {
+        if deferredTargetNameSet.contains(member.name) {
             statements.append(
                 CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
             )
@@ -202,7 +208,7 @@ private func makeInitDecl(
             member: member,
             resolvedValueBindings: resolvedValueBindings,
             taskBindings: taskBindings,
-            softTargetNameSet: softTargetNameSet
+            deferredTargetNameSet: deferredTargetNameSet
         )
 
         let awaited = ExprSyntax(AwaitExprSyntax(expression: createExpr))
@@ -233,12 +239,12 @@ private func makeInitDecl(
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: overrideName, valueName: member.name))))
     }
 
-    let transientSoftTargetMembers = transientMembers.filter { softTargetNameSet.contains($0.name) }
-    if !transientSoftTargetMembers.isEmpty {
+    let transientDeferredTargetMembers = transientMembers.filter { deferredTargetNameSet.contains($0.name) }
+    if !transientDeferredTargetMembers.isEmpty {
         statements.append(
             CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelf", value: "self")))
         )
-        for member in transientSoftTargetMembers {
+        for member in transientDeferredTargetMembers {
             statements.append(
                 CodeBlockItemSyntax(
                     item: .expr(
@@ -276,7 +282,7 @@ private func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
 private func makeFactoryExpr(
     member: ProvideMemberModel,
     availableNames: [String],
-    softTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>
 ) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
@@ -284,7 +290,7 @@ private func makeFactoryExpr(
                 member: member,
                 closure: closure,
                 availableNames: availableNames,
-                softTargetNameSet: softTargetNameSet
+                deferredTargetNameSet: deferredTargetNameSet
             )
             return makeClosureCallExpr(closure: closure, argumentExpressions: argumentExpressions)
         }
@@ -322,7 +328,7 @@ private func makeAsyncFactoryExpr(
     member: ProvideMemberModel,
     resolvedValueBindings: [String: String],
     taskBindings: [String: AsyncTaskBinding],
-    softTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>
 ) -> ExprSyntax {
     guard let asyncFactory = member.asyncFactory else {
         return ExprSyntax(
@@ -341,11 +347,18 @@ private func makeAsyncFactoryExpr(
         let references = member.closureParameterReferences
         let expressions: [ExprSyntax] = references.map { ref in
             if ref.kind == .soft {
-                guard softTargetNameSet.contains(ref.name),
+                guard deferredTargetNameSet.contains(ref.name),
                       let calleeDescription = ref.lazyWrapperCalleeDescription else {
                     fatalError("Unsupported soft dependency '\(ref.name)' reached async code generation.")
                 }
                 return makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
+            }
+            if ref.kind == .provider {
+                guard deferredTargetNameSet.contains(ref.name),
+                      let calleeDescription = ref.providerWrapperCalleeDescription else {
+                    fatalError("Unsupported provider dependency '\(ref.name)' reached async code generation.")
+                }
+                return makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
             }
             return dependencyExpression(
                 for: ref.name,
@@ -367,7 +380,7 @@ private func closureArgumentExpressions(
     member: ProvideMemberModel,
     closure: ClosureExprSyntax,
     availableNames: [String],
-    softTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>
 ) -> [ExprSyntax] {
     let references = member.closureParameterReferences
     // Shorthand closures or attribute-level mismatches may cause the
@@ -386,11 +399,19 @@ private func closureArgumentExpressions(
     var expressions: [ExprSyntax] = []
     for ref in references {
         if ref.kind == .soft {
-            guard softTargetNameSet.contains(ref.name),
+            guard deferredTargetNameSet.contains(ref.name),
                   let calleeDescription = ref.lazyWrapperCalleeDescription else {
                 fatalError("Unsupported soft dependency '\(ref.name)' reached code generation.")
             }
             expressions.append(makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
+            continue
+        }
+        if ref.kind == .provider {
+            guard deferredTargetNameSet.contains(ref.name),
+                  let calleeDescription = ref.providerWrapperCalleeDescription else {
+                fatalError("Unsupported provider dependency '\(ref.name)' reached code generation.")
+            }
+            expressions.append(makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
             continue
         }
         guard let resolvedName = resolveClosureParameter(name: ref.name, availableNames: availableNames) else {
