@@ -120,4 +120,80 @@ struct SoftEdgeCycleFilterTests {
         #expect(deduped.contains(where: { $0.label == "x" && $0.isSoft }))
         #expect(deduped.contains(where: { $0.label == "y" && !$0.isSoft }))
     }
+
+    // MARK: - Provider edges (Phase L)
+
+    @Test("Provider edges are excluded from cycle-detection adjacency")
+    func providerEdgesAreExcludedFromAdjacency() {
+        let nodes = [makeNode("A"), makeNode("B")]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false),
+            DependencyGraphEdge(fromID: "B", toID: "A", label: nil, isSoft: false, isProvider: true)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+
+        #expect(adjacency["A"] == ["B"])
+        #expect(adjacency["B"] == [])
+        #expect(detectDependencyCycles(adjacency: adjacency).isEmpty)
+    }
+
+    @Test("Three-node cycle broken by one provider edge no longer cycles")
+    func threeNodeCycleBrokenByProviderEdge() {
+        let nodes = [makeNode("A"), makeNode("B"), makeNode("C")]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "C", label: nil, isSoft: false, isProvider: true),
+            DependencyGraphEdge(fromID: "B", toID: "A", label: nil, isSoft: false),
+            DependencyGraphEdge(fromID: "C", toID: "B", label: nil, isSoft: false)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+
+        #expect(detectDependencyCycles(adjacency: adjacency).isEmpty)
+    }
+
+    @Test("Provider-only occurrences keep the merged edge as provider")
+    func providerOnlyOccurrencesStayProvider() {
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false, isProvider: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false, isProvider: true)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(deduped[0].isProvider)
+        #expect(!deduped[0].isSoft)
+    }
+
+    @Test("Hard occurrence demotes a prior provider merge")
+    func hardOccurrenceDemotesPriorProviderMerge() {
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false, isProvider: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false, isProvider: false)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(!deduped[0].isProvider)
+        #expect(!deduped[0].isSoft)
+    }
+
+    @Test("Soft and provider occurrences on the same edge collapse to hard")
+    func softProviderMismatchDemotesToHard() {
+        // Different call sites reporting the same (from, to, label) with
+        // conflicting deferred-kind metadata should collapse to hard — we
+        // cannot prove the deferral is consistent across every path.
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true, isProvider: false),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false, isProvider: true)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(!deduped[0].isSoft)
+        #expect(!deduped[0].isProvider)
+    }
 }
