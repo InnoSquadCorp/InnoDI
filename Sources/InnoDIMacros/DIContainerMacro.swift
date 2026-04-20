@@ -61,7 +61,8 @@ public struct DIContainerMacro: MemberMacro {
             return []
         }
 
-        if let conflict = DIContainerParser.findOverridesNameConflict(in: decl) {
+        let hasOverrideCandidates = !(model.sharedMembers.isEmpty && model.transientMembers.isEmpty)
+        if hasOverrideCandidates, let conflict = DIContainerParser.findOverridesNameConflict(in: decl) {
             context.diagnose(
                 Diagnostic(
                     node: Syntax(conflict.node),

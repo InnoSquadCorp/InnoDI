@@ -142,6 +142,25 @@ struct OverridesBuilderTests {
         )
     }
 
+    @Test("input-only container with user-defined Overrides skips scaffolding silently")
+    func inputOnlyUserDefinedOverridesSkipsConflictWarning() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                struct Overrides {
+                    var custom: String
+                }
+
+                @Provide(.input)
+                var userID: String
+            }
+            """,
+            matches: "inputOnlyUserDefinedOverridesSkipsConflictWarning",
+            macros: Self.macros
+        )
+    }
+
     @Test("user-defined nested 'Overrides' suppresses synthesis with a warning diagnostic")
     func userDefinedOverridesConflict() {
         assertMacroExpansionSnapshot(

@@ -21,7 +21,7 @@ public struct AppContainer {
     }
 
     public struct Overrides {
-        var apiClient: APIClient? = nil
+        public var apiClient: APIClient? = nil
     }
 
     public init(userID: String, _ applyOverrides: (inout Overrides) -> Void) {
