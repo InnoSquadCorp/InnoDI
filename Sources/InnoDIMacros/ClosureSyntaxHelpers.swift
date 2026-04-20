@@ -26,8 +26,18 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
             }
             names.append(name)
             // Shorthand closures don't carry type annotations at the
-            // parameter site — `type` stays nil.
-            references.append(ClosureParameterReference(name: name, token: parameter.name, type: nil))
+            // parameter site — `type` stays nil. Without a type we cannot
+            // detect `Lazy<T>`, so shorthand params always register as `.hard`
+            // edges. Users who want soft semantics must use full parameter
+            // clauses (`{ (x: Lazy<T>) in … }`).
+            references.append(
+                ClosureParameterReference(
+                    name: name,
+                    token: parameter.name,
+                    type: nil,
+                    kind: .hard
+                )
+            )
         }
     case .parameterClause(let parameters):
         for parameter in parameters.parameters {
@@ -38,13 +48,60 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
                 continue
             }
             names.append(name)
+            let kind: DependencyKind = isLazyType(parameter.type) ? .soft : .hard
             references.append(
-                ClosureParameterReference(name: name, token: token, type: parameter.type)
+                ClosureParameterReference(
+                    name: name,
+                    token: token,
+                    type: parameter.type,
+                    kind: kind
+                )
             )
         }
     }
 
     return ClosureParameterList(names: names, references: references, hasWildcard: hasWildcard)
+}
+
+/// Returns `true` when a closure-parameter type annotation is syntactically
+/// `Lazy<T>` (or `<Qualifier>.Lazy<T>` — most commonly `InnoDI.Lazy<T>`).
+///
+/// Detection is intentionally textual because macros run before type
+/// resolution: a `typealias MyLazy = Lazy` cannot be recognized and will be
+/// treated as an ordinary hard edge. This mirrors the existing `any Protocol`
+/// detection limits and is documented at the public `Lazy<T>` declaration.
+func isLazyType(_ type: TypeSyntax?) -> Bool {
+    guard let type else { return false }
+
+    let normalized = unwrapAttributedType(type)
+
+    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text == "Lazy"
+            && (identifier.genericArgumentClause?.arguments.count == 1)
+    }
+
+    if let member = normalized.as(MemberTypeSyntax.self) {
+        return member.name.text == "Lazy"
+            && (member.genericArgumentClause?.arguments.count == 1)
+    }
+
+    return false
+}
+
+/// Strips `@escaping` / `@Sendable` / other attribute wrappers so that the
+/// underlying `Lazy<…>` shape remains detectable.
+private func unwrapAttributedType(_ type: TypeSyntax) -> TypeSyntax {
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return unwrapAttributedType(attributed.baseType)
+    }
+    if let tuple = type.as(TupleTypeSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.firstName == nil,
+       first.secondName == nil {
+        return unwrapAttributedType(first.type)
+    }
+    return type
 }
 
 func makeSelfMemberAccessExpr(name: String, baseName: String = "self") -> ExprSyntax {

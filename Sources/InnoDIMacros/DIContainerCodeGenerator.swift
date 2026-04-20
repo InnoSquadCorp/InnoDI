@@ -65,6 +65,21 @@ private func makeInitDecl(
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
 
+    // Phase K: compute the set of members that are the target of at least one
+    // soft (Lazy<T>) factory-parameter edge. For these members we emit a
+    // local `var _lazyRef_<name>: <Type>? = nil` at the top of init and write
+    // through to it immediately after the storage assignment — the Lazy
+    // wrapper closures capture the `_lazyRef_` box so they resolve to the
+    // fully-initialized value after init returns, without capturing `self`
+    // (which would snapshot a struct container).
+    let allMembersForSoft = inputMembers + sharedMembers + transientMembers
+    let softTargetNames = Set(allMembersForSoft.flatMap(\.softClosureDependencies))
+    let softTargetMembers = allMembersForSoft.filter { member in
+        softTargetNames.contains(member.name)
+            && (member.scope == .shared || member.scope == .input)
+    }
+    let softTargetNameSet = Set(softTargetMembers.map(\.name))
+
     for (index, member) in inputMembers.enumerated() {
         let isLast = index == inputMembers.count - 1 && sharedMembers.isEmpty && transientMembers.isEmpty
         let param = FunctionParameterSyntax(
@@ -116,6 +131,19 @@ private func makeInitDecl(
     var taskBindings: [String: AsyncTaskBinding] = [:]
     let needsResolvedBindings = !asyncSharedMembers.isEmpty
 
+    // Declare one `_LazyCell` reference box per soft-target member. These
+    // boxes are `let` bindings wrapping a class instance, so the Lazy
+    // wrappers we emit below can read `.value` after init completes — even
+    // though factories that capture the box run *before* the target storage
+    // is assigned. For struct containers, this avoids the "cannot capture
+    // self in init" problem entirely because the box is a local `let`, not
+    // a reference to `self`.
+    for target in softTargetMembers {
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(makeLazyCellDecl(name: target.name, type: target.type)))
+        )
+    }
+
     for member in inputMembers {
         let storageName = "_storage_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: member.name))))
@@ -126,6 +154,13 @@ private func makeInitDecl(
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }
+
+        if softTargetNameSet.contains(member.name) {
+            // _lazyCell_<name>.value = self._storage_<name>
+            statements.append(
+                CodeBlockItemSyntax(item: .expr(makeLazyCellWriteExpr(name: member.name, storageName: storageName)))
+            )
+        }
     }
 
     let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
@@ -133,7 +168,8 @@ private func makeInitDecl(
         let availableStorageNames = inputStorageNames + syncSharedMembers.prefix(index).map { "_storage_\($0.name)" }
         let factoryExpr = makeFactoryExpr(
             member: member,
-            availableNames: availableStorageNames
+            availableNames: availableStorageNames,
+            softTargetNameSet: softTargetNameSet
         )
 
         let initializerExpr = ExprSyntax(
@@ -153,6 +189,12 @@ private func makeInitDecl(
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }
+
+        if softTargetNameSet.contains(member.name) {
+            statements.append(
+                CodeBlockItemSyntax(item: .expr(makeLazyCellWriteExpr(name: member.name, storageName: storageName)))
+            )
+        }
     }
 
     for member in asyncSharedMembers {
@@ -162,7 +204,8 @@ private func makeInitDecl(
         let createExpr = makeAsyncFactoryExpr(
             member: member,
             resolvedValueBindings: resolvedValueBindings,
-            taskBindings: taskBindings
+            taskBindings: taskBindings,
+            softTargetNameSet: softTargetNameSet
         )
 
         let awaited = ExprSyntax(AwaitExprSyntax(expression: createExpr))
@@ -215,12 +258,18 @@ private func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
 
 private func makeFactoryExpr(
     member: ProvideMemberModel,
-    availableNames: [String]
+    availableNames: [String],
+    softTargetNameSet: Set<String>
 ) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
-            let argumentNames = closureArgumentNames(closure: closure, availableNames: availableNames)
-            return makeClosureCallExpr(closure: closure, argumentNames: argumentNames)
+            let argumentExpressions = closureArgumentExpressions(
+                member: member,
+                closure: closure,
+                availableNames: availableNames,
+                softTargetNameSet: softTargetNameSet
+            )
+            return makeClosureCallExpr(closure: closure, argumentExpressions: argumentExpressions)
         }
         return factory
     }
@@ -255,7 +304,8 @@ private func makeFactoryExpr(
 private func makeAsyncFactoryExpr(
     member: ProvideMemberModel,
     resolvedValueBindings: [String: String],
-    taskBindings: [String: AsyncTaskBinding]
+    taskBindings: [String: AsyncTaskBinding],
+    softTargetNameSet: Set<String>
 ) -> ExprSyntax {
     guard let asyncFactory = member.asyncFactory else {
         return ExprSyntax(
@@ -271,12 +321,59 @@ private func makeAsyncFactoryExpr(
     }
 
     if let closure = asyncFactory.as(ClosureExprSyntax.self) {
-        let parsedArguments = parseClosureParameterNames(closure)
-        let expressions = parsedArguments.names.map { dependencyExpression(for: $0, resolvedValueBindings: resolvedValueBindings, taskBindings: taskBindings) }
+        let references = member.closureParameterReferences
+        let expressions: [ExprSyntax] = references.map { ref in
+            if ref.kind == .soft && softTargetNameSet.contains(ref.name) {
+                return makeLazyCellWrapperExpr(name: ref.name)
+            }
+            return dependencyExpression(
+                for: ref.name,
+                resolvedValueBindings: resolvedValueBindings,
+                taskBindings: taskBindings
+            )
+        }
         return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
     }
 
     return asyncFactory
+}
+
+/// Builds one argument expression per closure parameter of `member.factory`.
+/// Soft parameters that point at a known soft target are replaced with
+/// `Lazy({ _lazyCell_<name>.value! })`; all other parameters fall back to
+/// `self._storage_<resolved>` via `resolveClosureParameter`.
+private func closureArgumentExpressions(
+    member: ProvideMemberModel,
+    closure: ClosureExprSyntax,
+    availableNames: [String],
+    softTargetNameSet: Set<String>
+) -> [ExprSyntax] {
+    let references = member.closureParameterReferences
+    // Shorthand closures or attribute-level mismatches may cause the
+    // reference list to be out-of-sync with the AST; fall back to a
+    // name-only parse in that case.
+    if references.isEmpty {
+        let parsed = parseClosureParameterNames(closure)
+        return parsed.names.map { name in
+            guard let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) else {
+                fatalError("Unresolved closure parameter '\(name)' reached code generation.")
+            }
+            return makeSelfMemberAccessExpr(name: resolvedName)
+        }
+    }
+
+    var expressions: [ExprSyntax] = []
+    for ref in references {
+        if ref.kind == .soft && softTargetNameSet.contains(ref.name) {
+            expressions.append(makeLazyCellWrapperExpr(name: ref.name))
+            continue
+        }
+        guard let resolvedName = resolveClosureParameter(name: ref.name, availableNames: availableNames) else {
+            fatalError("Unresolved closure parameter '\(ref.name)' reached code generation.")
+        }
+        expressions.append(makeSelfMemberAccessExpr(name: resolvedName))
+    }
+    return expressions
 }
 
 private func dependencyExpression(

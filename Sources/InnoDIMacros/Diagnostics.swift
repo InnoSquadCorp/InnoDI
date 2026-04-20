@@ -194,7 +194,7 @@ extension SimpleDiagnostic {
 
     static func containerDependencyCycle(path: String) -> Self {
         Self(
-            "Dependency cycle detected in container: \(path).",
+            "Dependency cycle detected in container: \(path). To break this cycle without restructuring, wrap one factory parameter in Lazy<T>.",
             code: .containerDependencyCycle
         )
     }
