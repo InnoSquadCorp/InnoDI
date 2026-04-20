@@ -20,10 +20,20 @@ func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -
             continue
         }
         let label = edge.label.map { "|\(escapeMermaidLabel($0))|" } ?? ""
-        // Soft edges (`Lazy<T>` cycle-break) render as dashed arrows so they
-        // visually match the global DAG validator's cycle-detection contract:
-        // they are drawn, but they do not count toward a cycle.
-        let arrow = edge.isSoft ? "-.->" : "-->"
+        // Deferred edges render with distinct glyphs:
+        //   - Soft (`Lazy<T>`, Phase K):     dashed `-.->`
+        //   - Provider (`Provider<T>`, L):   thick  `==>`
+        // Hard edges keep the default `-->`. All three are visually
+        // distinguishable so reviewers can see at a glance which dependencies
+        // defer resolution.
+        let arrow: String
+        if edge.isProvider {
+            arrow = "==>"
+        } else if edge.isSoft {
+            arrow = "-.->"
+        } else {
+            arrow = "-->"
+        }
         result += "    \(fromAlias) \(arrow)\(label) \(toAlias)\n"
     }
 
@@ -56,14 +66,17 @@ func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> St
             continue
         }
 
-        // Soft edges get `style=dashed`. They still render as an arrow so
-        // callers see the dependency exists, but the visual dashing matches
-        // the validator's hard-only cycle detection.
+        // Deferred edges get distinct DOT styles:
+        //   - Soft (`Lazy<T>`):       `style=dashed`
+        //   - Provider (`Provider<T>`): `style=dotted`
+        // Both still render as arrows so the dependency remains visible.
         var attributes: [String] = []
         if let label = edge.label {
             attributes.append("label=\"\(escapeDOTLabel(label))\"")
         }
-        if edge.isSoft {
+        if edge.isProvider {
+            attributes.append("style=dotted")
+        } else if edge.isSoft {
             attributes.append("style=dashed")
         }
 
@@ -102,11 +115,19 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
     result += "Edges:\n"
 
     let hasSoftEdge = edges.contains(where: \.isSoft)
-    if hasSoftEdge {
-        // Legend only appears when soft edges are present so the default
-        // render stays compact. The legend explains the `- ->` glyph used
-        // below for `Lazy<T>` cycle-break edges.
-        result += "  Legend: --> hard dependency    - -> soft dependency (Lazy<T>)\n"
+    let hasProviderEdge = edges.contains(where: \.isProvider)
+    if hasSoftEdge || hasProviderEdge {
+        // Legend only appears when at least one deferred edge is present so
+        // the default render stays compact. Each glyph-to-meaning mapping
+        // is listed only when that glyph actually appears in the output.
+        var legendParts: [String] = ["--> hard dependency"]
+        if hasSoftEdge {
+            legendParts.append("- -> soft dependency (Lazy<T>)")
+        }
+        if hasProviderEdge {
+            legendParts.append("~~> provider (Provider<T>)")
+        }
+        result += "  Legend: " + legendParts.joined(separator: "    ") + "\n"
     }
 
     for edge in edges {
@@ -114,7 +135,14 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
         let toLabel = labelsByID[edge.toID] ?? edge.toID
         let labelPart = edge.label.map { ":\($0)" } ?? ""
         let padding = String(repeating: " ", count: max(0, maxNameLength - fromLabel.count))
-        let arrow = edge.isSoft ? "- ->" : "-->"
+        let arrow: String
+        if edge.isProvider {
+            arrow = "~~>"
+        } else if edge.isSoft {
+            arrow = "- ->"
+        } else {
+            arrow = "-->"
+        }
         result += "  \(padding)\(fromLabel) \(arrow) \(toLabel)\(labelPart)\n"
     }
 

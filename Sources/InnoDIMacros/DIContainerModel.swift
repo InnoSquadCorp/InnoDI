@@ -6,13 +6,18 @@ import SwiftSyntax
 /// - `.hard`: the factory consumes the dependency directly and therefore
 ///   requires it to be resolvable before the factory runs. Participates in
 ///   DAG cycle validation as a normal edge.
-/// - `.soft`: the factory receives the dependency through a deferred wrapper
-///   (currently `Lazy<T>`) and does not require the target to be resolved at
-///   factory-call time. Excluded from cycle detection and rendered with a
-///   dashed style in the dependency graph.
+/// - `.soft`: the factory receives the dependency through a deferred `Lazy<T>`
+///   wrapper and does not require the target to be resolved at factory-call
+///   time. Excluded from cycle detection and rendered with a dashed style.
+/// - `.provider`: the factory receives a `Provider<T>` handle that pumps a
+///   fresh instance of a `.transient` target on every call. Like `.soft`, it
+///   is excluded from cycle detection; unlike `.soft` the validator requires
+///   the target member to have `.transient` scope. Rendered with a dotted
+///   style.
 enum DependencyKind {
     case hard
     case soft
+    case provider
 }
 
 struct ClosureParameterReference {
@@ -25,14 +30,19 @@ struct ClosureParameterReference {
     /// an inline type there. Used by Phase K detection (`Lazy<T>`) and reserved
     /// for future type-aware resolution checks.
     let type: TypeSyntax?
-    /// Hard or soft edge classification. Populated by
-    /// `parseClosureParameterNames` based on whether the parameter's written
-    /// type is `Lazy<…>` (soft) or anything else (hard). Shorthand closures
-    /// lack inline type annotations and therefore default to `.hard`.
+    /// Dependency edge classification populated by `parseClosureParameterNames`.
+    /// Written `Lazy<...>` parameters become `.soft`, explicit `Provider<...>`
+    /// spellings become `.provider`, and every other parameter is `.hard`.
+    /// Shorthand closures lack inline type annotations and therefore default
+    /// to `.hard`.
     let kind: DependencyKind
 
     var lazyWrapperCalleeDescription: String? {
         lazyWrapperCalleeDescriptionForType(type)
+    }
+
+    var providerWrapperCalleeDescription: String? {
+        providerWrapperCalleeDescriptionForType(type)
     }
 }
 
@@ -114,9 +124,25 @@ struct ProvideMemberModel {
         closureParameterReferences.filter { $0.kind == .soft }
     }
 
-    /// Closure parameter names that represent hard (non-lazy) edges —
-    /// the ones that continue to constrain declaration order and participate
-    /// in cycle detection.
+    /// Closure parameter names whose written type is `Provider<T>` and
+    /// therefore introduce a provider edge — excluded from cycle detection
+    /// like soft edges, but constrained by the validator to `.transient`
+    /// targets.
+    var providerClosureDependencies: [String] {
+        deduplicateStrings(
+            closureParameterReferences
+                .filter { $0.kind == .provider }
+                .map(\.name)
+        )
+    }
+
+    var providerClosureParameterReferences: [ClosureParameterReference] {
+        closureParameterReferences.filter { $0.kind == .provider }
+    }
+
+    /// Closure parameter names that represent hard (non-lazy, non-provider)
+    /// edges — the ones that continue to constrain declaration order and
+    /// participate in cycle detection.
     var hardClosureDependencies: [String] {
         deduplicateStrings(
             closureParameterReferences

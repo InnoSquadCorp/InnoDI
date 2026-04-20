@@ -35,12 +35,20 @@ package struct DependencyGraphEdge: Hashable {
     /// already respect it so downstream collectors can emit soft edges the
     /// moment they have the information.
     package let isSoft: Bool
+    /// Provider edges originate from factory parameters typed `Provider<T>`
+    /// (Phase L). They are also excluded from cycle detection, but rendered
+    /// with a dotted style to distinguish "deferred but repeat-callable"
+    /// semantics from `Lazy<T>`'s one-shot deferral. Like `isSoft`, the
+    /// container collector does not yet emit member-level provider edges, but
+    /// the plumbing is ready end-to-end.
+    package let isProvider: Bool
 
-    package init(fromID: String, toID: String, label: String?, isSoft: Bool = false) {
+    package init(fromID: String, toID: String, label: String?, isSoft: Bool = false, isProvider: Bool = false) {
         self.fromID = fromID
         self.toID = toID
         self.label = label
         self.isSoft = isSoft
+        self.isProvider = isProvider
     }
 }
 
@@ -84,11 +92,11 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
 
 /// Builds a DFS adjacency list for global DAG cycle detection.
 ///
-/// Soft edges (`DependencyGraphEdge.isSoft == true`) are intentionally
-/// excluded — they originate from `Lazy<T>` factory parameters whose
-/// resolution is deferred until after container construction, so any cycle
-/// they participate in is not traversed at init time. The filter matches the
-/// per-container validator in `DIContainerValidator` (hard-only DFS).
+/// Deferred edges are intentionally excluded: `isSoft` (`Lazy<T>` — Phase K)
+/// resolves a one-shot value after construction, and `isProvider`
+/// (`Provider<T>` — Phase L) resolves a fresh transient on every call. Both
+/// kinds participate in rendering but not in cycle detection, matching the
+/// per-container validator's hard-only DFS.
 ///
 /// The returned adjacency includes every input node as a key (empty list if
 /// it has no outgoing hard edges) so callers can reason about isolated nodes
@@ -101,7 +109,7 @@ package func buildCycleDetectionAdjacency(
     for node in nodes {
         adjacency[node.id] = []
     }
-    for edge in edges where !edge.isSoft {
+    for edge in edges where !edge.isSoft && !edge.isProvider {
         adjacency[edge.fromID, default: []].append(edge.toID)
     }
     return adjacency
@@ -117,20 +125,32 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
     // Stable: first occurrence wins position. When the same (from, to, label)
     // edge is reported multiple times, the merged edge is `isSoft` only if
     // *every* reporting site said so — any hard occurrence demotes the merge
-    // to hard. This matches the validator's hard-wins rule: a cycle that is
-    // broken on one path but hard on another is still a cycle.
+    // to hard. The same rule applies to `isProvider`. Additionally, if the
+    // reporting sites disagree about deferred kind (one soft, one provider),
+    // we collapse to hard — the safest treatment when the graph can't decide
+    // which wrapper the call site actually used.
     var seen: [EdgeKey: Int] = [:]
     var result: [DependencyGraphEdge] = []
 
     for edge in edges {
         let key = EdgeKey(fromID: edge.fromID, toID: edge.toID, label: edge.label)
         if let existingIndex = seen[key] {
-            if result[existingIndex].isSoft && !edge.isSoft {
+            let existing = result[existingIndex]
+            let mergedIsSoft = existing.isSoft && edge.isSoft
+            let mergedIsProvider = existing.isProvider && edge.isProvider
+            // If one occurrence is soft and another is provider, they are
+            // different deferred wrappers at different sites — demote to hard.
+            let deferredMismatch = (existing.isSoft && edge.isProvider)
+                || (existing.isProvider && edge.isSoft)
+            if existing.isSoft != mergedIsSoft
+                || existing.isProvider != mergedIsProvider
+                || deferredMismatch {
                 result[existingIndex] = DependencyGraphEdge(
                     fromID: edge.fromID,
                     toID: edge.toID,
                     label: edge.label,
-                    isSoft: false
+                    isSoft: deferredMismatch ? false : mergedIsSoft,
+                    isProvider: deferredMismatch ? false : mergedIsProvider
                 )
             }
         } else {

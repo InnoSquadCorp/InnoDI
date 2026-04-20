@@ -24,6 +24,9 @@ enum InnoDIDiagnosticCode: String {
     case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
     case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
+    case provideProviderNonTransientTarget = "provide.provider-non-transient-target"
+    case provideProviderUnsupportedTarget = "provide.provider-unsupported-target"
+    case provideProviderEagerCall = "provide.provider-eager-call"
     case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
     case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
     case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
@@ -43,7 +46,8 @@ enum InnoDIDiagnosticCode: String {
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
-                .provideLazyUnsupportedTarget,
+                .provideLazyUnsupportedTarget, .provideProviderNonTransientTarget, .provideProviderUnsupportedTarget,
+                .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
@@ -163,6 +167,27 @@ extension SimpleDiagnostic {
         Self(
             "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Lazy<T> because '\(dependencyName)' is provided by asyncFactory and Lazy resolvers are synchronous.",
             code: .provideLazyUnsupportedTarget
+        )
+    }
+
+    static func provideProviderNonTransientTarget(memberName: String, dependencyName: String, targetScope: ProvideScope) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Provider<T> because '\(dependencyName)' has scope .\(targetScope.rawValue). Provider<T> re-enters a .transient accessor on each call, but overrides may still return stored values, so it requires a .transient target.",
+            code: .provideProviderNonTransientTarget
+        )
+    }
+
+    static func provideProviderUnsupportedTarget(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Provider<T> because '\(dependencyName)' is produced by asyncFactory. Provider<T> only supports synchronous .transient targets; use an async-aware handle instead.",
+            code: .provideProviderUnsupportedTarget
+        )
+    }
+
+    static func provideProviderEagerCall(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot call Provider<T> during .shared construction. Store or forward the provider and invoke it only after the container has finished initializing.",
+            code: .provideProviderEagerCall
         )
     }
 

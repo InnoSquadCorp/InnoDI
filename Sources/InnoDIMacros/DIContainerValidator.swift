@@ -77,6 +77,29 @@ struct DIContainerValidator {
 
             let hardClosureNames = Set(member.hardClosureDependencies)
             let softClosureReferences = Dictionary(uniqueKeysWithValues: member.softClosureParameterReferences.map { ($0.name, $0) })
+            let providerClosureReferences = Dictionary(uniqueKeysWithValues: member.providerClosureParameterReferences.map { ($0.name, $0) })
+
+            if member.scope == .shared {
+                let providerNames = Set(providerClosureReferences.keys)
+                if !providerNames.isEmpty {
+                    let sharedClosures = [member.factory, member.asyncFactory].compactMap { $0?.as(ClosureExprSyntax.self) }
+                    for closure in sharedClosures {
+                        for callSite in collectDirectProviderEagerCalls(in: closure, providerNames: providerNames) {
+                            context.diagnose(
+                                Diagnostic(
+                                    node: callSite.node,
+                                    message: SimpleDiagnostic.provideProviderEagerCall(
+                                        memberName: member.name,
+                                        dependencyName: callSite.providerName
+                                    )
+                                )
+                            )
+                            hadErrors = true
+                        }
+                    }
+                }
+            }
+
             for dependency in deduplicateStrings(member.closureDependencies) {
                 let referencedMember = memberByName[dependency]
                 if let softReference = softClosureReferences[dependency],
@@ -86,6 +109,40 @@ struct DIContainerValidator {
                         Diagnostic(
                             node: Syntax(softReference.token),
                             message: SimpleDiagnostic.provideLazyUnsupportedTarget(
+                                memberName: member.name,
+                                dependencyName: dependency
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+
+                if let providerReference = providerClosureReferences[dependency],
+                   let referencedMember,
+                   referencedMember.scope != .transient {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(providerReference.token),
+                            message: SimpleDiagnostic.provideProviderNonTransientTarget(
+                                memberName: member.name,
+                                dependencyName: dependency,
+                                targetScope: referencedMember.scope
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+
+                if let providerReference = providerClosureReferences[dependency],
+                   let referencedMember,
+                   referencedMember.scope == .transient,
+                   referencedMember.isAsyncFactory {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(providerReference.token),
+                            message: SimpleDiagnostic.provideProviderUnsupportedTarget(
                                 memberName: member.name,
                                 dependencyName: dependency
                             )
@@ -109,10 +166,13 @@ struct DIContainerValidator {
                     )
                     hadErrors = true
                 case .unavailable:
-                    // Soft (Lazy<T>) edges intentionally escape declaration-order
-                    // availability: the runtime `_LazyCell` box lets a forward
-                    // reference resolve safely once init completes. Only hard
-                    // edges still need to be reachable in order.
+                    // Soft (Lazy<T>) and provider (Provider<T>) edges
+                    // intentionally escape declaration-order availability: the
+                    // runtime `_LazyCell` box lets a forward reference resolve
+                    // safely once init completes, and `Provider<T>` reaches
+                    // its transient target through the same late-binding
+                    // resolver. Only hard edges still need to be reachable in
+                    // declaration order.
                     if hardClosureNames.contains(dependency) {
                         context.diagnose(
                             makeUnavailableDependencyDiagnostic(
@@ -171,10 +231,11 @@ struct DIContainerValidator {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
                 let member = model.members[index]
-                // Exclude soft (Lazy<T>) edges from cycle detection so that
-                // intentionally-broken cycles compile cleanly. The
-                // corresponding hard-only graph still participates in
-                // declaration-order availability checks via status(…).
+                // Exclude deferred edges (`Lazy<T>` / `Provider<T>`) from
+                // cycle detection so intentionally-broken graphs compile
+                // cleanly. The corresponding hard-only graph still
+                // participates in declaration-order availability checks via
+                // status(…).
                 let dependencies = resolutionContext.hardGraphDependencies(forMemberAt: index)
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }
@@ -211,7 +272,7 @@ private func makeUnresolvedFactoryParameterDiagnostic(
     member: ProvideMemberModel,
     dependencyName: String,
     knownNames: Set<String>
-) -> Diagnostic {
+    ) -> Diagnostic {
     let reference = member.closureParameterReferences.first(where: { $0.name == dependencyName })
     let node = reference.map { Syntax($0.token) } ?? Syntax(member.attribute)
     let candidates = matchingDependencyCandidates(for: dependencyName, in: knownNames)
@@ -265,6 +326,88 @@ private func makeUnresolvedFactoryParameterDiagnostic(
         notes: notes,
         fixIts: fixIts
     )
+}
+
+private struct DirectProviderEagerCallSite {
+    let providerName: String
+    let node: Syntax
+}
+
+private func collectDirectProviderEagerCalls(
+    in closure: ClosureExprSyntax,
+    providerNames: Set<String>
+) -> [DirectProviderEagerCallSite] {
+    guard !providerNames.isEmpty else { return [] }
+
+    var callSites: [DirectProviderEagerCallSite] = []
+
+    func walk(node: Syntax) {
+        if node.is(ClosureExprSyntax.self)
+            || node.is(FunctionDeclSyntax.self)
+            || node.is(InitializerDeclSyntax.self) {
+            return
+        }
+
+        if let functionCall = node.as(FunctionCallExprSyntax.self),
+           let callSite = directProviderEagerCallSite(in: functionCall, providerNames: providerNames) {
+            callSites.append(callSite)
+        }
+
+        for child in node.children(viewMode: .sourceAccurate) {
+            walk(node: child)
+        }
+    }
+
+    for statement in closure.statements {
+        walk(node: Syntax(statement.item))
+    }
+
+    return callSites
+}
+
+private func directProviderEagerCallSite(
+    in functionCall: FunctionCallExprSyntax,
+    providerNames: Set<String>
+) -> DirectProviderEagerCallSite? {
+    let calledExpression = unwrapProviderCallExpression(functionCall.calledExpression)
+
+    if let reference = calledExpression.as(DeclReferenceExprSyntax.self),
+       providerNames.contains(reference.baseName.text) {
+        return DirectProviderEagerCallSite(
+            providerName: reference.baseName.text,
+            node: Syntax(reference)
+        )
+    }
+
+    if let memberAccess = calledExpression.as(MemberAccessExprSyntax.self),
+       let base = unwrapProviderCallBase(memberAccess.base),
+       providerNames.contains(base.baseName.text),
+       ["callAsFunction", "resolver"].contains(memberAccess.declName.baseName.text) {
+        return DirectProviderEagerCallSite(
+            providerName: base.baseName.text,
+            node: Syntax(memberAccess)
+        )
+    }
+
+    return nil
+}
+
+private func unwrapProviderCallExpression(_ expression: ExprSyntax) -> ExprSyntax {
+    if let tuple = expression.as(TupleExprSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.label == nil {
+        return unwrapProviderCallExpression(first.expression)
+    }
+
+    return expression
+}
+
+private func unwrapProviderCallBase(_ expression: ExprSyntax?) -> DeclReferenceExprSyntax? {
+    guard let expression else { return nil }
+
+    let unwrapped = unwrapProviderCallExpression(expression)
+    return unwrapped.as(DeclReferenceExprSyntax.self)
 }
 
 private func makeUnresolvedWithDependencyDiagnostic(
