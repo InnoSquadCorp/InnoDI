@@ -104,6 +104,73 @@ public struct Lazy<T> {
     }
 }
 
+/// A factory handle that produces a fresh `.transient` instance on every
+/// call. Use `Provider<T>` when a factory parameter needs to pump multiple
+/// independent instances of a transient dependency without retaining the
+/// owning container.
+///
+/// When a factory parameter is declared `Provider<T>`, InnoDI classifies the
+/// resulting DAG edge as a *provider edge*: like `Lazy<T>`, it is excluded
+/// from cycle detection, but the validator additionally requires the target
+/// member to have `.transient` scope so that `.callAsFunction()` semantics
+/// ("a new instance each time") stay honest. `.shared` and `.input` targets
+/// are rejected with `provide.provider-non-transient-target`.
+///
+/// ```swift
+/// @DIContainer
+/// struct AppContainer {
+///     @Provide(.input) var config: Config
+///
+///     @Provide(.transient, factory: { (config: Config) in
+///         Request(config: config)
+///     })
+///     var request: Request
+///
+///     @Provide(.shared, factory: { (requests: Provider<Request>) in
+///         RequestLogger(requests: requests)
+///     })
+///     var logger: RequestLogger
+/// }
+///
+/// final class RequestLogger {
+///     let requests: Provider<Request>
+///     init(requests: Provider<Request>) { self.requests = requests }
+///     func logNew() {
+///         let fresh = requests() // new `Request` on every call
+///         _ = fresh
+///     }
+/// }
+/// ```
+///
+/// `Provider<T>` is invoked with `callAsFunction()`, mirroring `Lazy<T>`'s
+/// call-site ergonomics. Unlike `Lazy<T>`, it does not cache — each invocation
+/// re-enters the container's transient accessor.
+///
+/// ### Detection
+/// The macro recognizes `Provider` by its written identifier at the factory
+/// parameter site (either `Provider<T>` or `<Module>.Provider<T>`). A
+/// `typealias` that renames `Provider` cannot be detected, matching the
+/// `Lazy<T>` limitation. If your module also defines `Provider<T>`, prefer
+/// spelling the wrapper as `InnoDI.Provider<T>` so the generated code
+/// preserves that qualification.
+public struct Provider<T> {
+    @usableFromInline
+    let resolver: () -> T
+
+    /// Creates a provider handle that invokes `resolver` on every access.
+    @inlinable
+    public init(_ resolver: @escaping () -> T) {
+        self.resolver = resolver
+    }
+
+    /// Resolves a fresh instance of the underlying transient dependency.
+    /// Equivalent to `callAsFunction()`.
+    @inlinable
+    public func callAsFunction() -> T {
+        resolver()
+    }
+}
+
 /// Internal reference cell used by macro-generated init bodies to hand a
 /// `Lazy<T>` wrapper to a factory whose soft-edge target has not yet been
 /// assigned. The code generator:
