@@ -11,12 +11,15 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 - `Lazy<T>` escape hatch for breaking dependency cycles at the factory-parameter boundary. A factory parameter typed `Lazy<T>` is now classified as a *soft* dependency: it is excluded from both the per-container cycle detector (`container.dependency-cycle`) and the CLI's global `--validate-dag` check, while still being rendered in the dependency graph.
 - `_LazyCell<T>` runtime class that backs the macro-generated `Lazy` wrappers so `struct` containers can forward-reference siblings without capturing `self`.
 - `DependencyGraphEdge.isSoft` flag plus the `buildCycleDetectionAdjacency(nodes:edges:)` helper in `InnoDICore`, so macros and the CLI share one soft-edge contract.
+- `Provider<T>` factory handle for pumping fresh `.transient` instances on demand without retaining the container. Factory parameters typed `Provider<T>` are classified as a new *provider edge*: excluded from cycle detection like `Lazy<T>`, but the validator requires the target member to have `.transient` scope (`provide.provider-non-transient-target`).
+- `DependencyGraphEdge.isProvider` flag plus dotted renderer styling (Mermaid `==>`, DOT `style=dotted`, ASCII `~~>`) so provider edges stay visually distinct from `Lazy<T>` soft edges in the CLI graph.
 
 ### Changed
 
 - `container.dependency-cycle` diagnostic message now suggests wrapping one factory parameter in `Lazy<T>` to break the cycle without restructuring.
 - Mermaid, DOT, and ASCII renderers style soft edges distinctly: dashed arrows (`-.->`, `style=dashed`, `- ->`) with an ASCII legend that appears only when soft edges are present.
-- `deduplicateEdges(_:)` in `InnoDICore` now follows a hard-wins rule when the same `(from, to, label)` triple is reported by multiple sites — a merged edge is soft only if *every* occurrence was soft.
+- `deduplicateEdges(_:)` in `InnoDICore` now follows a hard-wins rule when the same `(from, to, label)` triple is reported by multiple sites — a merged edge is soft only if *every* occurrence was soft, provider only if every occurrence was provider, and collapses to hard if sites disagree about the deferred-kind.
+- ASCII legend extends to list `~~> provider (Provider<T>)` alongside the existing soft-edge clause when provider edges are present.
 
 ## 3.0.1
 

@@ -2,6 +2,43 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## Unreleased — `Provider<T>` factory handle (Phase L)
+
+### Who is affected
+
+- Projects that define their own top-level type named `Provider<T>` in a
+  module that is imported alongside `InnoDI`.
+- Projects that consume the CLI's `DependencyGraphEdge` payload
+  programmatically.
+
+### Required action
+
+- If you already own a `Provider<T>` type, spell factory-parameter references
+  as `InnoDI.Provider<T>`. Detection is textual and mirrors the existing
+  `Lazy<T>` heuristic: a bare `Provider<T>` whose symbol resolves to a
+  user-defined type at call time may still be treated as InnoDI's wrapper
+  during macro expansion. Generated wrappers preserve the written qualifier,
+  so the collision-safe spelling is `InnoDI.Provider<T>`.
+- If you parse `DependencyGraphEdge` values programmatically, add the new
+  `isProvider: Bool` field to your decoder or pattern match. It defaults to
+  `false` so existing callers keep working unchanged.
+
+### Notes
+
+- `Provider<T>` target scope is restricted: only `.transient` targets are
+  allowed. `.shared` or `.input` targets fail with
+  `provide.provider-non-transient-target`. If you want caching semantics,
+  use `Lazy<T>` instead — Provider is specifically the "fresh instance each
+  call" wrapper.
+- Renderer output gains new glyphs for provider edges (Mermaid `==>`,
+  DOT `style=dotted`, ASCII `~~>`) and the ASCII legend now lists them
+  when present. Existing graphs with only hard/soft edges stay
+  byte-identical.
+- Under the hood, Provider reuses InnoDI's `_LazyCell` late-binding box, so
+  macro output for `.shared` factories that consume a `Provider<T>`
+  parameter references `_LazyCell` — a deliberate implementation sharing,
+  not a new public runtime type.
+
 ## Unreleased — `Lazy<T>` cycle escape hatch (Phase K)
 
 ### Who is affected
