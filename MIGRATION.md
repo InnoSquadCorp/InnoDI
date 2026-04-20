@@ -2,6 +2,38 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## Unreleased — `Lazy<T>` cycle escape hatch (Phase K)
+
+### Who is affected
+
+- Projects that define their own top-level type named `Lazy<T>` in a module
+  that is imported alongside `InnoDI`.
+- Projects that consume the CLI's `DependencyGraphEdge` payload programmatically.
+
+### Required action
+
+- If you already own a `Lazy<T>` type, prefer qualifying factory-parameter
+  references with the module name (for example `MyModule.Lazy<T>`). The
+  macro detects `Lazy<T>` heuristically by AST name match and treats the
+  parameter as a soft edge; a conflicting user-defined type may be misread
+  as InnoDI's `Lazy<T>` and silently excluded from cycle detection. A
+  future release can lift this limitation once the macro has access to a
+  real type checker.
+- If you parse `DependencyGraphEdge` values programmatically, add the new
+  `isSoft: Bool` field to your decoder or pattern match; it defaults to
+  `false` so existing callers keep working unchanged.
+
+### Notes
+
+- The `container.dependency-cycle` message now ends with "To break this
+  cycle without restructuring, wrap one factory parameter in `Lazy<T>`."
+  Exact-match assertions against the old message string need an update;
+  tests that assert against the `SwiftDiagnostics.MessageID`
+  (`container.dependency-cycle`) are unaffected.
+- Renderer output gains dashed edges (`-.->`, `style=dashed`, `- ->`) and
+  an ASCII legend when soft edges are present. Existing graphs without
+  soft edges stay byte-identical.
+
 ## 3.0.1
 
 ### Who is affected

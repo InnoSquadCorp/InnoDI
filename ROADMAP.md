@@ -6,6 +6,18 @@ or release hardening discussions and are not release blockers for `3.0.1`.
 
 ## Recently landed
 
+### Cycle escape hatch — `Lazy<T>` (Phase K)
+- Factory parameters typed `Lazy<T>` now mark the corresponding dependency
+  edge as *soft*. The per-container validator and the CLI `--validate-dag`
+  gate both skip soft edges during cycle detection, and Mermaid/DOT/ASCII
+  renderers draw them with dashed styling. Closes the Top-2 UX gap
+  identified after Phase J.
+- Backed at runtime by `Lazy<T>` (public) and `_LazyCell<T>` (internal box
+  used by generated container inits), so struct containers can break cycles
+  without reference-typed storage.
+- The `container.dependency-cycle` diagnostic now suggests wrapping one
+  factory parameter in `Lazy<T>` as a non-restructuring fix.
+
 ### Testing ergonomics — Overrides builder (Phase J)
 - `@DIContainer` now emits a nested `struct Overrides`, a trailing-closure
   convenience `init(<inputs…>, _ applyOverrides:)`, and four
@@ -18,17 +30,24 @@ or release hardening discussions and are not release blockers for `3.0.1`.
 
 ## Next priorities
 
-With the override builder shipped, the remaining Top-tier UX improvements are
-re-ordered as:
+With the override builder and the `Lazy<T>` cycle escape hatch shipped, the
+remaining Top-tier UX improvements are re-ordered as:
 
-1. `@Lazy` — defer initialization of expensive `.shared` members until first
-   access, without forcing authors to hand-roll a cached closure.
-2. `Provider<T>` — give call sites a factory handle when they need to pull
-   multiple `.transient` instances per scope without retaining the container.
-3. `@SubContainer` — first-class nested containers for per-screen or
+1. `Provider<T>` — give call sites a factory handle when they need to pull
+   multiple `.transient` instances per scope without retaining the
+   container. Reuses the `ClosureParameterReference.type` plumbing added for
+   `Lazy<T>` detection in Phase K.
+2. `@SubContainer` — first-class nested containers for per-screen or
    per-request scopes, replacing today's convention of hand-wiring child
    containers through `.input` parameters.
-4. Scope subdivision (request / session / scenario) — evaluate whether the
+3. Inter-container soft edges — populate `DependencyGraphEdge.isSoft` from
+   the CLI `ContainerUsageCollector` once container-to-container references
+   can be typed. The field is plumbed end-to-end today but the collector
+   only emits hard edges.
+4. `@Lazy` property wrapper — a lighter-weight alternative to `Lazy<T>` for
+   deferring expensive `.shared` initialization. Pending real-world usage
+   feedback on `Lazy<T>` before committing to the syntax.
+5. Scope subdivision (request / session / scenario) — evaluate whether the
    three built-in scopes need finer-grained lifetime variants, especially for
    server-side and multi-window use.
 
