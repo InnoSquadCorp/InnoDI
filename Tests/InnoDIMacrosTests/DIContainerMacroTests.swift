@@ -365,6 +365,28 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Qualified InnoDI.Lazy preserves the written wrapper qualifier")
+    func qualifiedLazyBreaksTwoCycleAcrossShared() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in
+                    CoordinatorA(b: b)
+                }, concrete: true)
+                var a: CoordinatorA
+
+                @Provide(.shared, factory: { (a: CoordinatorA) in
+                    CoordinatorB(a: a)
+                }, concrete: true)
+                var b: CoordinatorB
+            }
+            """,
+            matches: "qualifiedLazyBreaksTwoCycleAcrossShared",
+            macros: Self.macros
+        )
+    }
+
     @Test("Lazy<T> breaks a three-shared cycle as long as at least one edge is soft")
     func lazyBreaksThreeCycle() {
         // Cycle: a → c (soft), c → b (hard), b → a (hard). The soft edge on
@@ -392,6 +414,50 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "lazyBreaksThreeCycle",
+            macros: Self.macros
+        )
+    }
+
+    @Test("Lazy<T> can target a transient dependency through a late-bound resolver")
+    func lazyTargetsTransientDependency() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: { (service: Lazy<Service>) in
+                    Holder(service: service)
+                }, concrete: true)
+                var holder: Holder
+
+                @Provide(.transient, factory: { Service() }, concrete: true)
+                var service: Service
+            }
+            """,
+            matches: "lazyTargetsTransientDependency",
+            macros: Self.macros
+        )
+    }
+
+    @Test("Lazy<T> rejects async shared targets with a source diagnostic")
+    func lazyCannotTargetAsyncSharedDependency() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: { (serviceB: Lazy<ServiceB>) in
+                    ServiceA(serviceB: serviceB)
+                }, concrete: true)
+                var serviceA: ServiceA
+
+                @Provide(.shared, asyncFactory: { () async in
+                    ServiceB()
+                }, concrete: true)
+                var serviceB: ServiceB
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.lazy-unsupported-target")
+            ],
             macros: Self.macros
         )
     }

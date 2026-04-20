@@ -66,17 +66,14 @@ private func makeInitDecl(
     var params: [FunctionParameterSyntax] = []
 
     // Phase K: compute the set of members that are the target of at least one
-    // soft (Lazy<T>) factory-parameter edge. For these members we emit a
-    // local `var _lazyRef_<name>: <Type>? = nil` at the top of init and write
-    // through to it immediately after the storage assignment — the Lazy
-    // wrapper closures capture the `_lazyRef_` box so they resolve to the
-    // fully-initialized value after init returns, without capturing `self`
-    // (which would snapshot a struct container).
+    // soft (Lazy<T>) factory-parameter edge. Shared/input targets store a
+    // concrete value into `_LazyCell`; transient targets bind a late resolver
+    // after the accessor becomes available.
     let allMembersForSoft = inputMembers + sharedMembers + transientMembers
     let softTargetNames = Set(allMembersForSoft.flatMap(\.softClosureDependencies))
     let softTargetMembers = allMembersForSoft.filter { member in
         softTargetNames.contains(member.name)
-            && (member.scope == .shared || member.scope == .input)
+            && member.supportsLazySoftTarget
     }
     let softTargetNameSet = Set(softTargetMembers.map(\.name))
 
@@ -156,9 +153,9 @@ private func makeInitDecl(
         }
 
         if softTargetNameSet.contains(member.name) {
-            // _lazyCell_<name>.value = self._storage_<name>
+            // _lazyCell_<name>.store(self._storage_<name>)
             statements.append(
-                CodeBlockItemSyntax(item: .expr(makeLazyCellWriteExpr(name: member.name, storageName: storageName)))
+                CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
             )
         }
     }
@@ -192,7 +189,7 @@ private func makeInitDecl(
 
         if softTargetNameSet.contains(member.name) {
             statements.append(
-                CodeBlockItemSyntax(item: .expr(makeLazyCellWriteExpr(name: member.name, storageName: storageName)))
+                CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
             )
         }
     }
@@ -234,6 +231,26 @@ private func makeInitDecl(
     for member in transientMembers {
         let overrideName = "_override_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: overrideName, valueName: member.name))))
+    }
+
+    let transientSoftTargetMembers = transientMembers.filter { softTargetNameSet.contains($0.name) }
+    if !transientSoftTargetMembers.isEmpty {
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelf", value: "self")))
+        )
+        for member in transientSoftTargetMembers {
+            statements.append(
+                CodeBlockItemSyntax(
+                    item: .expr(
+                        makeLazyCellBindExpr(
+                            name: member.name,
+                            accessorName: member.name,
+                            baseName: "_lazySelf"
+                        )
+                    )
+                )
+            )
+        }
     }
 
     let initDecl = InitializerDeclSyntax(
@@ -323,8 +340,12 @@ private func makeAsyncFactoryExpr(
     if let closure = asyncFactory.as(ClosureExprSyntax.self) {
         let references = member.closureParameterReferences
         let expressions: [ExprSyntax] = references.map { ref in
-            if ref.kind == .soft && softTargetNameSet.contains(ref.name) {
-                return makeLazyCellWrapperExpr(name: ref.name)
+            if ref.kind == .soft {
+                guard softTargetNameSet.contains(ref.name),
+                      let calleeDescription = ref.lazyWrapperCalleeDescription else {
+                    fatalError("Unsupported soft dependency '\(ref.name)' reached async code generation.")
+                }
+                return makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
             }
             return dependencyExpression(
                 for: ref.name,
@@ -364,8 +385,12 @@ private func closureArgumentExpressions(
 
     var expressions: [ExprSyntax] = []
     for ref in references {
-        if ref.kind == .soft && softTargetNameSet.contains(ref.name) {
-            expressions.append(makeLazyCellWrapperExpr(name: ref.name))
+        if ref.kind == .soft {
+            guard softTargetNameSet.contains(ref.name),
+                  let calleeDescription = ref.lazyWrapperCalleeDescription else {
+                fatalError("Unsupported soft dependency '\(ref.name)' reached code generation.")
+            }
+            expressions.append(makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
             continue
         }
         guard let resolvedName = resolveClosureParameter(name: ref.name, availableNames: availableNames) else {

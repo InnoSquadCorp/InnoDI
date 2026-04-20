@@ -305,7 +305,7 @@ import InnoDI
 
 @DIContainer
 struct AppContainer {
-    @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
+    @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
     var a: CoordinatorA
 
     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) }, concrete: true)
@@ -313,8 +313,8 @@ struct AppContainer {
 }
 
 final class CoordinatorA {
-    let b: Lazy<CoordinatorB>
-    init(b: Lazy<CoordinatorB>) { self.b = b }
+    let b: InnoDI.Lazy<CoordinatorB>
+    init(b: InnoDI.Lazy<CoordinatorB>) { self.b = b }
     func resolveB() -> CoordinatorB { b() }
 }
 
@@ -334,10 +334,11 @@ final class CoordinatorB {
   `--validate-dag` 전역 검증에서 모두 제외되며, 그래프 렌더링에는 dashed로
   표시됩니다.
 - 생성 코드는 soft-target 멤버마다 `let _lazyCell_<name> = _LazyCell<T>()`을
-  init 상단에 선언하고, factory 호출 시 `Lazy({ cell.value! })`를 전달하며,
-  storage 할당 직후 `cell.value = self._storage_<name>`을 기록합니다. 덕분에
-  struct 컨테이너도 `self` 캡처 없이 형제 멤버를 forward-reference할 수
-  있습니다.
+  init 상단에 선언하고, factory 호출 시 사용자가 적은 `Lazy` 표기
+  (예: `InnoDI.Lazy`) 그대로 `Lazy({ cell.resolve() })`를 전달한 뒤,
+  shared/input 값은 즉시 저장하고 transient 타깃은 init 종료 직전에
+  resolver를 바인딩합니다. 덕분에 struct 컨테이너도 factory 호출 시점에는
+  `self`를 캡처하지 않고 형제 멤버를 forward-reference할 수 있습니다.
 - `Lazy<T>` resolver를 받는 멤버는 타깃 멤버보다 **먼저** 선언돼야 init 순서
   상 `_LazyCell`이 이미 존재합니다.
 - `container.dependency-cycle` 진단 메시지 끝에
@@ -349,10 +350,14 @@ final class CoordinatorB {
 - 감지는 AST 텍스트 기반입니다. `Lazy<Foo>`, `InnoDI.Lazy<Foo>`, 그리고
   member-qualified `Something.Lazy<Foo>` 모두 soft-edge로 처리됩니다.
   `typealias Lazy = MyOwnType` 같은 재명명은 매크로가 해석하지 못합니다.
-  동명의 타입을 이미 사용 중이라면 [MIGRATION.md](MIGRATION.md)를 참고하세요.
+  생성 코드도 사용자가 적은 qualifier를 그대로 보존하므로, 동명의 타입이
+  이미 있다면 `InnoDI.Lazy<Foo>`를 권장합니다.
+  [MIGRATION.md](MIGRATION.md)를 참고하세요.
 - `.transient`와 함께 써도 안전하며, `a()`마다 새 인스턴스가 생성됩니다.
   `Lazy<Self>`도 허용되지만, 실제로 동작할지는 factory 구현에 달려 있습니다
   (`.transient` self-reference는 무한 재귀).
+- `Lazy<T>` 자체는 동기 resolver이므로 `asyncFactory`로 생성되는 `.shared`
+  멤버는 soft target으로 받을 수 없습니다.
 
 ## Dependency Graph CLI
 

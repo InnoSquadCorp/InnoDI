@@ -10,6 +10,7 @@ struct DIContainerValidator {
     ) -> Bool {
         var hadErrors = false
         let resolutionContext = DependencyResolutionContext(members: model.members)
+        let memberByName = Dictionary(uniqueKeysWithValues: model.members.map { ($0.name, $0) })
 
         for (index, member) in model.members.enumerated() {
             let hasFactory = member.factory != nil || member.asyncFactory != nil || member.typeExpr != nil || member.initializer != nil
@@ -75,7 +76,25 @@ struct DIContainerValidator {
             }
 
             let hardClosureNames = Set(member.hardClosureDependencies)
+            let softClosureReferences = Dictionary(uniqueKeysWithValues: member.softClosureParameterReferences.map { ($0.name, $0) })
             for dependency in deduplicateStrings(member.closureDependencies) {
+                let referencedMember = memberByName[dependency]
+                if let softReference = softClosureReferences[dependency],
+                   let referencedMember,
+                   !referencedMember.supportsLazySoftTarget {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(softReference.token),
+                            message: SimpleDiagnostic.provideLazyUnsupportedTarget(
+                                memberName: member.name,
+                                dependencyName: dependency
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+
                 let status = resolutionContext.status(of: dependency, forMemberAt: index)
                 switch status {
                 case .available:
@@ -99,7 +118,7 @@ struct DIContainerValidator {
                             makeUnavailableDependencyDiagnostic(
                                 member: member,
                                 dependencyName: dependency,
-                                referencedMember: model.members.first(where: { $0.name == dependency })
+                                referencedMember: referencedMember
                             )
                         )
                         hadErrors = true
@@ -108,6 +127,7 @@ struct DIContainerValidator {
             }
 
             for dependency in deduplicateStrings(member.withDependencies) {
+                let referencedMember = memberByName[dependency]
                 switch resolutionContext.status(of: dependency, forMemberAt: index) {
                 case .available:
                     break
@@ -125,7 +145,7 @@ struct DIContainerValidator {
                         makeUnavailableDependencyDiagnostic(
                             member: member,
                             dependencyName: dependency,
-                            referencedMember: model.members.first(where: { $0.name == dependency })
+                            referencedMember: referencedMember
                         )
                     )
                     hadErrors = true
@@ -133,12 +153,13 @@ struct DIContainerValidator {
             }
 
             for dependency in deduplicateStrings(member.expressionReferences) where resolutionContext.knownNames.contains(dependency) {
+                let referencedMember = memberByName[dependency]
                 if resolutionContext.status(of: dependency, forMemberAt: index) == .unavailable {
                     context.diagnose(
                         makeUnavailableDependencyDiagnostic(
                             member: member,
                             dependencyName: dependency,
-                            referencedMember: model.members.first(where: { $0.name == dependency })
+                            referencedMember: referencedMember
                         )
                     )
                     hadErrors = true
@@ -160,7 +181,6 @@ struct DIContainerValidator {
 
             let cycles = InnoDICore.detectDependencyCycles(adjacency: adjacency)
             if !cycles.isEmpty {
-                let memberByName = Dictionary(uniqueKeysWithValues: model.members.map { ($0.name, $0) })
                 for cycle in cycles {
                     guard let start = cycle.first else { continue }
                     let nodeSyntax: Syntax

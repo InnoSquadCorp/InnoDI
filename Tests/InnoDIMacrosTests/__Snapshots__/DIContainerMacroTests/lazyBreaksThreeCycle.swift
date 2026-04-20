@@ -27,7 +27,7 @@ struct AppContainer {
         self._storage_a = a ?? { (c: Lazy<C>) in
                 A(c: c)
             }(Lazy {
-                _lazyCell_c.value!
+                _lazyCell_c.resolve()
             })
         self._storage_b = b ?? { (a: A) in
                 B(a: a)

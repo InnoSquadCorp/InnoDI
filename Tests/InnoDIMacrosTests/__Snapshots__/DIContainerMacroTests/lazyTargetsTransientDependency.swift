@@ -1,42 +1,48 @@
 
 struct AppContainer {
-    var a: CoordinatorA {
+    var holder: Holder {
         get {
-            return _storage_a
+            return _storage_holder
         }
     }
 
-    private let _storage_a: CoordinatorA
-    var b: CoordinatorB {
+    private let _storage_holder: Holder
+    var service: Service {
         get {
-            return _storage_b
+            if let override = _override_service {
+                return override
+            }
+            return {
+                Service()
+            }()
         }
     }
 
-    private let _storage_b: CoordinatorB
+    private let _override_service: Service?
 
-    init(a: CoordinatorA? = nil, b: CoordinatorB? = nil) {
-        let _lazyCell_b = _LazyCell<CoordinatorB>()
-        self._storage_a = a ?? { (b: Lazy<CoordinatorB>) in
-                CoordinatorA(b: b)
+    init(holder: Holder? = nil, service: Service? = nil) {
+        let _lazyCell_service = _LazyCell<Service>()
+        self._storage_holder = holder ?? { (service: Lazy<Service>) in
+                Holder(service: service)
             }(Lazy {
-                _lazyCell_b.resolve()
+                _lazyCell_service.resolve()
             })
-        self._storage_b = b ?? { (a: CoordinatorA) in
-                CoordinatorB(a: a)
-            }(self._storage_a)
-        _lazyCell_b.value = self._storage_b
+        self._override_service = service
+        let _lazySelf = self
+        _lazyCell_service.resolver = {
+            _lazySelf.service
+        }
     }
 
     struct Overrides {
-        var a: CoordinatorA? = nil
-        var b: CoordinatorB? = nil
+        var holder: Holder? = nil
+        var service: Service? = nil
     }
 
     init(_ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
-        self.init(a: overrides.a, b: overrides.b)
+        self.init(holder: overrides.holder, service: overrides.service)
     }
 
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {

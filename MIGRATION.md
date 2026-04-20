@@ -13,12 +13,14 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
 ### Required action
 
 - If you already own a `Lazy<T>` type, prefer qualifying factory-parameter
-  references with the module name (for example `MyModule.Lazy<T>`). The
+  references as `InnoDI.Lazy<T>`. The
   macro detects `Lazy<T>` heuristically by AST name match and treats the
-  parameter as a soft edge; a conflicting user-defined type may be misread
-  as InnoDI's `Lazy<T>` and silently excluded from cycle detection. A
-  future release can lift this limitation once the macro has access to a
-  real type checker.
+  parameter as a soft edge; a conflicting user-defined bare `Lazy<T>` may
+  still be misread as InnoDI's wrapper and silently excluded from cycle
+  detection. Generated wrappers now preserve the written qualifier, so the
+  supported collision-safe spelling is `InnoDI.Lazy<T>`. A future release
+  can lift the heuristic limitation once the macro has access to a real
+  type checker.
 - If you parse `DependencyGraphEdge` values programmatically, add the new
   `isSoft: Bool` field to your decoder or pattern match; it defaults to
   `false` so existing callers keep working unchanged.
@@ -33,6 +35,9 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
 - Renderer output gains dashed edges (`-.->`, `style=dashed`, `- ->`) and
   an ASCII legend when soft edges are present. Existing graphs without
   soft edges stay byte-identical.
+- `Lazy<T>` remains synchronous. A soft edge that targets an async shared
+  provider now fails with `provide.lazy-unsupported-target` instead of
+  reaching macro code generation.
 
 ## 3.0.1
 

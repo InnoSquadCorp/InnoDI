@@ -2,6 +2,12 @@ import Testing
 
 import InnoDI
 
+// Deliberately collides with InnoDI's Lazy<T> to prove the macro-generated
+// wrappers preserve `InnoDI.Lazy` when the user spells it that way.
+struct Lazy<T> {
+    init() {}
+}
+
 // MARK: - Fixtures
 //
 // ViewModel ↔ Coordinator is the canonical two-cycle: the coordinator needs
@@ -17,8 +23,8 @@ import InnoDI
 // `a.resolveB()` returns the shared `.shared` instance.
 
 final class CoordinatorA {
-    private let _b: Lazy<CoordinatorB>
-    init(b: Lazy<CoordinatorB>) { self._b = b }
+    private let _b: InnoDI.Lazy<CoordinatorB>
+    init(b: InnoDI.Lazy<CoordinatorB>) { self._b = b }
     func resolveB() -> CoordinatorB { _b() }
 }
 
@@ -32,7 +38,7 @@ struct LazyCycleContainer {
     // Declare the soft-target side first. `a`'s factory receives the Lazy
     // wrapper and stores it — the wrapper resolves `b` only when invoked at
     // call time, by which point init has fully populated `_lazyCell_b`.
-    @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in
+    @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in
         CoordinatorA(b: b)
     }, concrete: true)
     var a: CoordinatorA
@@ -41,6 +47,31 @@ struct LazyCycleContainer {
         CoordinatorB(a: a)
     }, concrete: true)
     var b: CoordinatorB
+}
+
+final class TransientService {}
+
+final class TransientHolder {
+    private let _service: InnoDI.Lazy<TransientService>
+
+    init(service: InnoDI.Lazy<TransientService>) {
+        _service = service
+    }
+
+    func resolveService() -> TransientService {
+        _service()
+    }
+}
+
+@DIContainer
+struct LazyTransientContainer {
+    @Provide(.shared, factory: { (service: InnoDI.Lazy<TransientService>) in
+        TransientHolder(service: service)
+    }, concrete: true)
+    var holder: TransientHolder
+
+    @Provide(.transient, factory: { TransientService() }, concrete: true)
+    var service: TransientService
 }
 
 // MARK: - Tests
@@ -77,5 +108,21 @@ struct LazyRuntimeTests {
         let container = LazyCycleContainer()
         #expect(container.a === container.a)
         #expect(container.b === container.b)
+    }
+
+    @Test("Shared -> Lazy<Transient> resolves a fresh transient instance per call")
+    func transientTargetResolvesFreshInstancePerCall() {
+        let container = LazyTransientContainer()
+        let first = container.holder.resolveService()
+        let second = container.holder.resolveService()
+        #expect(first !== second)
+    }
+
+    @Test("Shared -> Lazy<Transient> uses the direct override path when supplied")
+    func transientTargetUsesOverrideWhenProvided() {
+        let override = TransientService()
+        let container = LazyTransientContainer(service: override)
+        #expect(container.holder.resolveService() === override)
+        #expect(container.holder.resolveService() === override)
     }
 }

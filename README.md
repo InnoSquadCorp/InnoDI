@@ -428,7 +428,7 @@ import InnoDI
 
 @DIContainer
 struct AppContainer {
-    @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
+    @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
     var a: CoordinatorA
 
     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) }, concrete: true)
@@ -436,8 +436,8 @@ struct AppContainer {
 }
 
 final class CoordinatorA {
-    let b: Lazy<CoordinatorB>
-    init(b: Lazy<CoordinatorB>) { self.b = b }
+    let b: InnoDI.Lazy<CoordinatorB>
+    init(b: InnoDI.Lazy<CoordinatorB>) { self.b = b }
     func resolveB() -> CoordinatorB { b() }
 }
 
@@ -456,9 +456,11 @@ final class CoordinatorB {
   Soft edges are excluded from both the per-container cycle detector and
   the CLI `--validate-dag` gate, but still appear in the generated graph.
 - Generated init code allocates one `_LazyCell<T>` per soft-target member at
-  init start, passes `Lazy({ cell.value! })` into the factory, and writes
-  `cell.value = self._storage_<name>` after the storage assignment. That
-  lets struct containers forward-reference siblings without capturing `self`.
+  init start, passes the written `Lazy` form (for example `InnoDI.Lazy`)
+  as `Lazy({ cell.resolve() })` into the factory, then either stores the
+  concrete shared/input value or binds a transient resolver after init.
+  That lets struct containers forward-reference siblings without capturing
+  `self` during the factory call.
 - The container member that owns the `Lazy<T>` resolver must be declared
   *before* its target so the `_LazyCell` exists when the factory runs.
 - The `container.dependency-cycle` diagnostic now ends with
@@ -469,12 +471,15 @@ final class CoordinatorB {
 - Detection is textual: `Lazy<Foo>`, `InnoDI.Lazy<Foo>`, and member-qualified
   `Something.Lazy<Foo>` all trigger the soft-edge path. A `typealias Lazy
   = MyOwnType` will **not** be recognized — the macro does not resolve
-  aliases. See [MIGRATION.md](MIGRATION.md) if you own a colliding
-  top-level `Lazy<T>`.
+  aliases. Generated wrappers preserve the written qualifier, so the
+  supported collision-safe spelling is `InnoDI.Lazy<Foo>`. See
+  [MIGRATION.md](MIGRATION.md) if you own a colliding top-level `Lazy<T>`.
 - `Lazy<T>` is fine with `.transient` — each `a()` call produces a fresh
   instance from the factory. `Lazy<Self>` is accepted; whether it makes
   sense at runtime depends on your factory (a self-referential `.transient`
   will recurse).
+- `Lazy<T>` remains synchronous, so it cannot target `.shared` members that
+  are produced by `asyncFactory`.
 
 ## Dependency Graph Visualization
 

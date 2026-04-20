@@ -17,9 +17,9 @@ struct AppContainer {
 
     init(a: CoordinatorA? = nil, b: CoordinatorB? = nil) {
         let _lazyCell_b = _LazyCell<CoordinatorB>()
-        self._storage_a = a ?? { (b: Lazy<CoordinatorB>) in
+        self._storage_a = a ?? { (b: InnoDI.Lazy<CoordinatorB>) in
                 CoordinatorA(b: b)
-            }(Lazy {
+            }(InnoDI.Lazy {
                 _lazyCell_b.resolve()
             })
         self._storage_b = b ?? { (a: CoordinatorA) in

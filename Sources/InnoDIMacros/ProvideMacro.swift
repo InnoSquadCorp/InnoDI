@@ -438,7 +438,10 @@ private func makeTransientClosureCallExpr(
 
     let expressions: [ExprSyntax] = parsed.references.map { ref in
         if ref.kind == .soft {
-            return makeLazyAccessorWrapperExpr(name: ref.name)
+            guard let calleeDescription = ref.lazyWrapperCalleeDescription else {
+                fatalError("Soft transient dependency '\(ref.name)' is missing a Lazy wrapper callee.")
+            }
+            return makeLazyAccessorWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
         }
         return makeSelfMemberAccessExpr(name: ref.name)
     }
