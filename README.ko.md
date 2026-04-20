@@ -359,6 +359,69 @@ final class CoordinatorB {
 - `Lazy<T>` 자체는 동기 resolver이므로 `asyncFactory`로 생성되는 `.shared`
   멤버는 soft target으로 받을 수 없습니다.
 
+## `Provider<T>`로 매번 새 transient 찍어내기
+
+`.shared` 서비스가 `.transient` 의존성을 **호출마다 새로** 소비해야 할 때
+— request logger, retry worker, 메시지별 processor 같은 경우 — transient
+인스턴스를 바로 주입하면 생성 시점에 한 인스턴스가 고정돼서 `.transient` 의
+의미가 사라집니다. `Provider<T>`는 호출마다 컨테이너의 transient accessor
+로 재진입해 fresh 인스턴스를 뽑아 주는 handle입니다.
+
+```swift
+import InnoDI
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var config: Config
+
+    @Provide(.transient, factory: { (config: Config) in Request(config: config) }, concrete: true)
+    var request: Request
+
+    @Provide(.shared, factory: { (requests: Provider<Request>) in
+        RequestLogger(requests: requests)
+    }, concrete: true)
+    var logger: RequestLogger
+}
+
+final class RequestLogger {
+    let requests: Provider<Request>
+    init(requests: Provider<Request>) { self.requests = requests }
+    func logNew() { let fresh = requests(); _ = fresh } // 호출마다 새 Request
+}
+```
+
+### Provider vs Lazy
+
+| 목적 | 래퍼 | 동작 |
+|---|---|---|
+| `.shared ↔ .shared` 순환을 한쪽만 지연해 끊기 | `Lazy<T>` | 첫 `resolver()` 호출에서 타깃 반환. 컨테이너의 `.shared` 캐싱 그대로. |
+| 호출마다 fresh `.transient` 인스턴스 찍어내기 | `Provider<T>` | 매 `resolver()` 호출이 transient accessor 로 재진입. |
+
+`Provider<T>` 파라미터는 매크로가 별도의 *provider edge* 로 분류합니다 —
+cycle 검출에서 제외되는 점은 `Lazy<T>` 와 같지만, CLI 그래프에서는 다른
+스타일로 렌더링됩니다 (Mermaid `==>` / DOT `style=dotted` / ASCII `~~>` +
+legend).
+
+### 검증 규칙
+
+- 타깃 멤버는 반드시 **`.transient`** 여야 합니다. `.shared`/`.input` 타깃을
+  가리키는 `Provider<T>` 파라미터는 `provide.provider-non-transient-target`
+  로 거절됩니다. "호출마다 새 인스턴스" 계약을 유지하기 위한 제약입니다 —
+  캐싱을 원하면 `Lazy<T>` 를 쓰세요.
+- 타깃 멤버가 factory 뒤에 선언돼도 됩니다. `Lazy<T>` 와 마찬가지로 provider
+  edge 는 declaration-order availability 검사에서 제외됩니다.
+
+### 주의할 점
+
+- 감지는 `Lazy<T>` 와 같이 AST 텍스트 기반입니다. `Provider<Foo>`,
+  `InnoDI.Provider<Foo>`, `Something.Provider<Foo>` 모두 처리되고, typealias
+  로 이름이 바뀐 경우는 인식되지 않습니다. 생성 코드는 작성된 qualifier 를
+  그대로 보존합니다.
+- Provider 는 내부적으로 InnoDI 의 `_LazyCell` late-binding 박스를 재사용
+  하므로, Provider 만 선언한 컨테이너의 매크로 확장에도 `_LazyCell` 이
+  등장합니다. deferred target 당 heap 할당 한 번 외의 추가 런타임 비용은
+  없습니다.
+
 ## Dependency Graph CLI
 
 InnoDI는 컨테이너 관계를 시각화하는 CLI를 제공합니다.

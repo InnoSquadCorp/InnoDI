@@ -481,6 +481,72 @@ final class CoordinatorB {
 - `Lazy<T>` remains synchronous, so it cannot target `.shared` members that
   are produced by `asyncFactory`.
 
+## Fresh transients with `Provider<T>`
+
+When a `.shared` service needs to pump *multiple independent instances* of a
+`.transient` dependency — think request loggers, retry workers, per-message
+processors — injecting the transient directly would freeze one instance at
+construction. `Provider<T>` gives the consumer a handle that re-enters the
+container's transient accessor on every call.
+
+```swift
+import InnoDI
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var config: Config
+
+    @Provide(.transient, factory: { (config: Config) in Request(config: config) }, concrete: true)
+    var request: Request
+
+    @Provide(.shared, factory: { (requests: Provider<Request>) in
+        RequestLogger(requests: requests)
+    }, concrete: true)
+    var logger: RequestLogger
+}
+
+final class RequestLogger {
+    let requests: Provider<Request>
+    init(requests: Provider<Request>) { self.requests = requests }
+    func logNew() { let fresh = requests(); _ = fresh }  // new Request each call
+}
+```
+
+### Provider vs Lazy
+
+Both wrappers defer resolution, but they address different needs:
+
+| Need | Wrapper | Behaviour |
+|---|---|---|
+| Break a `.shared ↔ .shared` cycle by deferring one side | `Lazy<T>` | First `resolver()` call returns the target; container's `.shared` scope decides caching. |
+| Pump fresh `.transient` instances on demand | `Provider<T>` | Every `resolver()` call re-enters the transient accessor. |
+
+The macro classifies `Provider<T>` factory parameters as a distinct
+*provider edge* — excluded from cycle detection (like `Lazy<T>`) but rendered
+with its own style in the CLI graph (thick `==>` in Mermaid, `style=dotted`
+in DOT, `~~>` in ASCII with a legend).
+
+### Validation rules
+
+- The target member **must** be `.transient`. A `Provider<T>` factory
+  parameter whose target is `.shared` or `.input` fails with
+  `provide.provider-non-transient-target`. This keeps the "fresh instance
+  each call" contract honest — if you want caching, use `Lazy<T>` instead.
+- The target may be declared *after* the factory that consumes the
+  `Provider<T>` handle. Like `Lazy<T>`, provider edges escape declaration-
+  order availability checks.
+
+### Caveats
+
+- Detection is textual, like `Lazy<T>`. `Provider<Foo>`, `InnoDI.Provider<Foo>`,
+  and member-qualified `Something.Provider<Foo>` are all recognized;
+  typealiases are not. Generated wrappers preserve the written qualifier.
+- Provider internally reuses InnoDI's `_LazyCell` late-binding box, so a
+  container that declares only Provider edges still references `_LazyCell`
+  in its macro expansion (visible in the dependency graph output). This is
+  expected and has no runtime cost beyond a single heap allocation per
+  deferred target.
+
 ## Dependency Graph Visualization
 
 InnoDI includes a command-line tool to generate dependency graphs from your `@DIContainer` declarations. This helps visualize the relationships between containers and their dependencies.
