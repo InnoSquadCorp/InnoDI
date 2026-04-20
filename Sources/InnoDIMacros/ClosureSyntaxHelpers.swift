@@ -25,7 +25,9 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
                 continue
             }
             names.append(name)
-            references.append(ClosureParameterReference(name: name, token: parameter.name))
+            // Shorthand closures don't carry type annotations at the
+            // parameter site — `type` stays nil.
+            references.append(ClosureParameterReference(name: name, token: parameter.name, type: nil))
         }
     case .parameterClause(let parameters):
         for parameter in parameters.parameters {
@@ -36,7 +38,9 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
                 continue
             }
             names.append(name)
-            references.append(ClosureParameterReference(name: name, token: token))
+            references.append(
+                ClosureParameterReference(name: name, token: token, type: parameter.type)
+            )
         }
     }
 
