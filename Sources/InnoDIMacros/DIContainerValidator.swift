@@ -77,6 +77,7 @@ struct DIContainerValidator {
 
             let hardClosureNames = Set(member.hardClosureDependencies)
             let softClosureReferences = Dictionary(uniqueKeysWithValues: member.softClosureParameterReferences.map { ($0.name, $0) })
+            let providerClosureReferences = Dictionary(uniqueKeysWithValues: member.providerClosureParameterReferences.map { ($0.name, $0) })
             for dependency in deduplicateStrings(member.closureDependencies) {
                 let referencedMember = memberByName[dependency]
                 if let softReference = softClosureReferences[dependency],
@@ -88,6 +89,23 @@ struct DIContainerValidator {
                             message: SimpleDiagnostic.provideLazyUnsupportedTarget(
                                 memberName: member.name,
                                 dependencyName: dependency
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+
+                if let providerReference = providerClosureReferences[dependency],
+                   let referencedMember,
+                   referencedMember.scope != .transient {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(providerReference.token),
+                            message: SimpleDiagnostic.provideProviderNonTransientTarget(
+                                memberName: member.name,
+                                dependencyName: dependency,
+                                targetScope: referencedMember.scope
                             )
                         )
                     )
@@ -109,10 +127,13 @@ struct DIContainerValidator {
                     )
                     hadErrors = true
                 case .unavailable:
-                    // Soft (Lazy<T>) edges intentionally escape declaration-order
-                    // availability: the runtime `_LazyCell` box lets a forward
-                    // reference resolve safely once init completes. Only hard
-                    // edges still need to be reachable in order.
+                    // Soft (Lazy<T>) and provider (Provider<T>) edges
+                    // intentionally escape declaration-order availability: the
+                    // runtime `_LazyCell` box lets a forward reference resolve
+                    // safely once init completes, and `Provider<T>` reaches
+                    // its transient target through the same late-binding
+                    // resolver. Only hard edges still need to be reachable in
+                    // declaration order.
                     if hardClosureNames.contains(dependency) {
                         context.diagnose(
                             makeUnavailableDependencyDiagnostic(

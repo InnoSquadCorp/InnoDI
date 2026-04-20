@@ -24,6 +24,7 @@ enum InnoDIDiagnosticCode: String {
     case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
     case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
+    case provideProviderNonTransientTarget = "provide.provider-non-transient-target"
     case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
     case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
     case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
@@ -43,7 +44,7 @@ enum InnoDIDiagnosticCode: String {
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
-                .provideLazyUnsupportedTarget,
+                .provideLazyUnsupportedTarget, .provideProviderNonTransientTarget,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
@@ -163,6 +164,13 @@ extension SimpleDiagnostic {
         Self(
             "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Lazy<T> because '\(dependencyName)' is provided by asyncFactory and Lazy resolvers are synchronous.",
             code: .provideLazyUnsupportedTarget
+        )
+    }
+
+    static func provideProviderNonTransientTarget(memberName: String, dependencyName: String, targetScope: ProvideScope) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Provider<T> because '\(dependencyName)' has scope .\(targetScope.rawValue). Provider<T> pumps fresh instances on every call and therefore requires a .transient target.",
+            code: .provideProviderNonTransientTarget
         )
     }
 
