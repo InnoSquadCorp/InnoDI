@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftSyntax
 
 struct ClosureParameterList {
@@ -48,7 +49,15 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
                 continue
             }
             names.append(name)
-            let kind: DependencyKind = isLazyType(parameter.type) ? .soft : .hard
+            let kind: DependencyKind
+            switch deferredDependencyWrapperKind(for: parameter.type) {
+            case .lazy:
+                kind = .soft
+            case .provider:
+                kind = .provider
+            case .none:
+                kind = .hard
+            }
             references.append(
                 ClosureParameterReference(
                     name: name,
@@ -71,61 +80,26 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
 /// treated as an ordinary hard edge. This mirrors the existing `any Protocol`
 /// detection limits and is documented at the public `Lazy<T>` declaration.
 func isLazyType(_ type: TypeSyntax?) -> Bool {
-    guard let type else { return false }
-
-    let normalized = unwrapAttributedType(type)
-
-    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        return identifier.name.text == "Lazy"
-            && (identifier.genericArgumentClause?.arguments.count == 1)
-    }
-
-    if let member = normalized.as(MemberTypeSyntax.self) {
-        return member.name.text == "Lazy"
-            && (member.genericArgumentClause?.arguments.count == 1)
-    }
-
-    return false
+    deferredDependencyWrapperKind(for: type) == .lazy
 }
 
 func lazyWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
-    guard let type else { return nil }
-
-    let normalized = unwrapAttributedType(type)
-
-    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        guard identifier.name.text == "Lazy",
-              identifier.genericArgumentClause?.arguments.count == 1 else {
-            return nil
-        }
-        return "Lazy"
-    }
-
-    if let member = normalized.as(MemberTypeSyntax.self) {
-        guard member.name.text == "Lazy",
-              member.genericArgumentClause?.arguments.count == 1 else {
-            return nil
-        }
-        return "\(unwrapAttributedType(member.baseType).trimmedDescription).Lazy"
-    }
-
-    return nil
+    deferredDependencyWrapperCalleeDescription(for: type, kind: .lazy)
 }
 
-/// Strips `@escaping` / `@Sendable` / other attribute wrappers so that the
-/// underlying `Lazy<…>` shape remains detectable.
-private func unwrapAttributedType(_ type: TypeSyntax) -> TypeSyntax {
-    if let attributed = type.as(AttributedTypeSyntax.self) {
-        return unwrapAttributedType(attributed.baseType)
-    }
-    if let tuple = type.as(TupleTypeSyntax.self),
-       tuple.elements.count == 1,
-       let first = tuple.elements.first,
-       first.firstName == nil,
-       first.secondName == nil {
-        return unwrapAttributedType(first.type)
-    }
-    return type
+/// Returns `true` when a closure-parameter type annotation is syntactically
+/// `Provider<T>` (or `<Qualifier>.Provider<T>` — most commonly
+/// `InnoDI.Provider<T>`).
+///
+/// Detection mirrors `isLazyType`: the macro cannot resolve typealiases, so a
+/// `typealias MyProvider = Provider` would be treated as an ordinary hard
+/// edge. Documented at the public `Provider<T>` declaration in `InnoDI.swift`.
+func isProviderType(_ type: TypeSyntax?) -> Bool {
+    deferredDependencyWrapperKind(for: type) == .provider
+}
+
+func providerWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
+    deferredDependencyWrapperCalleeDescription(for: type, kind: .provider)
 }
 
 func makeSelfMemberAccessExpr(name: String, baseName: String = "self") -> ExprSyntax {
