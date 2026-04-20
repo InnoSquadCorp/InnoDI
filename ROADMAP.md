@@ -4,6 +4,34 @@ This document tracks follow-up work that is intentionally deferred from the
 current release candidate. Items listed here came from open PR review feedback
 or release hardening discussions and are not release blockers for `3.0.1`.
 
+## Recently landed
+
+### Testing ergonomics — Overrides builder (Phase J)
+- `@DIContainer` now emits a nested `struct Overrides`, a trailing-closure
+  convenience `init(<inputs…>, _ applyOverrides:)`, and four
+  `static withOverrides<T>` effect overloads for containers with any
+  `.shared` / `.transient` member. Closes the Top-1 testing ergonomics gap
+  identified in the post-PR-#17 comparison report.
+- Input-only containers skip the scaffolding silently; user-declared
+  `Overrides` types trigger the new `container.overrides-name-conflict`
+  warning.
+
+## Next priorities
+
+With the override builder shipped, the remaining Top-tier UX improvements are
+re-ordered as:
+
+1. `@Lazy` — defer initialization of expensive `.shared` members until first
+   access, without forcing authors to hand-roll a cached closure.
+2. `Provider<T>` — give call sites a factory handle when they need to pull
+   multiple `.transient` instances per scope without retaining the container.
+3. `@SubContainer` — first-class nested containers for per-screen or
+   per-request scopes, replacing today's convention of hand-wiring child
+   containers through `.input` parameters.
+4. Scope subdivision (request / session / scenario) — evaluate whether the
+   three built-in scopes need finer-grained lifetime variants, especially for
+   server-side and multi-window use.
+
 ## Post-3.0.1 Follow-ups
 
 ### Validation coordinator robustness

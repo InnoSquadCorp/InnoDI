@@ -31,6 +31,7 @@ enum InnoDIDiagnosticCode: String {
     case containerDependencyCycle = "container.dependency-cycle"
     case containerMainActorConflict = "container.mainactor-conflict"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
+    case containerOverridesNameConflict = "container.overrides-name-conflict"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
 
@@ -43,7 +44,7 @@ enum InnoDIDiagnosticCode: String {
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
-                .containerCustomInitUnsupported, .graphDependencyCycle,
+                .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
                 .graphAmbiguousContainerReference:
             return .validation
         }
@@ -209,6 +210,14 @@ extension SimpleDiagnostic {
         Self(
             "@DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring.",
             code: .containerCustomInitUnsupported
+        )
+    }
+
+    static func containerOverridesNameConflict(kind: String) -> Self {
+        Self(
+            "A nested 'Overrides' \(kind) is already declared. InnoDI's @DIContainer would normally generate an Overrides builder, but the user declaration takes precedence. Rename the user type or skip InnoDI's override scaffolding.",
+            code: .containerOverridesNameConflict,
+            severity: .warning
         )
     }
 }

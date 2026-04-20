@@ -116,5 +116,11 @@ let package = Package(
                 "InnoDICore"
             ]
         ),
+        .testTarget(
+            name: "InnoDIRuntimeTests",
+            dependencies: [
+                "InnoDI"
+            ]
+        ),
     ]
 )
