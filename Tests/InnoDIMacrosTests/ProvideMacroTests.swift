@@ -95,6 +95,54 @@ struct ProvideMacroTests {
         #expect(parameterList.names == ["logger"])
     }
 
+    @Test("Closure parameter parser preserves type annotations on full parameter clauses")
+    func parseClosureParameterNamesPreservesTypes() throws {
+        // Phase K relies on the type annotation to detect `Lazy<T>` soft
+        // edges. Shorthand closures have no type site — assert nil there.
+        let source = """
+        @Provide(.shared, factory: { (api: APIClient, raw) in Service(api: api, raw: raw) })
+        var service: Service
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self),
+              let closure = parseProvideArguments(attr).factoryExpr?.as(ClosureExprSyntax.self) else {
+            Issue.record("Should parse shared factory closure")
+            return
+        }
+
+        let parameterList = parseClosureParameterNames(closure)
+        #expect(parameterList.names == ["api", "raw"])
+        // Parameter clause form — first param carries a type annotation.
+        // The parser mixes forms by taking the parameter-clause branch here,
+        // where every parameter yields a TypeSyntax (even `raw` as an
+        // identifier type).
+        let apiType = parameterList.references.first { $0.name == "api" }?.type
+        #expect(apiType?.trimmedDescription == "APIClient")
+    }
+
+    @Test("Qualified Lazy parameter preserves the written wrapper callee")
+    func parseClosureParameterNamesPreservesQualifiedLazyCallee() throws {
+        let source = """
+        @Provide(.shared, factory: { (service: InnoDI.Lazy<Service>) in Holder(service: service) })
+        var holder: Holder
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self),
+              let closure = parseProvideArguments(attr).factoryExpr?.as(ClosureExprSyntax.self) else {
+            Issue.record("Should parse shared factory closure")
+            return
+        }
+
+        let parameterList = parseClosureParameterNames(closure)
+        let serviceReference = try #require(parameterList.references.first { $0.name == "service" })
+        #expect(serviceReference.type?.trimmedDescription == "InnoDI.Lazy<Service>")
+        #expect(serviceReference.lazyWrapperCalleeDescription == "InnoDI.Lazy")
+    }
+
     // MARK: - Accessor/peer expansion tests (migrated to snapshot/inline)
 
     @Test("Transient factory closure injects dependencies by parameter name")
