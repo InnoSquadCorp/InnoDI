@@ -65,20 +65,18 @@ private func makeInitDecl(
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
 
-    // Phase K / Phase L: compute the set of members that are the target of at
-    // least one deferred factory-parameter edge (Lazy<T> soft edge or
-    // Provider<T> provider edge). Shared/input targets store a concrete value
-    // into `_LazyCell`; transient targets bind a late resolver after the
-    // accessor becomes available. Both edge kinds reuse `_LazyCell` because
-    // `_LazyCell.resolve()` covers both the "cached concrete value" path
-    // (Lazy against shared/input) and the "fresh resolver" path (Lazy or
-    // Provider against transient).
-    let allMembersForDeferred = inputMembers + sharedMembers + transientMembers
-    let deferredTargetNames = Set(
-        allMembersForDeferred.flatMap { $0.softClosureDependencies + $0.providerClosureDependencies }
+    // Phase K / Phase L: only deferred wrappers that are consumed from the
+    // synthesized init (`.shared` / `asyncFactory`) need `_LazyCell` storage.
+    // Transient accessors emit `Lazy({ self.<name> })` / `Provider({ self.<name> })`
+    // directly and therefore do not need init-time boxes or late resolver
+    // bindings.
+    let initTimeDeferredSourceMembers = sharedMembers
+    let initTimeDeferredTargetNames = Set(
+        initTimeDeferredSourceMembers.flatMap { $0.softClosureDependencies + $0.providerClosureDependencies }
     )
-    let deferredTargetMembers = allMembersForDeferred.filter { member in
-        deferredTargetNames.contains(member.name)
+    let allPossibleDeferredTargets = inputMembers + sharedMembers + transientMembers
+    let deferredTargetMembers = allPossibleDeferredTargets.filter { member in
+        initTimeDeferredTargetNames.contains(member.name)
             && member.supportsLazySoftTarget
     }
     let deferredTargetNameSet = Set(deferredTargetMembers.map(\.name))

@@ -541,6 +541,73 @@ struct DIContainerMacroTests {
             ],
             macros: Self.macros
         )
+
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var service: Service
+
+                @Provide(.shared, factory: { (service: Provider<Service>) in
+                    Consumer(service: service)
+                }, concrete: true)
+                var consumer: Consumer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-non-transient-target")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Provider<T> rejects async transient targets")
+    func providerOnAsyncTransientTargetFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, asyncFactory: { () async in
+                    Request()
+                }, concrete: true)
+                var request: Request
+
+                @Provide(.shared, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: request)
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-unsupported-target")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Provider<T> rejects async throwing transient targets")
+    func providerOnAsyncThrowingTransientTargetFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, asyncFactory: { () async throws -> Request in
+                    Request()
+                }, concrete: true)
+                var request: Request
+
+                @Provide(.shared, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: request)
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-unsupported-target")
+            ],
+            macros: Self.macros
+        )
     }
 
     @Test("Provider<T> forward reference does not count as a cycle or unavailable edge")
@@ -604,6 +671,50 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request.callAsFunction())
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Parenthesized Provider<T> calls are rejected inside a shared factory body")
+    func providerParenthesizedCallInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @Provide(.shared, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: (request)())
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Resolver-style Provider<T> calls are rejected inside a shared factory body")
+    func providerResolverCallInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @Provide(.shared, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: request.resolver())
                 }, concrete: true)
                 var logger: RequestLogger
             }

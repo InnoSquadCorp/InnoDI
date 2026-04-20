@@ -35,14 +35,9 @@ struct AppContainer {
     private let _override_processor: PayloadProcessor?
 
     init(input: PayloadInput, payload: Payload? = nil, processor: PayloadProcessor? = nil) {
-        let _lazyCell_payload = _LazyCell<Payload>()
         self._storage_input = input
         self._override_payload = payload
         self._override_processor = processor
-        let _lazySelf = self
-        _lazyCell_payload.resolver = {
-            _lazySelf.payload
-        }
     }
 
     struct Overrides {

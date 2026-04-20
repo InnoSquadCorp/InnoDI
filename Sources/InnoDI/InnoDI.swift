@@ -104,17 +104,18 @@ public struct Lazy<T> {
     }
 }
 
-/// A factory handle that produces a fresh `.transient` instance on every
-/// call. Use `Provider<T>` when a factory parameter needs to pump multiple
-/// independent instances of a transient dependency without retaining the
-/// owning container.
+/// A factory handle that re-enters a `.transient` accessor on every call.
+/// Use `Provider<T>` when a factory parameter needs repeated access to a
+/// transient dependency without retaining the owning container.
 ///
 /// When a factory parameter is declared `Provider<T>`, InnoDI classifies the
 /// resulting DAG edge as a *provider edge*: like `Lazy<T>`, it is excluded
 /// from cycle detection, but the validator additionally requires the target
 /// member to have `.transient` scope so that `.callAsFunction()` semantics
-/// ("a new instance each time") stay honest. `.shared` and `.input` targets
-/// are rejected with `provide.provider-non-transient-target`.
+/// stay aligned with transient re-entry. Live containers typically produce a
+/// new instance on each call, but test overrides may still return a stored
+/// value. `.shared` and `.input` targets are rejected with
+/// `provide.provider-non-transient-target`.
 ///
 /// ```swift
 /// @DIContainer
@@ -136,18 +137,19 @@ public struct Lazy<T> {
 ///     let requests: Provider<Request>
 ///     init(requests: Provider<Request>) { self.requests = requests }
 ///     func logNew() {
-///         let fresh = requests() // new `Request` on every call
-///         _ = fresh
+///         let request = requests() // re-enters `.transient`; overrides may reuse a stored value
+///         _ = request
 ///     }
 /// }
 /// ```
 ///
 /// `Provider<T>` is invoked with `callAsFunction()`, mirroring `Lazy<T>`'s
-/// call-site ergonomics. Unlike `Lazy<T>`, it does not cache — each invocation
-/// re-enters the container's transient accessor. Do not call the wrapper
-/// inside a `.shared` factory or `asyncFactory` body itself; store it or pass
-/// it downstream first, then invoke it only after the container has finished
-/// initializing. InnoDI diagnoses direct `provider()` /
+/// call-site ergonomics. Unlike `Lazy<T>`, it does not cache by itself —
+/// each invocation re-enters the container's transient accessor, so live
+/// containers typically build a new instance while overrides may return a
+/// stored value. Do not call the wrapper inside a `.shared` factory or
+/// `asyncFactory` body itself; store it or pass it downstream first, then
+/// invoke it only after the container has finished initializing. InnoDI diagnoses direct `provider()` /
 /// `provider.callAsFunction()` use inside shared construction, but indirect
 /// eager calls routed through helper APIs can still fail if they resolve too
 /// early.
@@ -169,7 +171,8 @@ public struct Provider<T> {
         self.resolver = resolver
     }
 
-    /// Resolves a fresh instance of the underlying transient dependency.
+    /// Re-enters the underlying transient resolver. Live containers typically
+    /// build a new instance; override-backed tests may return a stored value.
     /// Equivalent to `callAsFunction()`.
     @inlinable
     public func callAsFunction() -> T {

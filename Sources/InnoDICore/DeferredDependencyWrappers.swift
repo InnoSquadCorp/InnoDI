@@ -70,6 +70,8 @@ package func deferredDependencyWrappedTypeReference(_ type: TypeSyntax?) -> Sema
 }
 
 private func unwrapDeferredDependencyWrapperType(_ type: TypeSyntax) -> TypeSyntax {
+    // Intentionally does not unwrap `T?`, `T!`, or `Optional<T>` so optional
+    // deferred wrappers like `Lazy<T>?` are not silently treated as supported.
     if let attributed = type.as(AttributedTypeSyntax.self) {
         return unwrapDeferredDependencyWrapperType(attributed.baseType)
     }

@@ -30,10 +30,11 @@ struct ClosureParameterReference {
     /// an inline type there. Used by Phase K detection (`Lazy<T>`) and reserved
     /// for future type-aware resolution checks.
     let type: TypeSyntax?
-    /// Hard or soft edge classification. Populated by
-    /// `parseClosureParameterNames` based on whether the parameter's written
-    /// type is `Lazy<…>` (soft) or anything else (hard). Shorthand closures
-    /// lack inline type annotations and therefore default to `.hard`.
+    /// Dependency edge classification populated by `parseClosureParameterNames`.
+    /// Written `Lazy<...>` parameters become `.soft`, explicit `Provider<...>`
+    /// spellings become `.provider`, and every other parameter is `.hard`.
+    /// Shorthand closures lack inline type annotations and therefore default
+    /// to `.hard`.
     let kind: DependencyKind
 
     var lazyWrapperCalleeDescription: String? {
