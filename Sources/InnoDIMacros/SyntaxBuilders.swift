@@ -280,6 +280,43 @@ internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName:
 /// soft 파라미터를 감지한 factory에 넘길 값이다. Lazy 의 generic
 /// 파라미터는 closure 반환 타입으로 추론되므로 `<Type>`을 명시하지 않는다.
 internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
+}
+
+/// `<Qualified>.Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
+///
+/// Transient 접근자(getter) 내부에서 사용된다. getter 시점에는 `self`가
+/// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
+/// 된다.
+internal func makeLazyAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
+}
+
+// MARK: - Provider wrappers (Phase L)
+//
+// Provider<T> 래퍼는 Lazy<T> 와 동일한 형태(closure trailing call)이지만
+// 호출 시 매번 target `.transient` 저장소를 새로 resolve 한다. 생성 코드는
+// 기존 `_LazyCell` 인프라를 그대로 재사용한다 — `_LazyCell.resolver` 는
+// transient 대상에 대해 `{ self.<name> }` 를 바인딩해 두며, `resolve()` 는
+// 매 호출마다 그 클로저를 실행해 fresh 인스턴스를 반환한다. 따라서
+// Provider 용 래퍼는 "`Lazy` 대신 `Provider` 로 감쌈" 외의 차이가 없다.
+
+/// `<Qualified>.Provider({ _lazyCell_<name>.resolve() })` 형태의 인수
+/// 표현식. `.shared` init 경로에서 `Provider<T>` 파라미터에 주입된다.
+internal func makeProviderCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
+}
+
+/// `<Qualified>.Provider({ self.<name> })` 형태의 Provider 래퍼. transient
+/// 접근자 내부에서 사용된다 (`self` 이미 초기화 완료).
+internal func makeProviderAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
+}
+
+/// `makeLazyCellWrapperExpr` 본체를 Lazy / Provider 양쪽에서 공유할 수
+/// 있도록 분리한 내부 구현. 호출처는 `calleeDescription` 으로 래퍼 이름
+/// ("Lazy" / "Provider" / "InnoDI.Lazy" 등)을 결정한다.
+private func makeLazyCellWrapperExprCore(name: String, calleeDescription: String) -> ExprSyntax {
     let resolveAccess = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
         declName: DeclReferenceExprSyntax(baseName: .identifier("resolve"))
@@ -290,19 +327,10 @@ internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -
         arguments: LabeledExprListSyntax([]),
         rightParen: .rightParenToken()
     )
-    return makeLazyWrapperExpr(calleeDescription: calleeDescription, resolverExpression: ExprSyntax(resolveCall))
+    return makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: ExprSyntax(resolveCall))
 }
 
-/// `<Qualified>.Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
-///
-/// Transient 접근자(getter) 내부에서 사용된다. getter 시점에는 `self`가
-/// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
-/// 된다.
-internal func makeLazyAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeLazyWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
-}
-
-private func makeLazyWrapperExpr(calleeDescription: String, resolverExpression: ExprSyntax) -> ExprSyntax {
+private func makeDeferredWrapperExpr(calleeDescription: String, resolverExpression: ExprSyntax) -> ExprSyntax {
     let closure = ClosureExprSyntax(
         statements: CodeBlockItemListSyntax([
             CodeBlockItemSyntax(item: .expr(resolverExpression))

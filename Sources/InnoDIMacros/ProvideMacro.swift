@@ -443,6 +443,12 @@ private func makeTransientClosureCallExpr(
             }
             return makeLazyAccessorWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
         }
+        if ref.kind == .provider {
+            guard let calleeDescription = ref.providerWrapperCalleeDescription else {
+                fatalError("Provider transient dependency '\(ref.name)' is missing a Provider wrapper callee.")
+            }
+            return makeProviderAccessorWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
+        }
         return makeSelfMemberAccessExpr(name: ref.name)
     }
     return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
