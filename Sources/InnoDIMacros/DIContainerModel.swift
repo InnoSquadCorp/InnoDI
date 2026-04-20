@@ -3,6 +3,13 @@ import SwiftSyntax
 struct ClosureParameterReference {
     let name: String
     let token: TokenSyntax
+    /// Type annotation as written at the closure parameter site, when available.
+    ///
+    /// Populated for full parameter-clause closures (`{ (x: T) in ... }`). `nil`
+    /// for shorthand closures (`{ x in ... }`) because Swift does not require
+    /// an inline type there. Used by Phase K detection (`Lazy<T>`) and reserved
+    /// for future type-aware resolution checks.
+    let type: TypeSyntax?
 }
 
 struct WithDependencyReference {
