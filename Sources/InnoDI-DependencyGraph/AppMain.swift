@@ -92,11 +92,10 @@ private func runDAGValidation(
     let eligibleEdges = edges.filter { nodeIDs.contains($0.fromID) && nodeIDs.contains($0.toID) }
     let eligibleSemanticIssues = semanticIssues.filter { nodeIDs.contains($0.sourceID) }
 
-    // Soft edges (Lazy<T>) are intentionally excluded from cycle detection:
-    // the runtime resolves them lazily, so the cycle they would otherwise
-    // form does not actually run during container construction. See
-    // `DependencyGraphEdge.isSoft`, `buildCycleDetectionAdjacency`, and
-    // Phase K in ROADMAP.md.
+    // Deferred edges are intentionally excluded from cycle detection:
+    // `Lazy<T>` defers resolution until after construction, and `Provider<T>`
+    // re-enters a transient accessor on demand. Both still render in the
+    // graph, but neither should participate in init-time cycle validation.
     let adjacency = buildCycleDetectionAdjacency(nodes: eligibleNodes, edges: eligibleEdges)
     let cycles = detectDependencyCycles(adjacency: adjacency)
     if cycles.isEmpty && eligibleSemanticIssues.isEmpty {

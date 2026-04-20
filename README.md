@@ -541,6 +541,12 @@ in DOT, `~~>` in ASCII with a legend).
 - Detection is textual, like `Lazy<T>`. `Provider<Foo>`, `InnoDI.Provider<Foo>`,
   and member-qualified `Something.Provider<Foo>` are all recognized;
   typealiases are not. Generated wrappers preserve the written qualifier.
+- Do not call a `Provider<T>` directly inside a `.shared` factory or
+  `asyncFactory` body. Treat it like a handle to store or pass onward, then
+  invoke only after container initialization completes. InnoDI now diagnoses
+  direct `provider()` / `provider.callAsFunction()` syntax in shared
+  construction, but indirect helper-based eager calls can still resolve too
+  early.
 - Provider internally reuses InnoDI's `_LazyCell` late-binding box, so a
   container that declares only Provider edges still references `_LazyCell`
   in its macro expansion (visible in the dependency graph output). This is

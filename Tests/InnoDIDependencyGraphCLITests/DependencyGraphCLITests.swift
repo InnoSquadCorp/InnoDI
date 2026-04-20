@@ -23,6 +23,31 @@ struct DependencyGraphCLITests {
         #expect(ascii.stdout.contains("InnoDI Dependency Graph"))
     }
 
+    @Test("Deferred Lazy/Provider edges reach the real CLI renderers")
+    func rendersDeferredEdgesEndToEnd() throws {
+        let fixtureURL = try makeDeferredEdgeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let rootPath = fixtureURL.path(percentEncoded: false)
+
+        let mermaid = try runCLI(["--root", rootPath, "--format", "mermaid"])
+        #expect(mermaid.exitCode == 0)
+        #expect(mermaid.stdout.contains("-.->"))
+        #expect(mermaid.stdout.contains("==>"))
+
+        let dot = try runCLI(["--root", rootPath, "--format", "dot"])
+        #expect(dot.exitCode == 0)
+        #expect(dot.stdout.contains("style=dashed"))
+        #expect(dot.stdout.contains("style=dotted"))
+
+        let ascii = try runCLI(["--root", rootPath, "--format", "ascii"])
+        #expect(ascii.exitCode == 0)
+        #expect(ascii.stdout.contains("- ->"))
+        #expect(ascii.stdout.contains("~~>"))
+        #expect(ascii.stdout.contains("soft dependency (Lazy<T>)"))
+        #expect(ascii.stdout.contains("provider (Provider<T>)"))
+    }
+
     @Test("Writes graph output file with --output")
     func writesOutputFile() throws {
         let fixtureURL = try makeFixtureProject()
@@ -135,6 +160,48 @@ struct DependencyGraphCLITests {
 
         #expect(result.exitCode == 3)
         #expect(result.stderr.contains("DAG validation failed."))
+        #expect(result.stderr.contains("Detected dependency cycles:"))
+    }
+
+    @Test("Validate DAG treats provider edges as deferred end-to-end")
+    func validateDAGPassesWhenProviderBreaksCycle() throws {
+        let fixtureURL = try makeProviderDeferredCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+    }
+
+    @Test("Validate DAG treats lazy edges as deferred end-to-end")
+    func validateDAGPassesWhenLazyBreaksCycle() throws {
+        let fixtureURL = try makeLazyDeferredCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+    }
+
+    @Test("Hard edge still wins when a provider edge shares the same source and destination")
+    func validateDAGStillFailsWhenHardAndProviderEdgesCoexist() throws {
+        let fixtureURL = try makeMixedHardAndProviderCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
         #expect(result.stderr.contains("Detected dependency cycles:"))
     }
 
@@ -316,6 +383,68 @@ private func makeFixtureProject() throws -> URL {
     return fixtureURL
 }
 
+private func makeDeferredEdgeFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Deferred-Edges-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct ProviderConsumer {
+        let feature: Provider<FeatureContainer>
+        init(feature: Provider<FeatureContainer>) { self.feature = feature }
+    }
+
+    struct LazyConsumer {
+        let admin: Lazy<AdminContainer>
+        init(admin: Lazy<AdminContainer>) { self.admin = admin }
+    }
+
+    func buildFeatureContainer() -> FeatureContainer { fatalError() }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.transient, factory: buildFeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+
+        @Provide(.input)
+        var admin: AdminContainer
+
+        @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
+            ProviderConsumer(feature: feature)
+        }, concrete: true)
+        var providerConsumer: ProviderConsumer
+
+        @Provide(.shared, factory: { (admin: Lazy<AdminContainer>) in
+            LazyConsumer(admin: admin)
+        }, concrete: true)
+        var lazyConsumer: LazyConsumer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.input)
+        var seed: Int
+    }
+
+    @DIContainer
+    struct AdminContainer {
+        @Provide(.input)
+        var seed: Int
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("DeferredEdges.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
 private func makeProvideConstructionFixtureProject() throws -> URL {
     let fixtureURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("InnoDI-CLI-Provide-Construction-\(UUID().uuidString)", isDirectory: true)
@@ -440,6 +569,90 @@ private func makeUnresolvedReferenceFixtureProject() throws -> URL {
     return fixtureURL
 }
 
+private func makeProviderDeferredCycleFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Provider-Deferred-Cycle-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct ProviderConsumer {
+        let feature: Provider<FeatureContainer>
+        init(feature: Provider<FeatureContainer>) { self.feature = feature }
+    }
+
+    func buildFeatureContainer() -> FeatureContainer { fatalError() }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.transient, factory: buildFeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+
+        @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
+            ProviderConsumer(feature: feature)
+        }, concrete: true)
+        var providerConsumer: ProviderConsumer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("ProviderDeferredCycle.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeLazyDeferredCycleFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Lazy-Deferred-Cycle-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct LazyConsumer {
+        let feature: Lazy<FeatureContainer>
+        init(feature: Lazy<FeatureContainer>) { self.feature = feature }
+    }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var feature: FeatureContainer
+
+        @Provide(.shared, factory: { (feature: Lazy<FeatureContainer>) in
+            LazyConsumer(feature: feature)
+        }, concrete: true)
+        var lazyConsumer: LazyConsumer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("LazyDeferredCycle.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
 private func makeNoContainerFixtureProject() throws -> URL {
     let fixtureURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("InnoDI-CLI-NoContainer-\(UUID().uuidString)", isDirectory: true)
@@ -454,6 +667,47 @@ private func makeNoContainerFixtureProject() throws -> URL {
 
     try source.write(
         to: fixtureURL.appendingPathComponent("Plain.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeMixedHardAndProviderCycleFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Mixed-Hard-Provider-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct ProviderConsumer {
+        let feature: Provider<FeatureContainer>
+        init(feature: Provider<FeatureContainer>) { self.feature = feature }
+    }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.transient, factory: FeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+
+        @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
+            ProviderConsumer(feature: feature)
+        }, concrete: true)
+        var providerConsumer: ProviderConsumer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("MixedHardProviderCycle.swift"),
         atomically: true,
         encoding: .utf8
     )
