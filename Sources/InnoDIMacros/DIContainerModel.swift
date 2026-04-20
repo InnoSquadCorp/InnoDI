@@ -1,5 +1,20 @@
 import SwiftSyntax
 
+/// Classifies a factory-parameter dependency edge for cycle detection and
+/// code generation.
+///
+/// - `.hard`: the factory consumes the dependency directly and therefore
+///   requires it to be resolvable before the factory runs. Participates in
+///   DAG cycle validation as a normal edge.
+/// - `.soft`: the factory receives the dependency through a deferred wrapper
+///   (currently `Lazy<T>`) and does not require the target to be resolved at
+///   factory-call time. Excluded from cycle detection and rendered with a
+///   dashed style in the dependency graph.
+enum DependencyKind {
+    case hard
+    case soft
+}
+
 struct ClosureParameterReference {
     let name: String
     let token: TokenSyntax
@@ -10,6 +25,11 @@ struct ClosureParameterReference {
     /// an inline type there. Used by Phase K detection (`Lazy<T>`) and reserved
     /// for future type-aware resolution checks.
     let type: TypeSyntax?
+    /// Hard or soft edge classification. Populated by
+    /// `parseClosureParameterNames` based on whether the parameter's written
+    /// type is `Lazy<…>` (soft) or anything else (hard). Shorthand closures
+    /// lack inline type annotations and therefore default to `.hard`.
+    let kind: DependencyKind
 }
 
 struct WithDependencyReference {
@@ -72,6 +92,29 @@ struct ProvideMemberModel {
 
     var isAsyncFactory: Bool {
         asyncFactory != nil
+    }
+
+    /// Closure parameter names whose written type is `Lazy<T>` and therefore
+    /// introduce a deferred (soft) dependency edge. Used by the validator to
+    /// exclude soft edges from cycle detection and by the code generator to
+    /// emit `Lazy<T>({ … })` wrappers at factory call sites.
+    var softClosureDependencies: [String] {
+        deduplicateStrings(
+            closureParameterReferences
+                .filter { $0.kind == .soft }
+                .map(\.name)
+        )
+    }
+
+    /// Closure parameter names that represent hard (non-lazy) edges —
+    /// the ones that continue to constrain declaration order and participate
+    /// in cycle detection.
+    var hardClosureDependencies: [String] {
+        deduplicateStrings(
+            closureParameterReferences
+                .filter { $0.kind == .hard }
+                .map(\.name)
+        )
     }
 }
 

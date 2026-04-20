@@ -150,7 +150,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             isMainActor: enclosingContainerMainActor
                         )]
                     }
-                    createExpr = makeClosureCallExpr(closure: closure, argumentNames: parsedArguments.names)
+                    createExpr = makeTransientClosureCallExpr(
+                        closure: closure,
+                        parsed: parsedArguments
+                    )
                 } else {
                     createExpr = asyncFactory
                 }
@@ -189,7 +192,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             isMainActor: enclosingContainerMainActor
                         )]
                     }
-                    createExpr = makeClosureCallExpr(closure: closure, argumentNames: parsedArguments.names)
+                    createExpr = makeTransientClosureCallExpr(
+                        closure: closure,
+                        parsed: parsedArguments
+                    )
                 } else {
                     createExpr = factory
                 }
@@ -413,6 +419,30 @@ private func enclosingProvideMemberNames(for declaration: some DeclSyntaxProtoco
     }
 
     return nil
+}
+
+/// Builds the factory-call expression for a transient accessor. Same as
+/// `makeClosureCallExpr(closure:argumentNames:)` except soft (Lazy<T>)
+/// parameters are wrapped as `Lazy({ self.<name> })`, because the accessor
+/// runs after `self` is fully initialized and therefore can capture it
+/// directly — no `_LazyCell` box plumbing is needed here.
+private func makeTransientClosureCallExpr(
+    closure: ClosureExprSyntax,
+    parsed: ClosureParameterList
+) -> ExprSyntax {
+    // If the references list is available, honor soft kinds; otherwise fall
+    // back to the plain member-access path.
+    if parsed.references.isEmpty || parsed.references.allSatisfy({ $0.kind == .hard }) {
+        return makeClosureCallExpr(closure: closure, argumentNames: parsed.names)
+    }
+
+    let expressions: [ExprSyntax] = parsed.references.map { ref in
+        if ref.kind == .soft {
+            return makeLazyAccessorWrapperExpr(name: ref.name)
+        }
+        return makeSelfMemberAccessExpr(name: ref.name)
+    }
+    return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
 }
 
 private func hasProvideAttribute(_ attributes: AttributeListSyntax?) -> Bool {

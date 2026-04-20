@@ -199,6 +199,108 @@ internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
     return CodeBlockItemSyntax(item: .expr(ExprSyntax(call)))
 }
 
+// MARK: - Lazy cycle-escape helpers
+
+/// `let _lazyCell_<name> = _LazyCell<Type>()` 형태의 로컬 바인딩을 만든다.
+///
+/// Phase K에서 soft-edge(Lazy<T>) 탈출구를 구현할 때 사용한다. 이 셀은
+/// 생성자가 돌아가는 동안 heap-allocated 상자로 캡처되어, 나중에 target
+/// 저장소가 실제 값으로 채워진 뒤에도 동일한 reference를 공유한다. `let`
+/// 바인딩이므로 컨테이너 init이 끝난 후에 생성된 Lazy 래퍼가 mutable
+/// capture 없이 안전하게 값을 읽을 수 있다.
+internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
+    let genericClause = GenericArgumentClauseSyntax(
+        arguments: GenericArgumentListSyntax([
+            GenericArgumentSyntax(argument: .type(type.trimmed))
+        ])
+    )
+    let cellType = IdentifierTypeSyntax(
+        name: .identifier("_LazyCell"),
+        genericArgumentClause: genericClause
+    )
+    let initCall = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(
+            GenericSpecializationExprSyntax(
+                expression: DeclReferenceExprSyntax(baseName: .identifier("_LazyCell")),
+                genericArgumentClause: genericClause
+            )
+        ),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([]),
+        rightParen: .rightParenToken()
+    )
+
+    _ = cellType // retained above for documentation; inferred from RHS
+
+    let cellName = "_lazyCell_\(name)"
+    return letBinding(name: cellName, value: ExprSyntax(initCall))
+}
+
+/// `_lazyCell_<name>.value = self._storage_<name>` 형태의 쓰기 표현식을 만든다.
+///
+/// init이 shared/input 저장소를 채운 직후에 호출되어, 미리 배포된 Lazy
+/// 래퍼가 뒤늦게 해결(resolve)할 때 같은 인스턴스를 되돌려줄 수 있게 한다.
+internal func makeLazyCellWriteExpr(name: String, storageName: String) -> ExprSyntax {
+    let cellMember = MemberAccessExprSyntax(
+        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
+        declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+    )
+    let assignment = InfixOperatorExprSyntax(
+        leftOperand: ExprSyntax(cellMember),
+        operator: AssignmentExprSyntax(),
+        rightOperand: makeSelfMemberAccessExpr(name: storageName)
+    )
+    return ExprSyntax(assignment)
+}
+
+/// `Lazy({ _lazyCell_<name>.value! })` 형태의 인수 표현식을 만든다.
+///
+/// soft 파라미터를 감지한 factory에 넘길 값이다. Lazy 의 generic
+/// 파라미터는 closure 반환 타입으로 추론되므로 `<Type>`을 명시하지 않는다.
+internal func makeLazyCellWrapperExpr(name: String) -> ExprSyntax {
+    // _lazyCell_<name>.value!
+    let memberAccess = MemberAccessExprSyntax(
+        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
+        declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+    )
+    let forceUnwrap = ForceUnwrapExprSyntax(expression: ExprSyntax(memberAccess))
+    let closure = ClosureExprSyntax(
+        statements: CodeBlockItemListSyntax([
+            CodeBlockItemSyntax(item: .expr(ExprSyntax(forceUnwrap)))
+        ])
+    )
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("Lazy"))),
+        leftParen: nil,
+        arguments: LabeledExprListSyntax([]),
+        rightParen: nil,
+        trailingClosure: closure
+    )
+    return ExprSyntax(call)
+}
+
+/// `Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
+///
+/// Transient 접근자(getter) 내부에서 사용된다. getter 시점에는 `self`가
+/// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
+/// 된다.
+internal func makeLazyAccessorWrapperExpr(name: String) -> ExprSyntax {
+    let selfAccess = makeSelfMemberAccessExpr(name: name)
+    let closure = ClosureExprSyntax(
+        statements: CodeBlockItemListSyntax([
+            CodeBlockItemSyntax(item: .expr(selfAccess))
+        ])
+    )
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("Lazy"))),
+        leftParen: nil,
+        arguments: LabeledExprListSyntax([]),
+        rightParen: nil,
+        trailingClosure: closure
+    )
+    return ExprSyntax(call)
+}
+
 // MARK: - Task wrapper decl
 
 /// `let <taskName> = Task<Success, Failure> { if let override = <overrideName> { return override }; return <awaitedFactoryExpr> }`

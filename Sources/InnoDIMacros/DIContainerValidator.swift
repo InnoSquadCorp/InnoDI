@@ -74,8 +74,10 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            let hardClosureNames = Set(member.hardClosureDependencies)
             for dependency in deduplicateStrings(member.closureDependencies) {
-                switch resolutionContext.status(of: dependency, forMemberAt: index) {
+                let status = resolutionContext.status(of: dependency, forMemberAt: index)
+                switch status {
                 case .available:
                     break
                 case .unknown:
@@ -88,14 +90,20 @@ struct DIContainerValidator {
                     )
                     hadErrors = true
                 case .unavailable:
-                    context.diagnose(
-                        makeUnavailableDependencyDiagnostic(
-                            member: member,
-                            dependencyName: dependency,
-                            referencedMember: model.members.first(where: { $0.name == dependency })
+                    // Soft (Lazy<T>) edges intentionally escape declaration-order
+                    // availability: the runtime `_LazyCell` box lets a forward
+                    // reference resolve safely once init completes. Only hard
+                    // edges still need to be reachable in order.
+                    if hardClosureNames.contains(dependency) {
+                        context.diagnose(
+                            makeUnavailableDependencyDiagnostic(
+                                member: member,
+                                dependencyName: dependency,
+                                referencedMember: model.members.first(where: { $0.name == dependency })
+                            )
                         )
-                    )
-                    hadErrors = true
+                        hadErrors = true
+                    }
                 }
             }
 
@@ -142,7 +150,11 @@ struct DIContainerValidator {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
                 let member = model.members[index]
-                let dependencies = resolutionContext.graphDependencies(forMemberAt: index)
+                // Exclude soft (Lazy<T>) edges from cycle detection so that
+                // intentionally-broken cycles compile cleanly. The
+                // corresponding hard-only graph still participates in
+                // declaration-order availability checks via status(…).
+                let dependencies = resolutionContext.hardGraphDependencies(forMemberAt: index)
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }
 
