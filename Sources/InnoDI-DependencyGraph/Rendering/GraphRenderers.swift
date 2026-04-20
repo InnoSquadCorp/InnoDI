@@ -20,7 +20,11 @@ func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -
             continue
         }
         let label = edge.label.map { "|\(escapeMermaidLabel($0))|" } ?? ""
-        result += "    \(fromAlias) -->\(label) \(toAlias)\n"
+        // Soft edges (`Lazy<T>` cycle-break) render as dashed arrows so they
+        // visually match the global DAG validator's cycle-detection contract:
+        // they are drawn, but they do not count toward a cycle.
+        let arrow = edge.isSoft ? "-.->" : "-->"
+        result += "    \(fromAlias) \(arrow)\(label) \(toAlias)\n"
     }
 
     result += "\n"
@@ -52,10 +56,21 @@ func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> St
             continue
         }
 
+        // Soft edges get `style=dashed`. They still render as an arrow so
+        // callers see the dependency exists, but the visual dashing matches
+        // the validator's hard-only cycle detection.
+        var attributes: [String] = []
         if let label = edge.label {
-            result += "  \"\(fromAlias)\" -> \"\(toAlias)\" [label=\"\(escapeDOTLabel(label))\"];\n"
-        } else {
+            attributes.append("label=\"\(escapeDOTLabel(label))\"")
+        }
+        if edge.isSoft {
+            attributes.append("style=dashed")
+        }
+
+        if attributes.isEmpty {
             result += "  \"\(fromAlias)\" -> \"\(toAlias)\";\n"
+        } else {
+            result += "  \"\(fromAlias)\" -> \"\(toAlias)\" [\(attributes.joined(separator: ", "))];\n"
         }
     }
 
@@ -86,12 +101,21 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
     result += "\n"
     result += "Edges:\n"
 
+    let hasSoftEdge = edges.contains(where: \.isSoft)
+    if hasSoftEdge {
+        // Legend only appears when soft edges are present so the default
+        // render stays compact. The legend explains the `- ->` glyph used
+        // below for `Lazy<T>` cycle-break edges.
+        result += "  Legend: --> hard dependency    - -> soft dependency (Lazy<T>)\n"
+    }
+
     for edge in edges {
         let fromLabel = labelsByID[edge.fromID] ?? edge.fromID
         let toLabel = labelsByID[edge.toID] ?? edge.toID
         let labelPart = edge.label.map { ":\($0)" } ?? ""
         let padding = String(repeating: " ", count: max(0, maxNameLength - fromLabel.count))
-        result += "  \(padding)\(fromLabel) --> \(toLabel)\(labelPart)\n"
+        let arrow = edge.isSoft ? "- ->" : "-->"
+        result += "  \(padding)\(fromLabel) \(arrow) \(toLabel)\(labelPart)\n"
     }
 
     return result
