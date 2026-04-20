@@ -30,6 +30,7 @@ struct DiagnosticsTests {
             .containerDependencyCycle,
             .containerMainActorConflict,
             .containerCustomInitUnsupported,
+            .containerOverridesNameConflict,
             .graphDependencyCycle,
             .graphAmbiguousContainerReference
         ]
@@ -65,6 +66,7 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.containerDependencyCycle(path: "a -> b -> a"), MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")),
             (SimpleDiagnostic.containerMainActorConflict(actorName: "FeatureActor"), MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")),
             (SimpleDiagnostic.containerCustomInitUnsupported(), MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")),
+            (SimpleDiagnostic.containerOverridesNameConflict(kind: "struct"), MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict")),
             (SimpleDiagnostic("Graph cycle", code: .graphDependencyCycle), MessageID(domain: "InnoDI.validation", id: "graph.dependency-cycle")),
             (SimpleDiagnostic("Ambiguous reference", code: .graphAmbiguousContainerReference), MessageID(domain: "InnoDI.validation", id: "graph.ambiguous-container-reference"))
         ]

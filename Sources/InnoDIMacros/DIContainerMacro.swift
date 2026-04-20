@@ -61,6 +61,17 @@ public struct DIContainerMacro: MemberMacro {
             return []
         }
 
-        return [DIContainerCodeGenerator.generateInit(for: model)]
+        let hasOverrideCandidates = !(model.sharedMembers.isEmpty && model.transientMembers.isEmpty)
+        if hasOverrideCandidates, let conflict = DIContainerParser.findOverridesNameConflict(in: decl) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(conflict.node),
+                    message: SimpleDiagnostic.containerOverridesNameConflict(kind: conflict.kind)
+                )
+            )
+            return [DIContainerCodeGenerator.generateInit(for: model)]
+        }
+
+        return DIContainerCodeGenerator.generateAll(for: model)
     }
 }
