@@ -400,6 +400,7 @@ private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSy
     let modifiers = accessModifiers(model.accessLevel)
     let memberDecls: [MemberBlockItemSyntax] = candidates.map { member in
         let variableDecl = VariableDeclSyntax(
+            modifiers: modifiers,
             bindingSpecifier: .keyword(.var),
             bindings: PatternBindingListSyntax([
                 PatternBindingSyntax(
