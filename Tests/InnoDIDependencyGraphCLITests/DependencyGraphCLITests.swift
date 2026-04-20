@@ -203,9 +203,59 @@ struct DependencyGraphCLITests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("DAG validation passed."))
-        #expect(!result.stderr.contains("Unresolved container references:"))
-        #expect(!result.stderr.contains("Request"))
-        #expect(!result.stderr.contains("TransientService"))
+        #expect(!result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(!result.stderr.contains("[graph.ambiguous-container-reference]"))
+        #expect(!result.stderr.contains("[graph.excluded-container-reference]"))
+    }
+
+    @Test("Validate DAG suppresses ambiguous deferred container references")
+    func validateDAGSuppressesAmbiguousDeferredContainerReferences() throws {
+        let fixtureURL = try makeAmbiguousDeferredReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(!result.stderr.contains("[graph.ambiguous-container-reference]"))
+        #expect(!result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(!result.stderr.contains("[graph.excluded-container-reference]"))
+    }
+
+    @Test("Validate DAG suppresses excluded deferred container references")
+    func validateDAGSuppressesExcludedDeferredContainerReferences() throws {
+        let fixtureURL = try makeExcludedDeferredReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(!result.stderr.contains("[graph.ambiguous-container-reference]"))
+        #expect(!result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(!result.stderr.contains("[graph.excluded-container-reference]"))
+    }
+
+    @Test("Validate DAG still reports unresolved deferred container references")
+    func validateDAGReportsUnresolvedDeferredContainerReferences() throws {
+        let fixtureURL = try makeDeferredUnresolvedReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("Unresolved container references:"))
+        #expect(result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(result.stderr.contains("MissingFeatureContainer"))
     }
 
     @Test("Hard edge still wins when a provider edge shares the same source and destination")
@@ -338,9 +388,9 @@ struct DependencyGraphCLITests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("DAG validation passed."))
-        #expect(!result.stderr.contains("Unresolved container references:"))
-        #expect(!result.stderr.contains("APIClient"))
-        #expect(!result.stderr.contains("LiveGreetingService"))
+        #expect(!result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(!result.stderr.contains("[graph.ambiguous-container-reference]"))
+        #expect(!result.stderr.contains("[graph.excluded-container-reference]"))
     }
 }
 
@@ -713,6 +763,146 @@ private func makeDeferredServiceWrapperFixtureProject() throws -> URL {
 
     try source.write(
         to: fixtureURL.appendingPathComponent("DeferredServiceWrappers.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeAmbiguousDeferredReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Ambiguous-Deferred-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+    let featureADirectory = fixtureURL.appendingPathComponent("FeatureA", isDirectory: true)
+    let featureBDirectory = fixtureURL.appendingPathComponent("FeatureB", isDirectory: true)
+    try FileManager.default.createDirectory(at: featureADirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: featureBDirectory, withIntermediateDirectories: true)
+
+    let appSource = """
+    import InnoDI
+
+    struct ProviderConsumer {
+        let feature: Provider<FeatureContainer>
+        init(feature: Provider<FeatureContainer>) { self.feature = feature }
+    }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
+            ProviderConsumer(feature: feature)
+        }, concrete: true)
+        var providerConsumer: ProviderConsumer
+    }
+    """
+
+    let featureASource = """
+    import InnoDI
+
+    enum FeatureA {
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: Int
+        }
+    }
+    """
+
+    let featureBSource = """
+    import InnoDI
+
+    enum FeatureB {
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var value: String
+        }
+    }
+    """
+
+    try appSource.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureASource.write(
+        to: featureADirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureBSource.write(
+        to: featureBDirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeExcludedDeferredReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Excluded-Deferred-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct LazyConsumer {
+        let feature: Lazy<FeatureContainer>
+        init(feature: Lazy<FeatureContainer>) { self.feature = feature }
+    }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: { (feature: Lazy<FeatureContainer>) in
+            LazyConsumer(feature: feature)
+        }, concrete: true)
+        var consumer: LazyConsumer
+    }
+
+    @DIContainer(validateDAG: false)
+    struct FeatureContainer {
+        @Provide(.input)
+        var value: Int
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("ExcludedDeferred.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeDeferredUnresolvedReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Unresolved-Deferred-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct LazyConsumer {
+        let feature: Lazy<MissingFeatureContainer>
+        init(feature: Lazy<MissingFeatureContainer>) { self.feature = feature }
+    }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.shared, factory: { (feature: Lazy<MissingFeatureContainer>) in
+            LazyConsumer(feature: feature)
+        }, concrete: true)
+        var consumer: LazyConsumer
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("UnresolvedDeferred.swift"),
         atomically: true,
         encoding: .utf8
     )

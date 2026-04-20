@@ -4,9 +4,7 @@ import InnoDI
 
 // Deliberately collides with InnoDI's Provider<T> to prove the macro-generated
 // wrappers preserve `InnoDI.Provider` when the user spells it that way.
-struct Provider<T> {
-    init() {}
-}
+struct Provider<T> {}
 
 // MARK: - Fixtures
 //

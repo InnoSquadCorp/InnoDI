@@ -237,8 +237,10 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         for member in provideMembers {
             let deferredReferences = deferredEdgeReferences(for: member)
             for reference in deferredReferences {
-                guard shouldCollectDeferredContainerReference(reference.targetReference),
-                      let destinationID = resolvedContainerID(reference.targetReference, sourceID: sourceID),
+                guard let destinationID = collectableDeferredContainerID(
+                    reference.targetReference,
+                    sourceID: sourceID
+                ),
                       destinationID != sourceID else {
                     continue
                 }
@@ -253,6 +255,48 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
                     )
                 )
             }
+        }
+    }
+
+    private func collectableDeferredContainerID(_ reference: SemanticTypeReference, sourceID: String) -> String? {
+        let resolution = semanticResolver.resolvePath(for: reference, candidatePaths: candidatePaths)
+
+        switch resolution.state {
+        case .resolved:
+            guard let resolvedPath = resolution.resolvedPath,
+                  let allCandidateIDs = allContainerIDsBySemanticPath[resolvedPath] else {
+                return nil
+            }
+
+            let eligibleIDs = eligibleContainerIDsBySemanticPath[resolvedPath] ?? []
+            guard allCandidateIDs.isEmpty == false,
+                  eligibleIDs.count == 1 else {
+                return nil
+            }
+
+            if resolution.usedSuffixFallback {
+                fallbackMatchedReferences.append("\(sourceID) -> \(reference.displayPath)")
+            }
+            return eligibleIDs[0]
+        case .ambiguous, .excluded:
+            return nil
+        case .unresolved:
+            guard reference.components.last?.hasSuffix("Container") == true else {
+                return nil
+            }
+
+            semanticIssues.append(
+                SemanticContainerReferenceIssue(
+                    sourceID: sourceID,
+                    destinationDisplayName: reference.displayPath,
+                    state: .unresolved,
+                    destinationCandidates: resolution.candidates,
+                    excludedReason: resolution.excludedReason,
+                    aliasExpansionTrace: resolution.aliasExpansionTrace,
+                    usedSuffixFallback: resolution.usedSuffixFallback
+                )
+            )
+            return nil
         }
     }
 
@@ -317,17 +361,6 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         }
 
         return result
-    }
-
-    private func shouldCollectDeferredContainerReference(_ reference: SemanticTypeReference) -> Bool {
-        let resolution = semanticResolver.resolvePath(for: reference, candidatePaths: candidatePaths)
-
-        switch resolution.state {
-        case .resolved, .ambiguous, .excluded:
-            return true
-        case .unresolved:
-            return reference.components.last?.hasSuffix("Container") == true
-        }
     }
 
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {

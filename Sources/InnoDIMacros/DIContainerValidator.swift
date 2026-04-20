@@ -135,6 +135,23 @@ struct DIContainerValidator {
                     continue
                 }
 
+                if let providerReference = providerClosureReferences[dependency],
+                   let referencedMember,
+                   referencedMember.scope == .transient,
+                   referencedMember.isAsyncFactory {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(providerReference.token),
+                            message: SimpleDiagnostic.provideProviderUnsupportedTarget(
+                                memberName: member.name,
+                                dependencyName: dependency
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+
                 let status = resolutionContext.status(of: dependency, forMemberAt: index)
                 switch status {
                 case .available:
@@ -352,7 +369,9 @@ private func directProviderEagerCallSite(
     in functionCall: FunctionCallExprSyntax,
     providerNames: Set<String>
 ) -> DirectProviderEagerCallSite? {
-    if let reference = functionCall.calledExpression.as(DeclReferenceExprSyntax.self),
+    let calledExpression = unwrapProviderCallExpression(functionCall.calledExpression)
+
+    if let reference = calledExpression.as(DeclReferenceExprSyntax.self),
        providerNames.contains(reference.baseName.text) {
         return DirectProviderEagerCallSite(
             providerName: reference.baseName.text,
@@ -360,10 +379,10 @@ private func directProviderEagerCallSite(
         )
     }
 
-    if let memberAccess = functionCall.calledExpression.as(MemberAccessExprSyntax.self),
-       memberAccess.declName.baseName.text == "callAsFunction",
-       let base = memberAccess.base?.as(DeclReferenceExprSyntax.self),
-       providerNames.contains(base.baseName.text) {
+    if let memberAccess = calledExpression.as(MemberAccessExprSyntax.self),
+       let base = unwrapProviderCallBase(memberAccess.base),
+       providerNames.contains(base.baseName.text),
+       ["callAsFunction", "resolver"].contains(memberAccess.declName.baseName.text) {
         return DirectProviderEagerCallSite(
             providerName: base.baseName.text,
             node: Syntax(memberAccess)
@@ -371,6 +390,24 @@ private func directProviderEagerCallSite(
     }
 
     return nil
+}
+
+private func unwrapProviderCallExpression(_ expression: ExprSyntax) -> ExprSyntax {
+    if let tuple = expression.as(TupleExprSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.label == nil {
+        return unwrapProviderCallExpression(first.expression)
+    }
+
+    return expression
+}
+
+private func unwrapProviderCallBase(_ expression: ExprSyntax?) -> DeclReferenceExprSyntax? {
+    guard let expression else { return nil }
+
+    let unwrapped = unwrapProviderCallExpression(expression)
+    return unwrapped.as(DeclReferenceExprSyntax.self)
 }
 
 private func makeUnresolvedWithDependencyDiagnostic(

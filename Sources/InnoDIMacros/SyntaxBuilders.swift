@@ -280,7 +280,7 @@ internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName:
 /// soft 파라미터를 감지한 factory에 넘길 값이다. Lazy 의 generic
 /// 파라미터는 closure 반환 타입으로 추론되므로 `<Type>`을 명시하지 않는다.
 internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
+    makeDeferredCellWrapperExpr(name: name, calleeDescription: calleeDescription)
 }
 
 /// `<Qualified>.Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
@@ -289,7 +289,7 @@ internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -
 /// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
 /// 된다.
 internal func makeLazyAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
+    makeDeferredAccessorWrapperExpr(name: name, calleeDescription: calleeDescription)
 }
 
 // MARK: - Provider wrappers (Phase L)
@@ -304,16 +304,26 @@ internal func makeLazyAccessorWrapperExpr(name: String, calleeDescription: Strin
 /// `<Qualified>.Provider({ _lazyCell_<name>.resolve() })` 형태의 인수
 /// 표현식. `.shared` init 경로에서 `Provider<T>` 파라미터에 주입된다.
 internal func makeProviderCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
+    makeDeferredCellWrapperExpr(name: name, calleeDescription: calleeDescription)
 }
 
 /// `<Qualified>.Provider({ self.<name> })` 형태의 Provider 래퍼. transient
 /// 접근자 내부에서 사용된다 (`self` 이미 초기화 완료).
 internal func makeProviderAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeDeferredAccessorWrapperExpr(name: name, calleeDescription: calleeDescription)
+}
+
+/// `_<lazyCell>.resolve()` 기반 deferred wrapper 표현식을 만든다.
+private func makeDeferredCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
+}
+
+/// `self.<name>` 기반 deferred wrapper 표현식을 만든다.
+private func makeDeferredAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
     makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
 }
 
-/// `makeLazyCellWrapperExpr` 본체를 Lazy / Provider 양쪽에서 공유할 수
+/// `makeDeferredCellWrapperExpr` 본체를 Lazy / Provider 양쪽에서 공유할 수
 /// 있도록 분리한 내부 구현. 호출처는 `calleeDescription` 으로 래퍼 이름
 /// ("Lazy" / "Provider" / "InnoDI.Lazy" 등)을 결정한다.
 private func makeLazyCellWrapperExprCore(name: String, calleeDescription: String) -> ExprSyntax {
