@@ -78,6 +78,28 @@ struct DIContainerValidator {
             let hardClosureNames = Set(member.hardClosureDependencies)
             let softClosureReferences = Dictionary(uniqueKeysWithValues: member.softClosureParameterReferences.map { ($0.name, $0) })
             let providerClosureReferences = Dictionary(uniqueKeysWithValues: member.providerClosureParameterReferences.map { ($0.name, $0) })
+
+            if member.scope == .shared {
+                let providerNames = Set(providerClosureReferences.keys)
+                if !providerNames.isEmpty {
+                    let sharedClosures = [member.factory, member.asyncFactory].compactMap { $0?.as(ClosureExprSyntax.self) }
+                    for closure in sharedClosures {
+                        for callSite in collectDirectProviderEagerCalls(in: closure, providerNames: providerNames) {
+                            context.diagnose(
+                                Diagnostic(
+                                    node: callSite.node,
+                                    message: SimpleDiagnostic.provideProviderEagerCall(
+                                        memberName: member.name,
+                                        dependencyName: callSite.providerName
+                                    )
+                                )
+                            )
+                            hadErrors = true
+                        }
+                    }
+                }
+            }
+
             for dependency in deduplicateStrings(member.closureDependencies) {
                 let referencedMember = memberByName[dependency]
                 if let softReference = softClosureReferences[dependency],
@@ -192,10 +214,11 @@ struct DIContainerValidator {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
                 let member = model.members[index]
-                // Exclude soft (Lazy<T>) edges from cycle detection so that
-                // intentionally-broken cycles compile cleanly. The
-                // corresponding hard-only graph still participates in
-                // declaration-order availability checks via status(…).
+                // Exclude deferred edges (`Lazy<T>` / `Provider<T>`) from
+                // cycle detection so intentionally-broken graphs compile
+                // cleanly. The corresponding hard-only graph still
+                // participates in declaration-order availability checks via
+                // status(…).
                 let dependencies = resolutionContext.hardGraphDependencies(forMemberAt: index)
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }
@@ -232,7 +255,7 @@ private func makeUnresolvedFactoryParameterDiagnostic(
     member: ProvideMemberModel,
     dependencyName: String,
     knownNames: Set<String>
-) -> Diagnostic {
+    ) -> Diagnostic {
     let reference = member.closureParameterReferences.first(where: { $0.name == dependencyName })
     let node = reference.map { Syntax($0.token) } ?? Syntax(member.attribute)
     let candidates = matchingDependencyCandidates(for: dependencyName, in: knownNames)
@@ -286,6 +309,68 @@ private func makeUnresolvedFactoryParameterDiagnostic(
         notes: notes,
         fixIts: fixIts
     )
+}
+
+private struct DirectProviderEagerCallSite {
+    let providerName: String
+    let node: Syntax
+}
+
+private func collectDirectProviderEagerCalls(
+    in closure: ClosureExprSyntax,
+    providerNames: Set<String>
+) -> [DirectProviderEagerCallSite] {
+    guard !providerNames.isEmpty else { return [] }
+
+    var callSites: [DirectProviderEagerCallSite] = []
+
+    func walk(node: Syntax) {
+        if node.is(ClosureExprSyntax.self)
+            || node.is(FunctionDeclSyntax.self)
+            || node.is(InitializerDeclSyntax.self) {
+            return
+        }
+
+        if let functionCall = node.as(FunctionCallExprSyntax.self),
+           let callSite = directProviderEagerCallSite(in: functionCall, providerNames: providerNames) {
+            callSites.append(callSite)
+        }
+
+        for child in node.children(viewMode: .sourceAccurate) {
+            walk(node: child)
+        }
+    }
+
+    for statement in closure.statements {
+        walk(node: Syntax(statement.item))
+    }
+
+    return callSites
+}
+
+private func directProviderEagerCallSite(
+    in functionCall: FunctionCallExprSyntax,
+    providerNames: Set<String>
+) -> DirectProviderEagerCallSite? {
+    if let reference = functionCall.calledExpression.as(DeclReferenceExprSyntax.self),
+       providerNames.contains(reference.baseName.text) {
+        return DirectProviderEagerCallSite(
+            providerName: reference.baseName.text,
+            node: Syntax(reference)
+        )
+    }
+
+    if let memberAccess = functionCall.calledExpression.as(MemberAccessExprSyntax.self),
+       memberAccess.declName.baseName.text == "callAsFunction",
+       let base = memberAccess.base?.as(DeclReferenceExprSyntax.self),
+       providerNames.contains(base.baseName.text) {
+        return DirectProviderEagerCallSite(
+            providerName: base.baseName.text,
+            node: Syntax(memberAccess)
+        )
+    }
+
+    return nil
 }
 
 private func makeUnresolvedWithDependencyDiagnostic(

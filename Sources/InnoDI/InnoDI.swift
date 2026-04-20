@@ -144,7 +144,13 @@ public struct Lazy<T> {
 ///
 /// `Provider<T>` is invoked with `callAsFunction()`, mirroring `Lazy<T>`'s
 /// call-site ergonomics. Unlike `Lazy<T>`, it does not cache — each invocation
-/// re-enters the container's transient accessor.
+/// re-enters the container's transient accessor. Do not call the wrapper
+/// inside a `.shared` factory or `asyncFactory` body itself; store it or pass
+/// it downstream first, then invoke it only after the container has finished
+/// initializing. InnoDI diagnoses direct `provider()` /
+/// `provider.callAsFunction()` use inside shared construction, but indirect
+/// eager calls routed through helper APIs can still fail if they resolve too
+/// early.
 ///
 /// ### Detection
 /// The macro recognizes `Provider` by its written identifier at the factory

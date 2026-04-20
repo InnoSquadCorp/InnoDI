@@ -571,6 +571,92 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Provider<T> cannot be called directly inside a shared factory body")
+    func providerDirectCallInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @Provide(.shared, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: request())
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Provider<T>.callAsFunction() is also rejected inside a shared factory body")
+    func providerCallAsFunctionInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @Provide(.shared, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: request.callAsFunction())
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Provider<T> cannot be called directly inside an async shared factory body")
+    func providerDirectCallInsideAsyncSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @Provide(.shared, asyncFactory: { (request: Provider<Request>) async in
+                    AsyncLogger(request: request())
+                }, concrete: true)
+                var logger: AsyncLogger
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.provider-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Provider<T> direct calls remain allowed in transient factories")
+    func providerDirectCallInsideTransientFactoryRemainsAllowed() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @Provide(.transient, factory: { (request: Provider<Request>) in
+                    RequestLogger(request: request())
+                }, concrete: true)
+                var logger: RequestLogger
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
     @Test("Qualified InnoDI.Provider preserves the written wrapper qualifier")
     func qualifiedProviderInSharedFactory() {
         assertMacroExpansionSnapshot(

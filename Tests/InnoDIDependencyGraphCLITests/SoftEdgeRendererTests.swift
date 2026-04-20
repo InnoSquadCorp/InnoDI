@@ -7,11 +7,10 @@ import Testing
 /// Verifies the renderer styling added in Phase K-5 for soft edges.
 ///
 /// These tests bypass the CLI pipeline and call the render functions directly
-/// with a synthetic graph containing both hard and soft edges. The
-/// end-to-end CLI snapshot tests (`GraphRendererSnapshotTests`) continue to
-/// cover the full pipeline with a hard-edge-only fixture — the collector
-/// does not yet populate member-level soft edges, so soft-edge regressions
-/// have to be exercised at the renderer boundary for now.
+/// with a synthetic graph containing both hard and deferred edges. The
+/// end-to-end CLI integration tests cover real collector plumbing
+/// separately; these tests keep renderer-specific regressions localized and
+/// easy to read.
 @Suite("Soft edge renderer styling (Phase K-5)")
 struct SoftEdgeRendererTests {
     private func makeGraph() -> ([DependencyGraphNode], [DependencyGraphEdge]) {

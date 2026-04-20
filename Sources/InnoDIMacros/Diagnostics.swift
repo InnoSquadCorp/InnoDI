@@ -25,6 +25,7 @@ enum InnoDIDiagnosticCode: String {
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
     case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
     case provideProviderNonTransientTarget = "provide.provider-non-transient-target"
+    case provideProviderEagerCall = "provide.provider-eager-call"
     case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
     case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
     case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
@@ -44,7 +45,7 @@ enum InnoDIDiagnosticCode: String {
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
-                .provideLazyUnsupportedTarget, .provideProviderNonTransientTarget,
+                .provideLazyUnsupportedTarget, .provideProviderNonTransientTarget, .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
@@ -171,6 +172,13 @@ extension SimpleDiagnostic {
         Self(
             "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Provider<T> because '\(dependencyName)' has scope .\(targetScope.rawValue). Provider<T> pumps fresh instances on every call and therefore requires a .transient target.",
             code: .provideProviderNonTransientTarget
+        )
+    }
+
+    static func provideProviderEagerCall(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot call Provider<T> during .shared construction. Store or forward the provider and invoke it only after the container has finished initializing.",
+            code: .provideProviderEagerCall
         )
     }
 

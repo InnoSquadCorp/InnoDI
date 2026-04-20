@@ -18,6 +18,11 @@ or release hardening discussions and are not release blockers for `3.0.1`.
   style (Mermaid `==>`, DOT `style=dotted`, ASCII `~~>`). The validator
   additionally requires the target member to have `.transient` scope via
   `provide.provider-non-transient-target`.
+- The macro now diagnoses direct `provider()` /
+  `provider.callAsFunction()` use inside `.shared` construction so provider
+  handles are only invoked after initialization completes, and the CLI
+  `ContainerUsageCollector` now emits end-to-end deferred `isSoft` /
+  `isProvider` edges for graph rendering and `--validate-dag`.
 
 ### Cycle escape hatch — `Lazy<T>` (Phase K)
 - Factory parameters typed `Lazy<T>` now mark the corresponding dependency
@@ -49,14 +54,10 @@ remaining Top-tier UX improvements are:
 1. `@SubContainer` — first-class nested containers for per-screen or
    per-request scopes, replacing today's convention of hand-wiring child
    containers through `.input` parameters. Phase M.
-2. Inter-container deferred edges — populate `DependencyGraphEdge.isSoft`
-   and `isProvider` from the CLI `ContainerUsageCollector` once container-
-   to-container references can be typed. The flags are plumbed end-to-end
-   today but the collector only emits hard edges.
-3. `@Lazy` property wrapper — a lighter-weight alternative to `Lazy<T>` for
+2. `@Lazy` property wrapper — a lighter-weight alternative to `Lazy<T>` for
    deferring expensive `.shared` initialization. Pending real-world usage
    feedback on `Lazy<T>` before committing to the syntax.
-4. Scope subdivision (request / session / scenario) — evaluate whether the
+3. Scope subdivision (request / session / scenario) — evaluate whether the
    three built-in scopes need finer-grained lifetime variants, especially for
    server-side and multi-window use.
 

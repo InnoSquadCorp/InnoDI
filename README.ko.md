@@ -417,6 +417,12 @@ legend).
   `InnoDI.Provider<Foo>`, `Something.Provider<Foo>` 모두 처리되고, typealias
   로 이름이 바뀐 경우는 인식되지 않습니다. 생성 코드는 작성된 qualifier 를
   그대로 보존합니다.
+- `.shared` factory 나 `asyncFactory` 본문 안에서 `Provider<T>` 를 즉시
+  호출하지 마세요. 먼저 저장하거나 downstream 으로 전달한 뒤, 컨테이너
+  초기화가 끝난 다음 호출하는 handle 로 취급해야 합니다. InnoDI 는 이제
+  shared 생성 경로의 직접적인 `provider()` /
+  `provider.callAsFunction()` 문법은 진단하지만, helper 를 거친 간접 eager
+  call 까지 완전히 증명하거나 차단하지는 않습니다.
 - Provider 는 내부적으로 InnoDI 의 `_LazyCell` late-binding 박스를 재사용
   하므로, Provider 만 선언한 컨테이너의 매크로 확장에도 `_LazyCell` 이
   등장합니다. deferred target 당 heap 할당 한 번 외의 추가 런타임 비용은

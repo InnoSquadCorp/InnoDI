@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftSyntax
 
 struct ClosureParameterList {
@@ -49,11 +50,12 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
             }
             names.append(name)
             let kind: DependencyKind
-            if isLazyType(parameter.type) {
+            switch deferredDependencyWrapperKind(for: parameter.type) {
+            case .lazy:
                 kind = .soft
-            } else if isProviderType(parameter.type) {
+            case .provider:
                 kind = .provider
-            } else {
+            case .none:
                 kind = .hard
             }
             references.append(
@@ -78,25 +80,11 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
 /// treated as an ordinary hard edge. This mirrors the existing `any Protocol`
 /// detection limits and is documented at the public `Lazy<T>` declaration.
 func isLazyType(_ type: TypeSyntax?) -> Bool {
-    guard let type else { return false }
-
-    let normalized = unwrapAttributedType(type)
-
-    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        return identifier.name.text == "Lazy"
-            && (identifier.genericArgumentClause?.arguments.count == 1)
-    }
-
-    if let member = normalized.as(MemberTypeSyntax.self) {
-        return member.name.text == "Lazy"
-            && (member.genericArgumentClause?.arguments.count == 1)
-    }
-
-    return false
+    deferredDependencyWrapperKind(for: type) == .lazy
 }
 
 func lazyWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
-    wrapperCalleeDescriptionForType(type, wrapperName: "Lazy")
+    deferredDependencyWrapperCalleeDescription(for: type, kind: .lazy)
 }
 
 /// Returns `true` when a closure-parameter type annotation is syntactically
@@ -107,69 +95,11 @@ func lazyWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
 /// `typealias MyProvider = Provider` would be treated as an ordinary hard
 /// edge. Documented at the public `Provider<T>` declaration in `InnoDI.swift`.
 func isProviderType(_ type: TypeSyntax?) -> Bool {
-    guard let type else { return false }
-
-    let normalized = unwrapAttributedType(type)
-
-    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        return identifier.name.text == "Provider"
-            && (identifier.genericArgumentClause?.arguments.count == 1)
-    }
-
-    if let member = normalized.as(MemberTypeSyntax.self) {
-        return member.name.text == "Provider"
-            && (member.genericArgumentClause?.arguments.count == 1)
-    }
-
-    return false
+    deferredDependencyWrapperKind(for: type) == .provider
 }
 
 func providerWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
-    wrapperCalleeDescriptionForType(type, wrapperName: "Provider")
-}
-
-/// Extracts the exact spelling (`Lazy` / `Provider` / `InnoDI.Lazy` /
-/// `Acme.Provider`, …) used at a factory-parameter site so that generated
-/// wrappers can reuse the same qualification the author wrote. `nil` when the
-/// type is not the expected wrapper.
-private func wrapperCalleeDescriptionForType(_ type: TypeSyntax?, wrapperName: String) -> String? {
-    guard let type else { return nil }
-
-    let normalized = unwrapAttributedType(type)
-
-    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        guard identifier.name.text == wrapperName,
-              identifier.genericArgumentClause?.arguments.count == 1 else {
-            return nil
-        }
-        return wrapperName
-    }
-
-    if let member = normalized.as(MemberTypeSyntax.self) {
-        guard member.name.text == wrapperName,
-              member.genericArgumentClause?.arguments.count == 1 else {
-            return nil
-        }
-        return "\(unwrapAttributedType(member.baseType).trimmedDescription).\(wrapperName)"
-    }
-
-    return nil
-}
-
-/// Strips `@escaping` / `@Sendable` / other attribute wrappers so that the
-/// underlying `Lazy<…>` shape remains detectable.
-private func unwrapAttributedType(_ type: TypeSyntax) -> TypeSyntax {
-    if let attributed = type.as(AttributedTypeSyntax.self) {
-        return unwrapAttributedType(attributed.baseType)
-    }
-    if let tuple = type.as(TupleTypeSyntax.self),
-       tuple.elements.count == 1,
-       let first = tuple.elements.first,
-       first.firstName == nil,
-       first.secondName == nil {
-        return unwrapAttributedType(first.type)
-    }
-    return type
+    deferredDependencyWrapperCalleeDescription(for: type, kind: .provider)
 }
 
 func makeSelfMemberAccessExpr(name: String, baseName: String = "self") -> ExprSyntax {

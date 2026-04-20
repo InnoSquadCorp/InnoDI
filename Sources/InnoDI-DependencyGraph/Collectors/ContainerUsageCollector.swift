@@ -17,6 +17,18 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         let containerID: String?
     }
 
+    private struct ProvideMemberRecord {
+        let name: String
+        let typeReference: SemanticTypeReference?
+        let factoryClosure: ClosureExprSyntax?
+        let asyncFactoryClosure: ClosureExprSyntax?
+    }
+
+    private struct DeferredEdgeReference {
+        let dependencyName: String
+        let kind: DeferredDependencyWrapperKind
+    }
+
     let allContainerIDsBySemanticPath: [String: [String]]
     let eligibleContainerIDsBySemanticPath: [String: [String]]
     let semanticResolver: SemanticResolverIndex
@@ -43,7 +55,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        beginContainerCandidateDeclaration(name: node.name.text, attributes: node.attributes)
+        beginContainerCandidateDeclaration(node, name: node.name.text)
     }
 
     override func visitPost(_ node: StructDeclSyntax) {
@@ -51,7 +63,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        beginContainerCandidateDeclaration(name: node.name.text, attributes: node.attributes)
+        beginContainerCandidateDeclaration(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
@@ -59,7 +71,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-        beginContainerCandidateDeclaration(name: node.name.text, attributes: node.attributes)
+        beginContainerCandidateDeclaration(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ActorDeclSyntax) {
@@ -105,9 +117,15 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         walk(tree)
     }
 
-    private func beginContainerCandidateDeclaration(name: String, attributes: AttributeListSyntax?) -> SyntaxVisitorContinueKind {
-        let isContainer = parseDIContainerAttribute(attributes) != nil
-        return beginDeclaration(name: name, isContainer: isContainer)
+    private func beginContainerCandidateDeclaration(_ node: some DeclGroupSyntax, name: String) -> SyntaxVisitorContinueKind {
+        let isContainer = parseDIContainerAttribute(node.attributes) != nil
+        let continueKind = beginDeclaration(name: name, isContainer: isContainer)
+
+        if isContainer, let sourceID = activeContainerID {
+            collectDeferredEdges(in: node, sourceID: sourceID)
+        }
+
+        return continueKind
     }
 
     private func beginDeclaration(name: String, isContainer: Bool) -> SyntaxVisitorContinueKind {
@@ -139,6 +157,10 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
             return nil
         }
 
+        return resolvedContainerID(reference, sourceID: sourceID)
+    }
+
+    private func resolvedContainerID(_ reference: SemanticTypeReference, sourceID: String) -> String? {
         let resolution = semanticResolver.resolvePath(
             for: reference,
             candidatePaths: candidatePaths
@@ -208,6 +230,95 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
             )
             return nil
         }
+    }
+
+    private func collectDeferredEdges(in node: some DeclGroupSyntax, sourceID: String) {
+        let provideMembers = provideMemberRecords(in: node)
+        let memberTypesByName = Dictionary(uniqueKeysWithValues: provideMembers.map { ($0.name, $0.typeReference) })
+
+        for member in provideMembers {
+            let deferredReferences = deferredEdgeReferences(for: member)
+            for reference in deferredReferences {
+                guard let typeReference = memberTypesByName[reference.dependencyName] ?? nil,
+                      let destinationID = resolvedContainerID(typeReference, sourceID: sourceID),
+                      destinationID != sourceID else {
+                    continue
+                }
+
+                edges.append(
+                    DependencyGraphEdge(
+                        fromID: sourceID,
+                        toID: destinationID,
+                        label: nil,
+                        isSoft: reference.kind == .lazy,
+                        isProvider: reference.kind == .provider
+                    )
+                )
+            }
+        }
+    }
+
+    private func provideMemberRecords(in node: some DeclGroupSyntax) -> [ProvideMemberRecord] {
+        node.memberBlock.members.compactMap { member in
+            guard let variable = member.decl.as(VariableDeclSyntax.self),
+                  !variable.modifiers.contains(where: { $0.name.text == "static" }),
+                  let attribute = findAttribute(named: "Provide", in: variable.attributes),
+                  let binding = variable.bindings.first,
+                  let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+                  let typeAnnotation = binding.typeAnnotation else {
+                return nil
+            }
+
+            let provideArguments = parseProvideArguments(attribute)
+            return ProvideMemberRecord(
+                name: identifier.identifier.text,
+                typeReference: normalizedSemanticTypeReference(typeAnnotation.type),
+                factoryClosure: provideArguments.factoryExpr?.as(ClosureExprSyntax.self),
+                asyncFactoryClosure: provideArguments.asyncFactoryExpr?.as(ClosureExprSyntax.self)
+            )
+        }
+    }
+
+    private func deferredEdgeReferences(for member: ProvideMemberRecord) -> [DeferredEdgeReference] {
+        let closures = [member.factoryClosure, member.asyncFactoryClosure].compactMap { $0 }
+        return deduplicateDeferredEdgeReferences(
+            closures.flatMap(deferredEdgeReferences(in:))
+        )
+    }
+
+    private func deferredEdgeReferences(in closure: ClosureExprSyntax) -> [DeferredEdgeReference] {
+        guard let signature = closure.signature,
+              let parameterClause = signature.parameterClause else {
+            return []
+        }
+
+        switch parameterClause {
+        case .simpleInput:
+            return []
+        case .parameterClause(let parameters):
+            return parameters.parameters.compactMap { parameter in
+                let token = parameter.secondName ?? parameter.firstName
+                guard token.text != "_",
+                      let kind = deferredDependencyWrapperKind(for: parameter.type) else {
+                    return nil
+                }
+                return DeferredEdgeReference(dependencyName: token.text, kind: kind)
+            }
+        }
+    }
+
+    private func deduplicateDeferredEdgeReferences(_ references: [DeferredEdgeReference]) -> [DeferredEdgeReference] {
+        var seen: Set<String> = []
+        var result: [DeferredEdgeReference] = []
+
+        for reference in references {
+            let key = "\(reference.kind.rawValue):\(reference.dependencyName)"
+            if seen.insert(key).inserted {
+                result.append(reference)
+            }
+        }
+
+        return result
     }
 
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {
