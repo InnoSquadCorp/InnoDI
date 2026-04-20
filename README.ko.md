@@ -292,6 +292,68 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 primary init만 그대로 생성되므로 기존 호출부는 영향이 없습니다. 빌더 API를
 되살리려면 사용자 정의 타입을 rename 하거나 제거하면 됩니다.
 
+## `Lazy<T>`로 순환 끊기
+
+`@DIContainer`는 엄격한 DAG을 강제합니다. 두 컨테이너 멤버의 factory가
+서로를 참조하면 `container.dependency-cycle` 진단이 발생하고 컴파일이 실패
+합니다. 구조 리팩토링이 답인 경우가 많지만, coordinator ↔ view model처럼
+본질적으로 양방향인 경우도 있습니다. 이런 경우를 위해 InnoDI는 `Lazy<T>`
+탈출구를 제공합니다.
+
+```swift
+import InnoDI
+
+@DIContainer
+struct AppContainer {
+    @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
+    var a: CoordinatorA
+
+    @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) }, concrete: true)
+    var b: CoordinatorB
+}
+
+final class CoordinatorA {
+    let b: Lazy<CoordinatorB>
+    init(b: Lazy<CoordinatorB>) { self.b = b }
+    func resolveB() -> CoordinatorB { b() }
+}
+
+final class CoordinatorB {
+    let a: CoordinatorA
+    init(a: CoordinatorA) { self.a = a }
+}
+```
+
+### 동작 방식
+
+- `Lazy<T>`는 `@Sendable () -> T` resolver를 감싼 값 타입입니다. `b()` 호출
+  시점에 이미 초기화된 storage를 돌려줍니다 (`.shared` 캐싱 외 별도 캐싱
+  없음).
+- Factory 파라미터 타입이 `Lazy<T>`이면 해당 엣지는 **soft edge**로 분류
+  됩니다. 컨테이너 단위 cycle 검출(`container.dependency-cycle`)과 CLI의
+  `--validate-dag` 전역 검증에서 모두 제외되며, 그래프 렌더링에는 dashed로
+  표시됩니다.
+- 생성 코드는 soft-target 멤버마다 `let _lazyCell_<name> = _LazyCell<T>()`을
+  init 상단에 선언하고, factory 호출 시 `Lazy({ cell.value! })`를 전달하며,
+  storage 할당 직후 `cell.value = self._storage_<name>`을 기록합니다. 덕분에
+  struct 컨테이너도 `self` 캡처 없이 형제 멤버를 forward-reference할 수
+  있습니다.
+- `Lazy<T>` resolver를 받는 멤버는 타깃 멤버보다 **먼저** 선언돼야 init 순서
+  상 `_LazyCell`이 이미 존재합니다.
+- `container.dependency-cycle` 진단 메시지 끝에
+  _"To break this cycle without restructuring, wrap one factory parameter in `Lazy<T>`."_
+  가 추가됐습니다.
+
+### 주의할 점
+
+- 감지는 AST 텍스트 기반입니다. `Lazy<Foo>`, `InnoDI.Lazy<Foo>`, 그리고
+  member-qualified `Something.Lazy<Foo>` 모두 soft-edge로 처리됩니다.
+  `typealias Lazy = MyOwnType` 같은 재명명은 매크로가 해석하지 못합니다.
+  동명의 타입을 이미 사용 중이라면 [MIGRATION.md](MIGRATION.md)를 참고하세요.
+- `.transient`와 함께 써도 안전하며, `a()`마다 새 인스턴스가 생성됩니다.
+  `Lazy<Self>`도 허용되지만, 실제로 동작할지는 factory 구현에 달려 있습니다
+  (`.transient` self-reference는 무한 재귀).
+
 ## Dependency Graph CLI
 
 InnoDI는 컨테이너 관계를 시각화하는 CLI를 제공합니다.

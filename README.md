@@ -412,6 +412,70 @@ If your container already declares a nested `Overrides` type (`struct`,
 the primary init is unchanged. Rename your type to restore the builder API, or
 leave it in place to keep your own implementation.
 
+## Cycle breaking with `Lazy<T>`
+
+`@DIContainer` enforces a strict dependency DAG: if container A's factory
+references B and B's factory references A, the macro emits
+`container.dependency-cycle` and fails to compile. Most cycles are a sign to
+restructure the graph, but some are intrinsic — coordinator ↔ view model,
+parent ↔ child scene, etc. — and the idiomatic fix elsewhere in the
+ecosystem is to defer one side of the edge.
+
+InnoDI ships `Lazy<T>` for exactly this case:
+
+```swift
+import InnoDI
+
+@DIContainer
+struct AppContainer {
+    @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
+    var a: CoordinatorA
+
+    @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) }, concrete: true)
+    var b: CoordinatorB
+}
+
+final class CoordinatorA {
+    let b: Lazy<CoordinatorB>
+    init(b: Lazy<CoordinatorB>) { self.b = b }
+    func resolveB() -> CoordinatorB { b() }
+}
+
+final class CoordinatorB {
+    let a: CoordinatorA
+    init(a: CoordinatorA) { self.a = a }
+}
+```
+
+### How it works
+
+- `Lazy<T>` wraps a `@Sendable () -> T` resolver. Calling `b()` returns the
+  eventually-resolved instance; InnoDI does no extra caching inside the
+  wrapper (the container's `.shared` scope already caches).
+- A factory parameter typed `Lazy<T>` is classified as a **soft** dependency.
+  Soft edges are excluded from both the per-container cycle detector and
+  the CLI `--validate-dag` gate, but still appear in the generated graph.
+- Generated init code allocates one `_LazyCell<T>` per soft-target member at
+  init start, passes `Lazy({ cell.value! })` into the factory, and writes
+  `cell.value = self._storage_<name>` after the storage assignment. That
+  lets struct containers forward-reference siblings without capturing `self`.
+- The container member that owns the `Lazy<T>` resolver must be declared
+  *before* its target so the `_LazyCell` exists when the factory runs.
+- The `container.dependency-cycle` diagnostic now ends with
+  _"To break this cycle without restructuring, wrap one factory parameter in `Lazy<T>`."_
+
+### Caveats
+
+- Detection is textual: `Lazy<Foo>`, `InnoDI.Lazy<Foo>`, and member-qualified
+  `Something.Lazy<Foo>` all trigger the soft-edge path. A `typealias Lazy
+  = MyOwnType` will **not** be recognized — the macro does not resolve
+  aliases. See [MIGRATION.md](MIGRATION.md) if you own a colliding
+  top-level `Lazy<T>`.
+- `Lazy<T>` is fine with `.transient` — each `a()` call produces a fresh
+  instance from the factory. `Lazy<Self>` is accepted; whether it makes
+  sense at runtime depends on your factory (a self-referential `.transient`
+  will recurse).
+
 ## Dependency Graph Visualization
 
 InnoDI includes a command-line tool to generate dependency graphs from your `@DIContainer` declarations. This helps visualize the relationships between containers and their dependencies.
