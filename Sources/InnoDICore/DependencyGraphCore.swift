@@ -27,11 +27,20 @@ package struct DependencyGraphEdge: Hashable {
     package let fromID: String
     package let toID: String
     package let label: String?
+    /// Soft edges are excluded from global DAG cycle detection and rendered
+    /// with a dashed style. They originate from factory parameters typed
+    /// `Lazy<T>` (see InnoDI's Phase K escape hatch). The current container
+    /// collector does not yet populate member-level edges, so this field is
+    /// primarily future-proofing — but renderers and `runDAGValidation`
+    /// already respect it so downstream collectors can emit soft edges the
+    /// moment they have the information.
+    package let isSoft: Bool
 
-    package init(fromID: String, toID: String, label: String?) {
+    package init(fromID: String, toID: String, label: String?, isSoft: Bool = false) {
         self.fromID = fromID
         self.toID = toID
         self.label = label
+        self.isSoft = isSoft
     }
 }
 
@@ -73,6 +82,31 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
     }
 }
 
+/// Builds a DFS adjacency list for global DAG cycle detection.
+///
+/// Soft edges (`DependencyGraphEdge.isSoft == true`) are intentionally
+/// excluded — they originate from `Lazy<T>` factory parameters whose
+/// resolution is deferred until after container construction, so any cycle
+/// they participate in is not traversed at init time. The filter matches the
+/// per-container validator in `DIContainerValidator` (hard-only DFS).
+///
+/// The returned adjacency includes every input node as a key (empty list if
+/// it has no outgoing hard edges) so callers can reason about isolated nodes
+/// uniformly.
+package func buildCycleDetectionAdjacency(
+    nodes: [DependencyGraphNode],
+    edges: [DependencyGraphEdge]
+) -> [String: [String]] {
+    var adjacency: [String: [String]] = [:]
+    for node in nodes {
+        adjacency[node.id] = []
+    }
+    for edge in edges where !edge.isSoft {
+        adjacency[edge.fromID, default: []].append(edge.toID)
+    }
+    return adjacency
+}
+
 package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGraphEdge] {
     struct EdgeKey: Hashable {
         let fromID: String
@@ -80,12 +114,27 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
         let label: String?
     }
 
-    var seen: Set<EdgeKey> = []
+    // Stable: first occurrence wins position. When the same (from, to, label)
+    // edge is reported multiple times, the merged edge is `isSoft` only if
+    // *every* reporting site said so — any hard occurrence demotes the merge
+    // to hard. This matches the validator's hard-wins rule: a cycle that is
+    // broken on one path but hard on another is still a cycle.
+    var seen: [EdgeKey: Int] = [:]
     var result: [DependencyGraphEdge] = []
 
     for edge in edges {
         let key = EdgeKey(fromID: edge.fromID, toID: edge.toID, label: edge.label)
-        if seen.insert(key).inserted {
+        if let existingIndex = seen[key] {
+            if result[existingIndex].isSoft && !edge.isSoft {
+                result[existingIndex] = DependencyGraphEdge(
+                    fromID: edge.fromID,
+                    toID: edge.toID,
+                    label: edge.label,
+                    isSoft: false
+                )
+            }
+        } else {
+            seen[key] = result.count
             result.append(edge)
         }
     }

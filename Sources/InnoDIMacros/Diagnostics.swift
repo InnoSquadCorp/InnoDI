@@ -23,6 +23,7 @@ enum InnoDIDiagnosticCode: String {
     case provideFactoryConflict = "provide.factory-conflict"
     case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
+    case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
     case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
     case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
     case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
@@ -42,6 +43,7 @@ enum InnoDIDiagnosticCode: String {
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
+                .provideLazyUnsupportedTarget,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
@@ -157,6 +159,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func provideLazyUnsupportedTarget(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Lazy<T> because '\(dependencyName)' is provided by asyncFactory and Lazy resolvers are synchronous.",
+            code: .provideLazyUnsupportedTarget
+        )
+    }
+
     static func provideUnresolvedFactoryParameter(memberName: String, parameterName: String) -> Self {
         Self(
             "Factory parameter '\(parameterName)' for '\(memberName)' does not match any injectable container member.",
@@ -194,7 +203,7 @@ extension SimpleDiagnostic {
 
     static func containerDependencyCycle(path: String) -> Self {
         Self(
-            "Dependency cycle detected in container: \(path).",
+            "Dependency cycle detected in container: \(path). To break this cycle without restructuring, wrap one factory parameter in Lazy<T>.",
             code: .containerDependencyCycle
         )
     }

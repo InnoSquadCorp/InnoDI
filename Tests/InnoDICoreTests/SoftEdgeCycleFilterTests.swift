@@ -1,0 +1,123 @@
+import Testing
+
+@testable import InnoDICore
+
+/// Covers the `isSoft` plumbing added in Phase K for the CLI DAG validator.
+///
+/// The macro-level validator and the CLI validator must agree: a cycle that is
+/// broken by a single `Lazy<T>` edge on any path should not be reported as a
+/// cycle. These tests target the pure adjacency/dedup helpers shared between
+/// them so the contract stays verified even while the CLI collectors don't yet
+/// populate member-level edges.
+@Suite("Soft edge cycle filter (Phase K-4)")
+struct SoftEdgeCycleFilterTests {
+    private func makeNode(_ id: String) -> DependencyGraphNode {
+        DependencyGraphNode(
+            id: id,
+            displayName: id,
+            semanticPath: id,
+            isRoot: false,
+            requiredInputs: []
+        )
+    }
+
+    @Test("Soft edges are excluded from cycle-detection adjacency")
+    func softEdgesAreExcludedFromAdjacency() {
+        let nodes = [makeNode("A"), makeNode("B")]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false),
+            DependencyGraphEdge(fromID: "B", toID: "A", label: nil, isSoft: true)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+
+        #expect(adjacency["A"] == ["B"])
+        #expect(adjacency["B"] == [])
+        #expect(detectDependencyCycles(adjacency: adjacency).isEmpty)
+    }
+
+    @Test("Hard back-edge still forms a cycle even when a soft edge co-exists")
+    func hardBackEdgeStillCycles() {
+        let nodes = [makeNode("A"), makeNode("B")]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false),
+            DependencyGraphEdge(fromID: "B", toID: "A", label: nil, isSoft: false),
+            // A redundant soft edge in the same direction must not "launder"
+            // the hard edge out of cycle detection.
+            DependencyGraphEdge(fromID: "B", toID: "A", label: nil, isSoft: true)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+        let cycles = detectDependencyCycles(adjacency: adjacency)
+
+        #expect(!cycles.isEmpty)
+    }
+
+    @Test("Three-node cycle broken by one soft edge no longer cycles")
+    func threeNodeCycleBrokenBySoftEdge() {
+        let nodes = [makeNode("A"), makeNode("B"), makeNode("C")]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "C", label: nil, isSoft: true),
+            DependencyGraphEdge(fromID: "B", toID: "A", label: nil, isSoft: false),
+            DependencyGraphEdge(fromID: "C", toID: "B", label: nil, isSoft: false)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+        let cycles = detectDependencyCycles(adjacency: adjacency)
+
+        #expect(cycles.isEmpty)
+    }
+
+    @Test("Isolated nodes remain in adjacency with empty successor lists")
+    func isolatedNodesRemainInAdjacency() {
+        let nodes = [makeNode("A"), makeNode("B"), makeNode("Isolated")]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+
+        #expect(adjacency.keys.sorted() == ["A", "B", "Isolated"])
+        #expect(adjacency["Isolated"] == [])
+    }
+
+    @Test("Hard occurrence demotes prior soft merge in deduplicateEdges")
+    func hardOccurrenceDemotesPriorSoftMerge() {
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(deduped[0].isSoft == false)
+    }
+
+    @Test("All-soft occurrences keep the merged edge soft")
+    func allSoftOccurrencesStaySoft() {
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(deduped[0].isSoft == true)
+    }
+
+    @Test("Different labels produce separate edges even with same endpoints")
+    func differentLabelsProduceSeparateEdges() {
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: "x", isSoft: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: "y", isSoft: false)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 2)
+        #expect(deduped.contains(where: { $0.label == "x" && $0.isSoft }))
+        #expect(deduped.contains(where: { $0.label == "y" && !$0.isSoft }))
+    }
+}

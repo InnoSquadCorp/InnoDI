@@ -6,7 +6,17 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 
 ## Unreleased
 
-- No unreleased entries yet.
+### Added
+
+- `Lazy<T>` escape hatch for breaking dependency cycles at the factory-parameter boundary. A factory parameter typed `Lazy<T>` is now classified as a *soft* dependency: it is excluded from both the per-container cycle detector (`container.dependency-cycle`) and the CLI's global `--validate-dag` check, while still being rendered in the dependency graph.
+- `_LazyCell<T>` runtime class that backs the macro-generated `Lazy` wrappers so `struct` containers can forward-reference siblings without capturing `self`.
+- `DependencyGraphEdge.isSoft` flag plus the `buildCycleDetectionAdjacency(nodes:edges:)` helper in `InnoDICore`, so macros and the CLI share one soft-edge contract.
+
+### Changed
+
+- `container.dependency-cycle` diagnostic message now suggests wrapping one factory parameter in `Lazy<T>` to break the cycle without restructuring.
+- Mermaid, DOT, and ASCII renderers style soft edges distinctly: dashed arrows (`-.->`, `style=dashed`, `- ->`) with an ASCII legend that appears only when soft edges are present.
+- `deduplicateEdges(_:)` in `InnoDICore` now follows a hard-wins rule when the same `(from, to, label)` triple is reported by multiple sites — a merged edge is soft only if *every* occurrence was soft.
 
 ## 3.0.1
 
