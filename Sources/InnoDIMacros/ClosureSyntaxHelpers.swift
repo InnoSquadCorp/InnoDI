@@ -48,7 +48,14 @@ func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParamete
                 continue
             }
             names.append(name)
-            let kind: DependencyKind = isLazyType(parameter.type) ? .soft : .hard
+            let kind: DependencyKind
+            if isLazyType(parameter.type) {
+                kind = .soft
+            } else if isProviderType(parameter.type) {
+                kind = .provider
+            } else {
+                kind = .hard
+            }
             references.append(
                 ClosureParameterReference(
                     name: name,
@@ -89,24 +96,61 @@ func isLazyType(_ type: TypeSyntax?) -> Bool {
 }
 
 func lazyWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
+    wrapperCalleeDescriptionForType(type, wrapperName: "Lazy")
+}
+
+/// Returns `true` when a closure-parameter type annotation is syntactically
+/// `Provider<T>` (or `<Qualifier>.Provider<T>` — most commonly
+/// `InnoDI.Provider<T>`).
+///
+/// Detection mirrors `isLazyType`: the macro cannot resolve typealiases, so a
+/// `typealias MyProvider = Provider` would be treated as an ordinary hard
+/// edge. Documented at the public `Provider<T>` declaration in `InnoDI.swift`.
+func isProviderType(_ type: TypeSyntax?) -> Bool {
+    guard let type else { return false }
+
+    let normalized = unwrapAttributedType(type)
+
+    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text == "Provider"
+            && (identifier.genericArgumentClause?.arguments.count == 1)
+    }
+
+    if let member = normalized.as(MemberTypeSyntax.self) {
+        return member.name.text == "Provider"
+            && (member.genericArgumentClause?.arguments.count == 1)
+    }
+
+    return false
+}
+
+func providerWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
+    wrapperCalleeDescriptionForType(type, wrapperName: "Provider")
+}
+
+/// Extracts the exact spelling (`Lazy` / `Provider` / `InnoDI.Lazy` /
+/// `Acme.Provider`, …) used at a factory-parameter site so that generated
+/// wrappers can reuse the same qualification the author wrote. `nil` when the
+/// type is not the expected wrapper.
+private func wrapperCalleeDescriptionForType(_ type: TypeSyntax?, wrapperName: String) -> String? {
     guard let type else { return nil }
 
     let normalized = unwrapAttributedType(type)
 
     if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        guard identifier.name.text == "Lazy",
+        guard identifier.name.text == wrapperName,
               identifier.genericArgumentClause?.arguments.count == 1 else {
             return nil
         }
-        return "Lazy"
+        return wrapperName
     }
 
     if let member = normalized.as(MemberTypeSyntax.self) {
-        guard member.name.text == "Lazy",
+        guard member.name.text == wrapperName,
               member.genericArgumentClause?.arguments.count == 1 else {
             return nil
         }
-        return "\(unwrapAttributedType(member.baseType).trimmedDescription).Lazy"
+        return "\(unwrapAttributedType(member.baseType).trimmedDescription).\(wrapperName)"
     }
 
     return nil
