@@ -49,6 +49,26 @@ package func deferredDependencyWrapperCalleeDescription(
     return nil
 }
 
+package func deferredDependencyWrappedTypeReference(_ type: TypeSyntax?) -> SemanticTypeReference? {
+    guard let type else { return nil }
+
+    let normalized = unwrapDeferredDependencyWrapperType(type)
+
+    if let identifier = normalized.as(IdentifierTypeSyntax.self),
+       let argument = identifier.genericArgumentClause?.arguments.first?.argument,
+       let wrappedType = argument.as(TypeSyntax.self) {
+        return normalizedSemanticTypeReference(wrappedType)
+    }
+
+    if let member = normalized.as(MemberTypeSyntax.self),
+       let argument = member.genericArgumentClause?.arguments.first?.argument,
+       let wrappedType = argument.as(TypeSyntax.self) {
+        return normalizedSemanticTypeReference(wrappedType)
+    }
+
+    return nil
+}
+
 private func unwrapDeferredDependencyWrapperType(_ type: TypeSyntax) -> TypeSyntax {
     if let attributed = type.as(AttributedTypeSyntax.self) {
         return unwrapDeferredDependencyWrapperType(attributed.baseType)

@@ -19,13 +19,12 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
 
     private struct ProvideMemberRecord {
         let name: String
-        let typeReference: SemanticTypeReference?
         let factoryClosure: ClosureExprSyntax?
         let asyncFactoryClosure: ClosureExprSyntax?
     }
 
     private struct DeferredEdgeReference {
-        let dependencyName: String
+        let targetReference: SemanticTypeReference
         let kind: DeferredDependencyWrapperKind
     }
 
@@ -234,13 +233,12 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
 
     private func collectDeferredEdges(in node: some DeclGroupSyntax, sourceID: String) {
         let provideMembers = provideMemberRecords(in: node)
-        let memberTypesByName = Dictionary(uniqueKeysWithValues: provideMembers.map { ($0.name, $0.typeReference) })
 
         for member in provideMembers {
             let deferredReferences = deferredEdgeReferences(for: member)
             for reference in deferredReferences {
-                guard let typeReference = memberTypesByName[reference.dependencyName] ?? nil,
-                      let destinationID = resolvedContainerID(typeReference, sourceID: sourceID),
+                guard shouldCollectDeferredContainerReference(reference.targetReference),
+                      let destinationID = resolvedContainerID(reference.targetReference, sourceID: sourceID),
                       destinationID != sourceID else {
                     continue
                 }
@@ -265,14 +263,13 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
                   let attribute = findAttribute(named: "Provide", in: variable.attributes),
                   let binding = variable.bindings.first,
                   let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-                  let typeAnnotation = binding.typeAnnotation else {
+                  binding.typeAnnotation != nil else {
                 return nil
             }
 
             let provideArguments = parseProvideArguments(attribute)
             return ProvideMemberRecord(
                 name: identifier.identifier.text,
-                typeReference: normalizedSemanticTypeReference(typeAnnotation.type),
                 factoryClosure: provideArguments.factoryExpr?.as(ClosureExprSyntax.self),
                 asyncFactoryClosure: provideArguments.asyncFactoryExpr?.as(ClosureExprSyntax.self)
             )
@@ -299,10 +296,11 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
             return parameters.parameters.compactMap { parameter in
                 let token = parameter.secondName ?? parameter.firstName
                 guard token.text != "_",
-                      let kind = deferredDependencyWrapperKind(for: parameter.type) else {
+                      let kind = deferredDependencyWrapperKind(for: parameter.type),
+                      let targetReference = deferredDependencyWrappedTypeReference(parameter.type) else {
                     return nil
                 }
-                return DeferredEdgeReference(dependencyName: token.text, kind: kind)
+                return DeferredEdgeReference(targetReference: targetReference, kind: kind)
             }
         }
     }
@@ -312,13 +310,24 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         var result: [DeferredEdgeReference] = []
 
         for reference in references {
-            let key = "\(reference.kind.rawValue):\(reference.dependencyName)"
+            let key = "\(reference.kind.rawValue):\(reference.targetReference.displayPath)"
             if seen.insert(key).inserted {
                 result.append(reference)
             }
         }
 
         return result
+    }
+
+    private func shouldCollectDeferredContainerReference(_ reference: SemanticTypeReference) -> Bool {
+        let resolution = semanticResolver.resolvePath(for: reference, candidatePaths: candidatePaths)
+
+        switch resolution.state {
+        case .resolved, .ambiguous, .excluded:
+            return true
+        case .unresolved:
+            return reference.components.last?.hasSuffix("Container") == true
+        }
     }
 
     private func edgeLabel(from arguments: LabeledExprListSyntax) -> String? {
