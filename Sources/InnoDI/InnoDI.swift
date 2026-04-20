@@ -77,13 +77,16 @@ public macro Provide(
 /// the container's own `.shared` / `.transient` semantics continue to govern
 /// the target's lifecycle. Do not call the wrapper inside the factory body
 /// itself; only store it for later use, or the backing cell will not yet be
-/// populated.
+/// populated. `Lazy<T>` remains synchronous, so it cannot target `.shared`
+/// members provided by `asyncFactory`.
 ///
 /// ### Detection
 /// The macro recognizes `Lazy` by its written identifier at the factory
 /// parameter site (either `Lazy<T>` or `<Module>.Lazy<T>`). A `typealias`
 /// that renames `Lazy` cannot be detected and will be treated as an ordinary
-/// hard edge — use the canonical name at factory-parameter sites.
+/// hard edge — use the canonical name at factory-parameter sites. If your
+/// module also defines `Lazy<T>`, prefer spelling the wrapper as
+/// `InnoDI.Lazy<T>` so the generated code preserves that qualification.
 public struct Lazy<T> {
     @usableFromInline
     let resolver: () -> T
@@ -107,14 +110,26 @@ public struct Lazy<T> {
 ///
 /// 1. declares a local `let _lazyCell_<name> = _LazyCell<Type>()` at the top
 ///    of the synthesized init,
-/// 2. passes `Lazy({ _lazyCell_<name>.value! })` to any soft factory
+/// 2. passes `Lazy({ _lazyCell_<name>.resolve() })` to any soft factory
 ///    parameter, and
-/// 3. assigns `_lazyCell_<name>.value = self._storage_<name>` right after
-///    the target's storage is populated.
+/// 3. either stores the concrete shared/input value or assigns a transient
+///    resolver after the target accessor becomes available.
 ///
 /// Users should not reach for this type directly — it is public only so that
 /// macro output can reference it from arbitrary modules.
 public final class _LazyCell<T>: @unchecked Sendable {
     public var value: T?
+    public var resolver: (() -> T)?
+
     public init() {}
+
+    public func resolve() -> T {
+        if let value {
+            return value
+        }
+        if let resolver {
+            return resolver()
+        }
+        fatalError("_LazyCell resolved before the dependency was initialized.")
+    }
 }

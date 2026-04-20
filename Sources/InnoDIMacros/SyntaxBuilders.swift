@@ -240,7 +240,7 @@ internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
 ///
 /// init이 shared/input 저장소를 채운 직후에 호출되어, 미리 배포된 Lazy
 /// 래퍼가 뒤늦게 해결(resolve)할 때 같은 인스턴스를 되돌려줄 수 있게 한다.
-internal func makeLazyCellWriteExpr(name: String, storageName: String) -> ExprSyntax {
+internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSyntax {
     let cellMember = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
         declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
@@ -253,46 +253,63 @@ internal func makeLazyCellWriteExpr(name: String, storageName: String) -> ExprSy
     return ExprSyntax(assignment)
 }
 
-/// `Lazy({ _lazyCell_<name>.value! })` 형태의 인수 표현식을 만든다.
+/// `_lazyCell_<name>.resolver = { self.<name> }` 형태의 late-binding 표현식을 만든다.
+///
+/// `.transient` soft target은 init이 끝난 뒤 accessor를 통해 fresh value를
+/// 다시 계산해야 하므로 concrete value를 저장하지 않고 resolver를 바인딩한다.
+internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName: String = "self") -> ExprSyntax {
+    let resolverAccess = MemberAccessExprSyntax(
+        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
+        declName: DeclReferenceExprSyntax(baseName: .identifier("resolver"))
+    )
+    let closure = ClosureExprSyntax(
+        statements: CodeBlockItemListSyntax([
+            CodeBlockItemSyntax(item: .expr(makeSelfMemberAccessExpr(name: accessorName, baseName: baseName)))
+        ])
+    )
+    let assignment = InfixOperatorExprSyntax(
+        leftOperand: ExprSyntax(resolverAccess),
+        operator: AssignmentExprSyntax(),
+        rightOperand: ExprSyntax(closure)
+    )
+    return ExprSyntax(assignment)
+}
+
+/// `<Qualified>.Lazy({ _lazyCell_<name>.resolve() })` 형태의 인수 표현식을 만든다.
 ///
 /// soft 파라미터를 감지한 factory에 넘길 값이다. Lazy 의 generic
 /// 파라미터는 closure 반환 타입으로 추론되므로 `<Type>`을 명시하지 않는다.
-internal func makeLazyCellWrapperExpr(name: String) -> ExprSyntax {
-    // _lazyCell_<name>.value!
-    let memberAccess = MemberAccessExprSyntax(
+internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    let resolveAccess = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
-        declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+        declName: DeclReferenceExprSyntax(baseName: .identifier("resolve"))
     )
-    let forceUnwrap = ForceUnwrapExprSyntax(expression: ExprSyntax(memberAccess))
-    let closure = ClosureExprSyntax(
-        statements: CodeBlockItemListSyntax([
-            CodeBlockItemSyntax(item: .expr(ExprSyntax(forceUnwrap)))
-        ])
-    )
-    let call = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("Lazy"))),
-        leftParen: nil,
+    let resolveCall = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(resolveAccess),
+        leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax([]),
-        rightParen: nil,
-        trailingClosure: closure
+        rightParen: .rightParenToken()
     )
-    return ExprSyntax(call)
+    return makeLazyWrapperExpr(calleeDescription: calleeDescription, resolverExpression: ExprSyntax(resolveCall))
 }
 
-/// `Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
+/// `<Qualified>.Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
 ///
 /// Transient 접근자(getter) 내부에서 사용된다. getter 시점에는 `self`가
 /// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
 /// 된다.
-internal func makeLazyAccessorWrapperExpr(name: String) -> ExprSyntax {
-    let selfAccess = makeSelfMemberAccessExpr(name: name)
+internal func makeLazyAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
+    makeLazyWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
+}
+
+private func makeLazyWrapperExpr(calleeDescription: String, resolverExpression: ExprSyntax) -> ExprSyntax {
     let closure = ClosureExprSyntax(
         statements: CodeBlockItemListSyntax([
-            CodeBlockItemSyntax(item: .expr(selfAccess))
+            CodeBlockItemSyntax(item: .expr(resolverExpression))
         ])
     )
     let call = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("Lazy"))),
+        calledExpression: ExprSyntax("\(raw: calleeDescription)"),
         leftParen: nil,
         arguments: LabeledExprListSyntax([]),
         rightParen: nil,

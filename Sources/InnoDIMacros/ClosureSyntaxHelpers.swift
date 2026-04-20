@@ -88,6 +88,30 @@ func isLazyType(_ type: TypeSyntax?) -> Bool {
     return false
 }
 
+func lazyWrapperCalleeDescriptionForType(_ type: TypeSyntax?) -> String? {
+    guard let type else { return nil }
+
+    let normalized = unwrapAttributedType(type)
+
+    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
+        guard identifier.name.text == "Lazy",
+              identifier.genericArgumentClause?.arguments.count == 1 else {
+            return nil
+        }
+        return "Lazy"
+    }
+
+    if let member = normalized.as(MemberTypeSyntax.self) {
+        guard member.name.text == "Lazy",
+              member.genericArgumentClause?.arguments.count == 1 else {
+            return nil
+        }
+        return "\(unwrapAttributedType(member.baseType).trimmedDescription).Lazy"
+    }
+
+    return nil
+}
+
 /// Strips `@escaping` / `@Sendable` / other attribute wrappers so that the
 /// underlying `Lazy<…>` shape remains detectable.
 private func unwrapAttributedType(_ type: TypeSyntax) -> TypeSyntax {

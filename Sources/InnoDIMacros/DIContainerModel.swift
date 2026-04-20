@@ -30,6 +30,10 @@ struct ClosureParameterReference {
     /// type is `Lazy<…>` (soft) or anything else (hard). Shorthand closures
     /// lack inline type annotations and therefore default to `.hard`.
     let kind: DependencyKind
+
+    var lazyWrapperCalleeDescription: String? {
+        lazyWrapperCalleeDescriptionForType(type)
+    }
 }
 
 struct WithDependencyReference {
@@ -106,6 +110,10 @@ struct ProvideMemberModel {
         )
     }
 
+    var softClosureParameterReferences: [ClosureParameterReference] {
+        closureParameterReferences.filter { $0.kind == .soft }
+    }
+
     /// Closure parameter names that represent hard (non-lazy) edges —
     /// the ones that continue to constrain declaration order and participate
     /// in cycle detection.
@@ -115,6 +123,15 @@ struct ProvideMemberModel {
                 .filter { $0.kind == .hard }
                 .map(\.name)
         )
+    }
+
+    var supportsLazySoftTarget: Bool {
+        switch scope {
+        case .input, .transient:
+            return true
+        case .shared:
+            return !isAsyncFactory
+        }
     }
 }
 

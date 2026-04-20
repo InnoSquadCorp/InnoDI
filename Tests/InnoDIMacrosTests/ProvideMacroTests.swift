@@ -122,6 +122,27 @@ struct ProvideMacroTests {
         #expect(apiType?.trimmedDescription == "APIClient")
     }
 
+    @Test("Qualified Lazy parameter preserves the written wrapper callee")
+    func parseClosureParameterNamesPreservesQualifiedLazyCallee() throws {
+        let source = """
+        @Provide(.shared, factory: { (service: InnoDI.Lazy<Service>) in Holder(service: service) })
+        var holder: Holder
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self),
+              let closure = parseProvideArguments(attr).factoryExpr?.as(ClosureExprSyntax.self) else {
+            Issue.record("Should parse shared factory closure")
+            return
+        }
+
+        let parameterList = parseClosureParameterNames(closure)
+        let serviceReference = try #require(parameterList.references.first { $0.name == "service" })
+        #expect(serviceReference.type?.trimmedDescription == "InnoDI.Lazy<Service>")
+        #expect(serviceReference.lazyWrapperCalleeDescription == "InnoDI.Lazy")
+    }
+
     // MARK: - Accessor/peer expansion tests (migrated to snapshot/inline)
 
     @Test("Transient factory closure injects dependencies by parameter name")
