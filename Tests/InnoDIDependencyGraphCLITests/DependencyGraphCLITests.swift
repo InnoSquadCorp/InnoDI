@@ -191,6 +191,23 @@ struct DependencyGraphCLITests {
         #expect(result.stdout.contains("DAG validation passed."))
     }
 
+    @Test("Validate DAG ignores deferred wrappers that target non-container services")
+    func validateDAGIgnoresDeferredWrappersForServices() throws {
+        let fixtureURL = try makeDeferredServiceWrapperFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(!result.stderr.contains("Unresolved container references:"))
+        #expect(!result.stderr.contains("Request"))
+        #expect(!result.stderr.contains("TransientService"))
+    }
+
     @Test("Hard edge still wins when a provider edge shares the same source and destination")
     func validateDAGStillFailsWhenHardAndProviderEdgesCoexist() throws {
         let fixtureURL = try makeMixedHardAndProviderCycleFixtureProject()
@@ -646,6 +663,56 @@ private func makeLazyDeferredCycleFixtureProject() throws -> URL {
 
     try source.write(
         to: fixtureURL.appendingPathComponent("LazyDeferredCycle.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeDeferredServiceWrapperFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Deferred-Service-Wrapper-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    final class Request {}
+    final class RequestLogger {
+        let requests: Provider<Request>
+        init(requests: Provider<Request>) { self.requests = requests }
+    }
+
+    final class TransientService {}
+    final class ServiceHolder {
+        let service: Lazy<TransientService>
+        init(service: Lazy<TransientService>) { self.service = service }
+    }
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.transient, factory: { Request() }, concrete: true)
+        var request: Request
+
+        @Provide(.shared, factory: { (request: Provider<Request>) in
+            RequestLogger(requests: request)
+        }, concrete: true)
+        var logger: RequestLogger
+
+        @Provide(.transient, factory: { TransientService() }, concrete: true)
+        var service: TransientService
+
+        @Provide(.shared, factory: { (service: Lazy<TransientService>) in
+            ServiceHolder(service: service)
+        }, concrete: true)
+        var holder: ServiceHolder
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("DeferredServiceWrappers.swift"),
         atomically: true,
         encoding: .utf8
     )
