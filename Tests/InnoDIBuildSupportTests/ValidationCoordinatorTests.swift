@@ -710,6 +710,170 @@ struct ValidationCoordinatorTests {
         #expect(repairedRecord.liveRunMetrics.semanticValidationMilliseconds >= 0)
     }
 
+    @Test("Dead-owner lock files are recovered before live validation continues")
+    func deadOwnerLockIsRecoveredBeforeLiveValidation() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+
+        let clock = ManualValidationCoordinatorClock(
+            startUptime: 100,
+            startDate: Date(timeIntervalSince1970: 10_000)
+        )
+        try persistJSON(
+            ValidationCoordinatorLockMetadata(
+                pid: 1111,
+                createdAt: clock.currentDate.addingTimeInterval(-120).timeIntervalSince1970
+            ),
+            to: sharedRunDirectory.appendingPathComponent("lock")
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "DAG validation passed.\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner,
+            lockPolicy: .default,
+            runtime: makeTestRuntime(clock: clock, currentPID: 4242, activePIDs: [4242])
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.staleLockRecovered))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunDAGValidation))
+        #expect(runner.invocationCount == 1)
+        #expect(clock.sleptDurations.isEmpty)
+    }
+
+    @Test("Corrupt legacy lock files older than the stale threshold are recovered")
+    func corruptLegacyLockFileIsRecovered() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+
+        let clock = ManualValidationCoordinatorClock(
+            startUptime: 50,
+            startDate: Date(timeIntervalSince1970: 20_000)
+        )
+        let lockURL = sharedRunDirectory.appendingPathComponent("lock")
+        try Data("legacy-lock".utf8).write(to: lockURL, options: .atomic)
+        try touch(lockURL, modifiedAt: clock.currentDate.addingTimeInterval(-120))
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "DAG validation passed.\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner,
+            lockPolicy: .default,
+            runtime: makeTestRuntime(clock: clock, currentPID: 4242, activePIDs: [4242])
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.staleLockRecovered))
+        #expect(runner.invocationCount == 1)
+        #expect(clock.sleptDurations.isEmpty)
+    }
+
+    @Test("Active locks time out predictably instead of retrying indefinitely")
+    func activeLockTimesOutPredictably() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+
+        let clock = ManualValidationCoordinatorClock(
+            startUptime: 10,
+            startDate: Date(timeIntervalSince1970: 30_000)
+        )
+        try persistJSON(
+            ValidationCoordinatorLockMetadata(
+                pid: 1111,
+                createdAt: clock.currentDate.timeIntervalSince1970
+            ),
+            to: sharedRunDirectory.appendingPathComponent("lock")
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+        let policy = ValidationCoordinatorLockPolicy(
+            maxWaitSeconds: 0.3,
+            staleLockAgeSeconds: 0.1,
+            initialBackoffSeconds: 0.05,
+            maxBackoffSeconds: 0.2
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner,
+            lockPolicy: policy,
+            runtime: makeTestRuntime(clock: clock, currentPID: 4242, activePIDs: [1111, 4242])
+        )
+
+        let summary = try String(
+            contentsOf: fixture.outputAURL.appendingPathComponent("dag-validation-summary.md"),
+            encoding: .utf8
+        )
+
+        #expect(outcome.wasCached == false)
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("Timed out waiting for validation coordinator lock"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.lockContentionTimeout))
+        #expect(outcome.metricsArtifact.issues.isEmpty)
+        #expect(outcome.metricsArtifact.liveRunMetrics.customInitValidationMilliseconds == 0)
+        #expect(outcome.metricsArtifact.liveRunMetrics.semanticValidationMilliseconds == 0)
+        #expect(outcome.metricsArtifact.liveRunMetrics.dagValidationMilliseconds == 0)
+        #expect(summary.contains("lock-contention-timeout"))
+        #expect(summary.contains("timed out waiting for an active lock"))
+        #expect(clock.sleptDurations.count == 3)
+        #expect(clock.totalSlept >= policy.maxWaitSeconds)
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Failure result is reused for identical input signature")
     func failureResultIsReused() throws {
         let fixture = try makeFixture()
@@ -1146,6 +1310,62 @@ private func makeTemporaryRoot() throws -> URL {
 
 private func touch(_ url: URL, modifiedAt: Date) throws {
     try FileManager.default.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: url.path(percentEncoded: false))
+}
+
+private func makeTestRuntime(
+    clock: ManualValidationCoordinatorClock,
+    currentPID: Int32,
+    activePIDs: Set<Int32>
+) -> ValidationCoordinatorRuntime {
+    ValidationCoordinatorRuntime(
+        monotonicNow: { clock.monotonicNow },
+        currentDate: { clock.currentDate },
+        sleep: { interval in clock.sleep(interval) },
+        currentProcessID: { currentPID },
+        processExists: { activePIDs.contains($0) }
+    )
+}
+
+private final class ManualValidationCoordinatorClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var uptime: TimeInterval
+    private var date: Date
+    private var recordedSleeps: [TimeInterval] = []
+
+    init(startUptime: TimeInterval, startDate: Date) {
+        self.uptime = startUptime
+        self.date = startDate
+    }
+
+    var monotonicNow: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return uptime
+    }
+
+    var currentDate: Date {
+        lock.lock()
+        defer { lock.unlock() }
+        return date
+    }
+
+    var sleptDurations: [TimeInterval] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedSleeps
+    }
+
+    var totalSlept: TimeInterval {
+        sleptDurations.reduce(0, +)
+    }
+
+    func sleep(_ interval: TimeInterval) {
+        lock.lock()
+        uptime += interval
+        date = date.addingTimeInterval(interval)
+        recordedSleeps.append(interval)
+        lock.unlock()
+    }
 }
 
 private final class MockValidationRunner: ValidationCommandRunning, @unchecked Sendable {
