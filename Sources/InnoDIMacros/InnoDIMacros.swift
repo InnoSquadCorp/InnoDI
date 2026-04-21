@@ -10,6 +10,7 @@ import SwiftSyntaxMacros
 struct InnoDIPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         DIContainerMacro.self,
-        ProvideMacro.self
+        ProvideMacro.self,
+        SubContainerMacro.self
     ]
 }
