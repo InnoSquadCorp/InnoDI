@@ -18,9 +18,10 @@ struct DIContainerCodeGenerator {
     /// Generates the full member set: primary init + (if applicable) `Overrides`
     /// struct + convenience init + 4 `withOverrides` effect overloads.
     ///
-    /// When the container has no `.shared`/`.transient` / `@SubContainer`
-    /// members, the overrides scaffolding is skipped silently — an empty
-    /// `Overrides` builder would only add autocomplete noise.
+    /// All `@DIContainer` types synthesize the overrides scaffolding unless a
+    /// user-defined nested `Overrides` type suppresses generation. Input-only
+    /// containers now receive an empty builder so parents can always forward
+    /// `@SubContainer` override closures into child containers.
     static func generateAll(for model: DIContainerExpansionModel) -> [DeclSyntax] {
         var decls: [DeclSyntax] = [generateInit(for: model)]
 
@@ -31,11 +32,7 @@ struct DIContainerCodeGenerator {
         // generated inline by `makeSubContainerInitStatements` — no extra
         // member-level decls are needed here.
 
-        guard let overridesStruct = makeOverridesStructDecl(model: model) else {
-            return decls
-        }
-
-        decls.append(overridesStruct)
+        decls.append(makeOverridesStructDecl(model: model))
         decls.append(makeConvenienceInitDecl(model: model))
         decls.append(contentsOf: makeWithOverridesMethods(model: model))
         return decls
@@ -634,10 +631,9 @@ private func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [Pr
     model.sharedMembers + model.transientMembers
 }
 
-private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax? {
+private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax {
     let candidates = overrideCandidateMembers(model)
     let subs = model.subContainerMembers
-    guard !candidates.isEmpty || !subs.isEmpty else { return nil }
 
     let modifiers = accessModifiers(model.accessLevel)
     var memberDecls: [MemberBlockItemSyntax] = candidates.map { member in
@@ -858,9 +854,6 @@ private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSy
 }
 
 private func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
-    let candidates = overrideCandidateMembers(model)
-    guard !candidates.isEmpty || !model.subContainerMembers.isEmpty else { return [] }
-
     return [
         makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false),
         makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true),
@@ -1043,9 +1036,10 @@ private func makeSubContainerInitStatements(
     member: SubContainerMemberModel,
     autoWireParentMemberNames: [String]
 ) -> [CodeBlockItemSyntax] {
-    let selectedNames = member.parentDependencies.isEmpty
-        ? autoWireParentMemberNames
-        : member.parentDependencies
+    let selectedArguments = resolvedSubContainerArguments(
+        member: member,
+        autoWireParentMemberNames: autoWireParentMemberNames
+    )
 
     var stmts: [CodeBlockItemSyntax] = []
 
@@ -1053,7 +1047,7 @@ private func makeSubContainerInitStatements(
     case .shared:
         let ifChain = subContainerSharedAssignmentExpr(
             member: member,
-            selectedNames: selectedNames
+            selectedArguments: selectedArguments
         )
         stmts.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifChain))))))
 
@@ -1088,7 +1082,7 @@ private func makeSubContainerInitStatements(
 /// string-reparse fallback during macro expansion.
 private func subContainerSharedAssignmentExpr(
     member: SubContainerMemberModel,
-    selectedNames: [String]
+    selectedArguments: [(childLabel: String, parentName: String)]
 ) -> IfExprSyntax {
     let storageName = "_storage_sub_\(member.name)"
     let overrideParam = member.name
@@ -1103,7 +1097,7 @@ private func subContainerSharedAssignmentExpr(
         targetName: storageName,
         value: subContainerInitializerExpr(
             childType: member.type,
-            parentNames: selectedNames,
+            argumentMappings: selectedArguments,
             trailingOverrideExpression: ExprSyntax(
                 DeclReferenceExprSyntax(baseName: .identifier("apply"))
             )
@@ -1113,7 +1107,7 @@ private func subContainerSharedAssignmentExpr(
         targetName: storageName,
         value: subContainerInitializerExpr(
             childType: member.type,
-            parentNames: selectedNames
+            argumentMappings: selectedArguments
         )
     )
     let elseIfExpr = makeSubContainerOptionalBindingIfExpr(
@@ -1139,17 +1133,17 @@ private func subContainerSharedAssignmentExpr(
 
 private func subContainerInitializerExpr(
     childType: TypeSyntax,
-    parentNames: [String],
+    argumentMappings: [(childLabel: String, parentName: String)],
     trailingOverrideExpression: ExprSyntax? = nil
 ) -> ExprSyntax {
-    let totalArgumentCount = parentNames.count + (trailingOverrideExpression == nil ? 0 : 1)
-    var arguments: [LabeledExprSyntax] = parentNames.enumerated().map { index, parentName in
+    let totalArgumentCount = argumentMappings.count + (trailingOverrideExpression == nil ? 0 : 1)
+    var arguments: [LabeledExprSyntax] = argumentMappings.enumerated().map { index, mapping in
         let hasTrailingOverride = trailingOverrideExpression != nil
-        let isLast = index == parentNames.count - 1 && !hasTrailingOverride
+        let isLast = index == argumentMappings.count - 1 && !hasTrailingOverride
         return LabeledExprSyntax(
-            label: .identifier(parentName),
+            label: .identifier(mapping.childLabel),
             colon: .colonToken(),
-            expression: makeSelfMemberAccessExpr(name: "_storage_\(parentName)"),
+            expression: makeSelfMemberAccessExpr(name: "_storage_\(mapping.parentName)"),
             trailingComma: isLast || totalArgumentCount == 0 ? nil : .commaToken()
         )
     }
@@ -1172,6 +1166,24 @@ private func subContainerInitializerExpr(
         rightParen: .rightParenToken()
     )
     return ExprSyntax(call)
+}
+
+private func resolvedSubContainerArguments(
+    member: SubContainerMemberModel,
+    autoWireParentMemberNames: [String]
+) -> [(childLabel: String, parentName: String)] {
+    if !member.explicitBindings.isEmpty {
+        return member.explicitBindings.map { binding in
+            (childLabel: binding.childInputName, parentName: binding.parentMemberName)
+        }
+    }
+
+    let selectedNames = member.parentDependencies.isEmpty
+        ? autoWireParentMemberNames
+        : member.parentDependencies
+    return selectedNames.map { name in
+        (childLabel: name, parentName: name)
+    }
 }
 
 private func makeSubContainerOptionalBindingIfExpr(

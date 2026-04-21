@@ -95,6 +95,9 @@ public struct SubContainerAttributeInfo {
     /// Used to re-map parent members when child `.input` parameter names do
     /// not match the parent side by name.
     public let dependencies: [String]
+    /// Explicit child-input -> parent-member bindings passed via `bindings:`.
+    /// Used when the child `.input` label differs from the parent member name.
+    public let bindings: [SubContainerBindingArgument]
 
     /// Creates a parsed `@SubContainer` argument model.
     ///
@@ -106,11 +109,27 @@ public struct SubContainerAttributeInfo {
     public init(
         scope: SubContainerScopeValue?,
         scopeName: String?,
-        dependencies: [String]
+        dependencies: [String],
+        bindings: [SubContainerBindingArgument]
     ) {
         self.scope = scope
         self.scopeName = scopeName
         self.dependencies = dependencies
+        self.bindings = bindings
+    }
+}
+
+/// Parsed explicit child-input -> parent-member remapping from a
+/// `@SubContainer(bindings:)` tuple.
+public struct SubContainerBindingArgument: Equatable, Sendable {
+    /// Child `.input` member name taken from the tuple's `child:` keypath.
+    public let childName: String
+    /// Parent member name taken from the tuple's `parent:` keypath.
+    public let parentName: String
+
+    public init(childName: String, parentName: String) {
+        self.childName = childName
+        self.parentName = parentName
     }
 }
 
@@ -237,15 +256,50 @@ public func parseKeyPathArrayArgument(_ expression: ExprSyntax) -> [String] {
     guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
     var names: [String] = []
     for element in arrayExpr.elements {
-        guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
-              let property = keyPath.components.last?
-                .component.as(KeyPathPropertyComponentSyntax.self)?
-                .declName.baseName.text else {
+        guard let property = finalKeyPathComponentName(from: element.expression) else {
             continue
         }
         names.append(property)
     }
     return names
+}
+
+/// Parses `bindings: [(child: \.foo, parent: \.bar)]` into semantic names.
+public func parseSubContainerBindingsArgument(_ expression: ExprSyntax) -> [SubContainerBindingArgument] {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
+    var bindings: [SubContainerBindingArgument] = []
+
+    for element in arrayExpr.elements {
+        guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
+            continue
+        }
+
+        var childName: String?
+        var parentName: String?
+
+        for tupleElement in tupleExpr.elements {
+            guard let label = tupleElement.label?.text else { continue }
+            switch label {
+            case "child":
+                childName = finalKeyPathComponentName(from: tupleElement.expression)
+            case "parent":
+                parentName = finalKeyPathComponentName(from: tupleElement.expression)
+            default:
+                continue
+            }
+        }
+
+        if let childName, let parentName {
+            bindings.append(
+                SubContainerBindingArgument(
+                    childName: childName,
+                    parentName: parentName
+                )
+            )
+        }
+    }
+
+    return bindings
 }
 
 /// Parses the full argument list of a single `@SubContainer` attribute.
@@ -256,6 +310,7 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     var scope: SubContainerScopeValue?
     var scopeName: String?
     var dependencies: [String] = []
+    var bindings: [SubContainerBindingArgument] = []
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -269,6 +324,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                 }
             case "with":
                 dependencies = parseKeyPathArrayArgument(argument.expression)
+            case "bindings":
+                bindings = parseSubContainerBindingsArgument(argument.expression)
             default:
                 continue
             }
@@ -278,7 +335,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     return SubContainerAttributeInfo(
         scope: scope,
         scopeName: scopeName,
-        dependencies: dependencies
+        dependencies: dependencies,
+        bindings: bindings
     )
 }
 
@@ -310,6 +368,15 @@ public func parseBoolLiteral(_ expr: ExprSyntax) -> Bool? {
         if reference.baseName.text == "false" { return false }
     }
     return nil
+}
+
+private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {
+    guard let keyPath = expression.as(KeyPathExprSyntax.self) else {
+        return nil
+    }
+    return keyPath.components.last?
+        .component.as(KeyPathPropertyComponentSyntax.self)?
+        .declName.baseName.text
 }
 
 public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContainerAttributeInfo? {

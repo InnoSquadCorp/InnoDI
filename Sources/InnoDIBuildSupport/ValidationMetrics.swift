@@ -8,6 +8,8 @@ package enum ValidationReasonCode: String, Codable, Equatable, Sendable {
     case cacheMissDeletedFile = "cache-miss-deleted-file"
     case cacheMissManifestVersion = "cache-miss-manifest-version"
     case liveRunCustomInitFailure = "live-run-custom-init-failure"
+    case liveRunSemanticValidation = "live-run-semantic-validation"
+    case liveRunSemanticFailure = "live-run-semantic-failure"
     case liveRunDAGValidation = "live-run-dag-validation"
 }
 
@@ -62,11 +64,12 @@ package struct ValidationInvocationMetrics: Codable, Equatable, Sendable {
 
 package struct ValidationLiveRunMetrics: Codable, Equatable, Sendable {
     package let customInitValidationMilliseconds: Double
+    package let semanticValidationMilliseconds: Double
     package let dagValidationMilliseconds: Double
 }
 
 package struct ValidationMetricsArtifact: Codable, Equatable, Sendable {
-    package static let currentVersion = 2
+    package static let currentVersion = 3
 
     package let version: Int
     package let signature: String
@@ -126,6 +129,7 @@ package enum ValidationLogging {
             "new-files=\(artifact.fileChanges.newFiles.count)",
             "deleted-files=\(artifact.fileChanges.deletedFiles.count)",
             "custom-init-ms=\(formatMilliseconds(artifact.liveRunMetrics.customInitValidationMilliseconds))",
+            "semantic-ms=\(formatMilliseconds(artifact.liveRunMetrics.semanticValidationMilliseconds))",
             "dag-ms=\(formatMilliseconds(artifact.liveRunMetrics.dagValidationMilliseconds))",
             "signature-ms=\(formatMilliseconds(artifact.invocationMetrics.signatureCollectionMilliseconds))",
             "total-ms=\(formatMilliseconds(artifact.invocationMetrics.totalCoordinatorMilliseconds))",
@@ -183,6 +187,7 @@ package enum ValidationLogging {
         lines.append("")
         lines.append("- Signature collection: `\(formatMilliseconds(artifact.invocationMetrics.signatureCollectionMilliseconds)) ms`")
         lines.append("- Custom init validation: `\(formatMilliseconds(artifact.liveRunMetrics.customInitValidationMilliseconds)) ms`")
+        lines.append("- Semantic validation: `\(formatMilliseconds(artifact.liveRunMetrics.semanticValidationMilliseconds)) ms`")
         lines.append("- DAG validation: `\(formatMilliseconds(artifact.liveRunMetrics.dagValidationMilliseconds)) ms`")
         lines.append("- Total coordinator: `\(formatMilliseconds(artifact.invocationMetrics.totalCoordinatorMilliseconds)) ms`")
         lines.append("")
@@ -234,6 +239,10 @@ private func reasonDescription(_ reason: ValidationReasonCode) -> String {
         return "The AST digest manifest version changed, so the cache was rebuilt from scratch."
     case .liveRunCustomInitFailure:
         return "The live validation run stopped after a structured cross-file custom init failure."
+    case .liveRunSemanticValidation:
+        return "The live validation run completed the semantic validator before DAG validation."
+    case .liveRunSemanticFailure:
+        return "The live validation run stopped after a structured semantic validation failure."
     case .liveRunDAGValidation:
         return "The live validation run executed the DAG validator."
     }
