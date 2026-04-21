@@ -1569,6 +1569,46 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports explicit child/parent input remapping via bindings:")
+    func subContainerSharedExplicitBindings() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            matches: "subContainerSharedExplicitBindings",
+            macros: Self.macros
+        )
+    }
+
+    @Test("`.transient` sub-container supports explicit child/parent input remapping via bindings:")
+    func subContainerTransientExplicitBindings() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .transient,
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            matches: "subContainerTransientExplicitBindings",
+            macros: Self.macros
+        )
+    }
+
     @Test("Container with only @SubContainer still generates init and Overrides")
     func subContainerOnlyParentGeneratesInitAndOverrides() {
         assertMacroExpansionSnapshot(
@@ -1580,6 +1620,55 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "subContainerOnlyParentGeneratesInitAndOverrides",
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with both with: and bindings: emits sub.bindings-conflicts-with-with")
+    func subContainerBindingsConflictWithWithDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.config],
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer duplicate child bindings emit sub.duplicate-child-binding")
+    func subContainerDuplicateChildBindingDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var fallbackConfig: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [
+                        (child: \\.featureConfig, parent: \\.config),
+                        (child: \\.featureConfig, parent: \\.fallbackConfig)
+                    ]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.duplicate-child-binding")
+            ],
             macros: Self.macros
         )
     }
@@ -1598,6 +1687,28 @@ struct DIContainerMacroTests {
                 MessageID(domain: "SwiftSyntaxMacroExpansion", id: "accessorMacroOnVariableWithMultipleBindings"),
                 MessageID(domain: "SwiftSyntaxMacroExpansion", id: "peerMacroOnVariableWithMultipleBindings"),
                 MessageID(domain: "InnoDI.usage", id: "sub.single-binding")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: with an unknown parent member emits sub.unknown-parent-member")
+    func subContainerBindingsUnknownParentMemberDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(child: \\.featureConfig, parent: \\.missing)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")
             ],
             macros: Self.macros
         )
@@ -1830,6 +1941,31 @@ struct DIContainerMacroTests {
 
                 @SubContainer(scope: .shared)
                 var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("`.shared` sub bindings: must not target a `.transient` parent member")
+    func subContainerBindingsSharedParentMustNotBeTransientDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) }, concrete: true)
+                var request: Request
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(child: \\.featureRequest, parent: \\.request)]
+                )
+                var feature: FeatureBindingsContainer
             }
             """,
             expectedCodes: [

@@ -46,6 +46,9 @@ enum InnoDIDiagnosticCode: String {
     case subConflictsWithProvide = "sub.conflicts-with-provide"
     case subOverridesNameConflict = "sub.overrides-name-conflict"
     case subUnknownParentMember = "sub.unknown-parent-member"
+    case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
+    case subDuplicateChildBinding = "sub.duplicate-child-binding"
+    case subUnknownChildInput = "sub.unknown-child-input"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
 
     var category: InnoDIDiagnosticCategory {
@@ -63,7 +66,8 @@ enum InnoDIDiagnosticCode: String {
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
-                .subUnknownParentMember, .subSharedParentMustNotBeTransient:
+                .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
+                .subUnknownChildInput, .subSharedParentMustNotBeTransient:
             return .validation
         }
     }
@@ -313,6 +317,31 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer on '\(memberName)' references parent member '\(parentMemberName)' via with:, but no such member exists. Only @Provide-annotated parent members can be passed to a child container.",
             code: .subUnknownParentMember
+        )
+    }
+
+    static func subBindingsConflictsWithWith(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' cannot use both with: and bindings:. Use with: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
+            code: .subBindingsConflictsWithWith
+        )
+    }
+
+    static func subDuplicateChildBinding(memberName: String, childInputName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' binds child input '\(childInputName)' more than once in bindings:. Each child input can appear at most once.",
+            code: .subDuplicateChildBinding
+        )
+    }
+
+    static func subUnknownChildInput(
+        memberName: String,
+        childInputName: String,
+        childContainerName: String
+    ) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching .input member.",
+            code: .subUnknownChildInput
         )
     }
 

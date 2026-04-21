@@ -121,6 +121,7 @@ struct DIContainerParser {
                 }
                 let subArgs = InnoDICore.parseSubContainerArguments(subAttribute)
                 let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
+                let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
                 subContainerMembers.append(
                     SubContainerMemberModel(
                         name: validatedBinding.identifier.identifier.text,
@@ -129,6 +130,7 @@ struct DIContainerParser {
                         scopeName: subArgs.scopeName,
                         scopeExpressionSyntax: extractArgumentExpression(label: "scope", from: subAttribute),
                         parentDependencies: parentDependencyReferences.map(\.name),
+                        explicitBindings: bindingReferences,
                         parentDependencyReferences: parentDependencyReferences,
                         attribute: subAttribute,
                         bindingSyntax: validatedBinding.binding
@@ -376,6 +378,63 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
                 return nil
             }
             return WithDependencyReference(name: property, keyPath: keyPath)
+        }
+    }
+
+    return []
+}
+
+private func extractSubContainerBindingReferences(from attribute: AttributeSyntax) -> [SubContainerBindingReference] {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return []
+    }
+
+    for argument in arguments where argument.label?.text == "bindings" {
+        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+            return []
+        }
+
+        return arrayExpr.elements.compactMap { element in
+            guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
+                return nil
+            }
+
+            var childName: String?
+            var parentName: String?
+            var childKeyPath: KeyPathExprSyntax?
+            var parentKeyPath: KeyPathExprSyntax?
+
+            for tupleElement in tupleExpr.elements {
+                guard let label = tupleElement.label?.text,
+                      let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
+                      let property = keyPath.components.last?
+                        .component.as(KeyPathPropertyComponentSyntax.self)?
+                        .declName.baseName.text else {
+                    continue
+                }
+
+                switch label {
+                case "child":
+                    childName = property
+                    childKeyPath = keyPath
+                case "parent":
+                    parentName = property
+                    parentKeyPath = keyPath
+                default:
+                    continue
+                }
+            }
+
+            guard let childName, let parentName, let childKeyPath, let parentKeyPath else {
+                return nil
+            }
+
+            return SubContainerBindingReference(
+                childInputName: childName,
+                parentMemberName: parentName,
+                childKeyPath: childKeyPath,
+                parentKeyPath: parentKeyPath
+            )
         }
     }
 
