@@ -187,4 +187,72 @@ struct SoftEdgeRendererTests {
 
         #expect(output.contains("\"N0\" -> \"N1\" [label=\"provider\", style=dotted];"))
     }
+
+    // MARK: - Ownership edges (Phase M)
+
+    private func makeOwnershipGraph() -> ([DependencyGraphNode], [DependencyGraphEdge]) {
+        let nodes = [
+            DependencyGraphNode(id: "AppContainer", displayName: "AppContainer", semanticPath: "AppContainer", isRoot: true, requiredInputs: []),
+            DependencyGraphNode(id: "FeatureContainer", displayName: "FeatureContainer", semanticPath: "FeatureContainer", isRoot: false, requiredInputs: [])
+        ]
+        let edges = [
+            DependencyGraphEdge(fromID: "AppContainer", toID: "FeatureContainer", label: "feature", isOwnership: true)
+        ]
+        return (nodes, edges)
+    }
+
+    @Test("Mermaid forces an `owns` label on ownership edges")
+    func mermaidOwnershipEdgeLabel() {
+        let (nodes, edges) = makeOwnershipGraph()
+        let output = renderMermaid(nodes: nodes, edges: edges)
+
+        // Mermaid has no fourth distinct arrow glyph, so the semantic is
+        // carried by the label. The prefix `owns: ` comes before the
+        // author-supplied member name (`feature`).
+        #expect(output.contains("N0 -->|owns: feature| N1"))
+    }
+
+    @Test("DOT renders ownership edges with style=bold + navy color + owns label")
+    func dotOwnershipEdgeAttribute() {
+        let (nodes, edges) = makeOwnershipGraph()
+        let output = renderDOT(nodes: nodes, edges: edges)
+
+        #expect(output.contains("\"N0\" -> \"N1\" [label=\"owns: feature\", style=bold, color=\"#1e3a8a\"];"))
+    }
+
+    @Test("ASCII renders ownership edges with `#=>` glyph, owns suffix, and legend")
+    func asciiOwnershipEdgeGlyphAndLegend() {
+        let (nodes, edges) = makeOwnershipGraph()
+        let output = renderASCII(nodes: nodes, edges: edges)
+
+        #expect(output.contains("AppContainer #=> FeatureContainer:owns,feature"))
+        #expect(output.contains("Legend: --> hard dependency"))
+        #expect(output.contains("#=> ownership (@SubContainer)"))
+        // Deferred-edge legend clauses should NOT appear without soft/provider edges.
+        #expect(!output.contains("- -> soft dependency"))
+        #expect(!output.contains("~~> provider"))
+    }
+
+    @Test("ASCII legend combines every edge kind when all four are present")
+    func asciiLegendCombinesEveryEdgeKind() {
+        let nodes = [
+            DependencyGraphNode(id: "A", displayName: "A", semanticPath: "A", isRoot: false, requiredInputs: []),
+            DependencyGraphNode(id: "B", displayName: "B", semanticPath: "B", isRoot: false, requiredInputs: []),
+            DependencyGraphNode(id: "C", displayName: "C", semanticPath: "C", isRoot: false, requiredInputs: []),
+            DependencyGraphNode(id: "D", displayName: "D", semanticPath: "D", isRoot: false, requiredInputs: [])
+        ]
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil),
+            DependencyGraphEdge(fromID: "A", toID: "C", label: nil, isSoft: true),
+            DependencyGraphEdge(fromID: "A", toID: "D", label: nil, isSoft: false, isProvider: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: "child", isOwnership: true)
+        ]
+
+        let output = renderASCII(nodes: nodes, edges: edges)
+
+        #expect(output.contains("--> hard dependency"))
+        #expect(output.contains("- -> soft dependency (Lazy<T>)"))
+        #expect(output.contains("~~> provider (Provider<T>)"))
+        #expect(output.contains("#=> ownership (@SubContainer)"))
+    }
 }
