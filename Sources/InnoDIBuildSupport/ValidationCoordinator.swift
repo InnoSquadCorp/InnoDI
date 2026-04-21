@@ -189,25 +189,40 @@ package enum ValidationCoordinator {
                 let customInitFailure = customInitValidation.asCommandResult()
                 let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
 
+                let semanticValidationMilliseconds: Double
                 let dagValidationMilliseconds: Double
                 let liveRunReasonCodes: [ValidationReasonCode]
                 let issues: [ValidationIssue]
                 if let customInitFailure {
                     result = customInitFailure
+                    semanticValidationMilliseconds = 0
                     dagValidationMilliseconds = 0
                     liveRunReasonCodes = [.liveRunCustomInitFailure]
                     issues = customInitValidation.issues
                 } else {
-                    let dagValidationStartTime = validationNow()
-                    result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
-                    dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
-                    liveRunReasonCodes = [.liveRunDAGValidation]
-                    issues = []
+                    let semanticValidationStartTime = validationNow()
+                    let semanticValidation = try ContainerSemanticBuildValidator.validate(rootPath: rootPath)
+                    let semanticFailure = semanticValidation.asCommandResult()
+                    semanticValidationMilliseconds = validationElapsedMilliseconds(since: semanticValidationStartTime)
+
+                    if let semanticFailure {
+                        result = semanticFailure
+                        dagValidationMilliseconds = 0
+                        liveRunReasonCodes = [.liveRunSemanticFailure]
+                        issues = semanticValidation.issues
+                    } else {
+                        let dagValidationStartTime = validationNow()
+                        result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
+                        dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
+                        liveRunReasonCodes = [.liveRunSemanticValidation, .liveRunDAGValidation]
+                        issues = semanticValidation.issues
+                    }
                 }
 
                 let sharedRunRecord = SharedValidationRunRecord(
                     liveRunMetrics: ValidationLiveRunMetrics(
                         customInitValidationMilliseconds: customInitValidationMilliseconds,
+                        semanticValidationMilliseconds: semanticValidationMilliseconds,
                         dagValidationMilliseconds: dagValidationMilliseconds
                     ),
                     reasonCodes: liveRunReasonCodes,
@@ -276,6 +291,7 @@ private func loadSharedRunRecord(at url: URL) throws -> SharedValidationRunRecor
         return SharedValidationRunRecord(
             liveRunMetrics: ValidationLiveRunMetrics(
                 customInitValidationMilliseconds: 0,
+                semanticValidationMilliseconds: 0,
                 dagValidationMilliseconds: 0
             ),
             reasonCodes: [],

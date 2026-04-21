@@ -10,8 +10,8 @@ import Testing
 /// These tests pin the generated `struct Overrides`, convenience `init(_ applyOverrides:)`,
 /// and four `static withOverrides` effect overloads across the dimensions that
 /// drive the code path: input/shared/transient mix, async shared, MainActor
-/// propagation, public access, input-only skip, and user-defined `Overrides`
-/// name conflict.
+/// propagation, public access, input-only scaffolding, and user-defined
+/// `Overrides` name conflict.
 @Suite("@DIContainer Overrides builder")
 struct OverridesBuilderTests {
     private static let macros: [String: any Macro.Type] = [
@@ -124,7 +124,7 @@ struct OverridesBuilderTests {
         )
     }
 
-    @Test("input-only container skips Overrides scaffolding (byte-identical to pre-J baseline)")
+    @Test("input-only container now generates empty Overrides scaffolding")
     func inputOnlySkipsScaffolding() {
         assertMacroExpansionSnapshot(
             """
@@ -142,7 +142,7 @@ struct OverridesBuilderTests {
         )
     }
 
-    @Test("input-only container with user-defined Overrides skips scaffolding silently")
+    @Test("input-only container with user-defined Overrides emits the same warning diagnostic")
     func inputOnlyUserDefinedOverridesSkipsConflictWarning() {
         assertMacroExpansionSnapshot(
             """
@@ -157,6 +157,15 @@ struct OverridesBuilderTests {
             }
             """,
             matches: "inputOnlyUserDefinedOverridesSkipsConflictWarning",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict"),
+                    message: "A nested 'Overrides' struct is already declared. InnoDI's @DIContainer would normally generate an Overrides builder, but the user declaration takes precedence. Rename the user type or skip InnoDI's override scaffolding.",
+                    line: 3,
+                    column: 5,
+                    severity: .warning
+                )
+            ],
             macros: Self.macros
         )
     }

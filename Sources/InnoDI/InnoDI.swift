@@ -257,11 +257,15 @@ public enum SubContainerScope {
 ///   no default because the two lifetimes have very different runtime
 ///   implications (cached vs fresh), and forcing the author to pick makes the
 ///   intent visible at every declaration site.
-/// - `with`: Optional keypath list used to restrict or reorder which parent
-///   members are forwarded to the child. Each `\.parentMember` keypath is
-///   passed positionally to the child init; the macro does not rewrite child
-///   parameter labels, so the order must still match the child's `.input`
-///   declaration order.
+/// - `with`: Optional keypath list used to restrict or reorder which same-name
+///   parent members are forwarded to the child. Each `\.parentMember` keypath
+///   is passed with the same label on the child side.
+/// - `bindings`: Optional explicit remapping tuples used when child `.input`
+///   labels differ from the parent member names. Each tuple spells
+///   `(child: \.childInput, parent: \.parentMember)`.
+///
+/// `with` and `bindings` are mutually exclusive. Use `with` for same-name
+/// subset/reorder shorthand, and `bindings` for rename-aware explicit wiring.
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or
@@ -269,9 +273,10 @@ public enum SubContainerScope {
 /// `Child(config: self.config, apiClient: self.apiClient, …)`. When `with:`
 /// is empty the macro assumes each child `.input` parameter label matches a
 /// parent member name. When `with:` is provided, the listed parent members
-/// replace the auto-matched ones positionally. Any mismatch surfaces as a
-/// regular Swift compile error from the child's synthesized init — the macro
-/// does not pretend to verify the child's parameter list cross-file.
+/// replace the auto-matched set but keep their same-name labels. When
+/// `bindings:` is provided, each tuple rewrites the child label explicitly
+/// while reading from the selected parent member. Child-input verification is
+/// handled conservatively by the build-support validator across the module.
 ///
 /// ### Overrides
 /// `@DIContainer` extends its nested `Overrides` struct with two optional
@@ -284,18 +289,13 @@ public enum SubContainerScope {
 ///   convenience init (`overrides.featureOverrides = { $0.store = Mock() }`).
 ///
 /// Both slots are mutually exclusive: if the direct replacement is provided
-/// it wins; otherwise the chain closure (if any) is forwarded. The second
-/// slot is also a compile-time contract: because the parent's generated init
-/// and `Overrides` struct mention `<ChildContainer>.Overrides` in their type
-/// signatures, the child must emit that nested type even when you never set
-/// or call `<name>Overrides`. Input-only children do not emit `Overrides`, so
-/// a parent `@SubContainer` pointing at an input-only child fails to compile
-/// with the usual `type '<ChildContainer>' has no member 'Overrides'` error.
-/// Remedy: add at least one `.shared`, `.transient`, or `@SubContainer`
-/// member to the child so InnoDI emits `<ChildContainer>.Overrides`.
+/// it wins; otherwise the chain closure (if any) is forwarded. Input-only
+/// children synthesize an empty nested `Overrides` type so the chain closure
+/// remains source-compatible even when the child has nothing overrideable yet.
 @attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
 @attached(accessor)
 public macro SubContainer(
     scope: SubContainerScope,
-    with dependencies: [AnyKeyPath] = []
+    with dependencies: [AnyKeyPath] = [],
+    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")

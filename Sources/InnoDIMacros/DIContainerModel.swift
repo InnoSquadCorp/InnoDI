@@ -52,6 +52,13 @@ struct WithDependencyReference {
     let keyPath: KeyPathExprSyntax
 }
 
+struct SubContainerBindingReference {
+    let childInputName: String
+    let parentMemberName: String
+    let childKeyPath: KeyPathExprSyntax
+    let parentKeyPath: KeyPathExprSyntax
+}
+
 /// A member inside a `@DIContainer` annotated with `@SubContainer`. Parallel
 /// to `ProvideMemberModel` but carries sub-container-specific metadata: a
 /// scope that must be explicit (no default), and the ordered parent keypath
@@ -75,6 +82,9 @@ struct SubContainerMemberModel {
     /// Parent member names derived from `with: [\.foo, \.bar]`, in order.
     /// Empty when the author relied on automatic name matching.
     let parentDependencies: [String]
+    /// Explicit child `.input` -> parent member remapping from
+    /// `bindings: [(child: \.foo, parent: \.bar)]`.
+    let explicitBindings: [SubContainerBindingReference]
     /// Original key-path expressions from `with:`. Preserved so validation can
     /// point at the exact unknown parent member rather than the whole
     /// attribute.
@@ -88,6 +98,14 @@ struct SubContainerMemberModel {
 
     func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {
         parentDependencyReferences.first(where: { $0.name == parentName })?.keyPath
+    }
+
+    func childBindingKeyPathSyntax(for childInputName: String) -> KeyPathExprSyntax? {
+        explicitBindings.first(where: { $0.childInputName == childInputName })?.childKeyPath
+    }
+
+    func parentBindingKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {
+        explicitBindings.first(where: { $0.parentMemberName == parentName })?.parentKeyPath
     }
 }
 

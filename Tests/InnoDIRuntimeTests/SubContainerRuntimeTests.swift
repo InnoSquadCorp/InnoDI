@@ -60,6 +60,35 @@ struct RuntimeParentWithSubsetContainer {
     var child: RuntimeSubsetChildContainer
 }
 
+@DIContainer
+struct RuntimeBindingsChildContainer {
+    @Provide(.input) var featureConfig: RuntimeParentConfig
+}
+
+@DIContainer
+struct RuntimeParentWithBindingsContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [(child: \RuntimeBindingsChildContainer.featureConfig, parent: \RuntimeParentWithBindingsContainer.config)]
+    )
+    var child: RuntimeBindingsChildContainer
+}
+
+@DIContainer
+struct RuntimeInputOnlyChildContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+}
+
+@DIContainer
+struct RuntimeParentWithInputOnlyChildContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+
+    @SubContainer(scope: .shared)
+    var child: RuntimeInputOnlyChildContainer
+}
+
 // Override tests need deterministic mock identity so reference comparisons
 // read naturally.
 
@@ -128,6 +157,14 @@ struct SubContainerRuntimeTests {
         #expect(parent.child.config == RuntimeParentConfig(endpoint: "subset"))
     }
 
+    @Test("bindings: remaps parent and child labels explicitly")
+    func bindingsRemapParentAndChildLabels() {
+        let parent = RuntimeParentWithBindingsContainer(
+            config: RuntimeParentConfig(endpoint: "bindings")
+        )
+        #expect(parent.child.featureConfig == RuntimeParentConfig(endpoint: "bindings"))
+    }
+
     // MARK: - Overrides builder integration
 
     @Test("Overrides.feature fully replaces the child container")
@@ -185,5 +222,32 @@ struct SubContainerRuntimeTests {
             container.feature.store.tag
         }
         #expect(tag == "scoped-override")
+    }
+
+    @Test("input-only child sub-containers still support direct replacement")
+    func inputOnlyChildDirectReplacementStillWorks() {
+        let replacement = RuntimeInputOnlyChildContainer(
+            config: RuntimeParentConfig(endpoint: "replacement")
+        )
+        let parent = RuntimeParentWithInputOnlyChildContainer(
+            config: RuntimeParentConfig(endpoint: "ignored")
+        ) {
+            $0.child = replacement
+        }
+        #expect(parent.child.config == RuntimeParentConfig(endpoint: "replacement"))
+    }
+
+    @Test("input-only child featureOverrides closures compile and execute as no-ops")
+    func inputOnlyChildOverrideClosureCompilesAndExecutes() {
+        var didApply = false
+        let parent = RuntimeParentWithInputOnlyChildContainer(
+            config: RuntimeParentConfig(endpoint: "input-only")
+        ) {
+            $0.childOverrides = { _ in
+                didApply = true
+            }
+        }
+        #expect(didApply)
+        #expect(parent.child.config == RuntimeParentConfig(endpoint: "input-only"))
     }
 }
