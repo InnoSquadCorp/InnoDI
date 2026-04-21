@@ -54,7 +54,33 @@ func runDependencyGraphCLI() -> Int32 {
         usageCollector.walkFile(relativePath: parsed.relativePath, tree: parsed.tree)
     }
 
-    let edges = deduplicateEdges(usageCollector.edges)
+    // Ownership edges come from `@SubContainer` members on `@DIContainer`
+    // types — the ContainerCollector records pending references (parent
+    // container ID + written child type text + member name) during its
+    // first pass. We resolve those to concrete parent → child edges by
+    // matching the child type against every container node's semantic
+    // path, preferring exact matches and falling back to suffix matches
+    // for nested names. Unresolved references are silently dropped so
+    // partial source inputs still render.
+    var ownershipEdges: [DependencyGraphEdge] = []
+    for reference in collector.subContainerReferences {
+        let candidates = nodes.filter { node in
+            node.semanticPath == reference.childTypeText
+                || node.displayName == reference.childTypeText
+                || node.semanticPath.hasSuffix(".\(reference.childTypeText)")
+        }
+        guard let resolved = candidates.first else { continue }
+        ownershipEdges.append(
+            DependencyGraphEdge(
+                fromID: reference.parentID,
+                toID: resolved.id,
+                label: reference.memberName,
+                isOwnership: true
+            )
+        )
+    }
+
+    let edges = deduplicateEdges(usageCollector.edges + ownershipEdges)
     if validateDAG {
         return runDAGValidation(
             nodes: nodes,
