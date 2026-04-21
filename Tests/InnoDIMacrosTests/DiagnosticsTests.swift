@@ -36,7 +36,12 @@ struct DiagnosticsTests {
             .containerCustomInitUnsupported,
             .containerOverridesNameConflict,
             .graphDependencyCycle,
-            .graphAmbiguousContainerReference
+            .graphAmbiguousContainerReference,
+            .subScopeRequired,
+            .subUnknownScope,
+            .subConflictsWithProvide,
+            .subUnknownParentMember,
+            .subSharedParentMustNotBeTransient
         ]
 
         for code in usageCodes {
@@ -76,7 +81,12 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.containerCustomInitUnsupported(), MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")),
             (SimpleDiagnostic.containerOverridesNameConflict(kind: "struct"), MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict")),
             (SimpleDiagnostic("Graph cycle", code: .graphDependencyCycle), MessageID(domain: "InnoDI.validation", id: "graph.dependency-cycle")),
-            (SimpleDiagnostic("Ambiguous reference", code: .graphAmbiguousContainerReference), MessageID(domain: "InnoDI.validation", id: "graph.ambiguous-container-reference"))
+            (SimpleDiagnostic("Ambiguous reference", code: .graphAmbiguousContainerReference), MessageID(domain: "InnoDI.validation", id: "graph.ambiguous-container-reference")),
+            (SimpleDiagnostic.subScopeRequired(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.scope-required")),
+            (SimpleDiagnostic.subUnknownScope(memberName: "feature", scopeName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-scope")),
+            (SimpleDiagnostic.subConflictsWithProvide(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.conflicts-with-provide")),
+            (SimpleDiagnostic.subUnknownParentMember(memberName: "feature", parentMemberName: "missing"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")),
+            (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"))
         ]
 
         for item in cases {

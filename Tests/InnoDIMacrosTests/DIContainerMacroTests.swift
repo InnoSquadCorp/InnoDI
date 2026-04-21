@@ -12,6 +12,7 @@ struct DIContainerMacroTests {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
+        "SubContainer": SubContainerMacro.self,
     ]
 
     @Test
@@ -1530,5 +1531,140 @@ struct DIContainerMacroTests {
         #expect(diagnostic.notes.count == 2)
         #expect(diagnostic.fixIts.count == 1)
         #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
+    }
+
+    // MARK: - Phase M: @SubContainer
+
+    @Test("`.shared` sub-container auto-matches parent members into the child init")
+    func subContainerSharedAutoMatch() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerSharedAutoMatch",
+            macros: Self.macros
+        )
+    }
+
+    @Test("`.transient` sub-container binds a build closure captured from a self snapshot")
+    func subContainerTransientBuildsFreshChild() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .transient)
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerTransientBuildsFreshChild",
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer without scope: emits sub.scope-required")
+    func subContainerMissingScopeDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer()
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.scope-required")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with unknown scope value emits sub.unknown-scope")
+    func subContainerUnknownScopeDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .request)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.unknown-scope")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@Provide + @SubContainer on the same property emits sub.conflicts-with-provide")
+    func subContainerConflictsWithProvideDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @Provide(.shared, factory: FeatureContainer(config: config), concrete: true)
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.conflicts-with-provide")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("`with: [\\.unknown]` emits sub.unknown-parent-member")
+    func subContainerUnknownParentMemberDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.nonexistent])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("`.shared` sub reading a `.transient` parent member emits sub.shared-parent-must-not-be-transient")
+    func subContainerSharedParentMustNotBeTransientDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) }, concrete: true)
+                var request: Request
+
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")
+            ],
+            macros: Self.macros
+        )
     }
 }
