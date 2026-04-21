@@ -66,6 +66,7 @@ struct DIContainerParser {
         )
         let accessLevel = containerAccessLevel(for: decl)
         var members: [ProvideMemberModel] = []
+        var subContainerMembers: [SubContainerMemberModel] = []
         var hadErrors = false
 
         if options.mainActor, let conflictingActor = detectConflictingGlobalActor(in: decl.attributes) {
@@ -87,7 +88,47 @@ struct DIContainerParser {
                 continue
             }
 
-            guard let attribute = InnoDICore.findAttribute(named: "Provide", in: varDecl.attributes) else {
+            // `@SubContainer` classification lives next to `@Provide` so the
+            // two attributes can coexist in the same member scan. When both
+            // are present on the same property we fall through to `@Provide`
+            // processing; the validator surfaces a dedicated conflict
+            // diagnostic in M-5.
+            let provideAttribute = InnoDICore.findAttribute(named: "Provide", in: varDecl.attributes)
+            let subContainerAttribute = InnoDICore.findAttribute(named: "SubContainer", in: varDecl.attributes)
+
+            if let subAttribute = subContainerAttribute, provideAttribute == nil {
+                guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
+                    context.diagnose(Diagnostic(node: Syntax(varDecl), message: SimpleDiagnostic.provideSingleBinding()))
+                    hadErrors = true
+                    continue
+                }
+                guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                    context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideNamedPropertyRequired()))
+                    hadErrors = true
+                    continue
+                }
+                guard let typeAnnotation = binding.typeAnnotation else {
+                    context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideExplicitTypeRequired()))
+                    hadErrors = true
+                    continue
+                }
+
+                let subArgs = InnoDICore.parseSubContainerArguments(subAttribute)
+                subContainerMembers.append(
+                    SubContainerMemberModel(
+                        name: identifier.identifier.text,
+                        type: typeAnnotation.type,
+                        scope: subArgs.scope,
+                        scopeName: subArgs.scopeName,
+                        parentDependencies: subArgs.dependencies,
+                        attribute: subAttribute,
+                        bindingSyntax: binding
+                    )
+                )
+                continue
+            }
+
+            guard let attribute = provideAttribute else {
                 continue
             }
 
@@ -175,7 +216,8 @@ struct DIContainerParser {
         return DIContainerExpansionModel(
             options: options,
             accessLevel: accessLevel,
-            members: members
+            members: members,
+            subContainerMembers: subContainerMembers
         )
     }
 }
