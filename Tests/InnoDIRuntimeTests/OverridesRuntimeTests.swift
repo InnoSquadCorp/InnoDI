@@ -92,7 +92,7 @@ struct OverridesRuntimeTests {
     func withOverridesSyncThrowing() throws {
         struct E: Error {}
 
-        let tag = try RuntimeContainer.withOverrides(userID: "u1") { overrides in
+        let tag = RuntimeContainer.withOverrides(userID: "u1") { overrides in
             overrides.apiClient = MockAPIClient(value: "sync-throws")
         } operation: { container -> String in
             container.apiClient.tag()
@@ -122,7 +122,7 @@ struct OverridesRuntimeTests {
         let tag = try await RuntimeContainer.withOverrides(userID: "u1") { overrides in
             overrides.apiClient = MockAPIClient(value: "async-throws")
         } operation: { container -> String in
-            try await Task { container.apiClient.tag() }.value
+            await Task { container.apiClient.tag() }.value
         }
         #expect(tag == "async-throws")
     }
