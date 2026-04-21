@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftSyntax
 
 /// Classifies a factory-parameter dependency edge for cycle detection and
@@ -51,10 +52,50 @@ struct WithDependencyReference {
     let keyPath: KeyPathExprSyntax
 }
 
+/// A member inside a `@DIContainer` annotated with `@SubContainer`. Parallel
+/// to `ProvideMemberModel` but carries sub-container-specific metadata: a
+/// scope that must be explicit (no default), and the ordered parent keypath
+/// names the author wants mapped to the child's `.input` parameters.
+struct SubContainerMemberModel {
+    /// Field name on the parent (e.g. `feature`).
+    let name: String
+    /// Child container type as written (`FeatureContainer`, `FeatureContainer<T>`,
+    /// or any `TypeSyntax` expressible at property declaration sites).
+    let type: TypeSyntax
+    /// Parsed scope. `nil` when the author forgot `scope:` — the validator
+    /// emits `sub.scope-required` downstream.
+    let scope: SubContainerScopeValue?
+    /// Raw scope spelling (`"shared"` / `"transient"` / whatever the author
+    /// wrote). Retained so diagnostics can show the exact token.
+    let scopeName: String?
+    /// Original `scope:` expression syntax as written at the attribute site.
+    /// Used to anchor diagnostics to the exact bad scope expression when
+    /// parsing succeeds syntactically but not semantically.
+    let scopeExpressionSyntax: ExprSyntax?
+    /// Parent member names derived from `with: [\.foo, \.bar]`, in order.
+    /// Empty when the author relied on automatic name matching.
+    let parentDependencies: [String]
+    /// Original key-path expressions from `with:`. Preserved so validation can
+    /// point at the exact unknown parent member rather than the whole
+    /// attribute.
+    let parentDependencyReferences: [WithDependencyReference]
+    let attribute: AttributeSyntax
+    let bindingSyntax: PatternBindingSyntax
+
+    var overrideClosureName: String {
+        "\(name)Overrides"
+    }
+
+    func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {
+        parentDependencyReferences.first(where: { $0.name == parentName })?.keyPath
+    }
+}
+
 struct DIContainerExpansionModel {
     let options: DIContainerAttributeInfo
     let accessLevel: String?
     let members: [ProvideMemberModel]
+    let subContainerMembers: [SubContainerMemberModel]
 
     var sharedMembers: [ProvideMemberModel] {
         members.filter { $0.scope == .shared }

@@ -117,6 +117,52 @@ internal func taskStoragePeerDecl(
     return DeclSyntax(decl)
 }
 
+/// `private var _innoDISubBuild_<name>: () -> <ChildType> = { fatalError(...) }`
+/// 형태의 peer decl을 만든다.
+internal func subContainerBuildClosurePeerDecl(
+    name: String,
+    childType: TypeSyntax
+) -> DeclSyntax {
+    let functionType = TypeSyntax(
+        FunctionTypeSyntax(
+            parameters: TupleTypeElementListSyntax([]),
+            effectSpecifiers: nil,
+            returnClause: ReturnClauseSyntax(
+                arrow: .arrowToken(trailingTrivia: .space),
+                type: childType.trimmed
+            )
+        )
+    )
+    let fallbackClosure = ClosureExprSyntax(
+        statements: CodeBlockItemListSyntax([
+            fatalErrorStmt(
+                message: "_innoDISubBuild_\(name) invoked before the generated init populated it. This should be unreachable — report as an InnoDI bug."
+            )
+        ])
+    )
+
+    let decl = VariableDeclSyntax(
+        modifiers: DeclModifierListSyntax([
+            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
+        ]),
+        bindingSpecifier: .keyword(.var, trailingTrivia: .space),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier("_innoDISubBuild_\(name)")),
+                typeAnnotation: TypeAnnotationSyntax(
+                    colon: .colonToken(trailingTrivia: .space),
+                    type: functionType
+                ),
+                initializer: InitializerClauseSyntax(
+                    equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                    value: ExprSyntax(fallbackClosure)
+                )
+            )
+        ])
+    )
+    return DeclSyntax(decl)
+}
+
 // MARK: - Statements
 
 /// `return <expr>` 형태의 `CodeBlockItemSyntax`.

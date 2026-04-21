@@ -99,7 +99,7 @@ var apiClient: any APIClientProtocol
 `@DIContainer`는 아래 네 종류 선언을 생성합니다:
 
 1. primary `init(...)` — 필수 `.input` 파라미터 + optional `.shared`/`.transient` override 파라미터
-2. `.shared` / `.transient` 멤버가 하나라도 있을 때 nested `struct Overrides`
+2. `.shared` / `.transient` / `@SubContainer` 멤버가 하나라도 있을 때 nested `struct Overrides`
    (아래 [Overrides 빌더로 테스트하기](#overrides-빌더로-테스트하기) 참고)
 3. convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` — 명명 override를 primary init으로 연결
 4. sync / throws / async / async throws 4가지 effect 조합의
@@ -428,6 +428,123 @@ legend).
   `_LazyCell` late-binding 박스를 재사용합니다. 반대로
   transient-accessor-only `Provider<T>` / `Lazy<T>` 경로는 wrapper 를 직접
   주입하므로 `_LazyCell` 추가 할당이 생기지 않습니다.
+
+## `@SubContainer` 로 중첩 컨테이너 선언하기
+
+의존성 그래프가 계층적일 때 — 앱 컨테이너가 화면/요청 단위의 자식 컨테이너
+를 소유하고, 그 자식이 부모의 설정을 공유하면서 자체 `.shared` 상태를
+가지는 경우 — `@SubContainer` 를 쓰면 부모가 자식을 직접 선언/소유한다.
+호출부는 `app.feature` 만 읽으면 되고 `.input` 을 하나씩 손으로 배선할
+필요가 없다.
+
+```swift
+import InnoDI
+
+@DIContainer(root: true)
+struct AppContainer {
+    @Provide(.input) var config: AppConfig
+    @Provide(.shared, factory: APIClient())
+    var apiClient: any APIClientProtocol
+
+    @SubContainer(scope: .shared)
+    var feature: FeatureContainer
+}
+
+@DIContainer
+struct FeatureContainer {
+    @Provide(.input) var config: AppConfig
+    @Provide(.input) var apiClient: any APIClientProtocol
+
+    @Provide(.shared, factory: FeatureStore(), concrete: true)
+    var store: FeatureStore
+}
+
+let app = AppContainer(config: .init(...))
+let feature = app.feature  // parent 의 멤버에서 자동 배선
+```
+
+### scope
+
+`@SubContainer` 는 `scope:` 를 반드시 명시해야 한다. 두 라이프타임이 런타임
+동작에서 매우 다르기 때문이다:
+
+| `scope:` | 동작 | 사용 지점 |
+|---|---|---|
+| `.shared` | parent init 시 child 를 한 번 생성해 저장하고, 이후 재사용. | 장수 coordinator 처럼 내부 `.shared` 그래프가 view 간에 유지돼야 할 때. |
+| `.transient` | `app.feature` 를 읽을 때마다 새 child 생성. | per-screen / per-request scope — 각 호출자가 독립된 `.shared` 인스턴스를 가지게 하고 싶을 때. |
+
+### 배선 규칙
+
+- **이름 자동 매칭.** 기본은 parent 의 모든 `@Provide` 멤버를 positional 로
+  forward: `FeatureContainer(config: self.config, apiClient: self.apiClient)`.
+  child `.input` 의 파라미터 레이블이 parent 멤버 이름과 일치해야 한다.
+  일치하지 않으면 생성 call 에서 Swift 컴파일 에러가 난다.
+- **`with: [\.parentName]`** 은 forward 할 parent 멤버를 subset 으로 제한
+  한다. 일부만 child 에 넘기고 싶을 때 쓴다. 레이블은 여전히 parent 멤버
+  이름 — 매크로가 레이블을 다시 쓰지는 않는다.
+- **`.shared` sub 는 `.transient` parent 를 읽을 수 없다.** `.shared`
+  child 는 parent init 안에서 만들어지는데 그 시점엔 `.transient` 접근자가
+  아직 호출 가능하지 않다. 유효성 검증이
+  `sub.shared-parent-must-not-be-transient` 로 막는다.
+
+### Overrides 빌더와의 통합
+
+`@SubContainer` 멤버는 parent 의 `Overrides` 구조에 두 슬롯을 추가한다:
+
+| 슬롯 | 의미 |
+|---|---|
+| `var <name>: <ChildContainer>? = nil` | child 를 완전히 교체 (mock sub-container 주입 등). |
+| `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil` | child 의 convenience init 으로 체인 — 테스트마다 child 의 개별 `.shared`/`.transient` 멤버를 override. |
+
+둘 다 설정되면 direct 교체가 우선한다. chain 클로저는 child 에 고유
+`Overrides` 빌더가 있을 때만 동작한다 (즉 child 에 `.shared` / `.transient`
+/ `@SubContainer` 중 하나라도 있어야 함). 이 제약은
+`overrides.<name>Overrides` 를 실제로 쓰지 않아도 컴파일 타임에 적용된다.
+parent 가 생성하는 init 과 `Overrides` 구조의 타입 시그니처가
+`<ChildContainer>.Overrides` 를 직접 참조하기 때문이다. 그래서 input-only
+child 를 `@SubContainer` 로 소유하면 parent 쪽에서
+`type '<ChildContainer>' has no member 'Overrides'` 컴파일 에러가 난다.
+해결 방법은 child 에 `.shared` / `.transient` / `@SubContainer` 중 하나를
+추가해서 InnoDI 가 `<ChildContainer>.Overrides` 를 생성하게 만드는 것이다.
+
+```swift
+let container = AppContainer(config: .init(...)) { overrides in
+    overrides.featureOverrides = { feature in
+        feature.store = MockStore()
+    }
+}
+
+let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
+    overrides.feature = MockFeatureContainer(...)     // 전체 교체
+} operation: { app in
+    app.feature.readSomething()
+}
+```
+
+### 진단 (validator)
+
+| 코드 | 발생 조건 |
+|---|---|
+| `sub.scope-required` | `@SubContainer` 에 `scope:` 가 없다. |
+| `sub.unknown-scope` | `scope:` 값이 `.shared` / `.transient` 외. |
+| `sub.conflicts-with-provide` | 같은 속성에 `@Provide` 와 `@SubContainer` 둘 다 부여. |
+| `sub.unknown-parent-member` | `with:` 키패스가 parent 의 `@Provide` 멤버를 가리키지 않음. |
+| `sub.shared-parent-must-not-be-transient` | `.shared` sub 가 `.transient` parent 멤버를 읽으려 함. |
+
+### 그래프 렌더링
+
+CLI 는 `@SubContainer` 관계를 "소유(ownership)" edge 로 인식하고 별도 스타일
+로 그려 `.input` 배선과 구분한다:
+
+| 포맷 | ownership 표기 |
+|---|---|
+| Mermaid | 기본 `-->` + 강제 `owns: <member>` 라벨 |
+| DOT | `style=bold, color="#1e3a8a"` |
+| ASCII | `#=>` + `:owns,<member>` suffix + 범례 줄 추가 |
+
+ownership edge 는 cycle 검출에서 hard edge 로 취급된다 — child 생성은
+parent init 시점이라 parent ↔ child 순환이 있으면 init 중 무한 루프가
+되기 때문이다.
 
 ## Dependency Graph CLI
 

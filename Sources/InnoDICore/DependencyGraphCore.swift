@@ -42,13 +42,29 @@ package struct DependencyGraphEdge: Hashable {
     /// container collector does not yet emit member-level provider edges, but
     /// the plumbing is ready end-to-end.
     package let isProvider: Bool
+    /// Ownership edges represent a `@SubContainer` relationship — the parent
+    /// container owns (either caches for `.shared` or re-builds for
+    /// `.transient`) the child container. Ownership edges participate in
+    /// cycle detection as hard edges because child construction happens at
+    /// parent-init time, but they are rendered with a distinct style and
+    /// "owns" label so reviewers can tell container ownership apart from
+    /// regular `.input` wiring.
+    package let isOwnership: Bool
 
-    package init(fromID: String, toID: String, label: String?, isSoft: Bool = false, isProvider: Bool = false) {
+    package init(
+        fromID: String,
+        toID: String,
+        label: String?,
+        isSoft: Bool = false,
+        isProvider: Bool = false,
+        isOwnership: Bool = false
+    ) {
         self.fromID = fromID
         self.toID = toID
         self.label = label
         self.isSoft = isSoft
         self.isProvider = isProvider
+        self.isOwnership = isOwnership
     }
 }
 
@@ -98,6 +114,10 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
 /// kinds participate in rendering but not in cycle detection, matching the
 /// per-container validator's hard-only DFS.
 ///
+/// Ownership edges stay hard even if a merged edge still carries deferred
+/// flags from upstream callers — parent-owned child construction happens at
+/// init time, so ownership must participate in cycle detection.
+///
 /// The returned adjacency includes every input node as a key (empty list if
 /// it has no outgoing hard edges) so callers can reason about isolated nodes
 /// uniformly.
@@ -109,7 +129,7 @@ package func buildCycleDetectionAdjacency(
     for node in nodes {
         adjacency[node.id] = []
     }
-    for edge in edges where !edge.isSoft && !edge.isProvider {
+    for edge in edges where edge.isOwnership || (!edge.isSoft && !edge.isProvider) {
         adjacency[edge.fromID, default: []].append(edge.toID)
     }
     return adjacency
@@ -122,13 +142,35 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
         let label: String?
     }
 
+    func normalizedEdge(
+        fromID: String,
+        toID: String,
+        label: String?,
+        isSoft: Bool,
+        isProvider: Bool,
+        isOwnership: Bool
+    ) -> DependencyGraphEdge {
+        let effectiveIsOwnership = isOwnership
+        let effectiveIsSoft = effectiveIsOwnership ? false : isSoft
+        let effectiveIsProvider = effectiveIsOwnership ? false : isProvider
+        return DependencyGraphEdge(
+            fromID: fromID,
+            toID: toID,
+            label: label,
+            isSoft: effectiveIsSoft,
+            isProvider: effectiveIsProvider,
+            isOwnership: effectiveIsOwnership
+        )
+    }
+
     // Stable: first occurrence wins position. When the same (from, to, label)
     // edge is reported multiple times, the merged edge is `isSoft` only if
     // *every* reporting site said so — any hard occurrence demotes the merge
-    // to hard. The same rule applies to `isProvider`. Additionally, if the
-    // reporting sites disagree about deferred kind (one soft, one provider),
-    // we collapse to hard — the safest treatment when the graph can't decide
-    // which wrapper the call site actually used.
+    // to hard. The same rule applies to `isProvider` and `isOwnership`.
+    // When sites disagree about deferred kind (one soft, one provider) we
+    // collapse deferred-ness to hard. Ownership also dominates deferred
+    // flags: if the merged edge is still ownership, it must be treated as a
+    // hard edge for cycle detection.
     var seen: [EdgeKey: Int] = [:]
     var result: [DependencyGraphEdge] = []
 
@@ -138,24 +180,36 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
             let existing = result[existingIndex]
             let mergedIsSoft = existing.isSoft && edge.isSoft
             let mergedIsProvider = existing.isProvider && edge.isProvider
+            let mergedIsOwnership = existing.isOwnership && edge.isOwnership
             // If one occurrence is soft and another is provider, they are
             // different deferred wrappers at different sites — demote to hard.
             let deferredMismatch = (existing.isSoft && edge.isProvider)
                 || (existing.isProvider && edge.isSoft)
             if existing.isSoft != mergedIsSoft
                 || existing.isProvider != mergedIsProvider
+                || existing.isOwnership != mergedIsOwnership
                 || deferredMismatch {
-                result[existingIndex] = DependencyGraphEdge(
+                result[existingIndex] = normalizedEdge(
                     fromID: edge.fromID,
                     toID: edge.toID,
                     label: edge.label,
                     isSoft: deferredMismatch ? false : mergedIsSoft,
-                    isProvider: deferredMismatch ? false : mergedIsProvider
+                    isProvider: deferredMismatch ? false : mergedIsProvider,
+                    isOwnership: mergedIsOwnership
                 )
             }
         } else {
             seen[key] = result.count
-            result.append(edge)
+            result.append(
+                normalizedEdge(
+                    fromID: edge.fromID,
+                    toID: edge.toID,
+                    label: edge.label,
+                    isSoft: edge.isSoft,
+                    isProvider: edge.isProvider,
+                    isOwnership: edge.isOwnership
+                )
+            )
         }
     }
 

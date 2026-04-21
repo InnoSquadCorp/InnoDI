@@ -6,6 +6,31 @@ or release hardening discussions and are not release blockers for `3.0.1`.
 
 ## Recently landed
 
+### Nested containers — `@SubContainer` (Phase M)
+- `@DIContainer` types now declare owned child containers with
+  `@SubContainer(scope: .shared | .transient, with: [\.parentMember])`.
+  `.shared` children cache one instance per parent lifetime; `.transient`
+  children rebuild on every accessor read by invoking a peer-stored
+  closure that captures a `_lazySelfForSub = self` snapshot taken after
+  every other parent storage slot is initialized.
+- Every parent `@Provide` member is auto-forwarded into the child's
+  `.input` parameters by name; `with:` restricts the forwarded set to a
+  subset. Label mismatches surface as regular Swift compile errors on
+  the generated call — the macro does not rewrite child labels.
+- The `Overrides` builder gains two slots per sub-container member —
+  full replacement (`<name>`) and a chain closure
+  (`<name>Overrides`) forwarded into the child's own convenience init —
+  so tests can swap children wholesale or tweak only specific
+  `.shared` / `.transient` members inside the child.
+- Five `sub.*` diagnostics lock the attribute contract:
+  `sub.scope-required`, `sub.unknown-scope`, `sub.conflicts-with-provide`,
+  `sub.unknown-parent-member`, `sub.shared-parent-must-not-be-transient`.
+- The CLI graph renders parent → child ownership edges with their own
+  style (Mermaid `owns: <member>` label, DOT `style=bold, color=#1e3a8a`,
+  ASCII `#=>` + `:owns,<member>` suffix) and participates in cycle
+  detection as a hard edge. `DependencyGraphEdge.isOwnership` is
+  plumbed end-to-end through the collector + renderers.
+
 ### Transient factory handle — `Provider<T>` (Phase L)
 - Factory parameters typed `Provider<T>` inject a handle that pumps a fresh
   `.transient` instance on every call, without the consumer having to retain
@@ -48,12 +73,14 @@ or release hardening discussions and are not release blockers for `3.0.1`.
 
 ## Next priorities
 
-With the override builder, `Lazy<T>`, and `Provider<T>` shipped, the
-remaining Top-tier UX improvements are:
+With the override builder, `Lazy<T>`, `Provider<T>`, and
+`@SubContainer` shipped, the remaining Top-tier UX improvements are:
 
-1. `@SubContainer` — first-class nested containers for per-screen or
-   per-request scopes, replacing today's convention of hand-wiring child
-   containers through `.input` parameters. Phase M.
+1. Sub-container label remapping — when the child's `.input`
+   parameter name differs from the parent member name, today's macro
+   relies on Swift's compile error to surface the mismatch. A future
+   iteration could rewrite labels based on `with: [\.parentName]`
+   ordering so the wiring stays declarative even across renames.
 2. `@Lazy` property wrapper — a lighter-weight alternative to `Lazy<T>` for
    deferring expensive `.shared` initialization. Pending real-world usage
    feedback on `Lazy<T>` before committing to the syntax.

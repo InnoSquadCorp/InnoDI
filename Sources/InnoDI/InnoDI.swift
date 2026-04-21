@@ -209,3 +209,93 @@ public final class _LazyCell<T>: @unchecked Sendable {
         fatalError("_LazyCell resolved before the dependency was initialized.")
     }
 }
+
+/// Lifetime policy for a `@SubContainer`-owned child container.
+///
+/// - `shared`: The parent constructs and stores a single child instance
+///   during parent initialization. All subsequent reads of the
+///   sub-container property return the same instance — useful for
+///   coordinator-like children whose internal `.shared` graph must remain
+///   stable across views.
+/// - `transient`: Every read of the sub-container property builds a fresh
+///   child container with the current parent state. Useful for per-screen or
+///   per-request scopes where the child has no identity of its own and only
+///   acts as a wiring namespace.
+///
+/// Unlike `DIScope`, this enum intentionally excludes `.input`: a
+/// sub-container is always owned by its parent and cannot be supplied from
+/// the outside through the primary init — tests inject a replacement via the
+/// generated `Overrides` builder instead.
+public enum SubContainerScope {
+    /// Parent constructs and stores the child during parent initialization,
+    /// then reuses that same instance on every access. Use for coordinator-
+    /// like children whose internal `.shared` graph should remain stable.
+    case shared
+    /// Parent builds a fresh child on every property read. Use for screen- or
+    /// request-scoped children that should not retain identity between reads.
+    case transient
+}
+
+/// Declares that a property owns a child `@DIContainer` whose `.input` members
+/// should be wired automatically from the parent container's members.
+///
+/// ```swift
+/// @DIContainer(root: true)
+/// struct AppContainer {
+///     @Provide(.input) var config: AppConfig
+///     @Provide(.shared, factory: APIClient()) var apiClient: any APIClientProtocol
+///
+///     // `FeatureContainer.init(config:apiClient:)` is called automatically
+///     // with parent members whose names match `config` / `apiClient`.
+///     @SubContainer(scope: .shared)
+///     var feature: FeatureContainer
+/// }
+/// ```
+///
+/// ### Parameters
+/// - `scope`: Must be stated explicitly (`.shared` or `.transient`). There is
+///   no default because the two lifetimes have very different runtime
+///   implications (cached vs fresh), and forcing the author to pick makes the
+///   intent visible at every declaration site.
+/// - `with`: Optional keypath list used to restrict or reorder which parent
+///   members are forwarded to the child. Each `\.parentMember` keypath is
+///   passed positionally to the child init; the macro does not rewrite child
+///   parameter labels, so the order must still match the child's `.input`
+///   declaration order.
+///
+/// ### Wiring
+/// The macro emits a parent-side property whose getter (for `.transient`) or
+/// cached storage (for `.shared`) exposes a child built via
+/// `Child(config: self.config, apiClient: self.apiClient, …)`. When `with:`
+/// is empty the macro assumes each child `.input` parameter label matches a
+/// parent member name. When `with:` is provided, the listed parent members
+/// replace the auto-matched ones positionally. Any mismatch surfaces as a
+/// regular Swift compile error from the child's synthesized init — the macro
+/// does not pretend to verify the child's parameter list cross-file.
+///
+/// ### Overrides
+/// `@DIContainer` extends its nested `Overrides` struct with two optional
+/// slots per `@SubContainer` member:
+///
+/// - `var <name>: <ChildContainer>? = nil` — replaces the child entirely
+///   (e.g. `overrides.feature = MockFeatureContainer(...)`).
+/// - `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil`
+///   — forwards a trailing-closure override block to the child's own
+///   convenience init (`overrides.featureOverrides = { $0.store = Mock() }`).
+///
+/// Both slots are mutually exclusive: if the direct replacement is provided
+/// it wins; otherwise the chain closure (if any) is forwarded. The second
+/// slot is also a compile-time contract: because the parent's generated init
+/// and `Overrides` struct mention `<ChildContainer>.Overrides` in their type
+/// signatures, the child must emit that nested type even when you never set
+/// or call `<name>Overrides`. Input-only children do not emit `Overrides`, so
+/// a parent `@SubContainer` pointing at an input-only child fails to compile
+/// with the usual `type '<ChildContainer>' has no member 'Overrides'` error.
+/// Remedy: add at least one `.shared`, `.transient`, or `@SubContainer`
+/// member to the child so InnoDI emits `<ChildContainer>.Overrides`.
+@attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
+@attached(accessor)
+public macro SubContainer(
+    scope: SubContainerScope,
+    with dependencies: [AnyKeyPath] = []
+) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")

@@ -13,13 +13,18 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 - `DependencyGraphEdge.isSoft` flag plus the `buildCycleDetectionAdjacency(nodes:edges:)` helper in `InnoDICore`, so macros and the CLI share one soft-edge contract.
 - `Provider<T>` factory handle for pumping fresh `.transient` instances on demand without retaining the container. Factory parameters typed `Provider<T>` are classified as a new *provider edge*: excluded from cycle detection like `Lazy<T>`, but the validator requires the target member to have `.transient` scope (`provide.provider-non-transient-target`).
 - `DependencyGraphEdge.isProvider` flag plus dotted renderer styling (Mermaid `==>`, DOT `style=dotted`, ASCII `~~>`) so provider edges stay visually distinct from `Lazy<T>` soft edges in the CLI graph.
+- `@SubContainer(scope:with:)` macro + `SubContainerScope` enum for first-class nested containers. A parent declares a child property with an explicit `scope:` (`.shared` caches one child per parent lifetime, `.transient` rebuilds on every accessor read) and the macro auto-wires every parent `@Provide` member into the child's `.input` parameters. Each sub-container gains two `Overrides` slots — full replacement via `overrides.<name>` and a chain closure via `overrides.<name>Overrides` forwarded into the child's own convenience init.
+- `DependencyGraphEdge.isOwnership` flag plus CLI ownership styling (Mermaid forces `owns: <member>` label on `-->`, DOT uses `style=bold, color="#1e3a8a"`, ASCII uses `#=>` with `:owns,<member>` suffix and a dedicated legend row). Ownership edges participate in cycle detection as hard edges because child construction runs at parent-init time.
+- Phase M `sub.*` validator diagnostics — `sub.scope-required`, `sub.unknown-scope`, `sub.conflicts-with-provide`, `sub.unknown-parent-member`, `sub.shared-parent-must-not-be-transient`.
 
 ### Changed
 
 - `container.dependency-cycle` diagnostic message now suggests wrapping one factory parameter in `Lazy<T>` to break the cycle without restructuring.
 - Mermaid, DOT, and ASCII renderers style soft edges distinctly: dashed arrows (`-.->`, `style=dashed`, `- ->`) with an ASCII legend that appears only when soft edges are present.
 - `deduplicateEdges(_:)` in `InnoDICore` now follows a hard-wins rule when the same `(from, to, label)` triple is reported by multiple sites — a merged edge is soft only if *every* occurrence was soft, provider only if every occurrence was provider, and collapses to hard if sites disagree about the deferred-kind.
-- ASCII legend extends to list `~~> provider (Provider<T>)` alongside the existing soft-edge clause when provider edges are present.
+- ASCII legend extends to list `~~> provider (Provider<T>)` alongside the existing soft-edge clause when provider edges are present. A fourth legend row (`#=> ownership (@SubContainer)`) appears when ownership edges are present.
+- `deduplicateEdges(_:)` now tracks `isOwnership` alongside `isSoft` / `isProvider` with the same hard-wins rule: a merged ownership edge survives only when every reporting site said ownership; deferred-kind disagreements still collapse to hard but leave the ownership flag untouched.
+- `Overrides` / convenience init / `withOverrides` builder is now emitted when a container has any `.shared` / `.transient` / `@SubContainer` member (previously only `.shared` / `.transient` triggered it).
 
 ## 3.0.1
 

@@ -360,6 +360,48 @@ struct DependencyGraphCLITests {
         #expect(result.stdout.contains("DAG validation passed."))
     }
 
+    @Test("Validate DAG resolves @SubContainer ownership edges through typealiases")
+    func validateDAGResolvesSubContainerOwnershipTypeAliasReferences() throws {
+        let fixtureURL = try makeSubContainerTypeAliasCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("Detected dependency cycles:"))
+        #expect(result.stderr.contains("[graph.dependency-cycle]"))
+        #expect(!result.stderr.contains("[graph.unresolved-container-reference]"))
+        #expect(!result.stderr.contains("[graph.ambiguous-container-reference]"))
+    }
+
+    @Test("Ambiguous @SubContainer ownership references fail validation and are omitted from render output")
+    func validateDAGFailsOnAmbiguousSubContainerOwnershipReference() throws {
+        let fixtureURL = try makeAmbiguousSubContainerReferenceFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let validationResult = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(validationResult.exitCode == 3)
+        #expect(validationResult.stderr.contains("Ambiguous container references:"))
+        #expect(validationResult.stderr.contains("[graph.ambiguous-container-reference]"))
+        #expect(validationResult.stderr.contains("FeatureContainer"))
+
+        let asciiResult = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "ascii"
+        ])
+
+        #expect(asciiResult.exitCode == 0)
+        #expect(!asciiResult.stdout.contains("#=>"))
+        #expect(!asciiResult.stdout.contains("owns,feature"))
+    }
+
     @Test("Validate DAG reports unresolved semantic references")
     func validateDAGReportsUnresolvedSemanticReferences() throws {
         let fixtureURL = try makeUnresolvedReferenceFixtureProject()
@@ -603,6 +645,45 @@ private func makeNestedTypeAliasReferenceFixtureProject() throws -> URL {
     }
     """.write(
         to: fixtureURL.appendingPathComponent("NestedTypeAliasFeature.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeSubContainerTypeAliasCycleFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-SubContainer-TypeAlias-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    typealias FeatureAlias = FeatureContainer
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @SubContainer(scope: .shared)
+        var feature: FeatureAlias
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    try """
+    import InnoDI
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.shared, factory: AppContainer(), concrete: true)
+        var app: AppContainer
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("Feature.swift"),
         atomically: true,
         encoding: .utf8
     )
@@ -1075,6 +1156,63 @@ private func makeAmbiguousReferenceFixtureProject() throws -> URL {
             @Provide(.input)
             var value: String
         }
+    }
+    """
+
+    try appSource.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureASource.write(
+        to: featureADirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try featureBSource.write(
+        to: featureBDirectory.appendingPathComponent("FeatureContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeAmbiguousSubContainerReferenceFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Ambiguous-SubContainer-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+    let featureADirectory = fixtureURL.appendingPathComponent("FeatureA", isDirectory: true)
+    let featureBDirectory = fixtureURL.appendingPathComponent("FeatureB", isDirectory: true)
+    try FileManager.default.createDirectory(at: featureADirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: featureBDirectory, withIntermediateDirectories: true)
+
+    let appSource = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @SubContainer(scope: .shared)
+        var feature: FeatureContainer
+    }
+    """
+
+    let featureASource = """
+    import InnoDI
+
+    enum FeatureA {
+        @DIContainer
+        struct FeatureContainer {}
+    }
+    """
+
+    let featureBSource = """
+    import InnoDI
+
+    enum FeatureB {
+        @DIContainer
+        struct FeatureContainer {}
     }
     """
 
