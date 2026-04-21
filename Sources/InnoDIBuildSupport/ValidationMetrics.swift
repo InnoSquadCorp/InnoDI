@@ -7,6 +7,8 @@ package enum ValidationReasonCode: String, Codable, Equatable, Sendable {
     case cacheMissNewFile = "cache-miss-new-file"
     case cacheMissDeletedFile = "cache-miss-deleted-file"
     case cacheMissManifestVersion = "cache-miss-manifest-version"
+    case staleLockRecovered = "stale-lock-recovered"
+    case lockContentionTimeout = "lock-contention-timeout"
     case liveRunCustomInitFailure = "live-run-custom-init-failure"
     case liveRunSemanticValidation = "live-run-semantic-validation"
     case liveRunSemanticFailure = "live-run-semantic-failure"
@@ -237,6 +239,10 @@ private func reasonDescription(_ reason: ValidationReasonCode) -> String {
         return "A previously cached Swift source file disappeared and forced a signature recomputation."
     case .cacheMissManifestVersion:
         return "The AST digest manifest version changed, so the cache was rebuilt from scratch."
+    case .staleLockRecovered:
+        return "A stale validation coordinator lock was detected and removed before the live run continued."
+    case .lockContentionTimeout:
+        return "The validation coordinator timed out waiting for an active lock to clear."
     case .liveRunCustomInitFailure:
         return "The live validation run stopped after a structured cross-file custom init failure."
     case .liveRunSemanticValidation:
