@@ -212,10 +212,11 @@ public final class _LazyCell<T>: @unchecked Sendable {
 
 /// Lifetime policy for a `@SubContainer`-owned child container.
 ///
-/// - `shared`: The parent caches a single child instance after the first
-///   access. All subsequent reads of the sub-container property return the
-///   same instance — useful for coordinator-like children whose internal
-///   `.shared` graph must remain stable across views.
+/// - `shared`: The parent constructs and stores a single child instance
+///   during parent initialization. All subsequent reads of the
+///   sub-container property return the same instance — useful for
+///   coordinator-like children whose internal `.shared` graph must remain
+///   stable across views.
 /// - `transient`: Every read of the sub-container property builds a fresh
 ///   child container with the current parent state. Useful for per-screen or
 ///   per-request scopes where the child has no identity of its own and only
@@ -258,7 +259,7 @@ public enum SubContainerScope {
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or
-/// cached storage (for `.shared`) builds the child via
+/// cached storage (for `.shared`) exposes a child built via
 /// `Child(config: self.config, apiClient: self.apiClient, …)`. When `with:`
 /// is empty the macro assumes each child `.input` parameter label matches a
 /// parent member name. When `with:` is provided, the listed parent members

@@ -17,9 +17,15 @@ struct PendingSubContainerReference {
     /// Parent member name (e.g. `feature`) — threaded into the edge label
     /// so "owns" edges are readable in the graph.
     let memberName: String
-    /// Type text as written at the `@SubContainer` declaration, before
-    /// type resolution (`"FeatureContainer"`, `"Foo.Bar"`, …).
-    let childTypeText: String
+    /// Type text as written at the `@SubContainer` declaration
+    /// (`"FeatureContainer"`, `"ChildAlias"`, `"FeatureContainer<T>"`, …).
+    /// Used for diagnostics when the type cannot be normalized into a
+    /// semantic reference.
+    let childDisplayName: String
+    /// Normalized semantic reference for the child when the written type
+    /// shape is supported by the shared resolver. `nil` for excluded forms
+    /// such as generic specializations.
+    let childReference: SemanticTypeReference?
 }
 
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
@@ -113,21 +119,25 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
 
             // `@SubContainer` ownership edge collection. Parent/child IDs
-            // stay unresolved at this stage — the AppMain pass matches the
-            // child's written type description against every known container
-            // node's semantic path after the full file set has been walked.
+            // stay unresolved at this stage — the AppMain pass feeds the
+            // child's semantic reference through the shared resolver after
+            // the full file set has been walked so ownership edges follow
+            // the same alias/suffix/ambiguity policy as regular container
+            // references.
             if parseSubContainerAttribute(varDecl.attributes) != nil {
                 guard let binding = varDecl.bindings.first,
                       let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
                       let typeAnnotation = binding.typeAnnotation else {
                     continue
                 }
+                let childType = typeAnnotation.type.trimmedDescription
                 subContainerReferences.append(
                     PendingSubContainerReference(
                         parentID: parentID,
                         parentSemanticPath: semanticPath,
                         memberName: pattern.identifier.text,
-                        childTypeText: typeAnnotation.type.trimmedDescription
+                        childDisplayName: childType,
+                        childReference: normalizedSemanticTypeReference(typeAnnotation.type)
                     )
                 )
                 continue

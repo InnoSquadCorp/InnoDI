@@ -1024,51 +1024,6 @@ private func makeWithOverridesMethod(
 
 // MARK: - Sub-container init / build helpers (Phase M)
 
-/// Emits `private func _innoDISubBuild_<name>() -> <ChildType>` for every
-/// `.transient` sub-container member. The `@SubContainer` accessor macro
-/// produces a getter that simply delegates to this builder, keeping all
-/// parent-member enumeration logic inside the container-level macro where
-/// the full member list is visible.
-///
-/// Assembles `private var _innoDISubBuild_<name>: <ChildType>` for a single
-/// `.transient` `@SubContainer` member, using the parent-member name list
-/// resolved by the caller. Emitted as a peer of the `@SubContainer`
-/// property via `SubContainerMacro.PeerMacro` — kept here so the rendering
-/// rules (auto-match vs `with:`, override wedges, child-overrides
-/// forwarding) stay next to the `.shared` init-time equivalent.
-internal func makeTransientSubContainerBuilder(
-    memberName: String,
-    childType: TypeSyntax,
-    parentDependencies: [String],
-    autoWireParentMemberNames: [String]
-) -> DeclSyntax {
-    let selectedNames = parentDependencies.isEmpty
-        ? autoWireParentMemberNames
-        : parentDependencies
-
-    let childTypeDesc = childType.trimmedDescription
-    let baseArgs = selectedNames
-        .map { "\($0): self.\($0)" }
-        .joined(separator: ", ")
-    let withApplyArgs = baseArgs.isEmpty ? "apply" : "\(baseArgs), apply"
-
-    // Emit as a computed property — Swift 6.3's `prefixed(_innoDISubBuild_)`
-    // macro name coverage on `@SubContainer`'s peer role reliably matches
-    // variable names; function names raise a "not covered by macro" error.
-    return """
-        private var _innoDISubBuild_\(raw: memberName): \(raw: childTypeDesc) {
-            if let direct = self._override_sub_\(raw: memberName) {
-                return direct
-            }
-            if let apply = self._override_sub_apply_\(raw: memberName) {
-                return \(raw: childTypeDesc)(\(raw: withApplyArgs))
-            }
-            return \(raw: childTypeDesc)(\(raw: baseArgs))
-        }
-        """
-}
-
-
 /// Emits the init-time statements for a single `@SubContainer` member:
 ///
 /// - `.shared`: builds the child (or accepts the override replacement) once
@@ -1076,7 +1031,8 @@ internal func makeTransientSubContainerBuilder(
 ///   `<name>Overrides` trailing-closure block is forwarded to the child's
 ///   own convenience init when present.
 /// - `.transient`: only the override wedges are captured; actual construction
-///   happens lazily inside `_innoDISubBuild_<name>()` on every accessor read.
+///   happens lazily inside the stored `_innoDISubBuild_<name>` closure on
+///   every accessor read.
 ///
 /// `autoWireParentMemberNames` is the ordered list of parent `@Provide`
 /// member names (input/shared/transient) that the call site forwards by
@@ -1174,4 +1130,3 @@ private func subContainerSharedAssignmentExpr(
     let ifExpr = firstStmt.item.as(ExpressionStmtSyntax.self)!.expression.as(IfExprSyntax.self)!
     return ifExpr
 }
-

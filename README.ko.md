@@ -470,7 +470,7 @@ let feature = app.feature  // parent 의 멤버에서 자동 배선
 
 | `scope:` | 동작 | 사용 지점 |
 |---|---|---|
-| `.shared` | parent 가 첫 접근 후 child 한 번 캐시. 이후 재사용. | 장수 coordinator 처럼 내부 `.shared` 그래프가 view 간에 유지돼야 할 때. |
+| `.shared` | parent init 시 child 를 한 번 생성해 저장하고, 이후 재사용. | 장수 coordinator 처럼 내부 `.shared` 그래프가 view 간에 유지돼야 할 때. |
 | `.transient` | `app.feature` 를 읽을 때마다 새 child 생성. | per-screen / per-request scope — 각 호출자가 독립된 `.shared` 인스턴스를 가지게 하고 싶을 때. |
 
 ### 배선 규칙

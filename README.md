@@ -594,7 +594,7 @@ very different runtime behaviour:
 
 | `scope:` | Behaviour | Use when |
 |---|---|---|
-| `.shared` | Parent caches a single child after the first access. | The child should behave like a long-lived coordinator whose inner `.shared` graph is stable across views. |
+| `.shared` | Parent builds the child once during init, stores it, and reuses it on every read. | The child should behave like a long-lived coordinator whose inner `.shared` graph is stable across views. |
 | `.transient` | Every read of `app.feature` builds a fresh child. | Per-screen / per-request scopes — each caller gets an independent child with its own `.shared` instances. |
 
 ### Wiring rules

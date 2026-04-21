@@ -1569,6 +1569,21 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Container with only @SubContainer still generates init and Overrides")
+    func subContainerOnlyParentGeneratesInitAndOverrides() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerOnlyParentGeneratesInitAndOverrides",
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer without scope: emits sub.scope-required")
     func subContainerMissingScopeDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -1663,6 +1678,25 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Sub-container-only containers still diagnose nested Overrides conflicts")
+    func subContainerOnlyParentStillDiagnosesOverridesConflict() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+
+                struct Overrides {}
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict")
             ],
             macros: Self.macros
         )

@@ -55,25 +55,47 @@ func runDependencyGraphCLI() -> Int32 {
     }
 
     // Ownership edges come from `@SubContainer` members on `@DIContainer`
-    // types — the ContainerCollector records pending references (parent
-    // container ID + written child type text + member name) during its
-    // first pass. We resolve those to concrete parent → child edges by
-    // matching the child type against every container node's semantic
-    // path, preferring exact matches and falling back to suffix matches
-    // for nested names. Unresolved references are silently dropped so
-    // partial source inputs still render.
+    // types. Resolve them through the shared semantic resolver so aliases,
+    // suffix fallback, opted-out duplicates, and ambiguity all behave the
+    // same way as regular container references gathered from call sites.
     var ownershipEdges: [DependencyGraphEdge] = []
+    var ownershipSemanticIssues: [SemanticContainerReferenceIssue] = []
+    var ownershipFallbackMatchedReferences: [String] = []
+    let ownershipEligibleContainerIDsBySemanticPath = validateDAG
+        ? containerIDsBySemanticPathEligible
+        : containerIDsBySemanticPathAll
+    let candidatePaths = Set(containerIDsBySemanticPathAll.keys)
     for reference in collector.subContainerReferences {
-        let candidates = nodes.filter { node in
-            node.semanticPath == reference.childTypeText
-                || node.displayName == reference.childTypeText
-                || node.semanticPath.hasSuffix(".\(reference.childTypeText)")
+        guard let childReference = reference.childReference else {
+            ownershipSemanticIssues.append(
+                SemanticContainerReferenceIssue(
+                    sourceID: reference.parentID,
+                    destinationDisplayName: reference.childDisplayName,
+                    state: .excluded,
+                    destinationCandidates: [],
+                    excludedReason: nil,
+                    aliasExpansionTrace: [],
+                    usedSuffixFallback: false
+                )
+            )
+            continue
         }
-        guard let resolved = candidates.first else { continue }
+        guard let resolvedID = resolveContainerReferenceID(
+            reference: childReference,
+            sourceID: reference.parentID,
+            candidatePaths: candidatePaths,
+            allContainerIDsBySemanticPath: containerIDsBySemanticPathAll,
+            eligibleContainerIDsBySemanticPath: ownershipEligibleContainerIDsBySemanticPath,
+            semanticResolver: semanticResolver,
+            semanticIssues: &ownershipSemanticIssues,
+            fallbackMatchedReferences: &ownershipFallbackMatchedReferences
+        ) else {
+            continue
+        }
         ownershipEdges.append(
             DependencyGraphEdge(
                 fromID: reference.parentID,
-                toID: resolved.id,
+                toID: resolvedID,
                 label: reference.memberName,
                 isOwnership: true
             )
@@ -85,7 +107,7 @@ func runDependencyGraphCLI() -> Int32 {
         return runDAGValidation(
             nodes: nodes,
             edges: edges,
-            semanticIssues: usageCollector.semanticIssues,
+            semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues,
             outputPath: outputPath
         )
     }

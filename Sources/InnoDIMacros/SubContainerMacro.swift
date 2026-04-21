@@ -142,38 +142,6 @@ private func extractPeerInfo(
     )
 }
 
-/// Walks up from the attached `@SubContainer` property to its enclosing
-/// type declaration and extracts the names of every `@Provide`-annotated
-/// member (in declaration order). Peer macros do not have a sibling
-/// iterator exposed through `MacroExpansionContext`, but the parent
-/// chain on the detached `VariableDeclSyntax` lets us traverse back to
-/// the containing struct/class member block.
-///
-/// Returns an empty array when the traversal fails (e.g. the declaration
-/// was detached by a test harness) — the fallback still compiles, just
-/// without auto-matching. Callers that rely on automatic name matching
-/// should therefore also be covered by `with:`-based explicit lists.
-private func resolveAutoWireParentMemberNames(
-    for declaration: some DeclSyntaxProtocol
-) -> [String] {
-    var current: Syntax? = Syntax(declaration).parent
-    while let node = current {
-        if let members = node.as(MemberBlockSyntax.self) {
-            return members.members.compactMap { element in
-                guard let varDecl = element.decl.as(VariableDeclSyntax.self),
-                      InnoDICore.findAttribute(named: "Provide", in: varDecl.attributes) != nil,
-                      let binding = varDecl.bindings.first,
-                      let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
-                    return nil
-                }
-                return pattern.identifier.text
-            }
-        }
-        current = node.parent
-    }
-    return []
-}
-
 /// `private var _innoDISubBuild_<name>: () -> <ChildType> = { fatalError(...) }`
 ///
 /// Stored build closure for a `.transient` sub-container. Emitted as a peer
