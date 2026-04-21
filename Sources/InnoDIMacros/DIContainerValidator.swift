@@ -264,6 +264,87 @@ struct DIContainerValidator {
             }
         }
 
+        // Phase M — sub-container validation.
+        //
+        // The parser has already rejected properties carrying both
+        // `@Provide` and `@SubContainer` (see `sub.conflicts-with-provide`
+        // in `DIContainerParser`). We still need to check:
+        //   - scope argument presence and spelling
+        //   - `with:` keypaths reference real parent members
+        //   - `.shared` sub-containers do not auto-wire through a
+        //     `.transient` parent member (would try to read a missing
+        //     `_storage_<name>` inside init)
+        let memberScopeByName = Dictionary(
+            uniqueKeysWithValues: model.members.map { ($0.name, $0.scope) }
+        )
+        let knownParentMemberNames = Set(memberScopeByName.keys)
+
+        for sub in model.subContainerMembers {
+            // scope: is required and must parse as `.shared` / `.transient`.
+            if sub.scope == nil {
+                if let scopeName = sub.scopeName {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(sub.attribute),
+                            message: SimpleDiagnostic.subUnknownScope(
+                                memberName: sub.name,
+                                scopeName: scopeName
+                            )
+                        )
+                    )
+                } else {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(sub.attribute),
+                            message: SimpleDiagnostic.subScopeRequired(memberName: sub.name)
+                        )
+                    )
+                }
+                hadErrors = true
+                continue
+            }
+
+            // `with:` keypaths must resolve to @Provide members on the parent.
+            for parentName in sub.parentDependencies {
+                if !knownParentMemberNames.contains(parentName) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(sub.attribute),
+                            message: SimpleDiagnostic.subUnknownParentMember(
+                                memberName: sub.name,
+                                parentMemberName: parentName
+                            )
+                        )
+                    )
+                    hadErrors = true
+                }
+            }
+
+            // `.shared` sub-containers read parent members through private
+            // `_storage_<name>` at init time, so `.transient` parents are
+            // off-limits (no storage slot exists for them). When the author
+            // relies on auto-matching we walk every parent member; with an
+            // explicit `with:` list we check only those.
+            guard sub.scope == .shared else { continue }
+            let wiredParents: [String] = sub.parentDependencies.isEmpty
+                ? model.members.map(\.name)
+                : sub.parentDependencies
+            for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
+                if memberScopeByName[parentName] == .transient {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(sub.attribute),
+                            message: SimpleDiagnostic.subSharedParentMustNotBeTransient(
+                                memberName: sub.name,
+                                parentMemberName: parentName
+                            )
+                        )
+                    )
+                    hadErrors = true
+                }
+            }
+        }
+
         return !hadErrors
     }
 }
