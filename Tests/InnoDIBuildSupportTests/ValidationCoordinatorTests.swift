@@ -405,15 +405,309 @@ struct ValidationCoordinatorTests {
         #expect(secondArtifact.wasCached == true)
         #expect(firstArtifact.signatureMetrics.scannedFileCount == 1)
         #expect(firstArtifact.humanSummarySource == "dag-validation-summary.md")
+        #expect(firstArtifact.reasonCodes.contains(.liveRunSemanticValidation))
         #expect(firstArtifact.reasonCodes.contains(.liveRunDAGValidation))
+        #expect(firstArtifact.liveRunMetrics.semanticValidationMilliseconds >= 0)
         #expect(firstArtifact.fileChanges.newFiles == ["Feature.swift"])
         #expect(firstArtifact.fileChanges.reparsedFiles == ["Feature.swift"])
         #expect(firstSummary.contains("# InnoDI Validation Summary"))
         #expect(firstSummary.contains("cache-miss-new-file"))
+        #expect(firstSummary.contains("live-run-semantic-validation"))
+        #expect(firstSummary.contains("Semantic validation"))
         #expect(firstSummary.contains("### Reparsed files"))
         #expect(firstSummary.contains("`Feature.swift`"))
+        #expect(first.verboseSummary?.contains("semantic-ms=") == true)
         #expect(first.verboseSummary?.contains("[InnoDI]") == true)
         #expect(second.verboseSummary == nil)
+    }
+
+    @Test("Semantic validation fails on same-module Lazy and Provider collisions before DAG runner executes")
+    func semanticValidationFailsOnLocalWrapperCollisions() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct Config {}
+        struct Service {}
+        struct Lazy<T> {}
+        struct Provider<T> {}
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: { (lazyConfig: Lazy<Config>, serviceProvider: Provider<Service>) in
+                Service()
+            }, concrete: true)
+            var service: Service
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("SemanticWrappers.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("provide.deferred-wrapper-qualification-required"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 2)
+        #expect(outcome.metricsArtifact.liveRunMetrics.semanticValidationMilliseconds >= 0)
+        #expect(outcome.metricsArtifact.liveRunMetrics.dagValidationMilliseconds == 0)
+        #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "Lazy" })
+        #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "Provider" })
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Semantic validation rejects wrapper aliases before DAG runner executes")
+    func semanticValidationRejectsWrapperAliases() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct Config {}
+        struct Service {}
+        typealias DeferredLazy<T> = InnoDI.Lazy<T>
+        typealias DeferredProvider<T> = InnoDI.Provider<T>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: { (lazyConfig: DeferredLazy<Config>, serviceProvider: DeferredProvider<Service>) in
+                Service()
+            }, concrete: true)
+            var service: Service
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("SemanticWrapperAliases.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("provide.deferred-wrapper-alias-unsupported"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 2)
+        #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredLazy" })
+        #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredProvider" })
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Qualified InnoDI deferred wrappers pass semantic validation and reach the DAG runner")
+    func qualifiedDeferredWrappersPassSemanticValidation() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct Config {}
+        struct Service {}
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: { (lazyConfig: InnoDI.Lazy<Config>, serviceProvider: InnoDI.Provider<Service>) in
+                Service()
+            }, concrete: true)
+            var service: Service
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("QualifiedDeferredWrappers.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "DAG validation passed.\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticValidation))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunDAGValidation))
+        #expect(outcome.metricsArtifact.issues.isEmpty)
+        #expect(runner.invocationCount == 1)
+    }
+
+    @Test("Semantic validation rejects bindings: that target an unknown child input")
+    func semanticValidationRejectsUnknownChildInputBinding() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var config: AppConfig
+        }
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var appConfig: AppConfig
+
+            @SubContainer(
+                scope: .shared,
+                bindings: [(child: \\FeatureContainer.missing, parent: \\AppContainer.appConfig)]
+            )
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("UnknownChildInputBinding.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.unknown-child-input"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(outcome.metricsArtifact.issues.first?.metadata["childContainerPath"] == "FeatureContainer")
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Legacy shared-run cache directories without a version salt are ignored")
+    func legacySharedRunCacheDirectoriesAreIgnored() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let legacyDirectory = fixture.stateURL.appendingPathComponent(signature, isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        try persistJSON(
+            ValidationCommandResult(exitCode: 0, stdout: "legacy\n", stderr: ""),
+            to: legacyDirectory.appendingPathComponent("result.json")
+        )
+        try persistJSON(
+            SharedValidationRunRecord(
+                liveRunMetrics: ValidationLiveRunMetrics(
+                    customInitValidationMilliseconds: 1,
+                    semanticValidationMilliseconds: 1,
+                    dagValidationMilliseconds: 1
+                ),
+                reasonCodes: [.liveRunSemanticValidation, .liveRunDAGValidation],
+                issues: []
+            ),
+            to: legacyDirectory.appendingPathComponent("validation-metrics.json")
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "fresh\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.wasCached == false)
+        #expect(outcome.result.stdout == "fresh\n")
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticValidation))
+        #expect(runner.invocationCount == 1)
+        #expect(FileManager.default.fileExists(atPath: legacyDirectory.path(percentEncoded: false)) == false)
+    }
+
+    @Test("Corrupt current-version shared-run metrics fall back to a live validation run")
+    func corruptCurrentVersionSharedRunMetricsFallBackToLiveRun() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+        try persistJSON(
+            ValidationCommandResult(exitCode: 0, stdout: "legacy\n", stderr: ""),
+            to: sharedRunDirectory.appendingPathComponent("result.json")
+        )
+        try Data("{\"liveRunMetrics\":{}}".utf8).write(
+            to: sharedRunDirectory.appendingPathComponent("validation-metrics.json"),
+            options: .atomic
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "fresh\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.wasCached == false)
+        #expect(outcome.result.stdout == "fresh\n")
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticValidation))
+        #expect(runner.invocationCount == 1)
+
+        let repairedRecord = try loadSharedValidationRunRecord(
+            at: sharedRunDirectory.appendingPathComponent("validation-metrics.json")
+        )
+        #expect(repairedRecord.liveRunMetrics.semanticValidationMilliseconds >= 0)
     }
 
     @Test("Failure result is reused for identical input signature")
@@ -776,6 +1070,16 @@ private func loadDigestManifest(at url: URL) throws -> ValidationDigestManifest 
 private func loadMetricsArtifact(at url: URL) throws -> ValidationMetricsArtifact {
     let data = try Data(contentsOf: url)
     return try JSONDecoder().decode(ValidationMetricsArtifact.self, from: data)
+}
+
+private func loadSharedValidationRunRecord(at url: URL) throws -> SharedValidationRunRecord {
+    let data = try Data(contentsOf: url)
+    return try JSONDecoder().decode(SharedValidationRunRecord.self, from: data)
+}
+
+private func persistJSON<Value: Encodable>(_ value: Value, to url: URL) throws {
+    let data = try JSONEncoder().encode(value)
+    try data.write(to: url, options: .atomic)
 }
 
 private func makeFixture() throws -> FixturePaths {

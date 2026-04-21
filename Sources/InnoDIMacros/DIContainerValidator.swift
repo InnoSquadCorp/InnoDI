@@ -295,6 +295,32 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            if !sub.parentDependencies.isEmpty && !sub.explicitBindings.isEmpty {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subBindingsConflictsWithWith(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+            }
+
+            var seenChildInputs: Set<String> = []
+            for binding in sub.explicitBindings {
+                if !seenChildInputs.insert(binding.childInputName).inserted {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(binding.childKeyPath),
+                            message: SimpleDiagnostic.subDuplicateChildBinding(
+                                memberName: sub.name,
+                                childInputName: binding.childInputName
+                            )
+                        )
+                    )
+                    hadErrors = true
+                }
+            }
+
             // scope: is required and must parse as `.shared` / `.transient`.
             if sub.scope == nil {
                 if let scopeExpression = sub.scopeExpressionSyntax {
@@ -335,18 +361,40 @@ struct DIContainerValidator {
                 }
             }
 
+            for binding in sub.explicitBindings {
+                let parentName = binding.parentMemberName
+                if !knownParentMemberNames.contains(parentName) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(binding.parentKeyPath),
+                            message: SimpleDiagnostic.subUnknownParentMember(
+                                memberName: sub.name,
+                                parentMemberName: parentName
+                            )
+                        )
+                    )
+                    hadErrors = true
+                }
+            }
+
             // `.shared` sub-containers read parent members through private
             // `_storage_<name>` at init time, so `.transient` parents are
             // off-limits (no storage slot exists for them). When the author
             // relies on auto-matching we walk every parent member; with an
             // explicit `with:` list we check only those.
             guard sub.scope == .shared else { continue }
-            let wiredParents: [String] = sub.parentDependencies.isEmpty
-                ? model.members.map(\.name)
-                : sub.parentDependencies
+            let wiredParents: [String]
+            if !sub.explicitBindings.isEmpty {
+                wiredParents = sub.explicitBindings.map(\.parentMemberName)
+            } else if sub.parentDependencies.isEmpty {
+                wiredParents = model.members.map(\.name)
+            } else {
+                wiredParents = sub.parentDependencies
+            }
             for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
                 if memberScopeByName[parentName] == .transient {
-                    let diagnosticNode = sub.parentKeyPathSyntax(for: parentName).map(Syntax.init)
+                    let diagnosticNode = sub.parentBindingKeyPathSyntax(for: parentName).map(Syntax.init)
+                        ?? sub.parentKeyPathSyntax(for: parentName).map(Syntax.init)
                         ?? Syntax(sub.attribute)
                     context.diagnose(
                         Diagnostic(
