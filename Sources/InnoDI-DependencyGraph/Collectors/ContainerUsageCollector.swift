@@ -11,6 +11,87 @@ struct SemanticContainerReferenceIssue: Hashable, Sendable {
     let usedSuffixFallback: Bool
 }
 
+func resolveContainerReferenceID(
+    reference: SemanticTypeReference,
+    sourceID: String,
+    candidatePaths: Set<String>,
+    allContainerIDsBySemanticPath: [String: [String]],
+    eligibleContainerIDsBySemanticPath: [String: [String]],
+    semanticResolver: SemanticResolverIndex,
+    semanticIssues: inout [SemanticContainerReferenceIssue],
+    fallbackMatchedReferences: inout [String]
+) -> String? {
+    let resolution = semanticResolver.resolvePath(
+        for: reference,
+        candidatePaths: candidatePaths
+    )
+
+    switch resolution.state {
+    case .resolved:
+        guard let resolvedPath = resolution.resolvedPath,
+              let allCandidateIDs = allContainerIDsBySemanticPath[resolvedPath] else {
+            return nil
+        }
+        let candidateIDs = eligibleContainerIDsBySemanticPath[resolvedPath] ?? []
+        if candidateIDs.isEmpty && !allCandidateIDs.isEmpty {
+            return nil
+        }
+
+        if candidateIDs.count > 1 {
+            semanticIssues.append(
+                SemanticContainerReferenceIssue(
+                    sourceID: sourceID,
+                    destinationDisplayName: reference.displayPath,
+                    state: .ambiguous,
+                    destinationCandidates: candidateIDs,
+                    excludedReason: nil,
+                    aliasExpansionTrace: resolution.aliasExpansionTrace,
+                    usedSuffixFallback: resolution.usedSuffixFallback
+                )
+            )
+            return nil
+        }
+
+        if resolution.usedSuffixFallback {
+            fallbackMatchedReferences.append("\(sourceID) -> \(reference.displayPath)")
+        }
+        return candidateIDs[0]
+    case .ambiguous:
+        let eligibleCandidates = resolution.candidates.flatMap { eligibleContainerIDsBySemanticPath[$0] ?? [] }.sorted()
+        if eligibleCandidates.isEmpty {
+            return nil
+        }
+        if eligibleCandidates.count == 1 {
+            return eligibleCandidates[0]
+        }
+        semanticIssues.append(
+            SemanticContainerReferenceIssue(
+                sourceID: sourceID,
+                destinationDisplayName: reference.displayPath,
+                state: .ambiguous,
+                destinationCandidates: eligibleCandidates,
+                excludedReason: nil,
+                aliasExpansionTrace: resolution.aliasExpansionTrace,
+                usedSuffixFallback: resolution.usedSuffixFallback
+            )
+        )
+        return nil
+    case .excluded, .unresolved:
+        semanticIssues.append(
+            SemanticContainerReferenceIssue(
+                sourceID: sourceID,
+                destinationDisplayName: reference.displayPath,
+                state: resolution.state,
+                destinationCandidates: resolution.candidates,
+                excludedReason: resolution.excludedReason,
+                aliasExpansionTrace: resolution.aliasExpansionTrace,
+                usedSuffixFallback: resolution.usedSuffixFallback
+            )
+        )
+        return nil
+    }
+}
+
 final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     private struct DeclarationEntry {
         let isContainer: Bool
@@ -160,75 +241,16 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     private func resolvedContainerID(_ reference: SemanticTypeReference, sourceID: String) -> String? {
-        let resolution = semanticResolver.resolvePath(
-            for: reference,
-            candidatePaths: candidatePaths
+        resolveContainerReferenceID(
+            reference: reference,
+            sourceID: sourceID,
+            candidatePaths: candidatePaths,
+            allContainerIDsBySemanticPath: allContainerIDsBySemanticPath,
+            eligibleContainerIDsBySemanticPath: eligibleContainerIDsBySemanticPath,
+            semanticResolver: semanticResolver,
+            semanticIssues: &semanticIssues,
+            fallbackMatchedReferences: &fallbackMatchedReferences
         )
-
-        switch resolution.state {
-        case .resolved:
-            guard let resolvedPath = resolution.resolvedPath,
-                  let allCandidateIDs = allContainerIDsBySemanticPath[resolvedPath] else {
-                return nil
-            }
-            let candidateIDs = eligibleContainerIDsBySemanticPath[resolvedPath] ?? []
-            if candidateIDs.isEmpty && !allCandidateIDs.isEmpty {
-                return nil
-            }
-
-            if candidateIDs.count > 1 {
-                semanticIssues.append(
-                    SemanticContainerReferenceIssue(
-                        sourceID: sourceID,
-                        destinationDisplayName: reference.displayPath,
-                        state: .ambiguous,
-                        destinationCandidates: candidateIDs,
-                        excludedReason: nil,
-                        aliasExpansionTrace: resolution.aliasExpansionTrace,
-                        usedSuffixFallback: resolution.usedSuffixFallback
-                    )
-                )
-                return nil
-            }
-
-            if resolution.usedSuffixFallback {
-                fallbackMatchedReferences.append("\(sourceID) -> \(reference.displayPath)")
-            }
-            return candidateIDs[0]
-        case .ambiguous:
-            let eligibleCandidates = resolution.candidates.flatMap { eligibleContainerIDsBySemanticPath[$0] ?? [] }.sorted()
-            if eligibleCandidates.isEmpty {
-                return nil
-            }
-            if eligibleCandidates.count == 1 {
-                return eligibleCandidates[0]
-            }
-            semanticIssues.append(
-                SemanticContainerReferenceIssue(
-                    sourceID: sourceID,
-                    destinationDisplayName: reference.displayPath,
-                    state: .ambiguous,
-                    destinationCandidates: eligibleCandidates,
-                    excludedReason: nil,
-                    aliasExpansionTrace: resolution.aliasExpansionTrace,
-                    usedSuffixFallback: resolution.usedSuffixFallback
-                )
-            )
-            return nil
-        case .excluded, .unresolved:
-            semanticIssues.append(
-                SemanticContainerReferenceIssue(
-                    sourceID: sourceID,
-                    destinationDisplayName: reference.displayPath,
-                    state: resolution.state,
-                    destinationCandidates: resolution.candidates,
-                    excludedReason: resolution.excludedReason,
-                    aliasExpansionTrace: resolution.aliasExpansionTrace,
-                    usedSuffixFallback: resolution.usedSuffixFallback
-                )
-            )
-            return nil
-        }
     }
 
     private func collectDeferredEdges(in node: some DeclGroupSyntax, sourceID: String) {

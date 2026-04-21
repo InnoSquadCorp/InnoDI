@@ -54,12 +54,60 @@ func runDependencyGraphCLI() -> Int32 {
         usageCollector.walkFile(relativePath: parsed.relativePath, tree: parsed.tree)
     }
 
-    let edges = deduplicateEdges(usageCollector.edges)
+    // Ownership edges come from `@SubContainer` members on `@DIContainer`
+    // types. Resolve them through the shared semantic resolver so aliases,
+    // suffix fallback, opted-out duplicates, and ambiguity all behave the
+    // same way as regular container references gathered from call sites.
+    var ownershipEdges: [DependencyGraphEdge] = []
+    var ownershipSemanticIssues: [SemanticContainerReferenceIssue] = []
+    var ownershipFallbackMatchedReferences: [String] = []
+    let ownershipEligibleContainerIDsBySemanticPath = validateDAG
+        ? containerIDsBySemanticPathEligible
+        : containerIDsBySemanticPathAll
+    let candidatePaths = Set(containerIDsBySemanticPathAll.keys)
+    for reference in collector.subContainerReferences {
+        guard let childReference = reference.childReference else {
+            ownershipSemanticIssues.append(
+                SemanticContainerReferenceIssue(
+                    sourceID: reference.parentID,
+                    destinationDisplayName: reference.childDisplayName,
+                    state: .excluded,
+                    destinationCandidates: [],
+                    excludedReason: nil,
+                    aliasExpansionTrace: [],
+                    usedSuffixFallback: false
+                )
+            )
+            continue
+        }
+        guard let resolvedID = resolveContainerReferenceID(
+            reference: childReference,
+            sourceID: reference.parentID,
+            candidatePaths: candidatePaths,
+            allContainerIDsBySemanticPath: containerIDsBySemanticPathAll,
+            eligibleContainerIDsBySemanticPath: ownershipEligibleContainerIDsBySemanticPath,
+            semanticResolver: semanticResolver,
+            semanticIssues: &ownershipSemanticIssues,
+            fallbackMatchedReferences: &ownershipFallbackMatchedReferences
+        ) else {
+            continue
+        }
+        ownershipEdges.append(
+            DependencyGraphEdge(
+                fromID: reference.parentID,
+                toID: resolvedID,
+                label: reference.memberName,
+                isOwnership: true
+            )
+        )
+    }
+
+    let edges = deduplicateEdges(usageCollector.edges + ownershipEdges)
     if validateDAG {
         return runDAGValidation(
             nodes: nodes,
             edges: edges,
-            semanticIssues: usageCollector.semanticIssues,
+            semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues,
             outputPath: outputPath
         )
     }

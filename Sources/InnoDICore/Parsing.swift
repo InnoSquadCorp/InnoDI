@@ -66,6 +66,54 @@ public struct ProvideArguments {
     }
 }
 
+/// Lifetime policy for a `@SubContainer`-owned child container. Mirrors the
+/// public `SubContainerScope` enum in the `InnoDI` product module so macro
+/// expansion code and the CLI graph collector can share a single source of
+/// truth for sub-container scope semantics.
+///
+/// Unlike `ProvideScope` there is no `.input` case: sub-containers are always
+/// owned by their parent and replaced via `Overrides` rather than supplied
+/// through the primary init.
+public enum SubContainerScopeValue: String {
+    /// Parent constructs and stores the child during parent initialization,
+    /// then returns that cached instance on every subsequent access.
+    case shared
+    /// Every accessor read builds a fresh child container.
+    case transient
+}
+
+/// Parsed arguments extracted from a single `@SubContainer` attribute.
+public struct SubContainerAttributeInfo {
+    /// Parsed scope value. `nil` when the author omitted the required
+    /// `scope:` argument — the validator emits `sub.scope-required` in that
+    /// case.
+    public let scope: SubContainerScopeValue?
+    /// Raw textual scope spelling as written so diagnostics can echo the
+    /// exact source expression (for example, `.shared` or `someScope`).
+    public let scopeName: String?
+    /// Keypath member names passed via `with:`, in the order they appear.
+    /// Used to re-map parent members when child `.input` parameter names do
+    /// not match the parent side by name.
+    public let dependencies: [String]
+
+    /// Creates a parsed `@SubContainer` argument model.
+    ///
+    /// - Parameters:
+    ///   - scope: Parsed scope value when the `scope:` expression matches a
+    ///     supported `SubContainerScopeValue`.
+    ///   - scopeName: Raw textual scope spelling or expression fragment.
+    ///   - dependencies: Parsed dependency names from `with:`.
+    public init(
+        scope: SubContainerScopeValue?,
+        scopeName: String?,
+        dependencies: [String]
+    ) {
+        self.scope = scope
+        self.scopeName = scopeName
+        self.dependencies = dependencies
+    }
+}
+
 /// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
     /// Whether compile-time validation is enabled for the container.
@@ -141,15 +189,7 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     continue
                 }
                 if label == "with" {
-                    if let arrayExpr = argument.expression.as(ArrayExprSyntax.self) {
-                        for element in arrayExpr.elements {
-                            // \.config, \.logger (KeyPathExprSyntax)
-                            if let keyPath = element.expression.as(KeyPathExprSyntax.self),
-                               let property = keyPath.components.last?.component.as(KeyPathPropertyComponentSyntax.self)?.declName.baseName.text {
-                                dependencies.append(property)
-                            }
-                        }
-                    }
+                    dependencies = parseKeyPathArrayArgument(argument.expression)
                     continue
                 }
             } else {
@@ -187,6 +227,71 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         typeExpr: typeExpr,
         dependencies: dependencies
     )
+}
+
+/// Extracts the final component names from a `with: [\.foo, \.bar]` style
+/// array expression. Silently skips elements that are not `KeyPathExprSyntax`
+/// or whose final component is not a property — macros intentionally ignore
+/// exotic keypath shapes instead of failing to expand.
+public func parseKeyPathArrayArgument(_ expression: ExprSyntax) -> [String] {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
+    var names: [String] = []
+    for element in arrayExpr.elements {
+        guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+              let property = keyPath.components.last?
+                .component.as(KeyPathPropertyComponentSyntax.self)?
+                .declName.baseName.text else {
+            continue
+        }
+        names.append(property)
+    }
+    return names
+}
+
+/// Parses the full argument list of a single `@SubContainer` attribute.
+/// Mirrors `parseProvideArguments` in shape so both attributes share
+/// parsing patterns. Returns `nil`-scope when the required `scope:` argument
+/// is missing; the validator surfaces the error.
+public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubContainerAttributeInfo {
+    var scope: SubContainerScopeValue?
+    var scopeName: String?
+    var dependencies: [String] = []
+
+    if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
+        for argument in arguments {
+            guard let label = argument.label?.text else { continue }
+            switch label {
+            case "scope":
+                scopeName = argument.expression.trimmedDescription
+                if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
+                    let name = memberAccess.declName.baseName.text
+                    scope = SubContainerScopeValue(rawValue: name)
+                }
+            case "with":
+                dependencies = parseKeyPathArrayArgument(argument.expression)
+            default:
+                continue
+            }
+        }
+    }
+
+    return SubContainerAttributeInfo(
+        scope: scope,
+        scopeName: scopeName,
+        dependencies: dependencies
+    )
+}
+
+/// Finds and parses the first `@SubContainer` attribute in `attributes`.
+///
+/// - Parameter attributes: Attribute list attached to a declaration.
+/// - Returns: Parsed `SubContainerAttributeInfo` when a `@SubContainer`
+///   attribute is present; otherwise `nil`.
+public func parseSubContainerAttribute(_ attributes: AttributeListSyntax?) -> SubContainerAttributeInfo? {
+    guard let attribute = findAttribute(named: "SubContainer", in: attributes) else {
+        return nil
+    }
+    return parseSubContainerArguments(attribute)
 }
 
 public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideArguments? {

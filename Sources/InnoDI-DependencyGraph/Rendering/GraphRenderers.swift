@@ -19,13 +19,25 @@ func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -
               let toAlias = aliases[edge.toID] else {
             continue
         }
-        let label = edge.label.map { "|\(escapeMermaidLabel($0))|" } ?? ""
+        let rawLabel = edge.label
+        let effectiveLabel: String?
+        // Ownership edges always carry the `owns` word in their Mermaid label
+        // so the semantics survive in viewers that don't parse styles. The
+        // arrow glyph stays `-->` because Mermaid only exposes three distinct
+        // edge shapes (-->, -.->, ==>) which are already taken by hard,
+        // soft, and provider edges respectively.
+        if edge.isOwnership {
+            let ownsLabel = rawLabel.map { "owns: \($0)" } ?? "owns"
+            effectiveLabel = "|\(escapeMermaidLabel(ownsLabel))|"
+        } else {
+            effectiveLabel = rawLabel.map { "|\(escapeMermaidLabel($0))|" }
+        }
+        let labelText = effectiveLabel ?? ""
         // Deferred edges render with distinct glyphs:
         //   - Soft (`Lazy<T>`, Phase K):     dashed `-.->`
         //   - Provider (`Provider<T>`, L):   thick  `==>`
-        // Hard edges keep the default `-->`. All three are visually
-        // distinguishable so reviewers can see at a glance which dependencies
-        // defer resolution.
+        // Hard / ownership edges keep the default `-->`; ownership is
+        // distinguished by the forced `owns` label above.
         let arrow: String
         if edge.isProvider {
             arrow = "==>"
@@ -34,7 +46,7 @@ func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -
         } else {
             arrow = "-->"
         }
-        result += "    \(fromAlias) \(arrow)\(label) \(toAlias)\n"
+        result += "    \(fromAlias) \(arrow)\(labelText) \(toAlias)\n"
     }
 
     result += "\n"
@@ -66,18 +78,27 @@ func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> St
             continue
         }
 
-        // Deferred edges get distinct DOT styles:
-        //   - Soft (`Lazy<T>`):       `style=dashed`
-        //   - Provider (`Provider<T>`): `style=dotted`
-        // Both still render as arrows so the dependency remains visible.
+        // Edge styles per kind:
+        //   - Soft (`Lazy<T>`):        style=dashed
+        //   - Provider (`Provider<T>`): style=dotted
+        //   - Ownership (@SubContainer): style=bold + colored + "owns" label
+        // Each kind still renders as an arrow so the dependency remains
+        // visible; the style attribute just conveys the semantic category.
         var attributes: [String] = []
-        if let label = edge.label {
-            attributes.append("label=\"\(escapeDOTLabel(label))\"")
-        }
-        if edge.isProvider {
-            attributes.append("style=dotted")
-        } else if edge.isSoft {
-            attributes.append("style=dashed")
+        if edge.isOwnership {
+            let ownsLabel = edge.label.map { "owns: \($0)" } ?? "owns"
+            attributes.append("label=\"\(escapeDOTLabel(ownsLabel))\"")
+            attributes.append("style=bold")
+            attributes.append("color=\"#1e3a8a\"")
+        } else {
+            if let label = edge.label {
+                attributes.append("label=\"\(escapeDOTLabel(label))\"")
+            }
+            if edge.isProvider {
+                attributes.append("style=dotted")
+            } else if edge.isSoft {
+                attributes.append("style=dashed")
+            }
         }
 
         if attributes.isEmpty {
@@ -116,8 +137,9 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
 
     let hasSoftEdge = edges.contains(where: \.isSoft)
     let hasProviderEdge = edges.contains(where: \.isProvider)
-    if hasSoftEdge || hasProviderEdge {
-        // Legend only appears when at least one deferred edge is present so
+    let hasOwnershipEdge = edges.contains(where: \.isOwnership)
+    if hasSoftEdge || hasProviderEdge || hasOwnershipEdge {
+        // Legend only appears when at least one non-hard edge is present so
         // the default render stays compact. Each glyph-to-meaning mapping
         // is listed only when that glyph actually appears in the output.
         var legendParts: [String] = ["--> hard dependency"]
@@ -127,16 +149,33 @@ func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> 
         if hasProviderEdge {
             legendParts.append("~~> provider (Provider<T>)")
         }
+        if hasOwnershipEdge {
+            legendParts.append("#=> ownership (@SubContainer)")
+        }
         result += "  Legend: " + legendParts.joined(separator: "    ") + "\n"
     }
 
     for edge in edges {
         let fromLabel = labelsByID[edge.fromID] ?? edge.fromID
         let toLabel = labelsByID[edge.toID] ?? edge.toID
-        let labelPart = edge.label.map { ":\($0)" } ?? ""
+        // Ownership edges force the `owns` word into the suffix so the
+        // semantic is visible even without the legend. Other edge kinds
+        // pass through whatever label the author set.
+        let labelPart: String
+        if edge.isOwnership {
+            if let label = edge.label {
+                labelPart = ":owns,\(label)"
+            } else {
+                labelPart = ":owns"
+            }
+        } else {
+            labelPart = edge.label.map { ":\($0)" } ?? ""
+        }
         let padding = String(repeating: " ", count: max(0, maxNameLength - fromLabel.count))
         let arrow: String
-        if edge.isProvider {
+        if edge.isOwnership {
+            arrow = "#=>"
+        } else if edge.isProvider {
             arrow = "~~>"
         } else if edge.isSoft {
             arrow = "- ->"

@@ -196,4 +196,70 @@ struct SoftEdgeCycleFilterTests {
         #expect(!deduped[0].isSoft)
         #expect(!deduped[0].isProvider)
     }
+
+    // MARK: - Ownership edges (Phase M)
+
+    @Test("Ownership edges participate in cycle detection as hard edges")
+    func ownershipEdgesCountAsHard() {
+        // `@SubContainer` construction happens at parent init — a parent ↔
+        // child loop would loop during init, so ownership stays hard.
+        let nodes = [makeNode("Parent"), makeNode("Child")]
+        let edges = [
+            DependencyGraphEdge(fromID: "Parent", toID: "Child", label: "feature", isOwnership: true),
+            DependencyGraphEdge(fromID: "Child", toID: "Parent", label: nil)
+        ]
+
+        let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
+
+        #expect(adjacency["Parent"] == ["Child"])
+        #expect(adjacency["Child"] == ["Parent"])
+        #expect(!detectDependencyCycles(adjacency: adjacency).isEmpty)
+    }
+
+    @Test("Ownership-only occurrences keep the merged edge as ownership")
+    func ownershipOnlyOccurrencesStayOwnership() {
+        let edges = [
+            DependencyGraphEdge(fromID: "Parent", toID: "Child", label: "feature", isOwnership: true),
+            DependencyGraphEdge(fromID: "Parent", toID: "Child", label: "feature", isOwnership: true)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(deduped[0].isOwnership)
+    }
+
+    @Test("A plain hard occurrence demotes a prior ownership merge")
+    func hardOccurrenceDemotesPriorOwnershipMerge() {
+        let edges = [
+            DependencyGraphEdge(fromID: "Parent", toID: "Child", label: "feature", isOwnership: true),
+            DependencyGraphEdge(fromID: "Parent", toID: "Child", label: "feature", isOwnership: false)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+
+        #expect(deduped.count == 1)
+        #expect(!deduped[0].isOwnership)
+    }
+
+    @Test("Ownership edges stay hard through dedup and cycle detection even when deferred flags are present")
+    func ownershipEdgesDominateDeferredFlags() {
+        let edges = [
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true, isProvider: false, isOwnership: true),
+            DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true, isProvider: false, isOwnership: true)
+        ]
+
+        let deduped = deduplicateEdges(edges)
+        let adjacency = buildCycleDetectionAdjacency(
+            nodes: [makeNode("A"), makeNode("B")],
+            edges: deduped + [DependencyGraphEdge(fromID: "B", toID: "A", label: nil)]
+        )
+
+        #expect(deduped.count == 1)
+        #expect(deduped[0].isOwnership)
+        #expect(!deduped[0].isSoft)
+        #expect(!deduped[0].isProvider)
+        #expect(adjacency["A"] == ["B"])
+        #expect(!detectDependencyCycles(adjacency: adjacency).isEmpty)
+    }
 }
