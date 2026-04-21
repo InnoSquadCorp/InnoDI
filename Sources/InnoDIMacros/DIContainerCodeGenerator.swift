@@ -162,7 +162,7 @@ private func makeInitDecl(
         params.append(directParam)
 
         let applyParam = FunctionParameterSyntax(
-            firstName: .identifier("\(member.name)Overrides"),
+            firstName: .identifier(member.overrideClosureName),
             secondName: nil,
             colon: .colonToken(),
             type: applyTypeSyntax,
@@ -680,7 +680,7 @@ private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSy
             bindingSpecifier: .keyword(.var),
             bindings: PatternBindingListSyntax([
                 PatternBindingSyntax(
-                    pattern: IdentifierPatternSyntax(identifier: .identifier("\(member.name)Overrides")),
+                    pattern: IdentifierPatternSyntax(identifier: .identifier(member.overrideClosureName)),
                     typeAnnotation: TypeAnnotationSyntax(type: applyType),
                     initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
                 )
@@ -784,7 +784,7 @@ private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSy
         // (`overrides.<name>Overrides`).
         [
             (sub.name, sub.name),
-            ("\(sub.name)Overrides", "\(sub.name)Overrides")
+            (sub.overrideClosureName, sub.overrideClosureName)
         ]
     }
     let totalArgCount = allForwardingMembers.count + subForwardingPairs.count
@@ -1075,7 +1075,7 @@ private func makeSubContainerInitStatements(
     stmts.append(
         CodeBlockItemSyntax(item: .expr(assignExpr(
             targetName: "_override_sub_apply_\(member.name)",
-            valueName: "\(member.name)Overrides"
+            valueName: member.overrideClosureName
         )))
     )
 
@@ -1083,50 +1083,131 @@ private func makeSubContainerInitStatements(
 }
 
 /// Renders the `if let direct = override { ... } else if let apply = ... { ... } else { ... }`
-/// three-branch storage assignment used for `.shared` sub-containers. Uses
-/// string parsing for readability — the output only needs to compile, it
-/// never participates in trivia-sensitive accessor renders.
+/// three-branch storage assignment used for `.shared` sub-containers. Built
+/// directly as SwiftSyntax so malformed child type spellings cannot crash a
+/// string-reparse fallback during macro expansion.
 private func subContainerSharedAssignmentExpr(
     member: SubContainerMemberModel,
     selectedNames: [String]
 ) -> IfExprSyntax {
-    let childTypeDesc = member.type.trimmedDescription
     let storageName = "_storage_sub_\(member.name)"
     let overrideParam = member.name
-    let applyParam = "\(member.name)Overrides"
+    let applyParam = member.overrideClosureName
+    let directAssignment = assignExprWithValue(
+        targetName: storageName,
+        value: ExprSyntax(
+            DeclReferenceExprSyntax(baseName: .identifier("direct"))
+        )
+    )
+    let applyAssignment = assignExprWithValue(
+        targetName: storageName,
+        value: subContainerInitializerExpr(
+            childType: member.type,
+            parentNames: selectedNames,
+            trailingOverrideExpression: ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier("apply"))
+            )
+        )
+    )
+    let defaultAssignment = assignExprWithValue(
+        targetName: storageName,
+        value: subContainerInitializerExpr(
+            childType: member.type,
+            parentNames: selectedNames
+        )
+    )
+    let elseIfExpr = makeSubContainerOptionalBindingIfExpr(
+        bindingName: "apply",
+        sourceName: applyParam,
+        assignment: applyAssignment,
+        elseBody: .codeBlock(
+            CodeBlockSyntax(
+                statements: CodeBlockItemListSyntax([
+                    CodeBlockItemSyntax(item: .expr(defaultAssignment))
+                ])
+            )
+        )
+    )
 
-    // Base argument list shared by both construction branches. We read
-    // parent members through their private storage names (`_storage_<name>`)
-    // instead of the public accessor so Swift's definite-initialization
-    // rules are satisfied even though `_storage_sub_<member.name>` is
-    // about to be assigned on the following line. Only `.input` / `.shared`
-    // parents are exposed this way; `.transient` parents have no storage
-    // and therefore cannot participate in `.shared` sub-container wiring
-    // (validator M-5 rejects that combination).
-    let baseArgs = selectedNames
-        .map { "\($0): self._storage_\($0)" }
-        .joined(separator: ", ")
+    return makeSubContainerOptionalBindingIfExpr(
+        bindingName: "direct",
+        sourceName: overrideParam,
+        assignment: directAssignment,
+        elseBody: .ifExpr(elseIfExpr)
+    )
+}
 
-    // Build via child convenience init when the author passed an override
-    // closure: `Child(name1: self.name1, ..., apply)`
-    let withApplyArgs = baseArgs.isEmpty ? "apply" : "\(baseArgs), apply"
+private func subContainerInitializerExpr(
+    childType: TypeSyntax,
+    parentNames: [String],
+    trailingOverrideExpression: ExprSyntax? = nil
+) -> ExprSyntax {
+    let totalArgumentCount = parentNames.count + (trailingOverrideExpression == nil ? 0 : 1)
+    var arguments: [LabeledExprSyntax] = parentNames.enumerated().map { index, parentName in
+        let hasTrailingOverride = trailingOverrideExpression != nil
+        let isLast = index == parentNames.count - 1 && !hasTrailingOverride
+        return LabeledExprSyntax(
+            label: .identifier(parentName),
+            colon: .colonToken(),
+            expression: makeSelfMemberAccessExpr(name: "_storage_\(parentName)"),
+            trailingComma: isLast || totalArgumentCount == 0 ? nil : .commaToken()
+        )
+    }
 
-    let source: SourceFileSyntax = """
-        func _innoDI_unused() {
-            if let direct = \(raw: overrideParam) {
-                self.\(raw: storageName) = direct
-            } else if let apply = \(raw: applyParam) {
-                self.\(raw: storageName) = \(raw: childTypeDesc)(\(raw: withApplyArgs))
-            } else {
-                self.\(raw: storageName) = \(raw: childTypeDesc)(\(raw: baseArgs))
-            }
-        }
-        """
+    if let trailingOverrideExpression {
+        arguments.append(
+            LabeledExprSyntax(
+                label: nil,
+                colon: nil,
+                expression: trailingOverrideExpression,
+                trailingComma: nil
+            )
+        )
+    }
 
-    // Pull the IfExprSyntax back out of the synthetic wrapper — this keeps
-    // the branches' formatting consistent with the rest of the init body.
-    let funcDecl = source.statements.first!.item.as(FunctionDeclSyntax.self)!
-    let firstStmt = funcDecl.body!.statements.first!
-    let ifExpr = firstStmt.item.as(ExpressionStmtSyntax.self)!.expression.as(IfExprSyntax.self)!
-    return ifExpr
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax("\(childType.trimmed)"),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax(arguments),
+        rightParen: .rightParenToken()
+    )
+    return ExprSyntax(call)
+}
+
+private func makeSubContainerOptionalBindingIfExpr(
+    bindingName: String,
+    sourceName: String,
+    assignment: ExprSyntax,
+    elseBody: IfExprSyntax.ElseBody
+) -> IfExprSyntax {
+    IfExprSyntax(
+        ifKeyword: .keyword(.if, trailingTrivia: .space),
+        conditions: ConditionElementListSyntax([
+            ConditionElementSyntax(
+                condition: .optionalBinding(
+                    OptionalBindingConditionSyntax(
+                        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
+                        pattern: IdentifierPatternSyntax(
+                            identifier: .identifier(bindingName, trailingTrivia: .space)
+                        ),
+                        initializer: InitializerClauseSyntax(
+                            equal: .equalToken(trailingTrivia: .space),
+                            value: DeclReferenceExprSyntax(
+                                baseName: .identifier(sourceName, trailingTrivia: .space)
+                            )
+                        )
+                    )
+                )
+            )
+        ]),
+        body: CodeBlockSyntax(
+            leftBrace: .leftBraceToken(trailingTrivia: .space),
+            statements: CodeBlockItemListSyntax([
+                CodeBlockItemSyntax(item: .expr(assignment))
+            ]),
+            rightBrace: .rightBraceToken(leadingTrivia: .space)
+        ),
+        elseKeyword: .keyword(.else, leadingTrivia: .space, trailingTrivia: .space),
+        elseBody: elseBody
+    )
 }

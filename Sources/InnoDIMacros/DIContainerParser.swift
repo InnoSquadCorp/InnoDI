@@ -110,33 +110,28 @@ struct DIContainerParser {
                 continue
             }
 
-            if let subAttribute = subContainerAttribute, provideAttribute == nil {
-                guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
-                    context.diagnose(Diagnostic(node: Syntax(varDecl), message: SimpleDiagnostic.provideSingleBinding()))
+            if let subAttribute = subContainerAttribute {
+                guard let validatedBinding = validateBindingForAttribute(
+                    varDecl,
+                    kind: .subContainer,
+                    context: context
+                ) else {
                     hadErrors = true
                     continue
                 }
-                guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-                    context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideNamedPropertyRequired()))
-                    hadErrors = true
-                    continue
-                }
-                guard let typeAnnotation = binding.typeAnnotation else {
-                    context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideExplicitTypeRequired()))
-                    hadErrors = true
-                    continue
-                }
-
                 let subArgs = InnoDICore.parseSubContainerArguments(subAttribute)
+                let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
                 subContainerMembers.append(
                     SubContainerMemberModel(
-                        name: identifier.identifier.text,
-                        type: typeAnnotation.type,
+                        name: validatedBinding.identifier.identifier.text,
+                        type: validatedBinding.typeAnnotation.type,
                         scope: subArgs.scope,
                         scopeName: subArgs.scopeName,
-                        parentDependencies: subArgs.dependencies,
+                        scopeExpressionSyntax: extractArgumentExpression(label: "scope", from: subAttribute),
+                        parentDependencies: parentDependencyReferences.map(\.name),
+                        parentDependencyReferences: parentDependencyReferences,
                         attribute: subAttribute,
-                        bindingSyntax: binding
+                        bindingSyntax: validatedBinding.binding
                     )
                 )
                 continue
@@ -146,20 +141,11 @@ struct DIContainerParser {
                 continue
             }
 
-            guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
-                context.diagnose(Diagnostic(node: Syntax(varDecl), message: SimpleDiagnostic.provideSingleBinding()))
-                hadErrors = true
-                continue
-            }
-
-            guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-                context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideNamedPropertyRequired()))
-                hadErrors = true
-                continue
-            }
-
-            guard let typeAnnotation = binding.typeAnnotation else {
-                context.diagnose(Diagnostic(node: Syntax(binding), message: SimpleDiagnostic.provideExplicitTypeRequired()))
+            guard let validatedBinding = validateBindingForAttribute(
+                varDecl,
+                kind: .provide,
+                context: context
+            ) else {
                 hadErrors = true
                 continue
             }
@@ -196,14 +182,14 @@ struct DIContainerParser {
                 asyncFactoryExpressionReferences = []
             }
 
-            let initializerExpr = binding.initializer?.value
+            let initializerExpr = validatedBinding.binding.initializer?.value
             let initializerReferences = extractExpressionDependencyReferences(from: initializerExpr)
             let withDependencyReferences = extractWithDependencyReferences(from: attribute)
 
             members.append(
                 ProvideMemberModel(
-                    name: identifier.identifier.text,
-                    type: typeAnnotation.type,
+                    name: validatedBinding.identifier.identifier.text,
+                    type: validatedBinding.typeAnnotation.type,
                     scope: scope,
                     factory: parseResult.factoryExpr,
                     asyncFactory: parseResult.asyncFactoryExpr,
@@ -218,7 +204,7 @@ struct DIContainerParser {
                     closureHasWildcard: closureParameterList.hasWildcard,
                     expressionReferences: deduplicateStrings(factoryExpressionReferences + asyncFactoryExpressionReferences + initializerReferences),
                     attribute: attribute,
-                    bindingSyntax: binding
+                    bindingSyntax: validatedBinding.binding
                 )
             )
         }
@@ -234,6 +220,77 @@ struct DIContainerParser {
             subContainerMembers: subContainerMembers
         )
     }
+}
+
+private enum BindingValidationKind {
+    case provide
+    case subContainer
+
+    var singleBindingDiagnostic: SimpleDiagnostic {
+        switch self {
+        case .provide:
+            return .provideSingleBinding()
+        case .subContainer:
+            return .subSingleBinding()
+        }
+    }
+
+    var namedPropertyDiagnostic: SimpleDiagnostic {
+        switch self {
+        case .provide:
+            return .provideNamedPropertyRequired()
+        case .subContainer:
+            return .subNamedPropertyRequired()
+        }
+    }
+
+    var explicitTypeDiagnostic: SimpleDiagnostic {
+        switch self {
+        case .provide:
+            return .provideExplicitTypeRequired()
+        case .subContainer:
+            return .subExplicitTypeRequired()
+        }
+    }
+}
+
+private struct ValidatedVariableBinding {
+    let binding: PatternBindingSyntax
+    let identifier: IdentifierPatternSyntax
+    let typeAnnotation: TypeAnnotationSyntax
+}
+
+private func validateBindingForAttribute(
+    _ varDecl: VariableDeclSyntax,
+    kind: BindingValidationKind,
+    context: some MacroExpansionContext
+) -> ValidatedVariableBinding? {
+    guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
+        context.diagnose(
+            Diagnostic(node: Syntax(varDecl), message: kind.singleBindingDiagnostic)
+        )
+        return nil
+    }
+
+    guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
+        context.diagnose(
+            Diagnostic(node: Syntax(binding.pattern), message: kind.namedPropertyDiagnostic)
+        )
+        return nil
+    }
+
+    guard let typeAnnotation = binding.typeAnnotation else {
+        context.diagnose(
+            Diagnostic(node: Syntax(binding.pattern), message: kind.explicitTypeDiagnostic)
+        )
+        return nil
+    }
+
+    return ValidatedVariableBinding(
+        binding: binding,
+        identifier: identifier,
+        typeAnnotation: typeAnnotation
+    )
 }
 
 private func sourceFile(containing syntax: Syntax) -> SourceFileSyntax? {
@@ -289,6 +346,18 @@ private func matchesSameFileContainerExtension(_ extensionDecl: ExtensionDeclSyn
     }
 
     return normalizedSemanticTypeReference(extensionDecl.extendedType)?.displayPath == declarationPath
+}
+
+private func extractArgumentExpression(label: String, from attribute: AttributeSyntax) -> ExprSyntax? {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return nil
+    }
+
+    for argument in arguments where argument.label?.text == label {
+        return argument.expression
+    }
+
+    return nil
 }
 
 private func extractWithDependencyReferences(from attribute: AttributeSyntax) -> [WithDependencyReference] {

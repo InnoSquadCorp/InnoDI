@@ -11,6 +11,9 @@ struct DiagnosticsTests {
             .provideSingleBinding,
             .provideNamedPropertyRequired,
             .provideExplicitTypeRequired,
+            .subSingleBinding,
+            .subNamedPropertyRequired,
+            .subExplicitTypeRequired,
             .provideUnknownScope,
             .provideInputInvalidConfiguration,
             .transientFactoryUnnamedParameters
@@ -40,6 +43,7 @@ struct DiagnosticsTests {
             .subScopeRequired,
             .subUnknownScope,
             .subConflictsWithProvide,
+            .subOverridesNameConflict,
             .subUnknownParentMember,
             .subSharedParentMustNotBeTransient
         ]
@@ -59,6 +63,9 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideSingleBinding(), MessageID(domain: "InnoDI.usage", id: "provide.single-binding")),
             (SimpleDiagnostic.provideNamedPropertyRequired(), MessageID(domain: "InnoDI.usage", id: "provide.named-property-required")),
             (SimpleDiagnostic.provideExplicitTypeRequired(), MessageID(domain: "InnoDI.usage", id: "provide.explicit-type-required")),
+            (SimpleDiagnostic.subSingleBinding(), MessageID(domain: "InnoDI.usage", id: "sub.single-binding")),
+            (SimpleDiagnostic.subNamedPropertyRequired(), MessageID(domain: "InnoDI.usage", id: "sub.named-property-required")),
+            (SimpleDiagnostic.subExplicitTypeRequired(), MessageID(domain: "InnoDI.usage", id: "sub.explicit-type-required")),
             (SimpleDiagnostic.provideUnknownScope("foo"), MessageID(domain: "InnoDI.usage", id: "provide.unknown-scope")),
             (SimpleDiagnostic.provideInputInvalidConfiguration(), MessageID(domain: "InnoDI.usage", id: "provide.input-invalid-configuration")),
             (SimpleDiagnostic.transientFactoryUnnamedParameters(), MessageID(domain: "InnoDI.usage", id: "transient-factory.unnamed-parameters")),
@@ -85,6 +92,7 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subScopeRequired(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.scope-required")),
             (SimpleDiagnostic.subUnknownScope(memberName: "feature", scopeName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-scope")),
             (SimpleDiagnostic.subConflictsWithProvide(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.conflicts-with-provide")),
+            (SimpleDiagnostic.subOverridesNameConflict(memberName: "feature", generatedName: "featureOverrides"), MessageID(domain: "InnoDI.validation", id: "sub.overrides-name-conflict")),
             (SimpleDiagnostic.subUnknownParentMember(memberName: "feature", parentMemberName: "missing"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")),
             (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"))
         ]

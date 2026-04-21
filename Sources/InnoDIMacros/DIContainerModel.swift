@@ -68,11 +68,27 @@ struct SubContainerMemberModel {
     /// Raw scope spelling (`"shared"` / `"transient"` / whatever the author
     /// wrote). Retained so diagnostics can show the exact token.
     let scopeName: String?
+    /// Original `scope:` expression syntax as written at the attribute site.
+    /// Used to anchor diagnostics to the exact bad scope expression when
+    /// parsing succeeds syntactically but not semantically.
+    let scopeExpressionSyntax: ExprSyntax?
     /// Parent member names derived from `with: [\.foo, \.bar]`, in order.
     /// Empty when the author relied on automatic name matching.
     let parentDependencies: [String]
+    /// Original key-path expressions from `with:`. Preserved so validation can
+    /// point at the exact unknown parent member rather than the whole
+    /// attribute.
+    let parentDependencyReferences: [WithDependencyReference]
     let attribute: AttributeSyntax
     let bindingSyntax: PatternBindingSyntax
+
+    var overrideClosureName: String {
+        "\(name)Overrides"
+    }
+
+    func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {
+        parentDependencyReferences.first(where: { $0.name == parentName })?.keyPath
+    }
 }
 
 struct DIContainerExpansionModel {

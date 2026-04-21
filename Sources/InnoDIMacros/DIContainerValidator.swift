@@ -278,17 +278,32 @@ struct DIContainerValidator {
             uniqueKeysWithValues: model.members.map { ($0.name, $0.scope) }
         )
         let knownParentMemberNames = Set(memberScopeByName.keys)
+        let reservedMemberNames = Set(model.members.map(\.name) + model.subContainerMembers.map(\.name))
 
         for sub in model.subContainerMembers {
+            let generatedOverrideName = sub.overrideClosureName
+            if reservedMemberNames.contains(generatedOverrideName) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.bindingSyntax.pattern),
+                        message: SimpleDiagnostic.subOverridesNameConflict(
+                            memberName: sub.name,
+                            generatedName: generatedOverrideName
+                        )
+                    )
+                )
+                hadErrors = true
+            }
+
             // scope: is required and must parse as `.shared` / `.transient`.
             if sub.scope == nil {
-                if let scopeName = sub.scopeName {
+                if let scopeExpression = sub.scopeExpressionSyntax {
                     context.diagnose(
                         Diagnostic(
-                            node: Syntax(sub.attribute),
+                            node: Syntax(scopeExpression),
                             message: SimpleDiagnostic.subUnknownScope(
                                 memberName: sub.name,
-                                scopeName: scopeName
+                                scopeName: sub.scopeName ?? scopeExpression.trimmedDescription
                             )
                         )
                     )
@@ -309,7 +324,7 @@ struct DIContainerValidator {
                 if !knownParentMemberNames.contains(parentName) {
                     context.diagnose(
                         Diagnostic(
-                            node: Syntax(sub.attribute),
+                            node: sub.parentKeyPathSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute),
                             message: SimpleDiagnostic.subUnknownParentMember(
                                 memberName: sub.name,
                                 parentMemberName: parentName
@@ -331,9 +346,11 @@ struct DIContainerValidator {
                 : sub.parentDependencies
             for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
                 if memberScopeByName[parentName] == .transient {
+                    let diagnosticNode = sub.parentKeyPathSyntax(for: parentName).map(Syntax.init)
+                        ?? Syntax(sub.attribute)
                     context.diagnose(
                         Diagnostic(
-                            node: Syntax(sub.attribute),
+                            node: diagnosticNode,
                             message: SimpleDiagnostic.subSharedParentMustNotBeTransient(
                                 memberName: sub.name,
                                 parentMemberName: parentName

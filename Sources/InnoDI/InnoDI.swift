@@ -227,7 +227,12 @@ public final class _LazyCell<T>: @unchecked Sendable {
 /// the outside through the primary init — tests inject a replacement via the
 /// generated `Overrides` builder instead.
 public enum SubContainerScope {
+    /// Parent constructs and stores the child during parent initialization,
+    /// then reuses that same instance on every access. Use for coordinator-
+    /// like children whose internal `.shared` graph should remain stable.
     case shared
+    /// Parent builds a fresh child on every property read. Use for screen- or
+    /// request-scoped children that should not retain identity between reads.
     case transient
 }
 
@@ -252,10 +257,11 @@ public enum SubContainerScope {
 ///   no default because the two lifetimes have very different runtime
 ///   implications (cached vs fresh), and forcing the author to pick makes the
 ///   intent visible at every declaration site.
-/// - `with`: Optional keypath list used to re-map parent members when their
-///   names do not match the child's `.input` parameter names. Each
-///   `\.parentMember` keypath is passed positionally to the child init, so
-///   the order must match the child's `.input` declaration order.
+/// - `with`: Optional keypath list used to restrict or reorder which parent
+///   members are forwarded to the child. Each `\.parentMember` keypath is
+///   passed positionally to the child init; the macro does not rewrite child
+///   parameter labels, so the order must still match the child's `.input`
+///   declaration order.
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or
@@ -279,8 +285,14 @@ public enum SubContainerScope {
 ///
 /// Both slots are mutually exclusive: if the direct replacement is provided
 /// it wins; otherwise the chain closure (if any) is forwarded. The second
-/// slot requires the child to have its own `Overrides` builder — see the
-/// README caveat for input-only children.
+/// slot is also a compile-time contract: because the parent's generated init
+/// and `Overrides` struct mention `<ChildContainer>.Overrides` in their type
+/// signatures, the child must emit that nested type even when you never set
+/// or call `<name>Overrides`. Input-only children do not emit `Overrides`, so
+/// a parent `@SubContainer` pointing at an input-only child fails to compile
+/// with the usual `type '<ChildContainer>' has no member 'Overrides'` error.
+/// Remedy: add at least one `.shared`, `.transient`, or `@SubContainer`
+/// member to the child so InnoDI emits `<ChildContainer>.Overrides`.
 @attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
 @attached(accessor)
 public macro SubContainer(

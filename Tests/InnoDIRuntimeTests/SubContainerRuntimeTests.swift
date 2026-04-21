@@ -17,6 +17,7 @@ struct RuntimeParentConfig: Equatable {
 }
 
 final class RuntimeChildStore { init() {} }
+final class RuntimeSubsetStore { init() {} }
 
 @DIContainer
 struct RuntimeChildContainer {
@@ -40,6 +41,23 @@ struct RuntimeParentTransientContainer {
 
     @SubContainer(scope: .transient)
     var child: RuntimeChildContainer
+}
+
+@DIContainer
+struct RuntimeSubsetChildContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+
+    @Provide(.shared, factory: RuntimeSubsetStore(), concrete: true)
+    var store: RuntimeSubsetStore
+}
+
+@DIContainer
+struct RuntimeParentWithSubsetContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+    @Provide(.input) var extra: String
+
+    @SubContainer(scope: .shared, with: [\RuntimeParentWithSubsetContainer.config])
+    var child: RuntimeSubsetChildContainer
 }
 
 // Override tests need deterministic mock identity so reference comparisons
@@ -96,6 +114,18 @@ struct SubContainerRuntimeTests {
     func inputPropagatesByName() {
         let parent = RuntimeParentSharedContainer(config: RuntimeParentConfig(endpoint: "propagate"))
         #expect(parent.child.config == RuntimeParentConfig(endpoint: "propagate"))
+    }
+
+    @Test("with: subset forwards only the selected parent inputs")
+    func withRestrictsForwardedInputs() {
+        let parent = RuntimeParentWithSubsetContainer(
+            config: RuntimeParentConfig(endpoint: "subset"),
+            extra: "ignored"
+        )
+        // Compile-time proof of the subset wiring: `RuntimeSubsetChildContainer`
+        // only accepts `config`, so this fixture would fail to compile if the
+        // generated child init forwarded `extra` as well.
+        #expect(parent.child.config == RuntimeParentConfig(endpoint: "subset"))
     }
 
     // MARK: - Overrides builder integration
