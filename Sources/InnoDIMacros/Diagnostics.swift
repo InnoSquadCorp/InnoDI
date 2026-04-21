@@ -15,6 +15,9 @@ enum InnoDIDiagnosticCode: String {
     case provideSingleBinding = "provide.single-binding"
     case provideNamedPropertyRequired = "provide.named-property-required"
     case provideExplicitTypeRequired = "provide.explicit-type-required"
+    case subSingleBinding = "sub.single-binding"
+    case subNamedPropertyRequired = "sub.named-property-required"
+    case subExplicitTypeRequired = "sub.explicit-type-required"
     case provideUnknownScope = "provide.unknown-scope"
     case provideSharedFactoryRequired = "provide.shared-factory-required"
     case provideTransientFactoryRequired = "provide.transient-factory-required"
@@ -41,12 +44,14 @@ enum InnoDIDiagnosticCode: String {
     case subScopeRequired = "sub.scope-required"
     case subUnknownScope = "sub.unknown-scope"
     case subConflictsWithProvide = "sub.conflicts-with-provide"
+    case subOverridesNameConflict = "sub.overrides-name-conflict"
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
 
     var category: InnoDIDiagnosticCategory {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
+                .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
                 .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
@@ -57,7 +62,7 @@ enum InnoDIDiagnosticCode: String {
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
-                .subScopeRequired, .subUnknownScope, .subConflictsWithProvide,
+                .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subSharedParentMustNotBeTransient:
             return .validation
         }
@@ -109,12 +114,24 @@ extension SimpleDiagnostic {
         Self("@Provide supports a single variable binding.", code: .provideSingleBinding)
     }
 
+    static func subSingleBinding() -> Self {
+        Self("@SubContainer supports a single variable binding.", code: .subSingleBinding)
+    }
+
     static func provideNamedPropertyRequired() -> Self {
         Self("@Provide requires a named property.", code: .provideNamedPropertyRequired)
     }
 
+    static func subNamedPropertyRequired() -> Self {
+        Self("@SubContainer requires a named property.", code: .subNamedPropertyRequired)
+    }
+
     static func provideExplicitTypeRequired() -> Self {
         Self("@Provide requires an explicit type.", code: .provideExplicitTypeRequired)
+    }
+
+    static func subExplicitTypeRequired() -> Self {
+        Self("@SubContainer requires an explicit type.", code: .subExplicitTypeRequired)
     }
 
     static func provideUnknownScope(_ name: String) -> Self {
@@ -273,7 +290,7 @@ extension SimpleDiagnostic {
 
     static func subUnknownScope(memberName: String, scopeName: String) -> Self {
         Self(
-            "Unknown @SubContainer scope '.\(scopeName)' on '\(memberName)'. Valid scopes are .shared and .transient.",
+            "Unknown @SubContainer scope '\(scopeName)' on '\(memberName)'. Valid scopes are .shared and .transient.",
             code: .subUnknownScope
         )
     }
@@ -282,6 +299,13 @@ extension SimpleDiagnostic {
         Self(
             "'\(memberName)' cannot carry both @Provide and @SubContainer. Remove one of the attributes — use @SubContainer for nested containers and @Provide for regular dependencies.",
             code: .subConflictsWithProvide
+        )
+    }
+
+    static func subOverridesNameConflict(memberName: String, generatedName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' would generate an override slot named '\(generatedName)', but that name is already used by another container member. Rename '\(memberName)' or the conflicting member so InnoDI can synthesize the child override API.",
+            code: .subOverridesNameConflict
         )
     }
 

@@ -75,9 +75,10 @@ public struct ProvideArguments {
 /// owned by their parent and replaced via `Overrides` rather than supplied
 /// through the primary init.
 public enum SubContainerScopeValue: String {
-    /// Parent caches a single child instance after the first access.
+    /// Parent constructs and stores the child during parent initialization,
+    /// then returns that cached instance on every subsequent access.
     case shared
-    /// Every accessor read builds a fresh child.
+    /// Every accessor read builds a fresh child container.
     case transient
 }
 
@@ -87,13 +88,21 @@ public struct SubContainerAttributeInfo {
     /// `scope:` argument — the validator emits `sub.scope-required` in that
     /// case.
     public let scope: SubContainerScopeValue?
-    /// Raw textual scope name (`"shared"` / `"transient"`) as written.
+    /// Raw textual scope spelling as written so diagnostics can echo the
+    /// exact source expression (for example, `.shared` or `someScope`).
     public let scopeName: String?
     /// Keypath member names passed via `with:`, in the order they appear.
     /// Used to re-map parent members when child `.input` parameter names do
     /// not match the parent side by name.
     public let dependencies: [String]
 
+    /// Creates a parsed `@SubContainer` argument model.
+    ///
+    /// - Parameters:
+    ///   - scope: Parsed scope value when the `scope:` expression matches a
+    ///     supported `SubContainerScopeValue`.
+    ///   - scopeName: Raw textual scope spelling or expression fragment.
+    ///   - dependencies: Parsed dependency names from `with:`.
     public init(
         scope: SubContainerScopeValue?,
         scopeName: String?,
@@ -253,9 +262,9 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
             guard let label = argument.label?.text else { continue }
             switch label {
             case "scope":
+                scopeName = argument.expression.trimmedDescription
                 if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
                     let name = memberAccess.declName.baseName.text
-                    scopeName = name
                     scope = SubContainerScopeValue(rawValue: name)
                 }
             case "with":
@@ -273,6 +282,11 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     )
 }
 
+/// Finds and parses the first `@SubContainer` attribute in `attributes`.
+///
+/// - Parameter attributes: Attribute list attached to a declaration.
+/// - Returns: Parsed `SubContainerAttributeInfo` when a `@SubContainer`
+///   attribute is present; otherwise `nil`.
 public func parseSubContainerAttribute(_ attributes: AttributeListSyntax?) -> SubContainerAttributeInfo? {
     guard let attribute = findAttribute(named: "SubContainer", in: attributes) else {
         return nil

@@ -242,21 +242,24 @@ struct SoftEdgeCycleFilterTests {
         #expect(!deduped[0].isOwnership)
     }
 
-    @Test("Ownership and deferred flags track independently in dedup")
-    func ownershipAndDeferredFlagsAreIndependent() {
-        // Ownership + soft are orthogonal: collapsing one should not erase
-        // the other. The merged edge should stay ownership (both sites
-        // reported ownership) while also preserving soft (both sites
-        // reported soft).
+    @Test("Ownership edges stay hard through dedup and cycle detection even when deferred flags are present")
+    func ownershipEdgesDominateDeferredFlags() {
         let edges = [
             DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true, isProvider: false, isOwnership: true),
             DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: true, isProvider: false, isOwnership: true)
         ]
 
         let deduped = deduplicateEdges(edges)
+        let adjacency = buildCycleDetectionAdjacency(
+            nodes: [makeNode("A"), makeNode("B")],
+            edges: deduped + [DependencyGraphEdge(fromID: "B", toID: "A", label: nil)]
+        )
 
         #expect(deduped.count == 1)
-        #expect(deduped[0].isSoft)
         #expect(deduped[0].isOwnership)
+        #expect(!deduped[0].isSoft)
+        #expect(!deduped[0].isProvider)
+        #expect(adjacency["A"] == ["B"])
+        #expect(!detectDependencyCycles(adjacency: adjacency).isEmpty)
     }
 }

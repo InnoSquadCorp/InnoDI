@@ -142,29 +142,6 @@ private func extractPeerInfo(
     )
 }
 
-/// `private var _innoDISubBuild_<name>: () -> <ChildType> = { fatalError(...) }`
-///
-/// Stored build closure for a `.transient` sub-container. Emitted as a peer
-/// of the `@SubContainer` property with a `fatalError`-producing default so
-/// Swift's definite-initialization rules are satisfied without forcing the
-/// parent init to assign the closure before every `self` read. The parent
-/// init re-assigns the closure after every other storage slot is filled
-/// (using a `_lazySelfForSub = self` snapshot), which in practice always
-/// happens before any accessor invocation — the fallback `fatalError` only
-/// fires if the caller skipped the generated init entirely, which our
-/// macro design does not allow.
-private func subContainerBuildClosurePeerDecl(
-    name: String,
-    childType: TypeSyntax
-) -> DeclSyntax {
-    let trimmed = childType.trimmedDescription
-    return """
-        private var _innoDISubBuild_\(raw: name): () -> \(raw: trimmed) = {
-            fatalError("_innoDISubBuild_\(raw: name) invoked before the generated init populated it. This should be unreachable — report as an InnoDI bug.")
-        }
-        """
-}
-
 /// `private let _override_sub_apply_<name>: ((inout <ChildType>.Overrides) -> Void)?`
 ///
 /// Optional wedge used by the parent `Overrides.<name>Overrides` slot to

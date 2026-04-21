@@ -1584,6 +1584,59 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer multi-binding emits sub.single-binding")
+    func subContainerSingleBindingDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                var first, second: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "SwiftSyntaxMacroExpansion", id: "accessorMacroOnVariableWithMultipleBindings"),
+                MessageID(domain: "SwiftSyntaxMacroExpansion", id: "peerMacroOnVariableWithMultipleBindings"),
+                MessageID(domain: "InnoDI.usage", id: "sub.single-binding")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer wildcard binding emits sub.named-property-required")
+    func subContainerNamedPropertyRequiredDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                var _: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.usage", id: "sub.named-property-required")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer inferred type emits sub.explicit-type-required")
+    func subContainerExplicitTypeRequiredDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                var feature = FeatureContainer()
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.usage", id: "sub.explicit-type-required")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer without scope: emits sub.scope-required")
     func subContainerMissingScopeDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -1603,6 +1656,33 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer unknown scope anchors the diagnostic to the scope expression")
+    func subContainerUnknownScopeAnchorsToScopeExpression() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .request
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerUnknownScopeAnchorsToScopeExpression",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "sub.unknown-scope"),
+                    message: "Unknown @SubContainer scope '.request' on 'feature'. Valid scopes are .shared and .transient.",
+                    line: 6,
+                    column: 16
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer with unknown scope value emits sub.unknown-scope")
     func subContainerUnknownScopeDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -1617,6 +1697,34 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "sub.unknown-scope")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with unknown parent member anchors the diagnostic to the keypath")
+    func subContainerUnknownParentMemberAnchorsToKeyPath() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.missing]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerUnknownParentMemberAnchorsToKeyPath",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member"),
+                    message: "@SubContainer on 'feature' references parent member 'missing' via with:, but no such member exists. Only @Provide-annotated parent members can be passed to a child container.",
+                    line: 7,
+                    column: 16
+                )
             ],
             macros: Self.macros
         )
@@ -1642,6 +1750,35 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer with transient parent in with: anchors the diagnostic to the keypath")
+    func subContainerTransientParentAnchorUsesKeyPath() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.transient, factory: Request(), concrete: true) var request: Request
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.request]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerTransientParentAnchorUsesKeyPath",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"),
+                    message: "@SubContainer(scope: .shared) 'feature' cannot read parent member 'request' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so 'request' is .shared or .input.",
+                    line: 8,
+                    column: 16
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("`with: [\\.unknown]` emits sub.unknown-parent-member")
     func subContainerUnknownParentMemberDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -1656,6 +1793,25 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer generated override slot names diagnose member collisions")
+    func subContainerOverrideNameConflictDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var featureOverrides: String
+
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.overrides-name-conflict")
             ],
             macros: Self.macros
         )

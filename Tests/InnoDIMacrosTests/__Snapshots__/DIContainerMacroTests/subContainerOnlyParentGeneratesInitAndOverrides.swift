@@ -15,9 +15,9 @@ struct AppContainer {
     init(feature: FeatureContainer? = nil, featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil) {
         if let direct = feature {
             self._storage_sub_feature = direct
-        } else if let apply = featureOverrides {
+         } else if let apply = featureOverrides {
             self._storage_sub_feature = FeatureContainer(apply)
-        } else {
+         } else {
             self._storage_sub_feature = FeatureContainer()
         }
         self._override_sub_feature = feature
