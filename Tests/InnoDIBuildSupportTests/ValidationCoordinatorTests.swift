@@ -613,6 +613,103 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Legacy shared-run cache directories without a version salt are ignored")
+    func legacySharedRunCacheDirectoriesAreIgnored() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let legacyDirectory = fixture.stateURL.appendingPathComponent(signature, isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        try persistJSON(
+            ValidationCommandResult(exitCode: 0, stdout: "legacy\n", stderr: ""),
+            to: legacyDirectory.appendingPathComponent("result.json")
+        )
+        try persistJSON(
+            SharedValidationRunRecord(
+                liveRunMetrics: ValidationLiveRunMetrics(
+                    customInitValidationMilliseconds: 1,
+                    semanticValidationMilliseconds: 1,
+                    dagValidationMilliseconds: 1
+                ),
+                reasonCodes: [.liveRunSemanticValidation, .liveRunDAGValidation],
+                issues: []
+            ),
+            to: legacyDirectory.appendingPathComponent("validation-metrics.json")
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "fresh\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.wasCached == false)
+        #expect(outcome.result.stdout == "fresh\n")
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticValidation))
+        #expect(runner.invocationCount == 1)
+        #expect(FileManager.default.fileExists(atPath: legacyDirectory.path(percentEncoded: false)) == false)
+    }
+
+    @Test("Corrupt current-version shared-run metrics fall back to a live validation run")
+    func corruptCurrentVersionSharedRunMetricsFallBackToLiveRun() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+        try persistJSON(
+            ValidationCommandResult(exitCode: 0, stdout: "legacy\n", stderr: ""),
+            to: sharedRunDirectory.appendingPathComponent("result.json")
+        )
+        try Data("{\"liveRunMetrics\":{}}".utf8).write(
+            to: sharedRunDirectory.appendingPathComponent("validation-metrics.json"),
+            options: .atomic
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "fresh\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.wasCached == false)
+        #expect(outcome.result.stdout == "fresh\n")
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticValidation))
+        #expect(runner.invocationCount == 1)
+
+        let repairedRecord = try loadSharedValidationRunRecord(
+            at: sharedRunDirectory.appendingPathComponent("validation-metrics.json")
+        )
+        #expect(repairedRecord.liveRunMetrics.semanticValidationMilliseconds >= 0)
+    }
+
     @Test("Failure result is reused for identical input signature")
     func failureResultIsReused() throws {
         let fixture = try makeFixture()
@@ -973,6 +1070,16 @@ private func loadDigestManifest(at url: URL) throws -> ValidationDigestManifest 
 private func loadMetricsArtifact(at url: URL) throws -> ValidationMetricsArtifact {
     let data = try Data(contentsOf: url)
     return try JSONDecoder().decode(ValidationMetricsArtifact.self, from: data)
+}
+
+private func loadSharedValidationRunRecord(at url: URL) throws -> SharedValidationRunRecord {
+    let data = try Data(contentsOf: url)
+    return try JSONDecoder().decode(SharedValidationRunRecord.self, from: data)
+}
+
+private func persistJSON<Value: Encodable>(_ value: Value, to url: URL) throws {
+    let data = try JSONEncoder().encode(value)
+    try data.write(to: url, options: .atomic)
 }
 
 private func makeFixture() throws -> FixturePaths {

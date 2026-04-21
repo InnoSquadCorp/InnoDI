@@ -331,23 +331,35 @@ private func makeInitDecl(
             CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelfForSub", value: "self")))
         )
         for member in subContainerMembers where member.scope == .transient {
-            let selectedNames = member.parentDependencies.isEmpty
-                ? autoWireParentMemberNames
-                : member.parentDependencies
             let childTypeDesc = member.type.trimmedDescription
-            let baseArgs = selectedNames
-                .map { "\($0): _lazySelfForSub.\($0)" }
-                .joined(separator: ", ")
-            let withApplyArgs = baseArgs.isEmpty ? "apply" : "\(baseArgs), apply"
+            let selectedArguments = resolvedSubContainerArguments(
+                member: member,
+                autoWireParentMemberNames: autoWireParentMemberNames
+            )
+            let baseInitializer = subContainerInitializerExpr(
+                childType: member.type,
+                argumentMappings: selectedArguments,
+                parentMemberBaseName: "_lazySelfForSub",
+                parentMemberPrefix: ""
+            )
+            let overrideInitializer = subContainerInitializerExpr(
+                childType: member.type,
+                argumentMappings: selectedArguments,
+                trailingOverrideExpression: ExprSyntax(
+                    DeclReferenceExprSyntax(baseName: .identifier("apply"))
+                ),
+                parentMemberBaseName: "_lazySelfForSub",
+                parentMemberPrefix: ""
+            )
             let assignStmt: CodeBlockItemSyntax = """
                 self._innoDISubBuild_\(raw: member.name) = { () -> \(raw: childTypeDesc) in
                     if let direct = _lazySelfForSub._override_sub_\(raw: member.name) {
                         return direct
                     }
                     if let apply = _lazySelfForSub._override_sub_apply_\(raw: member.name) {
-                        return \(raw: childTypeDesc)(\(raw: withApplyArgs))
+                        return \(overrideInitializer)
                     }
-                    return \(raw: childTypeDesc)(\(raw: baseArgs))
+                    return \(baseInitializer)
                 }
                 """
             statements.append(assignStmt)
@@ -1134,7 +1146,9 @@ private func subContainerSharedAssignmentExpr(
 private func subContainerInitializerExpr(
     childType: TypeSyntax,
     argumentMappings: [(childLabel: String, parentName: String)],
-    trailingOverrideExpression: ExprSyntax? = nil
+    trailingOverrideExpression: ExprSyntax? = nil,
+    parentMemberBaseName: String = "self",
+    parentMemberPrefix: String = "_storage_"
 ) -> ExprSyntax {
     let totalArgumentCount = argumentMappings.count + (trailingOverrideExpression == nil ? 0 : 1)
     var arguments: [LabeledExprSyntax] = argumentMappings.enumerated().map { index, mapping in
@@ -1143,7 +1157,10 @@ private func subContainerInitializerExpr(
         return LabeledExprSyntax(
             label: .identifier(mapping.childLabel),
             colon: .colonToken(),
-            expression: makeSelfMemberAccessExpr(name: "_storage_\(mapping.parentName)"),
+            expression: makeSelfMemberAccessExpr(
+                name: "\(parentMemberPrefix)\(mapping.parentName)",
+                baseName: parentMemberBaseName
+            ),
             trailingComma: isLast || totalArgumentCount == 0 ? nil : .commaToken()
         )
     }

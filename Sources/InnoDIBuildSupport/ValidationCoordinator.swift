@@ -36,6 +36,12 @@ package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
     package let issues: [ValidationIssue]
 }
 
+package let sharedRunCacheVersion = 1
+
+package func sharedRunCacheKey(for signature: String) -> String {
+    "shared-run-v\(sharedRunCacheVersion)-\(signature)"
+}
+
 package struct LiveValidationCommandRunner: ValidationCommandRunning {
     package init() {}
 
@@ -114,10 +120,11 @@ package enum ValidationCoordinator {
             stateDirectoryPath: stateDirectoryPath
         )
         let signature = signatureCollection.signature
+        let sharedRunKey = sharedRunCacheKey(for: signature)
         let signatureCollectionMilliseconds = validationElapsedMilliseconds(since: signatureCollectionStartTime)
-        let sharedRunDirectory = stateDirectoryURL.appendingPathComponent(signature, isDirectory: true)
+        let sharedRunDirectory = stateDirectoryURL.appendingPathComponent(sharedRunKey, isDirectory: true)
         try fileManager.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
-        try pruneSharedRunDirectories(keepingSignature: signature, in: stateDirectoryURL)
+        try pruneSharedRunDirectories(keepingDirectoryName: sharedRunKey, in: stateDirectoryURL)
 
         let resultURL = sharedRunDirectory.appendingPathComponent("result.json")
         let sharedRunRecordURL = sharedRunDirectory.appendingPathComponent("validation-metrics.json")
@@ -169,8 +176,10 @@ package enum ValidationCoordinator {
             )
         }
 
-        if let cachedResult = try loadCachedResult(at: resultURL) {
-            let sharedRunRecord = try loadSharedRunRecord(at: sharedRunRecordURL)
+        if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
+            resultURL: resultURL,
+            sharedRunRecordURL: sharedRunRecordURL
+        ) {
             return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
         }
 
@@ -178,8 +187,10 @@ package enum ValidationCoordinator {
             if let lockDescriptor = try acquireLock(at: lockURL) {
                 defer { releaseLock(descriptor: lockDescriptor, at: lockURL) }
 
-                if let cachedResult = try loadCachedResult(at: resultURL) {
-                    let sharedRunRecord = try loadSharedRunRecord(at: sharedRunRecordURL)
+                if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
+                    resultURL: resultURL,
+                    sharedRunRecordURL: sharedRunRecordURL
+                ) {
                     return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
                 }
 
@@ -253,21 +264,44 @@ package enum ValidationCoordinator {
                 return try finalizeOutcome(result: result, wasCached: false, sharedRunRecord: sharedRunRecord)
             }
 
-            if let cachedResult = try waitForCachedResult(resultURL: resultURL, lockURL: lockURL) {
-                let sharedRunRecord = try loadSharedRunRecord(at: sharedRunRecordURL)
+            if let (cachedResult, sharedRunRecord) = waitForCachedSharedRun(
+                resultURL: resultURL,
+                sharedRunRecordURL: sharedRunRecordURL,
+                lockURL: lockURL
+            ) {
                 return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
             }
         }
     }
 }
 
-private func loadCachedResult(at url: URL) throws -> ValidationCommandResult? {
+private func loadCachedSharedRun(
+    resultURL: URL,
+    sharedRunRecordURL: URL
+) -> (result: ValidationCommandResult, record: SharedValidationRunRecord)? {
+    guard
+        let result = loadCachedResult(at: resultURL),
+        let record = loadSharedRunRecord(at: sharedRunRecordURL)
+    else {
+        return nil
+    }
+
+    return (result, record)
+}
+
+private func loadCachedResult(at url: URL) -> ValidationCommandResult? {
     guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
         return nil
     }
 
-    let data = try Data(contentsOf: url)
-    return try JSONDecoder().decode(ValidationCommandResult.self, from: data)
+    guard
+        let data = try? Data(contentsOf: url),
+        let result = try? JSONDecoder().decode(ValidationCommandResult.self, from: data)
+    else {
+        return nil
+    }
+
+    return result
 }
 
 private func persistResult(_ result: ValidationCommandResult, to url: URL) throws {
@@ -286,21 +320,19 @@ private func persistMetricsArtifact(_ artifact: ValidationMetricsArtifact, to ur
     try data.write(to: url, options: .atomic)
 }
 
-private func loadSharedRunRecord(at url: URL) throws -> SharedValidationRunRecord {
+private func loadSharedRunRecord(at url: URL) -> SharedValidationRunRecord? {
     guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
-        return SharedValidationRunRecord(
-            liveRunMetrics: ValidationLiveRunMetrics(
-                customInitValidationMilliseconds: 0,
-                semanticValidationMilliseconds: 0,
-                dagValidationMilliseconds: 0
-            ),
-            reasonCodes: [],
-            issues: []
-        )
+        return nil
     }
 
-    let data = try Data(contentsOf: url)
-    return try JSONDecoder().decode(SharedValidationRunRecord.self, from: data)
+    guard
+        let data = try? Data(contentsOf: url),
+        let record = try? JSONDecoder().decode(SharedValidationRunRecord.self, from: data)
+    else {
+        return nil
+    }
+
+    return record
 }
 
 private func persistSharedRunRecord(_ record: SharedValidationRunRecord, to url: URL) throws {
@@ -332,7 +364,7 @@ private func releaseLock(descriptor: Int32, at url: URL) {
     try? FileManager.default.removeItem(at: url)
 }
 
-private func pruneSharedRunDirectories(keepingSignature signature: String, in stateDirectoryURL: URL) throws {
+private func pruneSharedRunDirectories(keepingDirectoryName directoryName: String, in stateDirectoryURL: URL) throws {
     let fileManager = FileManager.default
     let entries = try fileManager.contentsOfDirectory(
         at: stateDirectoryURL,
@@ -342,19 +374,26 @@ private func pruneSharedRunDirectories(keepingSignature signature: String, in st
 
     for entry in entries {
         let values = try entry.resourceValues(forKeys: [.isDirectoryKey])
-        guard values.isDirectory == true, entry.lastPathComponent != signature else {
+        guard values.isDirectory == true, entry.lastPathComponent != directoryName else {
             continue
         }
         try? fileManager.removeItem(at: entry)
     }
 }
 
-private func waitForCachedResult(resultURL: URL, lockURL: URL) throws -> ValidationCommandResult? {
+private func waitForCachedSharedRun(
+    resultURL: URL,
+    sharedRunRecordURL: URL,
+    lockURL: URL
+) -> (result: ValidationCommandResult, record: SharedValidationRunRecord)? {
     let timeoutDate = Date().addingTimeInterval(30)
 
     while Date() < timeoutDate {
-        if let cachedResult = try loadCachedResult(at: resultURL) {
-            return cachedResult
+        if let cachedSharedRun = loadCachedSharedRun(
+            resultURL: resultURL,
+            sharedRunRecordURL: sharedRunRecordURL
+        ) {
+            return cachedSharedRun
         }
 
         if !FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)) {

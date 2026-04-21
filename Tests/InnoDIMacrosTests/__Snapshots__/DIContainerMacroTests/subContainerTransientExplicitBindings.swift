@@ -31,9 +31,9 @@ struct AppContainer {
                 return direct
             }
             if let apply = _lazySelfForSub._override_sub_apply_feature {
-                return FeatureBindingsContainer(config: _lazySelfForSub.config, apply)
+                return FeatureBindingsContainer(featureConfig: _lazySelfForSub.config, apply)
             }
-            return FeatureBindingsContainer(config: _lazySelfForSub.config)
+            return FeatureBindingsContainer(featureConfig: _lazySelfForSub.config)
         }
     }
 

@@ -77,6 +77,17 @@ struct RuntimeParentWithBindingsContainer {
 }
 
 @DIContainer
+struct RuntimeParentWithTransientBindingsContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+
+    @SubContainer(
+        scope: .transient,
+        bindings: [(child: \RuntimeBindingsChildContainer.featureConfig, parent: \RuntimeParentWithTransientBindingsContainer.config)]
+    )
+    var child: RuntimeBindingsChildContainer
+}
+
+@DIContainer
 struct RuntimeInputOnlyChildContainer {
     @Provide(.input) var config: RuntimeParentConfig
 }
@@ -111,6 +122,25 @@ struct OverrideParentContainer {
 
     @SubContainer(scope: .shared)
     var feature: OverrideCapableChild
+}
+
+@DIContainer
+struct OverrideTransientBindingsChild {
+    @Provide(.input) var featureConfig: RuntimeParentConfig
+
+    @Provide(.shared, factory: OverrideChildStore(tag: "default"), concrete: true)
+    var store: OverrideChildStore
+}
+
+@DIContainer
+struct OverrideTransientBindingsParentContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+
+    @SubContainer(
+        scope: .transient,
+        bindings: [(child: \OverrideTransientBindingsChild.featureConfig, parent: \OverrideTransientBindingsParentContainer.config)]
+    )
+    var feature: OverrideTransientBindingsChild
 }
 
 @Suite("SubContainer runtime (Phase M)")
@@ -163,6 +193,14 @@ struct SubContainerRuntimeTests {
             config: RuntimeParentConfig(endpoint: "bindings")
         )
         #expect(parent.child.featureConfig == RuntimeParentConfig(endpoint: "bindings"))
+    }
+
+    @Test("`.transient` bindings: remap parent and child labels explicitly")
+    func transientBindingsRemapParentAndChildLabels() {
+        let parent = RuntimeParentWithTransientBindingsContainer(
+            config: RuntimeParentConfig(endpoint: "transient-bindings")
+        )
+        #expect(parent.child.featureConfig == RuntimeParentConfig(endpoint: "transient-bindings"))
     }
 
     // MARK: - Overrides builder integration
@@ -222,6 +260,40 @@ struct SubContainerRuntimeTests {
             container.feature.store.tag
         }
         #expect(tag == "scoped-override")
+    }
+
+    @Test("Remapped transient child overrides still apply to the child convenience init")
+    func transientBindingsOverrideChainUsesRemappedInputs() {
+        let parent = OverrideTransientBindingsParentContainer(
+            config: RuntimeParentConfig(endpoint: "transient-override")
+        ) {
+            $0.featureOverrides = { childOv in
+                childOv.store = OverrideChildStore(tag: "transient-chain")
+            }
+        }
+        let child = parent.feature
+        #expect(child.featureConfig == RuntimeParentConfig(endpoint: "transient-override"))
+        #expect(child.store.tag == "transient-chain")
+    }
+
+    @Test("Direct replacement still wins over childOverrides for remapped transient children")
+    func transientBindingsDirectReplacementWinsOverChain() {
+        let replacement = OverrideTransientBindingsChild(
+            featureConfig: RuntimeParentConfig(endpoint: "replacement"),
+            store: OverrideChildStore(tag: "transient-direct")
+        )
+        let parent = OverrideTransientBindingsParentContainer(
+            config: RuntimeParentConfig(endpoint: "ignored")
+        ) {
+            $0.feature = replacement
+            $0.featureOverrides = { childOv in
+                childOv.store = OverrideChildStore(tag: "transient-chain-should-not-win")
+            }
+        }
+
+        let child = parent.feature
+        #expect(child.featureConfig == RuntimeParentConfig(endpoint: "replacement"))
+        #expect(child.store.tag == "transient-direct")
     }
 
     @Test("input-only child sub-containers still support direct replacement")
