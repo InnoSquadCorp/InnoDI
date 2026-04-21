@@ -553,6 +553,120 @@ in DOT, `~~>` in ASCII with a legend).
   `Provider<T>` / `Lazy<T>` paths now inject wrappers directly and skip the
   extra `_LazyCell` allocation entirely.
 
+## Nested containers with `@SubContainer`
+
+Some dependency graphs are naturally hierarchical: an app container owns
+per-screen or per-request sub-containers that share its configuration but
+have their own local `.shared` state. `@SubContainer` lets the parent
+declare and own those children directly, so callers read `app.feature`
+instead of re-wiring every `.input` by hand.
+
+```swift
+import InnoDI
+
+@DIContainer(root: true)
+struct AppContainer {
+    @Provide(.input) var config: AppConfig
+    @Provide(.shared, factory: APIClient(), concrete: true)
+    var apiClient: any APIClientProtocol
+
+    @SubContainer(scope: .shared)
+    var feature: FeatureContainer
+}
+
+@DIContainer
+struct FeatureContainer {
+    @Provide(.input) var config: AppConfig
+    @Provide(.input) var apiClient: any APIClientProtocol
+
+    @Provide(.shared, factory: FeatureStore(), concrete: true)
+    var store: FeatureStore
+}
+
+let app = AppContainer(config: .init(...))
+let feature = app.feature  // child wired automatically from parent members
+```
+
+### Scope
+
+`@SubContainer` requires an explicit scope because the two lifetimes have
+very different runtime behaviour:
+
+| `scope:` | Behaviour | Use when |
+|---|---|---|
+| `.shared` | Parent caches a single child after the first access. | The child should behave like a long-lived coordinator whose inner `.shared` graph is stable across views. |
+| `.transient` | Every read of `app.feature` builds a fresh child. | Per-screen / per-request scopes — each caller gets an independent child with its own `.shared` instances. |
+
+### Wiring rules
+
+- **Auto-match by name.** By default every `@Provide` on the parent is
+  forwarded positionally: `FeatureContainer(config: self.config,
+  apiClient: self.apiClient)`. The child's `.input` parameter labels
+  must match parent member names. If they don't, Swift raises a normal
+  compile error at the generated call site.
+- **`with: [\.parentName]`** restricts the forwarded set to a specific
+  subset — useful when the child only needs a few of the parent's
+  members. The macro still labels each argument by parent-member name;
+  it does not rewrite labels.
+- **`.shared` sub cannot read `.transient` parents.** `.shared`
+  children are built inside the parent init, where `.transient`
+  accessors are not yet callable. The validator rejects that
+  combination with `sub.shared-parent-must-not-be-transient`.
+
+### Overrides builder integration
+
+Every `@SubContainer` member adds two slots to the parent's
+`Overrides` struct:
+
+| Slot | Meaning |
+|---|---|
+| `var <name>: <ChildContainer>? = nil` | Replace the child entirely (e.g. inject a mock sub-container). |
+| `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil` | Chain into the child's own convenience init so individual `.shared`/`.transient` members can be overridden per test. |
+
+Direct replacement wins when both slots are set. The chain closure
+requires the child to have its own `Overrides` builder (i.e. at least
+one `.shared` / `.transient` / `@SubContainer` member on the child).
+
+```swift
+let container = AppContainer(config: .init(...)) { overrides in
+    overrides.featureOverrides = { feature in
+        feature.store = MockStore()
+    }
+}
+
+let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
+    overrides.feature = MockFeatureContainer(...)     // full replacement
+} operation: { app in
+    app.feature.readSomething()
+}
+```
+
+### Validation diagnostics
+
+| Code | Fires when |
+|---|---|
+| `sub.scope-required` | `@SubContainer` without a `scope:` argument. |
+| `sub.unknown-scope` | Scope value is not `.shared` / `.transient`. |
+| `sub.conflicts-with-provide` | Same property carries both `@Provide` and `@SubContainer`. |
+| `sub.unknown-parent-member` | `with:` keypath does not resolve to a `@Provide` member on the parent. |
+| `sub.shared-parent-must-not-be-transient` | `.shared` sub-container would read a parent member that has `.transient` scope. |
+
+### Graph rendering
+
+The CLI recognises `@SubContainer` as an ownership relationship and
+renders it with its own style so reviewers can distinguish ownership
+from regular `.input` wiring:
+
+| Format | Ownership glyph |
+|---|---|
+| Mermaid | `-->` with forced `owns: <member>` label |
+| DOT | `style=bold, color="#1e3a8a"` |
+| ASCII | `#=>` glyph with `:owns,<member>` suffix + legend row |
+
+Ownership edges participate in cycle detection as hard edges — child
+construction happens at parent-init time, so a parent ↔ child loop
+would loop during init.
+
 ## Dependency Graph Visualization
 
 InnoDI includes a command-line tool to generate dependency graphs from your `@DIContainer` declarations. This helps visualize the relationships between containers and their dependencies.
