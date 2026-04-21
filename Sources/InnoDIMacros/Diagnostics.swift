@@ -38,6 +38,11 @@ enum InnoDIDiagnosticCode: String {
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
+    case subScopeRequired = "sub.scope-required"
+    case subUnknownScope = "sub.unknown-scope"
+    case subConflictsWithProvide = "sub.conflicts-with-provide"
+    case subUnknownParentMember = "sub.unknown-parent-member"
+    case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
 
     var category: InnoDIDiagnosticCategory {
         switch self {
@@ -51,7 +56,9 @@ enum InnoDIDiagnosticCode: String {
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
-                .graphAmbiguousContainerReference:
+                .graphAmbiguousContainerReference,
+                .subScopeRequired, .subUnknownScope, .subConflictsWithProvide,
+                .subUnknownParentMember, .subSharedParentMustNotBeTransient:
             return .validation
         }
     }
@@ -252,6 +259,46 @@ extension SimpleDiagnostic {
             "A nested 'Overrides' \(kind) is already declared. InnoDI's @DIContainer would normally generate an Overrides builder, but the user declaration takes precedence. Rename the user type or skip InnoDI's override scaffolding.",
             code: .containerOverridesNameConflict,
             severity: .warning
+        )
+    }
+
+    // MARK: - Phase M: @SubContainer diagnostics
+
+    static func subScopeRequired(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' requires an explicit scope: argument — either .shared or .transient.",
+            code: .subScopeRequired
+        )
+    }
+
+    static func subUnknownScope(memberName: String, scopeName: String) -> Self {
+        Self(
+            "Unknown @SubContainer scope '.\(scopeName)' on '\(memberName)'. Valid scopes are .shared and .transient.",
+            code: .subUnknownScope
+        )
+    }
+
+    static func subConflictsWithProvide(memberName: String) -> Self {
+        Self(
+            "'\(memberName)' cannot carry both @Provide and @SubContainer. Remove one of the attributes — use @SubContainer for nested containers and @Provide for regular dependencies.",
+            code: .subConflictsWithProvide
+        )
+    }
+
+    static func subUnknownParentMember(memberName: String, parentMemberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' references parent member '\(parentMemberName)' via with:, but no such member exists. Only @Provide-annotated parent members can be passed to a child container.",
+            code: .subUnknownParentMember
+        )
+    }
+
+    static func subSharedParentMustNotBeTransient(
+        memberName: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "@SubContainer(scope: .shared) '\(memberName)' cannot read parent member '\(parentMemberName)' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so '\(parentMemberName)' is .shared or .input.",
+            code: .subSharedParentMustNotBeTransient
         )
     }
 }
