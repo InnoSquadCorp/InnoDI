@@ -9,6 +9,7 @@ struct DIContainerCodeGenerator {
             asyncSharedMembers: model.asyncSharedMembers,
             inputMembers: model.inputMembers,
             transientMembers: model.transientMembers,
+            subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
             mainActorEnabled: model.options.mainActor
         )
@@ -17,11 +18,18 @@ struct DIContainerCodeGenerator {
     /// Generates the full member set: primary init + (if applicable) `Overrides`
     /// struct + convenience init + 4 `withOverrides` effect overloads.
     ///
-    /// When the container has no `.shared`/`.transient` members, the overrides
-    /// scaffolding is skipped silently — an empty `Overrides` builder would
-    /// only add autocomplete noise.
+    /// When the container has no `.shared`/`.transient` / `@SubContainer`
+    /// members, the overrides scaffolding is skipped silently — an empty
+    /// `Overrides` builder would only add autocomplete noise.
     static func generateAll(for model: DIContainerExpansionModel) -> [DeclSyntax] {
         var decls: [DeclSyntax] = [generateInit(for: model)]
+
+        // Phase M: `.transient` sub-containers are backed by a stored
+        // builder closure that `@SubContainer.PeerMacro` emits; the init
+        // assigns that closure using a `_lazySelf` snapshot so it can
+        // reach parent members on every invocation. The closure logic is
+        // generated inline by `makeSubContainerInitStatements` — no extra
+        // member-level decls are needed here.
 
         guard let overridesStruct = makeOverridesStructDecl(model: model) else {
             return decls
@@ -59,6 +67,7 @@ private func makeInitDecl(
     asyncSharedMembers: [ProvideMemberModel],
     inputMembers: [ProvideMemberModel],
     transientMembers: [ProvideMemberModel],
+    subContainerMembers: [SubContainerMemberModel],
     accessLevel: String?,
     mainActorEnabled: Bool
 ) -> DeclSyntax {
@@ -82,7 +91,10 @@ private func makeInitDecl(
     let deferredTargetNameSet = Set(deferredTargetMembers.map(\.name))
 
     for (index, member) in inputMembers.enumerated() {
-        let isLast = index == inputMembers.count - 1 && sharedMembers.isEmpty && transientMembers.isEmpty
+        let isLast = index == inputMembers.count - 1
+            && sharedMembers.isEmpty
+            && transientMembers.isEmpty
+            && subContainerMembers.isEmpty
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -96,7 +108,9 @@ private func makeInitDecl(
     }
 
     for (index, member) in sharedMembers.enumerated() {
-        let isLast = index == sharedMembers.count - 1 && transientMembers.isEmpty
+        let isLast = index == sharedMembers.count - 1
+            && transientMembers.isEmpty
+            && subContainerMembers.isEmpty
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -111,6 +125,7 @@ private func makeInitDecl(
 
     for (index, member) in transientMembers.enumerated() {
         let isLast = index == transientMembers.count - 1
+            && subContainerMembers.isEmpty
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -121,6 +136,41 @@ private func makeInitDecl(
             trailingComma: isLast ? nil : .commaToken()
         )
         params.append(param)
+    }
+
+    // Phase M: two parameters per `@SubContainer` member — a direct
+    // replacement (`<name>: Child? = nil`) and a trailing-closure override
+    // block forwarded into the child's own convenience init
+    // (`<name>Overrides: ((inout Child.Overrides) -> Void)? = nil`). Both
+    // default to `nil` so existing call sites stay unchanged; the Overrides
+    // builder threads named values in via the convenience init.
+    for (index, member) in subContainerMembers.enumerated() {
+        let isLastMember = index == subContainerMembers.count - 1
+        let directType = optionalParameterType(for: member.type)
+        let childTypeDescription = member.type.trimmedDescription
+        let applyTypeSyntax = TypeSyntax(stringLiteral: "((inout \(childTypeDescription).Overrides) -> Void)?")
+
+        let directParam = FunctionParameterSyntax(
+            firstName: .identifier(member.name),
+            secondName: nil,
+            colon: .colonToken(),
+            type: directType,
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
+            trailingComma: .commaToken()
+        )
+        params.append(directParam)
+
+        let applyParam = FunctionParameterSyntax(
+            firstName: .identifier("\(member.name)Overrides"),
+            secondName: nil,
+            colon: .colonToken(),
+            type: applyTypeSyntax,
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
+            trailingComma: isLastMember ? nil : .commaToken()
+        )
+        params.append(applyParam)
     }
 
     let signature = FunctionSignatureSyntax(
@@ -254,6 +304,56 @@ private func makeInitDecl(
                     )
                 )
             )
+        }
+    }
+
+    // Phase M: sub-container storage.
+    //
+    // `.shared` children are built (or replaced by an override) exactly
+    // once here and assigned to `_storage_sub_<name>`.
+    //
+    // `.transient` children capture a closure in `_innoDISubBuild_<name>`
+    // (a `private let` peer emitted by `@SubContainer.PeerMacro`). The
+    // closure captures a `_lazySelfForSub` snapshot so it can read parent
+    // accessors as a fully-constructed value type — value-type copies of
+    // `self` are cheap and reflect the stable parent state.
+    let autoWireParentMemberNames = (inputMembers + sharedMembers + transientMembers).map(\.name)
+    let hasTransientSubContainer = subContainerMembers.contains(where: { $0.scope == .transient })
+    for member in subContainerMembers {
+        statements.append(contentsOf: makeSubContainerInitStatements(
+            member: member,
+            autoWireParentMemberNames: autoWireParentMemberNames
+        ))
+    }
+    if hasTransientSubContainer {
+        // Snapshot `self` once, *after* every other stored property is
+        // assigned, so the closures we bind below can safely read parent
+        // accessors. The override wedges for every sub-container member
+        // are assigned by the loop above, so `self` is fully initialized.
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelfForSub", value: "self")))
+        )
+        for member in subContainerMembers where member.scope == .transient {
+            let selectedNames = member.parentDependencies.isEmpty
+                ? autoWireParentMemberNames
+                : member.parentDependencies
+            let childTypeDesc = member.type.trimmedDescription
+            let baseArgs = selectedNames
+                .map { "\($0): _lazySelfForSub.\($0)" }
+                .joined(separator: ", ")
+            let withApplyArgs = baseArgs.isEmpty ? "apply" : "\(baseArgs), apply"
+            let assignStmt: CodeBlockItemSyntax = """
+                self._innoDISubBuild_\(raw: member.name) = { () -> \(raw: childTypeDesc) in
+                    if let direct = _lazySelfForSub._override_sub_\(raw: member.name) {
+                        return direct
+                    }
+                    if let apply = _lazySelfForSub._override_sub_apply_\(raw: member.name) {
+                        return \(raw: childTypeDesc)(\(raw: withApplyArgs))
+                    }
+                    return \(raw: childTypeDesc)(\(raw: baseArgs))
+                }
+                """
+            statements.append(assignStmt)
         }
     }
 
@@ -536,10 +636,11 @@ private func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [Pr
 
 private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax? {
     let candidates = overrideCandidateMembers(model)
-    guard !candidates.isEmpty else { return nil }
+    let subs = model.subContainerMembers
+    guard !candidates.isEmpty || !subs.isEmpty else { return nil }
 
     let modifiers = accessModifiers(model.accessLevel)
-    let memberDecls: [MemberBlockItemSyntax] = candidates.map { member in
+    var memberDecls: [MemberBlockItemSyntax] = candidates.map { member in
         let variableDecl = VariableDeclSyntax(
             modifiers: modifiers,
             bindingSpecifier: .keyword(.var),
@@ -552,6 +653,40 @@ private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSy
             ])
         )
         return MemberBlockItemSyntax(decl: variableDecl)
+    }
+
+    // Phase M: each `@SubContainer` member gains two slots on Overrides —
+    // `<name>` for full replacement, `<name>Overrides` for a closure that
+    // forwards into the child's own convenience init. Both default to nil so
+    // tests only touch the slots they actually need.
+    for member in subs {
+        let childTypeDesc = member.type.trimmedDescription
+        let directSlot = VariableDeclSyntax(
+            modifiers: modifiers,
+            bindingSpecifier: .keyword(.var),
+            bindings: PatternBindingListSyntax([
+                PatternBindingSyntax(
+                    pattern: IdentifierPatternSyntax(identifier: .identifier(member.name)),
+                    typeAnnotation: TypeAnnotationSyntax(type: optionalParameterType(for: member.type)),
+                    initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
+                )
+            ])
+        )
+        memberDecls.append(MemberBlockItemSyntax(decl: directSlot))
+
+        let applyType = TypeSyntax(stringLiteral: "((inout \(childTypeDesc).Overrides) -> Void)?")
+        let applySlot = VariableDeclSyntax(
+            modifiers: modifiers,
+            bindingSpecifier: .keyword(.var),
+            bindings: PatternBindingListSyntax([
+                PatternBindingSyntax(
+                    pattern: IdentifierPatternSyntax(identifier: .identifier("\(member.name)Overrides")),
+                    typeAnnotation: TypeAnnotationSyntax(type: applyType),
+                    initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
+                )
+            ])
+        )
+        memberDecls.append(MemberBlockItemSyntax(decl: applySlot))
     }
 
     let structDecl = StructDeclSyntax(
@@ -639,11 +774,23 @@ private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSy
     )
     statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(applyCall))))
 
-    // self.init(<input args...>, <shared args...>, <transient args...>)
+    // self.init(<input args...>, <shared args...>, <transient args...>,
+    //           <subContainer direct args...>, <subContainerOverrides args...>)
     var callArgs: [LabeledExprSyntax] = []
     let allForwardingMembers = inputMembers + model.sharedMembers + model.transientMembers
+    let subForwardingPairs: [(label: String, source: String)] = model.subContainerMembers.flatMap { sub in
+        // Each sub-container contributes two forwarded args: direct
+        // replacement (`overrides.<name>`) and the chained closure
+        // (`overrides.<name>Overrides`).
+        [
+            (sub.name, sub.name),
+            ("\(sub.name)Overrides", "\(sub.name)Overrides")
+        ]
+    }
+    let totalArgCount = allForwardingMembers.count + subForwardingPairs.count
+
     for (index, member) in allForwardingMembers.enumerated() {
-        let isLast = index == allForwardingMembers.count - 1
+        let isLast = index == allForwardingMembers.count - 1 && subForwardingPairs.isEmpty
         let valueExpr: ExprSyntax
         if member.scope == .input {
             // Input parameter forwarded from the outer init.
@@ -661,6 +808,25 @@ private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSy
         callArgs.append(
             LabeledExprSyntax(
                 label: .identifier(member.name),
+                colon: .colonToken(),
+                expression: valueExpr,
+                trailingComma: isLast ? nil : .commaToken()
+            )
+        )
+    }
+
+    for (index, pair) in subForwardingPairs.enumerated() {
+        let runningIndex = allForwardingMembers.count + index
+        let isLast = runningIndex == totalArgCount - 1
+        let valueExpr = ExprSyntax(
+            MemberAccessExprSyntax(
+                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("overrides"))),
+                declName: DeclReferenceExprSyntax(baseName: .identifier(pair.source))
+            )
+        )
+        callArgs.append(
+            LabeledExprSyntax(
+                label: .identifier(pair.label),
                 colon: .colonToken(),
                 expression: valueExpr,
                 trailingComma: isLast ? nil : .commaToken()
@@ -693,7 +859,7 @@ private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSy
 
 private func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
     let candidates = overrideCandidateMembers(model)
-    guard !candidates.isEmpty else { return [] }
+    guard !candidates.isEmpty || !model.subContainerMembers.isEmpty else { return [] }
 
     return [
         makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false),
@@ -855,3 +1021,157 @@ private func makeWithOverridesMethod(
 
     return DeclSyntax(funcDecl)
 }
+
+// MARK: - Sub-container init / build helpers (Phase M)
+
+/// Emits `private func _innoDISubBuild_<name>() -> <ChildType>` for every
+/// `.transient` sub-container member. The `@SubContainer` accessor macro
+/// produces a getter that simply delegates to this builder, keeping all
+/// parent-member enumeration logic inside the container-level macro where
+/// the full member list is visible.
+///
+/// Assembles `private var _innoDISubBuild_<name>: <ChildType>` for a single
+/// `.transient` `@SubContainer` member, using the parent-member name list
+/// resolved by the caller. Emitted as a peer of the `@SubContainer`
+/// property via `SubContainerMacro.PeerMacro` — kept here so the rendering
+/// rules (auto-match vs `with:`, override wedges, child-overrides
+/// forwarding) stay next to the `.shared` init-time equivalent.
+internal func makeTransientSubContainerBuilder(
+    memberName: String,
+    childType: TypeSyntax,
+    parentDependencies: [String],
+    autoWireParentMemberNames: [String]
+) -> DeclSyntax {
+    let selectedNames = parentDependencies.isEmpty
+        ? autoWireParentMemberNames
+        : parentDependencies
+
+    let childTypeDesc = childType.trimmedDescription
+    let baseArgs = selectedNames
+        .map { "\($0): self.\($0)" }
+        .joined(separator: ", ")
+    let withApplyArgs = baseArgs.isEmpty ? "apply" : "\(baseArgs), apply"
+
+    // Emit as a computed property — Swift 6.3's `prefixed(_innoDISubBuild_)`
+    // macro name coverage on `@SubContainer`'s peer role reliably matches
+    // variable names; function names raise a "not covered by macro" error.
+    return """
+        private var _innoDISubBuild_\(raw: memberName): \(raw: childTypeDesc) {
+            if let direct = self._override_sub_\(raw: memberName) {
+                return direct
+            }
+            if let apply = self._override_sub_apply_\(raw: memberName) {
+                return \(raw: childTypeDesc)(\(raw: withApplyArgs))
+            }
+            return \(raw: childTypeDesc)(\(raw: baseArgs))
+        }
+        """
+}
+
+
+/// Emits the init-time statements for a single `@SubContainer` member:
+///
+/// - `.shared`: builds the child (or accepts the override replacement) once
+///   and assigns `_storage_sub_<name>`. The direct replacement wins; the
+///   `<name>Overrides` trailing-closure block is forwarded to the child's
+///   own convenience init when present.
+/// - `.transient`: only the override wedges are captured; actual construction
+///   happens lazily inside `_innoDISubBuild_<name>()` on every accessor read.
+///
+/// `autoWireParentMemberNames` is the ordered list of parent `@Provide`
+/// member names (input/shared/transient) that the call site forwards by
+/// default. When the user wrote `with: [\.a, \.b]` on the attribute, that
+/// list replaces the default — Swift's compile-time label check surfaces
+/// mismatches with the child's `.input` parameter names.
+private func makeSubContainerInitStatements(
+    member: SubContainerMemberModel,
+    autoWireParentMemberNames: [String]
+) -> [CodeBlockItemSyntax] {
+    let selectedNames = member.parentDependencies.isEmpty
+        ? autoWireParentMemberNames
+        : member.parentDependencies
+
+    var stmts: [CodeBlockItemSyntax] = []
+
+    switch member.scope {
+    case .shared:
+        let ifChain = subContainerSharedAssignmentExpr(
+            member: member,
+            selectedNames: selectedNames
+        )
+        stmts.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifChain))))))
+
+    case .transient, .none:
+        // `.none` should be unreachable — `DIContainerValidator` (M-5)
+        // rejects `@SubContainer` without a scope — but we stay silent here
+        // rather than force a crash during macro expansion.
+        break
+    }
+
+    // Both scopes capture the override wedges so the Overrides builder has
+    // something to inspect at runtime (used by child accessor / helper).
+    stmts.append(
+        CodeBlockItemSyntax(item: .expr(assignExpr(
+            targetName: "_override_sub_\(member.name)",
+            valueName: member.name
+        )))
+    )
+    stmts.append(
+        CodeBlockItemSyntax(item: .expr(assignExpr(
+            targetName: "_override_sub_apply_\(member.name)",
+            valueName: "\(member.name)Overrides"
+        )))
+    )
+
+    return stmts
+}
+
+/// Renders the `if let direct = override { ... } else if let apply = ... { ... } else { ... }`
+/// three-branch storage assignment used for `.shared` sub-containers. Uses
+/// string parsing for readability — the output only needs to compile, it
+/// never participates in trivia-sensitive accessor renders.
+private func subContainerSharedAssignmentExpr(
+    member: SubContainerMemberModel,
+    selectedNames: [String]
+) -> IfExprSyntax {
+    let childTypeDesc = member.type.trimmedDescription
+    let storageName = "_storage_sub_\(member.name)"
+    let overrideParam = member.name
+    let applyParam = "\(member.name)Overrides"
+
+    // Base argument list shared by both construction branches. We read
+    // parent members through their private storage names (`_storage_<name>`)
+    // instead of the public accessor so Swift's definite-initialization
+    // rules are satisfied even though `_storage_sub_<member.name>` is
+    // about to be assigned on the following line. Only `.input` / `.shared`
+    // parents are exposed this way; `.transient` parents have no storage
+    // and therefore cannot participate in `.shared` sub-container wiring
+    // (validator M-5 rejects that combination).
+    let baseArgs = selectedNames
+        .map { "\($0): self._storage_\($0)" }
+        .joined(separator: ", ")
+
+    // Build via child convenience init when the author passed an override
+    // closure: `Child(name1: self.name1, ..., apply)`
+    let withApplyArgs = baseArgs.isEmpty ? "apply" : "\(baseArgs), apply"
+
+    let source: SourceFileSyntax = """
+        func _innoDI_unused() {
+            if let direct = \(raw: overrideParam) {
+                self.\(raw: storageName) = direct
+            } else if let apply = \(raw: applyParam) {
+                self.\(raw: storageName) = \(raw: childTypeDesc)(\(raw: withApplyArgs))
+            } else {
+                self.\(raw: storageName) = \(raw: childTypeDesc)(\(raw: baseArgs))
+            }
+        }
+        """
+
+    // Pull the IfExprSyntax back out of the synthetic wrapper — this keeps
+    // the branches' formatting consistent with the rest of the init body.
+    let funcDecl = source.statements.first!.item.as(FunctionDeclSyntax.self)!
+    let firstStmt = funcDecl.body!.statements.first!
+    let ifExpr = firstStmt.item.as(ExpressionStmtSyntax.self)!.expression.as(IfExprSyntax.self)!
+    return ifExpr
+}
+
