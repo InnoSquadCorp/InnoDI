@@ -1,9 +1,34 @@
 import InnoDICore
 import SwiftSyntax
 
+/// A pending ownership reference discovered inside a `@DIContainer` body:
+/// "this parent owns a child container of this written type". The type
+/// description is whatever the author wrote at the `@SubContainer` property
+/// site — `FeatureContainer`, `Feature.Container`, `NestedModule.Scope`,
+/// etc. The CLI resolves these into concrete parent→child container IDs
+/// after every container has been catalogued.
+struct PendingSubContainerReference {
+    /// Stable ID of the parent container node.
+    let parentID: String
+    /// Dotted semantic path of the parent container (used for diagnostics
+    /// and disambiguation when the same type name appears under multiple
+    /// namespaces).
+    let parentSemanticPath: String
+    /// Parent member name (e.g. `feature`) — threaded into the edge label
+    /// so "owns" edges are readable in the graph.
+    let memberName: String
+    /// Type text as written at the `@SubContainer` declaration, before
+    /// type resolution (`"FeatureContainer"`, `"Foo.Bar"`, …).
+    let childTypeText: String
+}
+
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     var nodes: [DependencyGraphNode] = []
     var typeAliases: [SemanticTypeAliasRecord] = []
+    /// `@SubContainer` references collected while walking each container
+    /// body. Resolved into graph edges by `resolveSubContainerReferences`
+    /// once every container has been visited.
+    var subContainerReferences: [PendingSubContainerReference] = []
 
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
@@ -78,10 +103,36 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     private func collectIfContainer(_ node: some DeclGroupSyntax, displayName: String) {
         guard let containerAttr = parseDIContainerAttribute(node.attributes) else { return }
         let semanticPath = declarationPath.joined(separator: ".")
+        let parentID = GraphIdentity.makeContainerID(
+            fileRelativePath: currentRelativeFilePath,
+            declarationPath: declarationPath
+        )
 
         var requiredInputs: [String] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
+
+            // `@SubContainer` ownership edge collection. Parent/child IDs
+            // stay unresolved at this stage — the AppMain pass matches the
+            // child's written type description against every known container
+            // node's semantic path after the full file set has been walked.
+            if parseSubContainerAttribute(varDecl.attributes) != nil {
+                guard let binding = varDecl.bindings.first,
+                      let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+                      let typeAnnotation = binding.typeAnnotation else {
+                    continue
+                }
+                subContainerReferences.append(
+                    PendingSubContainerReference(
+                        parentID: parentID,
+                        parentSemanticPath: semanticPath,
+                        memberName: pattern.identifier.text,
+                        childTypeText: typeAnnotation.type.trimmedDescription
+                    )
+                )
+                continue
+            }
+
             guard let provide = parseProvideAttribute(varDecl.attributes), provide.scope == .input else { continue }
             guard let binding = varDecl.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
@@ -90,10 +141,9 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             requiredInputs.append(pattern.identifier.text)
         }
 
-        let id = GraphIdentity.makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
         nodes.append(
             DependencyGraphNode(
-                id: id,
+                id: parentID,
                 displayName: displayName,
                 semanticPath: semanticPath,
                 isRoot: containerAttr.root,
