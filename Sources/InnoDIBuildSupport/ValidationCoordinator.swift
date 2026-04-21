@@ -63,7 +63,8 @@ package struct ValidationCoordinatorRuntime: Sendable {
         currentDate: Date.init,
         sleep: { Thread.sleep(forTimeInterval: $0) },
         currentProcessID: { getpid() },
-        processExists: validationProcessExists
+        processExists: validationProcessExists,
+        beforeStaleLockRemoval: { _ in }
     )
 
     package let monotonicNow: @Sendable () -> TimeInterval
@@ -71,19 +72,22 @@ package struct ValidationCoordinatorRuntime: Sendable {
     package let sleep: @Sendable (TimeInterval) -> Void
     package let currentProcessID: @Sendable () -> Int32
     package let processExists: @Sendable (Int32) -> Bool
+    package let beforeStaleLockRemoval: @Sendable (URL) -> Void
 
     package init(
         monotonicNow: @escaping @Sendable () -> TimeInterval,
         currentDate: @escaping @Sendable () -> Date,
         sleep: @escaping @Sendable (TimeInterval) -> Void,
         currentProcessID: @escaping @Sendable () -> Int32,
-        processExists: @escaping @Sendable (Int32) -> Bool
+        processExists: @escaping @Sendable (Int32) -> Bool,
+        beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
     ) {
         self.monotonicNow = monotonicNow
         self.currentDate = currentDate
         self.sleep = sleep
         self.currentProcessID = currentProcessID
         self.processExists = processExists
+        self.beforeStaleLockRemoval = beforeStaleLockRemoval
     }
 }
 
@@ -241,106 +245,124 @@ package enum ValidationCoordinator {
             return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
         }
 
-        let lockAcquisitionDeadline = runtime.monotonicNow() + lockPolicy.maxWaitSeconds
-        var backoffSeconds = lockPolicy.initialBackoffSeconds
-        var recoveredStaleLock = false
-
-        while runtime.monotonicNow() < lockAcquisitionDeadline {
+        func executeLockedValidation(
+            descriptor lockDescriptor: Int32,
+            recoveredStaleLock: Bool
+        ) throws -> ValidationExecutionOutcome {
             let lockMetadata = ValidationCoordinatorLockMetadata(
                 pid: runtime.currentProcessID(),
                 createdAt: runtime.currentDate().timeIntervalSince1970
             )
 
-            if let lockDescriptor = try acquireLock(at: lockURL) {
-                do {
-                    try persistLockMetadata(lockMetadata, descriptor: lockDescriptor, path: lockURL.path(percentEncoded: false))
-                } catch {
-                    releaseLock(descriptor: lockDescriptor, at: lockURL)
-                    throw error
-                }
-                defer { releaseLock(descriptor: lockDescriptor, at: lockURL) }
+            do {
+                try persistLockMetadata(lockMetadata, descriptor: lockDescriptor, path: lockURL.path(percentEncoded: false))
+            } catch {
+                releaseLock(descriptor: lockDescriptor, at: lockURL)
+                throw error
+            }
+            defer { releaseLock(descriptor: lockDescriptor, at: lockURL) }
 
-                if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
-                    resultURL: resultURL,
-                    sharedRunRecordURL: sharedRunRecordURL
-                ) {
-                    return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
-                }
-
-                let result: ValidationCommandResult
-                let customInitStartTime = validationNow()
-                let customInitValidation = try CustomInitBuildValidator.validate(rootPath: rootPath)
-                let customInitFailure = customInitValidation.asCommandResult()
-                let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
-
-                let semanticValidationMilliseconds: Double
-                let dagValidationMilliseconds: Double
-                var liveRunReasonCodes: [ValidationReasonCode] = recoveredStaleLock
-                    ? [.staleLockRecovered]
-                    : []
-                let issues: [ValidationIssue]
-                if let customInitFailure {
-                    result = customInitFailure
-                    semanticValidationMilliseconds = 0
-                    dagValidationMilliseconds = 0
-                    liveRunReasonCodes.append(.liveRunCustomInitFailure)
-                    issues = customInitValidation.issues
-                } else {
-                    let semanticValidationStartTime = validationNow()
-                    let semanticValidation = try ContainerSemanticBuildValidator.validate(rootPath: rootPath)
-                    let semanticFailure = semanticValidation.asCommandResult()
-                    semanticValidationMilliseconds = validationElapsedMilliseconds(since: semanticValidationStartTime)
-
-                    if let semanticFailure {
-                        result = semanticFailure
-                        dagValidationMilliseconds = 0
-                        liveRunReasonCodes.append(.liveRunSemanticFailure)
-                        issues = semanticValidation.issues
-                    } else {
-                        let dagValidationStartTime = validationNow()
-                        result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
-                        dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
-                        liveRunReasonCodes.append(.liveRunSemanticValidation)
-                        liveRunReasonCodes.append(.liveRunDAGValidation)
-                        issues = semanticValidation.issues
-                    }
-                }
-
-                let sharedRunRecord = SharedValidationRunRecord(
-                    liveRunMetrics: ValidationLiveRunMetrics(
-                        customInitValidationMilliseconds: customInitValidationMilliseconds,
-                        semanticValidationMilliseconds: semanticValidationMilliseconds,
-                        dagValidationMilliseconds: dagValidationMilliseconds
-                    ),
-                    reasonCodes: liveRunReasonCodes,
-                    issues: issues
-                )
-                try persistSharedRunRecord(sharedRunRecord, to: sharedRunRecordURL)
-                try persistResult(result, to: resultURL)
-                let sharedArtifact = ValidationMetricsArtifact(
-                    signature: signature,
-                    wasCached: false,
-                    resultExitCode: result.exitCode,
-                    reasonCodes: Array(Set(signatureCollection.reasonCodes + liveRunReasonCodes)).sorted { $0.rawValue < $1.rawValue },
-                    signatureMetrics: signatureCollection.metrics,
-                    fileChanges: signatureCollection.fileChanges,
-                    invocationMetrics: ValidationInvocationMetrics(
-                        signatureCollectionMilliseconds: signatureCollectionMilliseconds,
-                        totalCoordinatorMilliseconds: validationElapsedMilliseconds(since: coordinatorStartTime)
-                    ),
-                    liveRunMetrics: sharedRunRecord.liveRunMetrics,
-                    issues: issues,
-                    humanSummarySource: "validation-summary.md"
-                )
-                try persistSummaryReport(
-                    ValidationLogging.renderMarkdownSummary(for: sharedArtifact),
-                    to: sharedSummaryURL
-                )
-
-                return try finalizeOutcome(result: result, wasCached: false, sharedRunRecord: sharedRunRecord)
+            if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
+                resultURL: resultURL,
+                sharedRunRecordURL: sharedRunRecordURL
+            ) {
+                return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
             }
 
-            if recoverStaleLockIfNeeded(
+            let result: ValidationCommandResult
+            let customInitStartTime = validationNow()
+            let customInitValidation = try CustomInitBuildValidator.validate(rootPath: rootPath)
+            let customInitFailure = customInitValidation.asCommandResult()
+            let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
+
+            let semanticValidationMilliseconds: Double
+            let dagValidationMilliseconds: Double
+            var liveRunReasonCodes: [ValidationReasonCode] = recoveredStaleLock
+                ? [.staleLockRecovered]
+                : []
+            let issues: [ValidationIssue]
+            if let customInitFailure {
+                result = customInitFailure
+                semanticValidationMilliseconds = 0
+                dagValidationMilliseconds = 0
+                liveRunReasonCodes.append(.liveRunCustomInitFailure)
+                issues = customInitValidation.issues
+            } else {
+                let semanticValidationStartTime = validationNow()
+                let semanticValidation = try ContainerSemanticBuildValidator.validate(rootPath: rootPath)
+                let semanticFailure = semanticValidation.asCommandResult()
+                semanticValidationMilliseconds = validationElapsedMilliseconds(since: semanticValidationStartTime)
+
+                if let semanticFailure {
+                    result = semanticFailure
+                    dagValidationMilliseconds = 0
+                    liveRunReasonCodes.append(.liveRunSemanticFailure)
+                    issues = semanticValidation.issues
+                } else {
+                    let dagValidationStartTime = validationNow()
+                    result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
+                    dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
+                    liveRunReasonCodes.append(.liveRunSemanticValidation)
+                    liveRunReasonCodes.append(.liveRunDAGValidation)
+                    issues = semanticValidation.issues
+                }
+            }
+
+            let sharedRunRecord = SharedValidationRunRecord(
+                liveRunMetrics: ValidationLiveRunMetrics(
+                    customInitValidationMilliseconds: customInitValidationMilliseconds,
+                    semanticValidationMilliseconds: semanticValidationMilliseconds,
+                    dagValidationMilliseconds: dagValidationMilliseconds
+                ),
+                reasonCodes: liveRunReasonCodes,
+                issues: issues
+            )
+            try persistSharedRunRecord(sharedRunRecord, to: sharedRunRecordURL)
+            try persistResult(result, to: resultURL)
+            let sharedArtifact = ValidationMetricsArtifact(
+                signature: signature,
+                wasCached: false,
+                resultExitCode: result.exitCode,
+                reasonCodes: Array(Set(signatureCollection.reasonCodes + liveRunReasonCodes)).sorted { $0.rawValue < $1.rawValue },
+                signatureMetrics: signatureCollection.metrics,
+                fileChanges: signatureCollection.fileChanges,
+                invocationMetrics: ValidationInvocationMetrics(
+                    signatureCollectionMilliseconds: signatureCollectionMilliseconds,
+                    totalCoordinatorMilliseconds: validationElapsedMilliseconds(since: coordinatorStartTime)
+                ),
+                liveRunMetrics: sharedRunRecord.liveRunMetrics,
+                issues: issues,
+                humanSummarySource: "validation-summary.md"
+            )
+            try persistSummaryReport(
+                ValidationLogging.renderMarkdownSummary(for: sharedArtifact),
+                to: sharedSummaryURL
+            )
+
+            return try finalizeOutcome(result: result, wasCached: false, sharedRunRecord: sharedRunRecord)
+        }
+
+        func acquireAndExecuteLiveValidation(recoveredStaleLock: Bool) throws -> ValidationExecutionOutcome? {
+            guard let lockDescriptor = try acquireLock(at: lockURL) else {
+                return nil
+            }
+
+            return try executeLockedValidation(
+                descriptor: lockDescriptor,
+                recoveredStaleLock: recoveredStaleLock
+            )
+        }
+
+        let lockAcquisitionDeadline = runtime.monotonicNow() + lockPolicy.maxWaitSeconds
+        var backoffSeconds = lockPolicy.initialBackoffSeconds
+        var recoveredStaleLock = false
+
+        while runtime.monotonicNow() < lockAcquisitionDeadline {
+            if let outcome = try acquireAndExecuteLiveValidation(recoveredStaleLock: recoveredStaleLock) {
+                return outcome
+            }
+
+            if try recoverStaleLockIfNeeded(
                 at: lockURL,
                 staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
                 runtime: runtime
@@ -365,6 +387,32 @@ package enum ValidationCoordinator {
             let delaySeconds = min(backoffSeconds, remainingWait)
             runtime.sleep(delaySeconds)
             backoffSeconds = min(backoffSeconds * 2, lockPolicy.maxBackoffSeconds)
+        }
+
+        if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
+            resultURL: resultURL,
+            sharedRunRecordURL: sharedRunRecordURL
+        ) {
+            return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
+        }
+
+        if try recoverStaleLockIfNeeded(
+            at: lockURL,
+            staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
+            runtime: runtime
+        ) {
+            recoveredStaleLock = true
+        }
+
+        if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
+            resultURL: resultURL,
+            sharedRunRecordURL: sharedRunRecordURL
+        ) {
+            return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
+        }
+
+        if let outcome = try acquireAndExecuteLiveValidation(recoveredStaleLock: recoveredStaleLock) {
+            return outcome
         }
 
         let timeoutReasonCodes: [ValidationReasonCode] = recoveredStaleLock
@@ -531,9 +579,19 @@ private func recoverStaleLockIfNeeded(
     at url: URL,
     staleLockAgeSeconds: TimeInterval,
     runtime: ValidationCoordinatorRuntime
-) -> Bool {
+) throws -> Bool {
     let fileManager = FileManager.default
     let path = url.path(percentEncoded: false)
+
+    guard fileManager.fileExists(atPath: path) else {
+        return false
+    }
+
+    let recoveryTokenURL = url.appendingPathExtension("recovering")
+    guard let recoveryDescriptor = try acquireLock(at: recoveryTokenURL) else {
+        return false
+    }
+    defer { releaseLock(descriptor: recoveryDescriptor, at: recoveryTokenURL) }
 
     guard fileManager.fileExists(atPath: path) else {
         return false
@@ -543,6 +601,7 @@ private func recoverStaleLockIfNeeded(
         guard runtime.processExists(metadata.pid) == false else {
             return false
         }
+        runtime.beforeStaleLockRemoval(url)
         try? fileManager.removeItem(at: url)
         return fileManager.fileExists(atPath: path) == false
     }
@@ -554,6 +613,7 @@ private func recoverStaleLockIfNeeded(
         return false
     }
 
+    runtime.beforeStaleLockRemoval(url)
     try? fileManager.removeItem(at: url)
     return fileManager.fileExists(atPath: path) == false
 }

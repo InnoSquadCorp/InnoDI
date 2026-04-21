@@ -3,6 +3,7 @@ import InnoDICore
 import SwiftParser
 import SwiftSyntax
 import Testing
+import Dispatch
 
 @testable import InnoDIBuildSupport
 
@@ -754,8 +755,8 @@ struct ValidationCoordinatorTests {
         )
 
         #expect(outcome.result.exitCode == 0)
-        #expect(outcome.metricsArtifact.reasonCodes.contains(.staleLockRecovered))
-        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunDAGValidation))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.staleLockRecovered))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.liveRunDAGValidation))
         #expect(runner.invocationCount == 1)
         #expect(clock.sleptDurations.isEmpty)
     }
@@ -800,9 +801,200 @@ struct ValidationCoordinatorTests {
         )
 
         #expect(outcome.result.exitCode == 0)
-        #expect(outcome.metricsArtifact.reasonCodes.contains(.staleLockRecovered))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.staleLockRecovered))
         #expect(runner.invocationCount == 1)
         #expect(clock.sleptDurations.isEmpty)
+    }
+
+    @Test("Stale-lock recovery is serialized before a fresh live lock is acquired")
+    func staleLockRecoveryIsSerializedBeforeFreshLiveLock() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+
+        let lockURL = sharedRunDirectory.appendingPathComponent("lock")
+        try persistJSON(
+            ValidationCoordinatorLockMetadata(
+                pid: 1111,
+                createdAt: Date().addingTimeInterval(-120).timeIntervalSince1970
+            ),
+            to: lockURL
+        )
+
+        let recoveryPointReached = LockedFlag()
+        let allowRecovery = DispatchSemaphore(value: 0)
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "DAG validation passed.\n", stderr: "")
+            ],
+            delay: 0.2
+        )
+        let policy = ValidationCoordinatorLockPolicy(
+            maxWaitSeconds: 1,
+            staleLockAgeSeconds: 0.1,
+            initialBackoffSeconds: 0.01,
+            maxBackoffSeconds: 0.05
+        )
+
+        let runtimeA = ValidationCoordinatorRuntime(
+            monotonicNow: validationNow,
+            currentDate: Date.init,
+            sleep: { Thread.sleep(forTimeInterval: $0) },
+            currentProcessID: { 2001 },
+            processExists: { [2001, 2002].contains($0) },
+            beforeStaleLockRemoval: { _ in
+                recoveryPointReached.markTrue()
+                _ = allowRecovery.wait(timeout: .now() + .seconds(1))
+            }
+        )
+        let runtimeB = ValidationCoordinatorRuntime(
+            monotonicNow: validationNow,
+            currentDate: Date.init,
+            sleep: { Thread.sleep(forTimeInterval: $0) },
+            currentProcessID: { 2002 },
+            processExists: { [2001, 2002].contains($0) }
+        )
+
+        let outcomes = try await withThrowingTaskGroup(of: ValidationExecutionOutcome.self) { group in
+            group.addTask {
+                try ValidationCoordinator.coordinate(
+                    rootPath: fixture.rootURL.path(percentEncoded: false),
+                    toolPath: "/usr/bin/true",
+                    stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+                    outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+                    runner: runner,
+                    lockPolicy: policy,
+                    runtime: runtimeA
+                )
+            }
+
+            for _ in 0..<100 {
+                if recoveryPointReached.isSet {
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+
+            #expect(recoveryPointReached.isSet)
+
+            group.addTask {
+                try ValidationCoordinator.coordinate(
+                    rootPath: fixture.rootURL.path(percentEncoded: false),
+                    toolPath: "/usr/bin/true",
+                    stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+                    outputDirectoryPath: fixture.outputBURL.path(percentEncoded: false),
+                    runner: runner,
+                    lockPolicy: policy,
+                    runtime: runtimeB
+                )
+            }
+
+            try await Task.sleep(for: .milliseconds(50))
+            allowRecovery.signal()
+
+            var collected: [ValidationExecutionOutcome] = []
+            for try await result in group {
+                collected.append(result)
+            }
+            return collected
+        }
+
+        #expect(outcomes.count == 2)
+        #expect(runner.invocationCount == 1)
+        #expect(outcomes.contains { !$0.wasCached })
+        #expect(outcomes.contains { $0.wasCached })
+        #expect(outcomes.allSatisfy { $0.result.exitCode == 0 })
+        #expect(outcomes.allSatisfy { $0.metricsArtifact.reasonCodes.contains(ValidationReasonCode.staleLockRecovered) })
+        #expect(FileManager.default.fileExists(atPath: lockURL.appendingPathExtension("recovering").path(percentEncoded: false)) == false)
+    }
+
+    @Test("Terminal reconciliation returns a cached result written during the final backoff")
+    func terminalReconciliationReturnsCachedResultWrittenDuringFinalBackoff() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let signature = try collectValidationSignature(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false)
+        )
+        let sharedRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: signature),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+
+        let policy = ValidationCoordinatorLockPolicy(
+            maxWaitSeconds: 0.3,
+            staleLockAgeSeconds: 0.1,
+            initialBackoffSeconds: 0.05,
+            maxBackoffSeconds: 0.2
+        )
+        let cachedResult = ValidationCommandResult(exitCode: 0, stdout: "cached\n", stderr: "")
+        let cachedRecord = SharedValidationRunRecord(
+            liveRunMetrics: ValidationLiveRunMetrics(
+                customInitValidationMilliseconds: 1,
+                semanticValidationMilliseconds: 2,
+                dagValidationMilliseconds: 3
+            ),
+            reasonCodes: [.liveRunSemanticValidation, .liveRunDAGValidation],
+            issues: []
+        )
+        let lockURL = sharedRunDirectory.appendingPathComponent("lock")
+        try persistJSON(
+            ValidationCoordinatorLockMetadata(
+                pid: 1111,
+                createdAt: Date(timeIntervalSince1970: 30_000).timeIntervalSince1970
+            ),
+            to: lockURL
+        )
+
+        let cacheWriteState = SleepThresholdState(threshold: policy.maxWaitSeconds)
+        let clock = ManualValidationCoordinatorClock(
+            startUptime: 10,
+            startDate: Date(timeIntervalSince1970: 30_000),
+            onSleep: { interval in
+                guard cacheWriteState.shouldTrigger(afterSleeping: interval) else {
+                    return
+                }
+
+                try! persistJSON(cachedRecord, to: sharedRunDirectory.appendingPathComponent("validation-metrics.json"))
+                try! persistJSON(cachedResult, to: sharedRunDirectory.appendingPathComponent("result.json"))
+                try? FileManager.default.removeItem(at: lockURL)
+            }
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner,
+            lockPolicy: policy,
+            runtime: makeTestRuntime(clock: clock, currentPID: 4242, activePIDs: [1111, 4242])
+        )
+
+        #expect(outcome.wasCached == true)
+        #expect(outcome.result == cachedResult)
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.liveRunSemanticValidation))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.liveRunDAGValidation))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.lockContentionTimeout) == false)
+        #expect(clock.sleptDurations.count == 3)
+        #expect(runner.invocationCount == 0)
     }
 
     @Test("Active locks time out predictably instead of retrying indefinitely")
@@ -862,7 +1054,7 @@ struct ValidationCoordinatorTests {
         #expect(outcome.wasCached == false)
         #expect(outcome.result.exitCode == 1)
         #expect(outcome.result.stderr.contains("Timed out waiting for validation coordinator lock"))
-        #expect(outcome.metricsArtifact.reasonCodes.contains(.lockContentionTimeout))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.lockContentionTimeout))
         #expect(outcome.metricsArtifact.issues.isEmpty)
         #expect(outcome.metricsArtifact.liveRunMetrics.customInitValidationMilliseconds == 0)
         #expect(outcome.metricsArtifact.liveRunMetrics.semanticValidationMilliseconds == 0)
@@ -1315,24 +1507,32 @@ private func touch(_ url: URL, modifiedAt: Date) throws {
 private func makeTestRuntime(
     clock: ManualValidationCoordinatorClock,
     currentPID: Int32,
-    activePIDs: Set<Int32>
+    activePIDs: Set<Int32>,
+    beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
 ) -> ValidationCoordinatorRuntime {
     ValidationCoordinatorRuntime(
         monotonicNow: { clock.monotonicNow },
         currentDate: { clock.currentDate },
         sleep: { interval in clock.sleep(interval) },
         currentProcessID: { currentPID },
-        processExists: { activePIDs.contains($0) }
+        processExists: { activePIDs.contains($0) },
+        beforeStaleLockRemoval: beforeStaleLockRemoval
     )
 }
 
 private final class ManualValidationCoordinatorClock: @unchecked Sendable {
     private let lock = NSLock()
+    private let onSleep: (@Sendable (TimeInterval) -> Void)?
     private var uptime: TimeInterval
     private var date: Date
     private var recordedSleeps: [TimeInterval] = []
 
-    init(startUptime: TimeInterval, startDate: Date) {
+    init(
+        startUptime: TimeInterval,
+        startDate: Date,
+        onSleep: (@Sendable (TimeInterval) -> Void)? = nil
+    ) {
+        self.onSleep = onSleep
         self.uptime = startUptime
         self.date = startDate
     }
@@ -1364,7 +1564,51 @@ private final class ManualValidationCoordinatorClock: @unchecked Sendable {
         uptime += interval
         date = date.addingTimeInterval(interval)
         recordedSleeps.append(interval)
+        let onSleep = self.onSleep
         lock.unlock()
+
+        onSleep?(interval)
+    }
+}
+
+private final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    var isSet: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func markTrue() {
+        lock.lock()
+        value = true
+        lock.unlock()
+    }
+}
+
+private final class SleepThresholdState: @unchecked Sendable {
+    private let lock = NSLock()
+    private let threshold: TimeInterval
+    private var totalSlept: TimeInterval = 0
+    private var didTrigger = false
+
+    init(threshold: TimeInterval) {
+        self.threshold = threshold
+    }
+
+    func shouldTrigger(afterSleeping interval: TimeInterval) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        totalSlept += interval
+        guard didTrigger == false, totalSlept >= threshold else {
+            return false
+        }
+
+        didTrigger = true
+        return true
     }
 }
 
