@@ -2,6 +2,61 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## Unreleased — `@SubContainer` nested containers (Phase M)
+
+### Who is affected
+
+- Projects that already consume the CLI's `DependencyGraphEdge` payload
+  programmatically — ownership now surfaces as a new `isOwnership` flag.
+- Tests that match `Overrides` struct declarations by exact structure —
+  a container that adopts `@SubContainer` gets two new Overrides slots
+  per sub-container member (`<name>` and `<name>Overrides`).
+- Projects that share identifier prefixes starting with
+  `_storage_sub_`, `_override_sub_`, `_override_sub_apply_`, or
+  `_innoDISubBuild_` inside a `@DIContainer` type.
+
+### Required action
+
+- If you parse `DependencyGraphEdge` values programmatically, add the
+  new `isOwnership: Bool` field to your decoder or pattern match. It
+  defaults to `false` so existing callers keep working unchanged.
+- If your container body declares members starting with any of the
+  reserved `_storage_sub_` / `_override_sub_` / `_override_sub_apply_`
+  / `_innoDISubBuild_` prefixes, rename them — `@SubContainer`'s peer
+  macro now owns those prefixes via `@attached(peer, names:
+  prefixed(...))` and a collision will surface as a duplicate
+  declaration error once you adopt `@SubContainer` on the same type.
+- Macro expansion for a child container that carries `@SubContainer`
+  on the parent must have at least one `.shared` / `.transient` /
+  `@SubContainer` member on the child. The generated `Overrides`
+  slot references `<ChildContainer>.Overrides`, and an input-only
+  child does not produce that nested type. The Swift compiler reports
+  the conflict as `type has no member 'Overrides'` at the parent's
+  Overrides struct.
+
+### Notes
+
+- `@SubContainer` requires an explicit `scope:` argument; there is no
+  default. Existing code does not break — the attribute is new — but
+  authors should pick the lifetime intentionally. `.shared` caches
+  the child per parent lifetime; `.transient` rebuilds on every
+  accessor read.
+- `.shared` sub-containers can only auto-wire through `.input` or
+  `.shared` parent members. Referencing a `.transient` parent fails
+  with the new `sub.shared-parent-must-not-be-transient` diagnostic —
+  switch to `@SubContainer(scope: .transient)` if you need that
+  dependency, or restructure the parent so the member is `.shared`.
+- Ownership edges render in the dependency graph output (Mermaid
+  `-->|owns: <member>|`, DOT `style=bold`, ASCII `#=>`). Existing
+  graph output for containers that do not adopt `@SubContainer` stays
+  byte-identical.
+- Macro expansion emits `_innoDISubBuild_<name>` as `private var`
+  with a `fatalError` default; Swift's definite-initialization rules
+  require a mutable slot so the parent init's closure assignment can
+  run after every other storage slot is filled. The closure captures
+  a `let _lazySelfForSub = self` snapshot — value-type copies of
+  `self` are cheap and reflect the parent's stable state.
+
 ## Unreleased — `Provider<T>` factory handle (Phase L)
 
 ### Who is affected
