@@ -424,6 +424,58 @@ struct DIContainerValidator {
             }
         }
 
+        // Phase N-4 — warn when a closure parameter uses a typealias that
+        // aliases `Lazy<T>` or `Provider<T>`. The macro resolves deferred
+        // wrapper kinds from written syntax, so typealiased spellings fall
+        // through to `.hard` silently. This check collects same-file
+        // typealiases and flags any closure parameter whose bare identifier
+        // matches one of them. Cross-file aliases stay invisible.
+        //
+        // Anchor selection: we need any member's attribute syntax to walk up
+        // to `SourceFileSyntax`. An empty container returns early in
+        // `DIContainerMacro.expansion` before reaching the validator, so
+        // reaching this point with both collections empty is impossible.
+        let aliasAnchor: Syntax? = model.members.first.map { Syntax($0.attribute) }
+            ?? model.subContainerMembers.first.map { Syntax($0.attribute) }
+        if let anchor = aliasAnchor {
+            let aliases = collectLazyProviderAliases(anchoredBy: anchor)
+            if !aliases.isEmpty {
+                for member in model.members {
+                    for reference in member.closureParameterReferences {
+                        guard reference.kind == .hard else { continue }
+                        guard let aliasedKind = aliasedDeferredWrapperKind(
+                            for: reference.type,
+                            aliases: aliases
+                        ) else { continue }
+                        let aliasName = reference.type?
+                            .trimmedDescription ?? reference.name
+                        switch aliasedKind {
+                        case .lazy:
+                            context.diagnose(
+                                Diagnostic(
+                                    node: Syntax(reference.token),
+                                    message: SimpleDiagnostic.provideLazyAliased(
+                                        parameterName: reference.name,
+                                        aliasName: aliasName
+                                    )
+                                )
+                            )
+                        case .provider:
+                            context.diagnose(
+                                Diagnostic(
+                                    node: Syntax(reference.token),
+                                    message: SimpleDiagnostic.provideProviderAliased(
+                                        parameterName: reference.name,
+                                        aliasName: aliasName
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Phase N-3 — warn when the child container has no overrideable
         // members. The parent's generated `<name>Overrides` slot references
         // `<Child>.Overrides`, which the child's macro only synthesizes if it
