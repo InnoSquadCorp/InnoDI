@@ -94,8 +94,8 @@ internal func pruneSharedRunDirectories(keepingDirectoryName directoryName: Stri
     )
 
     for entry in entries {
-        let values = try entry.resourceValues(forKeys: [.isDirectoryKey])
-        guard values.isDirectory == true, entry.lastPathComponent != directoryName else {
+        let values = try? entry.resourceValues(forKeys: [.isDirectoryKey])
+        guard values?.isDirectory == true, entry.lastPathComponent != directoryName else {
             continue
         }
         try? fileManager.removeItem(at: entry)

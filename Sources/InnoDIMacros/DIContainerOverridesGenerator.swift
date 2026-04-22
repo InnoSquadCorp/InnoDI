@@ -46,7 +46,6 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
     // forwards into the child's own convenience init. Both default to nil so
     // tests only touch the slots they actually need.
     for member in subs {
-        let childTypeDesc = member.type.trimmedDescription
         let directSlot = VariableDeclSyntax(
             modifiers: modifiers,
             bindingSpecifier: .keyword(.var),
@@ -60,7 +59,37 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         )
         memberDecls.append(MemberBlockItemSyntax(decl: directSlot))
 
-        let applyType = TypeSyntax(stringLiteral: "((inout \(childTypeDesc).Overrides) -> Void)?")
+        let childOverridesType = TypeSyntax(
+            MemberTypeSyntax(
+                baseType: member.type.trimmed,
+                period: .periodToken(),
+                name: .identifier("Overrides")
+            )
+        )
+        let applyClosureType = TypeSyntax(
+            FunctionTypeSyntax(
+                parameters: TupleTypeElementListSyntax([
+                    TupleTypeElementSyntax(
+                        inoutKeyword: .keyword(.inout, trailingTrivia: .space),
+                        type: childOverridesType
+                    )
+                ]),
+                returnClause: ReturnClauseSyntax(
+                    type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Void")))
+                )
+            )
+        )
+        let applyType = TypeSyntax(
+            OptionalTypeSyntax(
+                wrappedType: TypeSyntax(
+                    TupleTypeSyntax(
+                        elements: TupleTypeElementListSyntax([
+                            TupleTypeElementSyntax(type: applyClosureType)
+                        ])
+                    )
+                )
+            )
+        )
         let applySlot = VariableDeclSyntax(
             modifiers: modifiers,
             bindingSpecifier: .keyword(.var),

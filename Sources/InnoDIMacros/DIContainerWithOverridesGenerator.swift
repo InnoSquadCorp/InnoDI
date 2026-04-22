@@ -29,8 +29,8 @@ private func makeWithOverridesMethod(
     isAsync: Bool,
     isThrowing: Bool
 ) -> DeclSyntax {
-    let accessModifiers = accessModifiers(model.accessLevel)
-    var modifiers = accessModifiers
+    let modifiersFromAccessLevel = accessModifiers(model.accessLevel)
+    var modifiers = modifiersFromAccessLevel
     modifiers.append(DeclModifierSyntax(name: .keyword(.static)))
 
     let inputMembers = model.inputMembers

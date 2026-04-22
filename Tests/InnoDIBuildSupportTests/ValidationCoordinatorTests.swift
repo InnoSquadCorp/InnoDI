@@ -1055,6 +1055,39 @@ struct ValidationCoordinatorTests {
         #expect(clock.sleptDurations.isEmpty)
     }
 
+    @Test("releaseLock removes the matching lock file")
+    func releaseLockRemovesMatchingLockFile() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let lockURL = rootURL.appendingPathComponent("validation.lock")
+        let descriptor = try #require(try acquireLock(at: lockURL))
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)))
+
+        releaseLock(descriptor: descriptor, at: lockURL)
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)) == false)
+    }
+
+    @Test("releaseLock does not delete a replacement file recreated at the same path")
+    func releaseLockDoesNotDeleteReplacementFile() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let lockURL = rootURL.appendingPathComponent("validation.lock")
+        let descriptor = try #require(try acquireLock(at: lockURL))
+
+        try FileManager.default.removeItem(at: lockURL)
+        try Data("replacement".utf8).write(to: lockURL, options: .atomic)
+
+        releaseLock(descriptor: descriptor, at: lockURL)
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)))
+        let contents = try String(contentsOf: lockURL, encoding: .utf8)
+        #expect(contents == "replacement")
+    }
+
     @Test("Stale-lock recovery is serialized before a fresh live lock is acquired")
     func staleLockRecoveryIsSerializedBeforeFreshLiveLock() async throws {
         let fixture = try makeFixture()

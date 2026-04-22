@@ -27,6 +27,7 @@ extension DIFeatureRootMacro: PeerMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
+              varDecl.bindings.count == 1,
               let binding = varDecl.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
               let typeAnnotation = binding.typeAnnotation,
@@ -45,7 +46,16 @@ extension DIFeatureRootMacro: PeerMacro {
         }
 
         let propertyName = identifier.identifier.text
-        if let alias = info.alias, !isValidFeatureRootAlias(alias) {
+        if let invalidAlias = info.invalidAliasText {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(node),
+                    message: SimpleDiagnostic.swiftUIFeatureRootInvalidAlias(alias: invalidAlias)
+                )
+            )
+            return []
+        }
+        if let alias = info.validAlias, !isValidFeatureRootAlias(alias) {
             context.diagnose(
                 Diagnostic(
                     node: Syntax(node),
@@ -54,13 +64,16 @@ extension DIFeatureRootMacro: PeerMacro {
             )
             return []
         }
-        let helperName = featureRootHelperName(propertyName: propertyName, alias: info.alias)
+        let helperName = featureRootHelperName(propertyName: propertyName, alias: info.validAlias)
 
         let featureRootAttributes = featureRootAttributes(in: varDecl.attributes)
 
-        if info.alias == nil {
+        if info.validAlias == nil, info.invalidAliasText == nil {
             let aliaslessAttributes = featureRootAttributes.filter {
-                parseFeatureRootAttribute($0)?.alias == nil
+                guard let parsed = parseFeatureRootAttribute($0) else {
+                    return false
+                }
+                return parsed.validAlias == nil && parsed.invalidAliasText == nil
             }
             if let currentIndex = aliaslessAttributes.firstIndex(where: { $0 == node }),
                currentIndex > 0 {
@@ -74,7 +87,7 @@ extension DIFeatureRootMacro: PeerMacro {
             }
         }
 
-        if let enclosingDecl = enclosingDeclGroup(containing: Syntax(declaration)),
+        if let enclosingDecl = enclosingDeclGroup(in: context),
            featureRootHelperConflicts(
                 helperName: helperName,
                 currentAttribute: node,
@@ -89,7 +102,7 @@ extension DIFeatureRootMacro: PeerMacro {
             return []
         }
 
-        let accessLevel = accessLevelModifierText(for: enclosingDeclModifiers(containing: Syntax(declaration)))
+        let accessLevel = accessLevelModifierText(for: enclosingDeclGroup(in: context)?.modifiers)
         let childTypeName = typeAnnotation.type.trimmedDescription
         let rootViewTypeName = info.rootViewTypeName
 
@@ -108,7 +121,8 @@ extension DIFeatureRootMacro: PeerMacro {
 
 private struct FeatureRootAttributeInfo {
     let rootViewTypeName: String
-    let alias: String?
+    let validAlias: String?
+    let invalidAliasText: String?
 }
 
 private func parseFeatureRootAttribute(_ attribute: AttributeSyntax) -> FeatureRootAttributeInfo? {
@@ -117,12 +131,19 @@ private func parseFeatureRootAttribute(_ attribute: AttributeSyntax) -> FeatureR
     }
 
     var rootViewTypeName: String?
-    var alias: String?
+    var validAlias: String?
+    var invalidAliasText: String?
 
     for argument in arguments {
         if let label = argument.label?.text {
             if label == "as" {
-                alias = stringLiteralValue(argument.expression)
+                if let alias = stringLiteralValue(argument.expression) {
+                    validAlias = alias
+                    invalidAliasText = nil
+                } else {
+                    validAlias = nil
+                    invalidAliasText = argument.expression.trimmedDescription
+                }
             }
             continue
         }
@@ -140,7 +161,11 @@ private func parseFeatureRootAttribute(_ attribute: AttributeSyntax) -> FeatureR
         return nil
     }
 
-    return FeatureRootAttributeInfo(rootViewTypeName: rootViewTypeName, alias: alias)
+    return FeatureRootAttributeInfo(
+        rootViewTypeName: rootViewTypeName,
+        validAlias: validAlias,
+        invalidAliasText: invalidAliasText
+    )
 }
 
 private func featureRootHelperName(propertyName: String, alias: String?) -> String {
@@ -174,15 +199,20 @@ private func featureRootHelperConflicts(
                 guard let info = parseFeatureRootAttribute(attribute) else {
                     continue
                 }
-                if let alias = info.alias, !isValidFeatureRootAlias(alias) {
+                if info.invalidAliasText != nil {
+                    continue
+                }
+                if let alias = info.validAlias, !isValidFeatureRootAlias(alias) {
                     continue
                 }
 
-                let propertyName = variableDecl.bindings.first?
-                    .pattern.as(IdentifierPatternSyntax.self)?
-                    .identifier.text
-                    ?? ""
-                let candidateName = featureRootHelperName(propertyName: propertyName, alias: info.alias)
+                guard variableDecl.bindings.count == 1,
+                      let propertyName = variableDecl.bindings.first?
+                        .pattern.as(IdentifierPatternSyntax.self)?
+                        .identifier.text else {
+                    continue
+                }
+                let candidateName = featureRootHelperName(propertyName: propertyName, alias: info.validAlias)
                 if candidateName == helperName,
                    attribute != currentAttribute,
                    attributeSortKey(attribute) < attributeSortKey(currentAttribute) {
@@ -193,4 +223,23 @@ private func featureRootHelperConflicts(
     }
 
     return false
+}
+
+private func enclosingDeclGroup(in context: some MacroExpansionContext) -> (any DeclGroupSyntax)? {
+    for node in context.lexicalContext.reversed() {
+        if let structDecl = node.as(StructDeclSyntax.self) {
+            return structDecl
+        }
+        if let classDecl = node.as(ClassDeclSyntax.self) {
+            return classDecl
+        }
+        if let actorDecl = node.as(ActorDeclSyntax.self) {
+            return actorDecl
+        }
+        if let enumDecl = node.as(EnumDeclSyntax.self) {
+            return enumDecl
+        }
+    }
+
+    return nil
 }

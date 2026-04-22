@@ -11,7 +11,8 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
 - Projects that ship a `typealias` for `Lazy<T>` / `Provider<T>` at
   closure-parameter sites — these now emit a warning, not an error.
 - Projects that own a `@SubContainer` pointing at an input-only child in the
-  same source file — these now emit a warning.
+  same source file — these now expand without warnings and synthesize an empty
+  child `Overrides` builder.
 
 ### Required action
 
@@ -100,12 +101,11 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
   prefixed(...))` and a collision will surface as a duplicate
   declaration error once you adopt `@SubContainer` on the same type.
 - Macro expansion for a child container that carries `@SubContainer`
-  on the parent must have at least one `.shared` / `.transient` /
-  `@SubContainer` member on the child. The generated `Overrides`
-  slot references `<ChildContainer>.Overrides`, and an input-only
-  child does not produce that nested type. The Swift compiler reports
-  the conflict as `type has no member 'Overrides'` at the parent's
-  Overrides struct.
+  on the parent no longer requires a `.shared` / `.transient` /
+  `@SubContainer` member on the child. Input-only children now
+  synthesize an empty `<ChildContainer>.Overrides`, so the parent's
+  generated `Overrides` slots compile and `<name>Overrides` closures
+  execute as no-ops until the child adds overrideable members.
 
 ### Notes
 

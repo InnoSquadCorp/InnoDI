@@ -105,7 +105,7 @@ Release and maintenance references:
 Marks a struct as a DI container. Generates:
 
 1. A primary `init(...)` with required `.input` parameters and optional overrides for `.shared` / `.transient` members.
-2. When the container declares any `.shared`, `.transient`, or `@SubContainer` member, a nested `struct Overrides` (see [Testing with the Overrides builder](#testing-with-the-overrides-builder)).
+2. A nested `struct Overrides` (see [Testing with the Overrides builder](#testing-with-the-overrides-builder)).
 3. A convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` that funnels named overrides into the primary init.
 4. Four `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)` effect overloads — `sync` / `throws` / `async` / `async throws` — that build a scoped container and run an operation against it.
 
@@ -705,16 +705,12 @@ Every `@SubContainer` member adds two slots to the parent's
 | `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil` | Chain into the child's own convenience init so individual `.shared`/`.transient` members can be overridden per test. |
 
 Direct replacement wins when both slots are set. The chain closure
-requires the child to have its own `Overrides` builder (i.e. at least
-one `.shared` / `.transient` / `@SubContainer` member on the child).
-This is a compile-time constraint even if you never set
-`overrides.<name>Overrides`: the parent's generated init and `Overrides`
-struct both reference `<ChildContainer>.Overrides` in their type
-signatures. An input-only child therefore causes the parent to fail with
-the usual `type '<ChildContainer>' has no member 'Overrides'` compile
-error. Remedy: add at least one `.shared`, `.transient`, or
-`@SubContainer` member to the child so InnoDI emits
-`<ChildContainer>.Overrides`.
+always typechecks because every child container synthesizes
+`<ChildContainer>.Overrides` unless the child defines that nested type
+itself. For an input-only child, the generated `Overrides` builder is
+empty, so `overrides.<name>Overrides` closures compile and run as
+no-ops until the child later adds `.shared`, `.transient`, or
+`@SubContainer` members to override.
 
 ```swift
 let container = AppContainer(config: .init(...)) { overrides in
