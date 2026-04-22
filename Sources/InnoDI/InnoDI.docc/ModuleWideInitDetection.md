@@ -15,7 +15,9 @@ This keeps macro diagnostics fast and local to the expansion context.
 
 ## Build Layer
 
-The build plugin extends the same rule to cross-file extensions.
+The build plugin extends the same rule to cross-file extensions as the second
+stage of the coordinated validation pipeline, before semantic validation and
+DAG validation run.
 
 During coordinated build validation, InnoDI scans the package sources and matches:
 
@@ -35,3 +37,7 @@ Build validation keeps the same safety boundary as macro validation while allowi
 - ambiguous cases fall back to the existing conservative source-text rule
 
 This keeps the build-stage rule deterministic while improving accuracy for straightforward cross-file matches.
+
+Structured failures from this stage are emitted through the same validation
+issue / metrics artifact pipeline described in <doc:Validation>, so CI and
+release tooling can inspect them without scraping raw stderr.

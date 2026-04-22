@@ -7,7 +7,6 @@ User-defined `init` declarations are unsupported inside the annotated type and a
 
 ```swift
 @DIContainer(
-    validate: Bool = true,
     root: Bool = false,
     validateDAG: Bool = true,
     mainActor: Bool = false
@@ -16,10 +15,9 @@ User-defined `init` declarations are unsupported inside the annotated type and a
 
 ## Parameters
 
-- `validate`: Reserved compatibility flag. Missing factories and invalid scope usage remain compile-time errors.
 - `root`: Marks the container as a root node for dependency graph rendering.
 - `validateDAG`: Enables local/global dependency cycle validation for this container.
-- `mainActor`: Applies `@MainActor` isolation to generated APIs.
+- `mainActor`: Applies `@MainActor` isolation to generated APIs. Prefer this for SwiftUI or other UI-root containers under strict concurrency.
 
 ## Example
 
@@ -31,7 +29,19 @@ struct AppContainer {
 }
 ```
 
+## Strict Concurrency
+
+- ``Lazy`` and ``Provider`` are intentionally non-`Sendable` deferred handles.
+  Keep them on the container's original isolation domain instead of moving
+  them across actors.
+- `mainActor: true` is the recommended isolation boundary for UI-facing
+  containers.
+- InnoDI still hardens transient sub-container builders and init-time
+  late-binding storage for strict concurrency, but a container can only adopt
+  `Sendable` when its remaining stored members and override closures also
+  satisfy Swift's rules.
+
 ## See Also
 
-- ``DIContainer(validate:root:validateDAG:mainActor:)``
+- ``DIContainer(root:validateDAG:mainActor:)``
 - <doc:Provide>

@@ -119,7 +119,7 @@ struct OverridesRuntimeTests {
 
     @Test("withOverrides async, throwing awaits + rethrows from the operation closure")
     func withOverridesAsyncThrowing() async throws {
-        let tag = try await RuntimeContainer.withOverrides(userID: "u1") { overrides in
+        let tag = await RuntimeContainer.withOverrides(userID: "u1") { overrides in
             overrides.apiClient = MockAPIClient(value: "async-throws")
         } operation: { container -> String in
             await Task { container.apiClient.tag() }.value

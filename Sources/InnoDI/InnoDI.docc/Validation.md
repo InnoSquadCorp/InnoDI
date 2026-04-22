@@ -25,9 +25,30 @@ Macro validation checks:
 - async factory validity (`factory` conflict, scope mismatch, non-async closure)
 - user-defined `init` conflicts inside `@DIContainer` declarations and same-file extensions
 
-Build-stage extension:
+Construction invariants such as factory requirements, declaration-order
+availability, and scope restrictions are always enforced. The only per-container
+validation opt-out is `validateDAG: false`, which affects DAG checks only.
+
+## Build Validation Pipeline
+
+Coordinated build validation runs in this order:
+
+1. signature collection across package Swift sources
+2. cross-file custom `init` validation
+3. semantic validation for container references and deferred wrapper spelling
+4. workspace hierarchy validation for `@DIHierarchyRoot` / `@DIComponent`
+5. DAG validation
+6. metrics / summary artifact emission
+
+The coordinator now waits for shared-run lock turnover through an async backoff
+loop. Lock recovery, timeout behavior, reason codes, and emitted artifact names
+stay the same; only the coordinator's internal wait path changed.
+
+Build-stage extensions:
 
 - coordinated build validation scans the same package sources for cross-file extension `init` conflicts
+- semantic validation adds structured checks for module-local container references and deferred wrapper spelling rules
+- hierarchy validation enforces rooted ownership across modules when at least one `@DIHierarchyRoot` exists
 - nested path matching is supported, while generic and constrained extensions remain excluded
 
 ## Global DAG Validation
@@ -45,6 +66,8 @@ Container-level opt-out:
 ```
 
 `validateDAG: false` containers are excluded from DAG cycle and ambiguity checks.
+It does not disable local construction rules such as factory requirements or
+declaration-order enforcement.
 
 ## Build Tool Plugin
 
@@ -72,6 +95,15 @@ Observability artifacts:
   - raw stderr
 
 Verbose logging remains optional through `INNODI_VALIDATION_VERBOSE` or `INNODI_VALIDATION_DEBUG`, but artifact generation is always on.
+
+## Implementation Map
+
+Read these source files in this order if you are maintaining build validation:
+
+1. `ValidationSignature.swift` for source discovery, manifest caching, and stable signature generation
+2. `ContainerSemanticBuildValidator.swift` for module-wide semantic diagnostics before DAG validation
+3. `WorkspaceHierarchyBuildValidator.swift` for rooted cross-module component validation
+4. `DependencyResolution.swift` for declaration-order availability rules shared by graph collection and macro fix-it filtering
 
 ## Policy Boundaries
 

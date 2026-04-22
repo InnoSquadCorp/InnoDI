@@ -15,27 +15,40 @@ let validationSkipTokens = [
     "/.xcworkspace/"
 ]
 
+/// Minimal parsing abstraction so signature tests can inject deterministic
+/// syntax parsers without touching the filesystem cache behavior.
 protocol ValidationSyntaxParsing: Sendable {
     func parse(source: String) -> SourceFileSyntax
 }
 
+/// Live parser used by build-support signature collection.
 struct LiveValidationSyntaxParser: ValidationSyntaxParsing {
     func parse(source: String) -> SourceFileSyntax {
         Parser.parse(source: source)
     }
 }
 
+/// Cheap file metadata used for the first-stage cache hit check before any
+/// source bytes are loaded.
 struct ValidationFileFingerprint: Codable, Equatable, Sendable {
     let fileSize: Int
     let modifiedAt: TimeInterval
 }
 
+/// Cached digest entry for one Swift source file.
+///
+/// The collector first compares `fingerprint`, then falls back to
+/// `contentHash`, and only reparses the AST when both differ.
 struct ValidationFileDigestRecord: Codable, Equatable, Sendable {
     let fingerprint: ValidationFileFingerprint
     let contentHash: String
     let digest: String
 }
 
+/// Manifest persisted under `.build/innodi-ast-digest-cache`.
+///
+/// This is the durable source of truth for the three-stage cache flow:
+/// metadata fingerprint -> raw content hash -> normalized AST digest.
 struct ValidationDigestManifest: Codable, Equatable, Sendable {
     static let currentVersion = 2
 
@@ -50,17 +63,28 @@ struct ValidationDigestManifest: Codable, Equatable, Sendable {
 
 private struct LoadedValidationDigestManifest {
     let manifest: ValidationDigestManifest
+    let invalidatedByCorruption: Bool
     let invalidatedByVersion: Bool
 }
 
+/// Collects the normalized package signature that keys shared validation runs.
+///
+/// The collector intentionally ignores whitespace/comments through the
+/// normalized AST digest, skips dependency/build directories listed in
+/// `validationSkipTokens`, and uses a stable hasher so equivalent source trees
+/// produce the same signature regardless of file creation order.
 struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
     let stateDirectoryPath: String
     let parser: Parser
 
+    /// Returns only the final signature string while still updating the
+    /// manifest cache on disk.
     func collect(rootPath: String) throws -> String {
         try collectWithMetrics(rootPath: rootPath).signature
     }
 
+    /// Returns the signature plus cache-hit diagnostics used by coordinator
+    /// metrics artifacts and release tooling.
     func collectWithMetrics(rootPath: String) throws -> ValidationSignatureCollectionResult {
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
@@ -82,6 +106,9 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
 
         if loadedManifest.invalidatedByVersion {
             reasonCodes.insert(.cacheMissManifestVersion)
+        }
+        if loadedManifest.invalidatedByCorruption {
+            reasonCodes.insert(.cacheMissManifestCorrupted)
         }
 
         let deletedFileSet = Set(existingManifest.files.keys).subtracting(sourceFiles)
@@ -165,6 +192,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
     }
 }
 
+/// Convenience entry point used by callers that only need the final signature.
 func collectValidationSignature(
     rootPath: String,
     stateDirectoryPath: String? = nil
@@ -175,6 +203,8 @@ func collectValidationSignature(
     ).signature
 }
 
+/// Computes the current package signature and the cache metrics that explain
+/// why it was reused or rebuilt.
 func collectValidationSignatureWithMetrics(
     rootPath: String,
     stateDirectoryPath: String? = nil
@@ -196,6 +226,10 @@ func collectValidationSignatureWithMetrics(
     .collectWithMetrics(rootPath: rootPath)
 }
 
+/// Discovers Swift source files that participate in build validation.
+///
+/// The returned paths are relative to `rootPath` and sorted so the final
+/// stable hash does not depend on directory enumeration order.
 func discoverValidationSourceFiles(rootPath: String) -> [String] {
     let fileManager = FileManager.default
     guard let enumerator = fileManager.enumerator(atPath: rootPath) else {
@@ -257,22 +291,36 @@ private func appendNormalizedSyntax(_ node: Syntax, to hasher: inout StableHashe
 }
 
 private func loadManifest(at url: URL) throws -> LoadedValidationDigestManifest {
-    guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+            return LoadedValidationDigestManifest(
+                manifest: ValidationDigestManifest(files: [:]),
+                invalidatedByCorruption: false,
+                invalidatedByVersion: false
+            )
+        }
+
+    do {
+        let data = try Data(contentsOf: url)
+        let manifest = try JSONDecoder().decode(ValidationDigestManifest.self, from: data)
+        if manifest.version == ValidationDigestManifest.currentVersion {
+            return LoadedValidationDigestManifest(
+                manifest: manifest,
+                invalidatedByCorruption: false,
+                invalidatedByVersion: false
+            )
+        }
         return LoadedValidationDigestManifest(
             manifest: ValidationDigestManifest(files: [:]),
+            invalidatedByCorruption: false,
+            invalidatedByVersion: true
+        )
+    } catch {
+        return LoadedValidationDigestManifest(
+            manifest: ValidationDigestManifest(files: [:]),
+            invalidatedByCorruption: true,
             invalidatedByVersion: false
         )
     }
-
-    let data = try Data(contentsOf: url)
-    let manifest = try JSONDecoder().decode(ValidationDigestManifest.self, from: data)
-    if manifest.version == ValidationDigestManifest.currentVersion {
-        return LoadedValidationDigestManifest(manifest: manifest, invalidatedByVersion: false)
-    }
-    return LoadedValidationDigestManifest(
-        manifest: ValidationDigestManifest(files: [:]),
-        invalidatedByVersion: true
-    )
 }
 
 private func persistManifest(_ manifest: ValidationDigestManifest, to url: URL) throws {

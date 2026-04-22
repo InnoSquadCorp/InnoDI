@@ -17,16 +17,18 @@ struct AppContainer {
 
     private let _override_sub_apply_feature: ((inout FeatureBindingsContainer.Overrides) -> Void)?
 
-    private var _innoDISubBuild_feature: () -> FeatureBindingsContainer = {
-        fatalError("_innoDISubBuild_feature invoked before the generated init populated it. This should be unreachable — report as an InnoDI bug.")
-    }
+    private let _innoDISubBuild_feature: @Sendable () -> FeatureBindingsContainer
 
     init(config: AppConfig, feature: FeatureBindingsContainer? = nil, featureOverrides: ((inout FeatureBindingsContainer.Overrides) -> Void)? = nil) {
         self._storage_config = config
         self._override_sub_feature = feature
         self._override_sub_apply_feature = featureOverrides
+        let _subBuildCell_feature = _LazyCell<FeatureBindingsContainer>()
+        self._innoDISubBuild_feature = {
+            _subBuildCell_feature.resolve()
+        }
         let _lazySelfForSub = self
-        self._innoDISubBuild_feature = { () -> FeatureBindingsContainer in
+        _subBuildCell_feature.bindResolver { () -> FeatureBindingsContainer in
             if let direct = _lazySelfForSub._override_sub_feature {
                 return direct
             }

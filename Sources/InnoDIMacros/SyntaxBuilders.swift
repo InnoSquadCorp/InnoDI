@@ -117,45 +117,30 @@ internal func taskStoragePeerDecl(
     return DeclSyntax(decl)
 }
 
-/// `private var _innoDISubBuild_<name>: () -> <ChildType> = { fatalError(...) }`
+/// `private let _innoDISubBuild_<name>: @Sendable () -> <ChildType>`
 /// 형태의 peer decl을 만든다.
 internal func subContainerBuildClosurePeerDecl(
     name: String,
-    childType: TypeSyntax
+    childType: TypeSyntax,
+    isMainActor: Bool
 ) -> DeclSyntax {
     let functionType = TypeSyntax(
-        FunctionTypeSyntax(
-            parameters: TupleTypeElementListSyntax([]),
-            effectSpecifiers: nil,
-            returnClause: ReturnClauseSyntax(
-                arrow: .arrowToken(trailingTrivia: .space),
-                type: childType.trimmed
-            )
-        )
-    )
-    let fallbackClosure = ClosureExprSyntax(
-        statements: CodeBlockItemListSyntax([
-            fatalErrorStmt(
-                message: "_innoDISubBuild_\(name) invoked before the generated init populated it. This should be unreachable — report as an InnoDI bug."
-            )
-        ])
+        stringLiteral: isMainActor
+            ? "@MainActor @Sendable () -> \(childType.trimmedDescription)"
+            : "@Sendable () -> \(childType.trimmedDescription)"
     )
 
     let decl = VariableDeclSyntax(
         modifiers: DeclModifierListSyntax([
             DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
         ]),
-        bindingSpecifier: .keyword(.var, trailingTrivia: .space),
+        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
         bindings: PatternBindingListSyntax([
             PatternBindingSyntax(
                 pattern: IdentifierPatternSyntax(identifier: .identifier("_innoDISubBuild_\(name)")),
                 typeAnnotation: TypeAnnotationSyntax(
                     colon: .colonToken(trailingTrivia: .space),
                     type: functionType
-                ),
-                initializer: InitializerClauseSyntax(
-                    equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
-                    value: ExprSyntax(fallbackClosure)
                 )
             )
         ])
@@ -255,6 +240,11 @@ internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
 /// 바인딩이므로 컨테이너 init이 끝난 후에 생성된 Lazy 래퍼가 mutable
 /// capture 없이 안전하게 값을 읽을 수 있다.
 internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
+    makeDeferredCellDecl(cellName: "_lazyCell_\(name)", type: type)
+}
+
+/// `let <cellName> = _LazyCell<Type>()` 형태의 로컬 바인딩을 만든다.
+internal func makeDeferredCellDecl(cellName: String, type: TypeSyntax) -> DeclSyntax {
     let genericClause = GenericArgumentClauseSyntax(
         arguments: GenericArgumentListSyntax([
             GenericArgumentSyntax(argument: .type(type.trimmed))
@@ -278,47 +268,51 @@ internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
 
     _ = cellType // retained above for documentation; inferred from RHS
 
-    let cellName = "_lazyCell_\(name)"
     return letBinding(name: cellName, value: ExprSyntax(initCall))
 }
 
-/// `_lazyCell_<name>.value = self._storage_<name>` 형태의 쓰기 표현식을 만든다.
+/// `_lazyCell_<name>.storeValue(self._storage_<name>)` 형태의 쓰기 표현식을 만든다.
 ///
 /// init이 shared/input 저장소를 채운 직후에 호출되어, 미리 배포된 Lazy
 /// 래퍼가 뒤늦게 해결(resolve)할 때 같은 인스턴스를 되돌려줄 수 있게 한다.
 internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSyntax {
     let cellMember = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
-        declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+        declName: DeclReferenceExprSyntax(baseName: .identifier("storeValue"))
     )
-    let assignment = InfixOperatorExprSyntax(
-        leftOperand: ExprSyntax(cellMember),
-        operator: AssignmentExprSyntax(),
-        rightOperand: makeSelfMemberAccessExpr(name: storageName)
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(cellMember),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([
+            LabeledExprSyntax(expression: makeSelfMemberAccessExpr(name: storageName))
+        ]),
+        rightParen: .rightParenToken()
     )
-    return ExprSyntax(assignment)
+    return ExprSyntax(call)
 }
 
-/// `_lazyCell_<name>.resolver = { self.<name> }` 형태의 late-binding 표현식을 만든다.
+/// `_lazyCell_<name>.bindResolver { self.<name> }` 형태의 late-binding 표현식을 만든다.
 ///
 /// `.transient` soft target은 init이 끝난 뒤 accessor를 통해 fresh value를
 /// 다시 계산해야 하므로 concrete value를 저장하지 않고 resolver를 바인딩한다.
 internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName: String = "self") -> ExprSyntax {
     let resolverAccess = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
-        declName: DeclReferenceExprSyntax(baseName: .identifier("resolver"))
+        declName: DeclReferenceExprSyntax(baseName: .identifier("bindResolver"))
     )
     let closure = ClosureExprSyntax(
         statements: CodeBlockItemListSyntax([
             CodeBlockItemSyntax(item: .expr(makeSelfMemberAccessExpr(name: accessorName, baseName: baseName)))
         ])
     )
-    let assignment = InfixOperatorExprSyntax(
-        leftOperand: ExprSyntax(resolverAccess),
-        operator: AssignmentExprSyntax(),
-        rightOperand: ExprSyntax(closure)
+    let call = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax(resolverAccess),
+        leftParen: nil,
+        arguments: LabeledExprListSyntax([]),
+        rightParen: nil,
+        trailingClosure: closure
     )
-    return ExprSyntax(assignment)
+    return ExprSyntax(call)
 }
 
 /// `<Qualified>.Lazy({ _lazyCell_<name>.resolve() })` 형태의 인수 표현식을 만든다.
@@ -334,8 +328,14 @@ internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -
 /// Transient 접근자(getter) 내부에서 사용된다. getter 시점에는 `self`가
 /// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
 /// 된다.
-internal func makeLazyAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeDeferredAccessorWrapperExpr(name: name, calleeDescription: calleeDescription)
+internal func makeLazyAccessorWrapperExpr(
+    name: String,
+    calleeDescription: String
+) -> ExprSyntax {
+    makeDeferredAccessorWrapperExpr(
+        name: name,
+        calleeDescription: calleeDescription
+    )
 }
 
 // MARK: - Provider wrappers (Phase L)
@@ -355,8 +355,14 @@ internal func makeProviderCellWrapperExpr(name: String, calleeDescription: Strin
 
 /// `<Qualified>.Provider({ self.<name> })` 형태의 Provider 래퍼. transient
 /// 접근자 내부에서 사용된다 (`self` 이미 초기화 완료).
-internal func makeProviderAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeDeferredAccessorWrapperExpr(name: name, calleeDescription: calleeDescription)
+internal func makeProviderAccessorWrapperExpr(
+    name: String,
+    calleeDescription: String
+) -> ExprSyntax {
+    makeDeferredAccessorWrapperExpr(
+        name: name,
+        calleeDescription: calleeDescription
+    )
 }
 
 /// `_<lazyCell>.resolve()` 기반 deferred wrapper 표현식을 만든다.
@@ -364,9 +370,19 @@ private func makeDeferredCellWrapperExpr(name: String, calleeDescription: String
     makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
 }
 
-/// `self.<name>` 기반 deferred wrapper 표현식을 만든다.
-private func makeDeferredAccessorWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: makeSelfMemberAccessExpr(name: name))
+/// `self.<name>` 접근을 직접 캡처하는 deferred wrapper 표현식을 만든다.
+///
+/// 이 경로는 의도적으로 non-`Sendable`이다. accessor-based `Lazy<T>` /
+/// `Provider<T>` 는 컨테이너의 기존 격리 도메인 안에서만 사용되며, actor
+/// boundary transport는 지원하지 않는다.
+private func makeDeferredAccessorWrapperExpr(
+    name: String,
+    calleeDescription: String
+) -> ExprSyntax {
+    makeDeferredWrapperExpr(
+        calleeDescription: calleeDescription,
+        resolverExpression: makeSelfMemberAccessExpr(name: name)
+    )
 }
 
 /// `makeDeferredCellWrapperExpr` 본체를 Lazy / Provider 양쪽에서 공유할 수

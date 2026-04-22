@@ -32,7 +32,7 @@ extension SubContainerMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard let info = extractPeerInfo(from: node, declaration: declaration) else {
+        guard let info = extractPeerInfo(from: node, declaration: declaration, in: context) else {
             return []
         }
 
@@ -57,7 +57,13 @@ extension SubContainerMacro: PeerMacro {
         // after all other storage is assigned so the closure can read
         // parent members through their accessors on subsequent calls.
         if info.scope == .transient {
-            decls.append(subContainerBuildClosurePeerDecl(name: info.name, childType: info.type))
+            decls.append(
+                subContainerBuildClosurePeerDecl(
+                    name: info.name,
+                    childType: info.type,
+                    isMainActor: info.isMainActor
+                )
+            )
         }
 
         return decls
@@ -70,7 +76,7 @@ extension SubContainerMacro: AccessorMacro {
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
-        guard let info = extractPeerInfo(from: node, declaration: declaration) else {
+        guard let info = extractPeerInfo(from: node, declaration: declaration, in: context) else {
             return []
         }
 
@@ -98,7 +104,7 @@ extension SubContainerMacro: AccessorMacro {
             ))
         }
 
-        let getter = AccessorDeclSyntax(
+        var getter = AccessorDeclSyntax(
             accessorSpecifier: .keyword(.get),
             body: CodeBlockSyntax(
                 statements: CodeBlockItemListSyntax([
@@ -106,6 +112,9 @@ extension SubContainerMacro: AccessorMacro {
                 ])
             )
         )
+        if info.isMainActor {
+            getter = getter.with(\.attributes, mainActorAccessorAttributes())
+        }
         return [getter]
     }
 }
@@ -116,11 +125,13 @@ private struct SubContainerPeerInfo {
     let name: String
     let type: TypeSyntax
     let scope: SubContainerScopeValue
+    let isMainActor: Bool
 }
 
 private func extractPeerInfo(
     from attribute: AttributeSyntax,
-    declaration: some DeclSyntaxProtocol
+    declaration: some DeclSyntaxProtocol,
+    in context: some MacroExpansionContext
 ) -> SubContainerPeerInfo? {
     guard let varDecl = declaration.as(VariableDeclSyntax.self) else { return nil }
     guard let binding = varDecl.bindings.first,
@@ -138,7 +149,12 @@ private func extractPeerInfo(
     return SubContainerPeerInfo(
         name: identifier.identifier.text,
         type: typeAnnotation.type,
-        scope: scope
+        scope: scope,
+        isMainActor: (
+            enclosingDIContainerInfo(in: context) ??
+            enclosingDIContainerInfo(startingAt: Syntax(attribute)) ??
+            enclosingDIContainerInfo(startingAt: Syntax(declaration))
+        )?.mainActor == true
     )
 }
 
@@ -172,4 +188,63 @@ private func subContainerApplyOverridePeerDecl(
         ])
     )
     return DeclSyntax(decl)
+}
+
+private func mainActorAccessorAttributes() -> AttributeListSyntax {
+    AttributeListSyntax([
+        AttributeListSyntax.Element(
+            AttributeSyntax(
+                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
+            )
+        )
+    ])
+}
+
+private func enclosingDIContainerInfo(startingAt syntax: Syntax) -> DIContainerAttributeInfo? {
+    var current: Syntax? = syntax.parent
+
+    while let node = current {
+        if let structDecl = node.as(StructDeclSyntax.self),
+           let info = parseDIContainerAttribute(structDecl.attributes) {
+            return info
+        }
+        if let classDecl = node.as(ClassDeclSyntax.self),
+           let info = parseDIContainerAttribute(classDecl.attributes) {
+            return info
+        }
+        if let actorDecl = node.as(ActorDeclSyntax.self),
+           let info = parseDIContainerAttribute(actorDecl.attributes) {
+            return info
+        }
+        if let enumDecl = node.as(EnumDeclSyntax.self),
+           let info = parseDIContainerAttribute(enumDecl.attributes) {
+            return info
+        }
+        current = node.parent
+    }
+
+    return nil
+}
+
+private func enclosingDIContainerInfo(in context: some MacroExpansionContext) -> DIContainerAttributeInfo? {
+    for node in context.lexicalContext.reversed() {
+        if let structDecl = node.as(StructDeclSyntax.self),
+           let info = parseDIContainerAttribute(structDecl.attributes) {
+            return info
+        }
+        if let classDecl = node.as(ClassDeclSyntax.self),
+           let info = parseDIContainerAttribute(classDecl.attributes) {
+            return info
+        }
+        if let actorDecl = node.as(ActorDeclSyntax.self),
+           let info = parseDIContainerAttribute(actorDecl.attributes) {
+            return info
+        }
+        if let enumDecl = node.as(EnumDeclSyntax.self),
+           let info = parseDIContainerAttribute(enumDecl.attributes) {
+            return info
+        }
+    }
+
+    return nil
 }
