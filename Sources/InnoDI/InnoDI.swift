@@ -201,9 +201,12 @@ public struct Provider<T> {
 ///
 /// Users should not reach for this type directly — it is public only so that
 /// macro output can reference it from arbitrary modules. The implementation
-/// stays `@unchecked Sendable`: mutation is confined to generated init-time
-/// wiring and protected by a lock, while runtime access is read-mostly
-/// through `resolve()`.
+/// stays `@unchecked Sendable` only because generated code follows a narrow
+/// contract: it performs all mutation during container initialization,
+/// publishes the cell after wiring completes, and then treats the instance as
+/// effectively read-only apart from lock-protected access. External code must
+/// not race `storeValue(_:)` / `bindResolver(_:)` against `resolve()`, nor
+/// mutate the cell after the generated wrappers have escaped.
 public final class _LazyCell<T>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: T?
@@ -211,18 +214,31 @@ public final class _LazyCell<T>: @unchecked Sendable {
 
     public init() {}
 
+    /// Stores a concrete dependency value for later `resolve()` calls.
+    ///
+    /// Generated init bodies use this for eager values such as `.input`
+    /// members or already-materialized `.shared` overrides.
     public func storeValue(_ value: T) {
         withLockedState {
             self.value = value
         }
     }
 
+    /// Stores a deferred accessor that `resolve()` can invoke on demand.
+    ///
+    /// Generated init bodies use this when a `Lazy<T>` / `Provider<T>`
+    /// wrapper must re-enter another accessor after that accessor exists.
     public func bindResolver(_ resolver: @escaping () -> T) {
         withLockedState {
             self.resolver = resolver
         }
     }
 
+    /// Returns the bound value or invokes the bound resolver.
+    ///
+    /// Exactly one of `storeValue(_:)` or `bindResolver(_:)` must run before
+    /// the first call. Resolving earlier is always a programmer error in the
+    /// generated wiring and traps immediately.
     public func resolve() -> T {
         let snapshot = withLockedState { (value: value, resolver: resolver) }
         if let value = snapshot.value {
@@ -321,8 +337,8 @@ public enum SubContainerScope {
 ///
 /// Both slots are mutually exclusive: if the direct replacement is provided
 /// it wins; otherwise the chain closure (if any) is forwarded. Input-only
-/// children synthesize an empty nested `Overrides` type so the chain closure
-/// remains source-compatible even when the child has nothing overrideable yet.
+/// children do not synthesize a nested `Overrides` type, so the chain closure
+/// is only available when the child itself has overrideable members.
 @attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
 @attached(accessor)
 public macro SubContainer(
