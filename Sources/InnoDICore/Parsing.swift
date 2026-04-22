@@ -165,10 +165,19 @@ public func findAttribute(named name: String, in attributes: AttributeListSyntax
     guard let attributes else { return nil }
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
-        guard let identifier = attr.attributeName.as(IdentifierTypeSyntax.self) else { continue }
-        if identifier.name.text == name {
+        if attributeBaseName(attr.attributeName) == name {
             return attr
         }
+    }
+    return nil
+}
+
+private func attributeBaseName(_ type: TypeSyntax) -> String? {
+    if let identifier = type.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text
+    }
+    if let member = type.as(MemberTypeSyntax.self) {
+        return member.name.text
     }
     return nil
 }

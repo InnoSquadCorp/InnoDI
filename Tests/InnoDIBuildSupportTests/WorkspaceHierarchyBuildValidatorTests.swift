@@ -1613,6 +1613,61 @@ struct WorkspaceHierarchyBuildValidatorTests {
         #expect(report.issues.isEmpty)
     }
 
+    @Test("Qualified hierarchy and dependency attributes still participate in validation")
+    func qualifiedHierarchyAttributesStillParticipateInValidation() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct ParentConfig {}
+
+            @InnoDI.DIHierarchyRoot
+            @InnoDI.DIContainer
+            struct AppContainer {
+                @InnoDI.Provide(.input) var config: ParentConfig
+                @InnoDI.SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            struct ChildConfig {}
+
+            @InnoDI.DIComponent
+            @InnoDI.DIContainer
+            struct FeatureContainer {
+                @InnoDI.Provide(.input) var config: ChildConfig
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.contains { $0.code == "hierarchy.unsatisfied-dependency" })
+    }
+
     @Test("SwiftPM string literal dependencies resolve unique external products")
     func swiftPMStringLiteralDependencyResolvesExternalProduct() throws {
         let rootURL = try makeTemporaryWorkspaceRoot()
