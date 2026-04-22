@@ -26,7 +26,10 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
   | `DIContainerCodeGenerator.swift` (1,259 lines) | entry file + `DIContainerOverridesGenerator.swift` + `DIContainerWithOverridesGenerator.swift` + `DIContainerSubContainerGenerator.swift` |
   | `DIContainerValidator.swift` (904 lines) | entry file + `DIProvideValidationDiagnostics.swift` + `DIContainerValidatorTypeChecks.swift` |
   | `ValidationCoordinator.swift` (744 lines) | entry file + `ValidationCoordinator+Caching.swift` + `ValidationCoordinator+Locking.swift` |
-  | `SwiftUIMacros.swift` (722 lines) | shared helpers + `DIEnvironmentBridgeMacro.swift` + `DIFeatureRootMacro.swift` |
+  | `SwiftUIMacros.swift` (722 lines) | entry file + `DIEnvironmentBridgeMacro.swift` + `DIFeatureRootMacro.swift` |
+
+  Four original trunks expanded to four retained entry files plus nine new
+  sibling files (9 new siblings, 13 destination files total).
 
 - **New `provide.lazy-aliased` / `provide.provider-aliased` warnings.** When a
   factory parameter is spelled through a `typealias` that resolves to

@@ -126,7 +126,7 @@ override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나�
 |---|---|---|
 | `false` | `true` | 기본값. DAG 검증 대상, 그래프에서 별도 강조 없음 |
 | `true`  | `true` | DAG 검증 대상이며, `InnoDI-DependencyGraph` 출력의 시작 노드로 그려짐 |
-| `false` | `false` | 사이클·모호참조·미지참조 검사에서 제외. 아직 완성되지 않은 fixture에 사용 |
+| `false` | `false` | 사이클·모호참조·미지참조 검사에서 제외. 테스트 전용 컨테이너 또는 아직 완성되지 않은 wiring을 가진 스케치에 사용 |
 | `true`  | `false` | 그래프에서 루트로 렌더링하지만 CI 검증은 건너뜀 |
 
 `root: true`만 켜는 것으로 DAG 검증이 완화되지 않는다. 검증에서 빼려면
