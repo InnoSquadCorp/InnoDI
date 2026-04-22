@@ -59,7 +59,6 @@ struct DIContainerParser {
         context: some MacroExpansionContext
     ) -> DIContainerExpansionModel? {
         let options = InnoDICore.parseDIContainerAttribute(decl.attributes) ?? DIContainerAttributeInfo(
-            validate: true,
             root: false,
             validateDAG: true,
             mainActor: false

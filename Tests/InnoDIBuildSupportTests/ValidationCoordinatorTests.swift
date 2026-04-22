@@ -129,6 +129,31 @@ struct ValidationCoordinatorTests {
         #expect(manifest.files.keys.sorted() == ["Added.swift", "Feature.swift"])
     }
 
+    @Test("Corrupted AST digest manifests are treated as cache misses and rewritten")
+    func corruptedManifestIsRecoveredAsCacheMiss() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let manifestURL = fixture.stateURL.appendingPathComponent("ast-digest-cache.json")
+        try Data("{".utf8).write(to: manifestURL, options: .atomic)
+
+        let parser = MockValidationSyntaxParser()
+        let collector = ValidationSignatureCollector(
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            parser: parser
+        )
+
+        let result = try collector.collectWithMetrics(rootPath: fixture.rootURL.path(percentEncoded: false))
+        let manifest = try loadDigestManifest(at: manifestURL)
+
+        #expect(result.reasonCodes.contains(.cacheMissManifestCorrupted))
+        #expect(result.reasonCodes.contains(.cacheMissManifestVersion) == false)
+        #expect(result.metrics.astReparseCount == 1)
+        #expect(parser.parseCount == 1)
+        #expect(manifest.version == ValidationDigestManifest.currentVersion)
+        #expect(manifest.files.keys.sorted() == ["Feature.swift"])
+    }
+
     @Test("Comment-only changes preserve the final package signature")
     func commentOnlyChangesPreservePackageSignature() throws {
         let fixture = try makeFixture()
@@ -333,7 +358,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Success result is reused for identical input signature")
-    func successResultIsReused() throws {
+    func successResultIsReused() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -343,14 +368,14 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let first = try ValidationCoordinator.coordinate(
+        let first = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
             outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
             runner: runner
         )
-        let second = try ValidationCoordinator.coordinate(
+        let second = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -366,7 +391,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Coordinator writes metrics artifacts for live and cached executions")
-    func coordinatorWritesMetricsArtifacts() throws {
+    func coordinatorWritesMetricsArtifacts() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -376,7 +401,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let first = try ValidationCoordinator.coordinate(
+        let first = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -384,7 +409,7 @@ struct ValidationCoordinatorTests {
             runner: runner,
             verboseLoggingEnabled: true
         )
-        let second = try ValidationCoordinator.coordinate(
+        let second = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -423,7 +448,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Semantic validation fails on same-module Lazy and Provider collisions before DAG runner executes")
-    func semanticValidationFailsOnLocalWrapperCollisions() throws {
+    func semanticValidationFailsOnLocalWrapperCollisions() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -452,7 +477,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -472,7 +497,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Semantic validation rejects wrapper aliases before DAG runner executes")
-    func semanticValidationRejectsWrapperAliases() throws {
+    func semanticValidationRejectsWrapperAliases() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -501,7 +526,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -519,7 +544,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Qualified InnoDI deferred wrappers pass semantic validation and reach the DAG runner")
-    func qualifiedDeferredWrappersPassSemanticValidation() throws {
+    func qualifiedDeferredWrappersPassSemanticValidation() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -546,7 +571,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -562,7 +587,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Semantic validation rejects bindings: that target an unknown child input")
-    func semanticValidationRejectsUnknownChildInputBinding() throws {
+    func semanticValidationRejectsUnknownChildInputBinding() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -598,7 +623,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -615,7 +640,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Legacy shared-run cache directories without a version salt are ignored")
-    func legacySharedRunCacheDirectoriesAreIgnored() throws {
+    func legacySharedRunCacheDirectoriesAreIgnored() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -634,6 +659,7 @@ struct ValidationCoordinatorTests {
                 liveRunMetrics: ValidationLiveRunMetrics(
                     customInitValidationMilliseconds: 1,
                     semanticValidationMilliseconds: 1,
+                    hierarchyValidationMilliseconds: 0,
                     dagValidationMilliseconds: 1
                 ),
                 reasonCodes: [.liveRunSemanticValidation, .liveRunDAGValidation],
@@ -648,7 +674,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -664,7 +690,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Corrupt current-version shared-run metrics fall back to a live validation run")
-    func corruptCurrentVersionSharedRunMetricsFallBackToLiveRun() throws {
+    func corruptCurrentVersionSharedRunMetricsFallBackToLiveRun() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -692,7 +718,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -712,7 +738,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Dead-owner lock files are recovered before live validation continues")
-    func deadOwnerLockIsRecoveredBeforeLiveValidation() throws {
+    func deadOwnerLockIsRecoveredBeforeLiveValidation() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -744,7 +770,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -762,7 +788,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Corrupt legacy lock files older than the stale threshold are recovered")
-    func corruptLegacyLockFileIsRecovered() throws {
+    func corruptLegacyLockFileIsRecovered() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -790,7 +816,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -848,7 +874,7 @@ struct ValidationCoordinatorTests {
         let runtimeA = ValidationCoordinatorRuntime(
             monotonicNow: validationNow,
             currentDate: Date.init,
-            sleep: { Thread.sleep(forTimeInterval: $0) },
+            sleep: validationSleep,
             currentProcessID: { 2001 },
             processExists: { [2001, 2002].contains($0) },
             beforeStaleLockRemoval: { _ in
@@ -859,14 +885,14 @@ struct ValidationCoordinatorTests {
         let runtimeB = ValidationCoordinatorRuntime(
             monotonicNow: validationNow,
             currentDate: Date.init,
-            sleep: { Thread.sleep(forTimeInterval: $0) },
+            sleep: validationSleep,
             currentProcessID: { 2002 },
             processExists: { [2001, 2002].contains($0) }
         )
 
-        let outcomes = try await withThrowingTaskGroup(of: ValidationExecutionOutcome.self) { group in
+            let outcomes = try await withThrowingTaskGroup(of: ValidationExecutionOutcome.self) { group in
             group.addTask {
-                try ValidationCoordinator.coordinate(
+                try await ValidationCoordinator.coordinate(
                     rootPath: fixture.rootURL.path(percentEncoded: false),
                     toolPath: "/usr/bin/true",
                     stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -887,7 +913,7 @@ struct ValidationCoordinatorTests {
             #expect(recoveryPointReached.isSet)
 
             group.addTask {
-                try ValidationCoordinator.coordinate(
+                try await ValidationCoordinator.coordinate(
                     rootPath: fixture.rootURL.path(percentEncoded: false),
                     toolPath: "/usr/bin/true",
                     stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -918,7 +944,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Terminal reconciliation returns a cached result written during the final backoff")
-    func terminalReconciliationReturnsCachedResultWrittenDuringFinalBackoff() throws {
+    func terminalReconciliationReturnsCachedResultWrittenDuringFinalBackoff() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -943,6 +969,7 @@ struct ValidationCoordinatorTests {
             liveRunMetrics: ValidationLiveRunMetrics(
                 customInitValidationMilliseconds: 1,
                 semanticValidationMilliseconds: 2,
+                hierarchyValidationMilliseconds: 0,
                 dagValidationMilliseconds: 3
             ),
             reasonCodes: [.liveRunSemanticValidation, .liveRunDAGValidation],
@@ -978,7 +1005,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -998,7 +1025,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Active locks time out predictably instead of retrying indefinitely")
-    func activeLockTimesOutPredictably() throws {
+    func activeLockTimesOutPredictably() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -1036,7 +1063,7 @@ struct ValidationCoordinatorTests {
             maxBackoffSeconds: 0.2
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1067,7 +1094,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Failure result is reused for identical input signature")
-    func failureResultIsReused() throws {
+    func failureResultIsReused() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -1077,14 +1104,14 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let first = try ValidationCoordinator.coordinate(
+        let first = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/false",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
             outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
             runner: runner
         )
-        let second = try ValidationCoordinator.coordinate(
+        let second = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/false",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1117,7 +1144,7 @@ struct ValidationCoordinatorTests {
 
         let results = try await withThrowingTaskGroup(of: ValidationExecutionOutcome.self) { group in
             group.addTask {
-                try ValidationCoordinator.coordinate(
+                try await ValidationCoordinator.coordinate(
                     rootPath: fixture.rootURL.path(percentEncoded: false),
                     toolPath: "/usr/bin/true",
                     stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1126,7 +1153,7 @@ struct ValidationCoordinatorTests {
                 )
             }
             group.addTask {
-                try ValidationCoordinator.coordinate(
+                try await ValidationCoordinator.coordinate(
                     rootPath: fixture.rootURL.path(percentEncoded: false),
                     toolPath: "/usr/bin/true",
                     stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1149,7 +1176,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Changing source input invalidates the cached result")
-    func changingSourceInputInvalidatesCache() throws {
+    func changingSourceInputInvalidatesCache() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -1160,7 +1187,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let first = try ValidationCoordinator.coordinate(
+        let first = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1174,7 +1201,7 @@ struct ValidationCoordinatorTests {
             encoding: .utf8
         )
 
-        let second = try ValidationCoordinator.coordinate(
+        let second = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1189,7 +1216,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Cross-file custom init validation fails before DAG runner executes")
-    func crossFileCustomInitValidationFailsBeforeRunnerExecutes() throws {
+    func crossFileCustomInitValidationFailsBeforeRunnerExecutes() async throws {
         let fixture = try makeCrossFileCustomInitFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -1199,7 +1226,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
@@ -1216,7 +1243,7 @@ struct ValidationCoordinatorTests {
     }
 
     @Test("Same-file custom init conflicts remain outside build-stage validation")
-    func sameFileCustomInitConflictsDoNotShortCircuitBuildValidator() throws {
+    func sameFileCustomInitConflictsDoNotShortCircuitBuildValidator() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -1244,7 +1271,7 @@ struct ValidationCoordinatorTests {
             ]
         )
 
-        let outcome = try ValidationCoordinator.coordinate(
+        let outcome = try await ValidationCoordinator.coordinate(
             rootPath: fixture.rootURL.path(percentEncoded: false),
             toolPath: "/usr/bin/true",
             stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),

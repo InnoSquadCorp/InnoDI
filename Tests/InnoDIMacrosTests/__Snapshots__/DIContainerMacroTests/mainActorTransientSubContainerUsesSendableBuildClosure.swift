@@ -1,14 +1,14 @@
 
 struct AppContainer {
-    var config: AppConfig {
+    var config: Config {
         get {
             return _storage_config
         }
     }
 
-    private let _storage_config: AppConfig
+    private let _storage_config: Config
     var feature: FeatureContainer {
-        get {
+        @MainActor get {
             return _innoDISubBuild_feature()
         }
     }
@@ -17,9 +17,9 @@ struct AppContainer {
 
     private let _override_sub_apply_feature: ((inout FeatureContainer.Overrides) -> Void)?
 
-    private let _innoDISubBuild_feature: @Sendable () -> FeatureContainer
+    private let _innoDISubBuild_feature: @MainActor @Sendable () -> FeatureContainer
 
-    init(config: AppConfig, feature: FeatureContainer? = nil, featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil) {
+    @MainActor init(config: Config, feature: FeatureContainer? = nil, featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil) {
         self._storage_config = config
         self._override_sub_feature = feature
         self._override_sub_apply_feature = featureOverrides
@@ -44,28 +44,28 @@ struct AppContainer {
         var featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil
     }
 
-    init(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void) {
+    @MainActor init(config: Config, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(config: config, feature: overrides.feature, featureOverrides: overrides.featureOverrides)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+    @MainActor static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
         let container = Self(config: config, applyOverrides)
         return operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+    @MainActor static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
         let container = Self(config: config, applyOverrides)
         return try operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+    @MainActor static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
         let container = Self(config: config, applyOverrides)
         return await operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+    @MainActor static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
         let container = Self(config: config, applyOverrides)
         return try await operation(container)
     }

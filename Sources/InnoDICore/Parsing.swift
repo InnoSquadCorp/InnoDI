@@ -135,8 +135,6 @@ public struct SubContainerBindingArgument: Equatable, Sendable {
 
 /// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
-    /// Whether compile-time validation is enabled for the container.
-    public let validate: Bool
     /// Whether the container should be marked as graph root.
     public let root: Bool
     /// Whether DAG validation is enabled for this container.
@@ -147,12 +145,10 @@ public struct DIContainerAttributeInfo {
     /// Creates a parsed `@DIContainer` attribute model.
     ///
     /// - Parameters:
-    ///   - validate: Validation flag.
     ///   - root: Root flag.
     ///   - validateDAG: DAG validation flag.
     ///   - mainActor: Main actor isolation flag.
-    public init(validate: Bool, root: Bool, validateDAG: Bool, mainActor: Bool) {
-        self.validate = validate
+    public init(root: Bool, validateDAG: Bool, mainActor: Bool) {
         self.root = root
         self.validateDAG = validateDAG
         self.mainActor = mainActor
@@ -382,7 +378,6 @@ private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {
 public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContainerAttributeInfo? {
     guard let attr = findAttribute(named: "DIContainer", in: attributes) else { return nil }
 
-    var validate = true
     var root = false
     var validateDAG = true
     var mainActor = false
@@ -390,9 +385,6 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
             guard let label = argument.label?.text else { continue }
-            if label == "validate", let value = parseBoolLiteral(argument.expression) {
-                validate = value
-            }
             if label == "root", let value = parseBoolLiteral(argument.expression) {
                 root = value
             }
@@ -405,5 +397,5 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
         }
     }
 
-    return DIContainerAttributeInfo(validate: validate, root: root, validateDAG: validateDAG, mainActor: mainActor)
+    return DIContainerAttributeInfo(root: root, validateDAG: validateDAG, mainActor: mainActor)
 }

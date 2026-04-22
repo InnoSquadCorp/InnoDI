@@ -25,6 +25,10 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 - ASCII legend extends to list `~~> provider (Provider<T>)` alongside the existing soft-edge clause when provider edges are present. A fourth legend row (`#=> ownership (@SubContainer)`) appears when ownership edges are present.
 - `deduplicateEdges(_:)` now tracks `isOwnership` alongside `isSoft` / `isProvider` with the same hard-wins rule: a merged ownership edge survives only when every reporting site said ownership; deferred-kind disagreements still collapse to hard but leave the ownership flag untouched.
 - `Overrides` / convenience init / `withOverrides` builder is now emitted when a container has any `.shared` / `.transient` / `@SubContainer` member (previously only `.shared` / `.transient` triggered it).
+- `@DIContainer` no longer exposes the unused `validate` parameter. Container-level validation configuration now uses `validateDAG` for DAG opt-out only.
+- Unresolved factory-parameter and `with:` diagnostics now suppress rename/key-path fix-its when the closest normalized match is still unavailable at that declaration site due to declaration order.
+- Repository release/process docs now center on tests, validation artifacts, and DocC generation; the legacy `Benchmarks/` suite and related workflows have been removed.
+- `Lazy<T>` / `Provider<T>` no longer promise actor-boundary transport. Their public resolver surface is plain `() -> T`, conditional `Sendable` conformance has been removed, and accessor-generated wrappers now capture `self` directly so unsupported cross-actor use is rejected by Swift instead of being hidden behind `_LazyCell`.
 
 ## 3.0.1
 
@@ -37,7 +41,6 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 
 ### Added
 
-- CI-friendly validation benchmark preset, baseline compare artifacts, and Markdown summary output.
 - Docs entrypoint guidance for `README`, `Validation`, `PolicyBoundaries`, and `ModuleWideInitDetection`.
 - Release governance documents for changelog, migration notes, and artifact schema expectations.
 - OSS repository documents for licensing, contributing, security, and community conduct.
@@ -46,5 +49,4 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 
 ### Changed
 
-- Validation benchmark workflow now distinguishes local exploration from CI regression gating.
 - Promoted strict validation, semantic enforcement, and build-stage release contracts as the new major-version baseline for OSS consumers.

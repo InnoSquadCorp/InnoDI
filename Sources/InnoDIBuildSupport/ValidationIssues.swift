@@ -1,17 +1,20 @@
 import Foundation
 
+/// Structured severity used by build-stage validation issues.
 package enum ValidationIssueSeverity: String, Codable, Equatable, Sendable {
     case error
     case warning
     case note
 }
 
+/// Source location attached to a structured validation issue or note.
 package struct ValidationIssueLocation: Codable, Equatable, Sendable {
     package let filePath: String
     package let line: Int
     package let column: Int
 }
 
+/// Supplementary context attached to a structured validation issue.
 package struct ValidationIssueNote: Codable, Equatable, Sendable {
     package let message: String
     package let location: ValidationIssueLocation?
@@ -22,6 +25,10 @@ package struct ValidationIssueNote: Codable, Equatable, Sendable {
     }
 }
 
+/// Structured validation failure emitted by build-support validators.
+///
+/// These issues are rendered both as stderr for failing builds and as Markdown
+/// sections inside coordinator metrics artifacts.
 package struct ValidationIssue: Codable, Equatable, Sendable {
     package let code: String
     package let severity: ValidationIssueSeverity
@@ -50,6 +57,7 @@ package struct ValidationIssue: Codable, Equatable, Sendable {
     }
 }
 
+/// Aggregated result from a build-support validator pass.
 package struct ValidationIssueReport: Codable, Equatable, Sendable {
     package let issues: [ValidationIssue]
 
@@ -72,6 +80,8 @@ package struct ValidationIssueReport: Codable, Equatable, Sendable {
     }
 }
 
+/// Shared renderer for turning structured issues into stderr and Markdown
+/// outputs.
 package enum ValidationIssueRenderer {
     package static func renderStderr(issues: [ValidationIssue]) -> String {
         guard !issues.isEmpty else {

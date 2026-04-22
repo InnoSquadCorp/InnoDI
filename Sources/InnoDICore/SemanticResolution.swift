@@ -1,5 +1,7 @@
 import SwiftSyntax
 
+/// Syntax-derived nominal type reference used by build validators and the DAG
+/// CLI before Swift's type checker is available.
 package struct SemanticTypeReference: Codable, Equatable, Sendable {
     package let displayPath: String
     package let components: [String]
@@ -10,6 +12,7 @@ package struct SemanticTypeReference: Codable, Equatable, Sendable {
     }
 }
 
+/// Collected nominal type declaration keyed by its normalized semantic path.
 package struct SemanticNominalTypeRecord: Codable, Equatable, Sendable {
     package let path: String
     package let components: [String]
@@ -20,6 +23,8 @@ package struct SemanticNominalTypeRecord: Codable, Equatable, Sendable {
     }
 }
 
+/// Collected top-level typealias record used for lightweight semantic
+/// expansion during build validation and graph collection.
 package struct SemanticTypeAliasRecord: Codable, Equatable, Sendable {
     package let path: String
     package let components: [String]
@@ -32,6 +37,8 @@ package struct SemanticTypeAliasRecord: Codable, Equatable, Sendable {
     }
 }
 
+/// Outcome of resolving a syntax-level type reference against collected
+/// container candidates.
 package enum SemanticResolutionState: String, Codable, Equatable, Sendable {
     case resolved
     case ambiguous
@@ -39,6 +46,8 @@ package enum SemanticResolutionState: String, Codable, Equatable, Sendable {
     case unresolved
 }
 
+/// Full semantic resolution result, including alias expansion trace and
+/// fallback details for diagnostics and observability.
 package struct SemanticResolutionResult: Codable, Equatable, Sendable {
     package let state: SemanticResolutionState
     package let resolvedPath: String?
@@ -64,6 +73,12 @@ package struct SemanticResolutionResult: Codable, Equatable, Sendable {
     }
 }
 
+/// Lightweight semantic index shared by build validators and the dependency
+/// graph CLI.
+///
+/// The index resolves nominal paths and typealias chains without relying on
+/// compiler type-checking, which keeps build-time validation deterministic and
+/// package-local.
 package struct SemanticResolverIndex: Equatable, Sendable {
     package let nominalTypes: [SemanticNominalTypeRecord]
     package let typeAliases: [SemanticTypeAliasRecord]

@@ -273,10 +273,7 @@ private func makeInitDecl(
         let storageName = "_storage_task_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: taskName))))
 
-        let resolvedTaskName = "_resolved_task_\(member.name)"
-        let resolvedTaskDecl = letBinding(name: resolvedTaskName, value: taskName)
-        statements.append(CodeBlockItemSyntax(item: .decl(resolvedTaskDecl)))
-        taskBindings[member.name] = AsyncTaskBinding(name: resolvedTaskName, isThrowing: member.asyncFactoryIsThrowing)
+        taskBindings[member.name] = AsyncTaskBinding(name: taskName, isThrowing: member.asyncFactoryIsThrowing)
     }
 
     for member in transientMembers {
@@ -323,10 +320,30 @@ private func makeInitDecl(
         ))
     }
     if hasTransientSubContainer {
+        for member in subContainerMembers where member.scope == .transient {
+            statements.append(
+                CodeBlockItemSyntax(
+                    item: .decl(
+                        makeDeferredCellDecl(
+                            cellName: "_subBuildCell_\(member.name)",
+                            type: member.type
+                        )
+                    )
+                )
+            )
+            let assignBuildClosure: CodeBlockItemSyntax = """
+                self._innoDISubBuild_\(raw: member.name) = {
+                    _subBuildCell_\(raw: member.name).resolve()
+                }
+                """
+            statements.append(assignBuildClosure)
+        }
+
         // Snapshot `self` once, *after* every other stored property is
         // assigned, so the closures we bind below can safely read parent
         // accessors. The override wedges for every sub-container member
-        // are assigned by the loop above, so `self` is fully initialized.
+        // and builder closures are assigned by the loop above, so `self`
+        // is fully initialized.
         statements.append(
             CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelfForSub", value: "self")))
         )
@@ -352,7 +369,7 @@ private func makeInitDecl(
                 parentMemberPrefix: ""
             )
             let assignStmt: CodeBlockItemSyntax = """
-                self._innoDISubBuild_\(raw: member.name) = { () -> \(raw: childTypeDesc) in
+                _subBuildCell_\(raw: member.name).bindResolver { () -> \(raw: childTypeDesc) in
                     if let direct = _lazySelfForSub._override_sub_\(raw: member.name) {
                         return direct
                     }

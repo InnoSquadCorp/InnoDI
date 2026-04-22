@@ -3,6 +3,13 @@ import InnoDICore
 import SwiftParser
 import SwiftSyntax
 
+/// Build-stage semantic validator for module-wide container relationships.
+///
+/// This pass runs after cross-file custom-init validation and before DAG
+/// validation. It collects lightweight syntax records for container
+/// declarations, sub-container bindings, and deferred-wrapper spellings, then
+/// resolves them through `SemanticResolverIndex` so the coordinator can emit
+/// structured diagnostics without invoking the Swift type checker.
 package enum ContainerSemanticBuildValidator {
     package static func validate(rootPath: String) throws -> ValidationIssueReport {
         let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)

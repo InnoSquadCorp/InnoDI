@@ -229,10 +229,10 @@ struct DIContainerMacroTests {
     }
 
     @Test
-    func validateFalseStillRejectsMissingSharedFactory() {
+    func sharedMembersStillRequireFactories() {
         assertMacroExpansionDiagnosticCodes(
             """
-            @DIContainer(validate: false)
+            @DIContainer
             struct AppContainer {
                 @Provide(.shared)
                 var service: any ServiceProtocol
@@ -246,10 +246,10 @@ struct DIContainerMacroTests {
     }
 
     @Test
-    func validateFalseStillRejectsConcreteDependencyWithoutOptIn() {
+    func concreteSharedDependenciesStillRequireExplicitOptIn() {
         assertMacroExpansionDiagnosticCodes(
             """
-            @DIContainer(validate: false)
+            @DIContainer
             struct AppContainer {
                 @Provide(.shared, factory: Service())
                 var service: Service
@@ -263,10 +263,10 @@ struct DIContainerMacroTests {
     }
 
     @Test
-    func validateFalseStillRejectsInputFactory() {
+    func inputMembersStillRejectFactoryConfiguration() {
         assertMacroExpansionDiagnosticCodes(
             """
-            @DIContainer(validate: false)
+            @DIContainer
             struct AppContainer {
                 @Provide(.input, factory: Service())
                 var service: any ServiceProtocol
@@ -467,7 +467,7 @@ struct DIContainerMacroTests {
     func providerInSharedFactoryInjectsFreshTransient() {
         // `.shared` factory receives a Provider<Request>. Generated code
         // should declare `_lazyCell_request` (reusing the Lazy cell
-        // infrastructure), bind `_lazyCell_request.resolver = { _lazySelf.request }`
+        // infrastructure), bind `_lazyCell_request.bindResolver { _lazySelf.request }`
         // after init, and pass `Provider({ _lazyCell_request.resolve() })` to
         // the factory. The snapshot captures the full init body.
         assertMacroExpansionSnapshot(
@@ -496,9 +496,9 @@ struct DIContainerMacroTests {
     @Test("Provider<T> factory parameter works in a transient accessor (no init box needed)")
     func providerInTransientAccessorFactory() {
         // Transient-in-transient Provider: the processor's factory receives
-        // `Provider<Payload>` and should be wrapped as
-        // `Provider({ self.payload })` — no `_lazyCell_` needed because the
-        // accessor runs after `self` is fully constructed.
+        // `Provider<Payload>` and should be wrapped via a short-lived
+        // `_resolverCell` so the generated `@Sendable` resolver never
+        // captures `self` directly.
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -869,6 +869,23 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "mainActorContainerGeneratesMainActorInit",
+            macros: Self.macros
+        )
+    }
+
+    @Test("mainActor: true propagates to transient sub-container accessors and build closures")
+    func mainActorTransientSubContainerUsesSendableBuildClosure() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.input) var config: Config
+
+                @SubContainer(scope: .transient)
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "mainActorTransientSubContainerUsesSendableBuildClosure",
             macros: Self.macros
         )
     }
@@ -1393,6 +1410,117 @@ struct DIContainerMacroTests {
         #expect(diagnostic.fixIts.isEmpty)
     }
 
+    @Test("Factory parameter diagnostics suppress fix-its for declaration-order unavailable shared candidates")
+    func unresolvedFactoryParameterDiagnosticsSkipUnavailableFixItForSharedMember() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: { (later_service: LaterService) in
+                Service(laterService: later_service)
+            }, concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse declaration-order unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(diagnostic.fixIts.isEmpty)
+        #expect(diagnostic.notes.contains(where: { $0.message.contains("declaration order") }))
+    }
+
+    @Test("Factory parameter diagnostics keep fix-its for async shared members that can see later sync shared dependencies")
+    func unresolvedFactoryParameterDiagnosticsIncludeFixItForAsyncSharedLaterSyncDependency() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, asyncFactory: { (later_service: LaterService) async in
+                Service(laterService: later_service)
+            }, concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse async shared unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("laterService") == true)
+    }
+
+    @Test("Factory parameter diagnostics keep fix-its for transient members that can see later dependencies")
+    func unresolvedFactoryParameterDiagnosticsIncludeFixItForTransientLaterDependency() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.transient, factory: { (later_service: LaterService) in
+                Service(laterService: later_service)
+            }, concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse transient unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("laterService") == true)
+    }
+
     @Test("with dependency diagnostics include notes and a unique replacement fix-it")
     func unresolvedWithDependencyDiagnosticsIncludeReplacementFixIt() throws {
         let source = """
@@ -1427,6 +1555,41 @@ struct DIContainerMacroTests {
         #expect(!diagnostic.notes.isEmpty)
         #expect(diagnostic.fixIts.count == 1)
         #expect(diagnostic.fixIts.first?.message.message.contains("\\.baseURL") == true)
+    }
+
+    @Test("with dependency diagnostics suppress fix-its for declaration-order unavailable shared candidates")
+    func unresolvedWithDependencyDiagnosticsSkipUnavailableFixItForSharedMember() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, Service.self, with: [\\.later_service], concrete: true)
+            var service: Service
+
+            @Provide(.shared, factory: LaterService(), concrete: true)
+            var laterService: LaterService
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse declaration-order unresolved with dependency fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-with-dependency")
+        }) else {
+            Issue.record("Expected unresolved with dependency diagnostic")
+            return
+        }
+
+        #expect(generated.isEmpty)
+        #expect(diagnostic.fixIts.isEmpty)
+        #expect(diagnostic.notes.contains(where: { $0.message.contains("declaration order") }))
     }
 
     @Test("Unavailable dependency diagnostics explain declaration-order constraints")

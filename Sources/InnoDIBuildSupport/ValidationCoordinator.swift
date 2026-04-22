@@ -6,6 +6,7 @@ import Darwin
 import Glibc
 #endif
 
+/// Captured stdout and stderr from a single DAG validation command run.
 package struct ValidationCommandResult: Codable, Equatable, Sendable {
     package let exitCode: Int32
     package let stdout: String
@@ -18,6 +19,10 @@ package struct ValidationCommandResult: Codable, Equatable, Sendable {
     }
 }
 
+/// Final coordinator output returned to the build plugin wrapper.
+///
+/// This bundles the raw command result with the normalized signature and the
+/// per-invocation metrics artifact written alongside the plugin outputs.
 package struct ValidationExecutionOutcome: Equatable, Sendable {
     package let result: ValidationCommandResult
     package let wasCached: Bool
@@ -26,10 +31,14 @@ package struct ValidationExecutionOutcome: Equatable, Sendable {
     package let verboseSummary: String?
 }
 
+/// Abstraction over the DAG validation command so tests can inject deterministic
+/// runners.
 package protocol ValidationCommandRunning: Sendable {
     func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult
 }
 
+/// Shared record persisted for one live validation run keyed by the normalized
+/// source signature.
 package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
     package let liveRunMetrics: ValidationLiveRunMetrics
     package let reasonCodes: [ValidationReasonCode]
@@ -61,7 +70,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
     package static let live = Self(
         monotonicNow: validationNow,
         currentDate: Date.init,
-        sleep: { Thread.sleep(forTimeInterval: $0) },
+        sleep: validationSleep,
         currentProcessID: { getpid() },
         processExists: validationProcessExists,
         beforeStaleLockRemoval: { _ in }
@@ -69,7 +78,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
 
     package let monotonicNow: @Sendable () -> TimeInterval
     package let currentDate: @Sendable () -> Date
-    package let sleep: @Sendable (TimeInterval) -> Void
+    package let sleep: @Sendable (TimeInterval) async -> Void
     package let currentProcessID: @Sendable () -> Int32
     package let processExists: @Sendable (Int32) -> Bool
     package let beforeStaleLockRemoval: @Sendable (URL) -> Void
@@ -77,7 +86,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
     package init(
         monotonicNow: @escaping @Sendable () -> TimeInterval,
         currentDate: @escaping @Sendable () -> Date,
-        sleep: @escaping @Sendable (TimeInterval) -> Void,
+        sleep: @escaping @Sendable (TimeInterval) async -> Void,
         currentProcessID: @escaping @Sendable () -> Int32,
         processExists: @escaping @Sendable (Int32) -> Bool,
         beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
@@ -96,12 +105,22 @@ package struct ValidationCoordinatorLockMetadata: Codable, Equatable, Sendable {
     package let createdAt: TimeInterval
 }
 
-package let sharedRunCacheVersion = 1
+package let sharedRunCacheVersion = 2
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
 }
 
+package func validationSleep(_ interval: TimeInterval) async {
+    guard interval > 0 else {
+        return
+    }
+
+    let nanoseconds = UInt64((interval * 1_000_000_000).rounded(.up))
+    try? await Task.sleep(nanoseconds: nanoseconds)
+}
+
+/// Default process runner used by the coordinator to execute the DAG validator.
 package struct LiveValidationCommandRunner: ValidationCommandRunning {
     package init() {}
 
@@ -142,14 +161,19 @@ package struct LiveValidationCommandRunner: ValidationCommandRunning {
     }
 }
 
+/// Shared build-validation entry point.
+///
+/// The coordinator computes a source signature, reuses or produces one shared
+/// live validation result per signature, and emits per-invocation metrics and
+/// Markdown summaries for plugin consumers.
 package enum ValidationCoordinator {
     package static func coordinate(
         rootPath: String,
         toolPath: String,
         stateDirectoryPath: String,
         outputDirectoryPath: String
-    ) throws -> ValidationExecutionOutcome {
-        try coordinate(
+    ) async throws -> ValidationExecutionOutcome {
+        try await coordinate(
             rootPath: rootPath,
             toolPath: toolPath,
             stateDirectoryPath: stateDirectoryPath,
@@ -167,7 +191,7 @@ package enum ValidationCoordinator {
         verboseLoggingEnabled: Bool = ValidationLogging.isVerboseEnabled(),
         lockPolicy: ValidationCoordinatorLockPolicy = .default,
         runtime: ValidationCoordinatorRuntime = .live
-    ) throws -> ValidationExecutionOutcome {
+    ) async throws -> ValidationExecutionOutcome {
         let coordinatorStartTime = validationNow()
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
@@ -276,6 +300,7 @@ package enum ValidationCoordinator {
             let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
 
             let semanticValidationMilliseconds: Double
+            let hierarchyValidationMilliseconds: Double
             let dagValidationMilliseconds: Double
             var liveRunReasonCodes: [ValidationReasonCode] = recoveredStaleLock
                 ? [.staleLockRecovered]
@@ -284,6 +309,7 @@ package enum ValidationCoordinator {
             if let customInitFailure {
                 result = customInitFailure
                 semanticValidationMilliseconds = 0
+                hierarchyValidationMilliseconds = 0
                 dagValidationMilliseconds = 0
                 liveRunReasonCodes.append(.liveRunCustomInitFailure)
                 issues = customInitValidation.issues
@@ -295,16 +321,31 @@ package enum ValidationCoordinator {
 
                 if let semanticFailure {
                     result = semanticFailure
+                    hierarchyValidationMilliseconds = 0
                     dagValidationMilliseconds = 0
                     liveRunReasonCodes.append(.liveRunSemanticFailure)
                     issues = semanticValidation.issues
                 } else {
-                    let dagValidationStartTime = validationNow()
-                    result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
-                    dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
-                    liveRunReasonCodes.append(.liveRunSemanticValidation)
-                    liveRunReasonCodes.append(.liveRunDAGValidation)
-                    issues = semanticValidation.issues
+                    let hierarchyValidationStartTime = validationNow()
+                    let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(rootPath: rootPath)
+                    let hierarchyFailure = hierarchyValidation.asCommandResult()
+                    hierarchyValidationMilliseconds = validationElapsedMilliseconds(since: hierarchyValidationStartTime)
+
+                    if let hierarchyFailure {
+                        result = hierarchyFailure
+                        dagValidationMilliseconds = 0
+                        liveRunReasonCodes.append(.liveRunSemanticValidation)
+                        liveRunReasonCodes.append(.liveRunHierarchyFailure)
+                        issues = semanticValidation.issues + hierarchyValidation.issues
+                    } else {
+                        let dagValidationStartTime = validationNow()
+                        result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
+                        dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
+                        liveRunReasonCodes.append(.liveRunSemanticValidation)
+                        liveRunReasonCodes.append(.liveRunHierarchyValidation)
+                        liveRunReasonCodes.append(.liveRunDAGValidation)
+                        issues = semanticValidation.issues + hierarchyValidation.issues
+                    }
                 }
             }
 
@@ -312,6 +353,7 @@ package enum ValidationCoordinator {
                 liveRunMetrics: ValidationLiveRunMetrics(
                     customInitValidationMilliseconds: customInitValidationMilliseconds,
                     semanticValidationMilliseconds: semanticValidationMilliseconds,
+                    hierarchyValidationMilliseconds: hierarchyValidationMilliseconds,
                     dagValidationMilliseconds: dagValidationMilliseconds
                 ),
                 reasonCodes: liveRunReasonCodes,
@@ -385,7 +427,7 @@ package enum ValidationCoordinator {
             }
 
             let delaySeconds = min(backoffSeconds, remainingWait)
-            runtime.sleep(delaySeconds)
+            await runtime.sleep(delaySeconds)
             backoffSeconds = min(backoffSeconds * 2, lockPolicy.maxBackoffSeconds)
         }
 
@@ -422,6 +464,7 @@ package enum ValidationCoordinator {
             liveRunMetrics: ValidationLiveRunMetrics(
                 customInitValidationMilliseconds: 0,
                 semanticValidationMilliseconds: 0,
+                hierarchyValidationMilliseconds: 0,
                 dagValidationMilliseconds: 0
             ),
             reasonCodes: timeoutReasonCodes,

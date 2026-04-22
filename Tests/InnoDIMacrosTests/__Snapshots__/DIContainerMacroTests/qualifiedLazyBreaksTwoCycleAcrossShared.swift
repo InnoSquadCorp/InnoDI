@@ -25,7 +25,7 @@ struct AppContainer {
         self._storage_b = b ?? { (a: CoordinatorA) in
                 CoordinatorB(a: a)
             }(self._storage_a)
-        _lazyCell_b.value = self._storage_b
+        _lazyCell_b.storeValue(self._storage_b)
     }
 
     struct Overrides {

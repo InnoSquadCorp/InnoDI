@@ -2,6 +2,31 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## Unreleased — Deferred wrapper sendability tightened
+
+### Who is affected
+
+- Projects that store `Lazy<T>` / `Provider<T>` inside `Sendable` types.
+- Projects that pass `Lazy<T>` / `Provider<T>` across actor boundaries under
+  `-strict-concurrency=complete`.
+
+### Required action
+
+- Stop treating `Lazy<T>` / `Provider<T>` as actor-boundary transport types.
+  Keep them on the container's original isolation domain, or resolve the
+  underlying dependency before crossing actors.
+- If a `Sendable` holder currently stores either wrapper, replace the stored
+  property with a concrete value, an actor-local closure, or an explicit
+  message type that does not retain the container-backed deferred handle.
+
+### Notes
+
+- `Lazy<T>` / `Provider<T>` no longer expose `Sendable` conformance, even when
+  `T: Sendable`.
+- Shared/init-time late binding still uses `_LazyCell`; this change only
+  removes the unsupported actor-boundary guarantee for accessor-based deferred
+  handles.
+
 ## Unreleased — `@SubContainer` nested containers (Phase M)
 
 ### Who is affected
@@ -151,13 +176,14 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
 ### Who is affected
 
 - Existing internal consumers upgrading from earlier private tags.
-- CI consumers reading benchmark or validation artifacts.
+- CI consumers reading validation artifacts.
 
 ### Required action
 
 - Review containers that previously relied on permissive validation behavior.
 - Existing code may now fail earlier when strict name-based resolution, declaration-order enforcement, or cross-file custom `init` validation detects invalid wiring.
-- If you parse validation or benchmark JSON artifacts, verify the documented schema versions in `RELEASING.md`.
+- Replace any `@DIContainer(validate: ...)` uses with `@DIContainer(...)`. The `validate` parameter has been removed; `validateDAG: false` remains the supported DAG opt-out.
+- If you parse validation JSON artifacts, verify the documented schema versions in `RELEASING.md`.
 
 ### Notes
 
@@ -171,7 +197,6 @@ Add a migration section when a release changes:
 - macro validation behavior that can break existing containers
 - build-stage validation failure conditions
 - validation artifact schema expectations used by CI or tooling
-- benchmark baseline handling that downstream teams rely on
 
 ## Suggested Entry Format
 
