@@ -253,7 +253,7 @@ init(baseURL: String, apiClient: (any APIClientProtocol)? = nil)
 
 ## Overrides 빌더로 테스트하기
 
-`.shared` / `.transient` 멤버가 하나라도 있으면, `@DIContainer`는 위 위치
+`.shared` / `.transient` / `@SubContainer` 멤버가 하나라도 있으면, `@DIContainer`는 위 위치
 파라미터 외에 **명명 override** 빌더도 함께 생성합니다. 테스트가 바꾸려는
 멤버만 지정하면 나머지는 그대로 원래 factory로 해석됩니다.
 

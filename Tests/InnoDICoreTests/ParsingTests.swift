@@ -160,6 +160,40 @@ struct ParsingTests {
         let info = try #require(parsed)
         #expect(info.concrete == false)
     }
+
+    @Test
+    func findAttributeAcceptsAllowedQualifiedModuleNames() throws {
+        let source = """
+        struct ParentContainer {
+            @InnoDISwiftUI.DIFeatureRoot(DashboardRootView.self)
+            var dashboard: DashboardContainer
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+        let attribute = findAttribute(
+            named: "DIFeatureRoot",
+            allowingQualifiedModules: ["InnoDISwiftUI"],
+            in: decl.attributes
+        )
+        #expect(attribute != nil)
+    }
+
+    @Test
+    func findAttributeRejectsForeignQualifiedModuleNames() throws {
+        let source = """
+        struct ParentContainer {
+            @OtherDI.DIFeatureRoot(DashboardRootView.self)
+            var dashboard: DashboardContainer
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+        let attribute = findAttribute(
+            named: "DIFeatureRoot",
+            allowingQualifiedModules: ["InnoDISwiftUI"],
+            in: decl.attributes
+        )
+        #expect(attribute == nil)
+    }
 }
 
 private func firstStructDecl(in source: String) -> StructDeclSyntax? {

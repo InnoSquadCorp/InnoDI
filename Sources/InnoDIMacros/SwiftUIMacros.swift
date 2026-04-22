@@ -1,3 +1,5 @@
+import Foundation
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxBuilder
@@ -97,17 +99,18 @@ extension DIFeatureRootMacro: PeerMacro {
         }
 
         let propertyName = identifier.identifier.text
+        if let alias = info.alias, !isValidFeatureRootAlias(alias) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(node),
+                    message: SimpleDiagnostic.swiftUIFeatureRootInvalidAlias(alias: alias)
+                )
+            )
+            return []
+        }
         let helperName = featureRootHelperName(propertyName: propertyName, alias: info.alias)
 
-        let featureRootAttributes = varDecl.attributes.compactMap { element -> AttributeSyntax? in
-            guard let attribute = element.as(AttributeSyntax.self) else {
-                return nil
-            }
-            guard attribute.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "DIFeatureRoot" else {
-                return nil
-            }
-            return attribute
-        }
+        let featureRootAttributes = featureRootAttributes(in: varDecl.attributes)
 
         if info.alias == nil {
             let aliaslessAttributes = featureRootAttributes.filter {
@@ -491,9 +494,11 @@ private func featureRootHelperConflicts(
                 return true
             }
 
-            for attribute in variableDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }) {
-                guard attribute.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "DIFeatureRoot",
-                      let info = parseFeatureRootAttribute(attribute) else {
+            for attribute in featureRootAttributes(in: variableDecl.attributes) {
+                guard let info = parseFeatureRootAttribute(attribute) else {
+                    continue
+                }
+                if let alias = info.alias, !isValidFeatureRootAlias(alias) {
                     continue
                 }
 
@@ -634,12 +639,47 @@ private func accessLevelModifiers(for modifiers: DeclModifierListSyntax?) -> Dec
 }
 
 private func hasAttribute(named name: String, in attributes: AttributeListSyntax?) -> Bool {
-    attributes?.contains(where: { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            return false
+    findAttribute(
+        named: name,
+        allowingQualifiedModules: ["InnoDI"],
+        in: attributes
+    ) != nil
+}
+
+private func featureRootAttributes(in attributes: AttributeListSyntax?) -> [AttributeSyntax] {
+    guard let attributes else {
+        return []
+    }
+    return attributes.compactMap { element -> AttributeSyntax? in
+        guard let attribute = element.as(AttributeSyntax.self),
+              matchesAttribute(
+                named: "DIFeatureRoot",
+                attributeName: attribute.attributeName,
+                allowingQualifiedModules: ["InnoDISwiftUI"]
+              ) else {
+            return nil
         }
-        return attribute.attributeName.as(IdentifierTypeSyntax.self)?.name.text == name
-    }) == true
+        return attribute
+    }
+}
+
+private func isValidFeatureRootAlias(_ alias: String) -> Bool {
+    guard !alias.isEmpty else {
+        return false
+    }
+    guard let firstScalar = alias.unicodeScalars.first,
+          isSwiftIdentifierHead(firstScalar) else {
+        return false
+    }
+    return alias.unicodeScalars.dropFirst().allSatisfy(isSwiftIdentifierBody)
+}
+
+private func isSwiftIdentifierHead(_ scalar: UnicodeScalar) -> Bool {
+    scalar == "_" || CharacterSet.letters.contains(scalar)
+}
+
+private func isSwiftIdentifierBody(_ scalar: UnicodeScalar) -> Bool {
+    isSwiftIdentifierHead(scalar) || CharacterSet.decimalDigits.contains(scalar)
 }
 
 private func stringLiteralValue(_ expression: ExprSyntax) -> String? {

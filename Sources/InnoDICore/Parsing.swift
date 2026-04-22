@@ -172,18 +172,30 @@ public func findAttribute(named name: String, in attributes: AttributeListSyntax
     return nil
 }
 
-package func findInnoDIAttribute(named name: String, in attributes: AttributeListSyntax?) -> AttributeSyntax? {
+package func findAttribute(
+    named name: String,
+    allowingQualifiedModules allowedQualifiedModules: Set<String>,
+    in attributes: AttributeListSyntax?
+) -> AttributeSyntax? {
     guard let attributes else { return nil }
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
-        if matchesInnoDIAttribute(named: name, attributeName: attr.attributeName) {
+        if matchesAttribute(
+            named: name,
+            attributeName: attr.attributeName,
+            allowingQualifiedModules: allowedQualifiedModules
+        ) {
             return attr
         }
     }
     return nil
 }
 
-package func matchesInnoDIAttribute(named name: String, attributeName: TypeSyntax) -> Bool {
+package func matchesAttribute(
+    named name: String,
+    attributeName: TypeSyntax,
+    allowingQualifiedModules allowedQualifiedModules: Set<String>
+) -> Bool {
     if let identifier = attributeName.as(IdentifierTypeSyntax.self) {
         return identifier.name.text == name
     }
@@ -192,7 +204,23 @@ package func matchesInnoDIAttribute(named name: String, attributeName: TypeSynta
           let baseIdentifier = member.baseType.as(IdentifierTypeSyntax.self) else {
         return false
     }
-    return baseIdentifier.name.text == "InnoDI"
+    return allowedQualifiedModules.contains(baseIdentifier.name.text)
+}
+
+package func findInnoDIAttribute(named name: String, in attributes: AttributeListSyntax?) -> AttributeSyntax? {
+    findAttribute(
+        named: name,
+        allowingQualifiedModules: ["InnoDI"],
+        in: attributes
+    )
+}
+
+package func matchesInnoDIAttribute(named name: String, attributeName: TypeSyntax) -> Bool {
+    matchesAttribute(
+        named: name,
+        attributeName: attributeName,
+        allowingQualifiedModules: ["InnoDI"]
+    )
 }
 
 private func attributeBaseName(_ type: TypeSyntax) -> String? {

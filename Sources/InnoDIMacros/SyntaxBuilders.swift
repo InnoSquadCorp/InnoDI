@@ -128,11 +128,19 @@ internal func subContainerBuildClosurePeerDecl(
         [
             isMainActor
                 ? AttributeListSyntax.Element.attribute(
-                    AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("MainActor")))
+                    AttributeSyntax(
+                        attributeName: IdentifierTypeSyntax(
+                            name: .identifier("MainActor", trailingTrivia: .space)
+                        )
+                    )
                 )
                 : nil,
             AttributeListSyntax.Element.attribute(
-                AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("Sendable")))
+                AttributeSyntax(
+                    attributeName: IdentifierTypeSyntax(
+                        name: .identifier("Sendable", trailingTrivia: .space)
+                    )
+                )
             ),
         ].compactMap { $0 }
     )

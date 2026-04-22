@@ -87,7 +87,7 @@ extension DIComponentMacro: MemberMacro {
 
         let initDecl: DeclSyntax = """
             \(raw: accessLevel)init(
-                dependencies: some \(raw: protocolName),
+                dependencies: any \(raw: protocolName),
                 _ applyOverrides: (inout Overrides) -> Void = { _ in }
             ) {
                 self.init(\(raw: joinedArguments))
@@ -121,14 +121,7 @@ extension DIComponentMacro: ExtensionMacro {
         let protocolName = "\(nominalInfo.baseName)Dependencies"
 
         return [
-            try ExtensionDeclSyntax(
-                """
-                extension \(type): _InnoDIComponentMountable {
-                    typealias _InnoDIComponentDependencies = any \(raw: protocolName)
-                    typealias _InnoDIComponentOverrides = Overrides
-                }
-                """
-            )
+            makeComponentMountableExtensionDecl(type: type, protocolName: protocolName)
         ]
     }
 }
@@ -154,7 +147,7 @@ extension DIHierarchyRootMacro: ExtensionMacro {
         }
 
         return [
-            try ExtensionDeclSyntax("extension \(type): DIHierarchyRootMarker {}")
+            makeHierarchyRootMarkerExtensionDecl(type: type)
         ]
     }
 }
@@ -256,6 +249,73 @@ private func makeComponentDependenciesProtocolDecl(
         memberBlock: MemberBlockSyntax(
             members: MemberBlockItemListSyntax(requirements)
         )
+    )
+}
+
+private func makeComponentMountableExtensionDecl(
+    type: some TypeSyntaxProtocol,
+    protocolName: String
+) -> ExtensionDeclSyntax {
+    ExtensionDeclSyntax(
+        extendedType: TypeSyntax(type),
+        inheritanceClause: InheritanceClauseSyntax(
+            inheritedTypes: InheritedTypeListSyntax([
+                InheritedTypeSyntax(
+                    type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("_InnoDIComponentMountable")))
+                )
+            ])
+        ),
+        memberBlock: MemberBlockSyntax(
+            members: MemberBlockItemListSyntax([
+                MemberBlockItemSyntax(
+                    decl: DeclSyntax(
+                        TypeAliasDeclSyntax(
+                            typealiasKeyword: .keyword(.typealias, trailingTrivia: .space),
+                            name: .identifier("_InnoDIComponentDependencies"),
+                            initializer: TypeInitializerClauseSyntax(
+                                equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                                value: TypeSyntax(
+                                    SomeOrAnyTypeSyntax(
+                                        someOrAnySpecifier: .keyword(.any, trailingTrivia: .space),
+                                        constraint: TypeSyntax(
+                                            IdentifierTypeSyntax(name: .identifier(protocolName))
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                MemberBlockItemSyntax(
+                    decl: DeclSyntax(
+                        TypeAliasDeclSyntax(
+                            typealiasKeyword: .keyword(.typealias, trailingTrivia: .space),
+                            name: .identifier("_InnoDIComponentOverrides"),
+                            initializer: TypeInitializerClauseSyntax(
+                                equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                                value: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Overrides")))
+                            )
+                        )
+                    )
+                ),
+            ])
+        )
+    )
+}
+
+private func makeHierarchyRootMarkerExtensionDecl(
+    type: some TypeSyntaxProtocol
+) -> ExtensionDeclSyntax {
+    ExtensionDeclSyntax(
+        extendedType: TypeSyntax(type),
+        inheritanceClause: InheritanceClauseSyntax(
+            inheritedTypes: InheritedTypeListSyntax([
+                InheritedTypeSyntax(
+                    type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("DIHierarchyRootMarker")))
+                )
+            ])
+        ),
+        memberBlock: MemberBlockSyntax(members: MemberBlockItemListSyntax([]))
     )
 }
 

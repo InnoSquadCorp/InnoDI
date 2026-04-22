@@ -183,15 +183,15 @@ struct StrictConcurrencyBuildTests {
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [
             "-c",
-            "trap '' TERM; sleep 30 & echo started; wait"
+            "trap '' TERM; sleep 5 & echo started; wait"
         ]
         process.currentDirectoryURL = packageRootURL()
 
         let result = try runCapturedProcess(
             process,
-            timeoutSeconds: 0.2,
-            terminationGraceSeconds: 0.2,
-            hardKillGraceSeconds: 0.2
+            timeoutSeconds: 1.0,
+            terminationGraceSeconds: 0.5,
+            hardKillGraceSeconds: 0.5
         )
 
         #expect(result.timedOut)
