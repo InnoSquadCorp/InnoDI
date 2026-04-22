@@ -21,9 +21,8 @@ The format is based on Keep a Changelog, adapted for the InnoDI release workflow
 
 ### Changed
 
-- Phase N-1: Split four large macro / build-support files into purpose-based modules with no public-API change. `DIContainerCodeGenerator.swift` (1,259 lines), `DIContainerValidator.swift` (904), `ValidationCoordinator.swift` (744), and `SwiftUIMacros.swift` (722) are now distributed across 11 smaller files that each focus on one concern (init gen, overrides gen, sub-container gen, validation diagnostics, caching IO, POSIX locking, environment-bridge macro, feature-root macro, etc.). Tooling that references internal source paths should re-point at the new layout. All 349+ tests stay green.
+- Phase N-1: Split four large macro / build-support files into purpose-based modules with no public-API change. `DIContainerCodeGenerator.swift` (1,259 lines), `DIContainerValidator.swift` (904), `ValidationCoordinator.swift` (744), and `SwiftUIMacros.swift` (722) retain their original entry file and expand to nine new sibling files (init gen, overrides gen, sub-container gen, validation diagnostics, type checks, caching IO, POSIX locking, environment-bridge macro, feature-root macro). Tooling that references internal source paths should re-point at the new layout. All 349+ tests stay green.
 - `@DIContainer(root:)` is now documented as a **graph-rendering-only flag**. It has no effect on DAG validation — use `validateDAG: false` to opt out of cycle, ambiguous-reference, and unknown-reference checks.
-
 - `container.dependency-cycle` diagnostic message now suggests wrapping one factory parameter in `Lazy<T>` to break the cycle without restructuring.
 - Mermaid, DOT, and ASCII renderers style soft edges distinctly: dashed arrows (`-.->`, `style=dashed`, `- ->`) with an ASCII legend that appears only when soft edges are present.
 - `deduplicateEdges(_:)` in `InnoDICore` now follows a hard-wins rule when the same `(from, to, label)` triple is reported by multiple sites — a merged edge is soft only if *every* occurrence was soft, provider only if every occurrence was provider, and collapses to hard if sites disagree about the deferred-kind.

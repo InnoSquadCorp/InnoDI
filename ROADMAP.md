@@ -11,8 +11,11 @@ or release hardening discussions and are not release blockers for `3.0.1`.
   purpose-based modules with no public-API change.
   `DIContainerCodeGenerator.swift` (1,259 lines),
   `DIContainerValidator.swift` (904), `ValidationCoordinator.swift` (744), and
-  `SwiftUIMacros.swift` (722) are now distributed across 11 smaller focused
-  files. Tests stay byte-identical.
+  `SwiftUIMacros.swift` (722) each retain their original entry file and
+  expand into nine new sibling files (init gen, overrides gen,
+  sub-container gen, validation diagnostics, type checks, caching IO,
+  POSIX locking, environment-bridge macro, feature-root macro). Tests stay
+  byte-identical.
 - **N-3 (`sub.child-overrides-missing`)** — warning for same-file
   `@SubContainer` pointing at a child whose members are all `.input`. The
   generated `<name>Overrides` slot references `<ChildContainer>.Overrides`,
