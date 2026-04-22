@@ -1,7 +1,9 @@
 import Foundation
+import Dispatch
 import Testing
+import InnoDITestSupport
 
-@Suite("Strict concurrency build integration")
+@Suite("Strict concurrency build integration", .tags(.slow))
 struct StrictConcurrencyBuildTests {
     @Test("Deferred wrappers build under strict concurrency inside a non-Sendable container")
     func deferredWrappersBuildInsideRegularContainer() throws {
@@ -61,9 +63,10 @@ struct StrictConcurrencyBuildTests {
 
         let result = try runStrictConcurrencyBuild(packageURL: fixture)
 
-        if result.exitCode != 0 {
+        if result.timedOut || result.exitCode != 0 {
             Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
         }
+        #expect(!result.timedOut)
         #expect(result.exitCode == 0)
     }
 
@@ -127,9 +130,10 @@ struct StrictConcurrencyBuildTests {
 
         let result = try runStrictConcurrencyBuild(packageURL: fixture)
 
-        if result.exitCode != 0 {
+        if result.timedOut || result.exitCode != 0 {
             Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
         }
+        #expect(!result.timedOut)
         #expect(result.exitCode == 0)
     }
 
@@ -158,8 +162,18 @@ struct StrictConcurrencyBuildTests {
         let result = try runStrictConcurrencyBuild(packageURL: fixture)
         let combinedOutput = result.stdout + "\n" + result.stderr
 
+        #expect(!result.timedOut)
         #expect(result.exitCode != 0)
-        #expect(combinedOutput.contains("Sendable"))
+        #expect(
+            combinedOutput.contains(
+                "stored property 'lazy' of 'Sendable'-conforming struct 'Holder' has non-Sendable type 'Lazy<Payload>'"
+            )
+        )
+        #expect(
+            combinedOutput.contains(
+                "stored property 'provider' of 'Sendable'-conforming struct 'Holder' has non-Sendable type 'Provider<Payload>'"
+            )
+        )
     }
 }
 
@@ -167,6 +181,7 @@ private struct StrictConcurrencyBuildResult {
     let exitCode: Int32
     let stdout: String
     let stderr: String
+    let timedOut: Bool
 }
 
 private final class StrictConcurrencyDataSink: @unchecked Sendable {
@@ -208,33 +223,34 @@ private func runStrictConcurrencyBuild(packageURL: URL) throws -> StrictConcurre
 
     let stdoutSink = StrictConcurrencyDataSink()
     let stderrSink = StrictConcurrencyDataSink()
-    let group = DispatchGroup()
-
-    group.enter()
-    DispatchQueue.global(qos: .userInitiated).async {
-        let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        stdoutSink.append(data)
-        group.leave()
-    }
-
-    group.enter()
-    DispatchQueue.global(qos: .userInitiated).async {
-        let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        stderrSink.append(data)
-        group.leave()
+    installStrictConcurrencyReadHandler(on: stdoutPipe.fileHandleForReading, sink: stdoutSink)
+    installStrictConcurrencyReadHandler(on: stderrPipe.fileHandleForReading, sink: stderrSink)
+    let terminationSemaphore = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in
+        terminationSemaphore.signal()
     }
 
     try process.run()
-    process.waitUntilExit()
-    group.wait()
+    let timedOut = terminationSemaphore.wait(timeout: .now() + strictConcurrencyBuildTimeoutSeconds) == .timedOut
+    if timedOut && process.isRunning {
+        process.terminate()
+        _ = terminationSemaphore.wait(timeout: .now() + strictConcurrencyTerminationGracePeriodSeconds)
+    }
 
-    stdoutPipe.fileHandleForReading.closeFile()
-    stderrPipe.fileHandleForReading.closeFile()
+    let stdoutHandle = stdoutPipe.fileHandleForReading
+    let stderrHandle = stderrPipe.fileHandleForReading
+    stdoutHandle.readabilityHandler = nil
+    stderrHandle.readabilityHandler = nil
+    stdoutSink.append(stdoutHandle.readDataToEndOfFile())
+    stderrSink.append(stderrHandle.readDataToEndOfFile())
+    stdoutHandle.closeFile()
+    stderrHandle.closeFile()
 
     return StrictConcurrencyBuildResult(
         exitCode: process.terminationStatus,
         stdout: String(decoding: stdoutSink.snapshot(), as: UTF8.self),
-        stderr: String(decoding: stderrSink.snapshot(), as: UTF8.self)
+        stderr: String(decoding: stderrSink.snapshot(), as: UTF8.self),
+        timedOut: timedOut
     )
 }
 
@@ -285,7 +301,7 @@ private func makeStrictConcurrencyFixture(
         encoding: .utf8
     )
     try source.write(
-        to: sourcesURL.appendingPathComponent("main.swift"),
+        to: sourcesURL.appendingPathComponent("FixtureApp.swift"),
         atomically: true,
         encoding: .utf8
     )
@@ -294,8 +310,38 @@ private func makeStrictConcurrencyFixture(
 }
 
 private func packageRootURL() -> URL {
-    URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent() // StrictConcurrencyBuildTests.swift
-        .deletingLastPathComponent() // InnoDIBuildSupportTests
-        .deletingLastPathComponent() // Tests
+    if let override = ProcessInfo.processInfo.environment["PACKAGE_ROOT"],
+       !override.isEmpty {
+        return URL(fileURLWithPath: override, isDirectory: true)
+    }
+
+    let fileManager = FileManager.default
+    var candidate = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+
+    while candidate.path != candidate.deletingLastPathComponent().path {
+        let manifestURL = candidate.appendingPathComponent("Package.swift")
+        if fileManager.fileExists(atPath: manifestURL.path(percentEncoded: false)) {
+            return candidate
+        }
+        candidate.deleteLastPathComponent()
+    }
+
+    fatalError("Unable to locate Package.swift from \(#filePath).")
+}
+
+private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 60
+private let strictConcurrencyTerminationGracePeriodSeconds: TimeInterval = 5
+
+private func installStrictConcurrencyReadHandler(
+    on handle: FileHandle,
+    sink: StrictConcurrencyDataSink
+) {
+    handle.readabilityHandler = { readableHandle in
+        let data = readableHandle.availableData
+        if data.isEmpty {
+            readableHandle.readabilityHandler = nil
+            return
+        }
+        sink.append(data)
+    }
 }
