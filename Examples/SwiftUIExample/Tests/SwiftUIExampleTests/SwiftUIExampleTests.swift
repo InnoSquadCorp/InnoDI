@@ -99,6 +99,8 @@ struct SwiftUIExampleTests {
         #expect(String(describing: type(of: preview.container.greetingService)) == "MockGreetingService")
         #expect(String(describing: type(of: failure.container.greetingService)) == "FailingGreetingService")
         #expect(String(describing: type(of: live.container.activityService)) == "LiveActivityService")
+        #expect(String(describing: type(of: live.container.dashboardRootView())) == "DashboardFeatureRootView")
+        #expect(String(describing: type(of: live.container.dashboardShellRootView())) == "DashboardShellView")
     }
 }
 

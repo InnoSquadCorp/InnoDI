@@ -50,6 +50,15 @@ enum InnoDIDiagnosticCode: String {
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
+    case swiftUIFeatureRootWithoutSubContainer = "swiftui.feature-root-without-subcontainer"
+    case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
+    case swiftUIFeatureRootHelperNameConflict = "swiftui.feature-root-helper-name-conflict"
+    case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
+    case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
+    case swiftUIEnvironmentBridgeInvalidKeyPath = "swiftui.environment-bridge-invalid-keypath"
+    case componentRequiresContainer = "component.requires-container"
+    case componentOverridesBuilderRequired = "component.overrides-builder-required"
+    case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
 
     var category: InnoDIDiagnosticCategory {
         switch self {
@@ -67,7 +76,12 @@ enum InnoDIDiagnosticCode: String {
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
-                .subUnknownChildInput, .subSharedParentMustNotBeTransient:
+                .subUnknownChildInput, .subSharedParentMustNotBeTransient,
+                .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
+                .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
+                .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeInvalidKeyPath,
+                .componentRequiresContainer, .componentOverridesBuilderRequired,
+                .hierarchyRootRequiresContainer:
             return .validation
         }
     }
@@ -216,6 +230,72 @@ extension SimpleDiagnostic {
         Self(
             "Factory parameter '\(dependencyName)' for '\(memberName)' cannot call Provider<T> during .shared construction. Store or forward the provider and invoke it only after the container has finished initializing.",
             code: .provideProviderEagerCall
+        )
+    }
+
+    static func swiftUIFeatureRootWithoutSubContainer() -> Self {
+        Self(
+            "@DIFeatureRoot can only be attached to a property that also declares @SubContainer.",
+            code: .swiftUIFeatureRootWithoutSubContainer
+        )
+    }
+
+    static func swiftUIFeatureRootDuplicateDefault(propertyName: String) -> Self {
+        Self(
+            "Property '\(propertyName)' can declare at most one default @DIFeatureRoot without an alias.",
+            code: .swiftUIFeatureRootDuplicateDefault
+        )
+    }
+
+    static func swiftUIFeatureRootHelperNameConflict(helperName: String) -> Self {
+        Self(
+            "Generated SwiftUI helper '\(helperName)' would conflict with an existing member or another @DIFeatureRoot helper.",
+            code: .swiftUIFeatureRootHelperNameConflict
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeUnknownMember(memberName: String) -> Self {
+        Self(
+            "@DIEnvironmentBridge references unknown container member '\(memberName)'.",
+            code: .swiftUIEnvironmentBridgeUnknownMember
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeDuplicateMember(memberName: String) -> Self {
+        Self(
+            "@DIEnvironmentBridge maps container member '\(memberName)' more than once.",
+            code: .swiftUIEnvironmentBridgeDuplicateMember
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeInvalidKeyPath(label: String) -> Self {
+        let message: String
+        if label == "member" {
+            message = "@DIEnvironmentBridge requires 'member' to be a string literal naming a container member."
+        } else {
+            message = "@DIEnvironmentBridge requires '\(label)' to be a key-path expression."
+        }
+        return Self(message, code: .swiftUIEnvironmentBridgeInvalidKeyPath)
+    }
+
+    static func componentRequiresContainer() -> Self {
+        Self(
+            "@DIComponent can only be attached to a type that also declares @DIContainer.",
+            code: .componentRequiresContainer
+        )
+    }
+
+    static func componentOverridesBuilderRequired() -> Self {
+        Self(
+            "@DIComponent requires the synthesized Overrides builder from @DIContainer. Remove the user-defined Overrides type or remove @DIComponent.",
+            code: .componentOverridesBuilderRequired
+        )
+    }
+
+    static func hierarchyRootRequiresContainer() -> Self {
+        Self(
+            "@DIHierarchyRoot can only be attached to a type that also declares @DIContainer.",
+            code: .hierarchyRootRequiresContainer
         )
     }
 
