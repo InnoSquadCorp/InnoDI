@@ -460,7 +460,7 @@ extension SimpleDiagnostic {
         childContainerName: String
     ) -> Self {
         Self(
-            "@SubContainer '\(memberName)' targets '\(childContainerName)', which has no .shared, .transient, or @SubContainer members. The generated '\(memberName)Overrides' slot references '\(childContainerName).Overrides', which will not be synthesized. Remove the @SubContainer, or add at least one override-generating member to '\(childContainerName)'.",
+            "@SubContainer '\(memberName)' targets '\(childContainerName)', which has no .shared, .transient, or @SubContainer members. The generated '\(memberName)Overrides' slot references '\(childContainerName).Overrides', which is not synthesized by the child macro for input-only containers. Remove the @SubContainer, or add at least one override-generating member to '\(childContainerName)'.",
             code: .subChildOverridesMissing,
             severity: .warning
         )
