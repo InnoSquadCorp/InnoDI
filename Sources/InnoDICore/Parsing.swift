@@ -172,6 +172,29 @@ public func findAttribute(named name: String, in attributes: AttributeListSyntax
     return nil
 }
 
+package func findInnoDIAttribute(named name: String, in attributes: AttributeListSyntax?) -> AttributeSyntax? {
+    guard let attributes else { return nil }
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        if matchesInnoDIAttribute(named: name, attributeName: attr.attributeName) {
+            return attr
+        }
+    }
+    return nil
+}
+
+package func matchesInnoDIAttribute(named name: String, attributeName: TypeSyntax) -> Bool {
+    if let identifier = attributeName.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text == name
+    }
+    guard let member = attributeName.as(MemberTypeSyntax.self),
+          member.name.text == name,
+          let baseIdentifier = member.baseType.as(IdentifierTypeSyntax.self) else {
+        return false
+    }
+    return baseIdentifier.name.text == "InnoDI"
+}
+
 private func attributeBaseName(_ type: TypeSyntax) -> String? {
     if let identifier = type.as(IdentifierTypeSyntax.self) {
         return identifier.name.text
@@ -351,14 +374,14 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
 /// - Returns: Parsed `SubContainerAttributeInfo` when a `@SubContainer`
 ///   attribute is present; otherwise `nil`.
 public func parseSubContainerAttribute(_ attributes: AttributeListSyntax?) -> SubContainerAttributeInfo? {
-    guard let attribute = findAttribute(named: "SubContainer", in: attributes) else {
+    guard let attribute = findInnoDIAttribute(named: "SubContainer", in: attributes) else {
         return nil
     }
     return parseSubContainerArguments(attribute)
 }
 
 public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideArguments? {
-    guard let attribute = findAttribute(named: "Provide", in: attributes) else {
+    guard let attribute = findInnoDIAttribute(named: "Provide", in: attributes) else {
         return nil
     }
     return parseProvideArguments(attribute)
@@ -385,7 +408,7 @@ private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {
 }
 
 public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContainerAttributeInfo? {
-    guard let attr = findAttribute(named: "DIContainer", in: attributes) else { return nil }
+    guard let attr = findInnoDIAttribute(named: "DIContainer", in: attributes) else { return nil }
 
     var root = false
     var validateDAG = true

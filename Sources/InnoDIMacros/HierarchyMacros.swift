@@ -204,7 +204,7 @@ private func hierarchyInputMembers(in declaration: some DeclGroupSyntax) -> [Hie
     declaration.memberBlock.members.compactMap { member in
         guard let variableDecl = member.decl.as(VariableDeclSyntax.self),
               !variableDecl.modifiers.contains(where: { $0.name.text == "static" }),
-              let attribute = findAttribute(
+              let attribute = findInnoDIAttribute(
                 named: "Provide",
                 in: variableDecl.attributes
               ),
@@ -312,20 +312,5 @@ private func hierarchyAccessLevelModifiers(for modifiers: DeclModifierListSyntax
 }
 
 private func hasHierarchyAttribute(named name: String, in attributes: AttributeListSyntax?) -> Bool {
-    attributes?.contains(where: { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            return false
-        }
-        return hierarchyAttributeBaseName(attribute.attributeName) == name
-    }) == true
-}
-
-private func hierarchyAttributeBaseName(_ type: TypeSyntax) -> String? {
-    if let identifier = type.as(IdentifierTypeSyntax.self) {
-        return identifier.name.text
-    }
-    if let member = type.as(MemberTypeSyntax.self) {
-        return member.name.text
-    }
-    return nil
+    findInnoDIAttribute(named: name, in: attributes) != nil
 }
