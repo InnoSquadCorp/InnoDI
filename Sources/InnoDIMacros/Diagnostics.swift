@@ -56,6 +56,7 @@ enum InnoDIDiagnosticCode: String {
     case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
     case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
     case swiftUIEnvironmentBridgeInvalidKeyPath = "swiftui.environment-bridge-invalid-keypath"
+    case swiftUIEnvironmentBridgeInvalidArguments = "swiftui.environment-bridge-invalid-arguments"
     case componentRequiresContainer = "component.requires-container"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
@@ -80,6 +81,7 @@ enum InnoDIDiagnosticCode: String {
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeInvalidKeyPath,
+                .swiftUIEnvironmentBridgeInvalidArguments,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
                 .hierarchyRootRequiresContainer:
             return .validation
@@ -276,6 +278,13 @@ extension SimpleDiagnostic {
             message = "@DIEnvironmentBridge requires '\(label)' to be a key-path expression."
         }
         return Self(message, code: .swiftUIEnvironmentBridgeInvalidKeyPath)
+    }
+
+    static func swiftUIEnvironmentBridgeInvalidArguments() -> Self {
+        Self(
+            "@DIEnvironmentBridge requires a single array literal of (member: ..., environment: ...) mappings.",
+            code: .swiftUIEnvironmentBridgeInvalidArguments
+        )
     }
 
     static func componentRequiresContainer() -> Self {

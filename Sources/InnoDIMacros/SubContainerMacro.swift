@@ -146,6 +146,10 @@ private func extractPeerInfo(
     // validator, which attaches the diagnostic to the attribute node.
     guard let scope = args.scope else { return nil }
 
+    // Prefer lexical expansion context when SwiftSyntaxMacros provides it,
+    // then fall back to walking out from the attribute and declaration nodes.
+    // If no enclosing @DIContainer is visible through any path we conservatively
+    // treat the property as non-MainActor.
     return SubContainerPeerInfo(
         name: identifier.identifier.text,
         type: typeAnnotation.type,
@@ -204,20 +208,8 @@ private func enclosingDIContainerInfo(startingAt syntax: Syntax) -> DIContainerA
     var current: Syntax? = syntax.parent
 
     while let node = current {
-        if let structDecl = node.as(StructDeclSyntax.self),
-           let info = parseDIContainerAttribute(structDecl.attributes) {
-            return info
-        }
-        if let classDecl = node.as(ClassDeclSyntax.self),
-           let info = parseDIContainerAttribute(classDecl.attributes) {
-            return info
-        }
-        if let actorDecl = node.as(ActorDeclSyntax.self),
-           let info = parseDIContainerAttribute(actorDecl.attributes) {
-            return info
-        }
-        if let enumDecl = node.as(EnumDeclSyntax.self),
-           let info = parseDIContainerAttribute(enumDecl.attributes) {
+        if let declGroup = declGroupSyntax(from: node),
+           let info = diContainerAttributeInfo(in: declGroup) {
             return info
         }
         current = node.parent
@@ -228,23 +220,31 @@ private func enclosingDIContainerInfo(startingAt syntax: Syntax) -> DIContainerA
 
 private func enclosingDIContainerInfo(in context: some MacroExpansionContext) -> DIContainerAttributeInfo? {
     for node in context.lexicalContext.reversed() {
-        if let structDecl = node.as(StructDeclSyntax.self),
-           let info = parseDIContainerAttribute(structDecl.attributes) {
-            return info
-        }
-        if let classDecl = node.as(ClassDeclSyntax.self),
-           let info = parseDIContainerAttribute(classDecl.attributes) {
-            return info
-        }
-        if let actorDecl = node.as(ActorDeclSyntax.self),
-           let info = parseDIContainerAttribute(actorDecl.attributes) {
-            return info
-        }
-        if let enumDecl = node.as(EnumDeclSyntax.self),
-           let info = parseDIContainerAttribute(enumDecl.attributes) {
+        if let declGroup = declGroupSyntax(from: node),
+           let info = diContainerAttributeInfo(in: declGroup) {
             return info
         }
     }
 
+    return nil
+}
+
+private func diContainerAttributeInfo(in declaration: some DeclGroupSyntax) -> DIContainerAttributeInfo? {
+    parseDIContainerAttribute(declaration.attributes)
+}
+
+private func declGroupSyntax(from syntax: Syntax) -> (any DeclGroupSyntax)? {
+    if let structDecl = syntax.as(StructDeclSyntax.self) {
+        return structDecl
+    }
+    if let classDecl = syntax.as(ClassDeclSyntax.self) {
+        return classDecl
+    }
+    if let actorDecl = syntax.as(ActorDeclSyntax.self) {
+        return actorDecl
+    }
+    if let enumDecl = syntax.as(EnumDeclSyntax.self) {
+        return enumDecl
+    }
     return nil
 }
