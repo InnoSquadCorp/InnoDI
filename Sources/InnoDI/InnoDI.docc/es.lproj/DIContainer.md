@@ -3,7 +3,7 @@
 `@DIContainer` marca un tipo como contenedor InnoDI y sintetiza la superficie
 del contenedor.
 
-## Declaracion
+## Declaración
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
@@ -21,12 +21,12 @@ del contenedor.
 Todos los contenedores generan la estructura de overrides salvo que el usuario
 ya haya declarado un tipo `Overrides` anidado.
 
-## Parametros
+## Parámetros
 
 - `root`: solo marca la entrada de render del grafo.
-- `validateDAG`: activa la validacion global del DAG y los checks locales de
+- `validateDAG`: activa la validación global del DAG y los checks locales de
   cycle y closure/`with:`; con `false` esos checks se omiten, pero las
-  referencias raw-expression y la validacion estructural siguen activas.
+  referencias raw-expression y la validación estructural siguen activas.
 - `mainActor`: aplica `@MainActor` a la API generada del contenedor.
 
 ## See Also

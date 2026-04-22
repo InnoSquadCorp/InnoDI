@@ -111,11 +111,29 @@ overrides scaffolding を生成します。
 
 ### `@Provide` とスコープ
 
+```swift
+@Provide(
+    _ scope: DIScope = .shared,
+    _ type: Any.Type? = nil,
+    with dependencies: [AnyKeyPath] = [],
+    factory: Any? = nil,
+    asyncFactory: Any? = nil,
+    concrete: Bool = false
+)
+```
+
 | Scope | 意味 | 構築ルール |
 |---|---|---|
 | `.input` | コンテナ初期化時に外部から渡す依存関係 | `factory` / `asyncFactory` は不可 |
 | `.shared` | コンテナ単位で 1 回生成して再利用 | `factory`、`asyncFactory`、または `Type.self` + `with:` が必要 |
 | `.transient` | アクセスのたびに再生成 | `factory`、`asyncFactory`、または `Type.self` + `with:` が必要 |
+
+追加ルール:
+
+- `factory` と `asyncFactory` は相互排他です。
+- `asyncFactory` は `async` クロージャである必要があります。
+- 具象型の `.shared` / `.transient` ストレージには `concrete: true` が必要です。
+- factory パラメータと `with:` wiring の name 解決は member name に対して厳密です。
 
 ## 検証モデル
 

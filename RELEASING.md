@@ -15,8 +15,8 @@ Before tagging a release:
 4. Run the strict-concurrency suite:
    - `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
 5. Run example builds and tests:
-   - `cd Examples/SwiftUIExample && swift build && swift test`
-   - `cd Examples/PreviewInjectionExample && swift build && swift test`
+   - `(cd Examples/SwiftUIExample && swift build && swift test)`
+   - `(cd Examples/PreviewInjectionExample && swift build && swift test)`
 6. Run the global DAG check:
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
 7. Generate DocC:

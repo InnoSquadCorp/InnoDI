@@ -10,4 +10,4 @@
 ## Build Layer
 
 - dieselbe Regel wird auf cross-file Extensions erweitert
-- mehrdeutige oder nicht unterstutzte Falle bleiben ausserhalb der Regel
+- mehrdeutige oder nicht unterstützte Fälle bleiben außerhalb der Regel

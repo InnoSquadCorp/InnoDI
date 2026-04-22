@@ -11,8 +11,9 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 
 ## Matching Strategy
 
-- `InnoDIMacros`, `InnoDICore`, and the graph CLI share the same lightweight
-  nominal-path model where possible.
+- `InnoDIMacros`, `InnoDICore`, and `InnoDI-DependencyGraph` share and
+  guarantee the same lightweight nominal-path model and aligned parser/graph
+  semantics.
 - Nested paths such as `Outer.Container` are supported.
 - Generic argument extensions and constrained `where` extensions are excluded.
 - Unsupported or ambiguous cases stay outside the semantic rule instead of

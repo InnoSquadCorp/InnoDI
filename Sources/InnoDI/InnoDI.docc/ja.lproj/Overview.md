@@ -24,3 +24,10 @@ InnoDI は `@DIContainer` と `@Provide` を使って通常の Swift 型を DI
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+
+### Container API
+
+- <doc:DIContainer>
+- <doc:Provide>
+- ``DIComponent()``
+- ``DIHierarchyRoot()``
