@@ -100,7 +100,7 @@ var apiClient: any APIClientProtocol
 `@DIContainer`는 아래 네 종류 선언을 생성합니다:
 
 1. primary `init(...)` — 필수 `.input` 파라미터 + optional `.shared`/`.transient` override 파라미터
-2. `.shared` / `.transient` / `@SubContainer` 멤버가 하나라도 있을 때 nested `struct Overrides`
+2. nested `struct Overrides`
    (아래 [Overrides 빌더로 테스트하기](#overrides-빌더로-테스트하기) 참고)
 3. convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` — 명명 override를 primary init으로 연결
 4. sync / throws / async / async throws 4가지 effect 조합의
@@ -582,16 +582,13 @@ let feature = app.feature  // parent 의 멤버에서 자동 배선
 | `var <name>: <ChildContainer>? = nil` | child 를 완전히 교체 (mock sub-container 주입 등). |
 | `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil` | child 의 convenience init 으로 체인 — 테스트마다 child 의 개별 `.shared`/`.transient` 멤버를 override. |
 
-둘 다 설정되면 direct 교체가 우선한다. chain 클로저는 child 에 고유
-`Overrides` 빌더가 있을 때만 동작한다 (즉 child 에 `.shared` / `.transient`
-/ `@SubContainer` 중 하나라도 있어야 함). 이 제약은
-`overrides.<name>Overrides` 를 실제로 쓰지 않아도 컴파일 타임에 적용된다.
-parent 가 생성하는 init 과 `Overrides` 구조의 타입 시그니처가
-`<ChildContainer>.Overrides` 를 직접 참조하기 때문이다. 그래서 input-only
-child 를 `@SubContainer` 로 소유하면 parent 쪽에서
-`type '<ChildContainer>' has no member 'Overrides'` 컴파일 에러가 난다.
-해결 방법은 child 에 `.shared` / `.transient` / `@SubContainer` 중 하나를
-추가해서 InnoDI 가 `<ChildContainer>.Overrides` 를 생성하게 만드는 것이다.
+둘 다 설정되면 direct 교체가 우선한다. chain 클로저는 child 가
+직접 nested `Overrides` 타입을 정의해서 합성을 억제하지 않는 한 항상
+컴파일된다. input-only child 도 비어 있는 `<ChildContainer>.Overrides`
+를 합성하므로 `overrides.<name>Overrides` 클로저는 정상적으로 호출되고,
+child 에 `.shared` / `.transient` / `@SubContainer` 멤버가 없으면 사실상
+no-op 으로 동작한다. 이후 child 에 override 가능한 멤버가 추가되면 같은
+API 로 그 멤버 override 까지 이어서 사용할 수 있다.
 
 ```swift
 let container = AppContainer(config: .init(...)) { overrides in

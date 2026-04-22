@@ -17,18 +17,19 @@ import SwiftSyntaxBuilder
 // MARK: - Container shape introspection
 
 internal func containerMemberNames(in declaration: some DeclGroupSyntax) -> [String] {
-    declaration.memberBlock.members.compactMap { member in
+    declaration.memberBlock.members.flatMap { member -> [String] in
         guard let variableDecl = member.decl.as(VariableDeclSyntax.self) else {
-            return nil
+            return []
         }
         guard !variableDecl.modifiers.contains(where: { $0.name.text == "static" }) else {
-            return nil
+            return []
         }
-        return variableDecl.bindings.first?
-            .pattern
-            .as(IdentifierPatternSyntax.self)?
-            .identifier
-            .text
+        return variableDecl.bindings.compactMap {
+            $0.pattern
+                .as(IdentifierPatternSyntax.self)?
+                .identifier
+                .text
+        }
     }
 }
 
@@ -83,6 +84,8 @@ internal func accessLevelModifierText(for modifiers: DeclModifierListSyntax?) ->
         switch modifier.name.tokenKind {
         case .keyword(.public):
             return "public "
+        case .keyword(.open):
+            return "public "
         case .keyword(.package):
             return "package "
         case .keyword(.internal):
@@ -107,7 +110,7 @@ internal func accessLevelModifiers(for modifiers: DeclModifierListSyntax?) -> De
 
     let keyword: TokenSyntax
     switch accessLevel {
-    case "public":
+    case "open", "public":
         keyword = .keyword(.public)
     case "package":
         keyword = .keyword(.package)
@@ -159,6 +162,9 @@ internal func isValidFeatureRootAlias(_ alias: String) -> Bool {
     guard !alias.isEmpty else {
         return false
     }
+    guard !swiftReservedKeywords.contains(alias) else {
+        return false
+    }
     guard let firstScalar = alias.unicodeScalars.first,
           isSwiftIdentifierHead(firstScalar) else {
         return false
@@ -177,11 +183,12 @@ private func isSwiftIdentifierBody(_ scalar: UnicodeScalar) -> Bool {
 // MARK: - Small AST utilities
 
 internal func stringLiteralValue(_ expression: ExprSyntax) -> String? {
-    let text = expression.trimmedDescription
-    guard text.count >= 2, text.first == "\"", text.last == "\"" else {
+    guard let literal = expression.as(StringLiteralExprSyntax.self),
+          literal.segments.count == 1,
+          let segment = literal.segments.first?.as(StringSegmentSyntax.self) else {
         return nil
     }
-    return String(text.dropFirst().dropLast())
+    return segment.content.text
 }
 
 internal func attributeSortKey(_ attribute: AttributeSyntax) -> Int {
@@ -214,3 +221,14 @@ internal func enclosingDeclModifiers(containing syntax: Syntax) -> DeclModifierL
     }
     return nil
 }
+
+private let swiftReservedKeywords: Set<String> = [
+    "associatedtype", "actor", "any", "as", "await", "break", "case", "catch",
+    "class", "continue", "default", "defer", "deinit", "do", "else", "enum",
+    "extension", "fallthrough", "false", "fileprivate", "for", "func", "guard",
+    "if", "import", "in", "init", "inout", "internal", "is", "isolated", "let",
+    "macro", "nil", "nonisolated", "open", "operator", "package", "precedencegroup",
+    "private", "protocol", "public", "repeat", "rethrows", "return", "self",
+    "Self", "some", "static", "struct", "subscript", "super", "switch", "throw",
+    "throws", "true", "try", "typealias", "var", "where", "while"
+]

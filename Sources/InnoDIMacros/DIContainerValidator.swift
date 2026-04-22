@@ -285,11 +285,6 @@ struct DIContainerValidator {
         )
         let knownParentMemberNames = Set(memberScopeByName.keys)
         let reservedMemberNames = Set(model.members.map(\.name) + model.subContainerMembers.map(\.name))
-        // Track subs that already collected an error-severity diagnostic in
-        // this loop so later checks can skip obviously-invalid shapes.
-        // Keyed by `sub.name` (unique because the parser enforces
-        // single-binding and reservedMemberNames dedup).
-        var subsWithErrors: Set<String> = []
 
         for sub in model.subContainerMembers {
             let generatedOverrideName = sub.overrideClosureName
@@ -304,7 +299,6 @@ struct DIContainerValidator {
                     )
                 )
                 hadErrors = true
-                subsWithErrors.insert(sub.name)
             }
 
             if !sub.parentDependencies.isEmpty && !sub.explicitBindings.isEmpty {
@@ -315,7 +309,6 @@ struct DIContainerValidator {
                     )
                 )
                 hadErrors = true
-                subsWithErrors.insert(sub.name)
             }
 
             var seenChildInputs: Set<String> = []
@@ -331,7 +324,6 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
-                    subsWithErrors.insert(sub.name)
                 }
             }
 
@@ -356,7 +348,6 @@ struct DIContainerValidator {
                     )
                 }
                 hadErrors = true
-                subsWithErrors.insert(sub.name)
                 continue
             }
 
@@ -373,7 +364,6 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
-                    subsWithErrors.insert(sub.name)
                 }
             }
 
@@ -390,7 +380,6 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
-                    subsWithErrors.insert(sub.name)
                 }
             }
 
@@ -423,7 +412,6 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
-                    subsWithErrors.insert(sub.name)
                 }
             }
         }

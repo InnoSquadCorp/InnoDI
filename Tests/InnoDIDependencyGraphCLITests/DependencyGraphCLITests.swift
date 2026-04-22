@@ -463,10 +463,9 @@ struct DependencyGraphCLITests {
         ])
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("AppContainer"))
-        #expect(result.stdout.contains("FeatureContainer"))
-        #expect(result.stdout.contains("#=>"))
-        #expect(!result.stdout.contains("OrphanContainer"))
+        #expect(result.stdout.contains("AppContainer #=> FeatureContainer:owns,feature"))
+        #expect(result.stdout.contains("#=> ownership (@SubContainer)"))
+        #expect(!result.stdout.contains("\n  OrphanContainer"))
     }
 
     @Test("Render mode keeps the union of nodes reachable from multiple roots")
@@ -480,11 +479,9 @@ struct DependencyGraphCLITests {
         ])
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("AppContainer"))
-        #expect(result.stdout.contains("AdminContainer"))
-        #expect(result.stdout.contains("FeatureContainer"))
-        #expect(result.stdout.contains("AdminFeatureContainer"))
-        #expect(!result.stdout.contains("OrphanContainer"))
+        #expect(result.stdout.contains("AppContainer #=> FeatureContainer:owns,feature"))
+        #expect(result.stdout.contains("AdminContainer #=> AdminFeatureContainer:owns,adminFeature"))
+        #expect(!result.stdout.contains("\n  OrphanContainer"))
     }
 
     @Test("Render mode keeps the full graph when no roots are declared")
@@ -498,9 +495,9 @@ struct DependencyGraphCLITests {
         ])
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("AppContainer"))
-        #expect(result.stdout.contains("FeatureContainer"))
-        #expect(result.stdout.contains("OrphanContainer"))
+        #expect(result.stdout.contains("\n  AppContainer"))
+        #expect(result.stdout.contains("\n  FeatureContainer"))
+        #expect(result.stdout.contains("\n  OrphanContainer"))
     }
 }
 

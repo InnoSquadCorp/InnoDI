@@ -69,8 +69,24 @@ internal func loadLockMetadata(at url: URL) -> ValidationCoordinatorLockMetadata
 }
 
 internal func releaseLock(descriptor: Int32, at url: URL) {
+    let path = url.path(percentEncoded: false)
+    var shouldRemove = false
+    var descriptorInfo = stat()
+
+    if fstat(descriptor, &descriptorInfo) == 0 {
+        var pathInfo = stat()
+        shouldRemove = path.withCString { cPath in
+            stat(cPath, &pathInfo) == 0
+                && descriptorInfo.st_dev == pathInfo.st_dev
+                && descriptorInfo.st_ino == pathInfo.st_ino
+        }
+    }
+
+    if shouldRemove {
+        try? FileManager.default.removeItem(at: url)
+    }
+
     close(descriptor)
-    try? FileManager.default.removeItem(at: url)
 }
 
 internal func recoverStaleLockIfNeeded(

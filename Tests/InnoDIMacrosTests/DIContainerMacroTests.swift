@@ -2396,21 +2396,23 @@ struct DIContainerMacroTests {
     @Test("Closure parameter using a Lazy typealias emits the lazy-aliased warning")
     func lazyAliasedParameterWarns() throws {
         let source = """
+        struct Config {}
         typealias SomeLazy<T> = InnoDI.Lazy<T>
 
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, factory: { (b: SomeLazy<CoordinatorB>) in CoordinatorA(b: b) })
-            var a: CoordinatorA
+            @Provide(.shared, factory: Config(), concrete: true)
+            var config: Config
 
-            @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) })
-            var b: CoordinatorB
+            @Provide(.shared, factory: { (config: SomeLazy<Config>) in Service(config: config) }, concrete: true)
+            var service: Service
         }
         """
 
         let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first(where: { $0.item.is(StructDeclSyntax.self) })?
-                .item.as(StructDeclSyntax.self),
+        guard let decl = parsed.statements.first(where: {
+                  $0.item.as(StructDeclSyntax.self)?.name.text == "AppContainer"
+              })?.item.as(StructDeclSyntax.self),
               let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse AppContainer with sibling typealias")
             return
@@ -2423,9 +2425,8 @@ struct DIContainerMacroTests {
             domain: "InnoDI.validation",
             id: "provide.lazy-aliased"
         )
-        #expect(context.diagnostics.contains {
-            $0.diagnosticID == expectedID
-        })
+        #expect(context.diagnostics.count == 1)
+        #expect(context.diagnostics.first?.diagnosticID == expectedID)
     }
 
     @Test("Non-generic typealias for Lazy also emits the lazy-aliased warning")
@@ -2437,7 +2438,7 @@ struct DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.input) var foo: Foo
-            @Provide(.shared, factory: { (b: FooLazy) in Service(fooProvider: b) })
+            @Provide(.shared, factory: { (foo: FooLazy) in Service(fooProvider: foo) }, concrete: true)
             var service: Service
         }
         """
@@ -2458,31 +2459,36 @@ struct DIContainerMacroTests {
             domain: "InnoDI.validation",
             id: "provide.lazy-aliased"
         )
-        #expect(context.diagnostics.contains { $0.diagnosticID == expectedID })
+        #expect(context.diagnostics.count == 1)
+        #expect(context.diagnostics.first?.diagnosticID == expectedID)
     }
 
     @Test("Closure parameter using a Provider typealias emits the provider-aliased warning")
     func providerAliasedParameterWarns() throws {
         let source = """
+        struct Config {}
         typealias SomeProvider<T> = InnoDI.Provider<T>
 
         @DIContainer
         struct AppContainer {
+            @Provide(.input) var config: Config
+
             @Provide(.transient, factory: { (config: Config) in
                 Request(config: config)
-            })
+            }, concrete: true)
             var request: Request
 
-            @Provide(.shared, factory: { (p: SomeProvider<Request>) in
-                RequestLogger(provider: p)
-            })
+            @Provide(.transient, factory: { (request: SomeProvider<Request>) in
+                RequestLogger(provider: request)
+            }, concrete: true)
             var logger: RequestLogger
         }
         """
 
         let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first(where: { $0.item.is(StructDeclSyntax.self) })?
-                .item.as(StructDeclSyntax.self),
+        guard let decl = parsed.statements.first(where: {
+                  $0.item.as(StructDeclSyntax.self)?.name.text == "AppContainer"
+              })?.item.as(StructDeclSyntax.self),
               let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse AppContainer with sibling typealias")
             return
@@ -2495,9 +2501,8 @@ struct DIContainerMacroTests {
             domain: "InnoDI.validation",
             id: "provide.provider-aliased"
         )
-        #expect(context.diagnostics.contains {
-            $0.diagnosticID == expectedID
-        })
+        #expect(context.diagnostics.count == 1)
+        #expect(context.diagnostics.first?.diagnosticID == expectedID)
     }
 
     @Test("Unrelated typealiases do not trigger the aliased warning")
@@ -2508,7 +2513,7 @@ struct DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.input) var config: AppConfig
-            @Provide(.shared, factory: { (config: AppConfig) in Service(config: config) })
+            @Provide(.shared, factory: { (config: AppConfig) in Service(config: config) }, concrete: true)
             var service: Service
         }
         """
@@ -2524,10 +2529,7 @@ struct DIContainerMacroTests {
         let context = TestMacroExpansionContext()
         _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
 
-        let lazyID = MessageID(domain: "InnoDI.validation", id: "provide.lazy-aliased")
-        let providerID = MessageID(domain: "InnoDI.validation", id: "provide.provider-aliased")
-        #expect(!context.diagnostics.contains { $0.diagnosticID == lazyID })
-        #expect(!context.diagnostics.contains { $0.diagnosticID == providerID })
+        #expect(context.diagnostics.isEmpty)
     }
 
 }
@@ -2567,26 +2569,38 @@ private func assertExpandedSourceTypechecks(
         return
     }
 
-    let fixtureURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("InnoDI-Macro-Typecheck-\(UUID().uuidString).swift")
-    defer { try? FileManager.default.removeItem(at: fixtureURL) }
+    let fixtureDirectoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-Macro-Typecheck-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: fixtureDirectoryURL) }
+
+    try FileManager.default.createDirectory(at: fixtureDirectoryURL, withIntermediateDirectories: true)
+
+    let fixtureURL = fixtureDirectoryURL.appendingPathComponent(testFileName)
+    let stdoutURL = fixtureDirectoryURL.appendingPathComponent("stdout.txt")
+    let stderrURL = fixtureDirectoryURL.appendingPathComponent("stderr.txt")
 
     try expansionResult.expansion.write(to: fixtureURL, atomically: true, encoding: .utf8)
+    FileManager.default.createFile(atPath: stdoutURL.path(percentEncoded: false), contents: Data())
+    FileManager.default.createFile(atPath: stderrURL.path(percentEncoded: false), contents: Data())
 
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["swiftc", "-typecheck", fixtureURL.path(percentEncoded: false)]
 
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = stderrPipe
+    let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+    let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+    defer {
+        stdoutHandle.closeFile()
+        stderrHandle.closeFile()
+    }
+    process.standardOutput = stdoutHandle
+    process.standardError = stderrHandle
 
     try process.run()
     process.waitUntilExit()
 
-    let stdout = String(decoding: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-    let stderr = String(decoding: stderrPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    let stdout = String(decoding: (try? Data(contentsOf: stdoutURL)) ?? Data(), as: UTF8.self)
+    let stderr = String(decoding: (try? Data(contentsOf: stderrURL)) ?? Data(), as: UTF8.self)
 
     if process.terminationStatus != 0 {
         let message = """

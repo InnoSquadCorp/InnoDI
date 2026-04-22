@@ -50,6 +50,74 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIEnvironmentBridge recognizes later bindings in a single variable declaration")
+    func environmentBridgeRecognizesLaterBindingsInSingleDeclaration() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "activityService", environment: \EnvironmentValues.activityService),
+            ])
+            struct AppContainer {
+                var greetingService, activityService: ActivityService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    var greetingService, activityService: ActivityService
+
+                    struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
+                        let container: AppContainer
+                        func body(content: Content) -> some SwiftUI.View {
+                            content.environment(\EnvironmentValues.activityService, container.activityService)
+                        }
+                    }
+
+                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    }
+                }
+
+                extension AppContainer: DIEnvironmentBridging {
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge maps open access to public generated members")
+    func environmentBridgeMapsOpenAccessToPublicMembers() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "greetingService", environment: \EnvironmentValues.greetingService),
+            ])
+            open class AppContainer {
+                var greetingService: GreetingService
+            }
+            """#,
+            expandedSource: #"""
+                open class AppContainer {
+                    var greetingService: GreetingService
+
+                    public struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
+                        let container: AppContainer
+                        public func body(content: Content) -> some SwiftUI.View {
+                            content.environment(\EnvironmentValues.greetingService, container.greetingService)
+                        }
+                    }
+
+                    @MainActor public func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    }
+                }
+
+                extension AppContainer: DIEnvironmentBridging {
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
     @Test("DIEnvironmentBridge rejects duplicate member mappings")
     func environmentBridgeRejectsDuplicateMembers() {
         assertMacroExpansionInline(
@@ -162,6 +230,30 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIFeatureRoot maps open access to public generated helpers")
+    func featureRootMapsOpenAccessToPublicHelpers() {
+        assertMacroExpansionInline(
+            #"""
+            open class ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                open class ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+
+                    public func dashboardRootView() -> DashboardRootView {
+                        DashboardRootView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
     @Test("DIFeatureRoot accepts qualified InnoDI SubContainer attributes")
     func featureRootAcceptsQualifiedSubContainerAttributes() {
         assertMacroExpansionInline(
@@ -212,6 +304,104 @@ struct InnoDISwiftUIMacroTests {
             ],
             macros: Self.macros
         )
+    }
+
+    @Test("DIFeatureRoot rejects reserved keyword aliases")
+    func featureRootRejectsReservedKeywordAlias() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self, as: "class")
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias"),
+                    message: "Alias 'class' for @DIFeatureRoot must be a non-empty Swift identifier.",
+                    line: 3,
+                    column: 5
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot accepts raw-string aliases")
+    func featureRootAcceptsRawStringAlias() {
+        assertMacroExpansionInline(
+            ##"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self, as: #"dashboardShell"#)
+                var dashboard: DashboardContainer
+            }
+            """##,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+
+                    func dashboardShellRootView() -> DashboardRootView {
+                        DashboardRootView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot rejects interpolated aliases instead of treating them as default helpers")
+    func featureRootRejectsInterpolatedAlias() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self, as: "dashboard\(suffix)")
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias"),
+                    message: #"Alias '"dashboard\(suffix)"' for @DIFeatureRoot must be a non-empty Swift identifier."#,
+                    line: 3,
+                    column: 5
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot ignores multi-binding declarations")
+    func featureRootIgnoresMultiBindingDeclarations() {
+        let expansion = expandMacroSource(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard, secondaryDashboard: DashboardContainer
+            }
+            """#,
+            macros: Self.macros
+        )
+
+        #expect(!expansion.expansion.contains("dashboardRootView"))
+        #expect(expansion.diagnostics.count == 1)
+        #expect(expansion.diagnostics.first?.message == "peer macro can only be applied to a single variable")
     }
 
     @Test("DIFeatureRoot requires SubContainer")
