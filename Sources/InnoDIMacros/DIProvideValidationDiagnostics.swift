@@ -15,7 +15,6 @@
 import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
-import SwiftSyntaxMacros
 
 internal func makeUnresolvedFactoryParameterDiagnostic(
     member: ProvideMemberModel,
