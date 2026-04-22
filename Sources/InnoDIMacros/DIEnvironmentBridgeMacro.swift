@@ -12,7 +12,6 @@
 //  to the bridge.
 //
 
-import Foundation
 import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
