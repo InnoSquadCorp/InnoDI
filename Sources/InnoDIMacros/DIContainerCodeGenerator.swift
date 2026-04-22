@@ -11,7 +11,8 @@ struct DIContainerCodeGenerator {
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            mainActorEnabled: model.options.mainActor
+            mainActorEnabled: model.options.mainActor,
+            validateDAGEnabled: model.options.validateDAG
         )
     }
 
@@ -44,7 +45,9 @@ private struct AsyncTaskBinding {
     let isThrowing: Bool
 }
 
-private func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
+private let unresolvedDependencyHelperName = "_innoDIUnresolvedDependency"
+
+internal func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
     guard let accessLevel else { return DeclModifierListSyntax([]) }
     let token: TokenSyntax
     switch accessLevel {
@@ -66,10 +69,13 @@ private func makeInitDecl(
     transientMembers: [ProvideMemberModel],
     subContainerMembers: [SubContainerMemberModel],
     accessLevel: String?,
-    mainActorEnabled: Bool
+    mainActorEnabled: Bool,
+    validateDAGEnabled: Bool
 ) -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
+    let allowUnresolvedDependencyFallback = !validateDAGEnabled
+    let fallbackOverrideNames = Set(sharedMembers.map(\.name) + transientMembers.map(\.name))
 
     // Phase K / Phase L: only deferred wrappers that are consumed from the
     // synthesized init (`.shared` / `asyncFactory`) need `_LazyCell` storage.
@@ -179,6 +185,12 @@ private func makeInitDecl(
     var taskBindings: [String: AsyncTaskBinding] = [:]
     let needsResolvedBindings = !asyncSharedMembers.isEmpty
 
+    if allowUnresolvedDependencyFallback {
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(unresolvedDependencyHelperDecl()))
+        )
+    }
+
     // Declare one `_LazyCell` reference box per soft-target member. These
     // boxes are `let` bindings wrapping a class instance, so the Lazy
     // wrappers we emit below can read `.value` after init completes — even
@@ -217,7 +229,9 @@ private func makeInitDecl(
         let factoryExpr = makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
-            deferredTargetNameSet: deferredTargetNameSet
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
 
         let initializerExpr = ExprSyntax(
@@ -253,7 +267,9 @@ private func makeInitDecl(
             member: member,
             resolvedValueBindings: resolvedValueBindings,
             taskBindings: taskBindings,
-            deferredTargetNameSet: deferredTargetNameSet
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
 
         let awaited = ExprSyntax(AwaitExprSyntax(expression: createExpr))
@@ -393,7 +409,7 @@ private func makeInitDecl(
     return DeclSyntax(initDecl)
 }
 
-private func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
+internal func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
     let trimmed = type.trimmedDescription
 
     if trimmed.hasPrefix("any ") || trimmed.hasPrefix("some ") || trimmed.contains("&") {
@@ -406,7 +422,9 @@ private func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
 private func makeFactoryExpr(
     member: ProvideMemberModel,
     availableNames: [String],
-    deferredTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
@@ -414,7 +432,9 @@ private func makeFactoryExpr(
                 member: member,
                 closure: closure,
                 availableNames: availableNames,
-                deferredTargetNameSet: deferredTargetNameSet
+                deferredTargetNameSet: deferredTargetNameSet,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             )
             return makeClosureCallExpr(closure: closure, argumentExpressions: argumentExpressions)
         }
@@ -426,15 +446,12 @@ private func makeFactoryExpr(
     }
 
     if let typeExpr = member.typeExpr {
-        var args: [LabeledExprSyntax] = []
-        for dep in member.withDependencies {
-            let storageName = mapDependencyNameToStorageName(dep, availableNames: availableNames)
-            args.append(LabeledExprSyntax(
-                label: .identifier(dep),
-                colon: .colonToken(),
-                expression: makeSelfMemberAccessExpr(name: storageName)
-            ))
-        }
+        let args = labeledDependencyArguments(
+            dependencies: member.withDependencies,
+            availableNames: availableNames,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+        )
 
         let call = FunctionCallExprSyntax(
             calledExpression: typeExpr,
@@ -448,11 +465,34 @@ private func makeFactoryExpr(
     fatalError("No factory expression available - validation should have caught this")
 }
 
+private func labeledDependencyArguments(
+    dependencies: [String],
+    availableNames: [String],
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) -> [LabeledExprSyntax] {
+    dependencies.enumerated().map { index, dependency in
+        LabeledExprSyntax(
+            label: .identifier(dependency),
+            colon: .colonToken(),
+            expression: resolvedInitDependencyExpression(
+                name: dependency,
+                availableNames: availableNames,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            ),
+            trailingComma: index == dependencies.count - 1 ? nil : .commaToken()
+        )
+    }
+}
+
 private func makeAsyncFactoryExpr(
     member: ProvideMemberModel,
     resolvedValueBindings: [String: String],
     taskBindings: [String: AsyncTaskBinding],
-    deferredTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> ExprSyntax {
     guard let asyncFactory = member.asyncFactory else {
         return ExprSyntax(
@@ -487,7 +527,9 @@ private func makeAsyncFactoryExpr(
             return dependencyExpression(
                 for: ref.name,
                 resolvedValueBindings: resolvedValueBindings,
-                taskBindings: taskBindings
+                taskBindings: taskBindings,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             )
         }
         return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
@@ -504,7 +546,9 @@ private func closureArgumentExpressions(
     member: ProvideMemberModel,
     closure: ClosureExprSyntax,
     availableNames: [String],
-    deferredTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> [ExprSyntax] {
     let references = member.closureParameterReferences
     // Shorthand closures or attribute-level mismatches may cause the
@@ -513,10 +557,12 @@ private func closureArgumentExpressions(
     if references.isEmpty {
         let parsed = parseClosureParameterNames(closure)
         return parsed.names.map { name in
-            guard let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) else {
-                fatalError("Unresolved closure parameter '\(name)' reached code generation.")
-            }
-            return makeSelfMemberAccessExpr(name: resolvedName)
+            resolvedInitDependencyExpression(
+                name: name,
+                availableNames: availableNames,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            )
         }
     }
 
@@ -538,10 +584,14 @@ private func closureArgumentExpressions(
             expressions.append(makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
             continue
         }
-        guard let resolvedName = resolveClosureParameter(name: ref.name, availableNames: availableNames) else {
-            fatalError("Unresolved closure parameter '\(ref.name)' reached code generation.")
-        }
-        expressions.append(makeSelfMemberAccessExpr(name: resolvedName))
+        expressions.append(
+            resolvedInitDependencyExpression(
+                name: ref.name,
+                availableNames: availableNames,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            )
+        )
     }
     return expressions
 }
@@ -549,7 +599,9 @@ private func closureArgumentExpressions(
 private func dependencyExpression(
     for dependencyName: String,
     resolvedValueBindings: [String: String],
-    taskBindings: [String: AsyncTaskBinding]
+    taskBindings: [String: AsyncTaskBinding],
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> ExprSyntax {
     if let resolvedName = resolvedValueBindings[dependencyName] {
         return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
@@ -568,7 +620,11 @@ private func dependencyExpression(
         return awaited
     }
 
-    fatalError("Unresolved async dependency '\(dependencyName)' reached code generation.")
+    return unresolvedInitDependencyFallbackExpression(
+        name: dependencyName,
+        fallbackOverrideNames: fallbackOverrideNames,
+        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+    )
 }
 
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
@@ -617,7 +673,72 @@ private func mapDependencyNameToStorageName(_ dependencyName: String, availableN
     fatalError("Unresolved dependency '\(dependencyName)' reached code generation.")
 }
 
-private func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
+private func resolvedInitDependencyExpression(
+    name: String,
+    availableNames: [String],
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) -> ExprSyntax {
+    if let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) {
+        return makeSelfMemberAccessExpr(name: resolvedName)
+    }
+
+    return unresolvedInitDependencyFallbackExpression(
+        name: name,
+        fallbackOverrideNames: fallbackOverrideNames,
+        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+    )
+}
+
+private func unresolvedInitDependencyFallbackExpression(
+    name: String,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) -> ExprSyntax {
+    guard allowUnresolvedDependencyFallback else {
+        fatalError("Unresolved dependency '\(name)' reached code generation.")
+    }
+
+    let unresolved = unresolvedDependencyHelperExpr(name: name)
+    if fallbackOverrideNames.contains(name) {
+        return nilCoalescingExpr(optionalName: name, fallback: unresolved)
+    }
+    return unresolved
+}
+
+private func unresolvedDependencyHelperDecl() -> DeclSyntax {
+    DeclSyntax(
+        """
+        func \(raw: unresolvedDependencyHelperName)<T>(_ name: String) -> T {
+            fatalError("InnoDI could not resolve dependency '\\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring.")
+        }
+        """
+    )
+}
+
+private func unresolvedDependencyHelperExpr(name: String) -> ExprSyntax {
+    let call = FunctionCallExprSyntax(
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier(unresolvedDependencyHelperName)),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([
+            LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: name)))
+        ]),
+        rightParen: .rightParenToken()
+    )
+    return ExprSyntax(call)
+}
+
+private func nilCoalescingExpr(optionalName: String, fallback: ExprSyntax) -> ExprSyntax {
+    ExprSyntax(
+        InfixOperatorExprSyntax(
+            leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(optionalName))),
+            operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
+            rightOperand: fallback
+        )
+    )
+}
+
+internal func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
     let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
     let assignment = InfixOperatorExprSyntax(
         leftOperand: makeSelfMemberAccessExpr(name: targetName),
@@ -627,7 +748,7 @@ private func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
     return ExprSyntax(assignment)
 }
 
-private func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprSyntax {
+internal func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprSyntax {
     let assignment = InfixOperatorExprSyntax(
         leftOperand: makeSelfMemberAccessExpr(name: targetName),
         operator: AssignmentExprSyntax(),
@@ -644,7 +765,7 @@ private func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
     return description
 }
 
-private func mainActorAttributeList() -> AttributeListSyntax {
+internal func mainActorAttributeList() -> AttributeListSyntax {
     AttributeListSyntax([
         AttributeListSyntax.Element(
             AttributeSyntax(
@@ -652,608 +773,4 @@ private func mainActorAttributeList() -> AttributeListSyntax {
             )
         )
     ])
-}
-
-// MARK: - Overrides builder
-
-private func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [ProvideMemberModel] {
-    model.sharedMembers + model.transientMembers
-}
-
-private func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax {
-    let candidates = overrideCandidateMembers(model)
-    let subs = model.subContainerMembers
-
-    let modifiers = accessModifiers(model.accessLevel)
-    var memberDecls: [MemberBlockItemSyntax] = candidates.map { member in
-        let variableDecl = VariableDeclSyntax(
-            modifiers: modifiers,
-            bindingSpecifier: .keyword(.var),
-            bindings: PatternBindingListSyntax([
-                PatternBindingSyntax(
-                    pattern: IdentifierPatternSyntax(identifier: .identifier(member.name)),
-                    typeAnnotation: TypeAnnotationSyntax(type: optionalParameterType(for: member.type)),
-                    initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
-                )
-            ])
-        )
-        return MemberBlockItemSyntax(decl: variableDecl)
-    }
-
-    // Phase M: each `@SubContainer` member gains two slots on Overrides —
-    // `<name>` for full replacement, `<name>Overrides` for a closure that
-    // forwards into the child's own convenience init. Both default to nil so
-    // tests only touch the slots they actually need.
-    for member in subs {
-        let childTypeDesc = member.type.trimmedDescription
-        let directSlot = VariableDeclSyntax(
-            modifiers: modifiers,
-            bindingSpecifier: .keyword(.var),
-            bindings: PatternBindingListSyntax([
-                PatternBindingSyntax(
-                    pattern: IdentifierPatternSyntax(identifier: .identifier(member.name)),
-                    typeAnnotation: TypeAnnotationSyntax(type: optionalParameterType(for: member.type)),
-                    initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
-                )
-            ])
-        )
-        memberDecls.append(MemberBlockItemSyntax(decl: directSlot))
-
-        let applyType = TypeSyntax(stringLiteral: "((inout \(childTypeDesc).Overrides) -> Void)?")
-        let applySlot = VariableDeclSyntax(
-            modifiers: modifiers,
-            bindingSpecifier: .keyword(.var),
-            bindings: PatternBindingListSyntax([
-                PatternBindingSyntax(
-                    pattern: IdentifierPatternSyntax(identifier: .identifier(member.overrideClosureName)),
-                    typeAnnotation: TypeAnnotationSyntax(type: applyType),
-                    initializer: InitializerClauseSyntax(value: NilLiteralExprSyntax())
-                )
-            ])
-        )
-        memberDecls.append(MemberBlockItemSyntax(decl: applySlot))
-    }
-
-    let structDecl = StructDeclSyntax(
-        modifiers: modifiers,
-        name: .identifier("Overrides"),
-        memberBlock: MemberBlockSyntax(
-            members: MemberBlockItemListSyntax(memberDecls)
-        )
-    )
-
-    return DeclSyntax(structDecl)
-}
-
-private func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSyntax {
-    let modifiers = accessModifiers(model.accessLevel)
-    let inputMembers = model.inputMembers
-    var params: [FunctionParameterSyntax] = []
-
-    for member in inputMembers {
-        // All input params have a trailing comma because the closure param
-        // always follows them.
-        let param = FunctionParameterSyntax(
-            firstName: .identifier(member.name),
-            secondName: nil,
-            colon: .colonToken(),
-            type: member.type,
-            ellipsis: nil,
-            defaultValue: nil,
-            trailingComma: .commaToken()
-        )
-        params.append(param)
-    }
-
-    // Final unnamed trailing closure parameter:
-    //   _ applyOverrides: (inout Overrides) -> Void
-    let overridesClosureType = TypeSyntax(stringLiteral: "(inout Overrides) -> Void")
-    let closureParam = FunctionParameterSyntax(
-        firstName: .wildcardToken(),
-        secondName: .identifier("applyOverrides"),
-        colon: .colonToken(),
-        type: overridesClosureType,
-        ellipsis: nil,
-        defaultValue: nil,
-        trailingComma: nil
-    )
-    params.append(closureParam)
-
-    let signature = FunctionSignatureSyntax(
-        parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params))
-    )
-
-    var statements: [CodeBlockItemSyntax] = []
-
-    // var overrides = Overrides()
-    let makeOverrides = VariableDeclSyntax(
-        bindingSpecifier: .keyword(.var),
-        bindings: PatternBindingListSyntax([
-            PatternBindingSyntax(
-                pattern: IdentifierPatternSyntax(identifier: .identifier("overrides")),
-                initializer: InitializerClauseSyntax(
-                    value: FunctionCallExprSyntax(
-                        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("Overrides")),
-                        leftParen: .leftParenToken(),
-                        arguments: LabeledExprListSyntax([]),
-                        rightParen: .rightParenToken()
-                    )
-                )
-            )
-        ])
-    )
-    statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(makeOverrides))))
-
-    // applyOverrides(&overrides)
-    let applyCall = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("applyOverrides")),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(
-                expression: InOutExprSyntax(
-                    expression: DeclReferenceExprSyntax(baseName: .identifier("overrides"))
-                )
-            )
-        ]),
-        rightParen: .rightParenToken()
-    )
-    statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(applyCall))))
-
-    // self.init(<input args...>, <shared args...>, <transient args...>,
-    //           <subContainer direct args...>, <subContainerOverrides args...>)
-    var callArgs: [LabeledExprSyntax] = []
-    let allForwardingMembers = inputMembers + model.sharedMembers + model.transientMembers
-    let subForwardingPairs: [(label: String, source: String)] = model.subContainerMembers.flatMap { sub in
-        // Each sub-container contributes two forwarded args: direct
-        // replacement (`overrides.<name>`) and the chained closure
-        // (`overrides.<name>Overrides`).
-        [
-            (sub.name, sub.name),
-            (sub.overrideClosureName, sub.overrideClosureName)
-        ]
-    }
-    let totalArgCount = allForwardingMembers.count + subForwardingPairs.count
-
-    for (index, member) in allForwardingMembers.enumerated() {
-        let isLast = index == allForwardingMembers.count - 1 && subForwardingPairs.isEmpty
-        let valueExpr: ExprSyntax
-        if member.scope == .input {
-            // Input parameter forwarded from the outer init.
-            valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name)))
-        } else {
-            // shared / transient value pulled out of the overrides builder.
-            valueExpr = ExprSyntax(
-                MemberAccessExprSyntax(
-                    base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("overrides"))),
-                    declName: DeclReferenceExprSyntax(baseName: .identifier(member.name))
-                )
-            )
-        }
-
-        callArgs.append(
-            LabeledExprSyntax(
-                label: .identifier(member.name),
-                colon: .colonToken(),
-                expression: valueExpr,
-                trailingComma: isLast ? nil : .commaToken()
-            )
-        )
-    }
-
-    for (index, pair) in subForwardingPairs.enumerated() {
-        let runningIndex = allForwardingMembers.count + index
-        let isLast = runningIndex == totalArgCount - 1
-        let valueExpr = ExprSyntax(
-            MemberAccessExprSyntax(
-                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("overrides"))),
-                declName: DeclReferenceExprSyntax(baseName: .identifier(pair.source))
-            )
-        )
-        callArgs.append(
-            LabeledExprSyntax(
-                label: .identifier(pair.label),
-                colon: .colonToken(),
-                expression: valueExpr,
-                trailingComma: isLast ? nil : .commaToken()
-            )
-        )
-    }
-
-    let selfInitCall = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(
-            MemberAccessExprSyntax(
-                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .keyword(.self))),
-                declName: DeclReferenceExprSyntax(baseName: .keyword(.`init`))
-            )
-        ),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax(callArgs),
-        rightParen: .rightParenToken()
-    )
-    statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(selfInitCall))))
-
-    let initDecl = InitializerDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
-        modifiers: modifiers,
-        signature: signature,
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
-    )
-
-    return DeclSyntax(initDecl)
-}
-
-private func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
-    return [
-        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false),
-        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true),
-        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: false),
-        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: true),
-    ]
-}
-
-private func makeWithOverridesMethod(
-    model: DIContainerExpansionModel,
-    isAsync: Bool,
-    isThrowing: Bool
-) -> DeclSyntax {
-    let accessModifiers = accessModifiers(model.accessLevel)
-    var modifiers = accessModifiers
-    modifiers.append(DeclModifierSyntax(name: .keyword(.static)))
-
-    let inputMembers = model.inputMembers
-    var params: [FunctionParameterSyntax] = []
-
-    for member in inputMembers {
-        let param = FunctionParameterSyntax(
-            firstName: .identifier(member.name),
-            secondName: nil,
-            colon: .colonToken(),
-            type: member.type,
-            ellipsis: nil,
-            defaultValue: nil,
-            trailingComma: .commaToken()
-        )
-        params.append(param)
-    }
-
-    let applyOverridesParam = FunctionParameterSyntax(
-        firstName: .wildcardToken(),
-        secondName: .identifier("applyOverrides"),
-        colon: .colonToken(),
-        type: TypeSyntax(stringLiteral: "(inout Overrides) -> Void"),
-        ellipsis: nil,
-        defaultValue: nil,
-        trailingComma: .commaToken()
-    )
-    params.append(applyOverridesParam)
-
-    // operation: (Self) [async] [throws] -> T
-    var operationTypeDescription = "(Self) "
-    if isAsync { operationTypeDescription += "async " }
-    if isThrowing { operationTypeDescription += "throws " }
-    operationTypeDescription += "-> T"
-    let operationParam = FunctionParameterSyntax(
-        firstName: .identifier("operation"),
-        secondName: nil,
-        colon: .colonToken(),
-        type: TypeSyntax(stringLiteral: operationTypeDescription),
-        ellipsis: nil,
-        defaultValue: nil,
-        trailingComma: nil
-    )
-    params.append(operationParam)
-
-    // <T>
-    let genericParameterClause = GenericParameterClauseSyntax(
-        leftAngle: .leftAngleToken(),
-        parameters: GenericParameterListSyntax([
-            GenericParameterSyntax(name: .identifier("T"))
-        ]),
-        rightAngle: .rightAngleToken()
-    )
-
-    // `async throws` effects
-    var effectSpecifiers: FunctionEffectSpecifiersSyntax? = nil
-    if isAsync || isThrowing {
-        effectSpecifiers = FunctionEffectSpecifiersSyntax(
-            asyncSpecifier: isAsync ? .keyword(.async) : nil,
-            throwsClause: isThrowing
-                ? ThrowsClauseSyntax(throwsSpecifier: .keyword(.throws))
-                : nil
-        )
-    }
-
-    let returnClause = ReturnClauseSyntax(
-        arrow: .arrowToken(),
-        type: TypeSyntax(stringLiteral: "T")
-    )
-
-    let signature = FunctionSignatureSyntax(
-        parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params)),
-        effectSpecifiers: effectSpecifiers,
-        returnClause: returnClause
-    )
-
-    // Body: let container = Self(<inputs...>, applyOverrides)
-    //       return [try] [await] operation(container)
-    var statements: [CodeBlockItemSyntax] = []
-
-    var callArgs: [LabeledExprSyntax] = []
-    for member in inputMembers {
-        callArgs.append(
-            LabeledExprSyntax(
-                label: .identifier(member.name),
-                colon: .colonToken(),
-                expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))),
-                trailingComma: .commaToken()
-            )
-        )
-    }
-    callArgs.append(
-        LabeledExprSyntax(
-            expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("applyOverrides")))
-        )
-    )
-
-    let selfCall = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(DeclReferenceExprSyntax(baseName: .keyword(.Self))),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax(callArgs),
-        rightParen: .rightParenToken()
-    )
-
-    let containerDecl = VariableDeclSyntax(
-        bindingSpecifier: .keyword(.let),
-        bindings: PatternBindingListSyntax([
-            PatternBindingSyntax(
-                pattern: IdentifierPatternSyntax(identifier: .identifier("container")),
-                initializer: InitializerClauseSyntax(value: selfCall)
-            )
-        ])
-    )
-    statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(containerDecl))))
-
-    let operationCall = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("operation")),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("container"))))
-        ]),
-        rightParen: .rightParenToken()
-    )
-    var returnExpr: ExprSyntax = ExprSyntax(operationCall)
-    if isAsync {
-        returnExpr = ExprSyntax(AwaitExprSyntax(expression: returnExpr))
-    }
-    if isThrowing {
-        returnExpr = ExprSyntax(TryExprSyntax(expression: returnExpr))
-    }
-
-    let returnStmt = ReturnStmtSyntax(expression: returnExpr)
-    statements.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(returnStmt))))
-
-    let funcDecl = FunctionDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
-        modifiers: modifiers,
-        name: .identifier("withOverrides"),
-        genericParameterClause: genericParameterClause,
-        signature: signature,
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
-    )
-
-    return DeclSyntax(funcDecl)
-}
-
-// MARK: - Sub-container init / build helpers (Phase M)
-
-/// Emits the init-time statements for a single `@SubContainer` member:
-///
-/// - `.shared`: builds the child (or accepts the override replacement) once
-///   and assigns `_storage_sub_<name>`. The direct replacement wins; the
-///   `<name>Overrides` trailing-closure block is forwarded to the child's
-///   own convenience init when present.
-/// - `.transient`: only the override wedges are captured; actual construction
-///   happens lazily inside the stored `_innoDISubBuild_<name>` closure on
-///   every accessor read.
-///
-/// `autoWireParentMemberNames` is the ordered list of parent `@Provide`
-/// member names (input/shared/transient) that the call site forwards by
-/// default. When the user wrote `with: [\.a, \.b]` on the attribute, that
-/// list replaces the default — Swift's compile-time label check surfaces
-/// mismatches with the child's `.input` parameter names.
-private func makeSubContainerInitStatements(
-    member: SubContainerMemberModel,
-    autoWireParentMemberNames: [String]
-) -> [CodeBlockItemSyntax] {
-    let selectedArguments = resolvedSubContainerArguments(
-        member: member,
-        autoWireParentMemberNames: autoWireParentMemberNames
-    )
-
-    var stmts: [CodeBlockItemSyntax] = []
-
-    switch member.scope {
-    case .shared:
-        let ifChain = subContainerSharedAssignmentExpr(
-            member: member,
-            selectedArguments: selectedArguments
-        )
-        stmts.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifChain))))))
-
-    case .transient, .none:
-        // `.none` should be unreachable — `DIContainerValidator` (M-5)
-        // rejects `@SubContainer` without a scope — but we stay silent here
-        // rather than force a crash during macro expansion.
-        break
-    }
-
-    // Both scopes capture the override wedges so the Overrides builder has
-    // something to inspect at runtime (used by child accessor / helper).
-    stmts.append(
-        CodeBlockItemSyntax(item: .expr(assignExpr(
-            targetName: "_override_sub_\(member.name)",
-            valueName: member.name
-        )))
-    )
-    stmts.append(
-        CodeBlockItemSyntax(item: .expr(assignExpr(
-            targetName: "_override_sub_apply_\(member.name)",
-            valueName: member.overrideClosureName
-        )))
-    )
-
-    return stmts
-}
-
-/// Renders the `if let direct = override { ... } else if let apply = ... { ... } else { ... }`
-/// three-branch storage assignment used for `.shared` sub-containers. Built
-/// directly as SwiftSyntax so malformed child type spellings cannot crash a
-/// string-reparse fallback during macro expansion.
-private func subContainerSharedAssignmentExpr(
-    member: SubContainerMemberModel,
-    selectedArguments: [(childLabel: String, parentName: String)]
-) -> IfExprSyntax {
-    let storageName = "_storage_sub_\(member.name)"
-    let overrideParam = member.name
-    let applyParam = member.overrideClosureName
-    let directAssignment = assignExprWithValue(
-        targetName: storageName,
-        value: ExprSyntax(
-            DeclReferenceExprSyntax(baseName: .identifier("direct"))
-        )
-    )
-    let applyAssignment = assignExprWithValue(
-        targetName: storageName,
-        value: subContainerInitializerExpr(
-            childType: member.type,
-            argumentMappings: selectedArguments,
-            trailingOverrideExpression: ExprSyntax(
-                DeclReferenceExprSyntax(baseName: .identifier("apply"))
-            )
-        )
-    )
-    let defaultAssignment = assignExprWithValue(
-        targetName: storageName,
-        value: subContainerInitializerExpr(
-            childType: member.type,
-            argumentMappings: selectedArguments
-        )
-    )
-    let elseIfExpr = makeSubContainerOptionalBindingIfExpr(
-        bindingName: "apply",
-        sourceName: applyParam,
-        assignment: applyAssignment,
-        elseBody: .codeBlock(
-            CodeBlockSyntax(
-                statements: CodeBlockItemListSyntax([
-                    CodeBlockItemSyntax(item: .expr(defaultAssignment))
-                ])
-            )
-        )
-    )
-
-    return makeSubContainerOptionalBindingIfExpr(
-        bindingName: "direct",
-        sourceName: overrideParam,
-        assignment: directAssignment,
-        elseBody: .ifExpr(elseIfExpr)
-    )
-}
-
-private func subContainerInitializerExpr(
-    childType: TypeSyntax,
-    argumentMappings: [(childLabel: String, parentName: String)],
-    trailingOverrideExpression: ExprSyntax? = nil,
-    parentMemberBaseName: String = "self",
-    parentMemberPrefix: String = "_storage_"
-) -> ExprSyntax {
-    let totalArgumentCount = argumentMappings.count + (trailingOverrideExpression == nil ? 0 : 1)
-    var arguments: [LabeledExprSyntax] = argumentMappings.enumerated().map { index, mapping in
-        let hasTrailingOverride = trailingOverrideExpression != nil
-        let isLast = index == argumentMappings.count - 1 && !hasTrailingOverride
-        return LabeledExprSyntax(
-            label: .identifier(mapping.childLabel),
-            colon: .colonToken(),
-            expression: makeSelfMemberAccessExpr(
-                name: "\(parentMemberPrefix)\(mapping.parentName)",
-                baseName: parentMemberBaseName
-            ),
-            trailingComma: isLast || totalArgumentCount == 0 ? nil : .commaToken()
-        )
-    }
-
-    if let trailingOverrideExpression {
-        arguments.append(
-            LabeledExprSyntax(
-                label: nil,
-                colon: nil,
-                expression: trailingOverrideExpression,
-                trailingComma: nil
-            )
-        )
-    }
-
-    let call = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax("\(childType.trimmed)"),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax(arguments),
-        rightParen: .rightParenToken()
-    )
-    return ExprSyntax(call)
-}
-
-private func resolvedSubContainerArguments(
-    member: SubContainerMemberModel,
-    autoWireParentMemberNames: [String]
-) -> [(childLabel: String, parentName: String)] {
-    if !member.explicitBindings.isEmpty {
-        return member.explicitBindings.map { binding in
-            (childLabel: binding.childInputName, parentName: binding.parentMemberName)
-        }
-    }
-
-    let selectedNames = member.parentDependencies.isEmpty
-        ? autoWireParentMemberNames
-        : member.parentDependencies
-    return selectedNames.map { name in
-        (childLabel: name, parentName: name)
-    }
-}
-
-private func makeSubContainerOptionalBindingIfExpr(
-    bindingName: String,
-    sourceName: String,
-    assignment: ExprSyntax,
-    elseBody: IfExprSyntax.ElseBody
-) -> IfExprSyntax {
-    IfExprSyntax(
-        ifKeyword: .keyword(.if, trailingTrivia: .space),
-        conditions: ConditionElementListSyntax([
-            ConditionElementSyntax(
-                condition: .optionalBinding(
-                    OptionalBindingConditionSyntax(
-                        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
-                        pattern: IdentifierPatternSyntax(
-                            identifier: .identifier(bindingName, trailingTrivia: .space)
-                        ),
-                        initializer: InitializerClauseSyntax(
-                            equal: .equalToken(trailingTrivia: .space),
-                            value: DeclReferenceExprSyntax(
-                                baseName: .identifier(sourceName, trailingTrivia: .space)
-                            )
-                        )
-                    )
-                )
-            )
-        ]),
-        body: CodeBlockSyntax(
-            leftBrace: .leftBraceToken(trailingTrivia: .space),
-            statements: CodeBlockItemListSyntax([
-                CodeBlockItemSyntax(item: .expr(assignment))
-            ]),
-            rightBrace: .rightBraceToken(leadingTrivia: .space)
-        ),
-        elseKeyword: .keyword(.else, leadingTrivia: .space, trailingTrivia: .space),
-        elseBody: elseBody
-    )
 }

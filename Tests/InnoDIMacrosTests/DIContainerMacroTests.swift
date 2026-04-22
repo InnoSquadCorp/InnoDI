@@ -1,3 +1,4 @@
+import Foundation
 import InnoDITestSupport
 import SwiftParser
 import SwiftDiagnostics
@@ -837,6 +838,109 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "validateDAGFalseSkipsCycleValidation",
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still expands graph-derived misses through runtime fallback")
+    func validateDAGFalseSkipsGraphDerivedDependencyDiagnostics() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, factory: { (laterService: LaterService, missing: MissingService) in
+                    Service(laterService: laterService, missing: missing)
+                }, concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            matches: "validateDAGFalseSkipsGraphDerivedDependencyDiagnostics",
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still expands type-based wiring through runtime fallback")
+    func validateDAGFalseSkipsWithDependencyDiagnostics() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, Service.self, with: [\\.laterService, \\.missingService], concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            matches: "validateDAGFalseSkipsWithDependencyDiagnostics",
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false with: expansion still typechecks after fallback rewrites")
+    func validateDAGFalseWithDependencyFallbackExpansionTypechecks() throws {
+        try assertExpandedSourceTypechecks(
+            """
+            struct LaterService {}
+            struct MissingService {}
+            struct Service {
+                init(laterService: LaterService, missingService: MissingService) {}
+            }
+
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, Service.self, with: [\\.laterService, \\.missingService], concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still diagnoses raw-expression declaration-order misses")
+    func validateDAGFalseStillDiagnosesRawExpressionReferences() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct LaterService {}
+            struct Service {
+                init(laterService: LaterService) {}
+            }
+
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, factory: Service(laterService: laterService), concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still preserves structural diagnostics")
+    func validateDAGFalseStillPreservesStructuralDiagnostics() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.input, factory: Service())
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.usage", id: "provide.input-invalid-configuration")
+            ],
             macros: Self.macros
         )
     }
@@ -1824,6 +1928,32 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
+    func subContainerSharedBindingsMultipleRemaps() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var apiService: any APIClientProtocol
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [
+                        (child: \\.featureConfig, parent: \\.config),
+                        (child: \\.apiClient, parent: \\.apiService),
+                        (child: \\.featureLogger, parent: \\.logger)
+                    ]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            matches: "subContainerSharedBindingsMultipleRemaps",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.transient` sub-container supports explicit child/parent input remapping via bindings:")
     func subContainerTransientExplicitBindings() {
         assertMacroExpansionSnapshot(
@@ -2227,5 +2357,263 @@ struct DIContainerMacroTests {
             ],
             macros: Self.macros
         )
+    }
+
+    @Test("Sub-container targeting an input-only child still expands without warnings")
+    func subContainerTargetingInputOnlyChildDoesNotWarn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input) var config: AppConfig
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling FeatureContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(!generated.isEmpty)
+    }
+
+    // Phase N-4 — `provide.lazy-aliased` / `provide.provider-aliased` warn
+    // when a closure parameter uses a typealias that aliases `Lazy<T>` /
+    // `Provider<T>`.
+    @Test("Closure parameter using a Lazy typealias emits the lazy-aliased warning")
+    func lazyAliasedParameterWarns() throws {
+        let source = """
+        struct Config {}
+        typealias SomeLazy<T> = InnoDI.Lazy<T>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: Config(), concrete: true)
+            var config: Config
+
+            @Provide(.shared, factory: { (config: SomeLazy<Config>) in Service(config: config) }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: {
+                  $0.item.as(StructDeclSyntax.self)?.name.text == "AppContainer"
+              })?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling typealias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "provide.lazy-aliased"
+        )
+        #expect(context.diagnostics.count == 1)
+        #expect(context.diagnostics.first?.diagnosticID == expectedID)
+    }
+
+    @Test("Non-generic typealias for Lazy also emits the lazy-aliased warning")
+    func nonGenericLazyAliasParameterWarns() throws {
+        let source = """
+        struct Foo {}
+        typealias FooLazy = InnoDI.Lazy<Foo>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var foo: Foo
+            @Provide(.shared, factory: { (foo: FooLazy) in Service(fooProvider: foo) }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: {
+                  $0.item.as(StructDeclSyntax.self)?.name.text == "AppContainer"
+              })?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with non-generic FooLazy alias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "provide.lazy-aliased"
+        )
+        #expect(context.diagnostics.count == 1)
+        #expect(context.diagnostics.first?.diagnosticID == expectedID)
+    }
+
+    @Test("Closure parameter using a Provider typealias emits the provider-aliased warning")
+    func providerAliasedParameterWarns() throws {
+        let source = """
+        struct Config {}
+        typealias SomeProvider<T> = InnoDI.Provider<T>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: Config
+
+            @Provide(.transient, factory: { (config: Config) in
+                Request(config: config)
+            }, concrete: true)
+            var request: Request
+
+            @Provide(.transient, factory: { (request: SomeProvider<Request>) in
+                RequestLogger(provider: request)
+            }, concrete: true)
+            var logger: RequestLogger
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: {
+                  $0.item.as(StructDeclSyntax.self)?.name.text == "AppContainer"
+              })?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling typealias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "provide.provider-aliased"
+        )
+        #expect(context.diagnostics.count == 1)
+        #expect(context.diagnostics.first?.diagnosticID == expectedID)
+    }
+
+    @Test("Unrelated typealiases do not trigger the aliased warning")
+    func unrelatedTypealiasDoesNotWarn() throws {
+        let source = """
+        typealias UserID = Int
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+            @Provide(.shared, factory: { (config: AppConfig) in Service(config: config) }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: { $0.item.is(StructDeclSyntax.self) })?
+                .item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with unrelated typealias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(context.diagnostics.isEmpty)
+    }
+
+}
+
+private func assertExpandedSourceTypechecks(
+    _ originalSource: String,
+    macros: [String: any Macro.Type],
+    testModuleName: String = "TestModule",
+    testFileName: String = "test.swift",
+    indentationWidth: Trivia = .spaces(4),
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+) throws {
+    let sourceLocation = Testing.SourceLocation(
+        fileID: "\(fileID)",
+        filePath: "\(filePath)",
+        line: Int(line),
+        column: Int(column)
+    )
+
+    let expansionResult = expandMacroSource(
+        originalSource,
+        macros: macros,
+        testModuleName: testModuleName,
+        testFileName: testFileName,
+        indentationWidth: indentationWidth
+    )
+
+    if !expansionResult.diagnostics.isEmpty {
+        let debug = expansionResult.diagnostics.map(\.debugDescription).joined(separator: "\n")
+        Issue.record(
+            Comment(rawValue: "Expected zero macro diagnostics before typechecking expanded source:\n\(debug)"),
+            sourceLocation: sourceLocation
+        )
+        return
+    }
+
+    let fixtureDirectoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-Macro-Typecheck-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: fixtureDirectoryURL) }
+
+    try FileManager.default.createDirectory(at: fixtureDirectoryURL, withIntermediateDirectories: true)
+
+    let fixtureURL = fixtureDirectoryURL.appendingPathComponent(testFileName)
+    let stdoutURL = fixtureDirectoryURL.appendingPathComponent("stdout.txt")
+    let stderrURL = fixtureDirectoryURL.appendingPathComponent("stderr.txt")
+
+    try expansionResult.expansion.write(to: fixtureURL, atomically: true, encoding: .utf8)
+    FileManager.default.createFile(atPath: stdoutURL.path(percentEncoded: false), contents: Data())
+    FileManager.default.createFile(atPath: stderrURL.path(percentEncoded: false), contents: Data())
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["swiftc", "-typecheck", fixtureURL.path(percentEncoded: false)]
+
+    let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+    let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+    defer {
+        stdoutHandle.closeFile()
+        stderrHandle.closeFile()
+    }
+    process.standardOutput = stdoutHandle
+    process.standardError = stderrHandle
+
+    try process.run()
+    process.waitUntilExit()
+
+    let stdout = String(decoding: (try? Data(contentsOf: stdoutURL)) ?? Data(), as: UTF8.self)
+    let stderr = String(decoding: (try? Data(contentsOf: stderrURL)) ?? Data(), as: UTF8.self)
+
+    if process.terminationStatus != 0 {
+        let message = """
+            Expanded source failed to typecheck.
+            Exit code: \(process.terminationStatus)
+            stdout:
+            \(stdout)
+            stderr:
+            \(stderr)
+
+            Expanded source:
+            \(expansionResult.expansion)
+            """
+        Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
     }
 }

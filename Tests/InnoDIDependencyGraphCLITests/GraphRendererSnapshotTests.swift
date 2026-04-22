@@ -6,10 +6,10 @@ import Testing
 /// Mermaid, DOT, and ASCII. Each test builds the same minimal two-container
 /// fixture and snapshots the CLI stdout verbatim.
 ///
-/// The fixture is intentionally tiny (1 root container, 1 feature container,
-/// 1 cross-container dependency) so that snapshot diffs stay readable when
-/// the renderers change. Complement to `DependencyGraphCLITests` which keeps
-/// broader substring-level integration assertions.
+/// The fixture is intentionally tiny (1 root container plus 1 unrelated
+/// container) so snapshot diffs stay readable while still proving rooted
+/// render pruning end-to-end. Complement to `DependencyGraphCLITests` which
+/// keeps broader substring-level integration assertions.
 @Suite("Graph Renderer Snapshots")
 struct GraphRendererSnapshotTests {
     @Test("Mermaid output for a minimal two-container fixture")
@@ -54,8 +54,8 @@ struct GraphRendererSnapshotTests {
 
 /// Minimal two-container fixture used by all three renderer snapshot tests.
 /// Deliberately small: one root (`AppContainer`) wiring an `APIClient`
-/// singleton, and one feature container (`FeatureContainer`) that takes the
-/// same protocol as an `.input`.
+/// singleton, and one unrelated feature container (`FeatureContainer`) that
+/// should disappear from rooted render output because no graph edge reaches it.
 private func makeMinimalFixture() throws -> URL {
     let fixtureURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("InnoDI-CLI-Snapshot-\(UUID().uuidString)", isDirectory: true)

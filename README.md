@@ -105,7 +105,7 @@ Release and maintenance references:
 Marks a struct as a DI container. Generates:
 
 1. A primary `init(...)` with required `.input` parameters and optional overrides for `.shared` / `.transient` members.
-2. When the container declares any `.shared`, `.transient`, or `@SubContainer` member, a nested `struct Overrides` (see [Testing with the Overrides builder](#testing-with-the-overrides-builder)).
+2. A nested `struct Overrides` (see [Testing with the Overrides builder](#testing-with-the-overrides-builder)).
 3. A convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` that funnels named overrides into the primary init.
 4. Four `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)` effect overloads — `sync` / `throws` / `async` / `async throws` — that build a scoped container and run an operation against it.
 
@@ -121,9 +121,22 @@ Use the synthesized initializer, or remove the macro and wire the type manually.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `root` | `false` | Mark container as root in graph rendering. |
-| `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
+| `root` | `false` | Mark container as a graph-rendering entry. If any containers set `root: true`, Mermaid/DOT/ASCII output is pruned to the union of nodes and edges reachable from those roots; otherwise the CLI renders the full graph. Has no effect on DAG validation. |
+| `validateDAG` | `true` | Enable global DAG validation plus the macro's graph-derived local checks for this container. Set `false` to skip global DAG validation and the macro's local cycle plus closure/`with:` graph-derived diagnostics. Raw-expression factory/initializer references still diagnose at compile time. Structural validation still runs. |
 | `mainActor` | `false` | Apply `@MainActor` isolation to generated container APIs. Recommended for SwiftUI/UI-root containers under strict concurrency. |
+
+#### Root vs DAG validation
+
+`root` and `validateDAG` address different concerns and compose independently:
+
+| `root` | `validateDAG` | Effect |
+|---|---|---|
+| `false` | `true` | Default: included in graph-derived validation. Rendering still shows the full graph unless some other container declares `root: true`. |
+| `true`  | `true` | Included in graph-derived validation and acts as a render entry. Output is limited to the root-reachable subgraph. |
+| `false` | `false` | Skips global DAG validation and the macro's local cycle plus closure/`with:` graph-derived diagnostics. Rendering still shows the full graph unless some other container declares `root: true`. Raw-expression factory/initializer references and structural diagnostics still apply. |
+| `true`  | `false` | Acts as a render entry while skipping global DAG validation and the macro's local cycle plus closure/`with:` graph-derived diagnostics. Raw-expression factory/initializer references and structural diagnostics still apply. |
+
+Toggling `root` without `validateDAG` does **not** relax validation. If you want a container to skip global DAG validation and the macro's supported local graph-derived checks, pass `validateDAG: false` explicitly.
 
 ### `@Provide`
 
@@ -660,6 +673,22 @@ very different runtime behaviour:
   subset — useful when the child only needs a few of the parent's
   members. The macro still labels each argument by parent-member name;
   it does not rewrite labels.
+- **`bindings: [(child: \.childInput, parent: \.parentMember)]`** is the
+  rename-aware counterpart of `with:`. Use it when the child's `.input`
+  labels differ from the parent's member names (e.g. the child calls
+  the dependency `apiClient` but the parent owns an `apiClientService`).
+  Each tuple rewrites one child label and cannot be mixed with `with:`.
+
+  ```swift
+  @SubContainer(
+      scope: .shared,
+      bindings: [
+          (child: \FeatureContainer.apiClient, parent: \AppContainer.apiClientService),
+          (child: \FeatureContainer.config,    parent: \AppContainer.featureConfig),
+      ]
+  )
+  var feature: FeatureContainer
+  ```
 - **`.shared` sub cannot read `.transient` parents.** `.shared`
   children are built inside the parent init, where `.transient`
   accessors are not yet callable. The validator rejects that
@@ -676,16 +705,12 @@ Every `@SubContainer` member adds two slots to the parent's
 | `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil` | Chain into the child's own convenience init so individual `.shared`/`.transient` members can be overridden per test. |
 
 Direct replacement wins when both slots are set. The chain closure
-requires the child to have its own `Overrides` builder (i.e. at least
-one `.shared` / `.transient` / `@SubContainer` member on the child).
-This is a compile-time constraint even if you never set
-`overrides.<name>Overrides`: the parent's generated init and `Overrides`
-struct both reference `<ChildContainer>.Overrides` in their type
-signatures. An input-only child therefore causes the parent to fail with
-the usual `type '<ChildContainer>' has no member 'Overrides'` compile
-error. Remedy: add at least one `.shared`, `.transient`, or
-`@SubContainer` member to the child so InnoDI emits
-`<ChildContainer>.Overrides`.
+always typechecks because every child container synthesizes
+`<ChildContainer>.Overrides` unless the child defines that nested type
+itself. For an input-only child, the generated `Overrides` builder is
+empty, so `overrides.<name>Overrides` closures compile and run as
+no-ops until the child later adds `.shared`, `.transient`, or
+`@SubContainer` members to override.
 
 ```swift
 let container = AppContainer(config: .init(...)) { overrides in
@@ -710,6 +735,9 @@ let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
 | `sub.conflicts-with-provide` | Same property carries both `@Provide` and `@SubContainer`. |
 | `sub.unknown-parent-member` | `with:` keypath does not resolve to a `@Provide` member on the parent. |
 | `sub.shared-parent-must-not-be-transient` | `.shared` sub-container would read a parent member that has `.transient` scope. |
+| `sub.bindings-conflicts-with-with` | `with:` and `bindings:` used on the same `@SubContainer`. Pick one. |
+| `sub.duplicate-child-binding` | Same child `.input` label appears in `bindings:` more than once. |
+| `sub.unknown-child-input` | `bindings:` references a child keypath that is not a `.input` member on the child container. |
 
 ### Graph rendering
 
@@ -774,7 +802,7 @@ swift run InnoDI-DependencyGraph --root /path/to/your/project --validate-dag
 
 ### Validation Notes
 
-- Containers annotated with `@DIContainer(validateDAG: false)` are fully excluded from global DAG validation (`--validate-dag`), including cycle and ambiguity checks.
+- Containers annotated with `@DIContainer(validateDAG: false)` are excluded from global DAG validation (`--validate-dag`) and skip the macro's local cycle plus closure/`with:` graph-derived diagnostics. Raw-expression factory/initializer references still diagnose at compile time. Structural diagnostics still apply.
 - Macro-level dependency extraction for cycle validation is AST-based, so string literal tokens no longer produce false-positive dependency edges.
 
 ### DocC API Documentation

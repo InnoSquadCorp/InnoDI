@@ -19,8 +19,8 @@ public enum DIScope {
 /// Marks a type as an InnoDI container and synthesizes initialization/validation behavior.
 ///
 /// - Parameters:
-///   - root: Marks this container as a root for dependency graph rendering.
-///   - validateDAG: Includes this container in global/local DAG validation.
+///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.
+///   - validateDAG: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and the macro's local cycle plus closure/`with:` diagnostics are skipped, but raw-expression `factory:` / initializer references and structural diagnostics still apply.
 ///   - mainActor: Isolates generated container API on the main actor.
 public macro DIContainer(
     root: Bool = false,
