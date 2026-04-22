@@ -11,6 +11,7 @@ import Testing
 struct DIContainerMacroTests {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
+        "InnoDI.DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
         "SubContainer": SubContainerMacro.self,
     ]
@@ -906,6 +907,77 @@ struct DIContainerMacroTests {
             ],
             macros: Self.macros
         )
+    }
+
+    @Test("mainActor option conflicts with existing qualified custom global actor")
+    func mainActorConflictWithQualifiedActorProducesDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @FeatureKit.FeatureActor
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("mainActor option conflicts with existing qualified custom global actor on qualified DIContainer")
+    func mainActorConflictWithQualifiedActorAndQualifiedContainerProducesDiagnostic() throws {
+        let source = """
+        @FeatureKit.FeatureActor
+        @InnoDI.DIContainer(mainActor: true)
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.last?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse qualified DIContainer declaration")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(generated.isEmpty)
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")
+        })
+        #expect(context.diagnostics.contains {
+            $0.message.contains("@FeatureKit.FeatureActor")
+        })
+    }
+
+    @Test("qualified DIContainer with mainActor true remains allowed without custom actor")
+    func qualifiedDIContainerMainActorRemainsAllowedWithoutConflict() throws {
+        let source = """
+        @InnoDI.DIContainer(mainActor: true)
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse qualified DIContainer declaration without custom actor")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        #expect(context.diagnostics.isEmpty)
     }
 
     @Test("asyncFactory and factory cannot be used together")

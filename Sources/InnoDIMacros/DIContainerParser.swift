@@ -462,14 +462,27 @@ private func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) -
     guard let attributes else { return nil }
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
-        guard let identifier = attr.attributeName.as(IdentifierTypeSyntax.self) else { continue }
-        let name = identifier.name.text
-        if name == "DIContainer" || name == "MainActor" {
+        guard let attributeName = globalActorAttributeName(from: attr.attributeName) else { continue }
+        if attributeName.terminalName == "DIContainer" || attributeName.terminalName == "MainActor" {
             continue
         }
-        if name.hasSuffix("Actor") {
-            return name
+        if attributeName.terminalName.hasSuffix("Actor") {
+            return attributeName.sourceSpelling
         }
     }
+    return nil
+}
+
+private func globalActorAttributeName(
+    from attributeName: TypeSyntax
+) -> (terminalName: String, sourceSpelling: String)? {
+    if let identifier = attributeName.as(IdentifierTypeSyntax.self) {
+        return (identifier.name.text, identifier.trimmedDescription)
+    }
+
+    if let member = attributeName.as(MemberTypeSyntax.self) {
+        return (member.name.text, member.trimmedDescription)
+    }
+
     return nil
 }
