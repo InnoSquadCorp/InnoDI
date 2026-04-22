@@ -106,8 +106,10 @@ var apiClient: any APIClientProtocol
 4. sync / throws / async / async throws 4가지 effect 조합의
    `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)`
 
-모든 컨테이너는 `Overrides` 스캐폴딩을 생성합니다. 다만 사용자가 직접 nested
-`Overrides` 타입을 선언한 경우에는 해당 생성이 억제됩니다
+override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나라도
+있는 컨테이너만 `Overrides` 스캐폴딩(convenience init + `withOverrides`
+포함)을 생성합니다. 다만 사용자가 직접 nested `Overrides` 타입을 선언한
+경우에는 해당 생성이 억제됩니다
 (뒤 [사용자 정의 `Overrides` 충돌](#사용자-정의-overrides-충돌) 참고).
 
 | 파라미터 | 기본값 | 설명 |
