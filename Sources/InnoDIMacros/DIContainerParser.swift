@@ -294,6 +294,17 @@ private func validateBindingForAttribute(
     )
 }
 
+/// Walks the parent chain of `syntax` upward until it reaches the enclosing
+/// `SourceFileSyntax`.
+///
+/// Returns `nil` when the syntax has already been detached from its source
+/// file — this happens under the `SwiftSyntaxMacroExpansion.expand()`
+/// pipeline that the `assertMacroExpansion*` helpers drive. Callers must
+/// treat a `nil` return as "best-effort, skip silently".
+internal func sourceFileSyntax(containing syntax: Syntax) -> SourceFileSyntax? {
+    sourceFile(containing: syntax)
+}
+
 private func sourceFile(containing syntax: Syntax) -> SourceFileSyntax? {
     var current: Syntax? = syntax
 

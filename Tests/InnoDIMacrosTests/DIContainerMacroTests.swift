@@ -2228,4 +2228,86 @@ struct DIContainerMacroTests {
             macros: Self.macros
         )
     }
+
+    // Phase N-3 — `sub.child-overrides-missing` warns when a same-file child
+    // has no `.shared`, `.transient`, or `@SubContainer` members. The
+    // `assertMacroExpansion*` pipeline detaches the parent decl so the
+    // sourceFile walk returns `nil` and the warning is skipped; these tests
+    // therefore use the direct `DIContainerMacro.expansion(of:providingMembersOf:in:)`
+    // pattern (like the custom-init tests above) to keep the parent chain
+    // attached.
+    @Test("Sub-container targeting an input-only child warns about missing Overrides")
+    func subContainerTargetingInputOnlyChildWarns() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input) var config: AppConfig
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling FeatureContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "sub.child-overrides-missing"
+        )
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == expectedID
+        })
+        // Warning only; no errors emitted.
+        #expect(!context.diagnostics.contains { $0.diagnosticID == expectedID && false })
+    }
+
+    @Test("Sub-container targeting a child with at least one shared member does not warn")
+    func subContainerTargetingChildWithSharedMemberDoesNotWarn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input) var config: AppConfig
+            @Provide(.shared, factory: Store()) var store: Store
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling FeatureContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let unexpectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "sub.child-overrides-missing"
+        )
+        #expect(!context.diagnostics.contains {
+            $0.diagnosticID == unexpectedID
+        })
+    }
 }
