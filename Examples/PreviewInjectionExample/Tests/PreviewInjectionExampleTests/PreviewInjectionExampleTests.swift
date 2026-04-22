@@ -76,11 +76,13 @@ struct PreviewInjectionExampleTests {
         #expect(QuotePreviewScenario.allCases.count == 3)
 
         let titles = QuotePreviewScenario.allCases.map(\.title)
+        let featureRootView: Any = QuoteFeatureRootView(container: QuotePreviewScenario.allCases[0].container)
         #expect(titles == ["Live", "Preview", "Failure"])
 
-        let typeNames = QuotePreviewScenario.allCases.map { String(describing: type(of: $0.container.quoteService)) }
-        #expect(typeNames == ["DelayedQuoteService", "DelayedQuoteService", "FailingQuoteService"])
-        #expect(String(describing: type(of: QuoteFeatureRootView(container: QuotePreviewScenario.allCases[0].container))) == "QuoteFeatureRootView")
+        #expect(QuotePreviewScenario.allCases[0].container.quoteService is DelayedQuoteService)
+        #expect(QuotePreviewScenario.allCases[1].container.quoteService is DelayedQuoteService)
+        #expect(QuotePreviewScenario.allCases[2].container.quoteService is FailingQuoteService)
+        #expect(featureRootView is QuoteFeatureRootView)
     }
 }
 

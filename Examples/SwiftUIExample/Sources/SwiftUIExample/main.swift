@@ -126,43 +126,38 @@ final class DashboardFeatureModel {
     var navigationTitle = "InnoDI Feature Root"
     var state: DashboardLoadState = .idle
 
-    private var loadTask: Task<Void, Never>?
-
     func load(
         username: String,
         greetingService: any GreetingServiceProtocol,
         activityService: any ActivityServiceProtocol
-    ) {
-        cancel()
+    ) async {
         state = .loading
 
-        loadTask = Task { [weak self] in
-            do {
-                async let summary = greetingService.loadSummary(for: username)
-                async let highlights = activityService.loadHighlights(for: username)
-                let content = DashboardContent(summary: try await summary, highlights: try await highlights)
-
-                guard !Task.isCancelled, let self else { return }
-                self.state = .loaded(content)
-            } catch {
-                guard !Task.isCancelled, let self else { return }
-                let message = (error as? LocalizedError)?.errorDescription ?? "An unknown feature-root error occurred."
-                self.state = .failed(message)
-            }
+        do {
+            let content = try await loadContent(
+                username: username,
+                greetingService: greetingService,
+                activityService: activityService
+            )
+            guard !Task.isCancelled else { return }
+            state = .loaded(content)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            let message = (error as? LocalizedError)?.errorDescription ?? "An unknown feature-root error occurred."
+            state = .failed(message)
         }
     }
 
-    func retry(
+    private func loadContent(
         username: String,
         greetingService: any GreetingServiceProtocol,
         activityService: any ActivityServiceProtocol
-    ) {
-        load(username: username, greetingService: greetingService, activityService: activityService)
-    }
-
-    func cancel() {
-        loadTask?.cancel()
-        loadTask = nil
+    ) async throws -> DashboardContent {
+        async let summary = greetingService.loadSummary(for: username)
+        async let highlights = activityService.loadHighlights(for: username)
+        return DashboardContent(summary: try await summary, highlights: try await highlights)
     }
 }
 
@@ -295,6 +290,7 @@ struct DashboardFeatureScreen: View {
     @Environment(\.greetingService) private var greetingService
     @Environment(\.activityService) private var activityService
     @State private var model = DashboardFeatureModel()
+    @State private var reloadID = 0
 
     var body: some View {
         NavigationStack {
@@ -307,11 +303,7 @@ struct DashboardFeatureScreen: View {
                     DashboardLoadedView(content: content)
                 case let .failed(message):
                     DashboardErrorView(message: message) {
-                        model.retry(
-                            username: username,
-                            greetingService: greetingService,
-                            activityService: activityService
-                        )
+                        reloadID += 1
                     }
                     .padding(24)
                 }
@@ -323,24 +315,17 @@ struct DashboardFeatureScreen: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Reload") {
-                        model.retry(
-                            username: username,
-                            greetingService: greetingService,
-                            activityService: activityService
-                        )
+                        reloadID += 1
                     }
                 }
             }
         }
-        .task {
-            model.load(
+        .task(id: reloadID) {
+            await model.load(
                 username: username,
                 greetingService: greetingService,
                 activityService: activityService
             )
-        }
-        .onDisappear {
-            model.cancel()
         }
     }
 }

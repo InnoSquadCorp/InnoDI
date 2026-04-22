@@ -55,7 +55,80 @@ struct ValidationContractTests {
 }
 
 private let expectedContractArtifactJSON =
-    #"{"fileChanges":{"contentHashReusedFiles":["Stable.swift"],"deletedFiles":["Old.swift"],"fallbackMatchedReferences":["App.Container","Nested.Container"],"newFiles":["New.swift"],"reparsedFiles":["Feature.swift"]},"humanSummarySource":"dag-validation-summary.md","invocationMetrics":{"signatureCollectionMilliseconds":12.34,"totalCoordinatorMilliseconds":56.78},"issues":[{"code":"semantic.failure","location":{"column":3,"filePath":"Feature.swift","line":12},"message":"Something broke","metadata":{"containerPath":"AppContainer"},"notes":[{"location":{"column":1,"filePath":"Child.swift","line":2},"message":"See child"}],"remediation":"Rename dependency","severity":"error"}],"liveRunMetrics":{"customInitValidationMilliseconds":1.25,"dagValidationMilliseconds":3.75,"hierarchyValidationMilliseconds":0,"semanticValidationMilliseconds":2.5},"reasonCodes":["cache-miss-content-changed","live-run-semantic-validation","live-run-dag-validation"],"resultExitCode":1,"signature":"abc123","signatureMetrics":{"astReparseCount":2,"contentHashReuseCount":2,"metadataCacheHitCount":1,"scannedFileCount":5},"version":4,"wasCached":false}"#
+    """
+    {
+      "fileChanges" : {
+        "contentHashReusedFiles" : [
+          "Stable.swift"
+        ],
+        "deletedFiles" : [
+          "Old.swift"
+        ],
+        "fallbackMatchedReferences" : [
+          "App.Container",
+          "Nested.Container"
+        ],
+        "newFiles" : [
+          "New.swift"
+        ],
+        "reparsedFiles" : [
+          "Feature.swift"
+        ]
+      },
+      "humanSummarySource" : "dag-validation-summary.md",
+      "invocationMetrics" : {
+        "signatureCollectionMilliseconds" : 12.34,
+        "totalCoordinatorMilliseconds" : 56.78
+      },
+      "issues" : [
+        {
+          "code" : "semantic.failure",
+          "location" : {
+            "column" : 3,
+            "filePath" : "Feature.swift",
+            "line" : 12
+          },
+          "message" : "Something broke",
+          "metadata" : {
+            "containerPath" : "AppContainer"
+          },
+          "notes" : [
+            {
+              "location" : {
+                "column" : 1,
+                "filePath" : "Child.swift",
+                "line" : 2
+              },
+              "message" : "See child"
+            }
+          ],
+          "remediation" : "Rename dependency",
+          "severity" : "error"
+        }
+      ],
+      "liveRunMetrics" : {
+        "customInitValidationMilliseconds" : 1.25,
+        "dagValidationMilliseconds" : 3.75,
+        "hierarchyValidationMilliseconds" : 0,
+        "semanticValidationMilliseconds" : 2.5
+      },
+      "reasonCodes" : [
+        "cache-miss-content-changed",
+        "live-run-semantic-validation",
+        "live-run-dag-validation"
+      ],
+      "resultExitCode" : 1,
+      "signature" : "abc123",
+      "signatureMetrics" : {
+        "astReparseCount" : 2,
+        "contentHashReuseCount" : 2,
+        "metadataCacheHitCount" : 1,
+        "scannedFileCount" : 5
+      },
+      "version" : 4,
+      "wasCached" : false
+    }
+    """
 
 private let expectedContractMarkdownSummary =
     """
@@ -120,7 +193,7 @@ private let expectedContractMarkdownSummary =
     - Remediation: Rename dependency
     - containerPath: `AppContainer`
     - Note: See child (`Child.swift:2:1`)
-    """ + "\n\n"
+    """ + "\n\n\n"
 
 private func contractArtifact() -> ValidationMetricsArtifact {
     ValidationMetricsArtifact(
@@ -211,7 +284,7 @@ private func loadContractMetricsArtifact(at url: URL) throws -> ValidationMetric
 
 private func canonicalJSONString<Value: Encodable>(_ value: Value) throws -> String {
     let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys]
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(value)
     return String(decoding: data, as: UTF8.self)
 }
