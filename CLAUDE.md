@@ -1,269 +1,127 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides repository-local guidance for Claude Code style agents.
 
 ## Project Overview
 
-InnoDI is a Swift dependency injection framework implemented using Swift macros. It provides compile-time DI container generation with a CLI dependency graph visualizer.
+InnoDI is a macro-driven dependency injection framework for Swift. The package
+ships:
+
+- macro-generated DI containers
+- compile-time and build-time validation
+- a dependency-graph CLI
+- optional cross-module hierarchy validation
+- SwiftUI integration helpers in `InnoDISwiftUI`
 
 ## Build and Test Commands
 
-### Building
-```bash
-swift build                                    # Build all targets
-swift build --target InnoDI                    # Build library only
-swift build --target InnoDI-DependencyGraph    # Build CLI tool only
-swift build --target InnoDIMacros              # Build macros only
-```
-
-### Testing
-```bash
-swift test                                     # Run all tests
-swift test --filter InnoDICoreTests            # Run core parsing/graph tests
-swift test --filter InnoDIMacrosTests          # Run macro expansion tests
-```
-
-### Macro expansion snapshots
-
-Macro tests under `Tests/InnoDIMacrosTests/` use three assertion styles, all
-provided by `Tests/TestSupport/MacroAssertions.swift`:
-
-- `assertMacroExpansionSnapshot` — expansion is compared to a file under
-  `Tests/InnoDIMacrosTests/__Snapshots__/<TestFile>/<name>.swift`. Use for full
-  generated-code verification.
-- `assertMacroExpansionInline` — expected source is inlined in the test body.
-  Use for short expansions or when diagnostics with full `DiagnosticSpec`
-  (line/column, notes, fix-its) matter.
-- `assertMacroExpansionDiagnosticCodes` — asserts only the set of
-  `SwiftDiagnostics.MessageID`s emitted (as a multiset). Preferred over
-  message-substring matching so tests don't break when diagnostic wording
-  changes.
-
-When macro output changes intentionally, regenerate snapshot files:
+### Build
 
 ```bash
-Tools/record-macro-snapshots.sh                # record/refresh all snapshots
-Tools/record-macro-snapshots.sh DIContainerMacroTests   # filter like swift test
+swift build
+swift build --target InnoDI
+swift build --target InnoDIMacros
+swift build --target InnoDI-DependencyGraph
 ```
 
-The script runs the macro tests with `INNODI_RECORD_SNAPSHOTS=1`, which makes
-the snapshot helper write current expansions to disk. Review the resulting
-diff, then re-run `swift test --filter InnoDIMacrosTests` without the env var
-to verify.
+### Test
+
+```bash
+swift test
+swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+swift test --filter InnoDIMacrosTests
+swift test --filter InnoDIDependencyGraphCLITests
+```
+
+### DocC
+
+```bash
+Tools/generate-docc.sh
+```
+
+## Snapshot Workflows
+
+### Macro snapshots
+
+Macro tests use:
+
+- `assertMacroExpansionSnapshot`
+- `assertMacroExpansionInline`
+- `assertMacroExpansionDiagnosticCodes`
+
+Record snapshots with:
+
+```bash
+Tools/record-macro-snapshots.sh
+Tools/record-macro-snapshots.sh DIContainerMacroTests
+```
 
 ### CLI renderer snapshots
 
-`Sources/InnoDI-DependencyGraph/`의 Mermaid / DOT / ASCII 렌더러 출력도
-스냅샷으로 회귀를 잡는다. 위치:
+Renderer snapshots live under:
 
+```text
+Tests/InnoDIDependencyGraphCLITests/__Snapshots__/GraphRendererSnapshotTests/
 ```
-Tests/InnoDIDependencyGraphCLITests/__Snapshots__/GraphRendererSnapshotTests/*.txt
-```
 
-`Tests/InnoDIDependencyGraphCLITests/GraphRendererSnapshotTests.swift`가
-최소 two-container fixture를 `swift run InnoDI-DependencyGraph`로 돌려
-stdout을 `assertTextSnapshot`으로 비교한다. 전체 CLI 통합 테스트
-(`DependencyGraphCLITests.swift`)의 substring assertion과 상호 보완한다.
-
-렌더러를 의도적으로 수정했을 때 재기록:
+Record them with:
 
 ```bash
-Tools/record-cli-snapshots.sh                                    # 기본 필터
-Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests      # 다른 필터도 가능
-```
-
-`assertTextSnapshot`은 `INNODI_RECORD_SNAPSHOTS=1`을 공유하므로 매크로
-스냅샷과 같은 워크플로우로 운영된다. 공통 파일 I/O 로직은
-`Tests/TestSupport/SnapshotStorage.swift`(public helpers)에 있고,
-`Tests/InnoDIMacrosTests/SnapshotSmokeTests.swift`의
-`SnapshotStorageTests`가 record-mode 토글/쓰기/읽기를 직접 검증한다.
-
-### Running the CLI
-```bash
-swift run InnoDI-DependencyGraph --root /path/to/project   # Generate dependency graph from DI containers
+Tools/record-cli-snapshots.sh
+Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
 ```
 
 ## Architecture
 
-### Module Structure
+### Module layout
 
-The project uses a layered architecture with four main modules:
+1. `InnoDI`
+   - public macros and runtime types
+   - source doc comments that feed Quick Help and DocC
+2. `InnoDIMacros`
+   - container generation, validation, diagnostics, SwiftUI helper macros
+3. `InnoDICore`
+   - shared parsing and graph utilities
+4. `InnoDIBuildSupport`
+   - coordinated validation, artifact writing, cache and lock handling
+5. `InnoDI-DependencyGraph`
+   - graph collection and Mermaid/DOT/ASCII rendering
+6. `InnoDISwiftUI`
+   - environment-bridge and feature-root integration helpers
 
-1. **InnoDI** (Public API)
-   - Exports the `@DIContainer` and `@Provide` macro declarations
-   - Defines `DIScope` enum (`.shared`, `.input`, `.transient`)
-   - This is what library consumers import
+### `@DIContainer`
 
-2. **InnoDIMacros** (Macro Implementation)
-   - `DIContainerMacro`: Member macro that generates an `init` and validates `@Provide` usage
-   - `ProvideMacro`: Accessor macro that emits storage/accessor code per scope
-   - `SimpleDiagnostic`: Custom diagnostic messages for macro errors
-   - Depends on `InnoDICore` for shared parsing logic
+`@DIContainer` synthesizes:
 
-3. **InnoDICore** (Shared Parsing)
-   - Contains parsing utilities used by both macros and CLI
-   - `parseProvideArguments()`: Extracts scope and factory from `@Provide` attributes
-   - `parseDIContainerAttribute()`: Extracts validate/root flags from `@DIContainer`
-   - `DependencyGraphCore`: Shared graph normalization/deduplication helpers for CLI
-   - `findAttribute()`: Helper for locating attributes in syntax trees
-   - This module prevents parsing logic duplication
+1. a primary `init(...)`
+2. a nested `Overrides`
+3. a convenience `init(<inputs...>, _ applyOverrides: ...)`
+4. four `withOverrides` effect overloads
 
-4. **InnoDI-DependencyGraph** (Dependency Graph Visualization)
-   - Generates dependency graphs from DI container usage across a codebase
-   - Analyzes container relationships and generates visual graphs
-   - Supports multiple output formats (Mermaid, DOT, ASCII, PNG)
-   - Uses SwiftSyntax for parsing DI annotations
+All containers synthesize the overrides scaffolding unless the user already
+declares a nested `Overrides` type, which suppresses generation.
 
-### How the Macros Work
+`root` affects graph rendering only. `validateDAG: false` skips global DAG
+validation plus the macro's local cycle and closure/`with:` graph-derived
+checks, while raw-expression `factory:` and initializer references plus
+structural diagnostics still remain active.
 
-**@DIContainer** generates up to four kinds of declarations:
+### `@Provide`
 
-1. **Primary `init`** with parameters for:
-   - `.input` scoped properties (required parameters)
-   - `.shared` and `.transient` scoped properties (optional override parameters)
-   The init body:
-   1. Assigns all `.input` properties to generated storage
-   2. Resolves `.shared` properties with `override ?? factory`
-   3. Stores `.transient` overrides for accessor-time usage
+- `.input`: external dependency, no factory
+- `.shared`: container-lifetime cached dependency
+- `.transient`: fresh dependency on every access
+- concrete `.shared` and `.transient` storage requires `concrete: true`
 
-2. **Nested `struct Overrides`** — one optional stored property per `.shared` /
-   `.transient` member, all defaulting to `nil`. Access level mirrors the
-   container. Emitted only when the container has at least one `.shared` or
-   `.transient` member (input-only containers skip all builder scaffolding).
+### Deferred wrappers and sub-containers
 
-3. **Convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)`**
-   that constructs an `Overrides`, lets the closure populate named members,
-   then delegates to the primary init. Propagates `@MainActor` when set.
+- `Lazy<T>` creates a soft edge and stays non-`Sendable`.
+- `Provider<T>` re-enters `.transient` access and stays non-`Sendable`.
+- `@SubContainer` adds ownership edges plus child override forwarding.
 
-4. **Four `static func withOverrides<T>` effect overloads**
-   (`sync` / `throws` / `async` / `async throws`) — thin wrappers that call
-   the convenience init with a `Self(...)` and run a caller-supplied
-   `operation` closure against it.
+## Documentation Contract
 
-The `@attached(member, names:)` declaration in `Sources/InnoDI/InnoDI.swift`
-must enumerate `named(init)`, `named(Overrides)`, and `named(withOverrides)`;
-omitting any of these causes the Swift compiler to reject the synthesized
-declarations at use sites.
-
-**User-defined `Overrides` type caveat**: If the container body already
-declares a nested `Overrides` (struct/class/enum/actor/typealias), the macro
-emits the `container.overrides-name-conflict` warning (see
-`Sources/InnoDIMacros/DIContainerParser.swift::findOverridesNameConflict`)
-and skips generating (2)–(4); only the primary init is emitted. Detection
-lives in `DIContainerParser` and short-circuits inside
-`DIContainerMacro.expansion(...)` before `generateAll`.
-
-**@Provide** scope semantics:
-- `.shared`: Singleton-like dependencies created by factory in init (requires `factory:` parameter)
-- `.input`: Dependencies passed as init parameters (must not have `factory:`)
-- `.transient`: New instance created on every access (requires `factory:` parameter)
-- Protocol-typed dependencies for `.shared`/`.transient` should use explicit existential syntax (`any Protocol`)
-- Concrete dependency types require `concrete: true` opt-in
-
-### Dependency Graph Generation Flow (CLI)
-
-1. **Container Discovery**: `ContainerCollector` walks all Swift files to find `@DIContainer` types and extract their required `.input` properties and relationships
-2. **Usage Analysis**: `ContainerUsageCollector` finds all container initialization calls and records:
-   - Which labels were passed (for dependency mapping)
-   - Container-to-container edges (for graph visualization)
-3. **Graph Generation**:
-   - Builds dependency graph from container relationships
-   - Outputs in specified format (Mermaid, DOT, ASCII, or PNG via Graphviz)
-
-## Key Design Patterns
-
-### Centralized Parsing
-All attribute parsing logic lives in `InnoDICore` to ensure macros and CLI interpret `@Provide` and `@DIContainer` identically. When adding new macro parameters, update both the parsing functions and the macro expansion logic.
-
-### SwiftSyntaxBuilder Usage
-Macros prefer `SwiftSyntaxBuilder` APIs over string concatenation for AST generation. This provides type safety and correct formatting. See `makeInitDecl()` for examples.
-
-### Access Level Propagation
-The generated `init` inherits the access level of the container type (public, internal, fileprivate, private) via `containerAccessLevel()`.
-
-## Common Development Tasks
-
-When modifying macro behavior:
-1. Update parsing logic in `InnoDICore/Parsing.swift` first
-2. Update macro expansion in `InnoDIMacros/DIContainerMacro.swift`
-3. If you introduce a new generated declaration name, add it to
-   `@attached(member, names: …)` in `Sources/InnoDI/InnoDI.swift` — otherwise
-   the compiler rejects the synthesized decls at use sites (this burned the
-   `Overrides` / `withOverrides` builder rollout; failure mode was
-   "type has no member 'withOverrides'").
-4. Add test cases to `Tests/InnoDIMacrosTests/` (and
-   `Tests/InnoDIRuntimeTests/` when the change is observable at runtime — the
-   runtime target depends on `InnoDI` only, so it compiles against real macro
-   output end-to-end).
-5. Consider CLI implications in `Sources/InnoDI-DependencyGraph/` modules (`Collectors`, `Rendering`, `Output`, `CLI`)
-
-When adding diagnostics:
-- Use `SimpleDiagnostic` for error messages
-- Attach diagnostics to the relevant syntax node for precise error location
-- Follow existing patterns: `context.diagnose(Diagnostic(node:message:))`
-
-### Same-file extension 검출 테스트 제약
-
-`DIContainerParser.sourceFile(containing:)`는 대상 decl의 parent chain을 거슬러
-올라가 `SourceFileSyntax`를 찾아 같은 파일 내 형제 extension의 `init`을 수집한다.
-그러나 `SwiftSyntaxMacroExpansion.expand()` 파이프라인
-(`Tests/TestSupport/MacroAssertions.swift`의 `assertMacroExpansion*` 헬퍼들이
-내부적으로 사용)은 확장 대상 decl을 parent에서 detach하므로 이 walk가 `nil`을
-반환하고 형제 extension init이 수집되지 않는다.
-
-따라서 sibling extension init 검출이 필요한 테스트(예:
-`customInitInsideSameFileExtensionIsRejected`,
-`allOffendingInitializersAreDiagnosed`,
-`nestedSameFileExtensionInitializersAreRejected`)는 `Parser.parse` +
-`DIContainerMacro.expansion(of:providingMembersOf:in:)`을 직접 호출하는
-기존 패턴을 유지한다. 이 패턴에서는 `context.diagnostics`의 `diagnosticID`를
-직접 확인해 code 기반 검증을 유지할 수 있다.
-
-### SwiftSyntaxBuilder 리팩토링 워크플로우
-
-문자열 interpolation(`DeclSyntax = "let \(raw: x) = ..."` 류)으로 생성하던
-매크로 출력을 `SwiftSyntaxBuilder` AST 조립으로 전환할 때의 표준 절차:
-
-1. **안전망 확인**: 대상 매크로 출력을 덮는 스냅샷이
-   `Tests/InnoDIMacrosTests/__Snapshots__/`에 있는지 확인. 없으면 먼저
-   `assertMacroExpansionSnapshot`으로 테스트를 추가한 뒤
-   `Tools/record-macro-snapshots.sh`로 기록.
-2. **기본 원칙**: 빌더 전환의 성공 기준은 **스냅샷이 변하지 않는 것**이다.
-   동일한 출력 문자열을 AST로 다시 만들 수 있으면 회귀가 없다는 뜻.
-3. 문자열 interpolation 한 곳을 `VariableDeclSyntax` / `FunctionCallExprSyntax` /
-   `ClosureExprSyntax` / `IfExprSyntax` / `AwaitExprSyntax` / `TryExprSyntax`
-   등으로 치환 후 `swift test --filter InnoDIMacrosTests` 실행.
-4. 스냅샷이 깨지면 diff로 trivia(토큰 전후 공백, 줄바꿈, 키워드 기본 trivia)
-   차이를 파악해 AST 조립을 조정. 기존에 `SwiftSyntaxMacroExpansion`이
-   자동 포매팅하는 부분과 어긋나면 `trailingTrivia:`/`leadingTrivia:`
-   파라미터로 보정.
-5. **의도적으로 출력을 바꾼 경우**에만 `Tools/record-macro-snapshots.sh`로
-   재기록하고 diff를 커밋/PR에 첨부 — 리뷰어가 의도 변경을 확인할 수 있도록.
-   `.gitattributes`의 `linguist-generated=true`로 인해 스냅샷 diff는 기본
-   접혀 표시되므로 PR 본문에 요약을 적는 것이 좋다.
-
-참고 사례: [Sources/InnoDIMacros/DIContainerCodeGenerator.swift](Sources/InnoDIMacros/DIContainerCodeGenerator.swift)의
-`letBinding(name:value:)` / `makeAsyncTaskDecl(...)` / `dependencyExpression(...)`
-헬퍼가 A-phase 빌더 전환의 결과물이다. `Task<S, F> { if let override ... }`
-같은 멀티라인 출력도 `GenericSpecializationExprSyntax` + `IfExprSyntax` +
-`ClosureExprSyntax` 조합으로 표현 가능하다.
-
-**공용 AST 빌더 위치**: [Sources/InnoDIMacros/SyntaxBuilders.swift](Sources/InnoDIMacros/SyntaxBuilders.swift)
-에 `DIContainerMacro`/`ProvideMacro`가 공유하는 internal 자유 함수
-(`letBinding`, `storagePeerDecl`, `taskStoragePeerDecl`, `returnStmt`,
-`awaitedReturnStmt`, `overrideCheckStmt`, `fatalErrorStmt`,
-`makeAsyncTaskDecl` 등)이 모여 있다. 새 매크로 출력을 추가할 때 여기 먼저
-두고 양쪽에서 쓰는 것을 우선한다. `accessors.map(\.description)` 류로
-포매터를 우회하는 호출자를 가정해야 하므로 **모든 토큰에 explicit
-`.space`/`.newline` trivia를 명시**해야 회귀가 없다 — SwiftSyntaxBuilder
-기본 trivia는 문맥에 따라 비어 있을 수 있다.
-
-### CI Xcode 버전 pin
-
-`.github/workflows/*.yml`은 Xcode 26.3(Swift 6.3) 하나로 고정되어 있다.
-이전에는 26.2 → 26.3 → 26.1.1 fallback 체인이었는데, 26.2에 걸리면
-`Tools/macro-performance-baseline.json`(Swift 6.3 기준)과 버전이 어긋나
-`Tools/measure-macro-performance.sh`가 회귀 게이트를 조용히 skip하는 문제가
-있었다. 러너에 26.3 이미지가 없으면 즉시 실패하도록 해 "silent skip"을
-막는다. 새 Xcode 메이저가 나와 toolchain을 올릴 때는 3개 워크플로우를
-함께 업데이트하고 `macro-performance-baseline.json`도 재기록한다.
+- `README.md` is the English canonical README.
+- Localized README files and localized DocC mirrors must match the English structure and meaning.
+- `RELEASING.md` is the single source for release notes and upgrade notes.
+- If behavior changes, update docs in the same change.

@@ -1,14 +1,21 @@
 # ``InnoDI``
 
-Macro-driven dependency injection for Swift.
+Macro-driven dependency injection for Swift with layered validation.
 
 ## Overview
 
-InnoDI generates container initialization and accessors from `@DIContainer` and `@Provide` declarations.
-The goal is to keep DI wiring explicit while catching invalid graph configuration at compile/build time.
-Optional hierarchy annotations extend the same model across modules:
-`@DIComponent` marks a child container as mountable across module boundaries,
-and `@DIHierarchyRoot` enables rooted workspace validation.
+InnoDI turns plain Swift types into DI containers through `@DIContainer` and
+`@Provide`. The package focuses on explicit wiring, deterministic validation,
+and graph tooling rather than runtime container mutation.
+
+4.0.0 treats the following as the stable baseline:
+
+- macro-generated container APIs
+- compile-time and build-time validation
+- global dependency-graph rendering and DAG validation
+- `Lazy<T>` and `Provider<T>` deferred edges
+- `@SubContainer`, `@DIComponent`, and `@DIHierarchyRoot`
+- SwiftUI helpers in `InnoDISwiftUI`
 
 ## Topics
 
@@ -24,12 +31,11 @@ and `@DIHierarchyRoot` enables rooted workspace validation.
 - <doc:Provide>
 - ``DIComponent()``
 - ``DIHierarchyRoot()``
-- <doc:Validation>
 
 ### Symbols
 
 - ``DIContainer(root:validateDAG:mainActor:)``
-- ``DIComponent()``
-- ``DIHierarchyRoot()``
 - ``Provide(_:_:with:factory:asyncFactory:concrete:)``
 - ``DIScope``
+- ``Lazy``
+- ``Provider``
