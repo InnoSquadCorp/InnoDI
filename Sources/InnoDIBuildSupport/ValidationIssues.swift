@@ -121,7 +121,7 @@ package enum ValidationIssueRenderer {
             }
             lines.append("")
         }
-        return lines.joined(separator: "\n")
+        return lines.joined(separator: "\n") + "\n"
     }
 
     private static func renderStderr(issue: ValidationIssue) -> String {

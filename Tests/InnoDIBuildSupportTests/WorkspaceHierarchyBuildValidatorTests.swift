@@ -1,9 +1,10 @@
 import Foundation
 import Testing
+import InnoDITestSupport
 
 @testable import InnoDIBuildSupport
 
-@Suite("WorkspaceHierarchyBuildValidator")
+@Suite("WorkspaceHierarchyBuildValidator", .tags(.hierarchyValidation))
 struct WorkspaceHierarchyBuildValidatorTests {
     @Test("SwiftPM multi-target rooted hierarchy passes when parent satisfies component inputs")
     func swiftPMValidHierarchyPasses() throws {
@@ -292,7 +293,8 @@ struct WorkspaceHierarchyBuildValidatorTests {
             let package = Package(
                 name: "Workspace",
                 targets: [
-                    .target(name: "AppFeature"),
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
                 ]
             )
             """,
@@ -1554,6 +1556,413 @@ struct WorkspaceHierarchyBuildValidatorTests {
         )
 
         #expect(report.issues.isEmpty)
+    }
+
+    @Test("Hierarchy validation accepts semantically equivalent input types")
+    func hierarchyValidationUsesSemanticTypeEqualityForInputs() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            typealias FeatureConfig = Config
+
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: FeatureConfig
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("SwiftPM string literal dependencies resolve unique external products")
+    func swiftPMStringLiteralDependencyResolvesExternalProduct() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSource(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                dependencies: [
+                    .package(name: "FeaturePkg", path: "Packages/FeatureWorkspace"),
+                ],
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureKit"]),
+                ]
+            )
+            """,
+            to: rootURL.appendingPathComponent("Package.swift")
+        )
+        try writeSource(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "FeatureDisplay",
+                products: [.library(name: "FeatureKit", targets: ["FeatureModule"])],
+                targets: [.target(name: "FeatureModule")]
+            )
+            """,
+            to: rootURL.appendingPathComponent("Packages/FeatureWorkspace/Package.swift")
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Packages/FeatureWorkspace/Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(!report.issues.contains { $0.code == "hierarchy.module-edge-missing" })
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("SwiftPM byName dependencies resolve unique external products")
+    func swiftPMByNameDependencyResolvesExternalProduct() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSource(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                dependencies: [
+                    .package(name: "FeaturePkg", path: "Packages/FeatureWorkspace"),
+                ],
+                targets: [
+                    .target(name: "AppFeature", dependencies: [.byName(name: "FeatureKit")]),
+                ]
+            )
+            """,
+            to: rootURL.appendingPathComponent("Package.swift")
+        )
+        try writeSource(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "FeatureDisplay",
+                products: [.library(name: "FeatureKit", targets: ["FeatureModule"])],
+                targets: [.target(name: "FeatureModule")]
+            )
+            """,
+            to: rootURL.appendingPathComponent("Packages/FeatureWorkspace/Package.swift")
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Packages/FeatureWorkspace/Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(!report.issues.contains { $0.code == "hierarchy.module-edge-missing" })
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("SwiftPM target sources are resolved relative to the target directory")
+    func swiftPMExplicitSourcesUseTargetDirectoryAsBaseURL() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSource(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(
+                        name: "FeatureModule",
+                        path: "FeatureSources",
+                        sources: ["Components/**"]
+                    ),
+                ]
+            )
+            """,
+            to: rootURL.appendingPathComponent("Package.swift")
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("FeatureSources/Components/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("Duplicate bindings emit a structured hierarchy issue")
+    func duplicateBindingsEmitStructuredIssue() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var firstConfig: Config
+                @Provide(.input) var secondConfig: Config
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [
+                        (child: \\.config, parent: \\.firstConfig),
+                        (child: \\.config, parent: \\.secondConfig),
+                    ]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.contains { $0.code == "hierarchy.duplicate-binding-mapping" })
+    }
+
+    @Test("Duplicate with dependencies emit a structured hierarchy issue")
+    func duplicateWithDependenciesEmitStructuredIssue() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared, with: [\\.config, \\.config])
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.contains { $0.code == "hierarchy.duplicate-with-dependency" })
+    }
+
+    @Test("Self-loop subcontainers emit a hierarchy cycle issue")
+    func selfLoopSubcontainerEmitsCycleIssue() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared)
+                var app: AppContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.contains { $0.code == "hierarchy.component-cycle" })
     }
 }
 

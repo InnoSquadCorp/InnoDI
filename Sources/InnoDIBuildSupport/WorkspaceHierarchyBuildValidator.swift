@@ -40,6 +40,7 @@ package enum WorkspaceHierarchyBuildValidator {
             nominalTypes: nominalTypes,
             topLevelTypeAliases: typeAliases
         )
+        let typeCandidatePaths = Set(nominalTypes.map(\.path))
         let containersByID = Dictionary(uniqueKeysWithValues: containers.map { ($0.containerID, $0) })
         let containersByNominalPath = Dictionary(grouping: containers, by: \.nominalPath)
         let candidatePaths = Set(containersByNominalPath.keys)
@@ -164,7 +165,15 @@ package enum WorkspaceHierarchyBuildValidator {
         issues.append(contentsOf: pendingIssues.compactMap { pending in
             reachablePaths.contains(pending.parentContainerID) ? pending.issue : nil
         })
-        issues.append(contentsOf: validateResolvedEdges(reachableEdges, containersByID: containersByID, moduleGraph: moduleGraph))
+        issues.append(
+            contentsOf: validateResolvedEdges(
+                reachableEdges,
+                containersByID: containersByID,
+                moduleGraph: moduleGraph,
+                resolver: resolver,
+                typeCandidatePaths: typeCandidatePaths
+            )
+        )
         issues.append(contentsOf: validateDuplicateParents(reachableEdges, containersByID: containersByID))
         issues.append(contentsOf: validateOrphanComponents(containers, reachableContainerIDs: reachablePaths))
         issues.append(contentsOf: detectHierarchyCycles(from: roots.map(\.containerID), edges: resolvedEdges))
@@ -221,13 +230,18 @@ package struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
     ) -> DependencyResolutionResult {
         switch dependencyRef.kind {
         case .localTarget:
-            let manifestPath = dependencyRef.manifestPath ?? parent.manifestPath
-            let moduleIDs = modules.filter {
-                $0.buildSystem == parent.buildSystem
-                    && $0.manifestPath == manifestPath
-                    && $0.name == dependencyRef.targetName
-            }.map(\.moduleID)
-            return .resolved(Set(moduleIDs))
+            return .resolved(localTargetModuleIDs(for: dependencyRef, parent: parent))
+
+        case .unqualifiedSwiftPMDependency:
+            let localTargetModuleIDs = localTargetModuleIDs(for: dependencyRef, parent: parent)
+            if !localTargetModuleIDs.isEmpty {
+                return .resolved(localTargetModuleIDs)
+            }
+            return resolveSwiftPMProductModuleIDs(
+                productName: dependencyRef.targetName,
+                packageReference: dependencyRef.packageReference,
+                parent: parent
+            )
 
         case .swiftPMProduct:
             return resolveSwiftPMProductModuleIDs(
@@ -247,6 +261,19 @@ package struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
             }.map(\.moduleID)
             return .resolved(Set(moduleIDs))
         }
+    }
+
+    private func localTargetModuleIDs(
+        for dependencyRef: WorkspaceModuleDependencyRef,
+        parent: WorkspaceModuleRecord
+    ) -> Set<String> {
+        let manifestPath = dependencyRef.manifestPath ?? parent.manifestPath
+        let moduleIDs = modules.filter {
+            $0.buildSystem == parent.buildSystem
+                && $0.manifestPath == manifestPath
+                && $0.name == dependencyRef.targetName
+        }.map(\.moduleID)
+        return Set(moduleIDs)
     }
 
     private func resolveSwiftPMProductModuleIDs(
@@ -346,6 +373,7 @@ package struct WorkspaceSwiftPMProductRecord: Equatable, Sendable {
 package struct WorkspaceModuleDependencyRef: Equatable, Sendable {
     package enum Kind: String, Sendable {
         case localTarget
+        case unqualifiedSwiftPMDependency
         case swiftPMProduct
         case tuistProject
     }
@@ -518,16 +546,17 @@ private final class SwiftPMManifestCollector: SyntaxVisitor {
         )
         let explicitSources = parseStringArray(from: labeledExpression("sources", in: node.arguments))
         let explicitPath = labeledStringArgument("path", in: node.arguments)
+        let defaultDirectory = kind == "testTarget" ? "Tests/\(name)" : "Sources/\(name)"
+        let targetDirectoryURL = manifestDirectoryURL.appendingPathComponent(explicitPath ?? defaultDirectory)
 
         let sourcePatterns: [String]
         if !explicitSources.isEmpty {
             sourcePatterns = explicitSources.map {
-                normalizeGlobPath($0, baseURL: manifestDirectoryURL)
+                normalizeGlobPath($0, baseURL: targetDirectoryURL)
             }
         } else if let explicitPath {
             sourcePatterns = [normalizeGlobPath(explicitPath, baseURL: manifestDirectoryURL)]
         } else {
-            let defaultDirectory = kind == "testTarget" ? "Tests/\(name)" : "Sources/\(name)"
             sourcePatterns = [normalizeGlobPath(defaultDirectory, baseURL: manifestDirectoryURL)]
         }
 
@@ -658,7 +687,9 @@ private func reachablePathsAndEdges(
 private func validateResolvedEdges(
     _ edges: [ResolvedHierarchyEdge],
     containersByID: [String: WorkspaceHierarchyContainerRecord],
-    moduleGraph: WorkspaceModuleGraphSnapshot
+    moduleGraph: WorkspaceModuleGraphSnapshot,
+    resolver: SemanticResolverIndex,
+    typeCandidatePaths: Set<String>
 ) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
 
@@ -725,7 +756,15 @@ private func validateResolvedEdges(
 
         if crossesModuleBoundary, child.isComponent,
            let parent = containersByID[edge.parentContainerID] {
-            issues.append(contentsOf: validateDependencySatisfaction(parent: parent, edge: edge, child: child))
+            issues.append(
+                contentsOf: validateDependencySatisfaction(
+                    parent: parent,
+                    edge: edge,
+                    child: child,
+                    resolver: resolver,
+                    typeCandidatePaths: typeCandidatePaths
+                )
+            )
         }
     }
 
@@ -914,7 +953,9 @@ private func makeUnresolvedChildReferenceIssue(
 private func validateDependencySatisfaction(
     parent: WorkspaceHierarchyContainerRecord,
     edge: ResolvedHierarchyEdge,
-    child: WorkspaceHierarchyContainerRecord
+    child: WorkspaceHierarchyContainerRecord,
+    resolver: SemanticResolverIndex,
+    typeCandidatePaths: Set<String>
 ) -> [ValidationIssue] {
     let requiredInputs = child.inputMembers
     let resolvedMappings = resolvedDependencyMappings(
@@ -923,9 +964,9 @@ private func validateDependencySatisfaction(
         edge: edge
     )
 
-    var issues: [ValidationIssue] = []
+    var issues = resolvedMappings.issues
     for (childInputName, childType) in requiredInputs.sorted(by: { $0.key < $1.key }) {
-        guard let mapping = resolvedMappings[childInputName] else {
+        guard let mapping = resolvedMappings.mappings[childInputName] else {
             issues.append(
                 ValidationIssue(
                     code: "hierarchy.unsatisfied-dependency",
@@ -934,7 +975,7 @@ private func validateDependencySatisfaction(
                     location: edge.subContainer.location,
                     notes: [
                         ValidationIssueNote(
-                            message: "child component '\(child.path)' declares '\(childInputName): \(childType)'.",
+                            message: "child component '\(child.path)' declares '\(childInputName): \(childType.rawTypeSpelling)'.",
                             location: child.location
                         )
                     ],
@@ -949,17 +990,23 @@ private func validateDependencySatisfaction(
             continue
         }
 
-        guard let parentType = parent.providedMembers[mapping.parentName], parentType == childType else {
-            let parentType = parent.providedMembers[mapping.parentName] ?? "<missing>"
+        guard let parentType = parent.providedMembers[mapping.parentName],
+              hierarchyMemberTypesMatch(
+                parentType,
+                childType,
+                resolver: resolver,
+                typeCandidatePaths: typeCandidatePaths
+              ) else {
+            let parentType = parent.providedMembers[mapping.parentName]?.rawTypeSpelling ?? "<missing>"
             issues.append(
                 ValidationIssue(
                     code: "hierarchy.unsatisfied-dependency",
                     severity: .error,
-                    message: "Parent container '\(parent.displayName)' maps child input '\(childInputName)' to '\(mapping.parentName)', but the types do not match (\(parentType) vs \(childType)).",
+                    message: "Parent container '\(parent.displayName)' maps child input '\(childInputName)' to '\(mapping.parentName)', but the types do not match (\(parentType) vs \(childType.rawTypeSpelling)).",
                     location: mapping.location,
                     notes: [
                         ValidationIssueNote(
-                            message: "child component '\(child.path)' declares '\(childInputName): \(childType)'.",
+                            message: "child component '\(child.path)' declares '\(childInputName): \(childType.rawTypeSpelling)'.",
                             location: child.location
                         )
                     ],
@@ -984,41 +1031,178 @@ private struct ResolvedDependencyMapping {
     let location: ValidationIssueLocation
 }
 
+private struct ResolvedDependencyMappingsResult {
+    let mappings: [String: ResolvedDependencyMapping]
+    let issues: [ValidationIssue]
+}
+
 private func resolvedDependencyMappings(
     parent: WorkspaceHierarchyContainerRecord,
     child: WorkspaceHierarchyContainerRecord,
     edge: ResolvedHierarchyEdge
-) -> [String: ResolvedDependencyMapping] {
+) -> ResolvedDependencyMappingsResult {
     if !edge.subContainer.bindings.isEmpty {
-        return Dictionary(uniqueKeysWithValues: edge.subContainer.bindings.map {
-            (
-                $0.childInputName,
-                ResolvedDependencyMapping(
-                    parentName: $0.parentMemberName,
-                    location: $0.parentLocation
+        return resolvedDependencyMappings(
+            parent: parent,
+            child: child,
+            edge: edge,
+            kind: .binding,
+            candidates: edge.subContainer.bindings.map {
+                (
+                    key: $0.childInputName,
+                    mapping: ResolvedDependencyMapping(
+                        parentName: $0.parentMemberName,
+                        location: $0.parentLocation
+                    ),
+                    location: $0.childLocation
                 )
-            )
-        })
+            }
+        )
     }
 
     if !edge.subContainer.withDependencies.isEmpty {
-        return Dictionary(uniqueKeysWithValues: edge.subContainer.withDependencies.map {
-            (
-                $0.name,
-                ResolvedDependencyMapping(parentName: $0.name, location: $0.location)
-            )
-        })
+        return resolvedDependencyMappings(
+            parent: parent,
+            child: child,
+            edge: edge,
+            kind: .withDependency,
+            candidates: edge.subContainer.withDependencies.map {
+                (
+                    key: $0.name,
+                    mapping: ResolvedDependencyMapping(parentName: $0.name, location: $0.location),
+                    location: $0.location
+                )
+            }
+        )
     }
 
-    return Dictionary(uniqueKeysWithValues: child.inputMembers.keys.compactMap { inputName in
-        guard parent.providedMembers[inputName] != nil else {
-            return nil
+    return ResolvedDependencyMappingsResult(
+        mappings: Dictionary(uniqueKeysWithValues: child.inputMembers.keys.compactMap { inputName in
+            guard parent.providedMembers[inputName] != nil else {
+                return nil
+            }
+            return (
+                inputName,
+                ResolvedDependencyMapping(parentName: inputName, location: edge.subContainer.location)
+            )
+        }),
+        issues: []
+    )
+}
+
+private enum ResolvedDependencyMappingKind {
+    case binding
+    case withDependency
+
+    var duplicateIssueCode: String {
+        switch self {
+        case .binding:
+            "hierarchy.duplicate-binding-mapping"
+        case .withDependency:
+            "hierarchy.duplicate-with-dependency"
         }
-        return (
-            inputName,
-            ResolvedDependencyMapping(parentName: inputName, location: edge.subContainer.location)
+    }
+
+    func duplicateMessage(
+        edge: ResolvedHierarchyEdge,
+        child: WorkspaceHierarchyContainerRecord,
+        dependencyName: String
+    ) -> String {
+        switch self {
+        case .binding:
+            return "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' maps child input '\(dependencyName)' more than once in bindings: for '\(child.displayName)'."
+        case .withDependency:
+            return "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' lists dependency '\(dependencyName)' more than once in with: for '\(child.displayName)'."
+        }
+    }
+
+    var remediation: String {
+        switch self {
+        case .binding:
+            "Keep at most one bindings: entry per child input."
+        case .withDependency:
+            "Keep each with: dependency name listed at most once."
+        }
+    }
+}
+
+private func resolvedDependencyMappings(
+    parent: WorkspaceHierarchyContainerRecord,
+    child: WorkspaceHierarchyContainerRecord,
+    edge: ResolvedHierarchyEdge,
+    kind: ResolvedDependencyMappingKind,
+    candidates: [(key: String, mapping: ResolvedDependencyMapping, location: ValidationIssueLocation)]
+) -> ResolvedDependencyMappingsResult {
+    var mappings: [String: ResolvedDependencyMapping] = [:]
+    var firstLocations: [String: ValidationIssueLocation] = [:]
+    var issues: [ValidationIssue] = []
+
+    for candidate in candidates {
+        if mappings[candidate.key] == nil {
+            mappings[candidate.key] = candidate.mapping
+            firstLocations[candidate.key] = candidate.location
+            continue
+        }
+
+        let firstLocation = firstLocations[candidate.key]
+        issues.append(
+            ValidationIssue(
+                code: kind.duplicateIssueCode,
+                severity: .error,
+                message: kind.duplicateMessage(edge: edge, child: child, dependencyName: candidate.key),
+                location: candidate.location,
+                notes: firstLocation.map {
+                    [ValidationIssueNote(message: "first mapping for '\(candidate.key)' appears here.", location: $0)]
+                } ?? [],
+                remediation: kind.remediation,
+                metadata: [
+                    "parentContainerPath": parent.path,
+                    "childContainerPath": child.path,
+                    "childInputName": candidate.key
+                ]
+            )
         )
-    })
+    }
+
+    return ResolvedDependencyMappingsResult(mappings: mappings, issues: issues)
+}
+
+private func hierarchyMemberTypesMatch(
+    _ parent: WorkspaceHierarchyMemberRecord,
+    _ child: WorkspaceHierarchyMemberRecord,
+    resolver: SemanticResolverIndex,
+    typeCandidatePaths: Set<String>
+) -> Bool {
+    if let parentPath = resolvedHierarchyMemberTypePath(
+        parent,
+        resolver: resolver,
+        typeCandidatePaths: typeCandidatePaths
+    ),
+       let childPath = resolvedHierarchyMemberTypePath(
+        child,
+        resolver: resolver,
+        typeCandidatePaths: typeCandidatePaths
+       ) {
+        return parentPath == childPath
+    }
+
+    return parent.rawTypeSpelling == child.rawTypeSpelling
+}
+
+private func resolvedHierarchyMemberTypePath(
+    _ member: WorkspaceHierarchyMemberRecord,
+    resolver: SemanticResolverIndex,
+    typeCandidatePaths: Set<String>
+) -> String? {
+    guard let reference = member.semanticTypeReference else {
+        return nil
+    }
+
+    let resolution = resolver.resolvePath(for: reference, candidatePaths: typeCandidatePaths)
+    guard resolution.state == .resolved else {
+        return nil
+    }
+    return resolution.resolvedPath
 }
 
 private func validateDuplicateParents(
@@ -1090,34 +1274,42 @@ private func detectHierarchyCycles(
     let adjacency = Dictionary(grouping: edges, by: \.parentContainerID)
     var visiting: Set<String> = []
     var visited: Set<String> = []
+    var nodeStack: [String] = []
     var pathStack: [ResolvedHierarchyEdge] = []
     var issues: [ValidationIssue] = []
     var seenCycleKeys: Set<String> = []
+
+    func recordCycle(endingWith edge: ResolvedHierarchyEdge, cycleStartIndex: Int) {
+        let cycleEdges = Array(pathStack.dropFirst(cycleStartIndex)) + [edge]
+        let cycleKey = cycleEdges.map { "\($0.parentContainerID)->\($0.childContainerID)" }.joined(separator: "|")
+        guard seenCycleKeys.insert(cycleKey).inserted else {
+            return
+        }
+
+        issues.append(
+            ValidationIssue(
+                code: "hierarchy.component-cycle",
+                severity: .error,
+                message: "Strict hierarchy cycle detected: \(cycleEdges.map(\.parentPath).joined(separator: " -> ")) -> \(edge.childPath).",
+                location: edge.subContainer.location,
+                remediation: "Break the @SubContainer ownership cycle so the rooted component hierarchy remains acyclic.",
+                metadata: [
+                    "cycle": cycleKey
+                ]
+            )
+        )
+    }
 
     func dfs(_ current: String) {
         if visited.contains(current) {
             return
         }
         visiting.insert(current)
+        nodeStack.append(current)
 
         for edge in adjacency[current] ?? [] {
-            if let cycleStartIndex = pathStack.firstIndex(where: { $0.parentContainerID == edge.childContainerID }) {
-                let cycleEdges = Array(pathStack[cycleStartIndex...]) + [edge]
-                let cycleKey = cycleEdges.map { "\($0.parentContainerID)->\($0.childContainerID)" }.joined(separator: "|")
-                if seenCycleKeys.insert(cycleKey).inserted {
-                    issues.append(
-                        ValidationIssue(
-                            code: "hierarchy.component-cycle",
-                            severity: .error,
-                            message: "Strict hierarchy cycle detected: \(cycleEdges.map(\.parentPath).joined(separator: " -> ")) -> \(edge.childPath).",
-                            location: edge.subContainer.location,
-                            remediation: "Break the @SubContainer ownership cycle so the rooted component hierarchy remains acyclic.",
-                            metadata: [
-                                "cycle": cycleKey
-                            ]
-                        )
-                    )
-                }
+            if let cycleStartIndex = nodeStack.firstIndex(of: edge.childContainerID) {
+                recordCycle(endingWith: edge, cycleStartIndex: cycleStartIndex)
                 continue
             }
 
@@ -1130,6 +1322,7 @@ private func detectHierarchyCycles(
             _ = pathStack.popLast()
         }
 
+        _ = nodeStack.popLast()
         visiting.remove(current)
         visited.insert(current)
     }
@@ -1139,6 +1332,18 @@ private func detectHierarchyCycles(
     }
 
     return issues
+}
+
+private struct WorkspaceHierarchyMemberRecord: Equatable {
+    let rawTypeSpelling: String
+    let semanticTypeReference: SemanticTypeReference?
+}
+
+private func makeHierarchyMemberRecord(from type: TypeSyntax?) -> WorkspaceHierarchyMemberRecord {
+    WorkspaceHierarchyMemberRecord(
+        rawTypeSpelling: type?.trimmedDescription ?? "<unknown>",
+        semanticTypeReference: type.flatMap(normalizedSemanticTypeReference)
+    )
 }
 
 private final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
@@ -1240,10 +1445,10 @@ private final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                 filePath: filePath,
                 location: sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
             )]
-            .providedMembers[binding.name] = binding.type?.trimmedDescription ?? "<unknown>"
+            .providedMembers[binding.name] = makeHierarchyMemberRecord(from: binding.type)
 
             if provideArguments.scope == .input {
-                containerBuilders[currentContainerPath]?.inputMembers[binding.name] = binding.type?.trimmedDescription ?? "<unknown>"
+                containerBuilders[currentContainerPath]?.inputMembers[binding.name] = makeHierarchyMemberRecord(from: binding.type)
             }
         }
 
@@ -1326,8 +1531,8 @@ private struct WorkspaceHierarchyContainerRecord: Equatable {
     let location: ValidationIssueLocation
     let isComponent: Bool
     let isHierarchyRoot: Bool
-    let inputMembers: [String: String]
-    let providedMembers: [String: String]
+    let inputMembers: [String: WorkspaceHierarchyMemberRecord]
+    let providedMembers: [String: WorkspaceHierarchyMemberRecord]
     let subContainers: [WorkspaceHierarchySubContainerRecord]
 
     var path: String { nominalPath }
@@ -1355,8 +1560,8 @@ private struct WorkspaceHierarchyContainerBuilder {
     let location: ValidationIssueLocation
     var isComponent: Bool = false
     var isHierarchyRoot: Bool = false
-    var inputMembers: [String: String] = [:]
-    var providedMembers: [String: String] = [:]
+    var inputMembers: [String: WorkspaceHierarchyMemberRecord] = [:]
+    var providedMembers: [String: WorkspaceHierarchyMemberRecord] = [:]
     var subContainers: [WorkspaceHierarchySubContainerRecord] = []
 }
 
@@ -1634,7 +1839,7 @@ private func parseSwiftPMDependencyRefs(
     return arrayExpr.elements.compactMap { element in
         if let literal = stringLiteralValue(element.expression) {
             return WorkspaceModuleDependencyRef(
-                kind: .localTarget,
+                kind: .unqualifiedSwiftPMDependency,
                 targetName: literal,
                 packageReference: nil,
                 manifestPath: manifestPath
@@ -1661,9 +1866,16 @@ private func parseSwiftPMDependencyRefs(
                     packageReference: labeledStringArgument("package", in: call.arguments),
                     manifestPath: nil
                 )
-            case "target", "byName":
+            case "target":
                 return WorkspaceModuleDependencyRef(
                     kind: .localTarget,
+                    targetName: targetName,
+                    packageReference: nil,
+                    manifestPath: manifestPath
+                )
+            case "byName":
+                return WorkspaceModuleDependencyRef(
+                    kind: .unqualifiedSwiftPMDependency,
                     targetName: targetName,
                     packageReference: nil,
                     manifestPath: manifestPath
@@ -1674,7 +1886,7 @@ private func parseSwiftPMDependencyRefs(
         }
 
         return WorkspaceModuleDependencyRef(
-            kind: .localTarget,
+            kind: .unqualifiedSwiftPMDependency,
             targetName: targetName,
             packageReference: nil,
             manifestPath: manifestPath
