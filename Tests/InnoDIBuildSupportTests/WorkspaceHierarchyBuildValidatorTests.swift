@@ -1613,6 +1613,120 @@ struct WorkspaceHierarchyBuildValidatorTests {
         #expect(report.issues.isEmpty)
     }
 
+    @Test("Hierarchy validation rejects ambiguous semantic input matches even when raw spellings match")
+    func hierarchyValidationRejectsAmbiguousSemanticInputMatches() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            enum AppFeature {
+                struct Config {}
+            }
+
+            typealias Config = AppFeature.Config
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            enum FeatureModule {
+                struct Config {}
+            }
+
+            typealias Config = FeatureModule.Config
+
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.contains { $0.code == "hierarchy.unsatisfied-dependency" })
+    }
+
+    @Test("Hierarchy validation keeps raw spelling fallback for external input types")
+    func hierarchyValidationFallsBackToRawEqualityForExternalInputTypes() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var url: URL
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var url: URL
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
     @Test("Qualified hierarchy and dependency attributes still participate in validation")
     func qualifiedHierarchyAttributesStillParticipateInValidation() throws {
         let rootURL = try makeTemporaryWorkspaceRoot()

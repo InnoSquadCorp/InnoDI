@@ -1173,36 +1173,54 @@ private func hierarchyMemberTypesMatch(
     resolver: SemanticResolverIndex,
     typeCandidatePaths: Set<String>
 ) -> Bool {
-    if let parentPath = resolvedHierarchyMemberTypePath(
+    let parentResolution = resolveHierarchyMemberType(
         parent,
         resolver: resolver,
         typeCandidatePaths: typeCandidatePaths
-    ),
-       let childPath = resolvedHierarchyMemberTypePath(
+    )
+    let childResolution = resolveHierarchyMemberType(
         child,
         resolver: resolver,
         typeCandidatePaths: typeCandidatePaths
-       ) {
-        return parentPath == childPath
-    }
+    )
 
-    return parent.rawTypeSpelling == child.rawTypeSpelling
+    switch (parentResolution, childResolution) {
+    case let (.resolved(parentPath), .resolved(childPath)):
+        return parentPath == childPath
+    case (.ambiguous, _), (_, .ambiguous):
+        return false
+    case (.fallback, _), (_, .fallback):
+        return parent.rawTypeSpelling == child.rawTypeSpelling
+    }
 }
 
-private func resolvedHierarchyMemberTypePath(
+private func resolveHierarchyMemberType(
     _ member: WorkspaceHierarchyMemberRecord,
     resolver: SemanticResolverIndex,
     typeCandidatePaths: Set<String>
-) -> String? {
+) -> HierarchyMemberTypeResolution {
     guard let reference = member.semanticTypeReference else {
-        return nil
+        return .fallback
     }
 
     let resolution = resolver.resolvePath(for: reference, candidatePaths: typeCandidatePaths)
-    guard resolution.state == .resolved else {
-        return nil
+    switch resolution.state {
+    case .resolved:
+        guard let resolvedPath = resolution.resolvedPath else {
+            return .fallback
+        }
+        return .resolved(resolvedPath)
+    case .ambiguous:
+        return .ambiguous
+    case .excluded, .unresolved:
+        return .fallback
     }
-    return resolution.resolvedPath
+}
+
+private enum HierarchyMemberTypeResolution {
+    case resolved(String)
+    case ambiguous
+    case fallback
 }
 
 private func validateDuplicateParents(
