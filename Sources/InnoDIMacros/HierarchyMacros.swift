@@ -33,17 +33,14 @@ extension DIComponentMacro: PeerMacro {
         let accessLevel = hierarchyAccessLevelModifierText(for: declGroup.modifiers)
         let protocolName = "\(nominalInfo.baseName)Dependencies"
         let inputMembers = hierarchyInputMembers(in: declGroup)
-        let requirements = inputMembers.map { member in
-            "var \(member.name): \(member.typeSource) { get }"
-        }
-        .joined(separator: "\n")
+        let protocolDecl = makeComponentDependenciesProtocolDecl(
+            accessLevel: hierarchyAccessLevelModifiers(for: declGroup.modifiers),
+            protocolName: protocolName,
+            inputMembers: inputMembers
+        )
 
-        let protocolBody = requirements.isEmpty ? "" : "\n\(requirements)\n"
-        let protocolDecl: DeclSyntax = """
-            \(raw: accessLevel)protocol \(raw: protocolName) {\(raw: protocolBody)}
-            """
-
-        return [protocolDecl]
+        _ = accessLevel
+        return [DeclSyntax(protocolDecl)]
     }
 }
 
@@ -168,7 +165,7 @@ private struct HierarchyNominalTypeInfo {
 
 private struct HierarchyInputMember {
     let name: String
-    let typeSource: String
+    let type: TypeSyntax
 }
 
 private func hierarchyNominalTypeInfo(for declaration: some DeclGroupSyntax) -> HierarchyNominalTypeInfo? {
@@ -220,9 +217,46 @@ private func hierarchyInputMembers(in declaration: some DeclGroupSyntax) -> [Hie
 
         return HierarchyInputMember(
             name: identifier.identifier.text,
-            typeSource: type.trimmedDescription
+            type: type.trimmed
         )
     }
+}
+
+private func makeComponentDependenciesProtocolDecl(
+    accessLevel: DeclModifierListSyntax,
+    protocolName: String,
+    inputMembers: [HierarchyInputMember]
+) -> ProtocolDeclSyntax {
+    let requirements = inputMembers.map { member in
+        MemberBlockItemSyntax(
+            decl: DeclSyntax(
+                VariableDeclSyntax(
+                    bindingSpecifier: .keyword(.var),
+                    bindings: PatternBindingListSyntax([
+                        PatternBindingSyntax(
+                            pattern: IdentifierPatternSyntax(identifier: .identifier(member.name)),
+                            typeAnnotation: TypeAnnotationSyntax(type: member.type),
+                            accessorBlock: AccessorBlockSyntax(
+                                accessors: .accessors(
+                                    AccessorDeclListSyntax([
+                                        AccessorDeclSyntax(accessorSpecifier: .keyword(.get))
+                                    ])
+                                )
+                            )
+                        )
+                    ])
+                )
+            )
+        )
+    }
+
+    return ProtocolDeclSyntax(
+        modifiers: accessLevel,
+        name: .identifier(protocolName),
+        memberBlock: MemberBlockSyntax(
+            members: MemberBlockItemListSyntax(requirements)
+        )
+    )
 }
 
 private func hierarchyAccessLevelModifierText(for modifiers: DeclModifierListSyntax?) -> String {
@@ -250,11 +284,48 @@ private func hierarchyAccessLevelModifierText(for modifiers: DeclModifierListSyn
     return ""
 }
 
+private func hierarchyAccessLevelModifiers(for modifiers: DeclModifierListSyntax?) -> DeclModifierListSyntax {
+    let accessLevel = hierarchyAccessLevelModifierText(for: modifiers).trimmingCharacters(in: .whitespaces)
+    guard !accessLevel.isEmpty else {
+        return DeclModifierListSyntax([])
+    }
+
+    let keyword: TokenSyntax
+    switch accessLevel {
+    case "public":
+        keyword = .keyword(.public)
+    case "package":
+        keyword = .keyword(.package)
+    case "internal":
+        keyword = .keyword(.internal)
+    case "fileprivate":
+        keyword = .keyword(.fileprivate)
+    case "private":
+        keyword = .keyword(.private)
+    default:
+        return DeclModifierListSyntax([])
+    }
+
+    return DeclModifierListSyntax([
+        DeclModifierSyntax(name: keyword)
+    ])
+}
+
 private func hasHierarchyAttribute(named name: String, in attributes: AttributeListSyntax?) -> Bool {
     attributes?.contains(where: { element in
         guard let attribute = element.as(AttributeSyntax.self) else {
             return false
         }
-        return attribute.attributeName.as(IdentifierTypeSyntax.self)?.name.text == name
+        return hierarchyAttributeBaseName(attribute.attributeName) == name
     }) == true
+}
+
+private func hierarchyAttributeBaseName(_ type: TypeSyntax) -> String? {
+    if let identifier = type.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text
+    }
+    if let member = type.as(MemberTypeSyntax.self) {
+        return member.name.text
+    }
+    return nil
 }

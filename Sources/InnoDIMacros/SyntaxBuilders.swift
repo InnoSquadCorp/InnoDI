@@ -124,10 +124,28 @@ internal func subContainerBuildClosurePeerDecl(
     childType: TypeSyntax,
     isMainActor: Bool
 ) -> DeclSyntax {
+    let attributes = AttributeListSyntax(
+        [
+            isMainActor
+                ? AttributeListSyntax.Element.attribute(
+                    AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("MainActor")))
+                )
+                : nil,
+            AttributeListSyntax.Element.attribute(
+                AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("Sendable")))
+            ),
+        ].compactMap { $0 }
+    )
     let functionType = TypeSyntax(
-        stringLiteral: isMainActor
-            ? "@MainActor @Sendable () -> \(childType.trimmedDescription)"
-            : "@Sendable () -> \(childType.trimmedDescription)"
+        AttributedTypeSyntax(
+            specifiers: TypeSpecifierListSyntax([]),
+            attributes: attributes,
+            lateSpecifiers: TypeSpecifierListSyntax([]),
+            baseType: FunctionTypeSyntax(
+                parameters: TupleTypeElementListSyntax([]),
+                returnClause: ReturnClauseSyntax(type: childType.trimmed)
+            )
+        )
     )
 
     let decl = VariableDeclSyntax(

@@ -32,14 +32,12 @@ struct InnoDISwiftUIMacroTests {
 
                     struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
                         let container: AppContainer
-
                         func body(content: Content) -> some SwiftUI.View {
                             content.environment(\EnvironmentValues.greetingService, container.greetingService).environment(\EnvironmentValues.activityService, container.activityService)
                         }
                     }
 
-                    @MainActor
-                    func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
                         _InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
@@ -102,6 +100,32 @@ struct InnoDISwiftUIMacroTests {
                     message: "@DIEnvironmentBridge requires 'environment' to be a key-path expression.",
                     line: 2,
                     column: 46
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge rejects malformed top-level arguments")
+    func environmentBridgeRejectsMalformedTopLevelArguments() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge("not-an-array")
+            struct AppContainer {
+                var greetingService: GreetingService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    var greetingService: GreetingService
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-invalid-arguments"),
+                    message: "@DIEnvironmentBridge requires a single array literal of (member: ..., environment: ...) mappings.",
+                    line: 1,
+                    column: 1
                 )
             ],
             macros: Self.macros

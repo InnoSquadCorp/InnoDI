@@ -11,6 +11,8 @@ struct HierarchyMacroTests {
         "DIContainer": DIContainerMacro.self,
         "DIComponent": DIComponentMacro.self,
         "DIHierarchyRoot": DIHierarchyRootMacro.self,
+        "InnoDI.DIContainer": DIContainerMacro.self,
+        "InnoDI.DIHierarchyRoot": DIHierarchyRootMacro.self,
         "Provide": ProvideMacro.self,
         "SubContainer": SubContainerMacro.self,
     ]
@@ -148,6 +150,35 @@ struct HierarchyMacroTests {
                     column: 1
                 )
             ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIComponent accepts qualified DIContainer attributes")
+    func diComponentAcceptsQualifiedDIContainerAttribute() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIComponent
+            @InnoDI.DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: FeatureConfig
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIHierarchyRoot accepts qualified DIContainer attributes")
+    func diHierarchyRootAcceptsQualifiedDIContainerAttribute() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIHierarchyRoot
+            @InnoDI.DIContainer
+            struct AppRoot {
+            }
+            """,
+            expectedCodes: [],
             macros: Self.macros
         )
     }

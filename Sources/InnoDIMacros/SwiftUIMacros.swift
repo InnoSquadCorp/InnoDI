@@ -20,7 +20,7 @@ extension DIEnvironmentBridgeMacro: MemberMacro {
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard let nominalTypeName = nominalTypeReference(for: declaration) else {
+        guard let nominalType = nominalTypeSyntax(for: declaration) else {
             return []
         }
 
@@ -34,29 +34,15 @@ extension DIEnvironmentBridgeMacro: MemberMacro {
             return []
         }
 
-        let accessLevel = accessLevelModifierText(for: declaration.modifiers)
-        let bodyChain = mappings.reduce("content") { partialResult, mapping in
-            "\(partialResult).environment(\(mapping.environmentKeyPathSource), container.\(mapping.memberName))"
-        }
+        let accessLevel = accessLevelModifiers(for: declaration.modifiers)
+        let modifierDecl = makeEnvironmentBridgeModifierDecl(
+            accessLevel: accessLevel,
+            containerType: nominalType,
+            mappings: mappings
+        )
+        let bridgeMethodDecl = makeEnvironmentBridgeHelperDecl(accessLevel: accessLevel)
 
-        let modifierDecl: DeclSyntax = """
-            \(raw: accessLevel)struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
-                let container: \(raw: nominalTypeName)
-
-                \(raw: accessLevel)func body(content: Content) -> some SwiftUI.View {
-                    \(raw: bodyChain)
-                }
-            }
-            """
-
-        let bridgeMethodDecl: DeclSyntax = """
-            @MainActor
-            \(raw: accessLevel)func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
-                _InnoDIEnvironmentBridgeModifier(container: self)
-            }
-            """
-
-        return [modifierDecl, bridgeMethodDecl]
+        return [DeclSyntax(modifierDecl), DeclSyntax(bridgeMethodDecl)]
     }
 }
 
@@ -171,7 +157,7 @@ extension DIFeatureRootMacro: PeerMacro {
 
 private struct EnvironmentBridgeMappingInfo {
     let memberName: String
-    let environmentKeyPathSource: String
+    let environmentKeyPath: ExprSyntax
 }
 
 private struct EnvironmentBridgeValidationResult {
@@ -192,7 +178,15 @@ private func validateEnvironmentBridge(
     guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
           let firstArgument = arguments.first,
           let arrayExpr = firstArgument.expression.as(ArrayExprSyntax.self) else {
-        return EnvironmentBridgeValidationResult(mappings: [])
+        if emitDiagnostics {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidArguments()
+                )
+            )
+        }
+        return EnvironmentBridgeValidationResult(mappings: nil)
     }
 
     let memberNames = Set(containerMemberNames(in: declaration))
@@ -215,7 +209,7 @@ private func validateEnvironmentBridge(
         }
 
         var memberName: String?
-        var environmentKeyPathSource: String?
+        var environmentKeyPath: ExprSyntax?
 
         for tupleElement in tupleExpr.elements {
             guard let label = tupleElement.label?.text else {
@@ -238,7 +232,7 @@ private func validateEnvironmentBridge(
                 }
                 memberName = parsedMemberName
             case "environment":
-                guard tupleElement.expression.as(KeyPathExprSyntax.self) != nil else {
+                guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self) else {
                     if emitDiagnostics {
                         context.diagnose(
                             Diagnostic(
@@ -250,13 +244,13 @@ private func validateEnvironmentBridge(
                     hadErrors = true
                     continue
                 }
-                environmentKeyPathSource = tupleElement.expression.trimmedDescription
+                environmentKeyPath = ExprSyntax(keyPath)
             default:
                 continue
             }
         }
 
-        guard let memberName, let environmentKeyPathSource else {
+        guard let memberName, let environmentKeyPath else {
             hadErrors = true
             continue
         }
@@ -290,12 +284,152 @@ private func validateEnvironmentBridge(
         mappings.append(
             EnvironmentBridgeMappingInfo(
                 memberName: memberName,
-                environmentKeyPathSource: environmentKeyPathSource
+                environmentKeyPath: environmentKeyPath
             )
         )
     }
 
     return EnvironmentBridgeValidationResult(mappings: hadErrors ? nil : mappings)
+}
+
+private func makeEnvironmentBridgeModifierDecl(
+    accessLevel: DeclModifierListSyntax,
+    containerType: TypeSyntax,
+    mappings: [EnvironmentBridgeMappingInfo]
+) -> StructDeclSyntax {
+    let containerDecl = VariableDeclSyntax(
+        bindingSpecifier: .keyword(.let),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier("container")),
+                typeAnnotation: TypeAnnotationSyntax(type: containerType)
+            )
+        ])
+    )
+    let bodyDecl = FunctionDeclSyntax(
+        modifiers: accessLevel,
+        name: .identifier("body"),
+        signature: FunctionSignatureSyntax(
+            parameterClause: FunctionParameterClauseSyntax(
+                parameters: FunctionParameterListSyntax([
+                    FunctionParameterSyntax(
+                        firstName: .identifier("content"),
+                        colon: .colonToken(),
+                        type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Content")))
+                    )
+                ])
+            ),
+            returnClause: ReturnClauseSyntax(type: TypeSyntax(stringLiteral: "some SwiftUI.View"))
+        ),
+        body: CodeBlockSyntax(
+            statements: CodeBlockItemListSyntax([
+                CodeBlockItemSyntax(
+                    item: .stmt(
+                        StmtSyntax(
+                            ExpressionStmtSyntax(
+                                expression: makeEnvironmentBridgeBodyExpr(mappings: mappings)
+                            )
+                        )
+                    )
+                )
+            ])
+        )
+    )
+
+    return StructDeclSyntax(
+        modifiers: accessLevel,
+        name: .identifier("_InnoDIEnvironmentBridgeModifier"),
+        inheritanceClause: InheritanceClauseSyntax(
+            inheritedTypes: InheritedTypeListSyntax([
+                InheritedTypeSyntax(type: TypeSyntax(stringLiteral: "SwiftUI.ViewModifier"))
+            ])
+        ),
+        memberBlock: MemberBlockSyntax(
+            members: MemberBlockItemListSyntax([
+                MemberBlockItemSyntax(decl: DeclSyntax(containerDecl)),
+                MemberBlockItemSyntax(decl: DeclSyntax(bodyDecl)),
+            ])
+        )
+    )
+}
+
+private func makeEnvironmentBridgeHelperDecl(
+    accessLevel: DeclModifierListSyntax
+) -> FunctionDeclSyntax {
+    let modifierType = TypeSyntax(IdentifierTypeSyntax(name: .identifier("_InnoDIEnvironmentBridgeModifier")))
+    let callExpr = ExprSyntax(
+        FunctionCallExprSyntax(
+            calledExpression: ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier("_InnoDIEnvironmentBridgeModifier"))
+            ),
+            leftParen: .leftParenToken(),
+            arguments: LabeledExprListSyntax([
+                LabeledExprSyntax(
+                    label: .identifier("container"),
+                    colon: .colonToken(),
+                    expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .keyword(.self)))
+                )
+            ]),
+            rightParen: .rightParenToken()
+        )
+    )
+
+    return FunctionDeclSyntax(
+        attributes: AttributeListSyntax([
+            .attribute(
+                AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("MainActor")))
+            )
+        ]),
+        modifiers: accessLevel,
+        name: .identifier("_innodiEnvironmentBridgeModifier"),
+        signature: FunctionSignatureSyntax(
+            parameterClause: FunctionParameterClauseSyntax(parameters: []),
+            returnClause: ReturnClauseSyntax(type: modifierType)
+        ),
+        body: CodeBlockSyntax(
+            statements: CodeBlockItemListSyntax([
+                CodeBlockItemSyntax(
+                    item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: callExpr)))
+                )
+            ])
+        )
+    )
+}
+
+private func makeEnvironmentBridgeBodyExpr(
+    mappings: [EnvironmentBridgeMappingInfo]
+) -> ExprSyntax {
+    mappings.reduce(
+        ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("content")))
+    ) { partialResult, mapping in
+        let memberAccess = ExprSyntax(
+            MemberAccessExprSyntax(
+                base: partialResult,
+                declName: DeclReferenceExprSyntax(baseName: .identifier("environment"))
+            )
+        )
+        let containerMember = ExprSyntax(
+            MemberAccessExprSyntax(
+                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("container"))),
+                declName: DeclReferenceExprSyntax(baseName: .identifier(mapping.memberName))
+            )
+        )
+
+        return ExprSyntax(
+            FunctionCallExprSyntax(
+                calledExpression: memberAccess,
+                leftParen: .leftParenToken(),
+                arguments: LabeledExprListSyntax([
+                    LabeledExprSyntax(
+                        expression: mapping.environmentKeyPath,
+                        trailingComma: .commaToken()
+                    ),
+                    LabeledExprSyntax(expression: containerMember),
+                ]),
+                rightParen: .rightParenToken()
+            )
+        )
+    }
 }
 
 private func parseFeatureRootAttribute(_ attribute: AttributeSyntax) -> FeatureRootAttributeInfo? {
@@ -407,31 +541,44 @@ private func containerMemberNames(in declaration: some DeclGroupSyntax) -> [Stri
     }
 }
 
-private func nominalTypeReference(for declaration: some DeclGroupSyntax) -> String? {
+private func nominalTypeSyntax(for declaration: some DeclGroupSyntax) -> TypeSyntax? {
     if let structDecl = declaration.as(StructDeclSyntax.self) {
-        return nominalTypeReference(name: structDecl.name.text, genericParameterClause: structDecl.genericParameterClause)
+        return nominalTypeSyntax(name: structDecl.name.text, genericParameterClause: structDecl.genericParameterClause)
     }
     if let classDecl = declaration.as(ClassDeclSyntax.self) {
-        return nominalTypeReference(name: classDecl.name.text, genericParameterClause: classDecl.genericParameterClause)
+        return nominalTypeSyntax(name: classDecl.name.text, genericParameterClause: classDecl.genericParameterClause)
     }
     if let actorDecl = declaration.as(ActorDeclSyntax.self) {
-        return nominalTypeReference(name: actorDecl.name.text, genericParameterClause: actorDecl.genericParameterClause)
+        return nominalTypeSyntax(name: actorDecl.name.text, genericParameterClause: actorDecl.genericParameterClause)
     }
     if let enumDecl = declaration.as(EnumDeclSyntax.self) {
-        return nominalTypeReference(name: enumDecl.name.text, genericParameterClause: enumDecl.genericParameterClause)
+        return nominalTypeSyntax(name: enumDecl.name.text, genericParameterClause: enumDecl.genericParameterClause)
     }
     return nil
 }
 
-private func nominalTypeReference(
+private func nominalTypeSyntax(
     name: String,
     genericParameterClause: GenericParameterClauseSyntax?
-) -> String {
+) -> TypeSyntax {
     guard let genericParameterClause else {
-        return name
+        return TypeSyntax(IdentifierTypeSyntax(name: .identifier(name)))
     }
-    let genericArguments = genericParameterClause.parameters.map { $0.name.text }.joined(separator: ", ")
-    return "\(name)<\(genericArguments)>"
+
+    let genericArguments = GenericArgumentListSyntax(
+        genericParameterClause.parameters.enumerated().map { index, parameter in
+            GenericArgumentSyntax(
+                argument: .type(TypeSyntax(IdentifierTypeSyntax(name: .identifier(parameter.name.text)))),
+                trailingComma: index == genericParameterClause.parameters.count - 1 ? nil : .commaToken()
+            )
+        }
+    )
+    return TypeSyntax(
+        IdentifierTypeSyntax(
+            name: .identifier(name),
+            genericArgumentClause: GenericArgumentClauseSyntax(arguments: genericArguments)
+        )
+    )
 }
 
 private func accessLevelModifierText(for modifiers: DeclModifierListSyntax?) -> String {
@@ -457,6 +604,33 @@ private func accessLevelModifierText(for modifiers: DeclModifierListSyntax?) -> 
     }
 
     return ""
+}
+
+private func accessLevelModifiers(for modifiers: DeclModifierListSyntax?) -> DeclModifierListSyntax {
+    let accessLevel = accessLevelModifierText(for: modifiers).trimmingCharacters(in: .whitespaces)
+    guard !accessLevel.isEmpty else {
+        return DeclModifierListSyntax([])
+    }
+
+    let keyword: TokenSyntax
+    switch accessLevel {
+    case "public":
+        keyword = .keyword(.public)
+    case "package":
+        keyword = .keyword(.package)
+    case "internal":
+        keyword = .keyword(.internal)
+    case "fileprivate":
+        keyword = .keyword(.fileprivate)
+    case "private":
+        keyword = .keyword(.private)
+    default:
+        return DeclModifierListSyntax([])
+    }
+
+    return DeclModifierListSyntax([
+        DeclModifierSyntax(name: keyword)
+    ])
 }
 
 private func hasAttribute(named name: String, in attributes: AttributeListSyntax?) -> Bool {
