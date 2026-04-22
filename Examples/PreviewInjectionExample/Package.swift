@@ -14,7 +14,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "PreviewInjectionExample",
-            dependencies: ["InnoDI"]
+            dependencies: [
+                .product(name: "InnoDISwiftUI", package: "InnoDI")
+            ]
         ),
         .testTarget(
             name: "PreviewInjectionExampleTests",

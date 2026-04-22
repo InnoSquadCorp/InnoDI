@@ -1,4 +1,4 @@
-import InnoDI
+import InnoDISwiftUI
 import Observation
 import SwiftUI
 
@@ -166,6 +166,22 @@ final class DashboardFeatureModel {
     }
 }
 
+@DIEnvironmentBridge([
+    (member: "greetingService", environment: \EnvironmentValues.greetingService),
+    (member: "activityService", environment: \EnvironmentValues.activityService),
+])
+@DIContainer
+struct DashboardFeatureContainer {
+    @Provide(.input)
+    var username: String
+
+    @Provide(.input)
+    var greetingService: any GreetingServiceProtocol
+
+    @Provide(.input)
+    var activityService: any ActivityServiceProtocol
+}
+
 @DIContainer(root: true)
 struct AppContainer {
     @Provide(.input)
@@ -176,6 +192,11 @@ struct AppContainer {
 
     @Provide(.shared, factory: { LiveActivityService() })
     var activityService: any ActivityServiceProtocol
+
+    @SubContainer(scope: .shared)
+    @DIFeatureRoot(DashboardFeatureRootView.self)
+    @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
+    var dashboard: DashboardFeatureContainer
 }
 
 struct DashboardSkeletonView: View {
@@ -268,7 +289,7 @@ struct HighlightDetailView: View {
     }
 }
 
-struct DashboardFeatureRootView: View {
+struct DashboardFeatureScreen: View {
     let username: String
 
     @Environment(\.greetingService) private var greetingService
@@ -324,13 +345,27 @@ struct DashboardFeatureRootView: View {
     }
 }
 
-struct DashboardAppRootView: View {
-    let container: AppContainer
+struct DashboardFeatureRootView: View {
+    let container: DashboardFeatureContainer
 
     var body: some View {
-        DashboardFeatureRootView(username: container.username)
-            .environment(\.greetingService, container.greetingService)
-            .environment(\.activityService, container.activityService)
+        DashboardFeatureScreen(username: container.username)
+            .innodi(container)
+    }
+}
+
+struct DashboardShellView: View {
+    let container: DashboardFeatureContainer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Dashboard Shell")
+                .font(.headline)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+            DashboardFeatureRootView(container: container)
+        }
+        .background(.background)
     }
 }
 
@@ -380,8 +415,8 @@ struct DashboardRootScenario {
 struct SwiftUIExampleMain {
     static func main() {
         let liveScenario = DashboardRootScenario.live()
-        _ = DashboardAppRootView(container: liveScenario.container)
-        _ = DashboardAppRootView(container: DashboardRootScenario.preview().container)
-        _ = DashboardAppRootView(container: DashboardRootScenario.failure().container)
+        _ = liveScenario.container.dashboardRootView()
+        _ = DashboardRootScenario.preview().container.dashboardShellRootView()
+        _ = DashboardRootScenario.failure().container.dashboardRootView()
     }
 }
