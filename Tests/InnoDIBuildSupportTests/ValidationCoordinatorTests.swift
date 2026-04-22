@@ -656,6 +656,53 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 1)
     }
 
+    @Test("Qualified InnoDI containers still reject wrapper aliases before DAG runner executes")
+    func qualifiedContainerWrapperAliasesAreRejected() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct Config {}
+        struct Service {}
+        typealias DeferredLazy<T> = InnoDI.Lazy<T>
+        typealias DeferredProvider<T> = InnoDI.Provider<T>
+
+        @InnoDI.DIContainer
+        struct AppContainer {
+            @InnoDI.Provide(.shared, factory: { (lazyConfig: DeferredLazy<Config>, serviceProvider: DeferredProvider<Service>) in
+                Service()
+            }, concrete: true)
+            var service: Service
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("QualifiedSemanticWrapperAliases.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("provide.deferred-wrapper-alias-unsupported"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 2)
+        #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredLazy" })
+        #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredProvider" })
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Semantic validation rejects bindings: that target an unknown child input")
     func semanticValidationRejectsUnknownChildInputBinding() async throws {
         let fixture = try makeFixture()
@@ -683,6 +730,59 @@ struct ValidationCoordinatorTests {
         }
         """.write(
             to: fixture.rootURL.appendingPathComponent("UnknownChildInputBinding.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.unknown-child-input"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(outcome.metricsArtifact.issues.first?.metadata["childContainerPath"] == "FeatureContainer")
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Qualified InnoDI containers still reject bindings: that target an unknown child input")
+    func qualifiedContainersRejectUnknownChildInputBinding() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        @InnoDI.DIContainer
+        struct FeatureContainer {
+            @InnoDI.Provide(.input)
+            var config: AppConfig
+        }
+
+        @InnoDI.DIContainer
+        struct AppContainer {
+            @InnoDI.Provide(.input)
+            var appConfig: AppConfig
+
+            @InnoDI.SubContainer(
+                scope: .shared,
+                bindings: [(child: \\FeatureContainer.missing, parent: \\AppContainer.appConfig)]
+            )
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("QualifiedUnknownChildInputBinding.swift"),
             atomically: true,
             encoding: .utf8
         )
@@ -1406,6 +1506,43 @@ struct ValidationCoordinatorTests {
 
         #expect(result.issues.count == 1)
         #expect(result.issues.first?.metadata["containerPath"] == "Outer.NestedContainer")
+    }
+
+    @Test("Qualified InnoDI containers participate in custom-init build validation")
+    func qualifiedContainersParticipateInCustomInitBuildValidation() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try """
+        struct Config {}
+
+        @InnoDI.DIContainer
+        struct AppContainer {
+            @InnoDI.Provide(.input)
+            var config: Config
+        }
+        """.write(
+            to: rootURL.appendingPathComponent("QualifiedContainer.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        extension AppContainer {
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+        }
+        """.write(
+            to: rootURL.appendingPathComponent("QualifiedContainer+Debug.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try CustomInitBuildValidator.validate(rootPath: rootURL.path(percentEncoded: false))
+
+        #expect(result.issues.count == 1)
+        #expect(result.issues.first?.code == "container.custom-init-unsupported")
+        #expect(result.issues.first?.metadata["containerPath"] == "AppContainer")
     }
 
     @Test("Semantic resolver expands top-level aliases and unique suffix matches conservatively")
