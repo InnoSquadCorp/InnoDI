@@ -99,11 +99,9 @@ With the override builder, `Lazy<T>`, `Provider<T>`, and
   the coordinator API is migrated to Swift Concurrency.
 
 ### Macro validation and fix-it quality
-- Filter unresolved factory fix-it suggestions by declaration-order availability
-  so diagnostics do not suggest names that would immediately trigger an
-  unavailable-dependency error.
-- Revisit `model.options.validate` handling for shared factory requirements to
-  ensure runtime fallback and compile-time diagnostics remain aligned.
+- Keep declaration-order-aware fix-it suggestions aligned with the
+  `DependencyResolutionContext` rules so diagnostic candidates stay safe as new
+  scopes or deferred-edge behaviors evolve.
 
 ### Example and test hygiene
 - Revisit SwiftUI example `.task` / `.onDisappear` ownership boundaries for more

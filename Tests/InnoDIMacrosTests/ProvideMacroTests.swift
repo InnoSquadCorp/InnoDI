@@ -11,7 +11,9 @@ import Testing
 struct ProvideMacroTests {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
+        "InnoDI.DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
+        "InnoDI.Provide": ProvideMacro.self,
     ]
 
     // MARK: - Parsing tests (no expansion)
@@ -334,6 +336,46 @@ struct ProvideMacroTests {
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
         #expect(peerGenerated == "private let _storage_task_service: Task<Service, Never>")
         #expect(accessorGenerated == #"getasync{return await _storage_task_service.value}"#)
+    }
+
+    @Test("Qualified InnoDI provide members resolve transient dependencies by member name")
+    func qualifiedProvideMembersResolveTransientDependencies() throws {
+        let source = """
+        @InnoDI.DIContainer
+        struct AppContainer {
+            @InnoDI.Provide(.input)
+            var logger: Logger
+
+            @InnoDI.Provide(.transient, factory: { (logger: Logger) in ViewModel(logger: logger) }, concrete: true)
+            var viewModel: ViewModel
+        }
+        """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+
+        let parsed = Parser.parse(source: source)
+        guard let containerDecl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let transientDecl = containerDecl.memberBlock.members.last?.decl.as(VariableDeclSyntax.self),
+              let attr = transientDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse qualified container with transient provide member")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let accessors = try ProvideMacro.expansion(
+            of: attr,
+            providingAccessorsOf: transientDecl,
+            in: context
+        )
+
+        let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
+        #expect(context.diagnostics.isEmpty)
+        #expect(!accessorGenerated.contains("fatalError"))
+        #expect(accessorGenerated.contains("self.logger"))
     }
 
     // MARK: - Public API presence

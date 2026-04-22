@@ -29,7 +29,7 @@ struct AppContainer {
             })
         self._override_service = service
         let _lazySelf = self
-        _lazyCell_service.resolver = {
+        _lazyCell_service.bindResolver {
             _lazySelf.service
         }
     }

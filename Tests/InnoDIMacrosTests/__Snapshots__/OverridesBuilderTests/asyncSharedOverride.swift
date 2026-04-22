@@ -27,7 +27,6 @@ struct AppContainer {
             }(_resolved_config)
         }
         self._storage_task_service = _task_service
-        let _resolved_task_service = _task_service
     }
 
     struct Overrides {

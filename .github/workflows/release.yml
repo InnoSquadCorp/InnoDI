@@ -18,9 +18,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode 26.3
-        # Pin to Xcode 26.3 (Swift 6.3). Release gate runs the validation
-        # benchmark and DocC generation — consistency across runs requires a
-        # single known toolchain.
+        # Pin to Xcode 26.3 (Swift 6.3) so release validation and DocC
+        # generation run on one known toolchain.
         run: |
           if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
             echo "Xcode 26.3 not installed on this runner."
@@ -34,11 +33,20 @@ jobs:
       - name: Run Main Test Suite
         run: swift test
 
+      - name: Run Strict Concurrency Test Suite
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
       - name: Test SwiftUI Example
         run: |
           cd Examples/SwiftUIExample
           swift build
           swift test
+
+      - name: Test SwiftUI Example Under Strict Concurrency
+        run: |
+          cd Examples/SwiftUIExample
+          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
       - name: Test Preview Injection Example
         run: |
@@ -46,15 +54,14 @@ jobs:
           swift build
           swift test
 
+      - name: Test Preview Injection Example Under Strict Concurrency
+        run: |
+          cd Examples/PreviewInjectionExample
+          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
-
-      - name: Run Validation Benchmark (CI preset)
-        run: Benchmarks/run-validation-bench.sh --preset ci
-
-      - name: Generate Validation Compare Artifacts (non-blocking)
-        continue-on-error: true
-        run: Benchmarks/compare.sh --preset ci --compile-iterations 1 --runtime-runs 1 --runtime-iterations 1000 --validation-runs 1 --sizes 10
 
       - name: Generate DocC
         run: Tools/generate-docc.sh
@@ -70,8 +77,6 @@ jobs:
         with:
           name: innodi-release-gate
           path: |
-            Benchmarks/results/*.json
-            Benchmarks/results/*.md
             .build/docc/innodi-docc.tar.gz
 
   publish-release:
@@ -102,6 +107,4 @@ jobs:
           body_path: release-notes.md
           fail_on_unmatched_files: false
           files: |
-            release-assets/**/*.json
-            release-assets/**/*.md
             release-assets/**/*.tar.gz

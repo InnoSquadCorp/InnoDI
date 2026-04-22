@@ -37,7 +37,7 @@ struct AppContainer {
             })
         self._override_request = request
         let _lazySelf = self
-        _lazyCell_request.resolver = {
+        _lazyCell_request.bindResolver {
             _lazySelf.request
         }
     }

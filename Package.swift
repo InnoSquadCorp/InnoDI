@@ -14,6 +14,7 @@ let package = Package(
     ],
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
+        .library(name: "InnoDISwiftUI", targets: ["InnoDISwiftUI"]),
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
     dependencies: [
@@ -40,6 +41,10 @@ let package = Package(
         .target(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"]
+        ),
+        .target(
+            name: "InnoDISwiftUI",
+            dependencies: ["InnoDI", "InnoDIMacros"]
         ),
         .target(
             name: "InnoDIBuildSupport"
@@ -113,13 +118,20 @@ let package = Package(
             name: "InnoDIBuildSupportTests",
             dependencies: [
                 "InnoDIBuildSupport",
-                "InnoDICore"
+                "InnoDICore",
+                "InnoDITestSupport"
             ]
         ),
         .testTarget(
             name: "InnoDIRuntimeTests",
             dependencies: [
                 "InnoDI"
+            ]
+        ),
+        .testTarget(
+            name: "InnoDISwiftUITests",
+            dependencies: [
+                "InnoDISwiftUI"
             ]
         ),
     ]

@@ -1,11 +1,24 @@
 import SwiftSyntax
 
+/// Availability state for one dependency name at a specific declaration index.
+///
+/// `unknown` means the container never declares the name, while `unavailable`
+/// means the name exists but declaration-order or scope rules prevent it from
+/// being injected at the current member.
 enum DependencyReferenceStatus {
     case available
     case unknown
     case unavailable
 }
 
+/// Shared declaration-order resolver used by macro diagnostics and graph
+/// collection.
+///
+/// This type is the source of truth for which dependencies are injectable at a
+/// given member index. Fix-it suggestions, unknown/unavailable diagnostics, and
+/// graph edge extraction all route through the same availability matrix so
+/// diagnostics never suggest names that the generated container cannot legally
+/// reference.
 struct DependencyResolutionContext {
     let members: [ProvideMemberModel]
     let knownNames: Set<String>
@@ -15,6 +28,11 @@ struct DependencyResolutionContext {
         self.knownNames = Set(members.map(\.name))
     }
 
+    /// Returns the dependency names that are injectable at `index`.
+    ///
+    /// `.shared` members follow declaration-order rules, async shared members
+    /// can also see earlier async shared dependencies plus all sync shared
+    /// dependencies, and `.transient` members can reference any known name.
     func availableNames(forMemberAt index: Int) -> Set<String> {
         guard members.indices.contains(index) else { return [] }
         let member = members[index]
@@ -52,6 +70,8 @@ struct DependencyResolutionContext {
         }
     }
 
+    /// Classifies a dependency reference using the same declaration-order rules
+    /// as container validation.
     func status(of dependencyName: String, forMemberAt index: Int) -> DependencyReferenceStatus {
         guard knownNames.contains(dependencyName) else {
             return .unknown
@@ -64,6 +84,7 @@ struct DependencyResolutionContext {
         return .unavailable
     }
 
+    /// Graph edges that are both declared and currently injectable.
     func graphDependencies(forMemberAt index: Int) -> [String] {
         guard members.indices.contains(index) else { return [] }
         let member = members[index]

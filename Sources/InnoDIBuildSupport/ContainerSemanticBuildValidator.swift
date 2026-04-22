@@ -3,6 +3,13 @@ import InnoDICore
 import SwiftParser
 import SwiftSyntax
 
+/// Build-stage semantic validator for module-wide container relationships.
+///
+/// This pass runs after cross-file custom-init validation and before DAG
+/// validation. It collects lightweight syntax records for container
+/// declarations, sub-container bindings, and deferred-wrapper spellings, then
+/// resolves them through `SemanticResolverIndex` so the coordinator can emit
+/// structured diagnostics without invoking the Swift type checker.
 package enum ContainerSemanticBuildValidator {
     package static func validate(rootPath: String) throws -> ValidationIssueReport {
         let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
@@ -301,7 +308,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
             return .skipChildren
         }
 
-        if let provideAttribute = findAttribute(named: "Provide", in: node.attributes) {
+        if let provideAttribute = findInnoDIAttribute(named: "Provide", in: node.attributes) {
             let provideArguments = parseProvideArguments(provideAttribute)
             if provideArguments.scope == .input {
                 containerBuilders[currentContainerPath, default: SemanticContainerBuilder(
@@ -321,7 +328,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
             )
         }
 
-        if let subContainerAttribute = findAttribute(named: "SubContainer", in: node.attributes),
+        if let subContainerAttribute = findInnoDIAttribute(named: "SubContainer", in: node.attributes),
            let childType = binding.type {
             let subArguments = parseSubContainerArguments(subContainerAttribute)
             if !subArguments.bindings.isEmpty {
@@ -517,20 +524,7 @@ private func isDirectMemberVariable(_ node: VariableDeclSyntax) -> Bool {
 }
 
 private func containsDIContainerAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    guard let attributes else {
-        return false
-    }
-
-    for attribute in attributes {
-        guard let syntax = attribute.as(AttributeSyntax.self) else {
-            continue
-        }
-        if let identifier = syntax.attributeName.as(IdentifierTypeSyntax.self), identifier.name.text == "DIContainer" {
-            return true
-        }
-    }
-
-    return false
+    findInnoDIAttribute(named: "DIContainer", in: attributes) != nil
 }
 
 private func directWrapperKind(named name: String) -> DeferredDependencyWrapperKind? {

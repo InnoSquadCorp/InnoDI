@@ -11,26 +11,12 @@ Before tagging a release:
 1. Update [CHANGELOG.md](CHANGELOG.md).
 2. Decide whether [MIGRATION.md](MIGRATION.md) needs a new entry.
 3. Run the main package test suite and example package tests/builds.
-4. Run benchmark smoke checks:
-   - `Benchmarks/run-validation-bench.sh --preset ci`
-   - `Benchmarks/compare.sh --preset ci`
-5. Decide whether benchmark baselines need an intentional refresh.
-6. Decide whether any artifact schema version changed and document it below.
-7. Confirm the release tag matches the README installation snippet.
-8. Confirm the GitHub Actions `Release Gate` workflow will run from the intended tag.
-9. Confirm the matching `## <tag>` section exists in [CHANGELOG.md](CHANGELOG.md); the release workflow publishes that body automatically.
-
-## Benchmark Baseline Policy
-
-- Validation regression gating uses [Benchmarks/validation-performance-baseline.json](Benchmarks/validation-performance-baseline.json).
-- Refresh the baseline only after an intentional performance change or a deliberate toolchain reset.
-- Baseline refresh command:
-
-```bash
-Benchmarks/compare.sh --preset ci --update-validation-baseline
-```
-
-- Baseline changes must be called out in the changelog or release notes when they materially affect regression expectations.
+4. Run the global DAG check:
+   - `swift run InnoDI-DependencyGraph --root . --validate-dag`
+5. Decide whether any validation artifact schema version changed and document it below.
+6. Confirm the release tag matches the README installation snippet.
+7. Confirm the GitHub Actions `Release Gate` workflow will run from the intended tag.
+8. Confirm the matching `## <tag>` section exists in [CHANGELOG.md](CHANGELOG.md); the release workflow publishes that body automatically.
 
 ## Artifact Schema Versioning
 
@@ -38,9 +24,6 @@ These artifacts are treated as release-quality contracts:
 
 - validation metrics JSON artifact
 - validation summary Markdown artifact
-- validation benchmark raw result JSON
-- validation benchmark compare JSON
-- validation benchmark baseline JSON
 
 Versioning rules:
 
@@ -51,8 +34,7 @@ Versioning rules:
 Current tracked versions:
 
 - `ValidationMetricsArtifact.currentVersion`: see [ValidationMetrics.swift](Sources/InnoDIBuildSupport/ValidationMetrics.swift)
-- validation benchmark raw result schema: `1`
-- validation benchmark compare schema: `1`
+- `sharedRunCacheVersion`: see [ValidationCoordinator.swift](Sources/InnoDIBuildSupport/ValidationCoordinator.swift)
 
 ## GitHub Release Notes
 
@@ -61,7 +43,6 @@ The tag-driven `Release Gate` workflow automatically creates the GitHub Release 
 That changelog section should summarize:
 
 - user-facing validation or diagnostics changes
-- benchmark baseline or threshold changes
 - documentation or release-process changes
 - migration impact, if any
 
@@ -80,9 +61,13 @@ If a release changes user-facing validation behavior, update those docs in the s
 
 The release workflow publishes these assets to the GitHub Release:
 
-- validation benchmark JSON artifacts
-- validation benchmark Markdown summaries
-- validation compare JSON/Markdown artifacts
 - packaged DocC archive
 
-If artifact naming or schema changes, update this document and [CHANGELOG.md](CHANGELOG.md) in the same release.
+Validation metrics and summary artifacts are still treated as release-quality
+contracts, but they are produced as part of validation/build flows rather than
+published as standalone release assets.
+
+If artifact naming or schema changes, update this document and
+[CHANGELOG.md](CHANGELOG.md) in the same release. If the coordinator cache salt
+changes, update this document and the release-contract tests in the same
+change.

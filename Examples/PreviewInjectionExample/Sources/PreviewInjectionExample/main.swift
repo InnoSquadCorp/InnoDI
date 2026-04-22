@@ -1,4 +1,4 @@
-import InnoDI
+import InnoDISwiftUI
 import Observation
 import SwiftUI
 
@@ -139,6 +139,10 @@ public final class QuoteFeatureModel {
     }
 }
 
+@DIEnvironmentBridge([
+    (member: "quoteService", environment: \EnvironmentValues.quoteService),
+    (member: "quoteMetaService", environment: \EnvironmentValues.quoteMetaService),
+])
 @DIContainer
 public struct QuoteContainer {
     @Provide(.input)
@@ -198,7 +202,7 @@ public struct QuoteCardView: View {
     }
 }
 
-public struct QuoteFeatureRootView: View {
+public struct QuoteFeatureScreen: View {
     @Environment(\.quoteService) private var quoteService
     @Environment(\.quoteMetaService) private var quoteMetaService
     @State private var model = QuoteFeatureModel()
@@ -219,6 +223,19 @@ public struct QuoteFeatureRootView: View {
     }
 }
 
+public struct QuoteFeatureRootView: View {
+    let container: QuoteContainer
+
+    public init(container: QuoteContainer) {
+        self.container = container
+    }
+
+    public var body: some View {
+        QuoteFeatureScreen()
+            .innodi(container)
+    }
+}
+
 public struct QuoteAppRootView: View {
     let title: String
     let container: QuoteContainer
@@ -234,10 +251,8 @@ public struct QuoteAppRootView: View {
                 .font(.headline)
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
-            QuoteFeatureRootView()
+            QuoteFeatureRootView(container: container)
         }
-        .environment(\.quoteService, container.quoteService)
-        .environment(\.quoteMetaService, container.quoteMetaService)
     }
 }
 
