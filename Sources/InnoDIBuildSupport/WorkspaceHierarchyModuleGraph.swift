@@ -247,7 +247,7 @@ private func discoverManifestURLs(rootPath: String) -> ManifestURLs {
     var tuistProjects: [URL] = []
 
     while let item = enumerator.nextObject() as? String {
-        if workspaceShouldSkipValidationPath(item) {
+        if validationPathShouldPruneDescendants(item) {
             enumerator.skipDescendants()
             continue
         }
@@ -500,11 +500,14 @@ private func swiftPMProductID(manifestPath: String, productName: String) -> Stri
     "\(manifestPath)|product|\(productName)"
 }
 
-private func normalizePackageIdentity(_ raw: String) -> String {
-    raw
+func normalizePackageIdentity(_ raw: String) -> String {
+    var identity = raw
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
-        .replacingOccurrences(of: ".git", with: "")
+    if identity.hasSuffix(".git") {
+        identity.removeLast(".git".count)
+    }
+    return identity
 }
 
 private func parseSwiftPMPackageDependencies(
@@ -707,11 +710,4 @@ private func globMatch(_ glob: String, filePath: String) -> Bool {
         .replacingOccurrences(of: "\\*", with: "[^/]*") + "$"
 
     return filePath.range(of: pattern, options: .regularExpression) != nil
-}
-
-private func workspaceShouldSkipValidationPath(_ path: String) -> Bool {
-    for token in validationSkipTokens where path.contains(token) {
-        return true
-    }
-    return false
 }
