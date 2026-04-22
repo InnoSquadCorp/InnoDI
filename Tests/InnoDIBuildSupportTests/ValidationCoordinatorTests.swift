@@ -809,6 +809,59 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Semantic validation still rejects unknown child input bindings when validateDAG is false")
+    func semanticValidationStillRejectsUnknownChildInputBindingForOptedOutContainer() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var config: AppConfig
+        }
+
+        @DIContainer(validateDAG: false)
+        struct AppContainer {
+            @Provide(.input)
+            var appConfig: AppConfig
+
+            @SubContainer(
+                scope: .shared,
+                bindings: [(child: \\FeatureContainer.missing, parent: \\AppContainer.appConfig)]
+            )
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("OptedOutUnknownChildInputBinding.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.unknown-child-input"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(outcome.metricsArtifact.issues.first?.metadata["childContainerPath"] == "FeatureContainer")
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Legacy shared-run cache directories without a version salt are ignored")
     func legacySharedRunCacheDirectoriesAreIgnored() async throws {
         let fixture = try makeFixture()
@@ -1000,6 +1053,39 @@ struct ValidationCoordinatorTests {
         #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.staleLockRecovered))
         #expect(runner.invocationCount == 1)
         #expect(clock.sleptDurations.isEmpty)
+    }
+
+    @Test("releaseLock removes the matching lock file")
+    func releaseLockRemovesMatchingLockFile() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let lockURL = rootURL.appendingPathComponent("validation.lock")
+        let descriptor = try #require(try acquireLock(at: lockURL))
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)))
+
+        releaseLock(descriptor: descriptor, at: lockURL)
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)) == false)
+    }
+
+    @Test("releaseLock does not delete a replacement file recreated at the same path")
+    func releaseLockDoesNotDeleteReplacementFile() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let lockURL = rootURL.appendingPathComponent("validation.lock")
+        let descriptor = try #require(try acquireLock(at: lockURL))
+
+        try FileManager.default.removeItem(at: lockURL)
+        try Data("replacement".utf8).write(to: lockURL, options: .atomic)
+
+        releaseLock(descriptor: descriptor, at: lockURL)
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)))
+        let contents = try String(contentsOf: lockURL, encoding: .utf8)
+        #expect(contents == "replacement")
     }
 
     @Test("Stale-lock recovery is serialized before a fresh live lock is acquired")

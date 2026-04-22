@@ -50,6 +50,8 @@ enum InnoDIDiagnosticCode: String {
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
+    case provideLazyAliased = "provide.lazy-aliased"
+    case provideProviderAliased = "provide.provider-aliased"
     case swiftUIFeatureRootWithoutSubContainer = "swiftui.feature-root-without-subcontainer"
     case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
     case swiftUIFeatureRootHelperNameConflict = "swiftui.feature-root-helper-name-conflict"
@@ -79,6 +81,7 @@ enum InnoDIDiagnosticCode: String {
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
                 .subUnknownChildInput, .subSharedParentMustNotBeTransient,
+                .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootInvalidAlias,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
@@ -450,6 +453,28 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer(scope: .shared) '\(memberName)' cannot read parent member '\(parentMemberName)' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so '\(parentMemberName)' is .shared or .input.",
             code: .subSharedParentMustNotBeTransient
+        )
+    }
+
+    static func provideLazyAliased(
+        parameterName: String,
+        aliasName: String
+    ) -> Self {
+        Self(
+            "Spell 'Lazy<T>' (or 'InnoDI.Lazy<T>') directly — the macro cannot follow typealiases, so parameter '\(parameterName)' typed '\(aliasName)' is treated as a hard edge and participates in cycle detection.",
+            code: .provideLazyAliased,
+            severity: .warning
+        )
+    }
+
+    static func provideProviderAliased(
+        parameterName: String,
+        aliasName: String
+    ) -> Self {
+        Self(
+            "Spell 'Provider<T>' (or 'InnoDI.Provider<T>') directly — the macro cannot follow typealiases, so parameter '\(parameterName)' typed '\(aliasName)' is treated as a hard edge and loses the '.transient'-target rule plus the cycle-detection exemption.",
+            code: .provideProviderAliased,
+            severity: .warning
         )
     }
 }

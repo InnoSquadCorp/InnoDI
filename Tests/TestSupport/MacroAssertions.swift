@@ -212,6 +212,26 @@ public func assertMacroExpansionDiagnosticCodes(
     }
 }
 
+public func expandMacroSource(
+    _ originalSource: String,
+    macros: [String: Macro.Type],
+    testModuleName: String = "TestModule",
+    testFileName: String = "test.swift",
+    indentationWidth: Trivia = .spaces(4)
+) -> (
+    expansion: String,
+    diagnostics: [SwiftDiagnostics.Diagnostic]
+) {
+    let expansionResult = expand(
+        originalSource,
+        macros: macros,
+        testModuleName: testModuleName,
+        testFileName: testFileName,
+        indentationWidth: indentationWidth
+    )
+    return (expansionResult.expansion, expansionResult.diagnostics)
+}
+
 private func frequencyMap(_ ids: [MessageID]) -> [String: Int] {
     var map: [String: Int] = [:]
     for id in ids {

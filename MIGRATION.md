@@ -2,6 +2,55 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## Unreleased — Phase N hardening (file splits + new warnings)
+
+### Who is affected
+
+- Projects that reference internal macro-source paths (e.g. tool integrations
+  that parse `Sources/InnoDIMacros/*.swift` for documentation extraction).
+- Projects that ship a `typealias` for `Lazy<T>` / `Provider<T>` at
+  closure-parameter sites — these now emit a warning, not an error.
+- Projects that own a `@SubContainer` pointing at an input-only child in the
+  same source file — these now expand without warnings and synthesize an empty
+  child `Overrides` builder.
+
+### Required action
+
+- **File relocations (no public-API change).** Four large macro / build-support
+  files were split into purpose-based modules. Public and `package` APIs are
+  unchanged and the whole test suite stays green, but if you have tooling that
+  depends on file paths inside `Sources/InnoDIMacros/` or
+  `Sources/InnoDIBuildSupport/`, re-point it at the new layout:
+
+  | Was | Now |
+  |---|---|
+  | `DIContainerCodeGenerator.swift` (1,259 lines) | entry file + `DIContainerOverridesGenerator.swift` + `DIContainerWithOverridesGenerator.swift` + `DIContainerSubContainerGenerator.swift` |
+  | `DIContainerValidator.swift` (904 lines) | entry file + `DIProvideValidationDiagnostics.swift` + `DIContainerValidatorTypeChecks.swift` |
+  | `ValidationCoordinator.swift` (744 lines) | entry file + `ValidationCoordinator+Caching.swift` + `ValidationCoordinator+Locking.swift` |
+  | `SwiftUIMacros.swift` (722 lines) | entry file + `DIEnvironmentBridgeMacro.swift` + `DIFeatureRootMacro.swift` |
+
+  Four original trunks expanded to four retained entry files plus nine new
+  sibling files (9 new siblings, 13 destination files total).
+
+- **New `provide.lazy-aliased` / `provide.provider-aliased` warnings.** When a
+  factory parameter is spelled through a `typealias` that resolves to
+  `Lazy<T>` / `Provider<T>`, the macro previously misclassified the edge as
+  `.hard` silently. Now you'll see a warning pointing at the parameter token.
+  Spell the wrapper directly (`Lazy<T>` / `InnoDI.Lazy<T>`) to keep the
+  soft-edge / provider semantics, or accept the hard-edge classification and
+  silence the warning with the appropriate compiler suppression.
+
+### Notes
+
+- `root: Bool` on `@DIContainer` now controls graph-render entry points. If at
+  least one root exists, Mermaid/DOT/ASCII output is limited to the
+  root-reachable subgraph. Toggling `root` still has no impact on DAG
+  validation.
+- `validateDAG: false` now opts a container out of the macro's graph-derived
+  unresolved/declaration-order diagnostics in addition to global
+  cycle / ambiguous / unknown-reference checks. Structural diagnostics remain
+  enabled.
+
 ## Unreleased — Deferred wrapper sendability tightened
 
 ### Who is affected
@@ -52,12 +101,11 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
   prefixed(...))` and a collision will surface as a duplicate
   declaration error once you adopt `@SubContainer` on the same type.
 - Macro expansion for a child container that carries `@SubContainer`
-  on the parent must have at least one `.shared` / `.transient` /
-  `@SubContainer` member on the child. The generated `Overrides`
-  slot references `<ChildContainer>.Overrides`, and an input-only
-  child does not produce that nested type. The Swift compiler reports
-  the conflict as `type has no member 'Overrides'` at the parent's
-  Overrides struct.
+  on the parent no longer requires a `.shared` / `.transient` /
+  `@SubContainer` member on the child. Input-only children now
+  synthesize an empty `<ChildContainer>.Overrides`, so the parent's
+  generated `Overrides` slots compile and `<name>Overrides` closures
+  execute as no-ops until the child adds overrideable members.
 
 ### Notes
 

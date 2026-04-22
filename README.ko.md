@@ -100,23 +100,37 @@ var apiClient: any APIClientProtocol
 `@DIContainer`는 아래 네 종류 선언을 생성합니다:
 
 1. primary `init(...)` — 필수 `.input` 파라미터 + optional `.shared`/`.transient` override 파라미터
-2. `.shared` / `.transient` / `@SubContainer` 멤버가 하나라도 있을 때 nested `struct Overrides`
+2. nested `struct Overrides`
    (아래 [Overrides 빌더로 테스트하기](#overrides-빌더로-테스트하기) 참고)
 3. convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` — 명명 override를 primary init으로 연결
 4. sync / throws / async / async throws 4가지 effect 조합의
    `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)`
 
-override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나라도
-있는 컨테이너만 `Overrides` 스캐폴딩(convenience init + `withOverrides`
-포함)을 생성합니다. 다만 사용자가 직접 nested `Overrides` 타입을 선언한
-경우에는 해당 생성이 억제됩니다
+모든 `@DIContainer` 는 `Overrides` 스캐폴딩(convenience init +
+`withOverrides` 포함)을 생성합니다. 다만 사용자가 직접 nested
+`Overrides` 타입을 선언한 경우에는 해당 생성이 억제됩니다
 (뒤 [사용자 정의 `Overrides` 충돌](#사용자-정의-overrides-충돌) 참고).
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
-| `root` | `false` | CLI 그래프에서 루트 컨테이너로 표시할지 여부 |
-| `validateDAG` | `true` | 이 컨테이너의 DAG 검증 참여 여부. `false`면 DAG 검증에서 제외 |
+| `root` | `false` | **CLI 그래프 시각화 엔트리 플래그.** 하나라도 `root: true` 가 있으면 Mermaid/DOT/ASCII 출력은 그 root들에서 도달 가능한 노드/엣지 union만 렌더링한다. root가 없으면 전체 그래프를 렌더링한다. DAG 검증과는 무관 |
+| `validateDAG` | `true` | 이 컨테이너의 global DAG 검증과 매크로의 graph-derived 로컬 검증 참여 여부. `false`면 global DAG 검증과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단을 건너뛴다. 다만 raw-expression `factory:` / initializer 참조는 여전히 compile-time 진단 대상이고, 구조 진단도 계속 유지된다 |
 | `mainActor` | `false` | 생성되는 컨테이너 API에 `@MainActor` 격리를 적용. strict concurrency 환경의 SwiftUI/UI 루트 컨테이너에 권장 |
+
+#### `root`와 `validateDAG`의 관계
+
+두 플래그는 독립적으로 조합된다:
+
+| `root` | `validateDAG` | 효과 |
+|---|---|---|
+| `false` | `true` | 기본값. graph-derived 검증 대상이며, root가 하나도 없을 때는 전체 그래프가 렌더링된다 |
+| `true`  | `true` | graph-derived 검증 대상이며, 그래프 출력은 이 root에서 도달 가능한 subgraph로 제한된다 |
+| `false` | `false` | global DAG 검증과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단을 건너뛴다. root가 하나도 없을 때는 전체 그래프가 그대로 렌더링된다. raw-expression `factory:` / initializer 참조와 구조 진단은 계속 적용된다 |
+| `true`  | `false` | 그래프 엔트리로 동작하면서 global DAG 검증과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단을 건너뛴다. raw-expression `factory:` / initializer 참조와 구조 진단은 계속 적용된다 |
+
+`root: true`만 켜는 것으로 DAG 검증이 완화되지 않는다. global DAG 검증과
+매크로의 지원 범위 내 local graph-derived 진단까지 함께 건너뛰려면
+`validateDAG: false`를 명시해야 한다.
 
 ### `@Provide`
 
@@ -538,6 +552,22 @@ let feature = app.feature  // parent 의 멤버에서 자동 배선
 - **`with: [\.parentName]`** 은 forward 할 parent 멤버를 subset 으로 제한
   한다. 일부만 child 에 넘기고 싶을 때 쓴다. 레이블은 여전히 parent 멤버
   이름 — 매크로가 레이블을 다시 쓰지는 않는다.
+- **`bindings: [(child: \.childInput, parent: \.parentMember)]`** 는
+  `with:` 의 rename-aware 버전이다. child `.input` 레이블이 parent 멤버
+  이름과 다를 때 사용한다 (예: child 는 `apiClient`, parent 는
+  `apiClientService`). 각 tuple 이 한 child 레이블을 새 이름으로 매핑한다.
+  `with:` 와 동시에 쓸 수 없다.
+
+  ```swift
+  @SubContainer(
+      scope: .shared,
+      bindings: [
+          (child: \FeatureContainer.apiClient, parent: \AppContainer.apiClientService),
+          (child: \FeatureContainer.config,    parent: \AppContainer.featureConfig),
+      ]
+  )
+  var feature: FeatureContainer
+  ```
 - **`.shared` sub 는 `.transient` parent 를 읽을 수 없다.** `.shared`
   child 는 parent init 안에서 만들어지는데 그 시점엔 `.transient` 접근자가
   아직 호출 가능하지 않다. 유효성 검증이
@@ -552,16 +582,13 @@ let feature = app.feature  // parent 의 멤버에서 자동 배선
 | `var <name>: <ChildContainer>? = nil` | child 를 완전히 교체 (mock sub-container 주입 등). |
 | `var <name>Overrides: ((inout <ChildContainer>.Overrides) -> Void)? = nil` | child 의 convenience init 으로 체인 — 테스트마다 child 의 개별 `.shared`/`.transient` 멤버를 override. |
 
-둘 다 설정되면 direct 교체가 우선한다. chain 클로저는 child 에 고유
-`Overrides` 빌더가 있을 때만 동작한다 (즉 child 에 `.shared` / `.transient`
-/ `@SubContainer` 중 하나라도 있어야 함). 이 제약은
-`overrides.<name>Overrides` 를 실제로 쓰지 않아도 컴파일 타임에 적용된다.
-parent 가 생성하는 init 과 `Overrides` 구조의 타입 시그니처가
-`<ChildContainer>.Overrides` 를 직접 참조하기 때문이다. 그래서 input-only
-child 를 `@SubContainer` 로 소유하면 parent 쪽에서
-`type '<ChildContainer>' has no member 'Overrides'` 컴파일 에러가 난다.
-해결 방법은 child 에 `.shared` / `.transient` / `@SubContainer` 중 하나를
-추가해서 InnoDI 가 `<ChildContainer>.Overrides` 를 생성하게 만드는 것이다.
+둘 다 설정되면 direct 교체가 우선한다. chain 클로저는 child 가
+직접 nested `Overrides` 타입을 정의해서 합성을 억제하지 않는 한 항상
+컴파일된다. input-only child 도 비어 있는 `<ChildContainer>.Overrides`
+를 합성하므로 `overrides.<name>Overrides` 클로저는 정상적으로 호출되고,
+child 에 `.shared` / `.transient` / `@SubContainer` 멤버가 없으면 사실상
+no-op 으로 동작한다. 이후 child 에 override 가능한 멤버가 추가되면 같은
+API 로 그 멤버 override 까지 이어서 사용할 수 있다.
 
 ```swift
 let container = AppContainer(config: .init(...)) { overrides in
@@ -586,6 +613,9 @@ let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
 | `sub.conflicts-with-provide` | 같은 속성에 `@Provide` 와 `@SubContainer` 둘 다 부여. |
 | `sub.unknown-parent-member` | `with:` 키패스가 parent 의 `@Provide` 멤버를 가리키지 않음. |
 | `sub.shared-parent-must-not-be-transient` | `.shared` sub 가 `.transient` parent 멤버를 읽으려 함. |
+| `sub.bindings-conflicts-with-with` | 같은 `@SubContainer` 에 `with:` 와 `bindings:` 가 동시에 사용됨. 하나만 써야 한다. |
+| `sub.duplicate-child-binding` | `bindings:` 안에서 같은 child `.input` 레이블이 두 번 이상 등장. |
+| `sub.unknown-child-input` | `bindings:` 의 child 키패스가 child 에 존재하지 않는 `.input` 멤버를 가리킴. |
 
 ### 그래프 렌더링
 
@@ -640,7 +670,7 @@ CLI 동작 요약:
 
 검증 보정 사항:
 
-- `@DIContainer(validateDAG: false)`로 표시된 컨테이너는 `--validate-dag`에서 순환/모호성 판정 모두에서 완전 제외됩니다.
+- `@DIContainer(validateDAG: false)`로 표시된 컨테이너는 `--validate-dag`에서 제외되고, 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단도 건너뜁니다. 다만 raw-expression `factory:` / initializer 참조는 여전히 compile-time 진단 대상입니다. 구조 진단은 계속 유지됩니다.
 - 매크로 내부 순환 검증용 의존성 추출은 AST 기반으로 동작하며, 문자열 리터럴 토큰으로 인한 오탐 사이클을 방지합니다.
 
 ## DocC 문서
