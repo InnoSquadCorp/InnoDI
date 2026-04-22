@@ -1,20 +1,30 @@
 import Foundation
 
+/// Stable reason codes attached to validation metrics and Markdown summaries.
+///
+/// These are consumed by the coordinator, human-facing summaries, and any
+/// downstream CI tooling that needs to distinguish cache behavior from live
+/// validation stages.
 package enum ValidationReasonCode: String, Codable, Equatable, Sendable {
     case cacheHitMetadata = "cache-hit-metadata"
     case cacheHitContentHash = "cache-hit-content-hash"
     case cacheMissContentChanged = "cache-miss-content-changed"
     case cacheMissNewFile = "cache-miss-new-file"
     case cacheMissDeletedFile = "cache-miss-deleted-file"
+    case cacheMissManifestCorrupted = "cache-miss-manifest-corrupted"
     case cacheMissManifestVersion = "cache-miss-manifest-version"
     case staleLockRecovered = "stale-lock-recovered"
     case lockContentionTimeout = "lock-contention-timeout"
     case liveRunCustomInitFailure = "live-run-custom-init-failure"
     case liveRunSemanticValidation = "live-run-semantic-validation"
     case liveRunSemanticFailure = "live-run-semantic-failure"
+    case liveRunHierarchyValidation = "live-run-hierarchy-validation"
+    case liveRunHierarchyFailure = "live-run-hierarchy-failure"
     case liveRunDAGValidation = "live-run-dag-validation"
 }
 
+/// Counts gathered while collecting the normalized source signature that keys
+/// shared validation runs.
 package struct ValidationSignatureMetrics: Codable, Equatable, Sendable {
     package let scannedFileCount: Int
     package let metadataCacheHitCount: Int
@@ -30,6 +40,8 @@ package struct ValidationSignatureMetrics: Codable, Equatable, Sendable {
     }
 }
 
+/// File-level change details surfaced in validation artifacts so CI can see
+/// why a cached signature was reused or invalidated.
 package struct ValidationFileChangeDetails: Codable, Equatable, Sendable {
     package let newFiles: [String]
     package let deletedFiles: [String]
@@ -52,6 +64,8 @@ package struct ValidationFileChangeDetails: Codable, Equatable, Sendable {
     }
 }
 
+/// Result of scanning package sources and computing the signature used to
+/// coordinate shared validation work across targets.
 package struct ValidationSignatureCollectionResult: Codable, Equatable, Sendable {
     package let signature: String
     package let metrics: ValidationSignatureMetrics
@@ -59,19 +73,29 @@ package struct ValidationSignatureCollectionResult: Codable, Equatable, Sendable
     package let fileChanges: ValidationFileChangeDetails
 }
 
+/// End-to-end timing for a single coordinator invocation.
 package struct ValidationInvocationMetrics: Codable, Equatable, Sendable {
     package let signatureCollectionMilliseconds: Double
     package let totalCoordinatorMilliseconds: Double
 }
 
+/// Timings for the structured live validation stages that happen after the
+/// source signature is known.
 package struct ValidationLiveRunMetrics: Codable, Equatable, Sendable {
     package let customInitValidationMilliseconds: Double
     package let semanticValidationMilliseconds: Double
+    package let hierarchyValidationMilliseconds: Double
     package let dagValidationMilliseconds: Double
 }
 
+/// Machine-readable validation artifact emitted by the build-support
+/// coordinator.
+///
+/// The artifact ties together cache reasons, structured issues, file-change
+/// details, and timing data so release tooling and CI can reason about one
+/// validation run without scraping stderr.
 package struct ValidationMetricsArtifact: Codable, Equatable, Sendable {
-    package static let currentVersion = 3
+    package static let currentVersion = 4
 
     package let version: Int
     package let signature: String
@@ -132,6 +156,7 @@ package enum ValidationLogging {
             "deleted-files=\(artifact.fileChanges.deletedFiles.count)",
             "custom-init-ms=\(formatMilliseconds(artifact.liveRunMetrics.customInitValidationMilliseconds))",
             "semantic-ms=\(formatMilliseconds(artifact.liveRunMetrics.semanticValidationMilliseconds))",
+            "hierarchy-ms=\(formatMilliseconds(artifact.liveRunMetrics.hierarchyValidationMilliseconds))",
             "dag-ms=\(formatMilliseconds(artifact.liveRunMetrics.dagValidationMilliseconds))",
             "signature-ms=\(formatMilliseconds(artifact.invocationMetrics.signatureCollectionMilliseconds))",
             "total-ms=\(formatMilliseconds(artifact.invocationMetrics.totalCoordinatorMilliseconds))",
@@ -190,6 +215,7 @@ package enum ValidationLogging {
         lines.append("- Signature collection: `\(formatMilliseconds(artifact.invocationMetrics.signatureCollectionMilliseconds)) ms`")
         lines.append("- Custom init validation: `\(formatMilliseconds(artifact.liveRunMetrics.customInitValidationMilliseconds)) ms`")
         lines.append("- Semantic validation: `\(formatMilliseconds(artifact.liveRunMetrics.semanticValidationMilliseconds)) ms`")
+        lines.append("- Hierarchy validation: `\(formatMilliseconds(artifact.liveRunMetrics.hierarchyValidationMilliseconds)) ms`")
         lines.append("- DAG validation: `\(formatMilliseconds(artifact.liveRunMetrics.dagValidationMilliseconds)) ms`")
         lines.append("- Total coordinator: `\(formatMilliseconds(artifact.invocationMetrics.totalCoordinatorMilliseconds)) ms`")
         lines.append("")
@@ -237,6 +263,8 @@ private func reasonDescription(_ reason: ValidationReasonCode) -> String {
         return "A newly discovered Swift source file invalidated the previous signature cache."
     case .cacheMissDeletedFile:
         return "A previously cached Swift source file disappeared and forced a signature recomputation."
+    case .cacheMissManifestCorrupted:
+        return "The AST digest manifest could not be decoded, so the cache was discarded and rebuilt."
     case .cacheMissManifestVersion:
         return "The AST digest manifest version changed, so the cache was rebuilt from scratch."
     case .staleLockRecovered:
@@ -249,6 +277,10 @@ private func reasonDescription(_ reason: ValidationReasonCode) -> String {
         return "The live validation run completed the semantic validator before DAG validation."
     case .liveRunSemanticFailure:
         return "The live validation run stopped after a structured semantic validation failure."
+    case .liveRunHierarchyValidation:
+        return "The live validation run completed strict hierarchy validation before DAG validation."
+    case .liveRunHierarchyFailure:
+        return "The live validation run stopped after a structured strict hierarchy validation failure."
     case .liveRunDAGValidation:
         return "The live validation run executed the DAG validator."
     }

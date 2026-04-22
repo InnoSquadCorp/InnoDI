@@ -1,4 +1,4 @@
-import InnoDI
+import InnoDISwiftUI
 import Observation
 import SwiftUI
 
@@ -47,7 +47,7 @@ struct LiveActivityService: ActivityServiceProtocol {
         try await Task.sleep(for: .milliseconds(120))
         return [
             ActivityHighlight(id: "inject", title: "Inject services", detail: "Both services are provided at the root boundary for \(username)."),
-            ActivityHighlight(id: "load", title: "Load asynchronously", detail: "The local @Observable model owns the initial task and cancellation."),
+            ActivityHighlight(id: "load", title: "Load asynchronously", detail: "The view-level .task(id:) starts the async load and cancels it when the id changes or the view disappears."),
             ActivityHighlight(id: "navigate", title: "Navigate deeper", detail: "NavigationStack and destination views stay independent of the container.")
         ]
     }
@@ -126,44 +126,55 @@ final class DashboardFeatureModel {
     var navigationTitle = "InnoDI Feature Root"
     var state: DashboardLoadState = .idle
 
-    private var loadTask: Task<Void, Never>?
-
     func load(
         username: String,
         greetingService: any GreetingServiceProtocol,
         activityService: any ActivityServiceProtocol
-    ) {
-        cancel()
+    ) async {
         state = .loading
 
-        loadTask = Task { [weak self] in
-            do {
-                async let summary = greetingService.loadSummary(for: username)
-                async let highlights = activityService.loadHighlights(for: username)
-                let content = DashboardContent(summary: try await summary, highlights: try await highlights)
-
-                guard !Task.isCancelled, let self else { return }
-                self.state = .loaded(content)
-            } catch {
-                guard !Task.isCancelled, let self else { return }
-                let message = (error as? LocalizedError)?.errorDescription ?? "An unknown feature-root error occurred."
-                self.state = .failed(message)
-            }
+        do {
+            let content = try await loadContent(
+                username: username,
+                greetingService: greetingService,
+                activityService: activityService
+            )
+            guard !Task.isCancelled else { return }
+            state = .loaded(content)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            let message = (error as? LocalizedError)?.errorDescription ?? "An unknown feature-root error occurred."
+            state = .failed(message)
         }
     }
 
-    func retry(
+    private func loadContent(
         username: String,
         greetingService: any GreetingServiceProtocol,
         activityService: any ActivityServiceProtocol
-    ) {
-        load(username: username, greetingService: greetingService, activityService: activityService)
+    ) async throws -> DashboardContent {
+        async let summary = greetingService.loadSummary(for: username)
+        async let highlights = activityService.loadHighlights(for: username)
+        return DashboardContent(summary: try await summary, highlights: try await highlights)
     }
+}
 
-    func cancel() {
-        loadTask?.cancel()
-        loadTask = nil
-    }
+@DIEnvironmentBridge([
+    (member: "greetingService", environment: \EnvironmentValues.greetingService),
+    (member: "activityService", environment: \EnvironmentValues.activityService),
+])
+@DIContainer
+struct DashboardFeatureContainer {
+    @Provide(.input)
+    var username: String
+
+    @Provide(.input)
+    var greetingService: any GreetingServiceProtocol
+
+    @Provide(.input)
+    var activityService: any ActivityServiceProtocol
 }
 
 @DIContainer(root: true)
@@ -176,6 +187,11 @@ struct AppContainer {
 
     @Provide(.shared, factory: { LiveActivityService() })
     var activityService: any ActivityServiceProtocol
+
+    @SubContainer(scope: .shared)
+    @DIFeatureRoot(DashboardFeatureRootView.self)
+    @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
+    var dashboard: DashboardFeatureContainer
 }
 
 struct DashboardSkeletonView: View {
@@ -268,12 +284,13 @@ struct HighlightDetailView: View {
     }
 }
 
-struct DashboardFeatureRootView: View {
+struct DashboardFeatureScreen: View {
     let username: String
 
     @Environment(\.greetingService) private var greetingService
     @Environment(\.activityService) private var activityService
     @State private var model = DashboardFeatureModel()
+    @State private var reloadID: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -286,11 +303,7 @@ struct DashboardFeatureRootView: View {
                     DashboardLoadedView(content: content)
                 case let .failed(message):
                     DashboardErrorView(message: message) {
-                        model.retry(
-                            username: username,
-                            greetingService: greetingService,
-                            activityService: activityService
-                        )
+                        reloadID += 1
                     }
                     .padding(24)
                 }
@@ -302,35 +315,42 @@ struct DashboardFeatureRootView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Reload") {
-                        model.retry(
-                            username: username,
-                            greetingService: greetingService,
-                            activityService: activityService
-                        )
+                        reloadID += 1
                     }
                 }
             }
         }
-        .task {
-            model.load(
+        .task(id: reloadID) {
+            await model.load(
                 username: username,
                 greetingService: greetingService,
                 activityService: activityService
             )
         }
-        .onDisappear {
-            model.cancel()
-        }
     }
 }
 
-struct DashboardAppRootView: View {
-    let container: AppContainer
+struct DashboardFeatureRootView: View {
+    let container: DashboardFeatureContainer
 
     var body: some View {
-        DashboardFeatureRootView(username: container.username)
-            .environment(\.greetingService, container.greetingService)
-            .environment(\.activityService, container.activityService)
+        DashboardFeatureScreen(username: container.username)
+            .innodi(container)
+    }
+}
+
+struct DashboardShellView: View {
+    let container: DashboardFeatureContainer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Dashboard Shell")
+                .font(.headline)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+            DashboardFeatureRootView(container: container)
+        }
+        .background(.background)
     }
 }
 
@@ -380,8 +400,8 @@ struct DashboardRootScenario {
 struct SwiftUIExampleMain {
     static func main() {
         let liveScenario = DashboardRootScenario.live()
-        _ = DashboardAppRootView(container: liveScenario.container)
-        _ = DashboardAppRootView(container: DashboardRootScenario.preview().container)
-        _ = DashboardAppRootView(container: DashboardRootScenario.failure().container)
+        _ = liveScenario.container.dashboardRootView()
+        _ = DashboardRootScenario.preview().container.dashboardShellRootView()
+        _ = DashboardRootScenario.failure().container.dashboardRootView()
     }
 }

@@ -40,7 +40,8 @@ swift test
 
 Highlights:
 - a single feature root demonstrates navigation, loading skeletons, recoverable errors, retry, and cancellation
-- multiple services are injected through `Environment` while local `@Observable` state owns screen behavior
+- `InnoDISwiftUI` reduces root-boundary environment boilerplate with `.innodi(container)`
+- a shared `@SubContainer` exposes both default and named feature roots through generated `@DIFeatureRoot` helpers
 - live, mock, and failing roots still use generated init overrides
 - lightweight behavior tests validate model transitions and root composition scenarios
 
@@ -75,6 +76,7 @@ swift test
 
 Highlights:
 - `#Preview` keeps live and preview roots while adding a richer preview matrix
+- the generated SwiftUI environment bridge removes repeated `.environment(\.x, container.x)` glue
 - multiple root overrides render loading, ready, and failure states without changing feature code
 - local `@Observable` state still owns async loading, retry, and cancellation
 - lightweight behavior tests validate retry, cancellation, and preview matrix inputs

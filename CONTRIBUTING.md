@@ -11,7 +11,6 @@ swift test
 (cd Examples/SwiftUIExample && swift test)
 (cd Examples/PreviewInjectionExample && swift test)
 swift run InnoDI-DependencyGraph --root . --validate-dag
-Benchmarks/run-validation-bench.sh --preset ci
 ```
 
 Update docs in the same change when behavior changes:
@@ -26,8 +25,7 @@ Update docs in the same change when behavior changes:
 
 - Keep changes scoped and explain user-facing behavior changes.
 - Add or update tests for validation, diagnostics, graph output, or examples when behavior changes.
-- If benchmark artifacts or schema expectations change, update `RELEASING.md` and `MIGRATION.md`.
-- If performance changes intentionally, refresh the relevant baseline and call it out in the PR description.
+- If validation artifacts or schema expectations change, update `RELEASING.md` and `MIGRATION.md`.
 
 ## Issues and Discussions
 

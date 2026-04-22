@@ -13,7 +13,7 @@ struct ParsingTests {
     @Test
     func parseDIContainerAttribute() {
         let source = """
-        @DIContainer(validate: false, root: true, validateDAG: false, mainActor: true)
+        @DIContainer(root: true, validateDAG: false, mainActor: true)
         struct AppContainer {}
         """
         guard let decl = firstStructDecl(in: source) else {
@@ -22,7 +22,6 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseDIContainerAttribute(decl.attributes)
-        #expect(info?.validate == false)
         #expect(info?.root == true)
         #expect(info?.validateDAG == false)
         #expect(info?.mainActor == true)
@@ -40,7 +39,6 @@ struct ParsingTests {
         }
 
         let info = InnoDICore.parseDIContainerAttribute(decl.attributes)
-        #expect(info?.validate == true)
         #expect(info?.root == false)
         #expect(info?.validateDAG == true)
         #expect(info?.mainActor == false)
@@ -161,6 +159,40 @@ struct ParsingTests {
         let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
         let info = try #require(parsed)
         #expect(info.concrete == false)
+    }
+
+    @Test
+    func findAttributeAcceptsAllowedQualifiedModuleNames() throws {
+        let source = """
+        struct ParentContainer {
+            @InnoDISwiftUI.DIFeatureRoot(DashboardRootView.self)
+            var dashboard: DashboardContainer
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+        let attribute = findAttribute(
+            named: "DIFeatureRoot",
+            allowingQualifiedModules: ["InnoDISwiftUI"],
+            in: decl.attributes
+        )
+        #expect(attribute != nil)
+    }
+
+    @Test
+    func findAttributeRejectsForeignQualifiedModuleNames() throws {
+        let source = """
+        struct ParentContainer {
+            @OtherDI.DIFeatureRoot(DashboardRootView.self)
+            var dashboard: DashboardContainer
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+        let attribute = findAttribute(
+            named: "DIFeatureRoot",
+            allowingQualifiedModules: ["InnoDISwiftUI"],
+            in: decl.attributes
+        )
+        #expect(attribute == nil)
     }
 }
 

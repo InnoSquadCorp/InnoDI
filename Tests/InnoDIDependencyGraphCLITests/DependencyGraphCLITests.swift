@@ -48,6 +48,23 @@ struct DependencyGraphCLITests {
         #expect(ascii.stdout.contains("provider (Provider<T>)"))
     }
 
+    @Test("Qualified InnoDI provide attributes still contribute deferred edges end-to-end")
+    func rendersQualifiedDeferredEdgesEndToEnd() throws {
+        let fixtureURL = try makeQualifiedDeferredEdgeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let rootPath = fixtureURL.path(percentEncoded: false)
+
+        let mermaid = try runCLI(["--root", rootPath, "--format", "mermaid"])
+        #expect(mermaid.exitCode == 0)
+        #expect(mermaid.stdout.contains("-.->"))
+        #expect(mermaid.stdout.contains("==>"))
+
+        let validation = try runCLI(["--root", rootPath, "--validate-dag"])
+        #expect(validation.exitCode == 0)
+        #expect(validation.stdout.contains("DAG validation passed."))
+    }
+
     @Test("Writes graph output file with --output")
     func writesOutputFile() throws {
         let fixtureURL = try makeFixtureProject()
@@ -547,6 +564,68 @@ private func makeDeferredEdgeFixtureProject() throws -> URL {
 
     try source.write(
         to: fixtureURL.appendingPathComponent("DeferredEdges.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeQualifiedDeferredEdgeFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Qualified-Deferred-Edges-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let source = """
+    import InnoDI
+
+    struct ProviderConsumer {
+        let feature: InnoDI.Provider<FeatureContainer>
+        init(feature: InnoDI.Provider<FeatureContainer>) { self.feature = feature }
+    }
+
+    struct LazyConsumer {
+        let admin: InnoDI.Lazy<AdminContainer>
+        init(admin: InnoDI.Lazy<AdminContainer>) { self.admin = admin }
+    }
+
+    func buildFeatureContainer() -> FeatureContainer { fatalError() }
+
+    @InnoDI.DIContainer(root: true)
+    struct AppContainer {
+        @InnoDI.Provide(.transient, factory: buildFeatureContainer(), concrete: true)
+        var feature: FeatureContainer
+
+        @InnoDI.Provide(.input)
+        var admin: AdminContainer
+
+        @InnoDI.Provide(.shared, factory: { (feature: InnoDI.Provider<FeatureContainer>) in
+            ProviderConsumer(feature: feature)
+        }, concrete: true)
+        var providerConsumer: ProviderConsumer
+
+        @InnoDI.Provide(.shared, factory: { (admin: InnoDI.Lazy<AdminContainer>) in
+            LazyConsumer(admin: admin)
+        }, concrete: true)
+        var lazyConsumer: LazyConsumer
+    }
+
+    @InnoDI.DIContainer
+    struct FeatureContainer {
+        @InnoDI.Provide(.input)
+        var seed: Int
+    }
+
+    @InnoDI.DIContainer
+    struct AdminContainer {
+        @InnoDI.Provide(.input)
+        var seed: Int
+    }
+    """
+
+    try source.write(
+        to: fixtureURL.appendingPathComponent("QualifiedDeferredEdges.swift"),
         atomically: true,
         encoding: .utf8
     )

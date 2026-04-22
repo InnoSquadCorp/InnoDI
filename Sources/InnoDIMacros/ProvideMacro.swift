@@ -3,6 +3,7 @@
 //  InnoDIMacros
 //
 
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -441,13 +442,19 @@ private func makeTransientClosureCallExpr(
             guard let calleeDescription = ref.lazyWrapperCalleeDescription else {
                 fatalError("Soft transient dependency '\(ref.name)' is missing a Lazy wrapper callee.")
             }
-            return makeLazyAccessorWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
+            return makeLazyAccessorWrapperExpr(
+                name: ref.name,
+                calleeDescription: calleeDescription
+            )
         }
         if ref.kind == .provider {
             guard let calleeDescription = ref.providerWrapperCalleeDescription else {
                 fatalError("Provider transient dependency '\(ref.name)' is missing a Provider wrapper callee.")
             }
-            return makeProviderAccessorWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
+            return makeProviderAccessorWrapperExpr(
+                name: ref.name,
+                calleeDescription: calleeDescription
+            )
         }
         return makeSelfMemberAccessExpr(name: ref.name)
     }
@@ -455,13 +462,5 @@ private func makeTransientClosureCallExpr(
 }
 
 private func hasProvideAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    guard let attributes else { return false }
-
-    return attributes.contains { element in
-        guard let attribute = element.as(AttributeSyntax.self),
-              let identifier = attribute.attributeName.as(IdentifierTypeSyntax.self) else {
-            return false
-        }
-        return identifier.name.text == "Provide"
-    }
+    findInnoDIAttribute(named: "Provide", in: attributes) != nil
 }

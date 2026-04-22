@@ -161,7 +161,8 @@ struct DIContainerValidator {
                         makeUnresolvedFactoryParameterDiagnostic(
                             member: member,
                             dependencyName: dependency,
-                            knownNames: resolutionContext.knownNames
+                            resolutionContext: resolutionContext,
+                            memberIndex: index
                         )
                     )
                     hadErrors = true
@@ -196,7 +197,8 @@ struct DIContainerValidator {
                         makeUnresolvedWithDependencyDiagnostic(
                             member: member,
                             dependencyName: dependency,
-                            knownNames: resolutionContext.knownNames
+                            resolutionContext: resolutionContext,
+                            memberIndex: index
                         )
                     )
                     hadErrors = true
@@ -417,11 +419,16 @@ struct DIContainerValidator {
 private func makeUnresolvedFactoryParameterDiagnostic(
     member: ProvideMemberModel,
     dependencyName: String,
-    knownNames: Set<String>
-    ) -> Diagnostic {
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
+) -> Diagnostic {
     let reference = member.closureParameterReferences.first(where: { $0.name == dependencyName })
     let node = reference.map { Syntax($0.token) } ?? Syntax(member.attribute)
-    let candidates = matchingDependencyCandidates(for: dependencyName, in: knownNames)
+    let candidates = matchingDependencyCandidates(
+        for: dependencyName,
+        resolutionContext: resolutionContext,
+        memberIndex: memberIndex
+    )
     var notes = [
         Note(
             node: Syntax(member.attribute),
@@ -432,7 +439,29 @@ private func makeUnresolvedFactoryParameterDiagnostic(
             )
         )
     ]
-    if candidates.isEmpty {
+    if !candidates.available.isEmpty {
+        notes.append(
+            Note(
+                node: Syntax(member.attribute),
+                message: SimpleNote(
+                    "Closest injectable member candidate: \(candidates.available.joined(separator: ", ")).",
+                    code: .provideUnresolvedFactoryParameter,
+                    suffix: "candidate"
+                )
+            )
+        )
+    } else if !candidates.unavailable.isEmpty {
+        notes.append(
+            Note(
+                node: Syntax(member.attribute),
+                message: SimpleNote(
+                    "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    code: .provideUnresolvedFactoryParameter,
+                    suffix: "candidate-unavailable"
+                )
+            )
+        )
+    } else {
         notes.append(
             Note(
                 node: Syntax(member.bindingSyntax),
@@ -443,22 +472,11 @@ private func makeUnresolvedFactoryParameterDiagnostic(
                 )
             )
         )
-    } else {
-        notes.append(
-            Note(
-                node: Syntax(member.attribute),
-                message: SimpleNote(
-                    "Closest injectable member candidate: \(candidates.joined(separator: ", ")).",
-                    code: .provideUnresolvedFactoryParameter,
-                    suffix: "candidate"
-                )
-            )
-        )
     }
 
     let fixIts = makeRenameTokenFixIts(
         token: reference?.token,
-        replacementCandidates: candidates,
+        replacementCandidates: candidates.available,
         code: .provideUnresolvedFactoryParameter,
         label: "Rename parameter"
     )
@@ -559,11 +577,16 @@ private func unwrapProviderCallBase(_ expression: ExprSyntax?) -> DeclReferenceE
 private func makeUnresolvedWithDependencyDiagnostic(
     member: ProvideMemberModel,
     dependencyName: String,
-    knownNames: Set<String>
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
 ) -> Diagnostic {
     let reference = member.withDependencyReferences.first(where: { $0.name == dependencyName })
     let node = reference.map { Syntax($0.keyPath) } ?? Syntax(member.attribute)
-    let candidates = matchingDependencyCandidates(for: dependencyName, in: knownNames)
+    let candidates = matchingDependencyCandidates(
+        for: dependencyName,
+        resolutionContext: resolutionContext,
+        memberIndex: memberIndex
+    )
     var notes = [
         Note(
             node: Syntax(member.attribute),
@@ -574,7 +597,29 @@ private func makeUnresolvedWithDependencyDiagnostic(
             )
         )
     ]
-    if candidates.isEmpty {
+    if !candidates.available.isEmpty {
+        notes.append(
+            Note(
+                node: Syntax(member.attribute),
+                message: SimpleNote(
+                    "Closest injectable member candidate: \(candidates.available.joined(separator: ", ")).",
+                    code: .provideUnresolvedWithDependency,
+                    suffix: "candidate"
+                )
+            )
+        )
+    } else if !candidates.unavailable.isEmpty {
+        notes.append(
+            Note(
+                node: Syntax(member.attribute),
+                message: SimpleNote(
+                    "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    code: .provideUnresolvedWithDependency,
+                    suffix: "candidate-unavailable"
+                )
+            )
+        )
+    } else {
         notes.append(
             Note(
                 node: Syntax(member.bindingSyntax),
@@ -585,22 +630,11 @@ private func makeUnresolvedWithDependencyDiagnostic(
                 )
             )
         )
-    } else {
-        notes.append(
-            Note(
-                node: Syntax(member.attribute),
-                message: SimpleNote(
-                    "Closest injectable member candidate: \(candidates.joined(separator: ", ")).",
-                    code: .provideUnresolvedWithDependency,
-                    suffix: "candidate"
-                )
-            )
-        )
     }
 
     let fixIts = makeReplaceSyntaxTextFixIts(
         syntax: reference.map { Syntax($0.keyPath) },
-        replacementCandidates: candidates.map { "\\.\($0)" },
+        replacementCandidates: candidates.available.map { "\\.\($0)" },
         code: .provideUnresolvedWithDependency,
         label: "Replace key path"
     )
@@ -698,10 +732,29 @@ private func makeConcreteOptInDiagnostic(member: ProvideMemberModel) -> Diagnost
 }
 
 private func matchingDependencyCandidates(for dependencyName: String, in knownNames: Set<String>) -> [String] {
-    let normalizedTarget = normalizedDependencyLookupKey(dependencyName)
-    return knownNames
-        .filter { normalizedDependencyLookupKey($0) == normalizedTarget }
+    knownNames
+        .filter { normalizedDependencyLookupKey($0) == normalizedDependencyLookupKey(dependencyName) }
         .sorted()
+}
+
+private struct MatchingDependencyCandidates {
+    let available: [String]
+    let unavailable: [String]
+}
+
+private func matchingDependencyCandidates(
+    for dependencyName: String,
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
+) -> MatchingDependencyCandidates {
+    let matches = matchingDependencyCandidates(for: dependencyName, in: resolutionContext.knownNames)
+    let available = matches.filter {
+        resolutionContext.status(of: $0, forMemberAt: memberIndex) == .available
+    }
+    let unavailable = matches.filter {
+        resolutionContext.status(of: $0, forMemberAt: memberIndex) == .unavailable
+    }
+    return MatchingDependencyCandidates(available: available, unavailable: unavailable)
 }
 
 private func normalizedDependencyLookupKey(_ name: String) -> String {

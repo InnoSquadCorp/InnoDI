@@ -326,7 +326,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         node.memberBlock.members.compactMap { member in
             guard let variable = member.decl.as(VariableDeclSyntax.self),
                   !variable.modifiers.contains(where: { $0.name.text == "static" }),
-                  let attribute = findAttribute(named: "Provide", in: variable.attributes),
+                  let attribute = findInnoDIAttribute(named: "Provide", in: variable.attributes),
                   let binding = variable.bindings.first,
                   let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
                   binding.typeAnnotation != nil else {
@@ -419,7 +419,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         var current = syntax.parent
         while let node = current {
             if let attribute = node.as(AttributeSyntax.self),
-               attribute.attributeName.trimmedDescription == "Provide" {
+               matchesInnoDIAttribute(named: "Provide", attributeName: attribute.attributeName) {
                 return true
             }
             current = node.parent

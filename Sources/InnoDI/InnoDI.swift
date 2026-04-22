@@ -3,6 +3,8 @@
 //  InnoDI
 //
 
+import Foundation
+
 /// Dependency lifecycle scopes used by `@Provide`.
 public enum DIScope {
     /// A shared dependency initialized once per container instance.
@@ -17,12 +19,10 @@ public enum DIScope {
 /// Marks a type as an InnoDI container and synthesizes initialization/validation behavior.
 ///
 /// - Parameters:
-///   - validate: Reserved compatibility flag. Core construction invariants remain enforced regardless of this value.
 ///   - root: Marks this container as a root for dependency graph rendering.
 ///   - validateDAG: Includes this container in global/local DAG validation.
 ///   - mainActor: Isolates generated container API on the main actor.
 public macro DIContainer(
-    validate: Bool = true,
     root: Bool = false,
     validateDAG: Bool = true,
     mainActor: Bool = false
@@ -79,6 +79,10 @@ public macro Provide(
 /// itself; only store it for later use, or the backing cell will not yet be
 /// populated. `Lazy<T>` remains synchronous, so it cannot target `.shared`
 /// members provided by `asyncFactory`.
+///
+/// `Lazy<T>` is intentionally a non-`Sendable` deferred handle. The wrapper
+/// keeps evaluation on the container's original isolation domain, so actor
+/// boundary transport is not supported even when `T: Sendable`.
 ///
 /// ### Detection
 /// The macro recognizes `Lazy` by its written identifier at the factory
@@ -154,6 +158,10 @@ public struct Lazy<T> {
 /// eager calls routed through helper APIs can still fail if they resolve too
 /// early.
 ///
+/// `Provider<T>` is intentionally a non-`Sendable` deferred handle. Provider
+/// re-entry happens on the container's original isolation domain, so actor
+/// boundary transport is not supported even when `T: Sendable`.
+///
 /// ### Detection
 /// The macro recognizes `Provider` by its written identifier at the factory
 /// parameter site (either `Provider<T>` or `<Module>.Provider<T>`). A
@@ -181,32 +189,71 @@ public struct Provider<T> {
 }
 
 /// Internal reference cell used by macro-generated init bodies to hand a
-/// `Lazy<T>` wrapper to a factory whose soft-edge target has not yet been
-/// assigned. The code generator:
+/// `Lazy<T>` or `Provider<T>` wrapper to a factory whose deferred target has
+/// not yet been assigned. The code generator:
 ///
 /// 1. declares a local `let _lazyCell_<name> = _LazyCell<Type>()` at the top
 ///    of the synthesized init,
-/// 2. passes `Lazy({ _lazyCell_<name>.resolve() })` to any soft factory
-///    parameter, and
-/// 3. either stores the concrete shared/input value or assigns a transient
-///    resolver after the target accessor becomes available.
+/// 2. binds either a concrete value (`storeValue`) or a deferred resolver
+///    (`bindResolver`) after the target accessor becomes available, and
+/// 3. passes `Lazy({ _lazyCell_<name>.resolve() })` /
+///    `Provider({ _lazyCell_<name>.resolve() })` into generated call sites.
 ///
 /// Users should not reach for this type directly — it is public only so that
-/// macro output can reference it from arbitrary modules.
+/// macro output can reference it from arbitrary modules. The implementation
+/// stays `@unchecked Sendable` only because generated code follows a narrow
+/// contract: it performs all mutation during container initialization,
+/// publishes the cell after wiring completes, and then treats the instance as
+/// effectively read-only apart from lock-protected access. External code must
+/// not race `storeValue(_:)` / `bindResolver(_:)` against `resolve()`, nor
+/// mutate the cell after the generated wrappers have escaped.
 public final class _LazyCell<T>: @unchecked Sendable {
-    public var value: T?
-    public var resolver: (() -> T)?
+    private let lock = NSLock()
+    private var value: T?
+    private var resolver: (() -> T)?
 
     public init() {}
 
+    /// Stores a concrete dependency value for later `resolve()` calls.
+    ///
+    /// Generated init bodies use this for eager values such as `.input`
+    /// members or already-materialized `.shared` overrides.
+    public func storeValue(_ value: T) {
+        withLockedState {
+            self.value = value
+        }
+    }
+
+    /// Stores a deferred accessor that `resolve()` can invoke on demand.
+    ///
+    /// Generated init bodies use this when a `Lazy<T>` / `Provider<T>`
+    /// wrapper must re-enter another accessor after that accessor exists.
+    public func bindResolver(_ resolver: @escaping () -> T) {
+        withLockedState {
+            self.resolver = resolver
+        }
+    }
+
+    /// Returns the bound value or invokes the bound resolver.
+    ///
+    /// Exactly one of `storeValue(_:)` or `bindResolver(_:)` must run before
+    /// the first call. Resolving earlier is always a programmer error in the
+    /// generated wiring and traps immediately.
     public func resolve() -> T {
-        if let value {
+        let snapshot = withLockedState { (value: value, resolver: resolver) }
+        if let value = snapshot.value {
             return value
         }
-        if let resolver {
+        if let resolver = snapshot.resolver {
             return resolver()
         }
         fatalError("_LazyCell resolved before the dependency was initialized.")
+    }
+
+    private func withLockedState<R>(_ body: () -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
     }
 }
 
@@ -290,8 +337,8 @@ public enum SubContainerScope {
 ///
 /// Both slots are mutually exclusive: if the direct replacement is provided
 /// it wins; otherwise the chain closure (if any) is forwarded. Input-only
-/// children synthesize an empty nested `Overrides` type so the chain closure
-/// remains source-compatible even when the child has nothing overrideable yet.
+/// children do not synthesize a nested `Overrides` type, so the chain closure
+/// is only available when the child itself has overrideable members.
 @attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
 @attached(accessor)
 public macro SubContainer(
@@ -299,3 +346,52 @@ public macro SubContainer(
     with dependencies: [AnyKeyPath] = [],
     bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")
+
+/// Marker protocol synthesized by `@DIComponent`.
+///
+/// Conforming containers expose a dependency-contract type plus an overrides
+/// builder shape that other modules can mount through `@SubContainer` while
+/// build validation enforces rooted hierarchy rules.
+public protocol _InnoDIComponentMountable {
+    associatedtype _InnoDIComponentDependencies
+    associatedtype _InnoDIComponentOverrides
+
+    init(
+        dependencies: _InnoDIComponentDependencies,
+        _ applyOverrides: (inout _InnoDIComponentOverrides) -> Void
+    )
+}
+
+/// Marker protocol synthesized by `@DIHierarchyRoot`.
+///
+/// The build-support hierarchy validator only enforces rooted component rules
+/// for workspaces that declare at least one root container with this marker.
+public protocol DIHierarchyRootMarker {}
+
+@attached(peer, names: arbitrary)
+@attached(member, names: named(init))
+@attached(extension, conformances: _InnoDIComponentMountable)
+/// Marks a `@DIContainer` as a cross-module mountable component.
+///
+/// `@DIComponent` lifts the container's `.input` members into a generated
+/// dependency contract named `<ContainerName>Dependencies` and synthesizes
+/// `init(dependencies:_:)` so parent modules can treat the child as an
+/// explicit component boundary.
+///
+/// ```swift
+/// @DIComponent
+/// @DIContainer
+/// public struct FeatureContainer {
+///     @Provide(.input) public var config: FeatureConfig
+///     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
+/// }
+/// ```
+public macro DIComponent() = #externalMacro(module: "InnoDIMacros", type: "DIComponentMacro")
+
+@attached(extension, conformances: DIHierarchyRootMarker)
+/// Marks a `@DIContainer` as the root of a strict hierarchy-validation tree.
+///
+/// The build-support validator only emits cross-module hierarchy diagnostics
+/// such as orphan components, duplicate parents, and module-edge mismatches
+/// when at least one `@DIHierarchyRoot` is present in the workspace.
+public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "DIHierarchyRootMacro")

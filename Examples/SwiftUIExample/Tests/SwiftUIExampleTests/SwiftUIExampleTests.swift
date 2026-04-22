@@ -9,7 +9,7 @@ struct SwiftUIExampleTests {
     func dashboardModelLoadsSuccessState() async throws {
         let model = DashboardFeatureModel()
 
-        model.load(
+        await model.load(
             username: "Tester",
             greetingService: MockGreetingService(
                 headline: "Hello, Tester",
@@ -21,8 +21,6 @@ struct SwiftUIExampleTests {
                 ]
             )
         )
-
-        try await waitUntilDashboardLoaded(model)
 
         guard case let .loaded(content) = model.state else {
             Issue.record("Expected loaded state.")
@@ -37,12 +35,11 @@ struct SwiftUIExampleTests {
     func dashboardModelFailsAndRetries() async throws {
         let model = DashboardFeatureModel()
 
-        model.load(
+        await model.load(
             username: "Tester",
             greetingService: FailingGreetingService(),
             activityService: MockActivityService(highlights: [])
         )
-        try await waitUntilDashboardFailed(model)
 
         guard case let .failed(message) = model.state else {
             Issue.record("Expected failure state.")
@@ -50,7 +47,7 @@ struct SwiftUIExampleTests {
         }
         #expect(message.contains("offline"))
 
-        model.retry(
+        await model.load(
             username: "Tester",
             greetingService: MockGreetingService(
                 headline: "Recovered",
@@ -60,7 +57,6 @@ struct SwiftUIExampleTests {
                 highlights: [ActivityHighlight(id: "retry", title: "Retry", detail: "Recovered after retry.")]
             )
         )
-        try await waitUntilDashboardLoaded(model)
 
         guard case let .loaded(content) = model.state else {
             Issue.record("Expected loaded state after retry.")
@@ -74,12 +70,16 @@ struct SwiftUIExampleTests {
     func dashboardModelCancelPreventsTerminalStateWrites() async throws {
         let model = DashboardFeatureModel()
 
-        model.load(
-            username: "Tester",
-            greetingService: LiveGreetingService(),
-            activityService: LiveActivityService()
-        )
-        model.cancel()
+        let task = Task {
+            await model.load(
+                username: "Tester",
+                greetingService: LiveGreetingService(),
+                activityService: LiveActivityService()
+            )
+        }
+        await Task.yield()
+        task.cancel()
+        _ = await task.result
         try await Task.sleep(for: .milliseconds(250))
 
         guard case .loading = model.state else {
@@ -93,33 +93,15 @@ struct SwiftUIExampleTests {
         let live = DashboardRootScenario.live(username: "Live")
         let preview = DashboardRootScenario.preview(username: "Preview")
         let failure = DashboardRootScenario.failure(username: "Failure")
+        let dashboardRootView: Any = live.container.dashboardRootView()
+        let dashboardShellView: Any = live.container.dashboardShellRootView()
 
         #expect(live.title == "Live")
-        #expect(String(describing: type(of: live.container.greetingService)) == "LiveGreetingService")
-        #expect(String(describing: type(of: preview.container.greetingService)) == "MockGreetingService")
-        #expect(String(describing: type(of: failure.container.greetingService)) == "FailingGreetingService")
-        #expect(String(describing: type(of: live.container.activityService)) == "LiveActivityService")
+        #expect(live.container.greetingService is LiveGreetingService)
+        #expect(preview.container.greetingService is MockGreetingService)
+        #expect(failure.container.greetingService is FailingGreetingService)
+        #expect(live.container.activityService is LiveActivityService)
+        #expect(dashboardRootView is DashboardFeatureRootView)
+        #expect(dashboardShellView is DashboardShellView)
     }
-}
-
-@MainActor
-private func waitUntilDashboardLoaded(_ model: DashboardFeatureModel) async throws {
-    for _ in 0..<20 {
-        if case .loaded = model.state {
-            return
-        }
-        try await Task.sleep(for: .milliseconds(20))
-    }
-    Issue.record("Timed out waiting for loaded state.")
-}
-
-@MainActor
-private func waitUntilDashboardFailed(_ model: DashboardFeatureModel) async throws {
-    for _ in 0..<20 {
-        if case .failed = model.state {
-            return
-        }
-        try await Task.sleep(for: .milliseconds(20))
-    }
-    Issue.record("Timed out waiting for failed state.")
 }

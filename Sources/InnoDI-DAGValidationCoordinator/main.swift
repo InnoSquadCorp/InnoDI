@@ -14,7 +14,7 @@ enum CoordinatorExitCode {
 
 do {
     let arguments = try parseArguments()
-    let outcome = try ValidationCoordinator.coordinate(
+    let outcome = try await ValidationCoordinator.coordinate(
         rootPath: arguments.rootPath,
         toolPath: arguments.toolPath,
         stateDirectoryPath: arguments.stateDirectoryPath,

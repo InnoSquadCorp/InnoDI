@@ -12,6 +12,7 @@ Swift Macro 기반의 타입 안전한 의존성 주입 라이브러리입니다
 - AutoWiring: `Type.self` + `with:`로 간결한 선언
 - 엄격한 이름 기반 해석: 팩토리 파라미터와 `with:` 의존성은 멤버 이름으로만 해석
 - Init Override: 테스트 시 의존성 직접 주입 가능 (위치 파라미터 + 명명 `Overrides` 빌더 + `withOverrides` 스코프 헬퍼)
+- 선택적 hierarchy 레이어: `@DIComponent` + `@DIHierarchyRoot`로 same-module ergonomics를 유지한 채 cross-module ownership 검증 가능
 - DIP 지향: concrete 타입 사용 시 `concrete: true` 명시 강제
 
 ## 설치
@@ -89,7 +90,7 @@ var apiClient: any APIClientProtocol
 ### `@DIContainer`
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
 ```
 
 `@DIContainer`가 붙은 타입과 extension 전체에서 사용자 정의 `init`을 지원하지 않습니다.
@@ -105,15 +106,17 @@ var apiClient: any APIClientProtocol
 4. sync / throws / async / async throws 4가지 effect 조합의
    `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)`
 
-input-only 컨테이너, 그리고 사용자가 직접 `Overrides` 타입을 선언한 컨테이너는
-빌더 생성을 생략합니다 (뒤 [사용자 정의 `Overrides` 충돌](#사용자-정의-overrides-충돌) 참고).
+override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나라도
+있는 컨테이너만 `Overrides` 스캐폴딩(convenience init + `withOverrides`
+포함)을 생성합니다. 다만 사용자가 직접 nested `Overrides` 타입을 선언한
+경우에는 해당 생성이 억제됩니다
+(뒤 [사용자 정의 `Overrides` 충돌](#사용자-정의-overrides-충돌) 참고).
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
-| `validate` | `true` | 호환성 유지를 위한 플래그입니다. `.shared`/`.transient`의 factory 요구사항, `.input` 제약, `concrete: true` opt-in 같은 핵심 생성 불변식은 값과 무관하게 컴파일 타임에 계속 강제됩니다. |
 | `root` | `false` | CLI 그래프에서 루트 컨테이너로 표시할지 여부 |
 | `validateDAG` | `true` | 이 컨테이너의 DAG 검증 참여 여부. `false`면 DAG 검증에서 제외 |
-| `mainActor` | `false` | 생성되는 init/accessor에 `@MainActor` 격리를 적용 |
+| `mainActor` | `false` | 생성되는 컨테이너 API에 `@MainActor` 격리를 적용. strict concurrency 환경의 SwiftUI/UI 루트 컨테이너에 권장 |
 
 ### `@Provide`
 
@@ -129,6 +132,40 @@ input-only 컨테이너, 그리고 사용자가 직접 `Overrides` 타입을 선
 | `factory` | `nil` | 생성식 (또는 클로저) |
 | `asyncFactory` | `nil` | 비동기 생성 클로저 (`factory`와 동시 사용 불가) |
 | `concrete` | `false` | concrete 타입 사용 시 명시적 opt-in |
+
+### `@DIComponent`
+
+```swift
+@DIComponent
+@DIContainer
+public struct FeatureContainer {
+    @Provide(.input) public var config: FeatureConfig
+}
+```
+
+cross-module로 mount 가능한 `@DIContainer`를 선언합니다. child의 `.input`
+멤버로부터 `<ContainerName>Dependencies` 프로토콜을 생성하고,
+`init(dependencies:_:)`도 함께 합성해서 parent module이 명시적 계약으로
+child를 연결할 수 있게 합니다.
+
+### `@DIHierarchyRoot`
+
+```swift
+@DIHierarchyRoot
+@DIContainer(root: true)
+struct AppContainer {
+    @Provide(.input) var config: AppConfig
+    @SubContainer(scope: .shared) var feature: FeatureContainer
+}
+```
+
+strict workspace-level hierarchy validation을 켜는 root container 표시입니다.
+하나 이상의 hierarchy root가 있으면 build validation이 추가로 아래를 검사합니다.
+
+- cross-module child는 반드시 `@DIComponent`여야 함
+- parent module이 child `.input` 계약을 모두 만족해야 함
+- 하나의 component는 하나의 parent만 가질 수 있음
+- rooted ownership cycle은 허용되지 않음
 
 ## 스코프 규칙
 
@@ -216,7 +253,7 @@ init(baseURL: String, apiClient: (any APIClientProtocol)? = nil)
 
 ## Overrides 빌더로 테스트하기
 
-`.shared` / `.transient` 멤버가 하나라도 있으면, `@DIContainer`는 위 위치
+`.shared` / `.transient` / `@SubContainer` 멤버가 하나라도 있으면, `@DIContainer`는 위 위치
 파라미터 외에 **명명 override** 빌더도 함께 생성합니다. 테스트가 바꾸려는
 멤버만 지정하면 나머지는 그대로 원래 factory로 해석됩니다.
 
@@ -326,9 +363,12 @@ final class CoordinatorB {
 
 ### 동작 방식
 
-- `Lazy<T>`는 `@Sendable () -> T` resolver를 감싼 값 타입입니다. `b()` 호출
+- `Lazy<T>`는 plain `() -> T` resolver를 감싼 값 타입입니다. `b()` 호출
   시점에 이미 초기화된 storage를 돌려줍니다 (`.shared` 캐싱 외 별도 캐싱
   없음).
+- `Lazy<T>`는 의도적으로 **non-Sendable** 입니다. deferred resolution은
+  원래 컨테이너의 격리 도메인 안에서만 수행되며, payload가 `Sendable`이어도
+  actor boundary transport는 지원하지 않습니다.
 - Factory 파라미터 타입이 `Lazy<T>`이면 해당 엣지는 **soft edge**로 분류
   됩니다. 컨테이너 단위 cycle 검출(`container.dependency-cycle`)과 CLI의
   `--validate-dag` 전역 검증에서 모두 제외되며, 그래프 렌더링에는 dashed로
@@ -402,6 +442,10 @@ cycle 검출에서 제외되는 점은 `Lazy<T>` 와 같지만, CLI 그래프에
 스타일로 렌더링됩니다 (Mermaid `==>` / DOT `style=dotted` / ASCII `~~>` +
 legend).
 
+`Provider<T>`도 `Lazy<T>`와 같은 동시성 계약을 가집니다. 즉, 원래
+컨테이너의 격리 도메인 안에서만 transient 재진입을 허용하는
+의도적인 non-`Sendable` deferred handle 입니다.
+
 ### 검증 규칙
 
 - 타깃 멤버는 반드시 **`.transient`** 여야 합니다. `.shared`/`.input` 타깃을
@@ -426,8 +470,20 @@ legend).
   call 까지 완전히 증명하거나 차단하지는 않습니다.
 - shared 초기화 경로에서 deferred target 을 넘길 때는 여전히 InnoDI 의
   `_LazyCell` late-binding 박스를 재사용합니다. 반대로
-  transient-accessor-only `Provider<T>` / `Lazy<T>` 경로는 wrapper 를 직접
-  주입하므로 `_LazyCell` 추가 할당이 생기지 않습니다.
+  transient-accessor-only `Provider<T>` / `Lazy<T>` 경로는 wrapper가
+  `self`를 직접 캡처하므로, 이 handle 들은 의도적으로 non-`Sendable`
+  상태를 유지합니다.
+
+## Strict concurrency 메모
+
+- SwiftUI 같은 UI 루트 컨테이너에는 `@DIContainer(mainActor: true)`를
+  우선 권장합니다.
+- `Lazy<T>` / `Provider<T>`는 의도적으로 non-`Sendable` 입니다. actor
+  boundary를 넘기거나 `Sendable` 타입의 저장 프로퍼티에 넣지 마세요.
+- InnoDI는 transient sub-container builder 와 init-time late-binding storage
+  는 strict concurrency 친화적으로 유지하지만, 컨테이너 자체가
+  `Sendable`이 되는지는 나머지 저장 멤버와 override closure 타입에도 달려
+  있습니다.
 
 ## `@SubContainer` 로 중첩 컨테이너 선언하기
 
@@ -636,9 +692,9 @@ InnoDI는 DAG 검증용 SwiftPM 플러그인을 제공합니다.
 
 ## 확장 예제
 
-- `Examples/SwiftUIExample` - 단일 feature root에서 navigation, loading skeleton, recoverable error/retry, cancellation을 로컬 `@Observable` 상태로 관리
+- `Examples/SwiftUIExample` - `InnoDISwiftUI`의 `.innodi(container)` root wiring과 shared `@SubContainer`용 multi-root `@DIFeatureRoot` helper를 보여줌
 - `Examples/TCAIntegrationExample`
-- `Examples/PreviewInjectionExample` - preview/live/failure 루트가 여러 서비스를 environment 경계에서 교체하며 richer preview matrix를 보여줌
+- `Examples/PreviewInjectionExample` - live/preview/failure 루트가 생성된 SwiftUI environment bridge를 재사용하면서 richer preview matrix를 보여줌
 - `Examples/SampleApp`
 
 ## 매크로 성능 회귀 체크
@@ -658,21 +714,3 @@ Tools/measure-macro-performance.sh --iterations 5 --update-baseline
 기본 baseline 파일:
 
 - `Tools/macro-performance-baseline.json`
-
-## 벤치마크
-
-10/50/100/250 dependency 시나리오 벤치 실행:
-
-```bash
-Benchmarks/run-compile-bench.sh
-Benchmarks/run-runtime-bench.sh
-Benchmarks/compare.sh
-```
-
-결과 JSON:
-
-- `Benchmarks/results/compile.json`
-- `Benchmarks/results/runtime.json`
-- `Benchmarks/results/compare.json`
-
-Needle/SafeDI 비교 항목은 현재 non-blocking 스캐폴드로 리포트에 표시됩니다.

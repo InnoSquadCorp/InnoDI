@@ -24,7 +24,7 @@ belongs in `InnoNetwork`.
 - **AutoWiring**: Simplified syntax with `Type.self` and `with:` dependencies
 - **Strict name-based resolution**: Factory parameters and `with:` dependencies resolve by member name only
 - **Init Override**: Direct mock injection via init parameters, plus a named `Overrides` builder with a trailing-closure convenience init and `withOverrides` helpers
-
+- **Optional hierarchy layer**: `@DIComponent` + `@DIHierarchyRoot` add rooted cross-module ownership validation without changing same-module `@DIContainer` ergonomics
 - **Protocol-first design**: Encourage DIP compliance with `concrete` opt-in
 
 ## Installation
@@ -109,22 +109,21 @@ Marks a struct as a DI container. Generates:
 3. A convenience `init(<inputs…>, _ applyOverrides: (inout Overrides) -> Void)` that funnels named overrides into the primary init.
 4. Four `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)` effect overloads — `sync` / `throws` / `async` / `async throws` — that build a scoped container and run an operation against it.
 
-Input-only containers, and containers where the user declares their own nested `Overrides` type, skip the scaffolding (see [User-defined Overrides conflict](#user-defined-overrides-conflict)).
+All containers synthesize the overrides scaffolding unless the user declares their own nested `Overrides` type, which suppresses generation (see [User-defined Overrides conflict](#user-defined-overrides-conflict)).
 
 `@DIContainer` does not support user-defined `init` declarations in the annotated type or any extension.
 Macro validation rejects body and same-file extension `init` declarations, and the build plugin extends the same rule to cross-file extensions. Boundary details such as generic/constrained exclusions and conservative fallback rules are documented in `PolicyBoundaries`.
 Use the synthesized initializer, or remove the macro and wire the type manually.
 
 ```swift
-@DIContainer(validate: Bool = true, root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
 ```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `validate` | `true` | Reserved compatibility flag. Core construction invariants such as `.shared`/`.transient` factory requirements, `.input` restrictions, and `concrete: true` opt-in remain compile-time enforced. |
 | `root` | `false` | Mark container as root in graph rendering. |
 | `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
-| `mainActor` | `false` | Apply `@MainActor` isolation to generated initializer/accessors. |
+| `mainActor` | `false` | Apply `@MainActor` isolation to generated container APIs. Recommended for SwiftUI/UI-root containers under strict concurrency. |
 
 ### `@Provide`
 
@@ -142,6 +141,41 @@ Declares a dependency with its scope and factory.
 | `factory` | `nil` | Factory expression (required for `.shared` and `.transient` if no type) |
 | `asyncFactory` | `nil` | Async factory closure (mutually exclusive with `factory`) |
 | `concrete` | `false` | Required opt-in when the dependency property type is concrete (see DIP section) |
+
+### `@DIComponent`
+
+```swift
+@DIComponent
+@DIContainer
+public struct FeatureContainer {
+    @Provide(.input) public var config: FeatureConfig
+}
+```
+
+Marks a `@DIContainer` as a cross-module mountable component. InnoDI lifts the
+child's `.input` members into a generated `<ContainerName>Dependencies`
+protocol and also synthesizes `init(dependencies:_:)` so parent modules can
+mount the child through an explicit dependency contract.
+
+### `@DIHierarchyRoot`
+
+```swift
+@DIHierarchyRoot
+@DIContainer(root: true)
+struct AppContainer {
+    @Provide(.input) var config: AppConfig
+    @SubContainer(scope: .shared) var feature: FeatureContainer
+}
+```
+
+Marks a root container that enables strict workspace-level hierarchy
+validation. When at least one hierarchy root exists, build validation also
+checks:
+
+- cross-module children must be marked `@DIComponent`
+- parent modules must satisfy child `.input` contracts
+- each component must have a single parent
+- rooted ownership cycles are rejected
 
 ### `DIScope`
 
@@ -449,9 +483,12 @@ final class CoordinatorB {
 
 ### How it works
 
-- `Lazy<T>` wraps a `@Sendable () -> T` resolver. Calling `b()` returns the
+- `Lazy<T>` wraps a plain `() -> T` resolver. Calling `b()` returns the
   eventually-resolved instance; InnoDI does no extra caching inside the
   wrapper (the container's `.shared` scope already caches).
+- `Lazy<T>` is intentionally **non-Sendable**. It keeps deferred resolution
+  on the container's original isolation domain, so actor-boundary transport
+  is not supported even when the payload itself is `Sendable`.
 - A factory parameter typed `Lazy<T>` is classified as a **soft** dependency.
   Soft edges are excluded from both the per-container cycle detector and
   the CLI `--validate-dag` gate, but still appear in the generated graph.
@@ -526,6 +563,10 @@ The macro classifies `Provider<T>` factory parameters as a distinct
 with its own style in the CLI graph (thick `==>` in Mermaid, `style=dotted`
 in DOT, `~~>` in ASCII with a legend).
 
+`Provider<T>` matches `Lazy<T>`'s concurrency contract: it is an intentionally
+non-`Sendable` deferred handle that keeps transient re-entry on the
+container's original isolation domain.
+
 ### Validation rules
 
 - The target member **must** be `.transient`. A `Provider<T>` factory
@@ -550,8 +591,19 @@ in DOT, `~~>` in ASCII with a legend).
   early.
 - Shared initialization paths that forward a deferred target still reuse
   InnoDI's `_LazyCell` late-binding box. Transient-accessor-only
-  `Provider<T>` / `Lazy<T>` paths now inject wrappers directly and skip the
-  extra `_LazyCell` allocation entirely.
+  `Provider<T>` / `Lazy<T>` paths capture `self` directly inside the wrapper,
+  which is why those handles intentionally remain non-`Sendable`.
+
+## Strict concurrency notes
+
+- Prefer `@DIContainer(mainActor: true)` for SwiftUI or other UI-facing root
+  containers.
+- `Lazy<T>` / `Provider<T>` are intentionally non-`Sendable`; do not move
+  them across actors or store them in `Sendable` types.
+- InnoDI still hardens transient sub-container builders and init-time
+  late-binding storage for strict concurrency, but a container only conforms
+  to `Sendable` when its own stored members and override closures satisfy
+  Swift's rules.
 
 ## Nested containers with `@SubContainer`
 
@@ -770,9 +822,9 @@ Attach it to your app target to fail builds when DAG validation fails:
 
 See runnable examples in `/Examples`:
 
-- `/Examples/SwiftUIExample` - a single feature root demonstrates navigation, loading skeletons, recoverable error/retry flow, and cancellation around local `@Observable` state
+- `/Examples/SwiftUIExample` - `InnoDISwiftUI` shows `.innodi(container)` root wiring plus multi-root `@DIFeatureRoot` helpers for a shared `@SubContainer`
 - `/Examples/TCAIntegrationExample`
-- `/Examples/PreviewInjectionExample` - live, preview, and failure roots render a richer preview matrix by swapping multiple services at the environment boundary
+- `/Examples/PreviewInjectionExample` - live, preview, and failure roots reuse the generated SwiftUI environment bridge while rendering a richer preview matrix
 - `/Examples/SampleApp`
 
 ### Example Output
@@ -797,24 +849,6 @@ Use the included script to detect macro test performance regressions:
 ```bash
 Tools/measure-macro-performance.sh
 ```
-
-## Benchmarks
-
-Run benchmark suites (10/50/100/250 dependencies):
-
-```bash
-Benchmarks/run-compile-bench.sh
-Benchmarks/run-runtime-bench.sh
-Benchmarks/compare.sh
-```
-
-Output JSON files:
-
-- `Benchmarks/results/compile.json`
-- `Benchmarks/results/runtime.json`
-- `Benchmarks/results/compare.json`
-
-Needle/SafeDI sections are currently scaffolded as non-blocking comparison slots in the report.
 
 Update baseline after intentional performance changes:
 

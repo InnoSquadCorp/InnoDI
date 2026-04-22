@@ -135,8 +135,6 @@ public struct SubContainerBindingArgument: Equatable, Sendable {
 
 /// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
-    /// Whether compile-time validation is enabled for the container.
-    public let validate: Bool
     /// Whether the container should be marked as graph root.
     public let root: Bool
     /// Whether DAG validation is enabled for this container.
@@ -147,12 +145,10 @@ public struct DIContainerAttributeInfo {
     /// Creates a parsed `@DIContainer` attribute model.
     ///
     /// - Parameters:
-    ///   - validate: Validation flag.
     ///   - root: Root flag.
     ///   - validateDAG: DAG validation flag.
     ///   - mainActor: Main actor isolation flag.
-    public init(validate: Bool, root: Bool, validateDAG: Bool, mainActor: Bool) {
-        self.validate = validate
+    public init(root: Bool, validateDAG: Bool, mainActor: Bool) {
         self.root = root
         self.validateDAG = validateDAG
         self.mainActor = mainActor
@@ -169,10 +165,70 @@ public func findAttribute(named name: String, in attributes: AttributeListSyntax
     guard let attributes else { return nil }
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
-        guard let identifier = attr.attributeName.as(IdentifierTypeSyntax.self) else { continue }
-        if identifier.name.text == name {
+        if attributeBaseName(attr.attributeName) == name {
             return attr
         }
+    }
+    return nil
+}
+
+package func findAttribute(
+    named name: String,
+    allowingQualifiedModules allowedQualifiedModules: Set<String>,
+    in attributes: AttributeListSyntax?
+) -> AttributeSyntax? {
+    guard let attributes else { return nil }
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        if matchesAttribute(
+            named: name,
+            attributeName: attr.attributeName,
+            allowingQualifiedModules: allowedQualifiedModules
+        ) {
+            return attr
+        }
+    }
+    return nil
+}
+
+package func matchesAttribute(
+    named name: String,
+    attributeName: TypeSyntax,
+    allowingQualifiedModules allowedQualifiedModules: Set<String>
+) -> Bool {
+    if let identifier = attributeName.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text == name
+    }
+    guard let member = attributeName.as(MemberTypeSyntax.self),
+          member.name.text == name,
+          let baseIdentifier = member.baseType.as(IdentifierTypeSyntax.self) else {
+        return false
+    }
+    return allowedQualifiedModules.contains(baseIdentifier.name.text)
+}
+
+package func findInnoDIAttribute(named name: String, in attributes: AttributeListSyntax?) -> AttributeSyntax? {
+    findAttribute(
+        named: name,
+        allowingQualifiedModules: ["InnoDI"],
+        in: attributes
+    )
+}
+
+package func matchesInnoDIAttribute(named name: String, attributeName: TypeSyntax) -> Bool {
+    matchesAttribute(
+        named: name,
+        attributeName: attributeName,
+        allowingQualifiedModules: ["InnoDI"]
+    )
+}
+
+private func attributeBaseName(_ type: TypeSyntax) -> String? {
+    if let identifier = type.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text
+    }
+    if let member = type.as(MemberTypeSyntax.self) {
+        return member.name.text
     }
     return nil
 }
@@ -346,14 +402,14 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
 /// - Returns: Parsed `SubContainerAttributeInfo` when a `@SubContainer`
 ///   attribute is present; otherwise `nil`.
 public func parseSubContainerAttribute(_ attributes: AttributeListSyntax?) -> SubContainerAttributeInfo? {
-    guard let attribute = findAttribute(named: "SubContainer", in: attributes) else {
+    guard let attribute = findInnoDIAttribute(named: "SubContainer", in: attributes) else {
         return nil
     }
     return parseSubContainerArguments(attribute)
 }
 
 public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideArguments? {
-    guard let attribute = findAttribute(named: "Provide", in: attributes) else {
+    guard let attribute = findInnoDIAttribute(named: "Provide", in: attributes) else {
         return nil
     }
     return parseProvideArguments(attribute)
@@ -380,9 +436,8 @@ private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {
 }
 
 public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContainerAttributeInfo? {
-    guard let attr = findAttribute(named: "DIContainer", in: attributes) else { return nil }
+    guard let attr = findInnoDIAttribute(named: "DIContainer", in: attributes) else { return nil }
 
-    var validate = true
     var root = false
     var validateDAG = true
     var mainActor = false
@@ -390,9 +445,6 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
             guard let label = argument.label?.text else { continue }
-            if label == "validate", let value = parseBoolLiteral(argument.expression) {
-                validate = value
-            }
             if label == "root", let value = parseBoolLiteral(argument.expression) {
                 root = value
             }
@@ -405,5 +457,5 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
         }
     }
 
-    return DIContainerAttributeInfo(validate: validate, root: root, validateDAG: validateDAG, mainActor: mainActor)
+    return DIContainerAttributeInfo(root: root, validateDAG: validateDAG, mainActor: mainActor)
 }
