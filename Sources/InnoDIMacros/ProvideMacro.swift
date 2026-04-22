@@ -3,6 +3,7 @@
 //  InnoDIMacros
 //
 
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -461,13 +462,5 @@ private func makeTransientClosureCallExpr(
 }
 
 private func hasProvideAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    guard let attributes else { return false }
-
-    return attributes.contains { element in
-        guard let attribute = element.as(AttributeSyntax.self),
-              let identifier = attribute.attributeName.as(IdentifierTypeSyntax.self) else {
-            return false
-        }
-        return identifier.name.text == "Provide"
-    }
+    findInnoDIAttribute(named: "Provide", in: attributes) != nil
 }

@@ -524,20 +524,7 @@ private func isDirectMemberVariable(_ node: VariableDeclSyntax) -> Bool {
 }
 
 private func containsDIContainerAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    guard let attributes else {
-        return false
-    }
-
-    for attribute in attributes {
-        guard let syntax = attribute.as(AttributeSyntax.self) else {
-            continue
-        }
-        if let identifier = syntax.attributeName.as(IdentifierTypeSyntax.self), identifier.name.text == "DIContainer" {
-            return true
-        }
-    }
-
-    return false
+    findInnoDIAttribute(named: "DIContainer", in: attributes) != nil
 }
 
 private func directWrapperKind(named name: String) -> DeferredDependencyWrapperKind? {
