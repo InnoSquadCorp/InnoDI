@@ -50,7 +50,6 @@ enum InnoDIDiagnosticCode: String {
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
-    case subChildOverridesMissing = "sub.child-overrides-missing"
     case provideLazyAliased = "provide.lazy-aliased"
     case provideProviderAliased = "provide.provider-aliased"
     case swiftUIFeatureRootWithoutSubContainer = "swiftui.feature-root-without-subcontainer"
@@ -82,7 +81,6 @@ enum InnoDIDiagnosticCode: String {
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
                 .subUnknownChildInput, .subSharedParentMustNotBeTransient,
-                .subChildOverridesMissing,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootInvalidAlias,
@@ -455,17 +453,6 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer(scope: .shared) '\(memberName)' cannot read parent member '\(parentMemberName)' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so '\(parentMemberName)' is .shared or .input.",
             code: .subSharedParentMustNotBeTransient
-        )
-    }
-
-    static func subChildOverridesMissing(
-        memberName: String,
-        childContainerName: String
-    ) -> Self {
-        Self(
-            "@SubContainer '\(memberName)' targets '\(childContainerName)', which has no .shared, .transient, or @SubContainer members. The generated '\(memberName)Overrides' slot references '\(childContainerName).Overrides', which is not synthesized by the child macro for input-only containers. Remove the @SubContainer, or add at least one override-generating member to '\(childContainerName)'.",
-            code: .subChildOverridesMissing,
-            severity: .warning
         )
     }
 

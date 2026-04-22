@@ -121,8 +121,8 @@ Use the synthesized initializer, or remove the macro and wire the type manually.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `root` | `false` | Mark container as root in **graph rendering only** — the CLI renders the dependency graph with this container as the starting node. Has no effect on DAG validation. |
-| `validateDAG` | `true` | Enable local/global cycle, ambiguous-reference, and unknown-reference checks for this container. Set `false` to opt out from *all* DAG checks for this container (e.g. for test fixtures). |
+| `root` | `false` | Mark container as a graph-rendering entry. If any containers set `root: true`, Mermaid/DOT/ASCII output is pruned to the union of nodes and edges reachable from those roots; otherwise the CLI renders the full graph. Has no effect on DAG validation. |
+| `validateDAG` | `true` | Enable global DAG validation plus the macro's graph-derived local checks for this container. Set `false` to skip global DAG validation and the macro's local cycle plus closure/`with:` graph-derived diagnostics. Raw-expression factory/initializer references still diagnose at compile time. Structural validation still runs. |
 | `mainActor` | `false` | Apply `@MainActor` isolation to generated container APIs. Recommended for SwiftUI/UI-root containers under strict concurrency. |
 
 #### Root vs DAG validation
@@ -131,12 +131,12 @@ Use the synthesized initializer, or remove the macro and wire the type manually.
 
 | `root` | `validateDAG` | Effect |
 |---|---|---|
-| `false` | `true` | Default: included in DAG validation, not highlighted in graph rendering. |
-| `true`  | `true` | Included in DAG validation **and** drawn as the starting node in `InnoDI-DependencyGraph` output. |
-| `false` | `false` | Excluded from cycle/ambiguity/unknown-reference checks. Useful for test-only containers or sketches with known incomplete wiring. |
-| `true`  | `false` | Rendered as a graph root but not enforced. Typical when the container is only built during dev and must not fail CI. |
+| `false` | `true` | Default: included in graph-derived validation. Rendering still shows the full graph unless some other container declares `root: true`. |
+| `true`  | `true` | Included in graph-derived validation and acts as a render entry. Output is limited to the root-reachable subgraph. |
+| `false` | `false` | Skips global DAG validation and the macro's local cycle plus closure/`with:` graph-derived diagnostics. Rendering still shows the full graph unless some other container declares `root: true`. Raw-expression factory/initializer references and structural diagnostics still apply. |
+| `true`  | `false` | Acts as a render entry while skipping global DAG validation and the macro's local cycle plus closure/`with:` graph-derived diagnostics. Raw-expression factory/initializer references and structural diagnostics still apply. |
 
-Toggling `root` without `validateDAG` does **not** relax validation. If you want a container excluded from DAG checks, pass `validateDAG: false` explicitly.
+Toggling `root` without `validateDAG` does **not** relax validation. If you want a container to skip global DAG validation and the macro's supported local graph-derived checks, pass `validateDAG: false` explicitly.
 
 ### `@Provide`
 
@@ -742,7 +742,6 @@ let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
 | `sub.bindings-conflicts-with-with` | `with:` and `bindings:` used on the same `@SubContainer`. Pick one. |
 | `sub.duplicate-child-binding` | Same child `.input` label appears in `bindings:` more than once. |
 | `sub.unknown-child-input` | `bindings:` references a child keypath that is not a `.input` member on the child container. |
-| `sub.child-overrides-missing` | **Warning.** Same-file child has no `.shared` / `.transient` / `@SubContainer` members, so `<ChildContainer>.Overrides` is never synthesized. Add an overrideable member to the child or remove the `@SubContainer`. |
 
 ### Graph rendering
 
@@ -807,7 +806,7 @@ swift run InnoDI-DependencyGraph --root /path/to/your/project --validate-dag
 
 ### Validation Notes
 
-- Containers annotated with `@DIContainer(validateDAG: false)` are fully excluded from global DAG validation (`--validate-dag`), including cycle and ambiguity checks.
+- Containers annotated with `@DIContainer(validateDAG: false)` are excluded from global DAG validation (`--validate-dag`) and skip the macro's local cycle plus closure/`with:` graph-derived diagnostics. Raw-expression factory/initializer references still diagnose at compile time. Structural diagnostics still apply.
 - Macro-level dependency extraction for cycle validation is AST-based, so string literal tokens no longer produce false-positive dependency edges.
 
 ### DocC API Documentation

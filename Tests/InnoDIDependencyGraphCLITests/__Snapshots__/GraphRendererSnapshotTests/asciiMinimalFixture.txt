@@ -1,8 +1,7 @@
 InnoDI Dependency Graph
-===============================
+===========================
 Nodes:
-  AppContainer     [ROOT]
-  FeatureContainer (inputs: apiClient)
+  AppContainer [ROOT]
 
 Edges:
 

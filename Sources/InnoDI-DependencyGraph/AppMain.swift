@@ -112,17 +112,50 @@ func runDependencyGraphCLI() -> Int32 {
         )
     }
 
+    let renderedGraph = rootPrunedRenderGraph(nodes: nodes, edges: edges)
+
     let rendered: String
     switch outputFormat {
     case .mermaid:
-        rendered = renderMermaid(nodes: nodes, edges: edges)
+        rendered = renderMermaid(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
     case .dot:
-        rendered = renderDOT(nodes: nodes, edges: edges)
+        rendered = renderDOT(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
     case .ascii:
-        rendered = renderASCII(nodes: nodes, edges: edges)
+        rendered = renderASCII(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
     }
 
     return writeGraphOutput(rendered, format: outputFormat, outputPath: outputPath)
+}
+
+private func rootPrunedRenderGraph(
+    nodes: [DependencyGraphNode],
+    edges: [DependencyGraphEdge]
+) -> (nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) {
+    let rootIDs = nodes.filter(\.isRoot).map(\.id)
+    guard !rootIDs.isEmpty else {
+        return (nodes, edges)
+    }
+
+    var adjacency: [String: [String]] = [:]
+    for edge in edges {
+        adjacency[edge.fromID, default: []].append(edge.toID)
+    }
+
+    var reachableIDs = Set(rootIDs)
+    var queue = rootIDs
+    var index = 0
+    while index < queue.count {
+        let currentID = queue[index]
+        index += 1
+        for nextID in adjacency[currentID, default: []] where reachableIDs.insert(nextID).inserted {
+            queue.append(nextID)
+        }
+    }
+
+    return (
+        nodes.filter { reachableIDs.contains($0.id) },
+        edges.filter { reachableIDs.contains($0.fromID) && reachableIDs.contains($0.toID) }
+    )
 }
 
 private func runDAGValidation(

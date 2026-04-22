@@ -25,9 +25,12 @@ Macro validation checks:
 - async factory validity (`factory` conflict, scope mismatch, non-async closure)
 - user-defined `init` conflicts inside `@DIContainer` declarations and same-file extensions
 
-Construction invariants such as factory requirements, declaration-order
-availability, and scope restrictions are always enforced. The only per-container
-validation opt-out is `validateDAG: false`, which affects DAG checks only.
+Construction invariants such as factory requirements and scope restrictions are
+always enforced. The only per-container validation opt-out is `validateDAG: false`,
+which disables global DAG validation plus the macro's local cycle and
+closure/`with:` graph-derived diagnostics while leaving structural invariants in
+place. Raw-expression `factory:` / initializer references still diagnose at
+compile time.
 
 ## Build Validation Pipeline
 
@@ -66,8 +69,10 @@ Container-level opt-out:
 ```
 
 `validateDAG: false` containers are excluded from DAG cycle and ambiguity checks.
-It does not disable local construction rules such as factory requirements or
-declaration-order enforcement.
+The macro also skips local cycle plus closure/`with:` graph-derived diagnostics
+for those containers, but raw-expression `factory:` / initializer references
+still diagnose at compile time. Structural rules such as factory requirements,
+scope restrictions, and semantic build validation still apply.
 
 ## Build Tool Plugin
 

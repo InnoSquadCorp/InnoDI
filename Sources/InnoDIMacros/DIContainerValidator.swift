@@ -11,6 +11,7 @@ struct DIContainerValidator {
         var hadErrors = false
         let resolutionContext = DependencyResolutionContext(members: model.members)
         let memberByName = Dictionary(uniqueKeysWithValues: model.members.map { ($0.name, $0) })
+        let dagValidationEnabled = model.options.validateDAG
 
         for (index, member) in model.members.enumerated() {
             let hasFactory = member.factory != nil || member.asyncFactory != nil || member.typeExpr != nil || member.initializer != nil
@@ -152,43 +153,46 @@ struct DIContainerValidator {
                     continue
                 }
 
-                let status = resolutionContext.status(of: dependency, forMemberAt: index)
-                switch status {
-                case .available:
-                    break
-                case .unknown:
-                    context.diagnose(
-                        makeUnresolvedFactoryParameterDiagnostic(
-                            member: member,
-                            dependencyName: dependency,
-                            resolutionContext: resolutionContext,
-                            memberIndex: index
-                        )
-                    )
-                    hadErrors = true
-                case .unavailable:
-                    // Soft (Lazy<T>) and provider (Provider<T>) edges
-                    // intentionally escape declaration-order availability: the
-                    // runtime `_LazyCell` box lets a forward reference resolve
-                    // safely once init completes, and `Provider<T>` reaches
-                    // its transient target through the same late-binding
-                    // resolver. Only hard edges still need to be reachable in
-                    // declaration order.
-                    if hardClosureNames.contains(dependency) {
+                if dagValidationEnabled {
+                    let status = resolutionContext.status(of: dependency, forMemberAt: index)
+                    switch status {
+                    case .available:
+                        break
+                    case .unknown:
                         context.diagnose(
-                            makeUnavailableDependencyDiagnostic(
+                            makeUnresolvedFactoryParameterDiagnostic(
                                 member: member,
                                 dependencyName: dependency,
-                                referencedMember: referencedMember
+                                resolutionContext: resolutionContext,
+                                memberIndex: index
                             )
                         )
                         hadErrors = true
+                    case .unavailable:
+                        // Soft (Lazy<T>) and provider (Provider<T>) edges
+                        // intentionally escape declaration-order availability: the
+                        // runtime `_LazyCell` box lets a forward reference resolve
+                        // safely once init completes, and `Provider<T>` reaches
+                        // its transient target through the same late-binding
+                        // resolver. Only hard edges still need to be reachable in
+                        // declaration order.
+                        if hardClosureNames.contains(dependency) {
+                            context.diagnose(
+                                makeUnavailableDependencyDiagnostic(
+                                    member: member,
+                                    dependencyName: dependency,
+                                    referencedMember: referencedMember
+                                )
+                            )
+                            hadErrors = true
+                        }
                     }
                 }
             }
 
             for dependency in deduplicateStrings(member.withDependencies) {
                 let referencedMember = memberByName[dependency]
+                guard dagValidationEnabled else { continue }
                 switch resolutionContext.status(of: dependency, forMemberAt: index) {
                 case .available:
                     break
@@ -229,7 +233,7 @@ struct DIContainerValidator {
             }
         }
 
-        if model.options.validateDAG {
+        if dagValidationEnabled {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
                 let member = model.members[index]
@@ -282,8 +286,8 @@ struct DIContainerValidator {
         let knownParentMemberNames = Set(memberScopeByName.keys)
         let reservedMemberNames = Set(model.members.map(\.name) + model.subContainerMembers.map(\.name))
         // Track subs that already collected an error-severity diagnostic in
-        // this loop so the N-3 child-overrides-missing warning doesn't stack
-        // on top. Keyed by `sub.name` (unique because the parser enforces
+        // this loop so later checks can skip obviously-invalid shapes.
+        // Keyed by `sub.name` (unique because the parser enforces
         // single-binding and reservedMemberNames dedup).
         var subsWithErrors: Set<String> = []
 
@@ -476,35 +480,6 @@ struct DIContainerValidator {
             }
         }
 
-        // Phase N-3 — warn when the child container has no overrideable
-        // members. The parent's generated `<name>Overrides` slot references
-        // `<Child>.Overrides`, which the child's macro only synthesizes if it
-        // owns at least one `.shared` / `.transient` / `@SubContainer`
-        // member. This check is best-effort and silently skips cross-file
-        // children; the build-support validator covers cross-module cases.
-        for sub in model.subContainerMembers {
-            // Only run the check when the other per-sub validation already
-            // accepted the member — otherwise we would stack a warning on
-            // shapes that are already rejected with an error.
-            guard sub.scope != nil, !subsWithErrors.contains(sub.name) else { continue }
-
-            switch checkSubContainerChildOverrideMembership(for: sub) {
-            case .inputOnly(let childContainerName):
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(sub.bindingSyntax.pattern),
-                        message: SimpleDiagnostic.subChildOverridesMissing(
-                            memberName: sub.name,
-                            childContainerName: childContainerName
-                        )
-                    )
-                )
-            case .hasOverrideableMember, .unknown:
-                break
-            }
-        }
-
         return !hadErrors
     }
 }
-

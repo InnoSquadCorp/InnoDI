@@ -809,6 +809,59 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Semantic validation still rejects unknown child input bindings when validateDAG is false")
+    func semanticValidationStillRejectsUnknownChildInputBindingForOptedOutContainer() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var config: AppConfig
+        }
+
+        @DIContainer(validateDAG: false)
+        struct AppContainer {
+            @Provide(.input)
+            var appConfig: AppConfig
+
+            @SubContainer(
+                scope: .shared,
+                bindings: [(child: \\FeatureContainer.missing, parent: \\AppContainer.appConfig)]
+            )
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("OptedOutUnknownChildInputBinding.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.unknown-child-input"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(outcome.metricsArtifact.issues.first?.metadata["childContainerPath"] == "FeatureContainer")
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Legacy shared-run cache directories without a version salt are ignored")
     func legacySharedRunCacheDirectoriesAreIgnored() async throws {
         let fixture = try makeFixture()

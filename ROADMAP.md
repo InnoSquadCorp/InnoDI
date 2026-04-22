@@ -16,20 +16,14 @@ or release hardening discussions and are not release blockers for `3.0.1`.
   sub-container gen, validation diagnostics, type checks, caching IO,
   POSIX locking, environment-bridge macro, feature-root macro). Tests stay
   byte-identical.
-- **N-3 (`sub.child-overrides-missing`)** — warning for same-file
-  `@SubContainer` pointing at a child whose members are all `.input`. The
-  generated `<name>Overrides` slot references `<ChildContainer>.Overrides`,
-  which the child macro never synthesizes for input-only children. Detection
-  is best-effort and silently skips cross-file children.
 - **N-4 (`provide.lazy-aliased` / `provide.provider-aliased`)** — warnings for
   factory parameters spelled through a `typealias` that resolves to `Lazy<T>`
   / `Provider<T>`. Typealiased spellings silently fall through to hard-edge
   classification; these warnings surface the mismatch at the parameter token.
 - **N-5 (docs / bindings edge cases)** — README / README.ko `root`
-  vs `validateDAG` clarification table, explicit `@SubContainer(bindings:)`
-  example, `MIGRATION.md` Phase N entry, `CHANGELOG.md` entries. Cross-module
-  `sub.child-overrides-missing` plumbing stays as a follow-up (needs extra
-  container scope flags in `ContainerSemanticBuildValidator`).
+  vs `validateDAG` clarification table, rooted render behavior, explicit
+  `@SubContainer(bindings:)` example, `MIGRATION.md` Phase N entry,
+  `CHANGELOG.md` entries.
 
 ### Nested containers — `@SubContainer` (Phase M)
 - `@DIContainer` types now declare owned child containers with

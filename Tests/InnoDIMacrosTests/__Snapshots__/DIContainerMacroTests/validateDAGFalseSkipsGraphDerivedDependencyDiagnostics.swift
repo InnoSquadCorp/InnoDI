@@ -1,42 +1,39 @@
 
 struct AppContainer {
-    var a: CoordinatorA {
+    var service: Service {
         get {
-            return _storage_a
+            return _storage_service
         }
     }
 
-    private let _storage_a: CoordinatorA
-    var b: CoordinatorB {
+    private let _storage_service: Service
+    var laterService: LaterService {
         get {
-            return _storage_b
+            return _storage_laterService
         }
     }
 
-    private let _storage_b: CoordinatorB
+    private let _storage_laterService: LaterService
 
-    init(a: CoordinatorA? = nil, b: CoordinatorB? = nil) {
-        let _lazyCell_b = _LazyCell<CoordinatorB>()
-        self._storage_a = a ?? { (b: InnoDI.Lazy<CoordinatorB>) in
-                CoordinatorA(b: b)
-            }(InnoDI.Lazy {
-                _lazyCell_b.resolve()
-            })
-        self._storage_b = b ?? { (a: CoordinatorA) in
-                CoordinatorB(a: a)
-            }(self._storage_a)
-        _lazyCell_b.storeValue(self._storage_b)
+    init(service: Service? = nil, laterService: LaterService? = nil) {
+        func _innoDIUnresolvedDependency<T>(_ name: String) -> T {
+            fatalError("InnoDI could not resolve dependency '\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring.")
+        }
+        self._storage_service = service ?? { (laterService: LaterService, missing: MissingService) in
+                Service(laterService: laterService, missing: missing)
+            }(laterService ?? _innoDIUnresolvedDependency("laterService"), _innoDIUnresolvedDependency("missing"))
+        self._storage_laterService = laterService ?? LaterService()
     }
 
     struct Overrides {
-        var a: CoordinatorA? = nil
-        var b: CoordinatorB? = nil
+        var service: Service? = nil
+        var laterService: LaterService? = nil
     }
 
     init(_ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
-        self.init(a: overrides.a, b: overrides.b)
+        self.init(service: overrides.service, laterService: overrides.laterService)
     }
 
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {

@@ -451,6 +451,57 @@ struct DependencyGraphCLITests {
         #expect(!result.stderr.contains("[graph.ambiguous-container-reference]"))
         #expect(!result.stderr.contains("[graph.excluded-container-reference]"))
     }
+
+    @Test("Render mode prunes to the root-reachable subgraph and follows ownership edges")
+    func rootedRenderPrunesToReachableOwnershipSubgraph() throws {
+        let fixtureURL = try makeRootedOwnershipRenderFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "ascii"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("AppContainer"))
+        #expect(result.stdout.contains("FeatureContainer"))
+        #expect(result.stdout.contains("#=>"))
+        #expect(!result.stdout.contains("OrphanContainer"))
+    }
+
+    @Test("Render mode keeps the union of nodes reachable from multiple roots")
+    func rootedRenderUsesUnionOfMultipleRoots() throws {
+        let fixtureURL = try makeMultipleRootRenderFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "ascii"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("AppContainer"))
+        #expect(result.stdout.contains("AdminContainer"))
+        #expect(result.stdout.contains("FeatureContainer"))
+        #expect(result.stdout.contains("AdminFeatureContainer"))
+        #expect(!result.stdout.contains("OrphanContainer"))
+    }
+
+    @Test("Render mode keeps the full graph when no roots are declared")
+    func renderWithoutRootsKeepsFullGraph() throws {
+        let fixtureURL = try makeRootlessRenderFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "ascii"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("AppContainer"))
+        #expect(result.stdout.contains("FeatureContainer"))
+        #expect(result.stdout.contains("OrphanContainer"))
+    }
 }
 
 // CLI process helpers (runCLI, CLIRunResult, DataSink, ExecutableNotFound,
@@ -656,6 +707,138 @@ private func makeProvideConstructionFixtureProject() throws -> URL {
     }
     """.write(
         to: fixtureURL.appendingPathComponent("AppContainer.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeRootedOwnershipRenderFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Rooted-Ownership-Render-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    struct AppConfig {}
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var config: AppConfig
+
+        @SubContainer(scope: .shared)
+        var feature: FeatureContainer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+
+    @DIContainer
+    struct OrphanContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("RootedOwnership.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeMultipleRootRenderFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Multiple-Root-Render-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    struct AppConfig {}
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var config: AppConfig
+
+        @SubContainer(scope: .shared)
+        var feature: FeatureContainer
+    }
+
+    @DIContainer(root: true)
+    struct AdminContainer {
+        @Provide(.input)
+        var config: AppConfig
+
+        @SubContainer(scope: .shared)
+        var adminFeature: AdminFeatureContainer
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+
+    @DIContainer
+    struct AdminFeatureContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+
+    @DIContainer
+    struct OrphanContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("MultipleRoots.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return fixtureURL
+}
+
+private func makeRootlessRenderFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Rootless-Render-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    try """
+    import InnoDI
+
+    struct AppConfig {}
+
+    @DIContainer
+    struct AppContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+
+    @DIContainer
+    struct FeatureContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+
+    @DIContainer
+    struct OrphanContainer {
+        @Provide(.input)
+        var config: AppConfig
+    }
+    """.write(
+        to: fixtureURL.appendingPathComponent("Rootless.swift"),
         atomically: true,
         encoding: .utf8
     )

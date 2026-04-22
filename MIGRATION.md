@@ -39,21 +39,16 @@ This file tracks release-to-release migration guidance when behavior, defaults, 
   soft-edge / provider semantics, or accept the hard-edge classification and
   silence the warning with the appropriate compiler suppression.
 
-- **New `sub.child-overrides-missing` warning.** `@SubContainer` pointing at a
-  same-file child that exposes only `.input` members now warns. The generated
-  `<name>Overrides` slot references `<ChildContainer>.Overrides`, which the
-  child macro never synthesizes for input-only containers. Remove the
-  `@SubContainer`, or add at least one `.shared` / `.transient` /
-  `@SubContainer` member to the child.
-
 ### Notes
 
-- Cross-file / cross-module `sub.child-overrides-missing` detection remains
-  the build-support validator's job and is not affected by this change.
-- `root: Bool` on `@DIContainer` is now documented explicitly as a **graph
-  rendering flag only**. Toggling `root` has no impact on DAG validation.
-  Use `validateDAG: false` to opt out of cycle / ambiguous / unknown-reference
-  checks.
+- `root: Bool` on `@DIContainer` now controls graph-render entry points. If at
+  least one root exists, Mermaid/DOT/ASCII output is limited to the
+  root-reachable subgraph. Toggling `root` still has no impact on DAG
+  validation.
+- `validateDAG: false` now opts a container out of the macro's graph-derived
+  unresolved/declaration-order diagnostics in addition to global
+  cycle / ambiguous / unknown-reference checks. Structural diagnostics remain
+  enabled.
 
 ## Unreleased — Deferred wrapper sendability tightened
 
