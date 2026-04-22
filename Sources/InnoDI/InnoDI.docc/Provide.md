@@ -7,8 +7,8 @@
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
-    _ type: Any? = nil,
-    with: [AnyKeyPath] = [],
+    _ type: Any.Type? = nil,
+    with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
     concrete: Bool = false
@@ -17,29 +17,19 @@
 
 ## Construction Modes
 
-- `factory`: Synchronous construction expression or closure.
-- `asyncFactory`: Asynchronous closure for async construction.
-- `Type.self` + `with:`: Auto-wiring using explicit key path dependencies.
+- `factory`: synchronous construction expression or closure
+- `asyncFactory`: asynchronous construction closure
+- `Type.self` plus `with:`: explicit autowiring
 
 ## Rules
 
 - `factory` and `asyncFactory` are mutually exclusive.
-- `.shared` and `.transient` must provide a construction strategy:
-  use `factory`, `asyncFactory`, or explicit `Type.self` + `with:` auto-wiring.
-- `.input` cannot declare `factory` or `asyncFactory`, so it is mutually exclusive with
-  those construction APIs.
+- `.input` does not allow `factory` or `asyncFactory`.
+- `.shared` and `.transient` require a construction strategy.
 - `asyncFactory` must be an `async` closure.
-- `concrete` validation is applied consistently for both concrete types and
-  protocol-erased declarations.
-
-## Example
-
-```swift
-@Provide(.shared, asyncFactory: { (config: AppConfig) async throws in
-    try await APIClient.make(config: config)
-})
-var apiClient: any APIClientProtocol
-```
+- Concrete `.shared` and `.transient` storage requires `concrete: true`.
+- Name resolution for factory parameters and `with:` dependencies is strict by
+  member name.
 
 ## See Also
 

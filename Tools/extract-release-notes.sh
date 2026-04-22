@@ -8,10 +8,10 @@ if [[ $# -ne 1 ]]; then
 fi
 
 tag="$1"
-changelog="CHANGELOG.md"
+release_doc="RELEASING.md"
 
-if [[ ! -f "$changelog" ]]; then
-  echo "missing $changelog" >&2
+if [[ ! -f "$release_doc" ]]; then
+  echo "missing $release_doc" >&2
   exit 1
 fi
 
@@ -26,18 +26,18 @@ notes="$(
         exit 2
       }
     }
-  ' "$changelog"
+  ' "$release_doc"
 )" || awk_status=$?
 
 if [[ $awk_status -eq 2 ]]; then
-  echo "no release notes found for tag $tag in $changelog" >&2
+  echo "no release notes found for tag $tag in $release_doc" >&2
   exit 1
 elif [[ $awk_status -ne 0 ]]; then
   exit "$awk_status"
 fi
 
 if [[ -z "${notes//[$' \t\r\n']/}" ]]; then
-  echo "no release notes found for tag $tag in $changelog" >&2
+  echo "no release notes found for tag $tag in $release_doc" >&2
   exit 1
 fi
 

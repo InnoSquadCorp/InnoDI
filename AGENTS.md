@@ -1,35 +1,39 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-- `Sources/InnoDI`: Public API surface (macros declarations, core types).
-- `Sources/InnoDIMacros`: Macro implementations and diagnostics.
-- `Sources/InnoDICore`: Shared parsing/analysis utilities used by macros and CLI.
-- `Sources/InnoDI-DependencyGraph`: Static analysis CLI for generating dependency graphs.
-- `Tests/InnoDICoreTests`: SwiftTesting-based unit tests for core parsing and dependency graph normalization.
-- `.github/workflows`: CI workflows (if present) for automated checks.
+## Project Structure
 
-## Build, Test, and Development Commands
-- `swift build`: Build all targets (library, macros, CLI).
-- `swift test`: Run all SwiftTesting suites, including macro tests.
-- `swift test --filter InnoDIMacrosTests`: Run only macro-focused tests.
-- `swift run InnoDI-DependencyGraph --root /path/to/project`: Generate dependency graph from DI containers.
+- `Sources/InnoDI`: public macros, runtime types, and source doc comments.
+- `Sources/InnoDIMacros`: macro expansion, validation, diagnostics, and SwiftUI helper generation.
+- `Sources/InnoDICore`: shared graph and analysis utilities used by macros and the CLI.
+- `Sources/InnoDIBuildSupport`: coordinated validation, artifacts, and cache/lock handling.
+- `Sources/InnoDI-DependencyGraph`: graph collection and Mermaid/DOT/ASCII rendering.
+- `Sources/InnoDISwiftUI`: SwiftUI environment bridge and feature-root integration helpers.
+- `Tests/*`: Swift Testing suites for runtime, macros, build support, CLI, SwiftUI, and shared helpers.
 
-## Coding Style & Naming Conventions
-- Swift: 4-space indentation; follow Swift API Design Guidelines.
-- Types: `UpperCamelCase` (e.g., `DIContainerMacro`).
-- Functions/vars: `lowerCamelCase` (e.g., `parseProvideAttribute`).
-- Files: One primary type per file; match type name to file name.
-- Prefer `SwiftSyntaxBuilder` for generated syntax nodes; avoid string-built AST when possible.
+## Build, Test, and Docs
 
-## Testing Guidelines
-- Frameworks: SwiftTesting for core unit tests; `SwiftSyntaxMacrosTestSupport` for macro tests.
-- Naming: `*Tests.swift` files; test functions express behavior (e.g., `parseProvideAttributeInput`).
-- Coverage: Focus on parsing rules and diagnostics first; add macro expansion tests for critical paths.
+- `swift build`
+- `swift test`
+- `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
+- `swift run InnoDI-DependencyGraph --root /path/to/project`
+- `Tools/generate-docc.sh`
 
-## Commit & Pull Request Guidelines
-- No explicit commit message convention detected in-repo. Use clear, scoped messages (e.g., `macros: fix Provide diagnostics`).
-- PRs should include: summary of changes, test commands run, and any behavior changes or diagnostics updates.
+## Documentation Contract
 
-## Architecture Notes
-- Keep macro parsing rules centralized in `InnoDICore` to prevent drift between `InnoDIMacros` and `InnoDI-DependencyGraph`.
-- Treat `.shared` providers as app-level singletons; prefer `.input` for explicit, testable dependencies.
+- `README.md` is the English canonical README.
+- Localized README files mirror the same structure:
+  - `README.ko.md`
+  - `README.es.md`
+  - `README.de.md`
+  - `README.zh-Hans.md`
+  - `README.ja.md`
+  - `README.ru.md`
+- `Sources/InnoDI/InnoDI.docc/*.md` is the English DocC base.
+- `Sources/InnoDI/InnoDI.docc/*.lproj/*.md` are localized mirrors.
+- `RELEASING.md` is the single release-note and upgrade-note source.
+
+## Coding and Review Notes
+
+- Prefer `SwiftSyntaxBuilder` over string-built AST when changing macro generation.
+- Keep parser and graph semantics aligned across `InnoDIMacros`, `InnoDICore`, and `InnoDI-DependencyGraph`.
+- When behavior changes, update tests and documentation in the same change.
