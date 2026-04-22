@@ -1,5 +1,6 @@
 import Foundation
 import Dispatch
+import Darwin
 import Testing
 import InnoDITestSupport
 
@@ -175,6 +176,27 @@ struct StrictConcurrencyBuildTests {
             )
         )
     }
+
+    @Test("Timeout path avoids blocking on descendants that keep pipes open")
+    func timeoutPathAvoidsBlockingPipeDrain() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c",
+            "trap '' TERM; sleep 30 & echo started; wait"
+        ]
+        process.currentDirectoryURL = packageRootURL()
+
+        let result = try runCapturedProcess(
+            process,
+            timeoutSeconds: 0.2,
+            terminationGraceSeconds: 0.2,
+            hardKillGraceSeconds: 0.2
+        )
+
+        #expect(result.timedOut)
+        #expect(result.stdout.contains("started"))
+    }
 }
 
 private struct StrictConcurrencyBuildResult {
@@ -216,6 +238,21 @@ private func runStrictConcurrencyBuild(packageURL: URL) throws -> StrictConcurre
     ]
     process.currentDirectoryURL = packageRootURL()
 
+    return try runCapturedProcess(
+        process,
+        timeoutSeconds: strictConcurrencyBuildTimeoutSeconds,
+        terminationGraceSeconds: strictConcurrencyTerminationGracePeriodSeconds,
+        hardKillGraceSeconds: strictConcurrencyHardKillGracePeriodSeconds
+    )
+}
+
+private func runCapturedProcess(
+    _ process: Process,
+    timeoutSeconds: TimeInterval,
+    terminationGraceSeconds: TimeInterval,
+    hardKillGraceSeconds: TimeInterval
+) throws -> StrictConcurrencyBuildResult {
+
     let stdoutPipe = Pipe()
     let stderrPipe = Pipe()
     process.standardOutput = stdoutPipe
@@ -231,27 +268,48 @@ private func runStrictConcurrencyBuild(packageURL: URL) throws -> StrictConcurre
     }
 
     try process.run()
-    let timedOut = terminationSemaphore.wait(timeout: .now() + strictConcurrencyBuildTimeoutSeconds) == .timedOut
+    let timedOut = !waitForCapturedProcessTermination(
+        terminationSemaphore,
+        timeoutSeconds: timeoutSeconds
+    )
     if timedOut && process.isRunning {
         process.terminate()
-        _ = terminationSemaphore.wait(timeout: .now() + strictConcurrencyTerminationGracePeriodSeconds)
+        if !waitForCapturedProcessTermination(
+            terminationSemaphore,
+            timeoutSeconds: terminationGraceSeconds
+        ) && process.isRunning {
+            _ = Darwin.kill(process.processIdentifier, SIGKILL)
+            _ = waitForCapturedProcessTermination(
+                terminationSemaphore,
+                timeoutSeconds: hardKillGraceSeconds
+            )
+        }
     }
 
     let stdoutHandle = stdoutPipe.fileHandleForReading
     let stderrHandle = stderrPipe.fileHandleForReading
     stdoutHandle.readabilityHandler = nil
     stderrHandle.readabilityHandler = nil
-    stdoutSink.append(stdoutHandle.readDataToEndOfFile())
-    stderrSink.append(stderrHandle.readDataToEndOfFile())
+    if !timedOut {
+        stdoutSink.append(stdoutHandle.readDataToEndOfFile())
+        stderrSink.append(stderrHandle.readDataToEndOfFile())
+    }
     stdoutHandle.closeFile()
     stderrHandle.closeFile()
 
     return StrictConcurrencyBuildResult(
-        exitCode: process.terminationStatus,
+        exitCode: process.isRunning ? Int32(SIGKILL) : process.terminationStatus,
         stdout: String(decoding: stdoutSink.snapshot(), as: UTF8.self),
         stderr: String(decoding: stderrSink.snapshot(), as: UTF8.self),
         timedOut: timedOut
     )
+}
+
+private func waitForCapturedProcessTermination(
+    _ semaphore: DispatchSemaphore,
+    timeoutSeconds: TimeInterval
+) -> Bool {
+    semaphore.wait(timeout: .now() + timeoutSeconds) == .success
 }
 
 private func makeStrictConcurrencyFixture(
@@ -331,6 +389,7 @@ private func packageRootURL() -> URL {
 
 private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 60
 private let strictConcurrencyTerminationGracePeriodSeconds: TimeInterval = 5
+private let strictConcurrencyHardKillGracePeriodSeconds: TimeInterval = 2
 
 private func installStrictConcurrencyReadHandler(
     on handle: FileHandle,

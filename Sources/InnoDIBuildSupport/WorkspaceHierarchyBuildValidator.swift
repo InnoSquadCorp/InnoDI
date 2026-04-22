@@ -1609,8 +1609,18 @@ private func containsHierarchyAttribute(_ name: String, in attributes: Attribute
         guard let attribute = element.as(AttributeSyntax.self) else {
             return false
         }
-        return attribute.attributeName.as(IdentifierTypeSyntax.self)?.name.text == name
+        return hierarchyAttributeBaseName(attribute.attributeName) == name
     }) == true
+}
+
+private func hierarchyAttributeBaseName(_ type: TypeSyntax) -> String? {
+    if let identifier = type.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text
+    }
+    if let member = type.as(MemberTypeSyntax.self) {
+        return member.name.text
+    }
+    return nil
 }
 
 private func extractWithDependencies(from attribute: AttributeSyntax) -> [HierarchyWithDependencyRecord] {
