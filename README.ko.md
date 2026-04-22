@@ -114,9 +114,23 @@ override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나�
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
-| `root` | `false` | CLI 그래프에서 루트 컨테이너로 표시할지 여부 |
-| `validateDAG` | `true` | 이 컨테이너의 DAG 검증 참여 여부. `false`면 DAG 검증에서 제외 |
+| `root` | `false` | **CLI 그래프 시각화 전용 플래그.** 이 컨테이너를 그래프 렌더링의 시작 노드로 표시한다. DAG 검증과는 무관 |
+| `validateDAG` | `true` | 이 컨테이너의 local/global 사이클·모호참조·미지참조 검증 참여 여부. `false`면 해당 검사에서 **전부** 제외 (테스트 전용 fixture 등에 사용) |
 | `mainActor` | `false` | 생성되는 컨테이너 API에 `@MainActor` 격리를 적용. strict concurrency 환경의 SwiftUI/UI 루트 컨테이너에 권장 |
+
+#### `root`와 `validateDAG`의 관계
+
+두 플래그는 독립적으로 조합된다:
+
+| `root` | `validateDAG` | 효과 |
+|---|---|---|
+| `false` | `true` | 기본값. DAG 검증 대상, 그래프에서 별도 강조 없음 |
+| `true`  | `true` | DAG 검증 대상이며, `InnoDI-DependencyGraph` 출력의 시작 노드로 그려짐 |
+| `false` | `false` | 사이클·모호참조·미지참조 검사에서 제외. 아직 완성되지 않은 fixture에 사용 |
+| `true`  | `false` | 그래프에서 루트로 렌더링하지만 CI 검증은 건너뜀 |
+
+`root: true`만 켜는 것으로 DAG 검증이 완화되지 않는다. 검증에서 빼려면
+`validateDAG: false`를 명시해야 한다.
 
 ### `@Provide`
 
@@ -538,6 +552,22 @@ let feature = app.feature  // parent 의 멤버에서 자동 배선
 - **`with: [\.parentName]`** 은 forward 할 parent 멤버를 subset 으로 제한
   한다. 일부만 child 에 넘기고 싶을 때 쓴다. 레이블은 여전히 parent 멤버
   이름 — 매크로가 레이블을 다시 쓰지는 않는다.
+- **`bindings: [(child: \.childInput, parent: \.parentMember)]`** 는
+  `with:` 의 rename-aware 버전이다. child `.input` 레이블이 parent 멤버
+  이름과 다를 때 사용한다 (예: child 는 `apiClient`, parent 는
+  `apiClientService`). 각 tuple 이 한 child 레이블을 새 이름으로 매핑한다.
+  `with:` 와 동시에 쓸 수 없다.
+
+  ```swift
+  @SubContainer(
+      scope: .shared,
+      bindings: [
+          (child: \FeatureContainer.apiClient, parent: \AppContainer.apiClientService),
+          (child: \FeatureContainer.config,    parent: \AppContainer.featureConfig),
+      ]
+  )
+  var feature: FeatureContainer
+  ```
 - **`.shared` sub 는 `.transient` parent 를 읽을 수 없다.** `.shared`
   child 는 parent init 안에서 만들어지는데 그 시점엔 `.transient` 접근자가
   아직 호출 가능하지 않다. 유효성 검증이
@@ -586,6 +616,10 @@ let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
 | `sub.conflicts-with-provide` | 같은 속성에 `@Provide` 와 `@SubContainer` 둘 다 부여. |
 | `sub.unknown-parent-member` | `with:` 키패스가 parent 의 `@Provide` 멤버를 가리키지 않음. |
 | `sub.shared-parent-must-not-be-transient` | `.shared` sub 가 `.transient` parent 멤버를 읽으려 함. |
+| `sub.bindings-conflicts-with-with` | 같은 `@SubContainer` 에 `with:` 와 `bindings:` 가 동시에 사용됨. 하나만 써야 한다. |
+| `sub.duplicate-child-binding` | `bindings:` 안에서 같은 child `.input` 레이블이 두 번 이상 등장. |
+| `sub.unknown-child-input` | `bindings:` 의 child 키패스가 child 에 존재하지 않는 `.input` 멤버를 가리킴. |
+| `sub.child-overrides-missing` | **경고.** 같은 파일의 child container 에 `.shared` / `.transient` / `@SubContainer` 멤버가 하나도 없어서 `<ChildContainer>.Overrides` 가 합성되지 않는다. child 에 override 가능한 멤버를 추가하거나 `@SubContainer` 를 제거한다. |
 
 ### 그래프 렌더링
 

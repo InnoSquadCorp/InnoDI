@@ -121,9 +121,22 @@ Use the synthesized initializer, or remove the macro and wire the type manually.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `root` | `false` | Mark container as root in graph rendering. |
-| `validateDAG` | `true` | Enable local/global DAG validation for this container. Set `false` to opt out from DAG checks. |
+| `root` | `false` | Mark container as root in **graph rendering only** — the CLI renders the dependency graph with this container as the starting node. Has no effect on DAG validation. |
+| `validateDAG` | `true` | Enable local/global cycle, ambiguous-reference, and unknown-reference checks for this container. Set `false` to opt out from *all* DAG checks for this container (e.g. for test fixtures). |
 | `mainActor` | `false` | Apply `@MainActor` isolation to generated container APIs. Recommended for SwiftUI/UI-root containers under strict concurrency. |
+
+#### Root vs DAG validation
+
+`root` and `validateDAG` address different concerns and compose independently:
+
+| `root` | `validateDAG` | Effect |
+|---|---|---|
+| `false` | `true` | Default: included in DAG validation, not highlighted in graph rendering. |
+| `true`  | `true` | Included in DAG validation **and** drawn as the starting node in `InnoDI-DependencyGraph` output. |
+| `false` | `false` | Excluded from cycle/ambiguity/unknown-reference checks. Useful for test-only containers or sketches with known incomplete wiring. |
+| `true`  | `false` | Rendered as a graph root but not enforced. Typical when the container is only built during dev and must not fail CI. |
+
+Toggling `root` without `validateDAG` does **not** relax validation. If you want a container excluded from DAG checks, pass `validateDAG: false` explicitly.
 
 ### `@Provide`
 
@@ -660,6 +673,22 @@ very different runtime behaviour:
   subset — useful when the child only needs a few of the parent's
   members. The macro still labels each argument by parent-member name;
   it does not rewrite labels.
+- **`bindings: [(child: \.childInput, parent: \.parentMember)]`** is the
+  rename-aware counterpart of `with:`. Use it when the child's `.input`
+  labels differ from the parent's member names (e.g. the child calls
+  the dependency `apiClient` but the parent owns an `apiClientService`).
+  Each tuple rewrites one child label and cannot be mixed with `with:`.
+
+  ```swift
+  @SubContainer(
+      scope: .shared,
+      bindings: [
+          (child: \FeatureContainer.apiClient, parent: \AppContainer.apiClientService),
+          (child: \FeatureContainer.config,    parent: \AppContainer.featureConfig),
+      ]
+  )
+  var feature: FeatureContainer
+  ```
 - **`.shared` sub cannot read `.transient` parents.** `.shared`
   children are built inside the parent init, where `.transient`
   accessors are not yet callable. The validator rejects that
@@ -710,6 +739,10 @@ let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
 | `sub.conflicts-with-provide` | Same property carries both `@Provide` and `@SubContainer`. |
 | `sub.unknown-parent-member` | `with:` keypath does not resolve to a `@Provide` member on the parent. |
 | `sub.shared-parent-must-not-be-transient` | `.shared` sub-container would read a parent member that has `.transient` scope. |
+| `sub.bindings-conflicts-with-with` | `with:` and `bindings:` used on the same `@SubContainer`. Pick one. |
+| `sub.duplicate-child-binding` | Same child `.input` label appears in `bindings:` more than once. |
+| `sub.unknown-child-input` | `bindings:` references a child keypath that is not a `.input` member on the child container. |
+| `sub.child-overrides-missing` | **Warning.** Same-file child has no `.shared` / `.transient` / `@SubContainer` members, so `<ChildContainer>.Overrides` is never synthesized. Add an overrideable member to the child or remove the `@SubContainer`. |
 
 ### Graph rendering
 
