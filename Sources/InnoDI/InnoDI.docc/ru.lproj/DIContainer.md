@@ -23,3 +23,8 @@
 - `root`: влияет только на вход рендера графа
 - `validateDAG`: управляет global DAG validation и local cycle / closure-`with:`
 - `mainActor`: добавляет `@MainActor` к сгенерированному API
+
+## See Also
+
+- <doc:Validation>
+- <doc:Provide>

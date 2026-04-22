@@ -31,3 +31,11 @@ tooling에 초점을 둡니다.
 - <doc:Provide>
 - ``DIComponent()``
 - ``DIHierarchyRoot()``
+
+### Symbols
+
+- ``DIContainer(root:validateDAG:mainActor:)``
+- ``Provide(_:_:with:factory:asyncFactory:concrete:)``
+- ``DIScope``
+- ``Lazy``
+- ``Provider``

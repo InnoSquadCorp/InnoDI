@@ -44,13 +44,22 @@ Then add the products you need:
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-Import only `InnoDI` if you do not use the SwiftUI helpers.
 
 ## Quick Start
 
