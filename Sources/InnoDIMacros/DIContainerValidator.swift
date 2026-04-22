@@ -412,6 +412,34 @@ struct DIContainerValidator {
             }
         }
 
+        // Phase N-3 — warn when the child container has no overrideable
+        // members. The parent's generated `<name>Overrides` slot references
+        // `<Child>.Overrides`, which the child's macro only synthesizes if it
+        // owns at least one `.shared` / `.transient` / `@SubContainer`
+        // member. This check is best-effort and silently skips cross-file
+        // children; the build-support validator covers cross-module cases.
+        for sub in model.subContainerMembers {
+            // Only run the check when the other per-sub validation already
+            // accepted the member — otherwise we would stack diagnostics on
+            // shapes that are already rejected.
+            guard sub.scope != nil else { continue }
+
+            switch checkSubContainerChildOverrideMembership(for: sub) {
+            case .inputOnly(let childContainerName):
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subChildOverridesMissing(
+                            memberName: sub.name,
+                            childContainerName: childContainerName
+                        )
+                    )
+                )
+            case .hasOverrideableMember, .unknown:
+                break
+            }
+        }
+
         return !hadErrors
     }
 }
