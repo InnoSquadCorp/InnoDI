@@ -2377,6 +2377,146 @@ struct DIContainerMacroTests {
         #expect(!context.diagnostics.contains { $0.diagnosticID == unexpectedID })
     }
 
+    // Phase N-4 — `provide.lazy-aliased` / `provide.provider-aliased` warn
+    // when a closure parameter uses a typealias that aliases `Lazy<T>` /
+    // `Provider<T>`. Same parent-detachment caveat as N-3.
+    @Test("Closure parameter using a Lazy typealias emits the lazy-aliased warning")
+    func lazyAliasedParameterWarns() throws {
+        let source = """
+        typealias SomeLazy<T> = InnoDI.Lazy<T>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: { (b: SomeLazy<CoordinatorB>) in CoordinatorA(b: b) })
+            var a: CoordinatorA
+
+            @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) })
+            var b: CoordinatorB
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: { $0.item.is(StructDeclSyntax.self) })?
+                .item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling typealias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "provide.lazy-aliased"
+        )
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == expectedID
+        })
+    }
+
+    @Test("Non-generic typealias for Lazy also emits the lazy-aliased warning")
+    func nonGenericLazyAliasParameterWarns() throws {
+        let source = """
+        struct Foo {}
+        typealias FooLazy = InnoDI.Lazy<Foo>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var foo: Foo
+            @Provide(.shared, factory: { (b: FooLazy) in Service(fooProvider: b) })
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: {
+                  $0.item.as(StructDeclSyntax.self)?.name.text == "AppContainer"
+              })?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with non-generic FooLazy alias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "provide.lazy-aliased"
+        )
+        #expect(context.diagnostics.contains { $0.diagnosticID == expectedID })
+    }
+
+    @Test("Closure parameter using a Provider typealias emits the provider-aliased warning")
+    func providerAliasedParameterWarns() throws {
+        let source = """
+        typealias SomeProvider<T> = InnoDI.Provider<T>
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.transient, factory: { (config: Config) in
+                Request(config: config)
+            })
+            var request: Request
+
+            @Provide(.shared, factory: { (p: SomeProvider<Request>) in
+                RequestLogger(provider: p)
+            })
+            var logger: RequestLogger
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: { $0.item.is(StructDeclSyntax.self) })?
+                .item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with sibling typealias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "provide.provider-aliased"
+        )
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == expectedID
+        })
+    }
+
+    @Test("Unrelated typealiases do not trigger the aliased warning")
+    func unrelatedTypealiasDoesNotWarn() throws {
+        let source = """
+        typealias UserID = Int
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+            @Provide(.shared, factory: { (config: AppConfig) in Service(config: config) })
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first(where: { $0.item.is(StructDeclSyntax.self) })?
+                .item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with unrelated typealias")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let lazyID = MessageID(domain: "InnoDI.validation", id: "provide.lazy-aliased")
+        let providerID = MessageID(domain: "InnoDI.validation", id: "provide.provider-aliased")
+        #expect(!context.diagnostics.contains { $0.diagnosticID == lazyID })
+        #expect(!context.diagnostics.contains { $0.diagnosticID == providerID })
+    }
+
     @Test("Sub-container targeting a child with at least one shared member does not warn")
     func subContainerTargetingChildWithSharedMemberDoesNotWarn() throws {
         let source = """
