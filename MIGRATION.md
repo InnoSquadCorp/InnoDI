@@ -2,6 +2,56 @@
 
 This file tracks release-to-release migration guidance when behavior, defaults, or artifact contracts change in a way that users must react to.
 
+## Unreleased — Phase N hardening (file splits + new warnings)
+
+### Who is affected
+
+- Projects that reference internal macro-source paths (e.g. tool integrations
+  that parse `Sources/InnoDIMacros/*.swift` for documentation extraction).
+- Projects that ship a `typealias` for `Lazy<T>` / `Provider<T>` at
+  closure-parameter sites — these now emit a warning, not an error.
+- Projects that own a `@SubContainer` pointing at an input-only child in the
+  same source file — these now emit a warning.
+
+### Required action
+
+- **File relocations (no public-API change).** Four large macro / build-support
+  files were split into purpose-based modules. Public and `package` APIs are
+  unchanged and the whole test suite stays green, but if you have tooling that
+  depends on file paths inside `Sources/InnoDIMacros/` or
+  `Sources/InnoDIBuildSupport/`, re-point it at the new layout:
+
+  | Was | Now |
+  |---|---|
+  | `DIContainerCodeGenerator.swift` (1,259 lines) | entry file + `DIContainerOverridesGenerator.swift` + `DIContainerWithOverridesGenerator.swift` + `DIContainerSubContainerGenerator.swift` |
+  | `DIContainerValidator.swift` (904 lines) | entry file + `DIProvideValidationDiagnostics.swift` + `DIContainerValidatorTypeChecks.swift` |
+  | `ValidationCoordinator.swift` (744 lines) | entry file + `ValidationCoordinator+Caching.swift` + `ValidationCoordinator+Locking.swift` |
+  | `SwiftUIMacros.swift` (722 lines) | shared helpers + `DIEnvironmentBridgeMacro.swift` + `DIFeatureRootMacro.swift` |
+
+- **New `provide.lazy-aliased` / `provide.provider-aliased` warnings.** When a
+  factory parameter is spelled through a `typealias` that resolves to
+  `Lazy<T>` / `Provider<T>`, the macro previously misclassified the edge as
+  `.hard` silently. Now you'll see a warning pointing at the parameter token.
+  Spell the wrapper directly (`Lazy<T>` / `InnoDI.Lazy<T>`) to keep the
+  soft-edge / provider semantics, or accept the hard-edge classification and
+  silence the warning with the appropriate compiler suppression.
+
+- **New `sub.child-overrides-missing` warning.** `@SubContainer` pointing at a
+  same-file child that exposes only `.input` members now warns. The generated
+  `<name>Overrides` slot references `<ChildContainer>.Overrides`, which the
+  child macro never synthesizes for input-only containers. Remove the
+  `@SubContainer`, or add at least one `.shared` / `.transient` /
+  `@SubContainer` member to the child.
+
+### Notes
+
+- Cross-file / cross-module `sub.child-overrides-missing` detection remains
+  the build-support validator's job and is not affected by this change.
+- `root: Bool` on `@DIContainer` is now documented explicitly as a **graph
+  rendering flag only**. Toggling `root` has no impact on DAG validation.
+  Use `validateDAG: false` to opt out of cycle / ambiguous / unknown-reference
+  checks.
+
 ## Unreleased — Deferred wrapper sendability tightened
 
 ### Who is affected

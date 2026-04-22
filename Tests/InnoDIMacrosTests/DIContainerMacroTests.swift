@@ -1824,6 +1824,32 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
+    func subContainerSharedBindingsMultipleRemaps() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var apiService: any APIClientProtocol
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [
+                        (child: \\.featureConfig, parent: \\.config),
+                        (child: \\.apiClient, parent: \\.apiService),
+                        (child: \\.featureLogger, parent: \\.logger)
+                    ]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            matches: "subContainerSharedBindingsMultipleRemaps",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.transient` sub-container supports explicit child/parent input remapping via bindings:")
     func subContainerTransientExplicitBindings() {
         assertMacroExpansionSnapshot(
