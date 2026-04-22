@@ -118,7 +118,8 @@ let package = Package(
             name: "InnoDIBuildSupportTests",
             dependencies: [
                 "InnoDIBuildSupport",
-                "InnoDICore"
+                "InnoDICore",
+                "InnoDITestSupport"
             ]
         ),
         .testTarget(
