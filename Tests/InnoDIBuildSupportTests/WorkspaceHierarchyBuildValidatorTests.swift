@@ -2090,7 +2090,15 @@ struct WorkspaceHierarchyBuildValidatorTests {
             rootPath: rootURL.path(percentEncoded: false)
         )
 
-        #expect(report.issues.contains { $0.code == "hierarchy.duplicate-binding-mapping" })
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.duplicate-binding-mapping" })
+        #expect(issue.location.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(issue.location.line == 12)
+        #expect(issue.location.column == 21)
+        let firstNote = try #require(issue.notes.first)
+        let firstLocation = try #require(firstNote.location)
+        #expect(firstLocation.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(firstLocation.line == 11)
+        #expect(firstLocation.column == 21)
     }
 
     @Test("Duplicate with dependencies emit a structured hierarchy issue")
@@ -2144,7 +2152,81 @@ struct WorkspaceHierarchyBuildValidatorTests {
             rootPath: rootURL.path(percentEncoded: false)
         )
 
-        #expect(report.issues.contains { $0.code == "hierarchy.duplicate-with-dependency" })
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.duplicate-with-dependency" })
+        #expect(issue.location.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(issue.location.line == 7)
+        #expect(issue.location.column == 52)
+        let firstNote = try #require(issue.notes.first)
+        let firstLocation = try #require(firstNote.location)
+        #expect(firstLocation.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(firstLocation.line == 7)
+        #expect(firstLocation.column == 42)
+    }
+
+    @Test("Bindings type mismatches point at the mapped parent key-path location")
+    func bindingsTypeMismatchUsesParentKeyPathLocation() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct ParentConfig {}
+            struct ChildConfig {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var parentConfig: ParentConfig
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [
+                        (child: \\.config, parent: \\.parentConfig),
+                    ]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: ChildConfig
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        let issue = try #require(report.issues.first { issue in
+            issue.code == "hierarchy.unsatisfied-dependency"
+                && issue.message.contains("types do not match")
+        })
+        #expect(issue.location.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(issue.location.line == 11)
+        #expect(issue.location.column == 39)
     }
 
     @Test("Self-loop subcontainers emit a hierarchy cycle issue")

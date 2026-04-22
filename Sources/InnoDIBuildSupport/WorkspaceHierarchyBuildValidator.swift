@@ -41,12 +41,13 @@ package enum WorkspaceHierarchyBuildValidator {
             topLevelTypeAliases: typeAliases
         )
         let typeCandidatePaths = Set(nominalTypes.map(\.path))
-        let containersByID = Dictionary(uniqueKeysWithValues: containers.map { ($0.containerID, $0) })
+        let containersGroupedByID = Dictionary(grouping: containers, by: \.containerID)
+        let containersByID = containersGroupedByID.compactMapValues { $0.first }
         let containersByNominalPath = Dictionary(grouping: containers, by: \.nominalPath)
         let candidatePaths = Set(containersByNominalPath.keys)
-        let modulesByContainerID = Dictionary(uniqueKeysWithValues: containers.map { record in
-            (record.containerID, moduleGraph.moduleRecord(moduleID: record.moduleID).map(ResolvedHierarchyModuleContext.init))
-        })
+        let modulesByContainerID = containersByID.compactMapValues { record in
+            moduleGraph.moduleRecord(moduleID: record.moduleID).map(ResolvedHierarchyModuleContext.init)
+        }
 
         var issues: [ValidationIssue] = []
         var pendingIssues: [PendingHierarchyIssue] = []
@@ -1538,6 +1539,95 @@ private final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
             column: location.column
         )
     }
+
+    private func extractWithDependencies(from attribute: AttributeSyntax) -> [HierarchyWithDependencyRecord] {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+            return []
+        }
+
+        for argument in arguments where argument.label?.text == "with" {
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+                return []
+            }
+
+            return arrayExpr.elements.compactMap { element in
+                guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                      let property = keyPath.components.last?
+                        .component.as(KeyPathPropertyComponentSyntax.self)?
+                        .declName.baseName.text else {
+                    return nil
+                }
+
+                return HierarchyWithDependencyRecord(
+                    name: property,
+                    location: sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
+                )
+            }
+        }
+
+        return []
+    }
+
+    private func extractSubContainerBindings(from attribute: AttributeSyntax) -> [HierarchyBindingRecord] {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+            return []
+        }
+
+        for argument in arguments where argument.label?.text == "bindings" {
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+                return []
+            }
+
+            return arrayExpr.elements.compactMap { element in
+                guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
+                    return nil
+                }
+
+                var childName: String?
+                var parentName: String?
+                var childLocation: ValidationIssueLocation?
+                var parentLocation: ValidationIssueLocation?
+
+                for tupleElement in tupleExpr.elements {
+                    guard let label = tupleElement.label?.text,
+                          let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
+                          let property = keyPath.components.last?
+                            .component.as(KeyPathPropertyComponentSyntax.self)?
+                            .declName.baseName.text else {
+                        continue
+                    }
+
+                    let location = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
+                    switch label {
+                    case "child":
+                        childName = property
+                        childLocation = location
+                    case "parent":
+                        parentName = property
+                        parentLocation = location
+                    default:
+                        continue
+                    }
+                }
+
+                guard let childName,
+                      let parentName,
+                      let childLocation,
+                      let parentLocation else {
+                    return nil
+                }
+
+                return HierarchyBindingRecord(
+                    childInputName: childName,
+                    parentMemberName: parentName,
+                    childLocation: childLocation,
+                    parentLocation: parentLocation
+                )
+            }
+        }
+
+        return []
+    }
 }
 
 private struct WorkspaceHierarchyContainerRecord: Equatable {
@@ -1624,91 +1714,6 @@ private func hierarchyValidatedBinding(_ varDecl: VariableDeclSyntax) -> Hierarc
 
 private func containsHierarchyAttribute(_ name: String, in attributes: AttributeListSyntax?) -> Bool {
     findInnoDIAttribute(named: name, in: attributes) != nil
-}
-
-private func extractWithDependencies(from attribute: AttributeSyntax) -> [HierarchyWithDependencyRecord] {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-        return []
-    }
-
-    for argument in arguments where argument.label?.text == "with" {
-        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-            return []
-        }
-
-        return arrayExpr.elements.compactMap { element in
-            guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
-                  let property = keyPath.components.last?
-                    .component.as(KeyPathPropertyComponentSyntax.self)?
-                    .declName.baseName.text else {
-                return nil
-            }
-
-            return HierarchyWithDependencyRecord(
-                name: property,
-                location: ValidationIssueLocation(
-                    filePath: "<macro>",
-                    line: 0,
-                    column: 0
-                )
-            )
-        }
-    }
-
-    return []
-}
-
-private func extractSubContainerBindings(from attribute: AttributeSyntax) -> [HierarchyBindingRecord] {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-        return []
-    }
-
-    for argument in arguments where argument.label?.text == "bindings" {
-        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-            return []
-        }
-
-        return arrayExpr.elements.compactMap { element in
-            guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
-                return nil
-            }
-
-            var childName: String?
-            var parentName: String?
-
-            for tupleElement in tupleExpr.elements {
-                guard let label = tupleElement.label?.text,
-                      let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
-                      let property = keyPath.components.last?
-                        .component.as(KeyPathPropertyComponentSyntax.self)?
-                        .declName.baseName.text else {
-                    continue
-                }
-
-                switch label {
-                case "child":
-                    childName = property
-                case "parent":
-                    parentName = property
-                default:
-                    continue
-                }
-            }
-
-            guard let childName, let parentName else {
-                return nil
-            }
-
-            return HierarchyBindingRecord(
-                childInputName: childName,
-                parentMemberName: parentName,
-                childLocation: ValidationIssueLocation(filePath: "<macro>", line: 0, column: 0),
-                parentLocation: ValidationIssueLocation(filePath: "<macro>", line: 0, column: 0)
-            )
-        }
-    }
-
-    return []
 }
 
 private func normalizeGlobPath(_ path: String, baseURL: URL) -> String {

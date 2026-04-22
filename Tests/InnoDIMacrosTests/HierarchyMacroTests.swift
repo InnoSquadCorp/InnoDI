@@ -46,7 +46,7 @@ struct HierarchyMacroTests {
                     private let _storage_service: any FeatureServiceProtocol
                 
                     public init(
-                        dependencies: some FeatureContainerDependencies,
+                        dependencies: any FeatureContainerDependencies,
                         _ applyOverrides: (inout Overrides) -> Void = { _ in
                         }
                     ) {

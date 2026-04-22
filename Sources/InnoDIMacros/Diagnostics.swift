@@ -53,6 +53,7 @@ enum InnoDIDiagnosticCode: String {
     case swiftUIFeatureRootWithoutSubContainer = "swiftui.feature-root-without-subcontainer"
     case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
     case swiftUIFeatureRootHelperNameConflict = "swiftui.feature-root-helper-name-conflict"
+    case swiftUIFeatureRootInvalidAlias = "swiftui.feature-root-invalid-alias"
     case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
     case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
     case swiftUIEnvironmentBridgeInvalidKeyPath = "swiftui.environment-bridge-invalid-keypath"
@@ -79,6 +80,7 @@ enum InnoDIDiagnosticCode: String {
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
                 .subUnknownChildInput, .subSharedParentMustNotBeTransient,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
+                .swiftUIFeatureRootInvalidAlias,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeInvalidKeyPath,
                 .swiftUIEnvironmentBridgeInvalidArguments,
@@ -253,6 +255,13 @@ extension SimpleDiagnostic {
         Self(
             "Generated SwiftUI helper '\(helperName)' would conflict with an existing member or another @DIFeatureRoot helper.",
             code: .swiftUIFeatureRootHelperNameConflict
+        )
+    }
+
+    static func swiftUIFeatureRootInvalidAlias(alias: String) -> Self {
+        Self(
+            "Alias '\(alias)' for @DIFeatureRoot must be a non-empty Swift identifier.",
+            code: .swiftUIFeatureRootInvalidAlias
         )
     }
 

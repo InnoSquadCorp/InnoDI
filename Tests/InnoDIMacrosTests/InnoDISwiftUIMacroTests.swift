@@ -10,6 +10,7 @@ struct InnoDISwiftUIMacroTests {
     private static let macros: [String: any Macro.Type] = [
         "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
         "DIFeatureRoot": DIFeatureRootMacro.self,
+        "InnoDISwiftUI.DIFeatureRoot": DIFeatureRootMacro.self,
     ]
 
     @Test("DIEnvironmentBridge generates modifier storage and protocol conformance")
@@ -161,6 +162,58 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIFeatureRoot accepts qualified InnoDI SubContainer attributes")
+    func featureRootAcceptsQualifiedSubContainerAttributes() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @InnoDI.SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @InnoDI.SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+
+                    func dashboardRootView() -> DashboardRootView {
+                        DashboardRootView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot rejects invalid aliases before generating helpers")
+    func featureRootRejectsInvalidAlias() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self, as: "dashboard-shell")
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias"),
+                    message: "Alias 'dashboard-shell' for @DIFeatureRoot must be a non-empty Swift identifier.",
+                    line: 3,
+                    column: 5
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("DIFeatureRoot requires SubContainer")
     func featureRootRequiresSubContainer() {
         assertMacroExpansionInline(
@@ -180,6 +233,34 @@ struct InnoDISwiftUIMacroTests {
                     id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-without-subcontainer"),
                     message: "@DIFeatureRoot can only be attached to a property that also declares @SubContainer.",
                     line: 2,
+                    column: 5
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot ignores foreign qualified SubContainer attributes")
+    func featureRootIgnoresForeignQualifiedSubContainer() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @OtherDI.SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @OtherDI.SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-without-subcontainer"),
+                    message: "@DIFeatureRoot can only be attached to a property that also declares @SubContainer.",
+                    line: 3,
                     column: 5
                 )
             ],

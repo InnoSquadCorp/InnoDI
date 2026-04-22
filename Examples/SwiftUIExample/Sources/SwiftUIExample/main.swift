@@ -47,7 +47,7 @@ struct LiveActivityService: ActivityServiceProtocol {
         try await Task.sleep(for: .milliseconds(120))
         return [
             ActivityHighlight(id: "inject", title: "Inject services", detail: "Both services are provided at the root boundary for \(username)."),
-            ActivityHighlight(id: "load", title: "Load asynchronously", detail: "The local @Observable model owns the initial task and cancellation."),
+            ActivityHighlight(id: "load", title: "Load asynchronously", detail: "The view-level .task(id:) starts the async load and cancels it when the id changes or the view disappears."),
             ActivityHighlight(id: "navigate", title: "Navigate deeper", detail: "NavigationStack and destination views stay independent of the container.")
         ]
     }
@@ -290,7 +290,7 @@ struct DashboardFeatureScreen: View {
     @Environment(\.greetingService) private var greetingService
     @Environment(\.activityService) private var activityService
     @State private var model = DashboardFeatureModel()
-    @State private var reloadID = 0
+    @State private var reloadID: Int = 0
 
     var body: some View {
         NavigationStack {

@@ -129,14 +129,12 @@ struct OverridesRuntimeTests {
         }
         #expect(tag == "async-throws")
 
-        do {
-            _ = try await RuntimeContainer.withOverrides(userID: "u1") { _ in
+        await #expect(throws: E.self) {
+            try await RuntimeContainer.withOverrides(userID: "u1") { _ in
             } operation: { _ async throws -> String in
                 await Task.yield()
                 throw E()
             }
-            Issue.record("Expected async throwing withOverrides overload to rethrow the operation error.")
-        } catch is E {
         }
     }
 }

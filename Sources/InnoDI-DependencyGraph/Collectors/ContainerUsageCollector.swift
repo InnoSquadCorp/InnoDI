@@ -419,7 +419,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         var current = syntax.parent
         while let node = current {
             if let attribute = node.as(AttributeSyntax.self),
-               attribute.attributeName.trimmedDescription == "Provide" {
+               matchesInnoDIAttribute(named: "Provide", attributeName: attribute.attributeName) {
                 return true
             }
             current = node.parent
