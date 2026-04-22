@@ -2270,6 +2270,60 @@ struct WorkspaceHierarchyBuildValidatorTests {
 
         #expect(report.issues.contains { $0.code == "hierarchy.component-cycle" })
     }
+
+    @Test("Workspace module graph ignores manifests under hidden root directories")
+    func workspaceModuleGraphIgnoresHiddenRootManifests() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct AppFeature {}
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppFeature.swift")
+        )
+
+        try writeSource(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "HiddenWorkspace",
+                targets: [
+                    .target(name: "HiddenFeature"),
+                ]
+            )
+            """,
+            to: rootURL.appendingPathComponent(".build/artifacts/Package.swift")
+        )
+
+        let snapshot = try ModuleGraphProvider.snapshot(rootPath: rootURL.path(percentEncoded: false))
+
+        #expect(snapshot.modules.map(\.name).sorted() == ["AppFeature"])
+    }
+
+    @Test("Package identity normalization preserves embedded .git and trims only a suffix")
+    func packageIdentityNormalizationTrimsOnlySuffix() {
+        #expect(normalizePackageIdentity("signal.git.backup") == "signal.git.backup")
+        #expect(normalizePackageIdentity("signal.git.backup.git") == "signal.git.backup")
+        #expect(normalizePackageIdentity(" Signal.Git.Backup.GIT \n") == "signal.git.backup")
+    }
 }
 
 private func makeTemporaryWorkspaceRoot() throws -> URL {

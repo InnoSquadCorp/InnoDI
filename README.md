@@ -823,7 +823,6 @@ Attach it to your app target to fail builds when DAG validation fails:
 See runnable examples in `/Examples`:
 
 - `/Examples/SwiftUIExample` - `InnoDISwiftUI` shows `.innodi(container)` root wiring plus multi-root `@DIFeatureRoot` helpers for a shared `@SubContainer`
-- `/Examples/TCAIntegrationExample`
 - `/Examples/PreviewInjectionExample` - live, preview, and failure roots reuse the generated SwiftUI environment bridge while rendering a richer preview matrix
 - `/Examples/SampleApp`
 

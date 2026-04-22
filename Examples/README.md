@@ -45,23 +45,7 @@ Highlights:
 - live, mock, and failing roots still use generated init overrides
 - lightweight behavior tests validate model transitions and root composition scenarios
 
-### 4) TCA Integration Example
-
-Path:
-- `Examples/TCAIntegrationExample`
-
-Build:
-
-```bash
-cd Examples/TCAIntegrationExample
-swift build
-```
-
-Highlights:
-- TCA reducer receives dependencies via InnoDI container
-- Test double override via generated `init` parameters
-
-### 5) Preview Injection Example
+### 4) Preview Injection Example
 
 Path:
 - `Examples/PreviewInjectionExample`
@@ -81,7 +65,7 @@ Highlights:
 - local `@Observable` state still owns async loading, retry, and cancellation
 - lightweight behavior tests validate retry, cancellation, and preview matrix inputs
 
-### 6) Existing CLI Output Formats
+### 5) Existing CLI Output Formats
 
 ```bash
 # Mermaid diagram (default)
