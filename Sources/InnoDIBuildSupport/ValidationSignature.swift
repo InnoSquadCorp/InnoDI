@@ -61,7 +61,7 @@ struct ValidationDigestManifest: Codable, Equatable, Sendable {
     }
 }
 
-private struct LoadedValidationDigestManifest {
+package struct LoadedValidationDigestManifest {
     let manifest: ValidationDigestManifest
     let invalidatedByCorruption: Bool
     let invalidatedByVersion: Bool
@@ -290,17 +290,27 @@ private func appendNormalizedSyntax(_ node: Syntax, to hasher: inout StableHashe
     hasher.combine(")")
 }
 
-private func loadManifest(at url: URL) throws -> LoadedValidationDigestManifest {
-        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
-            return LoadedValidationDigestManifest(
-                manifest: ValidationDigestManifest(files: [:]),
-                invalidatedByCorruption: false,
-                invalidatedByVersion: false
-            )
-        }
+package func loadManifest(at url: URL) throws -> LoadedValidationDigestManifest {
+    guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+        return LoadedValidationDigestManifest(
+            manifest: ValidationDigestManifest(files: [:]),
+            invalidatedByCorruption: false,
+            invalidatedByVersion: false
+        )
+    }
+
+    let data: Data
+    do {
+        data = try Data(contentsOf: url)
+    } catch {
+        return LoadedValidationDigestManifest(
+            manifest: ValidationDigestManifest(files: [:]),
+            invalidatedByCorruption: false,
+            invalidatedByVersion: false
+        )
+    }
 
     do {
-        let data = try Data(contentsOf: url)
         let manifest = try JSONDecoder().decode(ValidationDigestManifest.self, from: data)
         if manifest.version == ValidationDigestManifest.currentVersion {
             return LoadedValidationDigestManifest(

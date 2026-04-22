@@ -144,6 +144,10 @@ struct ValidationCoordinatorTests {
         )
 
         let result = try collector.collectWithMetrics(rootPath: fixture.rootURL.path(percentEncoded: false))
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o644],
+            ofItemAtPath: manifestURL.path(percentEncoded: false)
+        )
         let manifest = try loadDigestManifest(at: manifestURL)
 
         #expect(result.reasonCodes.contains(.cacheMissManifestCorrupted))
@@ -152,6 +156,40 @@ struct ValidationCoordinatorTests {
         #expect(parser.parseCount == 1)
         #expect(manifest.version == ValidationDigestManifest.currentVersion)
         #expect(manifest.files.keys.sorted() == ["Feature.swift"])
+    }
+
+    @Test("Unreadable AST digest manifests do not count as corruption")
+    func unreadableManifestFallsBackWithoutCorruptionReason() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let manifestURL = fixture.stateURL.appendingPathComponent("ast-digest-cache.json")
+        let expectedManifest = ValidationDigestManifest(
+            files: [
+                "Feature.swift": ValidationFileDigestRecord(
+                    fingerprint: ValidationFileFingerprint(fileSize: 1, modifiedAt: 1),
+                    contentHash: "hash",
+                    digest: "digest"
+                )
+            ]
+        )
+        try JSONEncoder().encode(expectedManifest).write(to: manifestURL, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o000],
+            ofItemAtPath: manifestURL.path(percentEncoded: false)
+        )
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o644],
+                ofItemAtPath: manifestURL.path(percentEncoded: false)
+            )
+        }
+
+        let loaded = try loadManifest(at: manifestURL)
+
+        #expect(!loaded.invalidatedByCorruption)
+        #expect(!loaded.invalidatedByVersion)
+        #expect(loaded.manifest.files.isEmpty)
     }
 
     @Test("Comment-only changes preserve the final package signature")
@@ -291,6 +329,38 @@ struct ValidationCoordinatorTests {
         #expect(markdown.contains("uses 'code' block"))
         #expect(stderr.contains("[validation.issue] bad 'message' next line"))
         #expect(stderr.contains("note: note with break"))
+    }
+
+    @Test("Validation issue renderer markdown always ends with a trailing newline")
+    func validationIssueRendererMarkdownAlwaysEndsWithTrailingNewline() {
+        let issue = ValidationIssue(
+            code: "validation.issue",
+            severity: .error,
+            message: "needs newline",
+            location: ValidationIssueLocation(filePath: "Feature.swift", line: 1, column: 1)
+        )
+
+        let markdown = ValidationIssueRenderer.renderMarkdown(issues: [issue])
+
+        #expect(markdown.hasSuffix("\n"))
+    }
+
+    @Test("Validation sleep propagates task cancellation")
+    func validationSleepPropagatesCancellation() async {
+        let task = Task {
+            do {
+                try await validationSleep(5)
+                return false
+            } catch is CancellationError {
+                return true
+            } catch {
+                return false
+            }
+        }
+
+        task.cancel()
+
+        #expect(await task.value)
     }
 
     @Test("Validation issue report only fails on error severity")

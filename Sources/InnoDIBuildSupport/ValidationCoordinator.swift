@@ -78,7 +78,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
 
     package let monotonicNow: @Sendable () -> TimeInterval
     package let currentDate: @Sendable () -> Date
-    package let sleep: @Sendable (TimeInterval) async -> Void
+    package let sleep: @Sendable (TimeInterval) async throws -> Void
     package let currentProcessID: @Sendable () -> Int32
     package let processExists: @Sendable (Int32) -> Bool
     package let beforeStaleLockRemoval: @Sendable (URL) -> Void
@@ -86,7 +86,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
     package init(
         monotonicNow: @escaping @Sendable () -> TimeInterval,
         currentDate: @escaping @Sendable () -> Date,
-        sleep: @escaping @Sendable (TimeInterval) async -> Void,
+        sleep: @escaping @Sendable (TimeInterval) async throws -> Void,
         currentProcessID: @escaping @Sendable () -> Int32,
         processExists: @escaping @Sendable (Int32) -> Bool,
         beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
@@ -111,13 +111,13 @@ package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
 }
 
-package func validationSleep(_ interval: TimeInterval) async {
+package func validationSleep(_ interval: TimeInterval) async throws {
     guard interval > 0 else {
         return
     }
 
     let nanoseconds = UInt64((interval * 1_000_000_000).rounded(.up))
-    try? await Task.sleep(nanoseconds: nanoseconds)
+    try await Task.sleep(nanoseconds: nanoseconds)
 }
 
 /// Default process runner used by the coordinator to execute the DAG validator.
@@ -427,7 +427,7 @@ package enum ValidationCoordinator {
             }
 
             let delaySeconds = min(backoffSeconds, remainingWait)
-            await runtime.sleep(delaySeconds)
+            try await runtime.sleep(delaySeconds)
             backoffSeconds = min(backoffSeconds * 2, lockPolicy.maxBackoffSeconds)
         }
 
