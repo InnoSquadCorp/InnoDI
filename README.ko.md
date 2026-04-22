@@ -693,7 +693,6 @@ InnoDI는 DAG 검증용 SwiftPM 플러그인을 제공합니다.
 ## 확장 예제
 
 - `Examples/SwiftUIExample` - `InnoDISwiftUI`의 `.innodi(container)` root wiring과 shared `@SubContainer`용 multi-root `@DIFeatureRoot` helper를 보여줌
-- `Examples/TCAIntegrationExample`
 - `Examples/PreviewInjectionExample` - live/preview/failure 루트가 생성된 SwiftUI environment bridge를 재사용하면서 richer preview matrix를 보여줌
 - `Examples/SampleApp`
 
