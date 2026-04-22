@@ -1,3 +1,4 @@
+import Foundation
 import InnoDITestSupport
 import SwiftParser
 import SwiftDiagnostics
@@ -837,6 +838,109 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "validateDAGFalseSkipsCycleValidation",
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still expands graph-derived misses through runtime fallback")
+    func validateDAGFalseSkipsGraphDerivedDependencyDiagnostics() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, factory: { (laterService: LaterService, missing: MissingService) in
+                    Service(laterService: laterService, missing: missing)
+                }, concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            matches: "validateDAGFalseSkipsGraphDerivedDependencyDiagnostics",
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still expands type-based wiring through runtime fallback")
+    func validateDAGFalseSkipsWithDependencyDiagnostics() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, Service.self, with: [\\.laterService, \\.missingService], concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            matches: "validateDAGFalseSkipsWithDependencyDiagnostics",
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false with: expansion still typechecks after fallback rewrites")
+    func validateDAGFalseWithDependencyFallbackExpansionTypechecks() throws {
+        try assertExpandedSourceTypechecks(
+            """
+            struct LaterService {}
+            struct MissingService {}
+            struct Service {
+                init(laterService: LaterService, missingService: MissingService) {}
+            }
+
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, Service.self, with: [\\.laterService, \\.missingService], concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still diagnoses raw-expression declaration-order misses")
+    func validateDAGFalseStillDiagnosesRawExpressionReferences() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct LaterService {}
+            struct Service {
+                init(laterService: LaterService) {}
+            }
+
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.shared, factory: Service(laterService: laterService), concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: LaterService(), concrete: true)
+                var laterService: LaterService
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("validateDAG: false still preserves structural diagnostics")
+    func validateDAGFalseStillPreservesStructuralDiagnostics() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.input, factory: Service())
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.usage", id: "provide.input-invalid-configuration")
+            ],
             macros: Self.macros
         )
     }
@@ -2255,15 +2359,8 @@ struct DIContainerMacroTests {
         )
     }
 
-    // Phase N-3 — `sub.child-overrides-missing` warns when a same-file child
-    // has no `.shared`, `.transient`, or `@SubContainer` members. The
-    // `assertMacroExpansion*` pipeline detaches the parent decl so the
-    // sourceFile walk returns `nil` and the warning is skipped; these tests
-    // therefore use the direct `DIContainerMacro.expansion(of:providingMembersOf:in:)`
-    // pattern (like the custom-init tests above) to keep the parent chain
-    // attached.
-    @Test("Sub-container targeting an input-only child warns about missing Overrides")
-    func subContainerTargetingInputOnlyChildWarns() throws {
+    @Test("Sub-container targeting an input-only child still expands without warnings")
+    func subContainerTargetingInputOnlyChildDoesNotWarn() throws {
         let source = """
         @DIContainer
         struct AppContainer {
@@ -2287,125 +2384,15 @@ struct DIContainerMacroTests {
         }
 
         let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+        let generated = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
 
-        let expectedID = MessageID(
-            domain: "InnoDI.validation",
-            id: "sub.child-overrides-missing"
-        )
-        #expect(context.diagnostics.contains {
-            $0.diagnosticID == expectedID
-        })
-        // Warning only; no errors emitted.
-        #expect(!context.diagnostics.contains { $0.diagnosticID == expectedID && false })
-    }
-
-    @Test("Sub-container targeting a child whose only overrideable member is @SubContainer does not warn")
-    func subContainerTargetingChildWithOnlySubContainerMemberDoesNotWarn() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input) var config: AppConfig
-
-            @SubContainer(scope: .shared)
-            var feature: FeatureContainer
-        }
-
-        @DIContainer
-        struct FeatureContainer {
-            @Provide(.input) var config: AppConfig
-
-            @SubContainer(scope: .shared)
-            var deeper: DeeperContainer
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse AppContainer with nested-sub-container child")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        let unexpectedID = MessageID(
-            domain: "InnoDI.validation",
-            id: "sub.child-overrides-missing"
-        )
-        #expect(!context.diagnostics.contains { $0.diagnosticID == unexpectedID })
-    }
-
-    @Test("Sub-container targeting a generic input-only child still warns")
-    func subContainerTargetingGenericInputOnlyChildWarns() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input) var config: AppConfig
-
-            @SubContainer(scope: .shared)
-            var feature: FeatureContainer<AppConfig>
-        }
-
-        @DIContainer
-        struct FeatureContainer<T> {
-            @Provide(.input) var config: T
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse AppContainer with generic sibling FeatureContainer")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        let expectedID = MessageID(
-            domain: "InnoDI.validation",
-            id: "sub.child-overrides-missing"
-        )
-        #expect(context.diagnostics.contains { $0.diagnosticID == expectedID })
-    }
-
-    @Test("Sub-container targeting a cross-file (unreachable) child stays silent")
-    func subContainerTargetingUnreachableChildDoesNotWarn() throws {
-        // No FeatureContainer decl in the parsed source — the check returns
-        // `.unknown` and must skip silently. Cross-module detection is the
-        // build-support validator's job.
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input) var config: AppConfig
-
-            @SubContainer(scope: .shared)
-            var feature: FeatureContainer
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse AppContainer with an unreachable child reference")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        let unexpectedID = MessageID(
-            domain: "InnoDI.validation",
-            id: "sub.child-overrides-missing"
-        )
-        #expect(!context.diagnostics.contains { $0.diagnosticID == unexpectedID })
+        #expect(context.diagnostics.isEmpty)
+        #expect(!generated.isEmpty)
     }
 
     // Phase N-4 — `provide.lazy-aliased` / `provide.provider-aliased` warn
     // when a closure parameter uses a typealias that aliases `Lazy<T>` /
-    // `Provider<T>`. Same parent-detachment caveat as N-3.
+    // `Provider<T>`.
     @Test("Closure parameter using a Lazy typealias emits the lazy-aliased warning")
     func lazyAliasedParameterWarns() throws {
         let source = """
@@ -2543,40 +2530,76 @@ struct DIContainerMacroTests {
         #expect(!context.diagnostics.contains { $0.diagnosticID == providerID })
     }
 
-    @Test("Sub-container targeting a child with at least one shared member does not warn")
-    func subContainerTargetingChildWithSharedMemberDoesNotWarn() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input) var config: AppConfig
+}
 
-            @SubContainer(scope: .shared)
-            var feature: FeatureContainer
-        }
+private func assertExpandedSourceTypechecks(
+    _ originalSource: String,
+    macros: [String: any Macro.Type],
+    testModuleName: String = "TestModule",
+    testFileName: String = "test.swift",
+    indentationWidth: Trivia = .spaces(4),
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+) throws {
+    let sourceLocation = Testing.SourceLocation(
+        fileID: "\(fileID)",
+        filePath: "\(filePath)",
+        line: Int(line),
+        column: Int(column)
+    )
 
-        @DIContainer
-        struct FeatureContainer {
-            @Provide(.input) var config: AppConfig
-            @Provide(.shared, factory: Store()) var store: Store
-        }
-        """
+    let expansionResult = expandMacroSource(
+        originalSource,
+        macros: macros,
+        testModuleName: testModuleName,
+        testFileName: testFileName,
+        indentationWidth: indentationWidth
+    )
 
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse AppContainer with sibling FeatureContainer")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        let unexpectedID = MessageID(
-            domain: "InnoDI.validation",
-            id: "sub.child-overrides-missing"
+    if !expansionResult.diagnostics.isEmpty {
+        let debug = expansionResult.diagnostics.map(\.debugDescription).joined(separator: "\n")
+        Issue.record(
+            Comment(rawValue: "Expected zero macro diagnostics before typechecking expanded source:\n\(debug)"),
+            sourceLocation: sourceLocation
         )
-        #expect(!context.diagnostics.contains {
-            $0.diagnosticID == unexpectedID
-        })
+        return
+    }
+
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-Macro-Typecheck-\(UUID().uuidString).swift")
+    defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+    try expansionResult.expansion.write(to: fixtureURL, atomically: true, encoding: .utf8)
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["swiftc", "-typecheck", fixtureURL.path(percentEncoded: false)]
+
+    let stdoutPipe = Pipe()
+    let stderrPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = stderrPipe
+
+    try process.run()
+    process.waitUntilExit()
+
+    let stdout = String(decoding: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    let stderr = String(decoding: stderrPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+
+    if process.terminationStatus != 0 {
+        let message = """
+            Expanded source failed to typecheck.
+            Exit code: \(process.terminationStatus)
+            stdout:
+            \(stdout)
+            stderr:
+            \(stderr)
+
+            Expanded source:
+            \(expansionResult.expansion)
+            """
+        Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
     }
 }

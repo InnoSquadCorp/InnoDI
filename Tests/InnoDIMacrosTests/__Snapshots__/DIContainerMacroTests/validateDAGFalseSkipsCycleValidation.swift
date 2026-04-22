@@ -26,6 +26,9 @@ struct AppContainer {
     private let _override_serviceB: ServiceB?
 
     init(serviceA: ServiceA? = nil, serviceB: ServiceB? = nil) {
+        func _innoDIUnresolvedDependency<T>(_ name: String) -> T {
+            fatalError("InnoDI could not resolve dependency '\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring.")
+        }
         self._override_serviceA = serviceA
         self._override_serviceB = serviceB
     }

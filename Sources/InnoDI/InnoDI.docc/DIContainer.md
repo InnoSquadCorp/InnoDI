@@ -15,8 +15,8 @@ User-defined `init` declarations are unsupported inside the annotated type and a
 
 ## Parameters
 
-- `root`: Marks the container as a root node for dependency graph rendering.
-- `validateDAG`: Enables local/global dependency cycle validation for this container.
+- `root`: Marks the container as a graph-rendering entry. If any containers declare `root: true`, render output is limited to the union of nodes and edges reachable from those roots.
+- `validateDAG`: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and the macro's local cycle plus closure/`with:` diagnostics are skipped, but raw-expression `factory:` / initializer references and structural diagnostics still remain active.
 - `mainActor`: Applies `@MainActor` isolation to generated APIs. Prefer this for SwiftUI or other UI-root containers under strict concurrency.
 
 ## Example

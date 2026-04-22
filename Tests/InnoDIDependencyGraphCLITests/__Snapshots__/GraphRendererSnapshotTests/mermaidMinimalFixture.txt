@@ -1,5 +1,4 @@
 graph TD
     N0["AppContainer [root]"]
-    N1["FeatureContainer"]
 
 

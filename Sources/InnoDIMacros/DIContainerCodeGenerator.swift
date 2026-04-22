@@ -11,7 +11,8 @@ struct DIContainerCodeGenerator {
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            mainActorEnabled: model.options.mainActor
+            mainActorEnabled: model.options.mainActor,
+            validateDAGEnabled: model.options.validateDAG
         )
     }
 
@@ -44,6 +45,8 @@ private struct AsyncTaskBinding {
     let isThrowing: Bool
 }
 
+private let unresolvedDependencyHelperName = "_innoDIUnresolvedDependency"
+
 internal func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
     guard let accessLevel else { return DeclModifierListSyntax([]) }
     let token: TokenSyntax
@@ -66,10 +69,13 @@ private func makeInitDecl(
     transientMembers: [ProvideMemberModel],
     subContainerMembers: [SubContainerMemberModel],
     accessLevel: String?,
-    mainActorEnabled: Bool
+    mainActorEnabled: Bool,
+    validateDAGEnabled: Bool
 ) -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
+    let allowUnresolvedDependencyFallback = !validateDAGEnabled
+    let fallbackOverrideNames = Set(sharedMembers.map(\.name) + transientMembers.map(\.name))
 
     // Phase K / Phase L: only deferred wrappers that are consumed from the
     // synthesized init (`.shared` / `asyncFactory`) need `_LazyCell` storage.
@@ -179,6 +185,12 @@ private func makeInitDecl(
     var taskBindings: [String: AsyncTaskBinding] = [:]
     let needsResolvedBindings = !asyncSharedMembers.isEmpty
 
+    if allowUnresolvedDependencyFallback {
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(unresolvedDependencyHelperDecl()))
+        )
+    }
+
     // Declare one `_LazyCell` reference box per soft-target member. These
     // boxes are `let` bindings wrapping a class instance, so the Lazy
     // wrappers we emit below can read `.value` after init completes — even
@@ -217,7 +229,9 @@ private func makeInitDecl(
         let factoryExpr = makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
-            deferredTargetNameSet: deferredTargetNameSet
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
 
         let initializerExpr = ExprSyntax(
@@ -253,7 +267,9 @@ private func makeInitDecl(
             member: member,
             resolvedValueBindings: resolvedValueBindings,
             taskBindings: taskBindings,
-            deferredTargetNameSet: deferredTargetNameSet
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
 
         let awaited = ExprSyntax(AwaitExprSyntax(expression: createExpr))
@@ -406,7 +422,9 @@ internal func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
 private func makeFactoryExpr(
     member: ProvideMemberModel,
     availableNames: [String],
-    deferredTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
@@ -414,7 +432,9 @@ private func makeFactoryExpr(
                 member: member,
                 closure: closure,
                 availableNames: availableNames,
-                deferredTargetNameSet: deferredTargetNameSet
+                deferredTargetNameSet: deferredTargetNameSet,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             )
             return makeClosureCallExpr(closure: closure, argumentExpressions: argumentExpressions)
         }
@@ -426,15 +446,12 @@ private func makeFactoryExpr(
     }
 
     if let typeExpr = member.typeExpr {
-        var args: [LabeledExprSyntax] = []
-        for dep in member.withDependencies {
-            let storageName = mapDependencyNameToStorageName(dep, availableNames: availableNames)
-            args.append(LabeledExprSyntax(
-                label: .identifier(dep),
-                colon: .colonToken(),
-                expression: makeSelfMemberAccessExpr(name: storageName)
-            ))
-        }
+        let args = labeledDependencyArguments(
+            dependencies: member.withDependencies,
+            availableNames: availableNames,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+        )
 
         let call = FunctionCallExprSyntax(
             calledExpression: typeExpr,
@@ -448,11 +465,34 @@ private func makeFactoryExpr(
     fatalError("No factory expression available - validation should have caught this")
 }
 
+private func labeledDependencyArguments(
+    dependencies: [String],
+    availableNames: [String],
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) -> [LabeledExprSyntax] {
+    dependencies.enumerated().map { index, dependency in
+        LabeledExprSyntax(
+            label: .identifier(dependency),
+            colon: .colonToken(),
+            expression: resolvedInitDependencyExpression(
+                name: dependency,
+                availableNames: availableNames,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            ),
+            trailingComma: index == dependencies.count - 1 ? nil : .commaToken()
+        )
+    }
+}
+
 private func makeAsyncFactoryExpr(
     member: ProvideMemberModel,
     resolvedValueBindings: [String: String],
     taskBindings: [String: AsyncTaskBinding],
-    deferredTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> ExprSyntax {
     guard let asyncFactory = member.asyncFactory else {
         return ExprSyntax(
@@ -487,7 +527,9 @@ private func makeAsyncFactoryExpr(
             return dependencyExpression(
                 for: ref.name,
                 resolvedValueBindings: resolvedValueBindings,
-                taskBindings: taskBindings
+                taskBindings: taskBindings,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             )
         }
         return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
@@ -504,7 +546,9 @@ private func closureArgumentExpressions(
     member: ProvideMemberModel,
     closure: ClosureExprSyntax,
     availableNames: [String],
-    deferredTargetNameSet: Set<String>
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> [ExprSyntax] {
     let references = member.closureParameterReferences
     // Shorthand closures or attribute-level mismatches may cause the
@@ -513,10 +557,12 @@ private func closureArgumentExpressions(
     if references.isEmpty {
         let parsed = parseClosureParameterNames(closure)
         return parsed.names.map { name in
-            guard let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) else {
-                fatalError("Unresolved closure parameter '\(name)' reached code generation.")
-            }
-            return makeSelfMemberAccessExpr(name: resolvedName)
+            resolvedInitDependencyExpression(
+                name: name,
+                availableNames: availableNames,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            )
         }
     }
 
@@ -538,10 +584,14 @@ private func closureArgumentExpressions(
             expressions.append(makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
             continue
         }
-        guard let resolvedName = resolveClosureParameter(name: ref.name, availableNames: availableNames) else {
-            fatalError("Unresolved closure parameter '\(ref.name)' reached code generation.")
-        }
-        expressions.append(makeSelfMemberAccessExpr(name: resolvedName))
+        expressions.append(
+            resolvedInitDependencyExpression(
+                name: ref.name,
+                availableNames: availableNames,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            )
+        )
     }
     return expressions
 }
@@ -549,7 +599,9 @@ private func closureArgumentExpressions(
 private func dependencyExpression(
     for dependencyName: String,
     resolvedValueBindings: [String: String],
-    taskBindings: [String: AsyncTaskBinding]
+    taskBindings: [String: AsyncTaskBinding],
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
 ) -> ExprSyntax {
     if let resolvedName = resolvedValueBindings[dependencyName] {
         return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
@@ -568,7 +620,11 @@ private func dependencyExpression(
         return awaited
     }
 
-    fatalError("Unresolved async dependency '\(dependencyName)' reached code generation.")
+    return unresolvedInitDependencyFallbackExpression(
+        name: dependencyName,
+        fallbackOverrideNames: fallbackOverrideNames,
+        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+    )
 }
 
 private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
@@ -617,6 +673,71 @@ private func mapDependencyNameToStorageName(_ dependencyName: String, availableN
     fatalError("Unresolved dependency '\(dependencyName)' reached code generation.")
 }
 
+private func resolvedInitDependencyExpression(
+    name: String,
+    availableNames: [String],
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) -> ExprSyntax {
+    if let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) {
+        return makeSelfMemberAccessExpr(name: resolvedName)
+    }
+
+    return unresolvedInitDependencyFallbackExpression(
+        name: name,
+        fallbackOverrideNames: fallbackOverrideNames,
+        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+    )
+}
+
+private func unresolvedInitDependencyFallbackExpression(
+    name: String,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) -> ExprSyntax {
+    guard allowUnresolvedDependencyFallback else {
+        fatalError("Unresolved dependency '\(name)' reached code generation.")
+    }
+
+    let unresolved = unresolvedDependencyHelperExpr(name: name)
+    if fallbackOverrideNames.contains(name) {
+        return nilCoalescingExpr(optionalName: name, fallback: unresolved)
+    }
+    return unresolved
+}
+
+private func unresolvedDependencyHelperDecl() -> DeclSyntax {
+    DeclSyntax(
+        """
+        func \(raw: unresolvedDependencyHelperName)<T>(_ name: String) -> T {
+            fatalError("InnoDI could not resolve dependency '\\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring.")
+        }
+        """
+    )
+}
+
+private func unresolvedDependencyHelperExpr(name: String) -> ExprSyntax {
+    let call = FunctionCallExprSyntax(
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier(unresolvedDependencyHelperName)),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax([
+            LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: name)))
+        ]),
+        rightParen: .rightParenToken()
+    )
+    return ExprSyntax(call)
+}
+
+private func nilCoalescingExpr(optionalName: String, fallback: ExprSyntax) -> ExprSyntax {
+    ExprSyntax(
+        InfixOperatorExprSyntax(
+            leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(optionalName))),
+            operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
+            rightOperand: fallback
+        )
+    )
+}
+
 internal func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
     let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
     let assignment = InfixOperatorExprSyntax(
@@ -653,4 +774,3 @@ internal func mainActorAttributeList() -> AttributeListSyntax {
         )
     ])
 }
-

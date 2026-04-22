@@ -106,16 +106,15 @@ var apiClient: any APIClientProtocol
 4. sync / throws / async / async throws 4가지 effect 조합의
    `static func withOverrides<T>(<inputs…>, _ applyOverrides:, operation:)`
 
-override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나라도
-있는 컨테이너만 `Overrides` 스캐폴딩(convenience init + `withOverrides`
-포함)을 생성합니다. 다만 사용자가 직접 nested `Overrides` 타입을 선언한
-경우에는 해당 생성이 억제됩니다
+모든 `@DIContainer` 는 `Overrides` 스캐폴딩(convenience init +
+`withOverrides` 포함)을 생성합니다. 다만 사용자가 직접 nested
+`Overrides` 타입을 선언한 경우에는 해당 생성이 억제됩니다
 (뒤 [사용자 정의 `Overrides` 충돌](#사용자-정의-overrides-충돌) 참고).
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
-| `root` | `false` | **CLI 그래프 시각화 전용 플래그.** 이 컨테이너를 그래프 렌더링의 시작 노드로 표시한다. DAG 검증과는 무관 |
-| `validateDAG` | `true` | 이 컨테이너의 local/global 사이클·모호참조·미지참조 검증 참여 여부. `false`면 해당 검사에서 **전부** 제외 (테스트 전용 fixture 등에 사용) |
+| `root` | `false` | **CLI 그래프 시각화 엔트리 플래그.** 하나라도 `root: true` 가 있으면 Mermaid/DOT/ASCII 출력은 그 root들에서 도달 가능한 노드/엣지 union만 렌더링한다. root가 없으면 전체 그래프를 렌더링한다. DAG 검증과는 무관 |
+| `validateDAG` | `true` | 이 컨테이너의 global DAG 검증과 매크로의 graph-derived 로컬 검증 참여 여부. `false`면 global DAG 검증과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단을 건너뛴다. 다만 raw-expression `factory:` / initializer 참조는 여전히 compile-time 진단 대상이고, 구조 진단도 계속 유지된다 |
 | `mainActor` | `false` | 생성되는 컨테이너 API에 `@MainActor` 격리를 적용. strict concurrency 환경의 SwiftUI/UI 루트 컨테이너에 권장 |
 
 #### `root`와 `validateDAG`의 관계
@@ -124,12 +123,13 @@ override 가능한 멤버(`.shared` / `.transient` / `@SubContainer`)가 하나�
 
 | `root` | `validateDAG` | 효과 |
 |---|---|---|
-| `false` | `true` | 기본값. DAG 검증 대상, 그래프에서 별도 강조 없음 |
-| `true`  | `true` | DAG 검증 대상이며, `InnoDI-DependencyGraph` 출력의 시작 노드로 그려짐 |
-| `false` | `false` | 사이클·모호참조·미지참조 검사에서 제외. 테스트 전용 컨테이너 또는 아직 완성되지 않은 wiring을 가진 스케치에 사용 |
-| `true`  | `false` | 그래프에서 루트로 렌더링하지만 CI 검증은 건너뜀 |
+| `false` | `true` | 기본값. graph-derived 검증 대상이며, root가 하나도 없을 때는 전체 그래프가 렌더링된다 |
+| `true`  | `true` | graph-derived 검증 대상이며, 그래프 출력은 이 root에서 도달 가능한 subgraph로 제한된다 |
+| `false` | `false` | global DAG 검증과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단을 건너뛴다. root가 하나도 없을 때는 전체 그래프가 그대로 렌더링된다. raw-expression `factory:` / initializer 참조와 구조 진단은 계속 적용된다 |
+| `true`  | `false` | 그래프 엔트리로 동작하면서 global DAG 검증과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단을 건너뛴다. raw-expression `factory:` / initializer 참조와 구조 진단은 계속 적용된다 |
 
-`root: true`만 켜는 것으로 DAG 검증이 완화되지 않는다. 검증에서 빼려면
+`root: true`만 켜는 것으로 DAG 검증이 완화되지 않는다. global DAG 검증과
+매크로의 지원 범위 내 local graph-derived 진단까지 함께 건너뛰려면
 `validateDAG: false`를 명시해야 한다.
 
 ### `@Provide`
@@ -619,7 +619,6 @@ let tag = AppContainer.withOverrides(config: .init(...)) { overrides in
 | `sub.bindings-conflicts-with-with` | 같은 `@SubContainer` 에 `with:` 와 `bindings:` 가 동시에 사용됨. 하나만 써야 한다. |
 | `sub.duplicate-child-binding` | `bindings:` 안에서 같은 child `.input` 레이블이 두 번 이상 등장. |
 | `sub.unknown-child-input` | `bindings:` 의 child 키패스가 child 에 존재하지 않는 `.input` 멤버를 가리킴. |
-| `sub.child-overrides-missing` | **경고.** 같은 파일의 child container 에 `.shared` / `.transient` / `@SubContainer` 멤버가 하나도 없어서 `<ChildContainer>.Overrides` 가 합성되지 않는다. child 에 override 가능한 멤버를 추가하거나 `@SubContainer` 를 제거한다. |
 
 ### 그래프 렌더링
 
@@ -674,7 +673,7 @@ CLI 동작 요약:
 
 검증 보정 사항:
 
-- `@DIContainer(validateDAG: false)`로 표시된 컨테이너는 `--validate-dag`에서 순환/모호성 판정 모두에서 완전 제외됩니다.
+- `@DIContainer(validateDAG: false)`로 표시된 컨테이너는 `--validate-dag`에서 제외되고, 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 진단도 건너뜁니다. 다만 raw-expression `factory:` / initializer 참조는 여전히 compile-time 진단 대상입니다. 구조 진단은 계속 유지됩니다.
 - 매크로 내부 순환 검증용 의존성 추출은 AST 기반으로 동작하며, 문자열 리터럴 토큰으로 인한 오탐 사이클을 방지합니다.
 
 ## DocC 문서
