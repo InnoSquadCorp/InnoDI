@@ -281,6 +281,11 @@ struct DIContainerValidator {
         )
         let knownParentMemberNames = Set(memberScopeByName.keys)
         let reservedMemberNames = Set(model.members.map(\.name) + model.subContainerMembers.map(\.name))
+        // Track subs that already collected an error-severity diagnostic in
+        // this loop so the N-3 child-overrides-missing warning doesn't stack
+        // on top. Keyed by `sub.name` (unique because the parser enforces
+        // single-binding and reservedMemberNames dedup).
+        var subsWithErrors: Set<String> = []
 
         for sub in model.subContainerMembers {
             let generatedOverrideName = sub.overrideClosureName
@@ -295,6 +300,7 @@ struct DIContainerValidator {
                     )
                 )
                 hadErrors = true
+                subsWithErrors.insert(sub.name)
             }
 
             if !sub.parentDependencies.isEmpty && !sub.explicitBindings.isEmpty {
@@ -305,6 +311,7 @@ struct DIContainerValidator {
                     )
                 )
                 hadErrors = true
+                subsWithErrors.insert(sub.name)
             }
 
             var seenChildInputs: Set<String> = []
@@ -320,6 +327,7 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
+                    subsWithErrors.insert(sub.name)
                 }
             }
 
@@ -344,6 +352,7 @@ struct DIContainerValidator {
                     )
                 }
                 hadErrors = true
+                subsWithErrors.insert(sub.name)
                 continue
             }
 
@@ -360,6 +369,7 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
+                    subsWithErrors.insert(sub.name)
                 }
             }
 
@@ -376,6 +386,7 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
+                    subsWithErrors.insert(sub.name)
                 }
             }
 
@@ -408,6 +419,7 @@ struct DIContainerValidator {
                         )
                     )
                     hadErrors = true
+                    subsWithErrors.insert(sub.name)
                 }
             }
         }
@@ -420,15 +432,15 @@ struct DIContainerValidator {
         // children; the build-support validator covers cross-module cases.
         for sub in model.subContainerMembers {
             // Only run the check when the other per-sub validation already
-            // accepted the member — otherwise we would stack diagnostics on
-            // shapes that are already rejected.
-            guard sub.scope != nil else { continue }
+            // accepted the member — otherwise we would stack a warning on
+            // shapes that are already rejected with an error.
+            guard sub.scope != nil, !subsWithErrors.contains(sub.name) else { continue }
 
             switch checkSubContainerChildOverrideMembership(for: sub) {
             case .inputOnly(let childContainerName):
                 context.diagnose(
                     Diagnostic(
-                        node: Syntax(sub.attribute),
+                        node: Syntax(sub.bindingSyntax.pattern),
                         message: SimpleDiagnostic.subChildOverridesMissing(
                             memberName: sub.name,
                             childContainerName: childContainerName

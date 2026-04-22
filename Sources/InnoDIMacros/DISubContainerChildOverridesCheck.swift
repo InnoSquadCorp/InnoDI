@@ -18,6 +18,15 @@
 //  file, the check returns `.unknown` and the caller stays silent. The
 //  build-support validator fills in the cross-module gap.
 //
+//  Known limitations (all `.unknown` at detection time):
+//    - typealiases that rename the child type (`typealias Feat =
+//      FeatureContainer` + `@SubContainer … var x: Feat`) — the walk
+//      matches on bare name, not aliased.
+//    - child containers defined inside another type body (the walk only
+//      iterates top-level source-file statements).
+//    - child containers in a different source file of the same module
+//      (build-support validator handles this).
+//
 
 import SwiftSyntax
 
@@ -62,8 +71,15 @@ internal func checkSubContainerChildOverrideMembership(
 
 /// Returns the bare nominal name of the child type, stripping attribute
 /// wrappers (e.g. `@MainActor`), optional / implicitly-unwrapped wrappers,
-/// generic arguments, and module qualifiers — the shape we actually match
-/// against decl names in the source file.
+/// and module qualifiers — the shape we actually match against decl names
+/// in the source file.
+///
+/// Generic arguments are naturally preserved-then-discarded: a
+/// `FeatureContainer<T>` written at the property site is an
+/// `IdentifierTypeSyntax` whose `name.text` is `"FeatureContainer"` and whose
+/// generic clause is a separate sibling property. We only read `.name.text`,
+/// so the returned string for the generic spelling matches the decl's bare
+/// name in the source file. No extra stripping needed.
 private func strippedChildTypeName(from type: TypeSyntax) -> String {
     var current: TypeSyntax = type
 

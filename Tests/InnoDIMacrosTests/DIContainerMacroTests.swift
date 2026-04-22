@@ -2274,6 +2274,109 @@ struct DIContainerMacroTests {
         #expect(!context.diagnostics.contains { $0.diagnosticID == expectedID && false })
     }
 
+    @Test("Sub-container targeting a child whose only overrideable member is @SubContainer does not warn")
+    func subContainerTargetingChildWithOnlySubContainerMemberDoesNotWarn() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var deeper: DeeperContainer
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with nested-sub-container child")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let unexpectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "sub.child-overrides-missing"
+        )
+        #expect(!context.diagnostics.contains { $0.diagnosticID == unexpectedID })
+    }
+
+    @Test("Sub-container targeting a generic input-only child still warns")
+    func subContainerTargetingGenericInputOnlyChildWarns() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer<AppConfig>
+        }
+
+        @DIContainer
+        struct FeatureContainer<T> {
+            @Provide(.input) var config: T
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with generic sibling FeatureContainer")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let expectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "sub.child-overrides-missing"
+        )
+        #expect(context.diagnostics.contains { $0.diagnosticID == expectedID })
+    }
+
+    @Test("Sub-container targeting a cross-file (unreachable) child stays silent")
+    func subContainerTargetingUnreachableChildDoesNotWarn() throws {
+        // No FeatureContainer decl in the parsed source — the check returns
+        // `.unknown` and must skip silently. Cross-module detection is the
+        // build-support validator's job.
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse AppContainer with an unreachable child reference")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let unexpectedID = MessageID(
+            domain: "InnoDI.validation",
+            id: "sub.child-overrides-missing"
+        )
+        #expect(!context.diagnostics.contains { $0.diagnosticID == unexpectedID })
+    }
+
     @Test("Sub-container targeting a child with at least one shared member does not warn")
     func subContainerTargetingChildWithSharedMemberDoesNotWarn() throws {
         let source = """
