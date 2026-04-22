@@ -239,8 +239,10 @@ func discoverValidationSourceFiles(rootPath: String) -> [String] {
     var sourceFiles: [String] = []
 
     while let item = enumerator.nextObject() as? String {
-        if item.hasPrefix(".") { continue }
-        if shouldSkipValidationPath(item) { continue }
+        if validationPathShouldPruneDescendants(item) {
+            enumerator.skipDescendants()
+            continue
+        }
         guard item.hasSuffix(".swift") else { continue }
         sourceFiles.append(item)
     }
@@ -248,8 +250,21 @@ func discoverValidationSourceFiles(rootPath: String) -> [String] {
     return sourceFiles.sorted()
 }
 
-private func shouldSkipValidationPath(_ path: String) -> Bool {
-    for token in validationSkipTokens where path.contains(token) {
+func validationPathShouldPruneDescendants(_ path: String) -> Bool {
+    validationPathHasHiddenRootComponent(path) || validationPathMatchesSkipToken(path)
+}
+
+private func validationPathHasHiddenRootComponent(_ path: String) -> Bool {
+    guard let firstComponent = path.split(separator: "/").first else {
+        return false
+    }
+    return firstComponent.hasPrefix(".")
+}
+
+private func validationPathMatchesSkipToken(_ path: String) -> Bool {
+    let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    let normalizedPath = "/\(trimmedPath)/"
+    for token in validationSkipTokens where normalizedPath.contains(token) {
         return true
     }
     return false
