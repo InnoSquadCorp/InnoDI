@@ -1456,7 +1456,7 @@ private final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
             return .skipChildren
         }
 
-        if let provideAttribute = findAttribute(named: "Provide", in: node.attributes) {
+        if let provideAttribute = findInnoDIAttribute(named: "Provide", in: node.attributes) {
             let provideArguments = parseProvideArguments(provideAttribute)
             containerBuilders[currentContainerPath, default: WorkspaceHierarchyContainerBuilder(
                 path: currentContainerPath,
@@ -1470,7 +1470,7 @@ private final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
             }
         }
 
-        if let subContainerAttribute = findAttribute(named: "SubContainer", in: node.attributes),
+        if let subContainerAttribute = findInnoDIAttribute(named: "SubContainer", in: node.attributes),
            let childType = binding.type {
             var builder = containerBuilders[currentContainerPath, default: WorkspaceHierarchyContainerBuilder(
                 path: currentContainerPath,
@@ -1623,22 +1623,7 @@ private func hierarchyValidatedBinding(_ varDecl: VariableDeclSyntax) -> Hierarc
 }
 
 private func containsHierarchyAttribute(_ name: String, in attributes: AttributeListSyntax?) -> Bool {
-    attributes?.contains(where: { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            return false
-        }
-        return hierarchyAttributeBaseName(attribute.attributeName) == name
-    }) == true
-}
-
-private func hierarchyAttributeBaseName(_ type: TypeSyntax) -> String? {
-    if let identifier = type.as(IdentifierTypeSyntax.self) {
-        return identifier.name.text
-    }
-    if let member = type.as(MemberTypeSyntax.self) {
-        return member.name.text
-    }
-    return nil
+    findInnoDIAttribute(named: name, in: attributes) != nil
 }
 
 private func extractWithDependencies(from attribute: AttributeSyntax) -> [HierarchyWithDependencyRecord] {

@@ -169,6 +169,23 @@ struct HierarchyMacroTests {
         )
     }
 
+    @Test("DIComponent rejects foreign qualified DIContainer attributes")
+    func diComponentRejectsForeignQualifiedDIContainerAttribute() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIComponent
+            @OtherDI.DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: FeatureConfig
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "component.requires-container")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("DIHierarchyRoot accepts qualified DIContainer attributes")
     func diHierarchyRootAcceptsQualifiedDIContainerAttribute() {
         assertMacroExpansionDiagnosticCodes(
@@ -179,6 +196,22 @@ struct HierarchyMacroTests {
             }
             """,
             expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIHierarchyRoot rejects foreign qualified DIContainer attributes")
+    func diHierarchyRootRejectsForeignQualifiedDIContainerAttribute() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIHierarchyRoot
+            @OtherDI.DIContainer
+            struct AppRoot {
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "hierarchy-root.requires-container")
+            ],
             macros: Self.macros
         )
     }

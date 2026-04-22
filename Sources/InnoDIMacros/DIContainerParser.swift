@@ -92,8 +92,8 @@ struct DIContainerParser {
             // are present on the same property we emit the dedicated
             // conflict diagnostic and skip the property entirely — the
             // codegen pathway for each attribute is mutually exclusive.
-            let provideAttribute = InnoDICore.findAttribute(named: "Provide", in: varDecl.attributes)
-            let subContainerAttribute = InnoDICore.findAttribute(named: "SubContainer", in: varDecl.attributes)
+            let provideAttribute = InnoDICore.findInnoDIAttribute(named: "Provide", in: varDecl.attributes)
+            let subContainerAttribute = InnoDICore.findInnoDIAttribute(named: "SubContainer", in: varDecl.attributes)
 
             if let subAttribute = subContainerAttribute, provideAttribute != nil {
                 let memberName = varDecl.bindings.first?
