@@ -255,6 +255,6 @@ Las notas de release y de upgrade viven en [RELEASING.md](RELEASING.md).
 ## Ejemplos
 
 - [Examples/README.md](Examples/README.md)
-- `Examples/SwiftUIExample`
-- `Examples/PreviewInjectionExample`
-- `Sources/InnoDIExamples/main.swift`
+- [Examples/SwiftUIExample](Examples/SwiftUIExample)
+- [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
+- [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)

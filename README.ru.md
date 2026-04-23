@@ -188,6 +188,6 @@ Release notes и upgrade notes находятся в [RELEASING.md](RELEASING.md
 ## Примеры
 
 - [Examples/README.md](Examples/README.md)
-- `Examples/SwiftUIExample`
-- `Examples/PreviewInjectionExample`
-- `Sources/InnoDIExamples/main.swift`
+- [Examples/SwiftUIExample](Examples/SwiftUIExample)
+- [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
+- [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)

@@ -6,7 +6,7 @@ This folder contains runnable examples that match the 4.0.0 feature set.
 
 Reference source:
 
-- `Sources/InnoDIExamples/main.swift`
+- [Sources/InnoDIExamples/main.swift](../Sources/InnoDIExamples/main.swift)
 
 ## Dependency Graph CLI Sample
 
@@ -26,7 +26,7 @@ swift run InnoDI-DependencyGraph --root Examples/SampleApp --validate-dag
 
 Path:
 
-- `Examples/SwiftUIExample`
+- [Examples/SwiftUIExample](SwiftUIExample)
 
 Commands:
 
@@ -46,7 +46,7 @@ Highlights:
 
 Path:
 
-- `Examples/PreviewInjectionExample`
+- [Examples/PreviewInjectionExample](PreviewInjectionExample)
 
 Commands:
 

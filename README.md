@@ -303,6 +303,6 @@ Release notes and upgrade notes live in [RELEASING.md](RELEASING.md).
 ## Examples
 
 - [Examples/README.md](Examples/README.md)
-- `Examples/SwiftUIExample`
-- `Examples/PreviewInjectionExample`
-- `Sources/InnoDIExamples/main.swift`
+- [Examples/SwiftUIExample](Examples/SwiftUIExample)
+- [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
+- [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
