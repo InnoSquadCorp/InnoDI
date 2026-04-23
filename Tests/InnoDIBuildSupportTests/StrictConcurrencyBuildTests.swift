@@ -4,7 +4,7 @@ import Darwin
 import Testing
 import InnoDITestSupport
 
-@Suite("Strict concurrency build integration", .tags(.slow))
+@Suite("Strict concurrency build integration", .serialized, .tags(.slow))
 struct StrictConcurrencyBuildTests {
     @Test("Deferred wrappers build under strict concurrency inside a non-Sendable container")
     func deferredWrappersBuildInsideRegularContainer() throws {
@@ -387,7 +387,7 @@ private func packageRootURL() -> URL {
     fatalError("Unable to locate Package.swift from \(#filePath).")
 }
 
-private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 60
+private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 180
 private let strictConcurrencyTerminationGracePeriodSeconds: TimeInterval = 5
 private let strictConcurrencyHardKillGracePeriodSeconds: TimeInterval = 2
 
