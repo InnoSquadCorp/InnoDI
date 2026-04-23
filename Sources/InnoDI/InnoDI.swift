@@ -16,7 +16,8 @@ public enum DIScope {
 }
 
 @attached(member, names: named(init), named(Overrides), named(withOverrides))
-/// Marks a type as an InnoDI container and synthesizes initialization/validation behavior.
+/// Marks a type as an InnoDI container and synthesizes initialization,
+/// overrides, and validation behavior.
 ///
 /// - Parameters:
 ///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.

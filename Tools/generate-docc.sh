@@ -24,6 +24,7 @@ mkdir -p "$DOCS_PACKAGE_DIR"
 rsync -a \
   --exclude '.build' \
   --exclude '.git' \
+  --exclude '*.lproj/' \
   "$ROOT_DIR/" "$DOCS_PACKAGE_DIR/"
 
 python3 - "$DOCS_MANIFEST_PATH" <<'PY'

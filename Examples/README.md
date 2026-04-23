@@ -1,36 +1,34 @@
-## InnoDI Examples
+# InnoDI Examples
 
-This folder contains runnable examples for real integration scenarios.
+This folder contains runnable examples that match the 4.0.0 feature set.
 
-### 1) Core DI Macro Usage
+## Core Macro Usage
 
 Reference source:
+
 - `Sources/InnoDIExamples/main.swift`
 
-### 2) Dependency Graph CLI Sample
+## Dependency Graph CLI Sample
 
 Runnable sample files:
+
 - `Examples/SampleApp/AppContainer.swift`
 - `Examples/SampleApp/App.swift`
 
-Run:
+Commands:
 
 ```bash
 swift run InnoDI-DependencyGraph --root Examples/SampleApp
-```
-
-Validate DAG (fails on cycle / ambiguous container reference):
-
-```bash
 swift run InnoDI-DependencyGraph --root Examples/SampleApp --validate-dag
 ```
 
-### 3) SwiftUI Injection Example
+## SwiftUI Example
 
 Path:
+
 - `Examples/SwiftUIExample`
 
-Build:
+Commands:
 
 ```bash
 cd Examples/SwiftUIExample
@@ -39,18 +37,18 @@ swift test
 ```
 
 Highlights:
-- a single feature root demonstrates navigation, loading skeletons, recoverable errors, retry, and cancellation
-- `InnoDISwiftUI` reduces root-boundary environment boilerplate with `.innodi(container)`
-- a shared `@SubContainer` exposes both default and named feature roots through generated `@DIFeatureRoot` helpers
-- live, mock, and failing roots still use generated init overrides
-- lightweight behavior tests validate model transitions and root composition scenarios
 
-### 4) Preview Injection Example
+- `.innodi(container)` applies the generated environment bridge at the feature root.
+- `@DIFeatureRoot` emits both default and named SwiftUI feature-root helpers for a shared `@SubContainer`.
+- init overrides and the `Overrides` builder keep live and test roots on the same container contract.
+
+## Preview Injection Example
 
 Path:
+
 - `Examples/PreviewInjectionExample`
 
-Build:
+Commands:
 
 ```bash
 cd Examples/PreviewInjectionExample
@@ -59,24 +57,15 @@ swift test
 ```
 
 Highlights:
-- `#Preview` keeps live and preview roots while adding a richer preview matrix
-- the generated SwiftUI environment bridge removes repeated `.environment(\.x, container.x)` glue
-- multiple root overrides render loading, ready, and failure states without changing feature code
-- local `@Observable` state still owns async loading, retry, and cancellation
-- lightweight behavior tests validate retry, cancellation, and preview matrix inputs
 
-### 5) Existing CLI Output Formats
+- `#Preview` reuses the generated SwiftUI environment bridge instead of repeating `.environment` glue.
+- preview matrices are built with the same container, override, and feature-root APIs used by live code.
+
+## CLI Output Formats
 
 ```bash
-# Mermaid diagram (default)
 swift run InnoDI-DependencyGraph --root /path/to/your/project
-
-# DOT format
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.dot
-
-# ASCII format
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format ascii
-
-# PNG image (requires Graphviz)
 swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
 ```
