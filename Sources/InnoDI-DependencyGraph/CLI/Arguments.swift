@@ -4,12 +4,14 @@ enum OutputFormat: Equatable {
     case mermaid
     case dot
     case ascii
+    case json
 
     init?(string: String) {
         switch string.lowercased() {
         case "mermaid": self = .mermaid
         case "dot": self = .dot
         case "ascii": self = .ascii
+        case "json": self = .json
         default: return nil
         }
     }
@@ -112,11 +114,11 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
 
 func usageText() -> String {
     """
-    Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii>] [--output <file>] [--validate-dag]
+    Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii|json>] [--output <file>] [--validate-dag]
 
     Options:
       --root <path>    Root directory of the project (default: current directory)
-      --format <fmt>   Output format: mermaid (default), dot, ascii
+      --format <fmt>   Output format: mermaid (default), dot, ascii, json
       --output <file>  Output file path (default: stdout)
       --validate-dag   Validate dependency graph DAG and fail on cycles/ambiguity
       --help, -h       Show this help message
