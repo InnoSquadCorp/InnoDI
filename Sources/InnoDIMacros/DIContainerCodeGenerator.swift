@@ -1,9 +1,18 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
+/// Raised by codegen helpers when they encounter an invariant that the
+/// validator was supposed to reject earlier. Callers at the macro
+/// expansion boundary convert this into an `internalCodegenInvariant`
+/// diagnostic so the user sees a clear "please file a bug" message
+/// instead of an anonymous macro plugin crash.
+struct CodegenInvariantError: Error {
+    let description: String
+}
+
 struct DIContainerCodeGenerator {
-    static func generateInit(for model: DIContainerExpansionModel) -> DeclSyntax {
-        makeInitDecl(
+    static func generateInit(for model: DIContainerExpansionModel) throws -> DeclSyntax {
+        try makeInitDecl(
             sharedMembers: model.sharedMembers,
             syncSharedMembers: model.syncSharedMembers,
             asyncSharedMembers: model.asyncSharedMembers,
@@ -23,8 +32,8 @@ struct DIContainerCodeGenerator {
     /// user-defined nested `Overrides` type suppresses generation. Input-only
     /// containers now receive an empty builder so parents can always forward
     /// `@SubContainer` override closures into child containers.
-    static func generateAll(for model: DIContainerExpansionModel) -> [DeclSyntax] {
-        var decls: [DeclSyntax] = [generateInit(for: model)]
+    static func generateAll(for model: DIContainerExpansionModel) throws -> [DeclSyntax] {
+        var decls: [DeclSyntax] = [try generateInit(for: model)]
 
         // `.transient` sub-containers are backed by a stored
         // builder closure that `@SubContainer.PeerMacro` emits; the init
@@ -58,7 +67,7 @@ private func makeInitDecl(
     accessLevel: String?,
     mainActorEnabled: Bool,
     validateDAGEnabled: Bool
-) -> DeclSyntax {
+) throws -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
     let allowUnresolvedDependencyFallback = !validateDAGEnabled
@@ -214,7 +223,7 @@ private func makeInitDecl(
     let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
     for (index, member) in syncSharedMembers.enumerated() {
         let availableStorageNames = inputStorageNames + syncSharedMembers.prefix(index).map { "_storage_\($0.name)" }
-        let factoryExpr = makeFactoryExpr(
+        let factoryExpr = try makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
             deferredTargetNameSet: deferredTargetNameSet,
@@ -251,7 +260,7 @@ private func makeInitDecl(
         let taskName = "_task_\(member.name)"
         let successType = taskSuccessTypeDescription(for: member.type)
         let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
-        let createExpr = makeAsyncFactoryExpr(
+        let createExpr = try makeAsyncFactoryExpr(
             member: member,
             resolvedValueBindings: resolvedValueBindings,
             taskBindings: taskBindings,

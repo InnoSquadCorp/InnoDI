@@ -27,15 +27,15 @@ internal func closureArgumentExpressions(
     deferredTargetNameSet: Set<String>,
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> [ExprSyntax] {
+) throws -> [ExprSyntax] {
     let references = member.closureParameterReferences
     // Shorthand closures or attribute-level mismatches may cause the
     // reference list to be out-of-sync with the AST; fall back to a
     // name-only parse in that case.
     if references.isEmpty {
         let parsed = parseClosureParameterNames(closure)
-        return parsed.names.map { name in
-            resolvedInitDependencyExpression(
+        return try parsed.names.map { name in
+            try resolvedInitDependencyExpression(
                 name: name,
                 availableNames: availableNames,
                 fallbackOverrideNames: fallbackOverrideNames,
@@ -49,7 +49,7 @@ internal func closureArgumentExpressions(
         if ref.kind == .soft {
             guard deferredTargetNameSet.contains(ref.name),
                   let calleeDescription = ref.lazyWrapperCalleeDescription else {
-                fatalError("Unsupported soft dependency '\(ref.name)' reached code generation.")
+                throw CodegenInvariantError(description: "Unsupported soft dependency '\(ref.name)' reached code generation.")
             }
             expressions.append(makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
             continue
@@ -57,13 +57,13 @@ internal func closureArgumentExpressions(
         if ref.kind == .provider {
             guard deferredTargetNameSet.contains(ref.name),
                   let calleeDescription = ref.providerWrapperCalleeDescription else {
-                fatalError("Unsupported provider dependency '\(ref.name)' reached code generation.")
+                throw CodegenInvariantError(description: "Unsupported provider dependency '\(ref.name)' reached code generation.")
             }
             expressions.append(makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
             continue
         }
         expressions.append(
-            resolvedInitDependencyExpression(
+            try resolvedInitDependencyExpression(
                 name: ref.name,
                 availableNames: availableNames,
                 fallbackOverrideNames: fallbackOverrideNames,
@@ -83,7 +83,7 @@ internal func dependencyExpression(
     taskBindings: [String: AsyncTaskBinding],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
+) throws -> ExprSyntax {
     if let resolvedName = resolvedValueBindings[dependencyName] {
         return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
     }
@@ -101,7 +101,7 @@ internal func dependencyExpression(
         return awaited
     }
 
-    return unresolvedInitDependencyFallbackExpression(
+    return try unresolvedInitDependencyFallbackExpression(
         name: dependencyName,
         fallbackOverrideNames: fallbackOverrideNames,
         allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
@@ -111,13 +111,13 @@ internal func dependencyExpression(
 /// Translates each closure parameter name into its resolved storage name.
 /// Aborts when a parameter can't be resolved — validation should have
 /// caught that earlier.
-internal func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
+internal func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) throws -> [String] {
     let parsedArguments = parseClosureParameterNames(closure)
     var result: [String] = []
 
     for (index, name) in parsedArguments.names.enumerated() {
         guard let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) else {
-            fatalError("Unresolved closure parameter '\(name)' reached code generation at index \(index).")
+            throw CodegenInvariantError(description: "Unresolved closure parameter '\(name)' reached code generation at index \(index).")
         }
         result.append(resolvedName)
     }
@@ -152,12 +152,12 @@ internal func resolvedInitDependencyExpression(
     availableNames: [String],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
+) throws -> ExprSyntax {
     if let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) {
         return makeSelfMemberAccessExpr(name: resolvedName)
     }
 
-    return unresolvedInitDependencyFallbackExpression(
+    return try unresolvedInitDependencyFallbackExpression(
         name: name,
         fallbackOverrideNames: fallbackOverrideNames,
         allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
@@ -168,9 +168,9 @@ private func unresolvedInitDependencyFallbackExpression(
     name: String,
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
+) throws -> ExprSyntax {
     guard allowUnresolvedDependencyFallback else {
-        fatalError("Unresolved dependency '\(name)' reached code generation.")
+        throw CodegenInvariantError(description: "Unresolved dependency '\(name)' reached code generation.")
     }
 
     let unresolved = unresolvedDependencyHelperExpr(name: name)

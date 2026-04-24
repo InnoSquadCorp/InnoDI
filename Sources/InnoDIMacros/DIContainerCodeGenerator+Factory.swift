@@ -17,10 +17,10 @@ internal func makeFactoryExpr(
     deferredTargetNameSet: Set<String>,
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
+) throws -> ExprSyntax {
     if let factory = member.factory {
         if let closure = factory.as(ClosureExprSyntax.self) {
-            let argumentExpressions = closureArgumentExpressions(
+            let argumentExpressions = try closureArgumentExpressions(
                 member: member,
                 closure: closure,
                 availableNames: availableNames,
@@ -38,7 +38,7 @@ internal func makeFactoryExpr(
     }
 
     if let typeExpr = member.typeExpr {
-        let args = labeledDependencyArguments(
+        let args = try labeledDependencyArguments(
             dependencies: member.withDependencies,
             availableNames: availableNames,
             fallbackOverrideNames: fallbackOverrideNames,
@@ -54,7 +54,7 @@ internal func makeFactoryExpr(
         return ExprSyntax(call)
     }
 
-    fatalError("No factory expression available - validation should have caught this")
+    throw CodegenInvariantError(description: "No factory expression available for member '\(member.name)' — validation should have caught this.")
 }
 
 private func labeledDependencyArguments(
@@ -62,12 +62,12 @@ private func labeledDependencyArguments(
     availableNames: [String],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> [LabeledExprSyntax] {
-    dependencies.enumerated().map { index, dependency in
+) throws -> [LabeledExprSyntax] {
+    try dependencies.enumerated().map { index, dependency in
         LabeledExprSyntax(
             label: .identifier(dependency),
             colon: .colonToken(),
-            expression: resolvedInitDependencyExpression(
+            expression: try resolvedInitDependencyExpression(
                 name: dependency,
                 availableNames: availableNames,
                 fallbackOverrideNames: fallbackOverrideNames,
@@ -85,38 +85,33 @@ internal func makeAsyncFactoryExpr(
     deferredTargetNameSet: Set<String>,
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
+) throws -> ExprSyntax {
+    // NOTE: The embedded `fatalError(...)` call below is *generated source*,
+    // not a macro-time crash. If codegen was asked to build the task body
+    // without an async factory, that is a validator bug — we throw a
+    // CodegenInvariantError so the top-level macro emits a diagnostic.
     guard let asyncFactory = member.asyncFactory else {
-        return ExprSyntax(
-            FunctionCallExprSyntax(
-                calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
-                leftParen: .leftParenToken(),
-                arguments: LabeledExprListSyntax([
-                    LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: "Missing async factory for shared dependency '\(member.name)'.")))
-                ]),
-                rightParen: .rightParenToken()
-            )
-        )
+        throw CodegenInvariantError(description: "Missing async factory for shared dependency '\(member.name)'.")
     }
 
     if let closure = asyncFactory.as(ClosureExprSyntax.self) {
         let references = member.closureParameterReferences
-        let expressions: [ExprSyntax] = references.map { ref in
+        let expressions: [ExprSyntax] = try references.map { ref in
             if ref.kind == .soft {
                 guard deferredTargetNameSet.contains(ref.name),
                       let calleeDescription = ref.lazyWrapperCalleeDescription else {
-                    fatalError("Unsupported soft dependency '\(ref.name)' reached async code generation.")
+                    throw CodegenInvariantError(description: "Unsupported soft dependency '\(ref.name)' reached async code generation.")
                 }
                 return makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
             }
             if ref.kind == .provider {
                 guard deferredTargetNameSet.contains(ref.name),
                       let calleeDescription = ref.providerWrapperCalleeDescription else {
-                    fatalError("Unsupported provider dependency '\(ref.name)' reached async code generation.")
+                    throw CodegenInvariantError(description: "Unsupported provider dependency '\(ref.name)' reached async code generation.")
                 }
                 return makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
             }
-            return dependencyExpression(
+            return try dependencyExpression(
                 for: ref.name,
                 resolvedValueBindings: resolvedValueBindings,
                 taskBindings: taskBindings,
