@@ -333,7 +333,7 @@ private enum ResolvedDependencyMappingKind {
         case .binding:
             return "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' maps child input '\(dependencyName)' more than once in bindings: for '\(child.displayName)'."
         case .withDependency:
-            return "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' lists dependency '\(dependencyName)' more than once in with: for '\(child.displayName)'."
+            return "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' lists dependency '\(dependencyName)' more than once in with:/withNames: for '\(child.displayName)'."
         }
     }
 
@@ -342,7 +342,7 @@ private enum ResolvedDependencyMappingKind {
         case .binding:
             "Keep at most one bindings: entry per child input."
         case .withDependency:
-            "Keep each with: dependency name listed at most once."
+            "Keep each with:/withNames: dependency name listed at most once."
         }
     }
 }

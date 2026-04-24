@@ -194,27 +194,51 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
             return []
         }
 
-        for argument in arguments where argument.label?.text == "with" {
-            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-                return []
-            }
-
-            return arrayExpr.elements.compactMap { element in
-                guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
-                      let property = keyPath.components.last?
-                        .component.as(KeyPathPropertyComponentSyntax.self)?
-                        .declName.baseName.text else {
-                    return nil
+        var dependencies: [HierarchyWithDependencyRecord] = []
+        for argument in arguments {
+            guard let label = argument.label?.text else { continue }
+            switch label {
+            case "with":
+                guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+                    continue
                 }
 
-                return HierarchyWithDependencyRecord(
-                    name: property,
-                    location: sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
-                )
+                dependencies += arrayExpr.elements.compactMap { element in
+                    guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                          let property = keyPath.components.last?
+                            .component.as(KeyPathPropertyComponentSyntax.self)?
+                            .declName.baseName.text else {
+                        return nil
+                    }
+
+                    return HierarchyWithDependencyRecord(
+                        name: property,
+                        location: sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
+                    )
+                }
+            case "withNames":
+                guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+                    continue
+                }
+
+                dependencies += arrayExpr.elements.compactMap { element in
+                    guard let literal = element.expression.as(StringLiteralExprSyntax.self),
+                          literal.segments.count == 1,
+                          case let .stringSegment(segment)? = literal.segments.first else {
+                        return nil
+                    }
+
+                    return HierarchyWithDependencyRecord(
+                        name: segment.content.text,
+                        location: sourceLocation(for: literal.positionAfterSkippingLeadingTrivia)
+                    )
+                }
+            default:
+                continue
             }
         }
 
-        return []
+        return dependencies
     }
 
     private func extractSubContainerBindings(from attribute: AttributeSyntax) -> [HierarchyBindingRecord] {
