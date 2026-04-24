@@ -2089,6 +2089,52 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer with both withNames: and bindings: emits sub.bindings-conflicts-with-with")
+    func subContainerBindingsConflictWithWithNamesDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    withNames: ["config"],
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with both with: and withNames: emits sub.with-conflicts-with-with-names")
+    func subContainerWithConflictWithWithNamesDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.config],
+                    withNames: ["config"]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer duplicate child bindings emit sub.duplicate-child-binding")
     func subContainerDuplicateChildBindingDiagnoses() {
         assertMacroExpansionDiagnosticCodes(

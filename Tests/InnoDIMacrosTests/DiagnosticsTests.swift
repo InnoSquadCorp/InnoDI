@@ -61,6 +61,7 @@ struct DiagnosticsTests {
             .subOverridesNameConflict,
             .subUnknownParentMember,
             .subBindingsConflictsWithWith,
+            .subWithConflictsWithWithNames,
             .subDuplicateChildBinding,
             .subUnknownChildInput,
             .subAutoWiringAmbiguous,
@@ -113,6 +114,8 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subConflictsWithProvide(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.conflicts-with-provide")),
             (SimpleDiagnostic.subOverridesNameConflict(memberName: "feature", generatedName: "featureOverrides"), MessageID(domain: "InnoDI.validation", id: "sub.overrides-name-conflict")),
             (SimpleDiagnostic.subUnknownParentMember(memberName: "feature", parentMemberName: "missing"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")),
+            (SimpleDiagnostic.subBindingsConflictsWithWith(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")),
+            (SimpleDiagnostic.subWithConflictsWithWithNames(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")),
             (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
             (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"))
         ]

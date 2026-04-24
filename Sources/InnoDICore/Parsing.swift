@@ -95,6 +95,10 @@ public struct SubContainerAttributeInfo {
     /// Used to re-map parent members when child `.input` parameter names do
     /// not match the parent side by name.
     public let dependencies: [String]
+    /// Whether the attribute contains the `with:` keypath argument.
+    public let hasWithDependencies: Bool
+    /// Whether the attribute contains the `withNames:` string argument.
+    public let hasWithNamesDependencies: Bool
     /// Explicit child-input -> parent-member bindings passed via `bindings:`.
     /// Used when the child `.input` label differs from the parent member name.
     public let bindings: [SubContainerBindingArgument]
@@ -105,16 +109,22 @@ public struct SubContainerAttributeInfo {
     ///   - scope: Parsed scope value when the `scope:` expression matches a
     ///     supported `SubContainerScopeValue`.
     ///   - scopeName: Raw textual scope spelling or expression fragment.
-    ///   - dependencies: Parsed dependency names from `with:`.
+    ///   - dependencies: Parsed dependency names from `with:` / `withNames:`.
+    ///   - hasWithDependencies: Whether `with:` appeared in the source.
+    ///   - hasWithNamesDependencies: Whether `withNames:` appeared in the source.
     public init(
         scope: SubContainerScopeValue?,
         scopeName: String?,
         dependencies: [String],
+        hasWithDependencies: Bool = false,
+        hasWithNamesDependencies: Bool = false,
         bindings: [SubContainerBindingArgument]
     ) {
         self.scope = scope
         self.scopeName = scopeName
         self.dependencies = dependencies
+        self.hasWithDependencies = hasWithDependencies
+        self.hasWithNamesDependencies = hasWithNamesDependencies
         self.bindings = bindings
     }
 }
@@ -379,6 +389,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     var scope: SubContainerScopeValue?
     var scopeName: String?
     var dependencies: [String] = []
+    var hasWithDependencies = false
+    var hasWithNamesDependencies = false
     var bindings: [SubContainerBindingArgument] = []
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
@@ -392,8 +404,10 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                     scope = SubContainerScopeValue(rawValue: name)
                 }
             case "with":
+                hasWithDependencies = true
                 dependencies = parseKeyPathArrayArgument(argument.expression)
             case "withNames":
+                hasWithNamesDependencies = true
                 dependencies = parseStringArrayArgument(argument.expression)
             case "bindings":
                 bindings = parseSubContainerBindingsArgument(argument.expression)
@@ -407,6 +421,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
         scope: scope,
         scopeName: scopeName,
         dependencies: dependencies,
+        hasWithDependencies: hasWithDependencies,
+        hasWithNamesDependencies: hasWithNamesDependencies,
         bindings: bindings
     )
 }
