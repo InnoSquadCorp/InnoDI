@@ -296,6 +296,7 @@ Key rules:
   wiring instead of relying on generated Swift initializer errors.
 - `with:` or `withNames:` forwards an explicit same-name subset or order.
 - `bindings:` remaps child input labels to different parent member names.
+- Choose exactly one wiring form: `with:`, `withNames:`, or `bindings:`.
 - Parent `Overrides` gain both a full replacement slot (`feature`) and a child
   override closure (`featureOverrides`).
 

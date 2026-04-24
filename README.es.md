@@ -236,6 +236,7 @@ Ambos wrappers son intencionalmente non-`Sendable`.
 - Si hay varios candidatos, usa `with:`, `withNames:` o `bindings:`.
 - `with:` o `withNames:` reenvia un subconjunto explicito con el mismo nombre.
 - `bindings:` remapea labels de input del child a otros nombres del parent.
+- Elige exactamente una forma de wiring: `with:`, `withNames:` o `bindings:`.
 - El `Overrides` del parent gana tanto el reemplazo completo como el closure de override del child.
 
 Para ownership cross-module:

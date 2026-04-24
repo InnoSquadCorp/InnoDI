@@ -244,9 +244,9 @@ public enum SubContainerScope {
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
 ///
-/// `with`/`withNames` and `bindings` are mutually exclusive. Use `with` or
-/// `withNames` for same-name subset/reorder shorthand, and `bindings` for
-/// rename-aware explicit wiring.
+/// `with`, `withNames`, and `bindings` are mutually exclusive wiring forms:
+/// choose exactly one of `with` or `withNames` for same-name subset/reorder
+/// shorthand, or use `bindings` for rename-aware explicit wiring.
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or

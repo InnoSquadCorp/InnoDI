@@ -200,6 +200,7 @@ input-only コンテナも空の builder を生成します。子コンテナが
   explicit wiring が必要です。
 - `with:` または `withNames:` は同名の明示 subset を転送します。
 - `bindings:` は子 input label を別の親メンバー名に remap します。
+- `with:`、`withNames:`、`bindings:` の wiring form は 1 つだけ選びます。
 - 親の `Overrides` には完全置換スロットと子 override closure の両方が追加されます。
 
 モジュールをまたぐ ownership には:

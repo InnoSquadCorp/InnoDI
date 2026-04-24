@@ -13,8 +13,8 @@ InnoDI 4.0.0 now treats the following capabilities as the stable baseline:
   - `Lazy<T>` for soft-edge cycle escape hatches
   - `Provider<T>` for `.transient` re-entry
 - Nested containers with `@SubContainer`, including ownership edges in graph output,
-  explicit same-name wiring through `with:` / `withNames:`, and child-to-parent
-  label remapping through `bindings:`.
+  explicit same-name wiring through exactly one of `with:` / `withNames:`,
+  and child-to-parent label remapping through `bindings:`.
 - Cross-module hierarchy support with `@DIComponent` and `@DIHierarchyRoot`.
 - SwiftUI helpers through `InnoDISwiftUI`, including environment bridging and feature-root helpers.
 - Validation artifacts, DocC generation, and a release workflow centered on `RELEASING.md`.
