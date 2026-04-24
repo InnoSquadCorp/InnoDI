@@ -289,6 +289,9 @@ struct DIContainerValidator {
         // in `DIContainerParser`). We still need to check:
         //   - scope argument presence and spelling
         //   - `with:` keypaths reference real parent members
+        //   - implicit auto-wiring is only allowed when there is at most one
+        //     parent @Provide candidate; larger parents must opt into
+        //     `with:` / `bindings:` so child inputs are unambiguous
         //   - `.shared` sub-containers do not auto-wire through a
         //     `.transient` parent member (would try to read a missing
         //     `_storage_<name>` inside init)
@@ -395,17 +398,29 @@ struct DIContainerValidator {
                 }
             }
 
+            if sub.parentDependencies.isEmpty,
+               sub.explicitBindings.isEmpty,
+               model.members.count > 1 {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subAutoWiringAmbiguous(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+            }
+
             // `.shared` sub-containers read parent members through private
             // `_storage_<name>` at init time, so `.transient` parents are
-            // off-limits (no storage slot exists for them). When the author
-            // relies on auto-matching we walk every parent member; with an
-            // explicit `with:` list we check only those.
+            // off-limits (no storage slot exists for them). Implicit
+            // auto-wiring can only select a single parent member; otherwise
+            // the ambiguity diagnostic above requires explicit wiring.
             guard sub.scope == .shared else { continue }
             let wiredParents: [String]
             if !sub.explicitBindings.isEmpty {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
             } else if sub.parentDependencies.isEmpty {
-                wiredParents = model.members.map(\.name)
+                wiredParents = model.members.count <= 1 ? model.members.map(\.name) : []
             } else {
                 wiredParents = sub.parentDependencies
             }
