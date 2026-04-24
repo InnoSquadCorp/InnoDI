@@ -2352,6 +2352,31 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Implicit sub-container wiring requires explicit mapping when parent has multiple candidates")
+    func subContainerAmbiguousAutoWiringDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: AppConfig
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub reading a `.transient` parent member emits sub.shared-parent-must-not-be-transient")
     func subContainerSharedParentMustNotBeTransientDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -2363,7 +2388,7 @@ struct DIContainerMacroTests {
                 @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) }, concrete: true)
                 var request: Request
 
-                @SubContainer(scope: .shared)
+                @SubContainer(scope: .shared, with: [\\.request])
                 var feature: FeatureContainer
             }
             """,

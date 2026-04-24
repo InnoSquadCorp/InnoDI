@@ -55,6 +55,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
+    case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
     case provideLazyAliased = "provide.lazy-aliased"
     case provideProviderAliased = "provide.provider-aliased"
@@ -87,7 +88,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
-                .subUnknownChildInput, .subSharedParentMustNotBeTransient,
+                .subUnknownChildInput, .subAutoWiringAmbiguous, .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootInvalidAlias,
@@ -451,6 +452,13 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching .input member.",
             code: .subUnknownChildInput
+        )
+    }
+
+    static func subAutoWiringAmbiguous(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: for same-name wiring or bindings: for explicit child-to-parent remapping.",
+            code: .subAutoWiringAmbiguous
         )
     }
 
