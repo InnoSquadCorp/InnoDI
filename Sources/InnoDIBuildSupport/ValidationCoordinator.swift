@@ -48,6 +48,17 @@ package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
 package struct ValidationCoordinatorLockPolicy: Sendable {
     package static let `default` = Self()
 
+    /// Environment variable names honored by ``init(environment:warningHandler:)``.
+    ///
+    /// Keeping them as constants so tests and operators can reference them
+    /// by name rather than hard-coding strings.
+    package enum EnvKey {
+        /// Seconds the coordinator is willing to wait for the live-validation lock.
+        package static let lockTimeout = "INNODI_LOCK_TIMEOUT"
+        /// Age in seconds past which a leftover lock file is treated as stale.
+        package static let staleLockAge = "INNODI_STALE_LOCK_AGE"
+    }
+
     package let maxWaitSeconds: TimeInterval
     package let staleLockAgeSeconds: TimeInterval
     package let initialBackoffSeconds: TimeInterval
@@ -63,6 +74,60 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
         self.staleLockAgeSeconds = staleLockAgeSeconds
         self.initialBackoffSeconds = initialBackoffSeconds
         self.maxBackoffSeconds = maxBackoffSeconds
+    }
+
+    /// Builds a policy, honoring environment-variable overrides for the two
+    /// operator-relevant knobs.
+    ///
+    /// `INNODI_LOCK_TIMEOUT` and `INNODI_STALE_LOCK_AGE` accept a positive
+    /// floating-point number of seconds. Unparseable or non-positive values
+    /// fall back to the default and invoke `warningHandler` with a message
+    /// explaining the fallback (default implementation writes to stderr) so
+    /// the misconfiguration surfaces at the first build.
+    package init(
+        environment: [String: String],
+        warningHandler: (String) -> Void = { message in
+            FileHandle.standardError.write(Data("\(message)\n".utf8))
+        }
+    ) {
+        let base = Self()
+        let resolvedTimeout = Self.resolveTimeInterval(
+            environment: environment,
+            key: EnvKey.lockTimeout,
+            fallback: base.maxWaitSeconds,
+            warningHandler: warningHandler
+        )
+        let resolvedStale = Self.resolveTimeInterval(
+            environment: environment,
+            key: EnvKey.staleLockAge,
+            fallback: base.staleLockAgeSeconds,
+            warningHandler: warningHandler
+        )
+
+        self.init(
+            maxWaitSeconds: resolvedTimeout,
+            staleLockAgeSeconds: resolvedStale,
+            initialBackoffSeconds: base.initialBackoffSeconds,
+            maxBackoffSeconds: base.maxBackoffSeconds
+        )
+    }
+
+    private static func resolveTimeInterval(
+        environment: [String: String],
+        key: String,
+        fallback: TimeInterval,
+        warningHandler: (String) -> Void
+    ) -> TimeInterval {
+        guard let raw = environment[key], !raw.isEmpty else {
+            return fallback
+        }
+        guard let parsed = Double(raw), parsed > 0 else {
+            warningHandler(
+                "InnoDI: ignoring invalid \(key)=\(raw); falling back to \(fallback) seconds."
+            )
+            return fallback
+        }
+        return parsed
     }
 }
 
