@@ -41,3 +41,29 @@ jobs:
       - name: Macro Performance Check (non-blocking)
         continue-on-error: true
         run: Tools/measure-macro-performance.sh --iterations 5
+
+  path-identity:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: not-innodi
+      - name: Select Xcode 26.3
+        run: |
+          if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+            echo "Xcode 26.3 not installed on this runner."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+      - name: Run Strict Concurrency Fixture
+        working-directory: not-innodi
+        run: swift test --filter StrictConcurrencyBuildTests
+      - name: Build Examples
+        working-directory: not-innodi
+        run: |
+          (cd Examples/SwiftUIExample && swift build)
+          (cd Examples/PreviewInjectionExample && swift build)
