@@ -384,7 +384,7 @@ extension SimpleDiagnostic {
         )
     }
 
-    // MARK: - Phase M: @SubContainer diagnostics
+    // MARK: - @SubContainer diagnostics
 
     static func subScopeRequired(memberName: String) -> Self {
         Self(

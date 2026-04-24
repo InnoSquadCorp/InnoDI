@@ -2,8 +2,8 @@
 //  DILazyProviderAliasCheck.swift
 //  InnoDIMacros
 //
-//  Phase N-4 — warns when a closure parameter types a `typealias` that
-//  aliases `Lazy<T>` or `Provider<T>`.
+//  Warns when a closure parameter types a `typealias` that aliases
+//  `Lazy<T>` or `Provider<T>`.
 //
 //  The macro resolves deferred-wrapper kinds purely from written syntax
 //  (see `DeferredDependencyWrappers.deferredDependencyWrapperKind`), so an

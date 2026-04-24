@@ -2,7 +2,7 @@
 //  SwiftUIMacros.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — thin helpers shared by `DIEnvironmentBridgeMacro.swift` and
+//  Thin helpers shared by `DIEnvironmentBridgeMacro.swift` and
 //  `DIFeatureRootMacro.swift`. The macro implementations themselves live in
 //  their own files now; this module keeps only the common AST utilities
 //  (container member enumeration, nominal-type synthesis, access-level

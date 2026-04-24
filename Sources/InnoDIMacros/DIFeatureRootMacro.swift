@@ -2,8 +2,6 @@
 //  DIFeatureRootMacro.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `SwiftUIMacros.swift`.
-//
 //  `@DIFeatureRoot` pairs a `@SubContainer`-backed property with a SwiftUI
 //  root view type and emits a helper function (e.g. `featureRootView()`)
 //  that instantiates the root view with the sub-container injected. The

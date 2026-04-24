@@ -4,7 +4,7 @@ import InnoDI
 
 // MARK: - Fixtures
 //
-// The Phase M runtime tests cover four shapes the user can write:
+// The sub-container runtime tests cover four shapes the user can write:
 //
 // 1. `.shared` sub-container with auto-matched parent inputs,
 // 2. `.transient` sub-container with auto-matched parent inputs,
@@ -143,7 +143,7 @@ struct OverrideTransientBindingsParentContainer {
     var feature: OverrideTransientBindingsChild
 }
 
-@Suite("SubContainer runtime (Phase M)")
+@Suite("SubContainer runtime")
 struct SubContainerRuntimeTests {
     // MARK: - Scope behaviour
 

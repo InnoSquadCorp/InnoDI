@@ -4,14 +4,14 @@ import Testing
 
 @testable import InnoDI_DependencyGraph
 
-/// Verifies the renderer styling added in Phase K-5 for soft edges.
+/// Verifies the renderer styling for soft edges.
 ///
 /// These tests bypass the CLI pipeline and call the render functions directly
 /// with a synthetic graph containing both hard and deferred edges. The
 /// end-to-end CLI integration tests cover real collector plumbing
 /// separately; these tests keep renderer-specific regressions localized and
 /// easy to read.
-@Suite("Soft edge renderer styling (Phase K-5)")
+@Suite("Soft edge renderer styling")
 struct SoftEdgeRendererTests {
     private func makeGraph() -> ([DependencyGraphNode], [DependencyGraphEdge]) {
         let nodes = [
@@ -104,7 +104,7 @@ struct SoftEdgeRendererTests {
         #expect(output.contains("\"N0\" -> \"N1\" [label=\"lazy\", style=dashed];"))
     }
 
-    // MARK: - Provider edges (Phase L)
+    // MARK: - Provider edges
 
     private func makeProviderGraph() -> ([DependencyGraphNode], [DependencyGraphEdge]) {
         let nodes = [
@@ -188,7 +188,7 @@ struct SoftEdgeRendererTests {
         #expect(output.contains("\"N0\" -> \"N1\" [label=\"provider\", style=dotted];"))
     }
 
-    // MARK: - Ownership edges (Phase M)
+    // MARK: - Ownership edges
 
     private func makeOwnershipGraph() -> ([DependencyGraphNode], [DependencyGraphEdge]) {
         let nodes = [
