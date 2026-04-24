@@ -2,6 +2,12 @@
 //  Diagnostics.swift
 //  InnoDIMacros
 //
+//  User-facing diagnostic messages emitted by the InnoDI macros. Every code
+//  is also described in the DocC `DiagnosticsGuide` article
+//  (Sources/InnoDI/InnoDI.docc/DiagnosticsGuide.md) — keep the two in sync
+//  when adding or renaming a case so that tools surfacing the diagnostic
+//  ID can link to documentation.
+//
 
 import SwiftDiagnostics
 import SwiftSyntax
