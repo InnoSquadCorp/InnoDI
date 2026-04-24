@@ -20,10 +20,32 @@ struct AppContainer {
     private let _innoDISubBuild_feature: @Sendable () -> FeatureBindingsContainer
 
     init(config: AppConfig, feature: FeatureBindingsContainer? = nil, featureOverrides: ((inout FeatureBindingsContainer.Overrides) -> Void)? = nil) {
+        final class _InnoDIDeferredCell<T>: @unchecked Sendable {
+            private var value: T?
+            private var resolver: (() -> T)?
+
+            func storeValue(_ value: T) {
+                self.value = value
+            }
+
+            func bindResolver(_ resolver: @escaping () -> T) {
+                self.resolver = resolver
+            }
+
+            func resolve() -> T {
+                if let value {
+                    return value
+                }
+                if let resolver {
+                    return resolver()
+                }
+                fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
+            }
+        }
         self._storage_config = config
         self._override_sub_feature = feature
         self._override_sub_apply_feature = featureOverrides
-        let _subBuildCell_feature = _LazyCell<FeatureBindingsContainer>()
+        let _subBuildCell_feature = _InnoDIDeferredCell<FeatureBindingsContainer>()
         self._innoDISubBuild_feature = {
             _subBuildCell_feature.resolve()
         }

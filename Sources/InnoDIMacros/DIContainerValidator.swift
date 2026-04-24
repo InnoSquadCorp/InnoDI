@@ -170,12 +170,12 @@ struct DIContainerValidator {
                         hadErrors = true
                     case .unavailable:
                         // Soft (Lazy<T>) and provider (Provider<T>) edges
-                        // intentionally escape declaration-order availability: the
-                        // runtime `_LazyCell` box lets a forward reference resolve
-                        // safely once init completes, and `Provider<T>` reaches
-                        // its transient target through the same late-binding
-                        // resolver. Only hard edges still need to be reachable in
-                        // declaration order.
+                        // intentionally escape declaration-order availability:
+                        // a generated local deferred cell lets a forward
+                        // reference resolve safely once init completes, and
+                        // `Provider<T>` reaches its transient target through
+                        // the same late-binding resolver. Only hard edges
+                        // still need to be reachable in declaration order.
                         if hardClosureNames.contains(dependency) {
                             context.diagnose(
                                 makeUnavailableDependencyDiagnostic(
