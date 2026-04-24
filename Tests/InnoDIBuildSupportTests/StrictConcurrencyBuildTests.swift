@@ -326,9 +326,10 @@ private func makeStrictConcurrencyFixture(
     let escapedRepoPath = packageRootURL()
         .path(percentEncoded: false)
         .replacingOccurrences(of: "\\", with: "\\\\")
+    let dependencyPackageIdentity = packageRootURL().lastPathComponent.lowercased()
 
     let dependencyList = dependencies
-        .map { ".product(name: \"\($0)\", package: \"innodi\")" }
+        .map { ".product(name: \"\($0)\", package: \"\(dependencyPackageIdentity)\")" }
         .joined(separator: ", ")
 
     let manifest = """

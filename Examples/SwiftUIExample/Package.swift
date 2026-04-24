@@ -2,6 +2,13 @@
 
 import PackageDescription
 
+let innoDIPackageIdentity = #filePath
+    .split(separator: "/")
+    .dropLast(3)
+    .last
+    .map(String.init)!
+    .lowercased()
+
 let package = Package(
     name: "SwiftUIExample",
     platforms: [
@@ -15,7 +22,7 @@ let package = Package(
         .executableTarget(
             name: "SwiftUIExample",
             dependencies: [
-                .product(name: "InnoDISwiftUI", package: "InnoDI")
+                .product(name: "InnoDISwiftUI", package: innoDIPackageIdentity)
             ]
         ),
         .testTarget(
