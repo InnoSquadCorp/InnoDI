@@ -173,8 +173,10 @@ closure 依然可以编译，并作为 no-op 运行。
 `@SubContainer` 用来建模父容器拥有的子容器。
 
 - `scope:` 必填
-- 父容器的 `@Provide` 成员会按名称转发到子容器的 `.input`
-- `with:` 可以限制转发范围
+- 只有父容器有 0 个或 1 个 `@Provide` 候选时，才会使用按名称的隐式 wiring
+- 如果父容器有多个候选，必须使用 `with:`、`withNames:` 或 `bindings:` 显式 wiring
+- `with:` 或 `withNames:` 转发同名的显式子集
+- `bindings:` 将子容器 input label remap 到不同的父成员名
 - 父容器的 `Overrides` 同时拥有完整替换槽和子容器 override closure
 
 跨模块 ownership 使用：

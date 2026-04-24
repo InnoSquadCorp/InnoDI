@@ -255,15 +255,17 @@ var logger: RequestLogger
 `@SubContainer`는 parent가 소유하는 child container를 모델링합니다.
 
 ```swift
-@SubContainer(scope: .shared)
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 var feature: FeatureContainer
 ```
 
 핵심 규칙:
 
 - `scope:`는 필수입니다.
-- parent의 `@Provide` 멤버는 이름 기준으로 child의 `.input` 멤버에 forward됩니다.
-- `with:`를 쓰면 forwarding 대상을 명시적 subset으로 제한합니다.
+- parent `@Provide` 후보가 0개 또는 1개일 때만 이름 기준 implicit wiring을 편의로 허용합니다.
+- parent 후보가 여러 개면 `with:`, `withNames:`, `bindings:`로 명시 wiring해야 합니다.
+- `with:` 또는 `withNames:`는 같은 이름 subset/order를 forward합니다.
+- `bindings:`는 child input label과 parent member 이름이 다를 때 remap합니다.
 - parent의 `Overrides`에는 전체 교체 슬롯(`feature`)과 child override closure(`featureOverrides`)가 모두 추가됩니다.
 
 cross-module ownership에는 다음을 사용합니다.

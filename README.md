@@ -267,16 +267,18 @@ original isolation domain.
 `@SubContainer` models parent-owned child containers:
 
 ```swift
-@SubContainer(scope: .shared)
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 var feature: FeatureContainer
 ```
 
 Key rules:
 
 - `scope:` is required.
-- Parent `@Provide` members are forwarded into the child's `.input` members by
-  name.
-- `with:` restricts forwarding to an explicit subset.
+- Implicit same-name wiring is only a convenience for zero or one parent
+  `@Provide` candidate. If the parent has multiple candidates, add explicit
+  wiring instead of relying on generated Swift initializer errors.
+- `with:` or `withNames:` forwards an explicit same-name subset or order.
+- `bindings:` remaps child input labels to different parent member names.
 - Parent `Overrides` gain both a full replacement slot (`feature`) and a child
   override closure (`featureOverrides`).
 

@@ -290,7 +290,7 @@ public enum SubContainerScope {
 }
 
 /// Declares that a property owns a child `@DIContainer` whose `.input` members
-/// should be wired automatically from the parent container's members.
+/// are wired from the parent container's members.
 ///
 /// ```swift
 /// @DIContainer(root: true)
@@ -298,9 +298,9 @@ public enum SubContainerScope {
 ///     @Provide(.input) var config: AppConfig
 ///     @Provide(.shared, factory: APIClient()) var apiClient: any APIClientProtocol
 ///
-///     // `FeatureContainer.init(config:apiClient:)` is called automatically
-///     // with parent members whose names match `config` / `apiClient`.
-///     @SubContainer(scope: .shared)
+///     // Explicit same-name wiring calls
+///     // `FeatureContainer.init(config:apiClient:)`.
+///     @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 ///     var feature: FeatureContainer
 /// }
 /// ```
@@ -313,23 +313,30 @@ public enum SubContainerScope {
 /// - `with`: Optional keypath list used to restrict or reorder which same-name
 ///   parent members are forwarded to the child. Each `\.parentMember` keypath
 ///   is passed with the same label on the child side.
+/// - `withNames`: Optional string-name form of `with`, used when same-name
+///   wiring is needed but Swift cannot form the parent keypaths at the macro
+///   declaration site.
 /// - `bindings`: Optional explicit remapping tuples used when child `.input`
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
 ///
-/// `with` and `bindings` are mutually exclusive. Use `with` for same-name
-/// subset/reorder shorthand, and `bindings` for rename-aware explicit wiring.
+/// `with`/`withNames` and `bindings` are mutually exclusive. Use `with` or
+/// `withNames` for same-name subset/reorder shorthand, and `bindings` for
+/// rename-aware explicit wiring.
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or
 /// cached storage (for `.shared`) exposes a child built via
-/// `Child(config: self.config, apiClient: self.apiClient, …)`. When `with:`
-/// is empty the macro assumes each child `.input` parameter label matches a
-/// parent member name. When `with:` is provided, the listed parent members
-/// replace the auto-matched set but keep their same-name labels. When
-/// `bindings:` is provided, each tuple rewrites the child label explicitly
-/// while reading from the selected parent member. Child-input verification is
-/// handled conservatively by the build-support validator across the module.
+/// `Child(config: self.config, apiClient: self.apiClient, …)`. With no
+/// explicit wiring, the macro only applies same-name implicit wiring when the
+/// parent has zero or one `@Provide` candidate; if multiple parent members
+/// exist, InnoDI emits `sub.auto-wiring-ambiguous` and requires `with`,
+/// `withNames`, or `bindings`. When `with:` or `withNames:` is provided, the
+/// listed parent members replace the implicit set but keep their same-name
+/// labels. When `bindings:` is provided, each tuple rewrites the child label
+/// explicitly while reading from the selected parent member. Child-input
+/// verification is handled conservatively by the build-support validator
+/// across the module.
 ///
 /// ### Overrides
 /// `@DIContainer` extends its nested `Overrides` struct with two optional
@@ -343,8 +350,9 @@ public enum SubContainerScope {
 ///
 /// Both slots are mutually exclusive: if the direct replacement is provided
 /// it wins; otherwise the chain closure (if any) is forwarded. Input-only
-/// children do not synthesize a nested `Overrides` type, so the chain closure
-/// is only available when the child itself has overrideable members.
+/// child containers synthesize an empty nested `Overrides` type, so chain
+/// closures compile and execute as no-ops until the child gains overrideable
+/// members.
 @attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
 @attached(accessor)
 public macro SubContainer(

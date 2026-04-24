@@ -231,8 +231,11 @@ Ambos wrappers son intencionalmente non-`Sendable`.
 `@SubContainer` modela child containers poseidos por un parent.
 
 - `scope:` es obligatorio.
-- Los miembros `@Provide` del parent se reenvian a los `.input` del child por nombre.
-- `with:` limita el forwarding a un subconjunto explicito.
+- El wiring implicito por nombre solo es una convenience cuando el parent
+  tiene 0 o 1 candidato `@Provide`.
+- Si hay varios candidatos, usa `with:`, `withNames:` o `bindings:`.
+- `with:` o `withNames:` reenvia un subconjunto explicito con el mismo nombre.
+- `bindings:` remapea labels de input del child a otros nombres del parent.
 - El `Overrides` del parent gana tanto el reemplazo completo como el closure de override del child.
 
 Para ownership cross-module:
