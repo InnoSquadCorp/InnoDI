@@ -137,6 +137,8 @@ func runDependencyGraphCLI() -> Int32 {
         rendered = renderDOT(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
     case .ascii:
         rendered = renderASCII(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
+    case .json:
+        rendered = renderJSON(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
     }
 
     return writeGraphOutput(rendered, format: outputFormat, outputPath: outputPath)
