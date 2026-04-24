@@ -12,15 +12,19 @@ InnoDI 4.0.0 now treats the following capabilities as the stable baseline:
 - Deferred dependency wrappers:
   - `Lazy<T>` for soft-edge cycle escape hatches
   - `Provider<T>` for `.transient` re-entry
-- Nested containers with `@SubContainer`, including ownership edges in graph output.
+- Nested containers with `@SubContainer`, including ownership edges in graph output,
+  explicit same-name wiring through `with:` / `withNames:`, and child-to-parent
+  label remapping through `bindings:`.
 - Cross-module hierarchy support with `@DIComponent` and `@DIHierarchyRoot`.
 - SwiftUI helpers through `InnoDISwiftUI`, including environment bridging and feature-root helpers.
 - Validation artifacts, DocC generation, and a release workflow centered on `RELEASING.md`.
 
 ## Post-4.0.0 Priorities
 
-1. Sub-container label remapping
-   - When a child `.input` parameter label differs from the parent member name, the current macro still relies on Swift's compile error. A future iteration can make `with:` wiring more rename-safe.
+1. Sub-container validation polish
+   - `bindings:` now provides rename-safe child-to-parent label remapping. Future
+     work should improve diagnostics for cross-module child input discovery,
+     especially when build-support validation cannot see the child container.
 2. Deferred and lifetime ergonomics
    - Evaluate whether `Lazy<T>` needs a lighter-weight surface such as a property-wrapper form, and whether the three built-in scopes need finer-grained lifetime variants for server-side or multi-window workloads.
 3. CLI and validation polish

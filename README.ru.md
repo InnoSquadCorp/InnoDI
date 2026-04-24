@@ -177,8 +177,12 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 `@SubContainer` моделирует дочерние контейнеры, которыми владеет родитель.
 
 - `scope:` обязателен.
-- `@Provide`-члены родителя пробрасываются в `.input` ребенка по имени.
-- `with:` ограничивает проброс явным подмножеством.
+- Неявное wiring по имени используется только как convenience, когда у
+  родителя 0 или 1 кандидат `@Provide`.
+- Если кандидатов несколько, нужно указать `with:`, `withNames:` или
+  `bindings:`.
+- `with:` или `withNames:` пробрасывает явное одноименное подмножество.
+- `bindings:` remap-ит child input label на другое имя member родителя.
 - `Overrides` родителя получает и полную замену, и child override closure.
 
 Для межмодульного ownership используются:

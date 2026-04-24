@@ -61,8 +61,8 @@ struct SubContainerBindingReference {
 
 /// A member inside a `@DIContainer` annotated with `@SubContainer`. Parallel
 /// to `ProvideMemberModel` but carries sub-container-specific metadata: a
-/// scope that must be explicit (no default), and the ordered parent keypath
-/// names the author wants mapped to the child's `.input` parameters.
+/// scope that must be explicit (no default), and the ordered parent names the
+/// author wants mapped to the child's `.input` parameters.
 struct SubContainerMemberModel {
     /// Field name on the parent (e.g. `feature`).
     let name: String
@@ -79,7 +79,8 @@ struct SubContainerMemberModel {
     /// Used to anchor diagnostics to the exact bad scope expression when
     /// parsing succeeds syntactically but not semantically.
     let scopeExpressionSyntax: ExprSyntax?
-    /// Parent member names derived from `with: [\.foo, \.bar]`, in order.
+    /// Parent member names derived from `with: [\.foo, \.bar]` or
+    /// `withNames: ["foo", "bar"]`, in order.
     /// Empty when the author relied on automatic name matching.
     let parentDependencies: [String]
     /// Explicit child `.input` -> parent member remapping from

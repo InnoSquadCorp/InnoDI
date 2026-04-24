@@ -457,7 +457,7 @@ extension SimpleDiagnostic {
 
     static func subAutoWiringAmbiguous(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: for same-name wiring or bindings: for explicit child-to-parent remapping.",
+            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: or withNames: for same-name wiring, or bindings: for explicit child-to-parent remapping.",
             code: .subAutoWiringAmbiguous
         )
     }

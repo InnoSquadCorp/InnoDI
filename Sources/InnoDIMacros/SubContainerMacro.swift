@@ -165,10 +165,9 @@ private func extractPeerInfo(
 ///
 /// Optional wedge used by the parent `Overrides.<name>Overrides` slot to
 /// forward a trailing-closure override block to the child's own convenience
-/// init. If the child does not declare its own `Overrides` type the Swift
-/// compiler rejects this decl at the member-access site, surfacing as a
-/// normal `type has no member 'Overrides'` error — intentional, documented
-/// in the README caveat.
+/// init. Input-only child containers synthesize an empty `Overrides` type, so
+/// this closure still type-checks and simply applies no overrideable members
+/// until the child grows `.shared`, `.transient`, or nested child slots.
 private func subContainerApplyOverridePeerDecl(
     name: String,
     childType: TypeSyntax

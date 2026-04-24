@@ -194,8 +194,12 @@ input-only コンテナも空の builder を生成します。子コンテナが
 `@SubContainer` は親が所有する子コンテナを表します。
 
 - `scope:` は必須です。
-- 親の `@Provide` メンバーは名前ベースで子の `.input` に転送されます。
-- `with:` で転送対象を絞れます。
+- 親の `@Provide` 候補が 0 個または 1 個の場合だけ、名前ベースの
+  implicit wiring が convenience として使われます。
+- 親候補が複数ある場合は `with:`、`withNames:`、`bindings:` による
+  explicit wiring が必要です。
+- `with:` または `withNames:` は同名の明示 subset を転送します。
+- `bindings:` は子 input label を別の親メンバー名に remap します。
 - 親の `Overrides` には完全置換スロットと子 override closure の両方が追加されます。
 
 モジュールをまたぐ ownership には:

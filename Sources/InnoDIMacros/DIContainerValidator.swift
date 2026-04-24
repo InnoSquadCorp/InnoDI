@@ -366,7 +366,9 @@ struct DIContainerValidator {
                 continue
             }
 
-            // `with:` keypaths must resolve to @Provide members on the parent.
+            // Explicit same-name wiring must resolve to @Provide members on
+            // the parent. `with:` diagnostics can point at the keypath;
+            // `withNames:` falls back to the attribute node.
             for parentName in sub.parentDependencies {
                 if !knownParentMemberNames.contains(parentName) {
                     context.diagnose(

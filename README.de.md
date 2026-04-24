@@ -191,8 +191,12 @@ Beide Wrapper sind absichtlich non-`Sendable`.
 `@SubContainer` modelliert Child-Container, die einem Parent gehoren.
 
 - `scope:` ist Pflicht.
-- Parent-`@Provide`-Member werden per Namen in Child-`.input`-Member weitergereicht.
-- `with:` beschrankt das Forwarding auf eine explizite Teilmenge.
+- Implizites Same-Name-Wiring ist nur eine Convenience, wenn der Parent null
+  oder einen `@Provide`-Kandidaten hat.
+- Bei mehreren Parent-Kandidaten ist `with:`, `withNames:` oder `bindings:`
+  erforderlich.
+- `with:` oder `withNames:` leitet ein explizites Same-Name-Subset weiter.
+- `bindings:` mappt Child-Input-Labels auf andere Parent-Member-Namen.
 - `Overrides` des Parents enthalt Vollersatz und Child-Override-Closure.
 
 Fur cross-module Ownership:
