@@ -83,6 +83,10 @@ struct SubContainerMemberModel {
     /// `withNames: ["foo", "bar"]`, in order.
     /// Empty when the author relied on automatic name matching.
     let parentDependencies: [String]
+    /// Whether the source used `with:`.
+    let hasWithDependencies: Bool
+    /// Whether the source used `withNames:`.
+    let hasWithNamesDependencies: Bool
     /// Explicit child `.input` -> parent member remapping from
     /// `bindings: [(child: \.foo, parent: \.bar)]`.
     let explicitBindings: [SubContainerBindingReference]

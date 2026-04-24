@@ -129,6 +129,8 @@ struct DIContainerParser {
                         scopeName: subArgs.scopeName,
                         scopeExpressionSyntax: extractArgumentExpression(label: "scope", from: subAttribute),
                         parentDependencies: subArgs.dependencies,
+                        hasWithDependencies: subArgs.hasWithDependencies,
+                        hasWithNamesDependencies: subArgs.hasWithNamesDependencies,
                         explicitBindings: bindingReferences,
                         parentDependencyReferences: parentDependencyReferences,
                         attribute: subAttribute,

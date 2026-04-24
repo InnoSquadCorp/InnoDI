@@ -53,6 +53,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subOverridesNameConflict = "sub.overrides-name-conflict"
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
+    case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
@@ -87,8 +88,9 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
-                .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
-                .subUnknownChildInput, .subAutoWiringAmbiguous, .subSharedParentMustNotBeTransient,
+                .subUnknownParentMember, .subBindingsConflictsWithWith, .subWithConflictsWithWithNames,
+                .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
+                .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootInvalidAlias,
@@ -432,8 +434,15 @@ extension SimpleDiagnostic {
 
     static func subBindingsConflictsWithWith(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot use both with: and bindings:. Use with: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
+            "@SubContainer on '\(memberName)' cannot use with:/withNames: together with bindings:. Use either with: or withNames: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
             code: .subBindingsConflictsWithWith
+        )
+    }
+
+    static func subWithConflictsWithWithNames(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
+            code: .subWithConflictsWithWithNames
         )
     }
 

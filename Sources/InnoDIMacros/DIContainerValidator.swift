@@ -316,7 +316,17 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if !sub.parentDependencies.isEmpty && !sub.explicitBindings.isEmpty {
+            if sub.hasWithDependencies && sub.hasWithNamesDependencies {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subWithConflictsWithWithNames(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+            }
+
+            if (sub.hasWithDependencies || sub.hasWithNamesDependencies) && !sub.explicitBindings.isEmpty {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
