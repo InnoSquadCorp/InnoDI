@@ -259,34 +259,63 @@ internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
     return CodeBlockItemSyntax(item: .expr(ExprSyntax(call)))
 }
 
-// MARK: - Lazy cycle-escape helpers
+// MARK: - Deferred wrapper cycle-escape helpers
 
-/// Builds a `let _lazyCell_<name> = _LazyCell<Type>()` local binding used
-/// to implement the soft-edge (`Lazy<T>`) escape hatch. The cell is
-/// captured as a heap-allocated box while the initializer runs, so any
-/// `Lazy` wrapper distributed beforehand continues to share the same
+/// Local reference cell emitted inside macro-generated init bodies.
+///
+/// The class is local to the generated initializer so InnoDI does not expose a
+/// public runtime helper just to support macro expansion in downstream
+/// modules. Generated code mutates the cell during initialization, then only
+/// resolves it through escaped `Lazy<T>` / `Provider<T>` closures.
+internal func makeDeferredCellSupportDecl() -> DeclSyntax {
+    """
+    final class _InnoDIDeferredCell<T>: @unchecked Sendable {
+        private var value: T?
+        private var resolver: (() -> T)?
+
+        func storeValue(_ value: T) {
+            self.value = value
+        }
+
+        func bindResolver(_ resolver: @escaping () -> T) {
+            self.resolver = resolver
+        }
+
+        func resolve() -> T {
+            if let value {
+                return value
+            }
+            if let resolver {
+                return resolver()
+            }
+            fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
+        }
+    }
+    """
+}
+
+/// Builds a `let _lazyCell_<name> = _InnoDIDeferredCell<Type>()` local
+/// binding used to implement the soft-edge (`Lazy<T>`) escape hatch. The
+/// cell is captured as a heap-allocated box while the initializer runs, so
+/// any `Lazy` wrapper distributed beforehand continues to share the same
 /// reference after the target storage is populated. Because it is a `let`
-/// binding, wrappers created after container-init can read the value
-/// safely without any mutable capture.
+/// binding, wrappers created after container-init can read the value safely
+/// without any mutable capture.
 internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
     makeDeferredCellDecl(cellName: "_lazyCell_\(name)", type: type)
 }
 
-/// Builds a `let <cellName> = _LazyCell<Type>()` local binding.
+/// Builds a `let <cellName> = _InnoDIDeferredCell<Type>()` local binding.
 internal func makeDeferredCellDecl(cellName: String, type: TypeSyntax) -> DeclSyntax {
     let genericClause = GenericArgumentClauseSyntax(
         arguments: GenericArgumentListSyntax([
             GenericArgumentSyntax(argument: .type(type.trimmed))
         ])
     )
-    let cellType = IdentifierTypeSyntax(
-        name: .identifier("_LazyCell"),
-        genericArgumentClause: genericClause
-    )
     let initCall = FunctionCallExprSyntax(
         calledExpression: ExprSyntax(
             GenericSpecializationExprSyntax(
-                expression: DeclReferenceExprSyntax(baseName: .identifier("_LazyCell")),
+                expression: DeclReferenceExprSyntax(baseName: .identifier("_InnoDIDeferredCell")),
                 genericArgumentClause: genericClause
             )
         ),
@@ -294,8 +323,6 @@ internal func makeDeferredCellDecl(cellName: String, type: TypeSyntax) -> DeclSy
         arguments: LabeledExprListSyntax([]),
         rightParen: .rightParenToken()
     )
-
-    _ = cellType // retained above for documentation; inferred from RHS
 
     return letBinding(name: cellName, value: ExprSyntax(initCall))
 }
@@ -377,10 +404,10 @@ internal func makeLazyAccessorWrapperExpr(
 //
 // A `Provider<T>` wrapper shares the same trailing-closure call shape as
 // `Lazy<T>`, but resolves the target `.transient` storage afresh on every
-// call. Codegen reuses the existing `_LazyCell` infrastructure: the cell
-// binds `{ self.<name> }` as its resolver, and every `resolve()` call runs
-// that closure to produce a new instance. The wrapper therefore differs
-// from `Lazy` only in which nominal type wraps the closure.
+// call. Codegen reuses the local `_InnoDIDeferredCell` infrastructure: the
+// cell binds `{ self.<name> }` as its resolver, and every `resolve()` call
+// runs that closure to produce a new instance. The wrapper therefore
+// differs from `Lazy` only in which nominal type wraps the closure.
 
 /// Builds an argument expression in the shape
 /// `<Qualified>.Provider({ _lazyCell_<name>.resolve() })`. Injected into a

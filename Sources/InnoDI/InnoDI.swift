@@ -3,8 +3,6 @@
 //  InnoDI
 //
 
-import Foundation
-
 /// Dependency lifecycle scopes used by `@Provide`.
 public enum DIScope {
     /// A shared dependency initialized once per container instance.
@@ -186,80 +184,6 @@ public struct Provider<T> {
     @inlinable
     public func callAsFunction() -> T {
         resolver()
-    }
-}
-
-/// Internal reference cell used by macro-generated init bodies to hand a
-/// `Lazy<T>` or `Provider<T>` wrapper to a factory whose deferred target has
-/// not yet been assigned. The code generator:
-///
-/// 1. declares a local `let _lazyCell_<name> = _LazyCell<Type>()` at the top
-///    of the synthesized init,
-/// 2. binds either a concrete value (`storeValue`) or a deferred resolver
-///    (`bindResolver`) after the target accessor becomes available, and
-/// 3. passes `Lazy({ _lazyCell_<name>.resolve() })` /
-///    `Provider({ _lazyCell_<name>.resolve() })` into generated call sites.
-///
-/// Users should not reach for this type directly — it is public only so that
-/// macro output can reference it from arbitrary modules. The implementation
-/// stays `@unchecked Sendable` only because generated code follows a narrow
-/// contract: it performs all mutation during container initialization,
-/// publishes the cell after wiring completes, and then treats the instance as
-/// effectively read-only apart from lock-protected access. External code must
-/// not race `storeValue(_:)` / `bindResolver(_:)` against `resolve()`, nor
-/// mutate the cell after the generated wrappers have escaped.
-///
-/// > Important: `_LazyCell` is an InnoDI runtime implementation detail.
-/// > The leading underscore marks it as SPI-in-spirit; its API contract may
-/// > change between minor releases. Do not consume it from application code.
-@_documentation(visibility: internal)
-public final class _LazyCell<T>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: T?
-    private var resolver: (() -> T)?
-
-    public init() {}
-
-    /// Stores a concrete dependency value for later `resolve()` calls.
-    ///
-    /// Generated init bodies use this for eager values such as `.input`
-    /// members or already-materialized `.shared` overrides.
-    public func storeValue(_ value: T) {
-        withLockedState {
-            self.value = value
-        }
-    }
-
-    /// Stores a deferred accessor that `resolve()` can invoke on demand.
-    ///
-    /// Generated init bodies use this when a `Lazy<T>` / `Provider<T>`
-    /// wrapper must re-enter another accessor after that accessor exists.
-    public func bindResolver(_ resolver: @escaping () -> T) {
-        withLockedState {
-            self.resolver = resolver
-        }
-    }
-
-    /// Returns the bound value or invokes the bound resolver.
-    ///
-    /// Exactly one of `storeValue(_:)` or `bindResolver(_:)` must run before
-    /// the first call. Resolving earlier is always a programmer error in the
-    /// generated wiring and traps immediately.
-    public func resolve() -> T {
-        let snapshot = withLockedState { (value: value, resolver: resolver) }
-        if let value = snapshot.value {
-            return value
-        }
-        if let resolver = snapshot.resolver {
-            return resolver()
-        }
-        fatalError("_LazyCell resolved before the dependency was initialized.")
-    }
-
-    private func withLockedState<R>(_ body: () -> R) -> R {
-        lock.lock()
-        defer { lock.unlock() }
-        return body()
     }
 }
 
