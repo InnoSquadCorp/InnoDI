@@ -11,6 +11,25 @@
 //  These helpers are strictly infrastructure — the orchestration logic in
 //  `ValidationCoordinator.swift` composes them.
 //
+//  MARK: - Filesystem requirements
+//
+//  The lock relies on `O_CREAT | O_EXCL` for atomic creation. Local
+//  filesystems (APFS, HFS+, ext4, btrfs, xfs) implement this correctly. On
+//  network filesystems the story is different:
+//
+//  - NFSv3 does not guarantee atomic O_EXCL semantics; concurrent clients
+//    can both believe they created the file. Use NFSv4 or a local scratch
+//    directory.
+//  - SMB/CIFS shares do not provide reliable O_EXCL atomicity at all and
+//    are not supported.
+//  - Docker/Kubernetes bind mounts inherit the semantics of the host
+//    filesystem — if the host is local, they are safe.
+//
+//  If InnoDI's build plugin must run where the derived-data directory is
+//  backed by a network share, set DERIVED_DATA / SPM's `--scratch-path` to
+//  a local path, or accept that concurrent builds may report spurious
+//  "could not acquire validation lock" errors.
+//
 
 import Foundation
 
