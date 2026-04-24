@@ -1,0 +1,53 @@
+name: Consumer Build Benchmark
+
+on:
+  schedule:
+    # Mondays at 03:00 UTC — catches regressions introduced in the
+    # previous week without adding latency to every PR.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      binding_count:
+        description: "Number of @Provide bindings in the synthetic consumer"
+        default: "100"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  consumer-benchmark:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        run: |
+          if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+            echo "Xcode 26.3 not installed on this runner."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          swift --version
+      - name: Generate synthetic consumer
+        env:
+          BINDING_COUNT: ${{ github.event.inputs.binding_count || '100' }}
+        run: |
+          mkdir -p Tools/.synthetic
+          swift Tools/generate-synthetic-consumer.swift Tools/.synthetic/SyntheticConsumer "$BINDING_COUNT"
+      - name: Time release build
+        run: |
+          cd Tools/.synthetic/SyntheticConsumer
+          mkdir -p .build-metrics
+          START=$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')
+          swift build -c release 2>&1 | tee .build-metrics/build.log
+          END=$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')
+          ELAPSED_MS=$(awk -v s="$START" -v e="$END" 'BEGIN { printf "%.3f", (e - s) / 1000000.0 }')
+          echo "Consumer release build: ${ELAPSED_MS} ms" | tee .build-metrics/summary.txt
+      - name: Upload build metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consumer-build-metrics
+          path: Tools/.synthetic/SyntheticConsumer/.build-metrics/
