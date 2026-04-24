@@ -2,14 +2,14 @@ import Testing
 
 @testable import InnoDICore
 
-/// Covers the `isSoft` plumbing added in Phase K for the CLI DAG validator.
+/// Covers the `isSoft` plumbing for the CLI DAG validator.
 ///
 /// The macro-level validator and the CLI validator must agree: a cycle that is
 /// broken by a single `Lazy<T>` edge on any path should not be reported as a
 /// cycle. These tests target the pure adjacency/dedup helpers shared between
 /// them so the contract stays verified even while the CLI collectors don't yet
 /// populate member-level edges.
-@Suite("Soft edge cycle filter (Phase K-4)")
+@Suite("Soft edge cycle filter")
 struct SoftEdgeCycleFilterTests {
     private func makeNode(_ id: String) -> DependencyGraphNode {
         DependencyGraphNode(
@@ -121,7 +121,7 @@ struct SoftEdgeCycleFilterTests {
         #expect(deduped.contains(where: { $0.label == "y" && !$0.isSoft }))
     }
 
-    // MARK: - Provider edges (Phase L)
+    // MARK: - Provider edges
 
     @Test("Provider edges are excluded from cycle-detection adjacency")
     func providerEdgesAreExcludedFromAdjacency() {
@@ -197,7 +197,7 @@ struct SoftEdgeCycleFilterTests {
         #expect(!deduped[0].isProvider)
     }
 
-    // MARK: - Ownership edges (Phase M)
+    // MARK: - Ownership edges
 
     @Test("Ownership edges participate in cycle detection as hard edges")
     func ownershipEdgesCountAsHard() {

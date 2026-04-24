@@ -260,7 +260,7 @@ internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
 
 /// `let _lazyCell_<name> = _LazyCell<Type>()` 형태의 로컬 바인딩을 만든다.
 ///
-/// Phase K에서 soft-edge(Lazy<T>) 탈출구를 구현할 때 사용한다. 이 셀은
+/// soft-edge(Lazy<T>) 탈출구를 구현할 때 사용한다. 이 셀은
 /// 생성자가 돌아가는 동안 heap-allocated 상자로 캡처되어, 나중에 target
 /// 저장소가 실제 값으로 채워진 뒤에도 동일한 reference를 공유한다. `let`
 /// 바인딩이므로 컨테이너 init이 끝난 후에 생성된 Lazy 래퍼가 mutable
@@ -364,7 +364,7 @@ internal func makeLazyAccessorWrapperExpr(
     )
 }
 
-// MARK: - Provider wrappers (Phase L)
+// MARK: - Provider wrappers
 //
 // Provider<T> 래퍼는 Lazy<T> 와 동일한 형태(closure trailing call)이지만
 // 호출 시 매번 target `.transient` 저장소를 새로 resolve 한다. 생성 코드는

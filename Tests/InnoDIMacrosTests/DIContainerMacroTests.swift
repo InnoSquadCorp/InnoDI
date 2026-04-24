@@ -1872,7 +1872,7 @@ struct DIContainerMacroTests {
         #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
     }
 
-    // MARK: - Phase M: @SubContainer
+    // MARK: - @SubContainer
 
     @Test("`.shared` sub-container auto-matches parent members into the child init")
     func subContainerSharedAutoMatch() {
@@ -2390,7 +2390,7 @@ struct DIContainerMacroTests {
         #expect(!generated.isEmpty)
     }
 
-    // Phase N-4 — `provide.lazy-aliased` / `provide.provider-aliased` warn
+    // `provide.lazy-aliased` / `provide.provider-aliased` warn
     // when a closure parameter uses a typealias that aliases `Lazy<T>` /
     // `Provider<T>`.
     @Test("Closure parameter using a Lazy typealias emits the lazy-aliased warning")

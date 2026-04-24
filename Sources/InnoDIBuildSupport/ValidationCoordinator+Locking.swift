@@ -2,8 +2,6 @@
 //  ValidationCoordinator+Locking.swift
 //  InnoDIBuildSupport
 //
-//  Phase N-1 — extracted from `ValidationCoordinator.swift`.
-//
 //  POSIX-level cross-process locking + stale-lock recovery used by the
 //  coordinator to serialize live DAG validation runs per signature. Also
 //  hosts the small IO-adjacent utilities (process existence check, pipe

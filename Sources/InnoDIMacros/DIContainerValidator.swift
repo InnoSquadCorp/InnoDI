@@ -270,7 +270,7 @@ struct DIContainerValidator {
             }
         }
 
-        // Phase M — sub-container validation.
+        // Sub-container validation.
         //
         // The parser has already rejected properties carrying both
         // `@Provide` and `@SubContainer` (see `sub.conflicts-with-provide`
@@ -416,7 +416,7 @@ struct DIContainerValidator {
             }
         }
 
-        // Phase N-4 — warn when a closure parameter uses a typealias that
+        // Warn when a closure parameter uses a typealias that
         // aliases `Lazy<T>` or `Provider<T>`. The macro resolves deferred
         // wrapper kinds from written syntax, so typealiased spellings fall
         // through to `.hard` silently. This check collects same-file

@@ -26,7 +26,7 @@ struct DIContainerCodeGenerator {
     static func generateAll(for model: DIContainerExpansionModel) -> [DeclSyntax] {
         var decls: [DeclSyntax] = [generateInit(for: model)]
 
-        // Phase M: `.transient` sub-containers are backed by a stored
+        // `.transient` sub-containers are backed by a stored
         // builder closure that `@SubContainer.PeerMacro` emits; the init
         // assigns that closure using a `_lazySelf` snapshot so it can
         // reach parent members on every invocation. The closure logic is
@@ -77,8 +77,9 @@ private func makeInitDecl(
     let allowUnresolvedDependencyFallback = !validateDAGEnabled
     let fallbackOverrideNames = Set(sharedMembers.map(\.name) + transientMembers.map(\.name))
 
-    // Phase K / Phase L: only deferred wrappers that are consumed from the
-    // synthesized init (`.shared` / `asyncFactory`) need `_LazyCell` storage.
+    // Only deferred wrappers (`Lazy<T>` / `Provider<T>`) that are consumed
+    // from the synthesized init (`.shared` / `asyncFactory`) need
+    // `_LazyCell` storage.
     // Transient accessors emit `Lazy({ self.<name> })` / `Provider({ self.<name> })`
     // directly and therefore do not need init-time boxes or late resolver
     // bindings.
@@ -141,7 +142,7 @@ private func makeInitDecl(
         params.append(param)
     }
 
-    // Phase M: two parameters per `@SubContainer` member — a direct
+    // Two parameters per `@SubContainer` member — a direct
     // replacement (`<name>: Child? = nil`) and a trailing-closure override
     // block forwarded into the child's own convenience init
     // (`<name>Overrides: ((inout Child.Overrides) -> Void)? = nil`). Both
@@ -317,7 +318,7 @@ private func makeInitDecl(
         }
     }
 
-    // Phase M: sub-container storage.
+    // Sub-container storage.
     //
     // `.shared` children are built (or replaced by an override) exactly
     // once here and assigned to `_storage_sub_<name>`.

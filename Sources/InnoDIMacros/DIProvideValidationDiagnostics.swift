@@ -2,14 +2,10 @@
 //  DIProvideValidationDiagnostics.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `DIContainerValidator.swift`.
-//
 //  Houses every `SimpleDiagnostic` / `SimpleNote` / `FixIt` constructor the
 //  validator's top-level `validate(model:context:)` reaches for. The split
 //  keeps the validation loop itself focused on ordering checks while making
-//  diagnostic message / fix-it logic easier to extend when Phase N-3
-//  (child-overrides-missing) and N-4 (Lazy/Provider alias warning) land on
-//  top.
+//  diagnostic message / fix-it logic easier to extend.
 //
 
 import InnoDICore

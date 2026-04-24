@@ -34,8 +34,8 @@ func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -
         }
         let labelText = effectiveLabel ?? ""
         // Deferred edges render with distinct glyphs:
-        //   - Soft (`Lazy<T>`, Phase K):     dashed `-.->`
-        //   - Provider (`Provider<T>`, L):   thick  `==>`
+        //   - Soft (`Lazy<T>`):     dashed `-.->`
+        //   - Provider (`Provider<T>`): thick  `==>`
         // Hard / ownership edges keep the default `-->`; ownership is
         // distinguished by the forced `owns` label above.
         let arrow: String
