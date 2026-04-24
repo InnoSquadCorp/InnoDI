@@ -266,6 +266,7 @@ var feature: FeatureContainer
 - parent 후보가 여러 개면 `with:`, `withNames:`, `bindings:`로 명시 wiring해야 합니다.
 - `with:` 또는 `withNames:`는 같은 이름 subset/order를 forward합니다.
 - `bindings:`는 child input label과 parent member 이름이 다를 때 remap합니다.
+- `with:`, `withNames:`, `bindings:` 중 정확히 하나의 wiring form만 사용합니다.
 - parent의 `Overrides`에는 전체 교체 슬롯(`feature`)과 child override closure(`featureOverrides`)가 모두 추가됩니다.
 
 cross-module ownership에는 다음을 사용합니다.

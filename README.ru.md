@@ -183,6 +183,7 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
   `bindings:`.
 - `with:` или `withNames:` пробрасывает явное одноименное подмножество.
 - `bindings:` remap-ит child input label на другое имя member родителя.
+- Выбирайте ровно одну wiring form: `with:`, `withNames:` или `bindings:`.
 - `Overrides` родителя получает и полную замену, и child override closure.
 
 Для межмодульного ownership используются:

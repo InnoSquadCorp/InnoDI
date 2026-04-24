@@ -197,6 +197,7 @@ Beide Wrapper sind absichtlich non-`Sendable`.
   erforderlich.
 - `with:` oder `withNames:` leitet ein explizites Same-Name-Subset weiter.
 - `bindings:` mappt Child-Input-Labels auf andere Parent-Member-Namen.
+- Genau eine Wiring-Form verwenden: `with:`, `withNames:` oder `bindings:`.
 - `Overrides` des Parents enthalt Vollersatz und Child-Override-Closure.
 
 Fur cross-module Ownership:

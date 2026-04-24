@@ -177,6 +177,7 @@ closure 依然可以编译，并作为 no-op 运行。
 - 如果父容器有多个候选，必须使用 `with:`、`withNames:` 或 `bindings:` 显式 wiring
 - `with:` 或 `withNames:` 转发同名的显式子集
 - `bindings:` 将子容器 input label remap 到不同的父成员名
+- `with:`、`withNames:`、`bindings:` 三种 wiring form 只能选择一种
 - 父容器的 `Overrides` 同时拥有完整替换槽和子容器 override closure
 
 跨模块 ownership 使用：
