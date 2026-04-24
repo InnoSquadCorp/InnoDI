@@ -91,7 +91,7 @@ public struct SubContainerAttributeInfo {
     /// Raw textual scope spelling as written so diagnostics can echo the
     /// exact source expression (for example, `.shared` or `someScope`).
     public let scopeName: String?
-    /// Keypath member names passed via `with:`, in the order they appear.
+    /// Member names passed via `with:` / `withNames:`, in the order they appear.
     /// Used to re-map parent members when child `.input` parameter names do
     /// not match the parent side by name.
     public let dependencies: [String]
@@ -320,6 +320,19 @@ public func parseKeyPathArrayArgument(_ expression: ExprSyntax) -> [String] {
     return names
 }
 
+/// Extracts names from a `withNames: ["foo", "bar"]` style string array.
+public func parseStringArrayArgument(_ expression: ExprSyntax) -> [String] {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
+    return arrayExpr.elements.compactMap { element in
+        guard let literal = element.expression.as(StringLiteralExprSyntax.self),
+              literal.segments.count == 1,
+              case let .stringSegment(segment)? = literal.segments.first else {
+            return nil
+        }
+        return segment.content.text
+    }
+}
+
 /// Parses `bindings: [(child: \.foo, parent: \.bar)]` into semantic names.
 public func parseSubContainerBindingsArgument(_ expression: ExprSyntax) -> [SubContainerBindingArgument] {
     guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
@@ -380,6 +393,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                 }
             case "with":
                 dependencies = parseKeyPathArrayArgument(argument.expression)
+            case "withNames":
+                dependencies = parseStringArrayArgument(argument.expression)
             case "bindings":
                 bindings = parseSubContainerBindingsArgument(argument.expression)
             default:

@@ -400,7 +400,10 @@ struct DIContainerValidator {
 
             if sub.parentDependencies.isEmpty,
                sub.explicitBindings.isEmpty,
-               model.members.count > 1 {
+               !canResolveImplicitSubContainerParentNames(
+                    member: sub,
+                    autoWireParentMemberNames: model.members.map(\.name)
+               ) {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
@@ -420,7 +423,15 @@ struct DIContainerValidator {
             if !sub.explicitBindings.isEmpty {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
             } else if sub.parentDependencies.isEmpty {
-                wiredParents = model.members.count <= 1 ? model.members.map(\.name) : []
+                wiredParents = canResolveImplicitSubContainerParentNames(
+                    member: sub,
+                    autoWireParentMemberNames: model.members.map(\.name)
+                )
+                    ? resolvedSubContainerParentNames(
+                        member: sub,
+                        autoWireParentMemberNames: model.members.map(\.name)
+                    )
+                    : []
             } else {
                 wiredParents = sub.parentDependencies
             }

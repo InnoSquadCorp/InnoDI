@@ -183,12 +183,35 @@ internal func resolvedSubContainerArguments(
         }
     }
 
-    let selectedNames = member.parentDependencies.isEmpty
-        ? autoWireParentMemberNames
-        : member.parentDependencies
+    let selectedNames = resolvedSubContainerParentNames(
+        member: member,
+        autoWireParentMemberNames: autoWireParentMemberNames
+    )
     return selectedNames.map { name in
         (childLabel: name, parentName: name)
     }
+}
+
+internal func resolvedSubContainerParentNames(
+    member: SubContainerMemberModel,
+    autoWireParentMemberNames: [String]
+) -> [String] {
+    guard member.parentDependencies.isEmpty else {
+        return member.parentDependencies
+    }
+
+    return autoWireParentMemberNames
+}
+
+internal func canResolveImplicitSubContainerParentNames(
+    member: SubContainerMemberModel,
+    autoWireParentMemberNames: [String]
+) -> Bool {
+    if autoWireParentMemberNames.count <= 1 {
+        return true
+    }
+
+    return false
 }
 
 private func makeSubContainerOptionalBindingIfExpr(

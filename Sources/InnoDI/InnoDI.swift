@@ -350,7 +350,8 @@ public enum SubContainerScope {
 public macro SubContainer(
     scope: SubContainerScope,
     with dependencies: [AnyKeyPath] = [],
-    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = []
+    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = [],
+    withNames dependencyNames: [String] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")
 
 /// Marker protocol synthesized by `@DIComponent`.

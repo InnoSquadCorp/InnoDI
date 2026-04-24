@@ -1987,6 +1987,24 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports name-based same-label subset wiring")
+    func subContainerSharedWithNamesSubset() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: ["config"])
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerSharedWithNamesSubset",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
     func subContainerSharedBindingsMultipleRemaps() {
         assertMacroExpansionSnapshot(
@@ -2363,11 +2381,6 @@ struct DIContainerMacroTests {
 
                 @SubContainer(scope: .shared)
                 var feature: FeatureContainer
-            }
-
-            @DIContainer
-            struct FeatureContainer {
-                @Provide(.input) var config: AppConfig
             }
             """,
             expectedCodes: [
