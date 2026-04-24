@@ -2,8 +2,23 @@ import Foundation
 import InnoDICore
 
 func runDependencyGraphCLI() -> Int32 {
-    let (rootPath, format, outputPath, validateDAG) = parseArguments()
-    let outputFormat = format ?? .mermaid
+    let parsed: ParsedArguments
+    switch parseArguments() {
+    case .parsed(let args):
+        parsed = args
+    case .helpRequested:
+        printUsage()
+        return 0
+    case .failed(let error):
+        fputs("\(error.message)\n", stderr)
+        printUsage()
+        return 1
+    }
+
+    let rootPath = parsed.root
+    let outputPath = parsed.output
+    let validateDAG = parsed.validateDAG
+    let outputFormat = parsed.format ?? .mermaid
 
     let files = loadSwiftFiles(rootPath: rootPath)
     let parsedFiles = files.compactMap { file in
