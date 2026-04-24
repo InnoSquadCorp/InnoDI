@@ -1,0 +1,69 @@
+import Foundation
+import Testing
+
+@testable import InnoDIBuildSupport
+
+@Suite("ValidationCoordinatorLockPolicy environment overrides")
+struct LockPolicyEnvTests {
+    @Test("Missing environment keys yield default timings")
+    func noOverrides() {
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [:],
+            warningHandler: { warnings.append($0) }
+        )
+        let defaults = ValidationCoordinatorLockPolicy.default
+        #expect(policy.maxWaitSeconds == defaults.maxWaitSeconds)
+        #expect(policy.staleLockAgeSeconds == defaults.staleLockAgeSeconds)
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("Valid overrides are respected")
+    func validOverrides() {
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [
+                ValidationCoordinatorLockPolicy.EnvKey.lockTimeout: "45.5",
+                ValidationCoordinatorLockPolicy.EnvKey.staleLockAge: "90"
+            ],
+            warningHandler: { warnings.append($0) }
+        )
+        #expect(policy.maxWaitSeconds == 45.5)
+        #expect(policy.staleLockAgeSeconds == 90)
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("Invalid values fall back to defaults and emit a warning")
+    func invalidOverrides() {
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [
+                ValidationCoordinatorLockPolicy.EnvKey.lockTimeout: "not-a-number",
+                ValidationCoordinatorLockPolicy.EnvKey.staleLockAge: "-5"
+            ],
+            warningHandler: { warnings.append($0) }
+        )
+        let defaults = ValidationCoordinatorLockPolicy.default
+        #expect(policy.maxWaitSeconds == defaults.maxWaitSeconds)
+        #expect(policy.staleLockAgeSeconds == defaults.staleLockAgeSeconds)
+        #expect(warnings.count == 2)
+        #expect(warnings.contains(where: { $0.contains("INNODI_LOCK_TIMEOUT") }))
+        #expect(warnings.contains(where: { $0.contains("INNODI_STALE_LOCK_AGE") }))
+    }
+
+    @Test("Empty values are ignored without warning")
+    func emptyValuesIgnored() {
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [
+                ValidationCoordinatorLockPolicy.EnvKey.lockTimeout: "",
+                ValidationCoordinatorLockPolicy.EnvKey.staleLockAge: ""
+            ],
+            warningHandler: { warnings.append($0) }
+        )
+        let defaults = ValidationCoordinatorLockPolicy.default
+        #expect(policy.maxWaitSeconds == defaults.maxWaitSeconds)
+        #expect(policy.staleLockAgeSeconds == defaults.staleLockAgeSeconds)
+        #expect(warnings.isEmpty)
+    }
+}
