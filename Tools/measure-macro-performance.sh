@@ -10,6 +10,10 @@ BASELINE_FILE="Tools/macro-performance-baseline.json"
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
 IN_PROCESS=0
+ENFORCE_REGRESSION_GATE=0
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  ENFORCE_REGRESSION_GATE=1
+fi
 PERF_LOG="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf.XXXXXX")"
 IN_PROCESS_REPORT="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf-inproc.XXXXXX")"
 trap 'rm -f "$PERF_LOG" "$IN_PROCESS_REPORT"' EXIT
@@ -26,6 +30,8 @@ Options:
   --update-baseline       Overwrite baseline with current measurements
   --in-process            Use the in-process SwiftSyntax benchmark (single
                           swift test spawn, lower variance, ~20x faster)
+  --enforce               Fail when the threshold is exceeded
+  --report-only           Report threshold results without failing
   --help                  Show this help
 USAGE
 }
@@ -70,6 +76,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --in-process)
       IN_PROCESS=1
+      shift
+      ;;
+    --enforce)
+      ENFORCE_REGRESSION_GATE=1
+      shift
+      ;;
+    --report-only)
+      ENFORCE_REGRESSION_GATE=0
       shift
       ;;
     --help)
@@ -205,8 +219,13 @@ echo "[macro-perf] baseline mean=${baseline_mean}ms, current mean=${mean_ms}ms, 
 
 is_regression="$(awk -v delta="$regression_pct" -v threshold="$THRESHOLD_PERCENT" 'BEGIN { print (delta > threshold) ? 1 : 0 }')"
 if [[ "$is_regression" -eq 1 ]]; then
-  echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%)" >&2
-  exit 1
+  if [[ "$ENFORCE_REGRESSION_GATE" -eq 1 ]]; then
+    echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%)" >&2
+    exit 1
+  fi
+
+  echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%); report-only outside GitHub Actions"
+  exit 0
 fi
 
 echo "[macro-perf] regression within threshold (${THRESHOLD_PERCENT}%)"
