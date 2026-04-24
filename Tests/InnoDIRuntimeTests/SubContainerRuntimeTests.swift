@@ -61,6 +61,15 @@ struct RuntimeParentWithSubsetContainer {
 }
 
 @DIContainer
+struct RuntimeParentWithNamedSubsetContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+    @Provide(.input) var extra: String
+
+    @SubContainer(scope: .shared, withNames: ["config"])
+    var child: RuntimeSubsetChildContainer
+}
+
+@DIContainer
 struct RuntimeBindingsChildContainer {
     @Provide(.input) var featureConfig: RuntimeParentConfig
 }
@@ -185,6 +194,15 @@ struct SubContainerRuntimeTests {
         // only accepts `config`, so this fixture would fail to compile if the
         // generated child init forwarded `extra` as well.
         #expect(parent.child.config == RuntimeParentConfig(endpoint: "subset"))
+    }
+
+    @Test("withNames: subset forwards only the selected parent inputs")
+    func withNamesRestrictsForwardedInputs() {
+        let parent = RuntimeParentWithNamedSubsetContainer(
+            config: RuntimeParentConfig(endpoint: "named-subset"),
+            extra: "ignored"
+        )
+        #expect(parent.child.config == RuntimeParentConfig(endpoint: "named-subset"))
     }
 
     @Test("bindings: remaps parent and child labels explicitly")
