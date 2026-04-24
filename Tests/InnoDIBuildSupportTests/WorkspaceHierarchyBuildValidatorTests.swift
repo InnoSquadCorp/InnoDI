@@ -2163,6 +2163,126 @@ struct WorkspaceHierarchyBuildValidatorTests {
         #expect(firstLocation.column == 42)
     }
 
+    @Test("withNames dependencies participate in hierarchy input validation")
+    func withNamesDependenciesParticipateInHierarchyInputValidation() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+            struct Extra {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @Provide(.input) var extra: Extra
+                @SubContainer(scope: .shared, withNames: ["extra"])
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.unsatisfied-dependency" })
+        #expect(issue.metadata["childInputName"] == "config")
+    }
+
+    @Test("Duplicate withNames dependencies use string literal locations")
+    func duplicateWithNamesDependenciesUseStringLiteralLocations() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared, withNames: ["config", "config"])
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.duplicate-with-dependency" })
+        #expect(issue.message.contains("with:/withNames:"))
+        #expect(issue.location.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(issue.location.line == 7)
+        #expect(issue.location.column == 57)
+        let firstNote = try #require(issue.notes.first)
+        let firstLocation = try #require(firstNote.location)
+        #expect(firstLocation.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(firstLocation.line == 7)
+        #expect(firstLocation.column == 47)
+    }
+
     @Test("Bindings type mismatches point at the mapped parent key-path location")
     func bindingsTypeMismatchUsesParentKeyPathLocation() throws {
         let rootURL = try makeTemporaryWorkspaceRoot()
