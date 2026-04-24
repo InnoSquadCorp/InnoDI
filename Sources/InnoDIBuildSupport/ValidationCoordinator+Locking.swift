@@ -110,6 +110,20 @@ internal func recoverStaleLockIfNeeded(
     }
 
     if let metadata = loadLockMetadata(at: url) {
+        // Boot-ID check wins over PID check whenever both sides have one:
+        // a mismatching bootID means the holder belonged to an earlier
+        // system session, so its PID is free to reuse regardless of
+        // `processExists`. Legacy v1 metadata (bootID == nil) falls back
+        // to PID-only liveness, identical to the old behavior.
+        if let lockedBootID = metadata.bootID,
+           let currentBootID = runtime.currentBootID(),
+           lockedBootID != currentBootID
+        {
+            runtime.beforeStaleLockRemoval(url)
+            try? fileManager.removeItem(at: url)
+            return fileManager.fileExists(atPath: path) == false
+        }
+
         guard runtime.processExists(metadata.pid) == false else {
             return false
         }

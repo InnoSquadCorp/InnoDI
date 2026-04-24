@@ -138,6 +138,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
         sleep: validationSleep,
         currentProcessID: { getpid() },
         processExists: validationProcessExists,
+        currentBootID: BootIDProvider.live,
         beforeStaleLockRemoval: { _ in }
     )
 
@@ -146,6 +147,10 @@ package struct ValidationCoordinatorRuntime: Sendable {
     package let sleep: @Sendable (TimeInterval) async throws -> Void
     package let currentProcessID: @Sendable () -> Int32
     package let processExists: @Sendable (Int32) -> Bool
+    /// Returns the current system boot ID, or `nil` if unavailable. The live
+    /// implementation reads `sysctl kern.boottime` on Darwin and
+    /// `/proc/stat btime` on Linux.
+    package let currentBootID: @Sendable () -> Int64?
     package let beforeStaleLockRemoval: @Sendable (URL) -> Void
 
     package init(
@@ -154,6 +159,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void,
         currentProcessID: @escaping @Sendable () -> Int32,
         processExists: @escaping @Sendable (Int32) -> Bool,
+        currentBootID: @escaping @Sendable () -> Int64? = { BootIDProvider.live() },
         beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
     ) {
         self.monotonicNow = monotonicNow
@@ -161,13 +167,65 @@ package struct ValidationCoordinatorRuntime: Sendable {
         self.sleep = sleep
         self.currentProcessID = currentProcessID
         self.processExists = processExists
+        self.currentBootID = currentBootID
         self.beforeStaleLockRemoval = beforeStaleLockRemoval
     }
 }
 
+/// Metadata persisted alongside a live validation lock file.
+///
+/// Schema versioning:
+/// - v1 files only had `pid` and `createdAt`. They are still decodable via
+///   the `bootID == nil` path and treated as stale so v2 writers never race
+///   with v1 consumers.
+/// - v2 adds `bootID` — the system boot time in seconds — so stale-detection
+///   can distinguish a process from another with the same PID that started
+///   after a reboot (Darwin: `sysctl kern.boottime`; Linux: `/proc/stat btime`).
 package struct ValidationCoordinatorLockMetadata: Codable, Equatable, Sendable {
     package let pid: Int32
     package let createdAt: TimeInterval
+    package let bootID: Int64?
+
+    package init(pid: Int32, createdAt: TimeInterval, bootID: Int64? = nil) {
+        self.pid = pid
+        self.createdAt = createdAt
+        self.bootID = bootID
+    }
+}
+
+/// Resolves a monotonically-stable "session" identifier for the running system.
+///
+/// On Darwin this reads `kern.boottime` via `sysctl`. The value changes on
+/// every reboot, so a persisted lock with a mismatching `bootID` is known
+/// to belong to a previous session — i.e. its PID is safe to reuse.
+///
+/// Injected through `ValidationCoordinatorRuntime` so tests can simulate
+/// reboots without actually rebooting the CI agent.
+package enum BootIDProvider {
+    package static func live() -> Int64? {
+        #if canImport(Darwin)
+        var boottime = timeval()
+        var size = MemoryLayout<timeval>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
+        let status = mib.withUnsafeMutableBufferPointer { bufferPointer -> Int32 in
+            sysctl(bufferPointer.baseAddress, 2, &boottime, &size, nil, 0)
+        }
+        guard status == 0 else { return nil }
+        return Int64(boottime.tv_sec)
+        #elseif canImport(Glibc)
+        guard let contents = try? String(contentsOfFile: "/proc/stat", encoding: .utf8) else {
+            return nil
+        }
+        for line in contents.split(separator: "\n") where line.hasPrefix("btime ") {
+            let pieces = line.split(separator: " ")
+            guard pieces.count == 2, let btime = Int64(pieces[1]) else { return nil }
+            return btime
+        }
+        return nil
+        #else
+        return nil
+        #endif
+    }
 }
 
 package let sharedRunCacheVersion = 2
@@ -340,7 +398,8 @@ package enum ValidationCoordinator {
         ) throws -> ValidationExecutionOutcome {
             let lockMetadata = ValidationCoordinatorLockMetadata(
                 pid: runtime.currentProcessID(),
-                createdAt: runtime.currentDate().timeIntervalSince1970
+                createdAt: runtime.currentDate().timeIntervalSince1970,
+                bootID: runtime.currentBootID()
             )
 
             do {
