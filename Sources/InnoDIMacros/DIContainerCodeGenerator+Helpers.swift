@@ -84,6 +84,7 @@ internal func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax 
     let token: TokenSyntax
     switch accessLevel {
     case "public": token = .keyword(.public)
+    case "package": token = .keyword(.package)
     case "internal": token = .keyword(.internal)
     case "fileprivate": token = .keyword(.fileprivate)
     case "private": token = .keyword(.private)

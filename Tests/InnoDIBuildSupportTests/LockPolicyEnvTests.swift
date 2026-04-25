@@ -51,6 +51,23 @@ struct LockPolicyEnvTests {
         #expect(warnings.contains(where: { $0.contains("INNODI_STALE_LOCK_AGE") }))
     }
 
+    @Test("Zero is rejected as a non-positive override")
+    func zeroOverridesAreInvalid() {
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [
+                ValidationCoordinatorLockPolicy.EnvKey.lockTimeout: "0",
+                ValidationCoordinatorLockPolicy.EnvKey.staleLockAge: "0"
+            ],
+            warningHandler: { warnings.append($0) }
+        )
+        let defaults = ValidationCoordinatorLockPolicy.default
+        #expect(policy.maxWaitSeconds == defaults.maxWaitSeconds)
+        #expect(policy.staleLockAgeSeconds == defaults.staleLockAgeSeconds)
+        #expect(warnings.count == 2)
+        #expect(warnings.allSatisfy { $0.contains("0") })
+    }
+
     @Test("Empty values are ignored without warning")
     func emptyValuesIgnored() {
         var warnings: [String] = []

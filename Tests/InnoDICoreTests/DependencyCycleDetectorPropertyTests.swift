@@ -103,8 +103,9 @@ struct DependencyCycleDetectorPropertyTests {
         }
         adjacency["node\(chainLength - 1)"] = []
 
-        let cycles = detectDependencyCycles(adjacency: adjacency, depthLimit: 256)
-        #expect(cycles.isEmpty)
+        let result = analyzeDependencyCycles(adjacency: adjacency, depthLimit: 256)
+        #expect(result.cycles.isEmpty)
+        #expect(result.truncatedByDepthLimit)
     }
 
     @Test("Self-loops are reported once")
@@ -114,5 +115,24 @@ struct DependencyCycleDetectorPropertyTests {
         #expect(cycles.count == 1)
         #expect(cycles.first?.first == "Self")
         #expect(cycles.first?.last == "Self")
+    }
+
+    @Test("Non-positive depth limits clamp to one")
+    func nonPositiveDepthLimitClampsToOne() {
+        let result = analyzeDependencyCycles(adjacency: ["Self": ["Self"]], depthLimit: 0)
+        #expect(result.cycles == [["Self", "Self"]])
+        #expect(result.truncatedByDepthLimit == false)
+    }
+
+    @Test("Long cycles beyond the depth limit report truncation")
+    func longCycleBeyondDepthLimitReportsTruncation() {
+        let cycleLength = 512
+        var adjacency: [String: [String]] = [:]
+        for index in 0..<cycleLength {
+            adjacency["node\(index)"] = ["node\((index + 1) % cycleLength)"]
+        }
+
+        let result = analyzeDependencyCycles(adjacency: adjacency, depthLimit: 32)
+        #expect(result.truncatedByDepthLimit)
     }
 }

@@ -50,7 +50,8 @@ struct MacroPerformanceBenchmark {
 
     @Test(.disabled(if: ProcessInfo.processInfo.environment["INNODI_MACRO_BENCH_ITERATIONS"] == nil))
     func measureExpansion() throws {
-        let iterations = Int(ProcessInfo.processInfo.environment["INNODI_MACRO_BENCH_ITERATIONS"] ?? "50") ?? 50
+        let rawIterations = Int(ProcessInfo.processInfo.environment["INNODI_MACRO_BENCH_ITERATIONS"] ?? "50") ?? 50
+        let iterations = max(1, rawIterations)
         let warmupIterations = max(1, iterations / 10)
 
         // Warmup to stabilize cache / JIT paths.

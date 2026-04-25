@@ -21,11 +21,20 @@ struct JSONRendererTests {
                 semanticPath: "App.FeatureContainer",
                 isRoot: false,
                 requiredInputs: []
+            ),
+            DependencyGraphNode(
+                id: "LoggingContainer",
+                displayName: "LoggingContainer",
+                semanticPath: "App.LoggingContainer",
+                isRoot: false,
+                requiredInputs: []
             )
         ]
         let edges = [
             DependencyGraphEdge(fromID: "AppContainer", toID: "FeatureContainer", label: nil, isOwnership: true),
-            DependencyGraphEdge(fromID: "FeatureContainer", toID: "AppContainer", label: "config", isSoft: true)
+            DependencyGraphEdge(fromID: "FeatureContainer", toID: "AppContainer", label: "config", isSoft: true),
+            DependencyGraphEdge(fromID: "AppContainer", toID: "LoggingContainer", label: "logger"),
+            DependencyGraphEdge(fromID: "FeatureContainer", toID: "LoggingContainer", label: "makeLogger", isProvider: true)
         ]
         return (nodes, edges)
     }
@@ -39,8 +48,8 @@ struct JSONRendererTests {
         let decoded = try JSONDecoder().decode(GraphJSON.Document.self, from: data)
 
         #expect(decoded.schemaVersion == 1)
-        #expect(decoded.nodes.count == 2)
-        #expect(decoded.edges.count == 2)
+        #expect(decoded.nodes.count == 3)
+        #expect(decoded.edges.count == 4)
 
         let appNode = try #require(decoded.nodes.first { $0.id == "AppContainer" })
         #expect(appNode.isRoot)
@@ -52,6 +61,12 @@ struct JSONRendererTests {
 
         let softEdge = try #require(decoded.edges.first { $0.kind == .soft })
         #expect(softEdge.label == "config")
+
+        let hardEdge = try #require(decoded.edges.first { $0.kind == .hard })
+        #expect(hardEdge.label == "logger")
+
+        let providerEdge = try #require(decoded.edges.first { $0.kind == .provider })
+        #expect(providerEdge.label == "makeLogger")
     }
 
     @Test("Empty graph produces empty node/edge lists")

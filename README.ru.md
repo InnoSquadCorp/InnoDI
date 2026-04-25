@@ -30,6 +30,25 @@ InnoDI не является runtime state machine. Состояние врем�
   - tvOS 17+
   - visionOS 1+
 
+### Требования build-time validator к файловой системе
+
+Build plugin сериализует live DAG validation через POSIX lock file
+`O_CREAT | O_EXCL` в директории derived data Swift Package Manager. Это
+корректно работает на локальных файловых системах вроде APFS, HFS+, ext4,
+btrfs и xfs, но сетевые пути требуют осторожности.
+
+- **NFSv3** не гарантирует atomic `O_EXCL` semantics; два клиента могут
+  одновременно решить, что они создали lock. Используйте NFSv4 или перенесите
+  derived data в локальный путь.
+- **SMB/CIFS** share не предоставляет надежную `O_EXCL` atomicity и не
+  поддерживается.
+- **Docker / Kubernetes bind mounts** наследуют semantics host filesystem.
+  Если host использует локальную filesystem, они безопасны.
+
+Если build system должна хранить derived data на shared volume, перед
+включением plugin укажите локальную директорию через SPM `--scratch-path`
+или настройку Xcode derived-data location.
+
 ## Установка
 
 Добавьте InnoDI в `Package.swift`:

@@ -17,7 +17,7 @@ enum InnoDIDiagnosticCategory: String {
     case validation
 }
 
-enum InnoDIDiagnosticCode: String {
+enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideSingleBinding = "provide.single-binding"
     case provideNamedPropertyRequired = "provide.named-property-required"
     case provideExplicitTypeRequired = "provide.explicit-type-required"
@@ -496,7 +496,7 @@ extension SimpleDiagnostic {
     // description so issue reports are actionable.
     static func internalCodegenInvariant(description: String) -> Self {
         Self(
-            "InnoDI internal codegen invariant violated: \(description). This should have been caught by validation — please file a bug at https://github.com/InnoSquad/InnoDI/issues.",
+            "InnoDI internal codegen invariant violated: \(description). This should have been caught by validation — please file a bug at https://github.com/InnoSquadCorp/InnoDI/issues.",
             code: .internalCodegenInvariant
         )
     }

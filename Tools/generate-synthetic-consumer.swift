@@ -15,6 +15,17 @@
 
 import Foundation
 
+enum SyntheticConsumerGenerationError: LocalizedError {
+    case unsafeOutputPath(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unsafeOutputPath(let path):
+            return "Refusing to delete unsafe output path: \(path)"
+        }
+    }
+}
+
 struct Arguments {
     let outputURL: URL
     let bindingCount: Int
@@ -27,25 +38,72 @@ struct Arguments {
             ))
             exit(2)
         }
-        let outputURL = URL(fileURLWithPath: argv[1])
+        let outputURL = URL(fileURLWithPath: argv[1]).standardizedFileURL
         let bindingCount = argv.count >= 3 ? (Int(argv[2]) ?? 100) : 100
         return Arguments(outputURL: outputURL, bindingCount: bindingCount)
     }
 }
 
 func write(_ content: String, to url: URL) throws {
-    try content.data(using: .utf8)?.write(to: url)
+    try content.write(to: url, atomically: true, encoding: .utf8)
+}
+
+func relativePath(from baseURL: URL, to targetURL: URL) -> String {
+    let baseComponents = baseURL.standardizedFileURL.pathComponents
+    let targetComponents = targetURL.standardizedFileURL.pathComponents
+    let sharedCount = zip(baseComponents, targetComponents).prefix { pair in pair.0 == pair.1 }.count
+    let up = Array(repeating: "..", count: baseComponents.count - sharedCount)
+    let down = Array(targetComponents.dropFirst(sharedCount))
+    let components = up + down
+    return components.isEmpty ? "." : components.joined(separator: "/")
+}
+
+func outputPathIsInsideSyntheticDirectory(_ outputURL: URL, repoRootURL: URL) -> Bool {
+    let syntheticPath = repoRootURL
+        .appendingPathComponent("Tools/.synthetic", isDirectory: true)
+        .standardizedFileURL
+        .path
+    let outputPath = outputURL.standardizedFileURL.path
+    return outputPath == syntheticPath || outputPath.hasPrefix("\(syntheticPath)/")
+}
+
+func outputPathLooksLikeSyntheticConsumer(_ outputURL: URL) -> Bool {
+    let packageURL = outputURL.appendingPathComponent("Package.swift")
+    let mainURL = outputURL.appendingPathComponent("Sources/Consumer/main.swift")
+    guard
+        FileManager.default.fileExists(atPath: packageURL.path),
+        FileManager.default.fileExists(atPath: mainURL.path),
+        let packageContents = try? String(contentsOf: packageURL, encoding: .utf8)
+    else {
+        return false
+    }
+    return packageContents.contains("name: \"SyntheticConsumer\"")
 }
 
 let args = Arguments.parse()
 let fileManager = FileManager.default
-try? fileManager.removeItem(at: args.outputURL)
-try fileManager.createDirectory(at: args.outputURL, withIntermediateDirectories: true)
+let repoRootURL = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .standardizedFileURL
+let outputURL = args.outputURL.standardizedFileURL
 
-let sourcesDir = args.outputURL.appendingPathComponent("Sources/Consumer", isDirectory: true)
+if fileManager.fileExists(atPath: outputURL.path) {
+    guard outputPathIsInsideSyntheticDirectory(outputURL, repoRootURL: repoRootURL)
+        || outputPathLooksLikeSyntheticConsumer(outputURL)
+    else {
+        throw SyntheticConsumerGenerationError.unsafeOutputPath(outputURL.path)
+    }
+    try fileManager.removeItem(at: outputURL)
+}
+
+try fileManager.createDirectory(at: outputURL, withIntermediateDirectories: true)
+
+let sourcesDir = outputURL.appendingPathComponent("Sources/Consumer", isDirectory: true)
 try fileManager.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
 
-let packagePath = args.outputURL.appendingPathComponent("Package.swift")
+let packagePath = outputURL.appendingPathComponent("Package.swift")
+let innoDIPath = relativePath(from: outputURL, to: repoRootURL)
 try write(
     """
     // swift-tools-version: 6.2
@@ -58,7 +116,7 @@ try write(
             .macOS(.v13)
         ],
         dependencies: [
-            .package(name: "InnoDI", path: "../..")
+            .package(name: "InnoDI", path: "\(innoDIPath)")
         ],
         targets: [
             .executableTarget(
@@ -80,7 +138,7 @@ var mainLines: [String] = ["let container = SyntheticContainer("]
 for index in 0..<args.bindingCount {
     inputLines.append("    @Provide(.input) var input\(index): Int")
     sharedLines.append(
-        "    @Provide(.shared, factory: Double(input\(index)) * 1.5) var shared\(index): Double"
+        "    @Provide(.shared, factory: { (input\(index): Int) in Double(input\(index)) * 1.5 }, concrete: true) var shared\(index): Double"
     )
     mainLines.append("    input\(index): \(index)\(index == args.bindingCount - 1 ? "" : ",")")
 }
@@ -103,4 +161,4 @@ try write(
     to: sourceFile
 )
 
-print("Generated synthetic consumer at \(args.outputURL.path) with \(args.bindingCount) bindings.")
+print("Generated synthetic consumer at \(outputURL.path) with \(args.bindingCount) bindings.")

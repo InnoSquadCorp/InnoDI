@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftDiagnostics
 
@@ -5,6 +6,20 @@ import SwiftDiagnostics
 
 @Suite("InnoDI Diagnostic IDs")
 struct DiagnosticsTests {
+    @Test("Diagnostics guide lists every diagnostic code")
+    func diagnosticsGuideListsEveryDiagnosticCode() throws {
+        let testDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let repositoryRoot = testDirectory.deletingLastPathComponent().deletingLastPathComponent()
+        let guideURL = repositoryRoot.appendingPathComponent("Sources/InnoDI/InnoDI.docc/DiagnosticsGuide.md")
+        let guide = try String(contentsOf: guideURL, encoding: .utf8)
+
+        let missing = InnoDIDiagnosticCode.allCases
+            .map(\.rawValue)
+            .filter { !guide.contains("`\($0)`") }
+
+        #expect(missing.isEmpty, "Missing diagnostic codes in DiagnosticsGuide.md: \(missing.joined(separator: ", "))")
+    }
+
     @Test("Diagnostic code categories map to expected domains")
     func diagnosticCodeCategoryDomains() {
         let usageCodes: [InnoDIDiagnosticCode] = [

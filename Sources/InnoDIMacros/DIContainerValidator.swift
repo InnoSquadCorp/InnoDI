@@ -246,7 +246,8 @@ struct DIContainerValidator {
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }
 
-            let cycles = InnoDICore.detectDependencyCycles(adjacency: adjacency)
+            let cycleResult = InnoDICore.analyzeDependencyCycles(adjacency: adjacency)
+            let cycles = cycleResult.cycles
             if !cycles.isEmpty {
                 for cycle in cycles {
                     guard let start = cycle.first else { continue }
@@ -267,6 +268,17 @@ struct DIContainerValidator {
                     )
                     hadErrors = true
                 }
+            }
+            if cycleResult.truncatedByDepthLimit, let firstMember = model.members.first {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(firstMember.attribute),
+                        message: SimpleDiagnostic.containerDependencyCycle(
+                            path: "cycle detection truncated at depth limit before validation completed"
+                        )
+                    )
+                )
+                hadErrors = true
             }
         }
 

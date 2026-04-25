@@ -84,6 +84,38 @@ struct DependencyGraphCLITests {
         #expect(content.contains("digraph InnoDI"))
     }
 
+    @Test("--output - writes graph output to stdout")
+    func outputDashWritesGraphToStdout() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "json",
+            "--output", "-"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"schemaVersion\""))
+        #expect(result.stderr.isEmpty)
+    }
+
+    @Test("--output - writes DAG validation messages to stdout")
+    func outputDashWritesValidationMessageToStdout() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag",
+            "--output", "-"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(result.stderr.isEmpty)
+    }
+
     @Test("Unknown option emits warning but continues")
     func unknownOptionWarnsAndContinues() throws {
         let fixtureURL = try makeFixtureProject()

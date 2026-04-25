@@ -230,6 +230,65 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("package containers propagate package access to generated APIs")
+    func packageContainerGeneratesPackageAPIs() {
+        assertMacroExpansionInline(
+            """
+            @DIContainer
+            package struct AppContainer {
+                @Provide(.shared, factory: APIClient(), concrete: true)
+                var apiClient: APIClient
+            }
+            """,
+            expandedSource: """
+                package struct AppContainer {
+                    var apiClient: APIClient {
+                        get {
+                            return _storage_apiClient
+                        }
+                    }
+
+                    private let _storage_apiClient: APIClient
+
+                    package init(apiClient: APIClient? = nil) {
+                        self._storage_apiClient = apiClient ?? APIClient()
+                    }
+
+                    package struct Overrides {
+                        package var apiClient: APIClient? = nil
+                    }
+
+                    package init(_ applyOverrides: (inout Overrides) -> Void) {
+                        var overrides = Overrides()
+                        applyOverrides(&overrides)
+                        self.init(apiClient: overrides.apiClient)
+                    }
+
+                    package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+                        let container = Self(applyOverrides)
+                        return operation(container)
+                    }
+
+                    package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+                        let container = Self(applyOverrides)
+                        return try operation(container)
+                    }
+
+                    package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+                        let container = Self(applyOverrides)
+                        return await operation(container)
+                    }
+
+                    package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+                        let container = Self(applyOverrides)
+                        return try await operation(container)
+                    }
+                }
+                """,
+            macros: Self.macros
+        )
+    }
+
     @Test
     func sharedMembersStillRequireFactories() {
         assertMacroExpansionDiagnosticCodes(

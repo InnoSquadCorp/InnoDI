@@ -31,7 +31,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         case .shared:
             if parseResult.asyncFactoryExpr != nil {
                 let storageName = "_storage_task_\(name)"
-                let successType = taskSuccessTypeDescription(from: type)
+                let successType = taskSuccessTypeDescription(for: type)
                 let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
                 return [taskStoragePeerDecl(
                     name: storageName,
@@ -157,14 +157,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             parsed: parsedArguments
                         )
                     } catch let error as CodegenInvariantError {
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(attribute),
-                                message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
-                            )
-                        )
-                        return [fatalErrorGetter(
-                            "InnoDI internal codegen invariant violated: \(error.description)",
+                        return [handleCodegenInvariant(
+                            error,
+                            attribute: attribute,
+                            context: context,
                             isAsync: true,
                             isThrowing: parseResult.asyncFactoryIsThrowing,
                             isMainActor: enclosingContainerMainActor
@@ -214,14 +210,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             parsed: parsedArguments
                         )
                     } catch let error as CodegenInvariantError {
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(attribute),
-                                message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
-                            )
-                        )
-                        return [fatalErrorGetter(
-                            "InnoDI internal codegen invariant violated: \(error.description)",
+                        return [handleCodegenInvariant(
+                            error,
+                            attribute: attribute,
+                            context: context,
                             isAsync: false,
                             isThrowing: false,
                             isMainActor: enclosingContainerMainActor
@@ -310,6 +302,28 @@ private func fatalErrorGetter(
     )
 }
 
+private func handleCodegenInvariant(
+    _ error: CodegenInvariantError,
+    attribute: AttributeSyntax,
+    context: some MacroExpansionContext,
+    isAsync: Bool,
+    isThrowing: Bool,
+    isMainActor: Bool
+) -> AccessorDeclSyntax {
+    context.diagnose(
+        Diagnostic(
+            node: Syntax(attribute),
+            message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
+        )
+    )
+    return fatalErrorGetter(
+        "InnoDI internal codegen invariant violated: \(error.description)",
+        isAsync: isAsync,
+        isThrowing: isThrowing,
+        isMainActor: isMainActor
+    )
+}
+
 private func makeGetter(
     statements: [CodeBlockItemSyntax],
     isAsync: Bool,
@@ -349,14 +363,6 @@ private func mainActorAccessorAttributes() -> AttributeListSyntax {
             )
         )
     ])
-}
-
-private func taskSuccessTypeDescription(from type: TypeSyntax) -> String {
-    let description = type.trimmedDescription
-    if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
-        return "(\(description))"
-    }
-    return description
 }
 
 private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) -> DIContainerAttributeInfo? {

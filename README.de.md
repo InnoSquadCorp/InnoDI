@@ -30,6 +30,26 @@ Schicht oder in begleitende Frameworks wie `InnoFlow`, `InnoRouter` und
   - tvOS 17+
   - visionOS 1+
 
+### Dateisystemanforderungen des Buildzeit-Validators
+
+Das Build-Plugin serialisiert Live-DAG-Validierungslaufe uber eine POSIX
+`O_CREAT | O_EXCL`-Lockdatei unter dem Swift-Package-Manager-derived-data-
+Verzeichnis. Das funktioniert auf lokalen Dateisystemen wie APFS, HFS+,
+ext4, btrfs und xfs korrekt; netzwerkgestutzte Pfade haben aber wichtige
+Einschrankungen.
+
+- **NFSv3** garantiert keine atomare `O_EXCL`-Semantik; zwei Clients konnen
+  beide glauben, den Lock erstellt zu haben. Nutze NFSv4 oder verschiebe
+  derived data auf einen lokalen Pfad.
+- **SMB/CIFS** bietet keine verlassliche `O_EXCL`-Atomizitat und wird nicht
+  unterstutzt.
+- **Docker / Kubernetes bind mounts** erben die Semantik des Host-
+  Dateisystems. Ist der Host lokal, sind sie sicher.
+
+Wenn dein Build-System derived data auf einem geteilten Volume ablegen muss,
+zeige mit SPMs `--scratch-path` oder Xcodes derived-data-Speicherort vor dem
+Aktivieren des Plugins auf ein lokales Verzeichnis.
+
 ## Installation
 
 Fuge InnoDI zu `Package.swift` hinzu:

@@ -27,7 +27,7 @@ struct ParsedArguments: Equatable {
 /// Outcome of parsing command-line arguments. `.helpRequested` is a normal
 /// exit path the caller handles without an error code.
 enum ArgumentParseResult: Equatable {
-    case parsed(ParsedArguments)
+    case parsed(ParsedArguments, warnings: [String] = [])
     case helpRequested
     case failed(ArgumentsError)
 }
@@ -46,6 +46,7 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
     var format: OutputFormat?
     var output: String?
     var validateDAG = false
+    var warnings: [String] = []
 
     let args = rawArguments
     var index = 0
@@ -56,7 +57,7 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
         }
 
         let value = args[index + 1]
-        guard !value.hasPrefix("-") else {
+        guard !value.hasPrefix("-") || (option == "--output" && value == "-") else {
             return .failure(.missingOptionValue(option: option))
         }
 
@@ -103,13 +104,16 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
         } else if arg == "--help" || arg == "-h" {
             return .helpRequested
         } else if arg.hasPrefix("-") {
-            fputs("Warning: unrecognized option '\(arg)'\n", stderr)
+            warnings.append("Warning: unrecognized option '\(arg)'")
         }
 
         index += 1
     }
 
-    return .parsed(ParsedArguments(root: root, format: format, output: output, validateDAG: validateDAG))
+    return .parsed(
+        ParsedArguments(root: root, format: format, output: output, validateDAG: validateDAG),
+        warnings: warnings
+    )
 }
 
 func usageText() -> String {
@@ -119,7 +123,7 @@ func usageText() -> String {
     Options:
       --root <path>    Root directory of the project (default: current directory)
       --format <fmt>   Output format: mermaid (default), dot, ascii, json
-      --output <file>  Output file path (default: stdout)
+      --output <file>  Output file path (default: stdout; use - for stdout)
       --validate-dag   Validate dependency graph DAG and fail on cycles/ambiguity
       --help, -h       Show this help message
     """
