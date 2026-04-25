@@ -95,6 +95,11 @@ public enum SubContainerSameNameWiringLabel: String, Equatable, Sendable {
 /// The macro must distinguish omitted wiring from an explicitly empty literal
 /// array. It also must not silently treat runtime variables or partially
 /// unparseable arrays as an empty subset.
+///
+/// `with:` and `withNames:` are mutually exclusive. When both labels appear in
+/// the same attribute the parser yields `.bothSpecified` so the macro
+/// validator and build-support hierarchy validator can react to the same
+/// parse-time signal instead of relying on auxiliary boolean flags.
 public enum SubContainerSameNameWiringParseState: Equatable, Sendable {
     /// Neither `with:` nor `withNames:` appeared in the source.
     case omitted
@@ -102,6 +107,11 @@ public enum SubContainerSameNameWiringParseState: Equatable, Sendable {
     case parsed(label: SubContainerSameNameWiringLabel, dependencies: [String])
     /// A same-name wiring label appeared but was not a fully parseable literal array.
     case invalid(label: SubContainerSameNameWiringLabel)
+    /// Both `with:` and `withNames:` appeared in the same attribute.
+    /// Diagnosing this conflict is the validator's job; the parse state stops
+    /// pretending one of the labels won, so consumers do not silently see a
+    /// `.parsed` value derived from the last-seen label.
+    case bothSpecified
 }
 
 /// Parsed arguments extracted from a single `@SubContainer` attribute.
@@ -356,19 +366,6 @@ public func parseKeyPathArrayArgument(_ expression: ExprSyntax) -> [String] {
     return names
 }
 
-/// Extracts names from a `withNames: ["foo", "bar"]` style string array.
-public func parseStringArrayArgument(_ expression: ExprSyntax) -> [String] {
-    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
-    return arrayExpr.elements.compactMap { element in
-        guard let literal = element.expression.as(StringLiteralExprSyntax.self),
-              literal.segments.count == 1,
-              case let .stringSegment(segment)? = literal.segments.first else {
-            return nil
-        }
-        return segment.content.text
-    }
-}
-
 /// Strictly parses a `with: [\.foo, \.bar]` array for `@SubContainer`.
 /// Returns `nil` when the expression is not a literal array or any element is
 /// not a simple key path whose final component is a property.
@@ -464,7 +461,13 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                 }
             case "with":
                 hasWithDependencies = true
-                if let parsedDependencies = parseStrictKeyPathArrayArgument(argument.expression) {
+                if hasWithNamesDependencies {
+                    // Both labels present — collapse to the conflict state so
+                    // downstream consumers do not have to reconstruct it from
+                    // boolean flags.
+                    dependencies = []
+                    sameNameWiring = .bothSpecified
+                } else if let parsedDependencies = parseStrictKeyPathArrayArgument(argument.expression) {
                     dependencies = parsedDependencies
                     sameNameWiring = .parsed(label: .with, dependencies: parsedDependencies)
                 } else {
@@ -473,7 +476,10 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                 }
             case "withNames":
                 hasWithNamesDependencies = true
-                if let parsedDependencies = parseStrictStringArrayArgument(argument.expression) {
+                if hasWithDependencies {
+                    dependencies = []
+                    sameNameWiring = .bothSpecified
+                } else if let parsedDependencies = parseStrictStringArrayArgument(argument.expression) {
                     dependencies = parsedDependencies
                     sameNameWiring = .parsed(label: .withNames, dependencies: parsedDependencies)
                 } else {

@@ -2265,6 +2265,71 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer with bindings: + non-literal with: prefers bindings-conflict diagnostic")
+    func subContainerBindingsConflictPrecedesInvalidWiringDiagnoses() {
+        // Locks the precedence ordering when both sub.bindings-conflicts-with-with
+        // and sub.invalid-same-name-wiring would otherwise fire on the same
+        // attribute. The validator suppresses the invalid-same-name-wiring
+        // diagnostic when bindings-conflict is already emitted (see
+        // DIContainerValidator's `hasBindingWiringConflict` guard).
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let keyPaths = [\\AppContainer.config]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: keyPaths,
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Container member starting with reserved prefix emits container.reserved-name-prefix")
+    func containerReservedNamePrefixDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var _storage_config: AppConfig
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer member starting with reserved prefix emits container.reserved-name-prefix")
+    func subContainerReservedNamePrefixDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.config])
+                var _innoDISubBuild_feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer multi-binding emits sub.single-binding")
     func subContainerSingleBindingDiagnoses() {
         assertMacroExpansionDiagnosticCodes(

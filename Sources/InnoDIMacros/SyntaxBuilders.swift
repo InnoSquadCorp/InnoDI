@@ -267,6 +267,28 @@ internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
 /// public runtime helper just to support macro expansion in downstream
 /// modules. Generated code mutates the cell during initialization, then only
 /// resolves it through escaped `Lazy<T>` / `Provider<T>` closures.
+///
+/// ## Concurrency contract
+///
+/// `_InnoDIDeferredCell` is intentionally unsynchronized — the previous public
+/// `_LazyCell` used `NSLock`, but the inlined cell is only ever stitched into
+/// macro-emitted init bodies that observe a single, strict ordering:
+///
+/// 1. The cell is allocated and immediately captured by a closure passed to a
+///    `Lazy<T>` / `Provider<T>` / sub-container builder during init.
+/// 2. `storeValue(_:)` and `bindResolver(_:)` are called exactly once each
+///    from the same init body, before init returns.
+/// 3. After init returns, the macro guarantees the cell is read-only —
+///    `resolve()` is the only operation invoked and it does not mutate state.
+///
+/// Concurrent `resolve()` calls are safe because both `value` and `resolver`
+/// are written before any captured closure can escape (Swift's initialization
+/// model serializes init-time writes with the implicit happens-before of the
+/// init returning). Callers MUST NOT race `storeValue(_:)` /
+/// `bindResolver(_:)` against `resolve()`; macro expansion is the only
+/// supported producer of these calls and it never spawns concurrent work
+/// inside init bodies. If you find yourself constructing this cell by hand,
+/// add explicit synchronization.
 internal func makeDeferredCellSupportDecl() -> DeclSyntax {
     """
     final class _InnoDIDeferredCell<T>: @unchecked Sendable {

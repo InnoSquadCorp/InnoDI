@@ -39,9 +39,9 @@ struct AppContainer {
         self._storage_logger = logger ?? Logger()
         if let direct = feature {
             self._storage_sub_feature = direct
-         } else if let apply = featureOverrides {
+        } else if let apply = featureOverrides {
             self._storage_sub_feature = FeatureBindingsContainer(featureConfig: self._storage_config, apiClient: self._storage_apiService, featureLogger: self._storage_logger, apply)
-         } else {
+        } else {
             self._storage_sub_feature = FeatureBindingsContainer(featureConfig: self._storage_config, apiClient: self._storage_apiService, featureLogger: self._storage_logger)
         }
         self._override_sub_feature = feature

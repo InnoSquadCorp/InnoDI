@@ -282,6 +282,45 @@ struct DIContainerValidator {
             }
         }
 
+        // Reserved-name collision check.
+        //
+        // The macro synthesizes private storage and helper bindings using a
+        // fixed set of prefixes (see `DIContainerCodeGenerator` and
+        // `SubContainerMacro`). A user-declared `@Provide` / `@SubContainer`
+        // member that starts with one of these prefixes will collide with the
+        // generated symbol and produce confusing Swift errors instead of an
+        // InnoDI diagnostic. Reject up front so the user gets actionable
+        // guidance.
+        let reservedMemberPrefixes: [String] = [
+            "_storage_",
+            "_override_sub_",
+            "_innoDISubBuild_",
+            "_innoDIUnresolvedDependency",
+            "_subBuildCell_",
+            "_lazyCell_",
+            "_lazySelfForSub"
+        ]
+
+        let allMembers: [(name: String, attribute: AttributeSyntax)] =
+            model.members.map { (name: $0.name, attribute: $0.attribute) }
+            + model.subContainerMembers.map { (name: $0.name, attribute: $0.attribute) }
+
+        for entry in allMembers {
+            for prefix in reservedMemberPrefixes where entry.name.hasPrefix(prefix) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(entry.attribute),
+                        message: SimpleDiagnostic.containerReservedNamePrefix(
+                            memberName: entry.name,
+                            reservedPrefix: prefix
+                        )
+                    )
+                )
+                hadErrors = true
+                break
+            }
+        }
+
         // Sub-container validation.
         //
         // The parser has already rejected properties carrying both

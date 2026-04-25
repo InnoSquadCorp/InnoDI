@@ -410,6 +410,11 @@ private func sameNameWiringExpressionSyntax(
         return nil
     case let .parsed(label, _), let .invalid(label):
         return extractArgumentExpression(label: label.rawValue, from: attribute)
+    case .bothSpecified:
+        // Either label can serve as the diagnostic anchor; prefer `with:` so
+        // the underline lands on the keypath array when both appear.
+        return extractArgumentExpression(label: SubContainerSameNameWiringLabel.with.rawValue, from: attribute)
+            ?? extractArgumentExpression(label: SubContainerSameNameWiringLabel.withNames.rawValue, from: attribute)
     }
 }
 
