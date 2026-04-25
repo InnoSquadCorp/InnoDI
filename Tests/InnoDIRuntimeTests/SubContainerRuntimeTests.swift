@@ -18,6 +18,7 @@ struct RuntimeParentConfig: Equatable {
 
 final class RuntimeChildStore { init() {} }
 final class RuntimeSubsetStore { init() {} }
+struct RuntimeInputlessChildMarker: Equatable {}
 
 @DIContainer
 struct RuntimeChildContainer {
@@ -67,6 +68,21 @@ struct RuntimeParentWithNamedSubsetContainer {
 
     @SubContainer(scope: .shared, withNames: ["config"])
     var child: RuntimeSubsetChildContainer
+}
+
+@DIContainer
+struct RuntimeInputlessChildContainer {
+    @Provide(.shared, factory: RuntimeInputlessChildMarker(), concrete: true)
+    var marker: RuntimeInputlessChildMarker
+}
+
+@DIContainer
+struct RuntimeParentWithEmptyNamedSubsetContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+    @Provide(.input) var extra: String
+
+    @SubContainer(scope: .shared, withNames: [])
+    var child: RuntimeInputlessChildContainer
 }
 
 @DIContainer
@@ -203,6 +219,15 @@ struct SubContainerRuntimeTests {
             extra: "ignored"
         )
         #expect(parent.child.config == RuntimeParentConfig(endpoint: "named-subset"))
+    }
+
+    @Test("withNames: empty subset forwards no parent inputs")
+    func emptyWithNamesForwardsNoParentInputs() {
+        let parent = RuntimeParentWithEmptyNamedSubsetContainer(
+            config: RuntimeParentConfig(endpoint: "empty-subset"),
+            extra: "ignored"
+        )
+        #expect(parent.child.marker == RuntimeInputlessChildMarker())
     }
 
     @Test("bindings: remaps parent and child labels explicitly")

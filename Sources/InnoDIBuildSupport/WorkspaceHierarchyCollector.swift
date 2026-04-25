@@ -133,6 +133,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                     location: sourceLocation(for: subContainerAttribute.positionAfterSkippingLeadingTrivia),
                     childReferenceDisplayPath: childType.trimmedDescription,
                     childReference: normalizedSemanticTypeReference(childType),
+                    hasExplicitSameNameWiring: hasExplicitSameNameWiring(in: subContainerAttribute),
                     withDependencies: extractWithDependencies(from: subContainerAttribute),
                     bindings: extractSubContainerBindings(from: subContainerAttribute)
                 )
@@ -239,6 +240,19 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
         }
 
         return dependencies
+    }
+
+    private func hasExplicitSameNameWiring(in attribute: AttributeSyntax) -> Bool {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+            return false
+        }
+
+        return arguments.contains { argument in
+            guard let label = argument.label?.text else {
+                return false
+            }
+            return label == "with" || label == "withNames"
+        }
     }
 
     private func extractSubContainerBindings(from attribute: AttributeSyntax) -> [HierarchyBindingRecord] {
@@ -351,6 +365,7 @@ struct WorkspaceHierarchySubContainerRecord: Equatable {
     let location: ValidationIssueLocation
     let childReferenceDisplayPath: String
     let childReference: SemanticTypeReference?
+    let hasExplicitSameNameWiring: Bool
     let withDependencies: [HierarchyWithDependencyRecord]
     let bindings: [HierarchyBindingRecord]
 }

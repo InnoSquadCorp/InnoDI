@@ -2005,6 +2005,24 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports explicit empty withNames wiring")
+    func subContainerSharedWithNamesEmptySubset() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: [])
+                var feature: EmptyFeatureContainer
+            }
+            """,
+            matches: "subContainerSharedWithNamesEmptySubset",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
     func subContainerSharedBindingsMultipleRemaps() {
         assertMacroExpansionSnapshot(
@@ -2432,6 +2450,24 @@ struct DIContainerMacroTests {
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
             ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Explicit empty with: wiring bypasses ambiguous implicit auto-wiring")
+    func subContainerExplicitEmptyWithBypassesAmbiguousAutoWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, with: [])
+                var feature: EmptyFeatureContainer
+            }
+            """,
+            expectedCodes: [],
             macros: Self.macros
         )
     }

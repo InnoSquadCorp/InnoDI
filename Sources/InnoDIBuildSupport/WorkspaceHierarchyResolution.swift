@@ -281,7 +281,7 @@ func resolvedDependencyMappings(
         )
     }
 
-    if !edge.subContainer.withDependencies.isEmpty {
+    if edge.subContainer.hasExplicitSameNameWiring {
         return resolvedDependencyMappings(
             parent: parent,
             child: child,
