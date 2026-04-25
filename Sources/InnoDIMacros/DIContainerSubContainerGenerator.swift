@@ -199,7 +199,10 @@ internal func resolvedSubContainerParentNames(
     switch member.sameNameWiring {
     case let .parsed(_, dependencies):
         return dependencies
-    case .invalid:
+    case .invalid, .bothSpecified:
+        // The validator emits the conflict / invalid diagnostic; fall back to
+        // an empty subset so the generator does not synthesize against a
+        // half-known wiring.
         return []
     case .omitted:
         return autoWireParentMemberNames
@@ -210,6 +213,21 @@ internal func canResolveImplicitSubContainerParentNames(
     member: SubContainerMemberModel,
     autoWireParentMemberNames: [String]
 ) -> Bool {
+    // The macro only blesses implicit auto-wiring when the parent has at
+    // most one `@Provide` candidate. With zero candidates the generated call
+    // is `Child()`; with exactly one candidate the call is
+    // `Child(<name>: self._storage_<name>)`.
+    //
+    // The single-candidate convenience can still produce a Swift compile
+    // error (label mismatch) when the child does not declare an `.input`
+    // named `<name>`. The macro deliberately does not duplicate that check
+    // here because the child container's input list is not visible at
+    // single-attribute expansion time. Build-support hierarchy validation
+    // performs the cross-module match (see
+    // `WorkspaceHierarchyValidation` and the `sub.unknown-child-input`
+    // diagnostic). Users who hit the Swift-side error in single-module
+    // builds should add `with: []` to call `Child()` explicitly, or
+    // `bindings:` to remap to the child input that exists.
     if autoWireParentMemberNames.count <= 1 {
         return true
     }
@@ -248,7 +266,7 @@ private func makeSubContainerOptionalBindingIfExpr(
             statements: CodeBlockItemListSyntax([
                 CodeBlockItemSyntax(item: .expr(assignment))
             ]),
-            rightBrace: .rightBraceToken(leadingTrivia: .space)
+            rightBrace: .rightBraceToken()
         ),
         elseKeyword: .keyword(.else, leadingTrivia: .space, trailingTrivia: .space),
         elseBody: elseBody

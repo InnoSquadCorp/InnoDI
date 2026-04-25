@@ -11,6 +11,7 @@ THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
 IN_PROCESS=0
 ENFORCE_REGRESSION_GATE=0
+EXPLICIT_REPORT_ONLY=0
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   ENFORCE_REGRESSION_GATE=1
 fi
@@ -84,6 +85,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --report-only)
       ENFORCE_REGRESSION_GATE=0
+      EXPLICIT_REPORT_ONLY=1
       shift
       ;;
     --help)
@@ -224,7 +226,14 @@ if [[ "$is_regression" -eq 1 ]]; then
     exit 1
   fi
 
-  echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%); report-only outside GitHub Actions"
+  if [[ "$EXPLICIT_REPORT_ONLY" -eq 1 ]]; then
+    report_only_reason="explicit --report-only flag"
+  elif [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+    report_only_reason="not running in GitHub Actions"
+  else
+    report_only_reason="ENFORCE_REGRESSION_GATE=0"
+  fi
+  echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%); report-only mode, not failing the run (reason: ${report_only_reason})"
   exit 0
 fi
 

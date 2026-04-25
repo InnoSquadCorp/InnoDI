@@ -31,9 +31,9 @@ struct AppContainer {
         self._storage_logger = logger ?? Logger()
         if let direct = feature {
             self._storage_sub_feature = direct
-         } else if let apply = featureOverrides {
+        } else if let apply = featureOverrides {
             self._storage_sub_feature = EmptyFeatureContainer(apply)
-         } else {
+        } else {
             self._storage_sub_feature = EmptyFeatureContainer()
         }
         self._override_sub_feature = feature

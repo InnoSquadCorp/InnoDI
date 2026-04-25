@@ -1,0 +1,23 @@
+name: Select Xcode 26.3
+description: >-
+  Pins the active Xcode toolchain to 26.3 (Swift 6.3). InnoDI's macro
+  performance baseline (`Tools/macro-performance-baseline.json`) is keyed to
+  Swift 6.3, so adding a fallback to an older Xcode silently disables the
+  regression gate. Fail fast if 26.3 is unavailable so the signal is obvious.
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode 26.3
+      shell: bash
+      run: |
+        if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
+          echo "Xcode 26.3 not installed on this runner. Available Xcode apps:"
+          for app in /Applications/Xcode*.app; do
+            [[ -e "$app" ]] && basename "$app"
+          done
+          exit 1
+        fi
+        sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+        xcodebuild -version
+        swift --version

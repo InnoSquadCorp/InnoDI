@@ -46,6 +46,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerMainActorConflict = "container.mainactor-conflict"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
+    case containerReservedNamePrefix = "container.reserved-name-prefix"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
     case subScopeRequired = "sub.scope-required"
@@ -87,7 +88,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
-                .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
+                .containerCustomInitUnsupported, .containerOverridesNameConflict,
+                .containerReservedNamePrefix, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subWithConflictsWithWithNames,
@@ -486,8 +488,15 @@ extension SimpleDiagnostic {
 
     static func subAutoWiringAmbiguous(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: or withNames: for same-name wiring, or bindings: for explicit child-to-parent remapping.",
+            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: or withNames: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] (or withNames: []) when the child is intentionally constructed without parent inputs.",
             code: .subAutoWiringAmbiguous
+        )
+    }
+
+    static func containerReservedNamePrefix(memberName: String, reservedPrefix: String) -> Self {
+        Self(
+            "Container member '\(memberName)' uses the reserved prefix '\(reservedPrefix)'. InnoDI synthesizes private storage with this prefix and a user-declared member would collide with the generated symbols. Rename '\(memberName)' so it does not start with '\(reservedPrefix)'.",
+            code: .containerReservedNamePrefix
         )
     }
 

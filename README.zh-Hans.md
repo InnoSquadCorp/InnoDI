@@ -170,15 +170,26 @@ closure 依然可以编译，并作为 no-op 运行。
 
 ## 嵌套容器与层级
 
-`@SubContainer` 用来建模父容器拥有的子容器。
+`@SubContainer` 用来建模父容器拥有的子容器：
+
+```swift
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+var feature: FeatureContainer
+```
+
+关键规则：
 
 - `scope:` 必填
-- 只有父容器有 0 个或 1 个 `@Provide` 候选时，才会使用按名称的隐式 wiring
-- 如果父容器有多个候选，必须使用 `with:`、`withNames:` 或 `bindings:` 显式 wiring
-- `with:` 或 `withNames:` 转发同名的显式子集
-- `bindings:` 将子容器 input label remap 到不同的父成员名
-- `with:`、`withNames:`、`bindings:` 三种 wiring form 只能选择一种
-- 父容器的 `Overrides` 同时拥有完整替换槽和子容器 override closure
+- 只有父容器有 0 个或 1 个 `@Provide` 候选时，才会使用按名称的隐式 wiring。
+  父容器有多个候选时必须显式添加 wiring，不要依赖生成的 Swift initializer
+  错误。
+- `with:` 或 `withNames:` 转发同名的显式子集或顺序。两种形式都必须是宏可
+  以读取的字面量数组；不支持运行时变量或计算得到的数组元素。
+- `with: []` 或 `withNames: []` 是显式的空子集，将调用 `Child()`。
+- `bindings:` 将子容器 input label remap 到不同的父成员名。
+- `with:`、`withNames:`、`bindings:` 三种 wiring form 只能选择一种。
+- 父容器的 `Overrides` 同时拥有完整替换槽 (`feature`) 和子容器 override
+  closure (`featureOverrides`)。
 
 跨模块 ownership 使用：
 
