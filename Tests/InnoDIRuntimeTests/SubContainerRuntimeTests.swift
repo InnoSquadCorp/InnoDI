@@ -18,6 +18,7 @@ struct RuntimeParentConfig: Equatable {
 
 final class RuntimeChildStore { init() {} }
 final class RuntimeSubsetStore { init() {} }
+struct RuntimeInputlessChildMarker: Equatable {}
 
 @DIContainer
 struct RuntimeChildContainer {
@@ -58,6 +59,37 @@ struct RuntimeParentWithSubsetContainer {
 
     @SubContainer(scope: .shared, with: [\RuntimeParentWithSubsetContainer.config])
     var child: RuntimeSubsetChildContainer
+}
+
+@DIContainer
+struct RuntimeParentWithNamedSubsetContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+    @Provide(.input) var extra: String
+
+    @SubContainer(scope: .shared, withNames: ["config"])
+    var child: RuntimeSubsetChildContainer
+}
+
+@DIContainer
+struct RuntimeInputlessChildContainer {
+    @Provide(.shared, factory: RuntimeInputlessChildMarker(), concrete: true)
+    var marker: RuntimeInputlessChildMarker
+}
+
+// Compile-time proof: `withNames: []` is an explicit empty subset, so this
+// fixture must expand without `sub.auto-wiring-ambiguous` even though the
+// parent has multiple `@Provide` candidates. The runtime assertion in
+// `emptyWithNamesForwardsNoParentInputs` is technically tautological
+// (`RuntimeInputlessChildMarker` is an empty Equatable) — its real purpose
+// is to keep this container shape under test so a future regression in
+// macro expansion would fail to compile this file.
+@DIContainer
+struct RuntimeParentWithEmptyNamedSubsetContainer {
+    @Provide(.input) var config: RuntimeParentConfig
+    @Provide(.input) var extra: String
+
+    @SubContainer(scope: .shared, withNames: [])
+    var child: RuntimeInputlessChildContainer
 }
 
 @DIContainer
@@ -185,6 +217,30 @@ struct SubContainerRuntimeTests {
         // only accepts `config`, so this fixture would fail to compile if the
         // generated child init forwarded `extra` as well.
         #expect(parent.child.config == RuntimeParentConfig(endpoint: "subset"))
+    }
+
+    @Test("withNames: subset forwards only the selected parent inputs")
+    func withNamesRestrictsForwardedInputs() {
+        let parent = RuntimeParentWithNamedSubsetContainer(
+            config: RuntimeParentConfig(endpoint: "named-subset"),
+            extra: "ignored"
+        )
+        #expect(parent.child.config == RuntimeParentConfig(endpoint: "named-subset"))
+    }
+
+    @Test("withNames: empty subset forwards no parent inputs")
+    func emptyWithNamesForwardsNoParentInputs() {
+        // Compile-time proof: see the comment on
+        // `RuntimeParentWithEmptyNamedSubsetContainer`. The
+        // `#expect(... == RuntimeInputlessChildMarker())` line is a
+        // formality (the marker is an empty Equatable, so equality always
+        // holds); the real assertion is that this file compiles, which
+        // means the macro accepted `withNames: []` and emitted `Child()`.
+        let parent = RuntimeParentWithEmptyNamedSubsetContainer(
+            config: RuntimeParentConfig(endpoint: "empty-subset"),
+            extra: "ignored"
+        )
+        #expect(parent.child.marker == RuntimeInputlessChildMarker())
     }
 
     @Test("bindings: remaps parent and child labels explicitly")

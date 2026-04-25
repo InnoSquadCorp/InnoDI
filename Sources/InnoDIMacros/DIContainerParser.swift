@@ -128,7 +128,14 @@ struct DIContainerParser {
                         scope: subArgs.scope,
                         scopeName: subArgs.scopeName,
                         scopeExpressionSyntax: extractArgumentExpression(label: "scope", from: subAttribute),
-                        parentDependencies: parentDependencyReferences.map(\.name),
+                        parentDependencies: subArgs.dependencies,
+                        hasWithDependencies: subArgs.hasWithDependencies,
+                        hasWithNamesDependencies: subArgs.hasWithNamesDependencies,
+                        sameNameWiring: subArgs.sameNameWiring,
+                        sameNameWiringExpressionSyntax: sameNameWiringExpressionSyntax(
+                            for: subArgs.sameNameWiring,
+                            in: subAttribute
+                        ),
                         explicitBindings: bindingReferences,
                         parentDependencyReferences: parentDependencyReferences,
                         attribute: subAttribute,
@@ -377,21 +384,66 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
         return []
     }
 
-    for argument in arguments where argument.label?.text == "with" {
-        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-            return []
-        }
-
-        return arrayExpr.elements.compactMap { element in
-            guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
-                  let property = keyPath.components.last?.component.as(KeyPathPropertyComponentSyntax.self)?.declName.baseName.text else {
-                return nil
+    // Walk both `with:` (key paths) and `withNames:` (string literals) so
+    // diagnostics can anchor at the per-element source position regardless
+    // of which same-name wiring form the user picked. Without the
+    // `withNames:` branch a misspelled `withNames: ["foo"]` ends up with an
+    // empty references list and `parentReferenceSyntax(for:)` falls back to
+    // the whole attribute.
+    for argument in arguments {
+        guard let label = argument.label?.text else { continue }
+        switch label {
+        case "with":
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else { continue }
+            return arrayExpr.elements.compactMap { element in
+                guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                      let property = keyPath.components.last?
+                        .component.as(KeyPathPropertyComponentSyntax.self)?
+                        .declName.baseName.text else {
+                    return nil
+                }
+                return WithDependencyReference(
+                    name: property,
+                    anchorExpression: ExprSyntax(keyPath)
+                )
             }
-            return WithDependencyReference(name: property, keyPath: keyPath)
+        case "withNames":
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else { continue }
+            return arrayExpr.elements.compactMap { element in
+                guard let literal = element.expression.as(StringLiteralExprSyntax.self),
+                      literal.segments.count == 1,
+                      case let .stringSegment(segment)? = literal.segments.first,
+                      !segment.content.text.isEmpty else {
+                    return nil
+                }
+                return WithDependencyReference(
+                    name: segment.content.text,
+                    anchorExpression: ExprSyntax(literal)
+                )
+            }
+        default:
+            continue
         }
     }
 
     return []
+}
+
+private func sameNameWiringExpressionSyntax(
+    for state: SubContainerSameNameWiringParseState,
+    in attribute: AttributeSyntax
+) -> ExprSyntax? {
+    switch state {
+    case .omitted:
+        return nil
+    case let .parsed(label, _), let .invalid(label):
+        return extractArgumentExpression(label: label.rawValue, from: attribute)
+    case .bothSpecified:
+        // Either label can serve as the diagnostic anchor; prefer `with:` so
+        // the underline lands on the keypath array when both appear.
+        return extractArgumentExpression(label: SubContainerSameNameWiringLabel.with.rawValue, from: attribute)
+            ?? extractArgumentExpression(label: SubContainerSameNameWiringLabel.withNames.rawValue, from: attribute)
+    }
 }
 
 private func extractSubContainerBindingReferences(from attribute: AttributeSyntax) -> [SubContainerBindingReference] {

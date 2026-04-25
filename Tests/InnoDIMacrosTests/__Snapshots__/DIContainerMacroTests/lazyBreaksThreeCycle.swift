@@ -23,7 +23,29 @@ struct AppContainer {
     private let _storage_c: C
 
     init(a: A? = nil, b: B? = nil, c: C? = nil) {
-        let _lazyCell_c = _LazyCell<C>()
+        final class _InnoDIDeferredCell<T>: @unchecked Sendable {
+            private var value: T?
+            private var resolver: (() -> T)?
+
+            func storeValue(_ value: T) {
+                self.value = value
+            }
+
+            func bindResolver(_ resolver: @escaping () -> T) {
+                self.resolver = resolver
+            }
+
+            func resolve() -> T {
+                if let value {
+                    return value
+                }
+                if let resolver {
+                    return resolver()
+                }
+                fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
+            }
+        }
+        let _lazyCell_c = _InnoDIDeferredCell<C>()
         self._storage_a = a ?? { (c: Lazy<C>) in
                 A(c: c)
             }(Lazy {

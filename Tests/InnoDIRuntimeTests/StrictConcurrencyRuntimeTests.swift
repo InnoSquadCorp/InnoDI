@@ -16,26 +16,4 @@ struct StrictConcurrencyRuntimeTests {
         #expect(lazy().value == 1)
         #expect(provider().value == 2)
     }
-
-    @Test("_LazyCell stores concrete values for later deferred resolution")
-    func lazyCellStoresConcreteValues() {
-        let cell = _LazyCell<SendablePayload>()
-        cell.storeValue(SendablePayload(value: 42))
-
-        #expect(cell.resolve() == SendablePayload(value: 42))
-    }
-
-    @Test("_LazyCell binds deferred resolvers without exposing raw mutable state")
-    func lazyCellBindsDeferredResolvers() {
-        let cell = _LazyCell<SendablePayload>()
-        var nextValue = 0
-
-        cell.bindResolver {
-            nextValue += 1
-            return SendablePayload(value: nextValue)
-        }
-
-        #expect(cell.resolve() == SendablePayload(value: 1))
-        #expect(cell.resolve() == SendablePayload(value: 2))
-    }
 }

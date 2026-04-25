@@ -10,6 +10,18 @@ BASELINE_FILE="Tools/macro-performance-baseline.json"
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
 IN_PROCESS=0
+EXPLICIT_REPORT_ONLY=0
+# Honor an externally-set `ENFORCE_REGRESSION_GATE` so callers can opt out of
+# the regression gate even inside GitHub Actions (e.g. a workflow that wants
+# the timing report without failing the run). Default to enforcing on
+# `GITHUB_ACTIONS=true` and to report-only otherwise.
+if [[ -n "${ENFORCE_REGRESSION_GATE:-}" ]]; then
+  ENFORCE_REGRESSION_GATE="$ENFORCE_REGRESSION_GATE"
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  ENFORCE_REGRESSION_GATE=1
+else
+  ENFORCE_REGRESSION_GATE=0
+fi
 PERF_LOG="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf.XXXXXX")"
 IN_PROCESS_REPORT="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf-inproc.XXXXXX")"
 trap 'rm -f "$PERF_LOG" "$IN_PROCESS_REPORT"' EXIT
@@ -26,6 +38,8 @@ Options:
   --update-baseline       Overwrite baseline with current measurements
   --in-process            Use the in-process SwiftSyntax benchmark (single
                           swift test spawn, lower variance, ~20x faster)
+  --enforce               Fail when the threshold is exceeded
+  --report-only           Report threshold results without failing
   --help                  Show this help
 USAGE
 }
@@ -70,6 +84,15 @@ while [[ $# -gt 0 ]]; do
       ;;
     --in-process)
       IN_PROCESS=1
+      shift
+      ;;
+    --enforce)
+      ENFORCE_REGRESSION_GATE=1
+      shift
+      ;;
+    --report-only)
+      ENFORCE_REGRESSION_GATE=0
+      EXPLICIT_REPORT_ONLY=1
       shift
       ;;
     --help)
@@ -205,8 +228,20 @@ echo "[macro-perf] baseline mean=${baseline_mean}ms, current mean=${mean_ms}ms, 
 
 is_regression="$(awk -v delta="$regression_pct" -v threshold="$THRESHOLD_PERCENT" 'BEGIN { print (delta > threshold) ? 1 : 0 }')"
 if [[ "$is_regression" -eq 1 ]]; then
-  echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%)" >&2
-  exit 1
+  if [[ "$ENFORCE_REGRESSION_GATE" -eq 1 ]]; then
+    echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%)" >&2
+    exit 1
+  fi
+
+  if [[ "$EXPLICIT_REPORT_ONLY" -eq 1 ]]; then
+    report_only_reason="explicit --report-only flag"
+  elif [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+    report_only_reason="not running in GitHub Actions"
+  else
+    report_only_reason="ENFORCE_REGRESSION_GATE=0"
+  fi
+  echo "[macro-perf] regression exceeded threshold (${THRESHOLD_PERCENT}%); report-only mode, not failing the run (reason: ${report_only_reason})"
+  exit 0
 fi
 
 echo "[macro-perf] regression within threshold (${THRESHOLD_PERCENT}%)"

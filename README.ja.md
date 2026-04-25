@@ -191,12 +191,29 @@ input-only コンテナも空の builder を生成します。子コンテナが
 
 ## ネストコンテナと階層
 
-`@SubContainer` は親が所有する子コンテナを表します。
+`@SubContainer` は親が所有する子コンテナを表します:
+
+```swift
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+var feature: FeatureContainer
+```
+
+主なルール:
 
 - `scope:` は必須です。
-- 親の `@Provide` メンバーは名前ベースで子の `.input` に転送されます。
-- `with:` で転送対象を絞れます。
-- 親の `Overrides` には完全置換スロットと子 override closure の両方が追加されます。
+- 親の `@Provide` 候補が 0 個または 1 個の場合のみ、名前ベースの
+  implicit wiring が convenience として有効です。親候補が複数ある場合は
+  生成された Swift initializer のエラーに頼らず、必ず explicit wiring を
+  追加してください。
+- `with:` または `withNames:` は同名の明示 subset / 順序を転送します。
+  どちらの形式もマクロが読み取れるリテラル配列でなければならず、
+  ランタイム変数や計算された配列要素はサポートされません。
+- `with: []` または `withNames: []` は明示的な空 subset で、`Child()` を
+  呼び出します。
+- `bindings:` は子 input label を別の親メンバー名に remap します。
+- `with:`、`withNames:`、`bindings:` の wiring form は 1 つだけ選びます。
+- 親の `Overrides` には完全置換スロット (`feature`) と子 override closure
+  (`featureOverrides`) の両方が追加されます。
 
 モジュールをまたぐ ownership には:
 

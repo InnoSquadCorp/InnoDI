@@ -462,7 +462,7 @@ private func enclosingProvideMemberNames(for declaration: some DeclSyntaxProtoco
 /// `makeClosureCallExpr(closure:argumentNames:)` except soft (Lazy<T>)
 /// parameters are wrapped as `Lazy({ self.<name> })`, because the accessor
 /// runs after `self` is fully initialized and therefore can capture it
-/// directly — no `_LazyCell` box plumbing is needed here.
+/// directly — no init-time deferred cell plumbing is needed here.
 private func makeTransientClosureCallExpr(
     closure: ClosureExprSyntax,
     parsed: ClosureParameterList

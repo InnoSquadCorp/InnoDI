@@ -63,6 +63,9 @@ jobs:
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
 
+      - name: Macro Performance Check
+        run: Tools/measure-macro-performance.sh --iterations 5
+
       - name: Generate DocC
         run: Tools/generate-docc.sh
 

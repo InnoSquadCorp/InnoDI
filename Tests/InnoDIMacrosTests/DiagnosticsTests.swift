@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftDiagnostics
+import InnoDICore
 
 @testable import InnoDIMacros
 
@@ -60,7 +61,14 @@ struct DiagnosticsTests {
             .subConflictsWithProvide,
             .subOverridesNameConflict,
             .subUnknownParentMember,
-            .subSharedParentMustNotBeTransient
+            .subBindingsConflictsWithWith,
+            .subWithConflictsWithWithNames,
+            .subInvalidSameNameWiring,
+            .subDuplicateChildBinding,
+            .subUnknownChildInput,
+            .subAutoWiringAmbiguous,
+            .subSharedParentMustNotBeTransient,
+            .containerReservedNamePrefix
         ]
 
         for code in usageCodes {
@@ -109,7 +117,12 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subConflictsWithProvide(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.conflicts-with-provide")),
             (SimpleDiagnostic.subOverridesNameConflict(memberName: "feature", generatedName: "featureOverrides"), MessageID(domain: "InnoDI.validation", id: "sub.overrides-name-conflict")),
             (SimpleDiagnostic.subUnknownParentMember(memberName: "feature", parentMemberName: "missing"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")),
-            (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"))
+            (SimpleDiagnostic.subBindingsConflictsWithWith(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")),
+            (SimpleDiagnostic.subWithConflictsWithWithNames(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")),
+            (SimpleDiagnostic.subInvalidSameNameWiring(memberName: "feature", label: .withNames), MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")),
+            (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
+            (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")),
+            (SimpleDiagnostic.containerReservedNamePrefix(memberName: "_storage_config", reservedPrefix: "_storage_"), MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"))
         ]
 
         for item in cases {

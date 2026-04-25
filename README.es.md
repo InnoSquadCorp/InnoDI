@@ -228,12 +228,29 @@ Ambos wrappers son intencionalmente non-`Sendable`.
 
 ## Nested Containers y jerarquia
 
-`@SubContainer` modela child containers poseidos por un parent.
+`@SubContainer` modela child containers poseidos por un parent:
+
+```swift
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+var feature: FeatureContainer
+```
+
+Reglas clave:
 
 - `scope:` es obligatorio.
-- Los miembros `@Provide` del parent se reenvian a los `.input` del child por nombre.
-- `with:` limita el forwarding a un subconjunto explicito.
-- El `Overrides` del parent gana tanto el reemplazo completo como el closure de override del child.
+- El wiring implicito por nombre solo es una convenience cuando el parent
+  tiene 0 o 1 candidato `@Provide`. Si hay varios candidatos, agrega wiring
+  explicito en vez de depender de errores del initializer generado.
+- `with:` o `withNames:` reenvia un subconjunto explicito con el mismo
+  nombre u orden. Ambas formas deben ser arreglos literales legibles por el
+  macro; variables en tiempo de ejecucion o elementos calculados no estan
+  soportados.
+- `with: []` o `withNames: []` es un subconjunto vacio explicito y llama a
+  `Child()`.
+- `bindings:` remapea labels de input del child a otros nombres del parent.
+- Elige exactamente una forma de wiring: `with:`, `withNames:` o `bindings:`.
+- El `Overrides` del parent gana tanto un slot de reemplazo completo
+  (`feature`) como un closure de override del child (`featureOverrides`).
 
 Para ownership cross-module:
 

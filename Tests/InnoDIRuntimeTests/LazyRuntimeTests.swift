@@ -80,9 +80,9 @@ struct LazyTransientContainer {
 ///
 /// The macro's expansion is covered by snapshot tests under
 /// `Tests/InnoDIMacrosTests/`. These tests assert that the generated init
-/// actually *runs*: the `_LazyCell` box ends up populated, Lazy resolution
-/// returns the shared `.shared` identity, and forward factory references
-/// compile cleanly end-to-end.
+/// actually *runs*: deferred cell wiring is populated, Lazy resolution returns
+/// the shared `.shared` identity, and forward factory references compile
+/// cleanly end-to-end.
 @Suite("@DIContainer Lazy cycle escape")
 struct LazyRuntimeTests {
     @Test("Two-shared cycle resolves through Lazy with preserved identity")

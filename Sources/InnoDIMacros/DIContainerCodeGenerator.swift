@@ -74,11 +74,10 @@ private func makeInitDecl(
     let fallbackOverrideNames = Set(sharedMembers.map(\.name) + transientMembers.map(\.name))
 
     // Only deferred wrappers (`Lazy<T>` / `Provider<T>`) that are consumed
-    // from the synthesized init (`.shared` / `asyncFactory`) need
-    // `_LazyCell` storage.
-    // Transient accessors emit `Lazy({ self.<name> })` / `Provider({ self.<name> })`
-    // directly and therefore do not need init-time boxes or late resolver
-    // bindings.
+    // from the synthesized init (`.shared` / `asyncFactory`) need local
+    // deferred-cell storage. Transient accessors emit `Lazy({ self.<name> })`
+    // / `Provider({ self.<name> })` directly and therefore do not need
+    // init-time boxes or late resolver bindings.
     let initTimeDeferredSourceMembers = sharedMembers
     let initTimeDeferredTargetNames = Set(
         initTimeDeferredSourceMembers.flatMap { $0.softClosureDependencies + $0.providerClosureDependencies }
@@ -89,6 +88,7 @@ private func makeInitDecl(
             && member.supportsLazySoftTarget
     }
     let deferredTargetNameSet = Set(deferredTargetMembers.map(\.name))
+    let hasTransientSubContainer = subContainerMembers.contains(where: { $0.scope == .transient })
 
     for (index, member) in inputMembers.enumerated() {
         let isLast = index == inputMembers.count - 1
@@ -188,13 +188,18 @@ private func makeInitDecl(
         )
     }
 
-    // Declare one `_LazyCell` reference box per soft-target member. These
-    // boxes are `let` bindings wrapping a class instance, so the Lazy
-    // wrappers we emit below can read `.value` after init completes — even
-    // though factories that capture the box run *before* the target storage
-    // is assigned. For struct containers, this avoids the "cannot capture
-    // self in init" problem entirely because the box is a local `let`, not
-    // a reference to `self`.
+    if !deferredTargetMembers.isEmpty || hasTransientSubContainer {
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(makeDeferredCellSupportDecl()))
+        )
+    }
+
+    // Declare one local reference box per soft-target member. These boxes are
+    // `let` bindings wrapping a class instance, so the Lazy wrappers we emit
+    // below can resolve after init completes, even though factories that
+    // capture the box run before the target storage is assigned. For struct
+    // containers, this avoids the "cannot capture self in init" problem
+    // entirely because the box is a local `let`, not a reference to `self`.
     for target in deferredTargetMembers {
         statements.append(
             CodeBlockItemSyntax(item: .decl(makeLazyCellDecl(name: target.name, type: target.type)))
@@ -325,7 +330,6 @@ private func makeInitDecl(
     // accessors as a fully-constructed value type — value-type copies of
     // `self` are cheap and reflect the stable parent state.
     let autoWireParentMemberNames = (inputMembers + sharedMembers + transientMembers).map(\.name)
-    let hasTransientSubContainer = subContainerMembers.contains(where: { $0.scope == .transient })
     for member in subContainerMembers {
         statements.append(contentsOf: makeSubContainerInitStatements(
             member: member,
