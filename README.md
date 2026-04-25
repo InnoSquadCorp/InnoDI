@@ -295,6 +295,8 @@ Key rules:
   `@Provide` candidate. If the parent has multiple candidates, add explicit
   wiring instead of relying on generated Swift initializer errors.
 - `with:` or `withNames:` forwards an explicit same-name subset or order.
+  Both forms must be literal arrays the macro can read; runtime variables or
+  computed array elements are unsupported.
 - `with: []` or `withNames: []` is an explicit empty subset and calls `Child()`.
 - `bindings:` remaps child input labels to different parent member names.
 - Choose exactly one wiring form: `with:`, `withNames:`, or `bindings:`.

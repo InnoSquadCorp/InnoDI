@@ -9,6 +9,7 @@
 //  ID can link to documentation.
 //
 
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 
@@ -54,6 +55,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
+    case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
@@ -89,7 +91,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith, .subWithConflictsWithWithNames,
-                .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
+                .subInvalidSameNameWiring, .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
@@ -444,6 +446,24 @@ extension SimpleDiagnostic {
             "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
             code: .subWithConflictsWithWithNames
         )
+    }
+
+    static func subInvalidSameNameWiring(
+        memberName: String,
+        label: SubContainerSameNameWiringLabel
+    ) -> Self {
+        switch label {
+        case .with:
+            return Self(
+                "@SubContainer on '\(memberName)' requires with: to be a literal array of key paths, such as with: [\\.config] or with: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
+                code: .subInvalidSameNameWiring
+            )
+        case .withNames:
+            return Self(
+                "@SubContainer on '\(memberName)' requires withNames: to be a literal array of string literals, such as withNames: [\"config\"] or withNames: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
+                code: .subInvalidSameNameWiring
+            )
+        }
     }
 
     static func subDuplicateChildBinding(memberName: String, childInputName: String) -> Self {

@@ -218,6 +218,10 @@ func validateDependencySatisfaction(
     )
 
     var issues = resolvedMappings.issues
+    if resolvedMappings.suppressesDependencySatisfaction {
+        return issues
+    }
+
     for (childInputName, childType) in requiredInputs.sorted(by: { $0.key < $1.key }) {
         guard let mapping = resolvedMappings.mappings[childInputName] else {
             issues.append(

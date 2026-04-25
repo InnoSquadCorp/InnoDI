@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftDiagnostics
+import InnoDICore
 
 @testable import InnoDIMacros
 
@@ -116,6 +117,7 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subUnknownParentMember(memberName: "feature", parentMemberName: "missing"), MessageID(domain: "InnoDI.validation", id: "sub.unknown-parent-member")),
             (SimpleDiagnostic.subBindingsConflictsWithWith(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")),
             (SimpleDiagnostic.subWithConflictsWithWithNames(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")),
+            (SimpleDiagnostic.subInvalidSameNameWiring(memberName: "feature", label: .withNames), MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")),
             (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
             (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"))
         ]

@@ -255,6 +255,17 @@ struct ResolvedDependencyMapping {
 struct ResolvedDependencyMappingsResult {
     let mappings: [String: ResolvedDependencyMapping]
     let issues: [ValidationIssue]
+    let suppressesDependencySatisfaction: Bool
+
+    init(
+        mappings: [String: ResolvedDependencyMapping],
+        issues: [ValidationIssue],
+        suppressesDependencySatisfaction: Bool = false
+    ) {
+        self.mappings = mappings
+        self.issues = issues
+        self.suppressesDependencySatisfaction = suppressesDependencySatisfaction
+    }
 }
 
 func resolvedDependencyMappings(
@@ -281,13 +292,14 @@ func resolvedDependencyMappings(
         )
     }
 
-    if edge.subContainer.hasExplicitSameNameWiring {
+    switch edge.subContainer.sameNameWiring {
+    case let .parsed(_, dependencies):
         return resolvedDependencyMappings(
             parent: parent,
             child: child,
             edge: edge,
             kind: .withDependency,
-            candidates: edge.subContainer.withDependencies.map {
+            candidates: dependencies.map {
                 (
                     key: $0.name,
                     mapping: ResolvedDependencyMapping(parentName: $0.name, location: $0.location),
@@ -295,6 +307,22 @@ func resolvedDependencyMappings(
                 )
             }
         )
+    case let .invalid(label, location):
+        return ResolvedDependencyMappingsResult(
+            mappings: [:],
+            issues: [
+                makeInvalidSameNameWiringIssue(
+                    parent: parent,
+                    child: child,
+                    edge: edge,
+                    label: label,
+                    location: location
+                )
+            ],
+            suppressesDependencySatisfaction: true
+        )
+    case .omitted:
+        break
     }
 
     return ResolvedDependencyMappingsResult(
@@ -308,6 +336,42 @@ func resolvedDependencyMappings(
             )
         }),
         issues: []
+    )
+}
+
+private func makeInvalidSameNameWiringIssue(
+    parent: WorkspaceHierarchyContainerRecord,
+    child: WorkspaceHierarchyContainerRecord,
+    edge: ResolvedHierarchyEdge,
+    label: SubContainerSameNameWiringLabel,
+    location: ValidationIssueLocation
+) -> ValidationIssue {
+    let literalExample: String
+    switch label {
+    case .with:
+        literalExample = "with: [\\.config] or with: []"
+    case .withNames:
+        literalExample = "withNames: [\"config\"] or withNames: []"
+    }
+
+    return ValidationIssue(
+        code: "hierarchy.invalid-same-name-wiring",
+        severity: .error,
+        message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' uses \(label.rawValue): that is not a fully parseable literal array.",
+        location: location,
+        notes: [
+            ValidationIssueNote(
+                message: "child component '\(child.path)' is reached from parent container '\(parent.path)'.",
+                location: child.location
+            )
+        ],
+        remediation: "Use a literal array such as \(literalExample). Runtime variables and computed elements are not supported; use bindings: for renamed child inputs.",
+        metadata: [
+            "parentContainerPath": parent.path,
+            "childContainerPath": child.path,
+            "subContainerMemberName": edge.subContainer.memberName,
+            "label": label.rawValue
+        ]
     )
 }
 

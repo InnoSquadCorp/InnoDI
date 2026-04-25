@@ -2153,6 +2153,92 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer withNames: requires a literal string array")
+    func subContainerWithNamesVariableDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let dependencyNames = ["config"]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, withNames: dependencyNames)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with: requires a literal key-path array")
+    func subContainerWithVariableDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let keyPaths = [\\AppContainer.config]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: keyPaths)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer withNames: rejects partially dynamic literal arrays")
+    func subContainerWithNamesDynamicElementDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let dynamicName = "logger"
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: ["config", dynamicName])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with: rejects partially computed literal arrays")
+    func subContainerWithComputedElementDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            func makeKeyPath() -> Any { fatalError() }
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, with: [\\.config, makeKeyPath()])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer duplicate child bindings emit sub.duplicate-child-binding")
     func subContainerDuplicateChildBindingDiagnoses() {
         assertMacroExpansionDiagnosticCodes(

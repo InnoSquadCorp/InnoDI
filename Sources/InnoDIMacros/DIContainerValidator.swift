@@ -316,7 +316,8 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if sub.hasWithDependencies && sub.hasWithNamesDependencies {
+            let hasSameNameWiringConflict = sub.hasWithDependencies && sub.hasWithNamesDependencies
+            if hasSameNameWiringConflict {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
@@ -326,7 +327,9 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if (sub.hasWithDependencies || sub.hasWithNamesDependencies) && !sub.explicitBindings.isEmpty {
+            let hasBindingWiringConflict = (sub.hasWithDependencies || sub.hasWithNamesDependencies)
+                && !sub.explicitBindings.isEmpty
+            if hasBindingWiringConflict {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
@@ -376,6 +379,22 @@ struct DIContainerValidator {
                 continue
             }
 
+            if !hasSameNameWiringConflict,
+               !hasBindingWiringConflict,
+               let invalidLabel = sub.invalidSameNameWiringLabel {
+                context.diagnose(
+                    Diagnostic(
+                        node: sub.sameNameWiringExpressionSyntax.map(Syntax.init) ?? Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subInvalidSameNameWiring(
+                            memberName: sub.name,
+                            label: invalidLabel
+                        )
+                    )
+                )
+                hadErrors = true
+                continue
+            }
+
             // Explicit same-name wiring must resolve to @Provide members on
             // the parent. `with:` diagnostics can point at the keypath;
             // `withNames:` falls back to the attribute node.
@@ -410,7 +429,7 @@ struct DIContainerValidator {
                 }
             }
 
-            let usesImplicitSubContainerParentNames = !sub.hasExplicitSameNameWiring
+            let usesImplicitSubContainerParentNames = sub.sameNameWiring == .omitted
                 && sub.explicitBindings.isEmpty
 
             if usesImplicitSubContainerParentNames,
@@ -438,7 +457,7 @@ struct DIContainerValidator {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
             } else if sub.hasExplicitSameNameWiring {
                 wiredParents = sub.parentDependencies
-            } else {
+            } else if sub.sameNameWiring == .omitted {
                 wiredParents = canResolveImplicitSubContainerParentNames(
                     member: sub,
                     autoWireParentMemberNames: model.members.map(\.name)
@@ -448,6 +467,8 @@ struct DIContainerValidator {
                         autoWireParentMemberNames: model.members.map(\.name)
                     )
                     : []
+            } else {
+                wiredParents = []
             }
             for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
                 if memberScopeByName[parentName] == .transient {

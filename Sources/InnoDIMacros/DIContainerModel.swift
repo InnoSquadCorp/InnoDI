@@ -88,6 +88,10 @@ struct SubContainerMemberModel {
     let hasWithDependencies: Bool
     /// Whether the source used `withNames:`.
     let hasWithNamesDependencies: Bool
+    /// Whether same-name wiring was omitted, fully parsed, or invalid.
+    let sameNameWiring: SubContainerSameNameWiringParseState
+    /// Original `with:` / `withNames:` expression syntax for invalid-wiring diagnostics.
+    let sameNameWiringExpressionSyntax: ExprSyntax?
     /// Explicit child `.input` -> parent member remapping from
     /// `bindings: [(child: \.foo, parent: \.bar)]`.
     let explicitBindings: [SubContainerBindingReference]
@@ -103,7 +107,17 @@ struct SubContainerMemberModel {
     }
 
     var hasExplicitSameNameWiring: Bool {
-        hasWithDependencies || hasWithNamesDependencies
+        if case .parsed = sameNameWiring {
+            return true
+        }
+        return false
+    }
+
+    var invalidSameNameWiringLabel: SubContainerSameNameWiringLabel? {
+        if case let .invalid(label) = sameNameWiring {
+            return label
+        }
+        return nil
     }
 
     func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {

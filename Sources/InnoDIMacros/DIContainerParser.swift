@@ -131,6 +131,11 @@ struct DIContainerParser {
                         parentDependencies: subArgs.dependencies,
                         hasWithDependencies: subArgs.hasWithDependencies,
                         hasWithNamesDependencies: subArgs.hasWithNamesDependencies,
+                        sameNameWiring: subArgs.sameNameWiring,
+                        sameNameWiringExpressionSyntax: sameNameWiringExpressionSyntax(
+                            for: subArgs.sameNameWiring,
+                            in: subAttribute
+                        ),
                         explicitBindings: bindingReferences,
                         parentDependencyReferences: parentDependencyReferences,
                         attribute: subAttribute,
@@ -394,6 +399,18 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
     }
 
     return []
+}
+
+private func sameNameWiringExpressionSyntax(
+    for state: SubContainerSameNameWiringParseState,
+    in attribute: AttributeSyntax
+) -> ExprSyntax? {
+    switch state {
+    case .omitted:
+        return nil
+    case let .parsed(label, _), let .invalid(label):
+        return extractArgumentExpression(label: label.rawValue, from: attribute)
+    }
 }
 
 private func extractSubContainerBindingReferences(from attribute: AttributeSyntax) -> [SubContainerBindingReference] {
