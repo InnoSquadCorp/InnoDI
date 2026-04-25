@@ -257,10 +257,10 @@ public enum SubContainerScope {
 /// exist, InnoDI emits `sub.auto-wiring-ambiguous` and requires `with`,
 /// `withNames`, or `bindings`. When `with:` or `withNames:` is provided, the
 /// listed parent members replace the implicit set but keep their same-name
-/// labels. When `bindings:` is provided, each tuple rewrites the child label
-/// explicitly while reading from the selected parent member. Child-input
-/// verification is handled conservatively by the build-support validator
-/// across the module.
+/// labels; an empty list is an explicit empty subset and generates `Child()`.
+/// When `bindings:` is provided, each tuple rewrites the child label explicitly
+/// while reading from the selected parent member. Child-input verification is
+/// handled conservatively by the build-support validator across the module.
 ///
 /// ### Overrides
 /// `@DIContainer` extends its nested `Overrides` struct with two optional

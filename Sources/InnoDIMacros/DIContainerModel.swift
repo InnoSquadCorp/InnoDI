@@ -81,7 +81,8 @@ struct SubContainerMemberModel {
     let scopeExpressionSyntax: ExprSyntax?
     /// Parent member names derived from `with: [\.foo, \.bar]` or
     /// `withNames: ["foo", "bar"]`, in order.
-    /// Empty when the author relied on automatic name matching.
+    /// Empty either when the author relied on automatic name matching or when
+    /// they explicitly wrote an empty same-name subset.
     let parentDependencies: [String]
     /// Whether the source used `with:`.
     let hasWithDependencies: Bool
@@ -99,6 +100,10 @@ struct SubContainerMemberModel {
 
     var overrideClosureName: String {
         "\(name)Overrides"
+    }
+
+    var hasExplicitSameNameWiring: Bool {
+        hasWithDependencies || hasWithNamesDependencies
     }
 
     func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {

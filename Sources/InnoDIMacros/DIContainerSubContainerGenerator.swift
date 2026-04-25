@@ -196,7 +196,7 @@ internal func resolvedSubContainerParentNames(
     member: SubContainerMemberModel,
     autoWireParentMemberNames: [String]
 ) -> [String] {
-    guard member.parentDependencies.isEmpty else {
+    if member.hasExplicitSameNameWiring {
         return member.parentDependencies
     }
 

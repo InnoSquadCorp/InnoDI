@@ -410,8 +410,10 @@ struct DIContainerValidator {
                 }
             }
 
-            if sub.parentDependencies.isEmpty,
-               sub.explicitBindings.isEmpty,
+            let usesImplicitSubContainerParentNames = !sub.hasExplicitSameNameWiring
+                && sub.explicitBindings.isEmpty
+
+            if usesImplicitSubContainerParentNames,
                !canResolveImplicitSubContainerParentNames(
                     member: sub,
                     autoWireParentMemberNames: model.members.map(\.name)
@@ -434,7 +436,9 @@ struct DIContainerValidator {
             let wiredParents: [String]
             if !sub.explicitBindings.isEmpty {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
-            } else if sub.parentDependencies.isEmpty {
+            } else if sub.hasExplicitSameNameWiring {
+                wiredParents = sub.parentDependencies
+            } else {
                 wiredParents = canResolveImplicitSubContainerParentNames(
                     member: sub,
                     autoWireParentMemberNames: model.members.map(\.name)
@@ -444,8 +448,6 @@ struct DIContainerValidator {
                         autoWireParentMemberNames: model.members.map(\.name)
                     )
                     : []
-            } else {
-                wiredParents = sub.parentDependencies
             }
             for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
                 if memberScopeByName[parentName] == .transient {
