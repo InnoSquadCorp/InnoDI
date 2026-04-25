@@ -273,33 +273,53 @@ func resolvedDependencyMappings(
     child: WorkspaceHierarchyContainerRecord,
     edge: ResolvedHierarchyEdge
 ) -> ResolvedDependencyMappingsResult {
+    // The macro-side validator (`DIContainerValidator`) treats
+    // `with: + withNames:` and `bindings: + same-name wiring` as independent
+    // conflicts, so both diagnostics can fire on the same attribute. Match
+    // that behavior here instead of short-circuiting on the first hit — when
+    // a user combines all three labels they should see every mismatch in
+    // one pass.
+    var conflictIssues: [ValidationIssue] = []
+
     if case let .conflictingWithAndWithNames(location) = edge.subContainer.sameNameWiring {
-        return ResolvedDependencyMappingsResult(
-            mappings: [:],
-            issues: [
-                makeConflictingWithAndWithNamesIssue(
-                    parent: parent,
-                    child: child,
-                    edge: edge,
-                    location: location
-                )
-            ],
-            suppressesDependencySatisfaction: true
+        conflictIssues.append(
+            makeConflictingWithAndWithNamesIssue(
+                parent: parent,
+                child: child,
+                edge: edge,
+                location: location
+            )
         )
     }
 
-    if !edge.subContainer.bindings.isEmpty,
-       let sameNameWiringLabel = edge.subContainer.sameNameWiring.label {
+    // When `with:` and `withNames:` are both present, `sameNameWiring.label`
+    // collapses to nil — but the bindings-vs-same-name conflict is still
+    // real. Surface it under the `.with` label (the canonical form) so the
+    // user sees both diagnostics in one pass.
+    let bindingsConflictLabel: SubContainerSameNameWiringLabel? = {
+        if let label = edge.subContainer.sameNameWiring.label {
+            return label
+        }
+        if case .conflictingWithAndWithNames = edge.subContainer.sameNameWiring {
+            return .with
+        }
+        return nil
+    }()
+    if !edge.subContainer.bindings.isEmpty, let bindingsConflictLabel {
+        conflictIssues.append(
+            makeConflictingSameNameAndBindingsIssue(
+                parent: parent,
+                child: child,
+                edge: edge,
+                label: bindingsConflictLabel
+            )
+        )
+    }
+
+    if !conflictIssues.isEmpty {
         return ResolvedDependencyMappingsResult(
             mappings: [:],
-            issues: [
-                makeConflictingSameNameAndBindingsIssue(
-                    parent: parent,
-                    child: child,
-                    edge: edge,
-                    label: sameNameWiringLabel
-                )
-            ],
+            issues: conflictIssues,
             suppressesDependencySatisfaction: true
         )
     }

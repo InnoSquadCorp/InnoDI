@@ -441,7 +441,7 @@ struct DIContainerValidator {
                 if !knownParentMemberNames.contains(parentName) {
                     context.diagnose(
                         Diagnostic(
-                            node: sub.parentKeyPathSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute),
+                            node: sub.parentReferenceSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute),
                             message: SimpleDiagnostic.subUnknownParentMember(
                                 memberName: sub.name,
                                 parentMemberName: parentName
@@ -512,7 +512,7 @@ struct DIContainerValidator {
             for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
                 if memberScopeByName[parentName] == .transient {
                     let diagnosticNode = sub.parentBindingKeyPathSyntax(for: parentName).map(Syntax.init)
-                        ?? sub.parentKeyPathSyntax(for: parentName).map(Syntax.init)
+                        ?? sub.parentReferenceSyntax(for: parentName).map(Syntax.init)
                         ?? Syntax(sub.attribute)
                     context.diagnose(
                         Diagnostic(

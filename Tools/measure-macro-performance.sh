@@ -10,10 +10,17 @@ BASELINE_FILE="Tools/macro-performance-baseline.json"
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
 IN_PROCESS=0
-ENFORCE_REGRESSION_GATE=0
 EXPLICIT_REPORT_ONLY=0
-if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+# Honor an externally-set `ENFORCE_REGRESSION_GATE` so callers can opt out of
+# the regression gate even inside GitHub Actions (e.g. a workflow that wants
+# the timing report without failing the run). Default to enforcing on
+# `GITHUB_ACTIONS=true` and to report-only otherwise.
+if [[ -n "${ENFORCE_REGRESSION_GATE:-}" ]]; then
+  ENFORCE_REGRESSION_GATE="$ENFORCE_REGRESSION_GATE"
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   ENFORCE_REGRESSION_GATE=1
+else
+  ENFORCE_REGRESSION_GATE=0
 fi
 PERF_LOG="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf.XXXXXX")"
 IN_PROCESS_REPORT="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf-inproc.XXXXXX")"

@@ -384,17 +384,45 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
         return []
     }
 
-    for argument in arguments where argument.label?.text == "with" {
-        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-            return []
-        }
-
-        return arrayExpr.elements.compactMap { element in
-            guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
-                  let property = keyPath.components.last?.component.as(KeyPathPropertyComponentSyntax.self)?.declName.baseName.text else {
-                return nil
+    // Walk both `with:` (key paths) and `withNames:` (string literals) so
+    // diagnostics can anchor at the per-element source position regardless
+    // of which same-name wiring form the user picked. Without the
+    // `withNames:` branch a misspelled `withNames: ["foo"]` ends up with an
+    // empty references list and `parentReferenceSyntax(for:)` falls back to
+    // the whole attribute.
+    for argument in arguments {
+        guard let label = argument.label?.text else { continue }
+        switch label {
+        case "with":
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else { continue }
+            return arrayExpr.elements.compactMap { element in
+                guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                      let property = keyPath.components.last?
+                        .component.as(KeyPathPropertyComponentSyntax.self)?
+                        .declName.baseName.text else {
+                    return nil
+                }
+                return WithDependencyReference(
+                    name: property,
+                    anchorExpression: ExprSyntax(keyPath)
+                )
             }
-            return WithDependencyReference(name: property, keyPath: keyPath)
+        case "withNames":
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else { continue }
+            return arrayExpr.elements.compactMap { element in
+                guard let literal = element.expression.as(StringLiteralExprSyntax.self),
+                      literal.segments.count == 1,
+                      case let .stringSegment(segment)? = literal.segments.first,
+                      !segment.content.text.isEmpty else {
+                    return nil
+                }
+                return WithDependencyReference(
+                    name: segment.content.text,
+                    anchorExpression: ExprSyntax(literal)
+                )
+            }
+        default:
+            continue
         }
     }
 

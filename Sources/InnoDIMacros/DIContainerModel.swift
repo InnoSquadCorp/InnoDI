@@ -49,7 +49,12 @@ struct ClosureParameterReference {
 
 struct WithDependencyReference {
     let name: String
-    let keyPath: KeyPathExprSyntax
+    /// Source-level anchor used as the diagnostic node. For `with: [\.foo]`
+    /// this is the KeyPath expression; for `withNames: ["foo"]` it is the
+    /// string-literal expression. Both forms point at the per-element
+    /// position so per-name diagnostics underline the offending entry
+    /// instead of falling back to the whole attribute.
+    let anchorExpression: ExprSyntax
 }
 
 struct SubContainerBindingReference {
@@ -120,8 +125,8 @@ struct SubContainerMemberModel {
         return nil
     }
 
-    func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {
-        parentDependencyReferences.first(where: { $0.name == parentName })?.keyPath
+    func parentReferenceSyntax(for parentName: String) -> ExprSyntax? {
+        parentDependencyReferences.first(where: { $0.name == parentName })?.anchorExpression
     }
 
     func childBindingKeyPathSyntax(for childInputName: String) -> KeyPathExprSyntax? {
