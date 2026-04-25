@@ -10,22 +10,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
-        # Pin to Xcode 26.3 (Swift 6.3). The previous fallback chain allowed
-        # 26.2 (Swift 6.2.x) on the runner, which silently disabled the macro
-        # performance regression gate because the baseline in
-        # `Tools/macro-performance-baseline.json` is keyed to Swift 6.3. Fail
-        # fast here if 26.3 is unavailable so the signal is obvious.
-        run: |
-          if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
-            echo "Xcode 26.3 not installed on this runner."
-            for xcode in /Applications/Xcode*.app; do
-              [[ -e "$xcode" ]] && echo "$(basename "$xcode")"
-            done
-            exit 1
-          fi
-          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
-          xcodebuild -version
-          swift --version
+        uses: ./.github/actions/select-xcode
       - name: Run Macro Tests
         # -warnings-as-errors catches any regression that would slip through
         # `swiftSettings`'s warning-only StrictConcurrency gate. Paired with
@@ -41,3 +26,21 @@ jobs:
       - name: Macro Performance Check (non-blocking)
         continue-on-error: true
         run: Tools/measure-macro-performance.sh --iterations 5
+
+  path-identity:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: not-innodi
+      - name: Select Xcode 26.3
+        uses: ./not-innodi/.github/actions/select-xcode
+      - name: Run Strict Concurrency Fixture
+        working-directory: not-innodi
+        run: swift test --filter StrictConcurrencyBuildTests
+      - name: Build Examples
+        working-directory: not-innodi
+        run: |
+          (cd Examples/SwiftUIExample && swift build)
+          (cd Examples/PreviewInjectionExample && swift build)

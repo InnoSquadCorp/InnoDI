@@ -218,6 +218,41 @@ func validateDependencySatisfaction(
     )
 
     var issues = resolvedMappings.issues
+    if resolvedMappings.suppressesDependencySatisfaction {
+        return issues
+    }
+
+    // Detect entries declared in `withNames:` / `with:` / `bindings:` that
+    // do not correspond to any child input. The dependency-satisfaction loop
+    // below iterates `requiredInputs` keys, so extras would otherwise be
+    // silently dropped — making `withNames: ["bogus"]` look successful.
+    let extraMappings = resolvedMappings.mappings.keys
+        .filter { requiredInputs[$0] == nil }
+        .sorted()
+    for extraName in extraMappings {
+        let location = resolvedMappings.mappings[extraName]?.location ?? edge.subContainer.location
+        issues.append(
+            ValidationIssue(
+                code: "hierarchy.unknown-child-input",
+                severity: .error,
+                message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' forwards '\(extraName)', but '\(child.displayName)' does not declare a matching .input member.",
+                location: location,
+                notes: [
+                    ValidationIssueNote(
+                        message: "child component '\(child.path)' is reached from parent container '\(parent.path)'.",
+                        location: child.location
+                    )
+                ],
+                remediation: "Remove '\(extraName)' from with:/withNames:/bindings:, or declare a matching .input on '\(child.displayName)'.",
+                metadata: [
+                    "parentContainerPath": parent.path,
+                    "childContainerPath": child.path,
+                    "childInputName": extraName
+                ]
+            )
+        )
+    }
+
     for (childInputName, childType) in requiredInputs.sorted(by: { $0.key < $1.key }) {
         guard let mapping = resolvedMappings.mappings[childInputName] else {
             issues.append(
@@ -288,7 +323,23 @@ func validateDuplicateParents(
     }, by: \.childContainerID)
 
     var issues: [ValidationIssue] = []
-    for (childContainerID, childEdges) in grouped where childEdges.count > 1 {
+    for (childContainerID, unsortedEdges) in grouped where unsortedEdges.count > 1 {
+        // `Dictionary(grouping:)` does not preserve insertion order, so sort
+        // edges by their source location before picking the "first" parent.
+        // Without this, the duplicate-parent diagnostic's primary edge is
+        // non-deterministic across runs, which makes the "first parent
+        // mounts here" note hop between parents.
+        let childEdges = unsortedEdges.sorted { lhs, rhs in
+            let lhsLoc = lhs.subContainer.location
+            let rhsLoc = rhs.subContainer.location
+            if lhsLoc.filePath != rhsLoc.filePath {
+                return lhsLoc.filePath < rhsLoc.filePath
+            }
+            if lhsLoc.line != rhsLoc.line {
+                return lhsLoc.line < rhsLoc.line
+            }
+            return lhsLoc.column < rhsLoc.column
+        }
         guard let firstEdge = childEdges.first,
               let child = containersByID[childContainerID] else {
             continue

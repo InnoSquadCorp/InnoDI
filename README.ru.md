@@ -174,12 +174,30 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 
 ## Вложенные контейнеры и иерархия
 
-`@SubContainer` моделирует дочерние контейнеры, которыми владеет родитель.
+`@SubContainer` моделирует дочерние контейнеры, которыми владеет родитель:
+
+```swift
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+var feature: FeatureContainer
+```
+
+Ключевые правила:
 
 - `scope:` обязателен.
-- `@Provide`-члены родителя пробрасываются в `.input` ребенка по имени.
-- `with:` ограничивает проброс явным подмножеством.
-- `Overrides` родителя получает и полную замену, и child override closure.
+- Неявное wiring по имени используется только как convenience, когда у
+  родителя 0 или 1 кандидат `@Provide`. Если кандидатов несколько, добавьте
+  явное wiring вместо того, чтобы полагаться на ошибки сгенерированного
+  Swift initializer.
+- `with:` или `withNames:` пробрасывает явное одноименное подмножество или
+  порядок. Обе формы должны быть литеральными массивами, которые может
+  прочитать макрос; runtime-переменные и вычисляемые элементы не
+  поддерживаются.
+- `with: []` или `withNames: []` — явно пустое подмножество, вызывает
+  `Child()`.
+- `bindings:` remap-ит child input label на другое имя member родителя.
+- Выбирайте ровно одну wiring form: `with:`, `withNames:` или `bindings:`.
+- `Overrides` родителя получает и слот полной замены (`feature`), и
+  child-override closure (`featureOverrides`).
 
 Для межмодульного ownership используются:
 

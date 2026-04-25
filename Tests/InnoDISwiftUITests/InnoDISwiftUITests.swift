@@ -97,12 +97,12 @@ struct ParentContainer {
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
 
-    @SubContainer(scope: .shared)
+    @SubContainer(scope: .shared, withNames: ["username", "greetingService", "activityService"])
     @DIFeatureRoot(SharedFeatureRootView.self)
     @DIFeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")
     var sharedFeature: SharedFeatureContainer
 
-    @SubContainer(scope: .transient)
+    @SubContainer(scope: .transient, withNames: ["username", "greetingService", "activityService"])
     @DIFeatureRoot(TransientFeatureRootView.self)
     var transientFeature: TransientFeatureContainer
 }

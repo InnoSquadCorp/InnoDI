@@ -18,6 +18,23 @@ reviewable while moving failure detection earlier.
 InnoDI is not a runtime state machine. Runtime state belongs in your app layer
 or companion frameworks such as `InnoFlow`, `InnoRouter`, and `InnoNetwork`.
 
+## When to Choose InnoDI
+
+Choose InnoDI when dependency wiring should be visible in code review, validated
+before runtime, and inspectable as a graph artifact.
+
+| If your priority is... | Prefer... | Why |
+| --- | --- | --- |
+| Compile/build-time validation of an app dependency graph | InnoDI, [SafeDI](https://github.com/dfed/SafeDI), or [Needle](https://github.com/uber/needle) | InnoDI keeps the container surface in macro-expanded Swift, adds local macro diagnostics, build-support checks, and a DAG CLI. SafeDI and Needle are also compile-time-oriented, but bring their own generator/component workflows. |
+| Runtime registration, late binding, or plugin-like composition | [Swinject](https://github.com/Swinject/Swinject) or [Factory](https://github.com/hmlongco/Factory) | Runtime containers make it easy to swap registrations dynamically. InnoDI intentionally favors explicit generated initializers and early validation over dynamic lookup. |
+| SwiftUI previews and scoped test overrides with minimal graph ceremony | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), or InnoDI | Factory and swift-dependencies are very ergonomic for scoped overrides. InnoDI is a better fit when those overrides should sit on top of a validated app container and generated SwiftUI root helpers. |
+| Hierarchical feature ownership and graph visibility | InnoDI, [Needle](https://github.com/uber/needle), or [SafeDI](https://github.com/dfed/SafeDI) | InnoDI models parent-owned child containers with `@SubContainer` and renders ownership edges in the graph CLI. Needle and SafeDI are strong options when their component/dependency-tree architecture matches your app. |
+| Lowest adoption cost for an existing app | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), or incremental InnoDI adoption | InnoDI asks you to define containers and accept macro/build validation. That cost pays off most when you want reviewable wiring, generated overrides, and graph checks rather than only localized dependency access. |
+
+In practice, InnoDI can also coexist with runtime tools: use InnoDI for the
+validated application graph, then use `swift-dependencies` or small factories
+inside feature logic when scoped runtime values are the better abstraction.
+
 ## Requirements
 
 - Swift tools version `6.2`
@@ -267,16 +284,22 @@ original isolation domain.
 `@SubContainer` models parent-owned child containers:
 
 ```swift
-@SubContainer(scope: .shared)
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 var feature: FeatureContainer
 ```
 
 Key rules:
 
 - `scope:` is required.
-- Parent `@Provide` members are forwarded into the child's `.input` members by
-  name.
-- `with:` restricts forwarding to an explicit subset.
+- Implicit same-name wiring is only a convenience for zero or one parent
+  `@Provide` candidate. If the parent has multiple candidates, add explicit
+  wiring instead of relying on generated Swift initializer errors.
+- `with:` or `withNames:` forwards an explicit same-name subset or order.
+  Both forms must be literal arrays the macro can read; runtime variables or
+  computed array elements are unsupported.
+- `with: []` or `withNames: []` is an explicit empty subset and calls `Child()`.
+- `bindings:` remaps child input labels to different parent member names.
+- Choose exactly one wiring form: `with:`, `withNames:`, or `bindings:`.
 - Parent `Overrides` gain both a full replacement slot (`feature`) and a child
   override closure (`featureOverrides`).
 

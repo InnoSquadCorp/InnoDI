@@ -21,7 +21,29 @@ struct AppContainer {
     private let _override_service: Service?
 
     init(holder: Holder? = nil, service: Service? = nil) {
-        let _lazyCell_service = _LazyCell<Service>()
+        final class _InnoDIDeferredCell<T>: @unchecked Sendable {
+            private var value: T?
+            private var resolver: (() -> T)?
+
+            func storeValue(_ value: T) {
+                self.value = value
+            }
+
+            func bindResolver(_ resolver: @escaping () -> T) {
+                self.resolver = resolver
+            }
+
+            func resolve() -> T {
+                if let value {
+                    return value
+                }
+                if let resolver {
+                    return resolver()
+                }
+                fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
+            }
+        }
+        let _lazyCell_service = _InnoDIDeferredCell<Service>()
         self._storage_holder = holder ?? { (service: Lazy<Service>) in
                 Holder(service: service)
             }(Lazy {

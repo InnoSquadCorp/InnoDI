@@ -177,7 +177,7 @@ internal func makeUnresolvedWithDependencyDiagnostic(
     memberIndex: Int
 ) -> Diagnostic {
     let reference = member.withDependencyReferences.first(where: { $0.name == dependencyName })
-    let node = reference.map { Syntax($0.keyPath) } ?? Syntax(member.attribute)
+    let node = reference.map { Syntax($0.anchorExpression) } ?? Syntax(member.attribute)
     let candidates = matchingDependencyCandidates(
         for: dependencyName,
         resolutionContext: resolutionContext,
@@ -229,7 +229,7 @@ internal func makeUnresolvedWithDependencyDiagnostic(
     }
 
     let fixIts = makeReplaceSyntaxTextFixIts(
-        syntax: reference.map { Syntax($0.keyPath) },
+        syntax: reference.map { Syntax($0.anchorExpression) },
         replacementCandidates: candidates.available.map { "\\.\($0)" },
         code: .provideUnresolvedWithDependency,
         label: "Replace key path"

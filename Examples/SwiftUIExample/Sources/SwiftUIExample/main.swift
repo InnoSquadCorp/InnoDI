@@ -188,7 +188,10 @@ struct AppContainer {
     @Provide(.shared, factory: { LiveActivityService() })
     var activityService: any ActivityServiceProtocol
 
-    @SubContainer(scope: .shared)
+    @SubContainer(
+        scope: .shared,
+        withNames: ["username", "greetingService", "activityService"]
+    )
     @DIFeatureRoot(DashboardFeatureRootView.self)
     @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
     var dashboard: DashboardFeatureContainer

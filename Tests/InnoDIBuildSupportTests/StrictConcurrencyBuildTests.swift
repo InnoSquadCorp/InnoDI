@@ -326,9 +326,20 @@ private func makeStrictConcurrencyFixture(
     let escapedRepoPath = packageRootURL()
         .path(percentEncoded: false)
         .replacingOccurrences(of: "\\", with: "\\\\")
+    // Mirror SwiftPM's package-identity normalization (`.git` suffix stripped +
+    // lowercased) used by `normalizePackageIdentity` in InnoDIBuildSupport so
+    // path-identity CI passes when the checkout directory is `InnoDI.git` or
+    // any other case-mixed name.
+    let dependencyPackageIdentity: String = {
+        var identity = packageRootURL().lastPathComponent.lowercased()
+        if identity.hasSuffix(".git") {
+            identity.removeLast(".git".count)
+        }
+        return identity
+    }()
 
     let dependencyList = dependencies
-        .map { ".product(name: \"\($0)\", package: \"innodi\")" }
+        .map { ".product(name: \"\($0)\", package: \"\(dependencyPackageIdentity)\")" }
         .joined(separator: ", ")
 
     let manifest = """

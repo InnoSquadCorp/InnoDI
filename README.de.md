@@ -188,12 +188,30 @@ Beide Wrapper sind absichtlich non-`Sendable`.
 
 ## Verschachtelte Container und Hierarchie
 
-`@SubContainer` modelliert Child-Container, die einem Parent gehoren.
+`@SubContainer` modelliert Child-Container, die einem Parent gehoren:
+
+```swift
+@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+var feature: FeatureContainer
+```
+
+Wichtige Regeln:
 
 - `scope:` ist Pflicht.
-- Parent-`@Provide`-Member werden per Namen in Child-`.input`-Member weitergereicht.
-- `with:` beschrankt das Forwarding auf eine explizite Teilmenge.
-- `Overrides` des Parents enthalt Vollersatz und Child-Override-Closure.
+- Implizites Same-Name-Wiring ist nur eine Convenience, wenn der Parent null
+  oder einen `@Provide`-Kandidaten hat. Bei mehreren Kandidaten muss
+  explizites Wiring hinzugefugt werden statt sich auf vom Compiler
+  generierte Initializer-Fehler zu verlassen.
+- `with:` oder `withNames:` leitet eine explizite Same-Name-Untermenge bzw.
+  -Reihenfolge weiter. Beide Formen mussen literale Arrays sein, die der
+  Macro lesen kann; Runtime-Variablen oder berechnete Elemente werden nicht
+  unterstutzt.
+- `with: []` oder `withNames: []` ist eine explizit leere Untermenge und
+  ruft `Child()` auf.
+- `bindings:` mappt Child-Input-Labels auf andere Parent-Member-Namen.
+- Genau eine Wiring-Form verwenden: `with:`, `withNames:` oder `bindings:`.
+- `Overrides` des Parents enthalt sowohl einen Vollersatz-Slot (`feature`)
+  als auch eine Child-Override-Closure (`featureOverrides`).
 
 Fur cross-module Ownership:
 

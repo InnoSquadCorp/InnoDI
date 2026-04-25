@@ -170,12 +170,12 @@ struct DIContainerValidator {
                         hadErrors = true
                     case .unavailable:
                         // Soft (Lazy<T>) and provider (Provider<T>) edges
-                        // intentionally escape declaration-order availability: the
-                        // runtime `_LazyCell` box lets a forward reference resolve
-                        // safely once init completes, and `Provider<T>` reaches
-                        // its transient target through the same late-binding
-                        // resolver. Only hard edges still need to be reachable in
-                        // declaration order.
+                        // intentionally escape declaration-order availability:
+                        // a generated local deferred cell lets a forward
+                        // reference resolve safely once init completes, and
+                        // `Provider<T>` reaches its transient target through
+                        // the same late-binding resolver. Only hard edges
+                        // still need to be reachable in declaration order.
                         if hardClosureNames.contains(dependency) {
                             context.diagnose(
                                 makeUnavailableDependencyDiagnostic(
@@ -282,6 +282,45 @@ struct DIContainerValidator {
             }
         }
 
+        // Reserved-name collision check.
+        //
+        // The macro synthesizes private storage and helper bindings using a
+        // fixed set of prefixes (see `DIContainerCodeGenerator` and
+        // `SubContainerMacro`). A user-declared `@Provide` / `@SubContainer`
+        // member that starts with one of these prefixes will collide with the
+        // generated symbol and produce confusing Swift errors instead of an
+        // InnoDI diagnostic. Reject up front so the user gets actionable
+        // guidance.
+        let reservedMemberPrefixes: [String] = [
+            "_storage_",
+            "_override_sub_",
+            "_innoDISubBuild_",
+            "_innoDIUnresolvedDependency",
+            "_subBuildCell_",
+            "_lazyCell_",
+            "_lazySelfForSub"
+        ]
+
+        let allMembers: [(name: String, attribute: AttributeSyntax)] =
+            model.members.map { (name: $0.name, attribute: $0.attribute) }
+            + model.subContainerMembers.map { (name: $0.name, attribute: $0.attribute) }
+
+        for entry in allMembers {
+            for prefix in reservedMemberPrefixes where entry.name.hasPrefix(prefix) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(entry.attribute),
+                        message: SimpleDiagnostic.containerReservedNamePrefix(
+                            memberName: entry.name,
+                            reservedPrefix: prefix
+                        )
+                    )
+                )
+                hadErrors = true
+                break
+            }
+        }
+
         // Sub-container validation.
         //
         // The parser has already rejected properties carrying both
@@ -289,6 +328,9 @@ struct DIContainerValidator {
         // in `DIContainerParser`). We still need to check:
         //   - scope argument presence and spelling
         //   - `with:` keypaths reference real parent members
+        //   - implicit auto-wiring is only allowed when there is at most one
+        //     parent @Provide candidate; larger parents must opt into
+        //     `with:` / `bindings:` so child inputs are unambiguous
         //   - `.shared` sub-containers do not auto-wire through a
         //     `.transient` parent member (would try to read a missing
         //     `_storage_<name>` inside init)
@@ -313,7 +355,20 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if !sub.parentDependencies.isEmpty && !sub.explicitBindings.isEmpty {
+            let hasSameNameWiringConflict = sub.hasWithDependencies && sub.hasWithNamesDependencies
+            if hasSameNameWiringConflict {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subWithConflictsWithWithNames(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+            }
+
+            let hasBindingWiringConflict = (sub.hasWithDependencies || sub.hasWithNamesDependencies)
+                && !sub.explicitBindings.isEmpty
+            if hasBindingWiringConflict {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
@@ -363,12 +418,30 @@ struct DIContainerValidator {
                 continue
             }
 
-            // `with:` keypaths must resolve to @Provide members on the parent.
+            if !hasSameNameWiringConflict,
+               !hasBindingWiringConflict,
+               let invalidLabel = sub.invalidSameNameWiringLabel {
+                context.diagnose(
+                    Diagnostic(
+                        node: sub.sameNameWiringExpressionSyntax.map(Syntax.init) ?? Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subInvalidSameNameWiring(
+                            memberName: sub.name,
+                            label: invalidLabel
+                        )
+                    )
+                )
+                hadErrors = true
+                continue
+            }
+
+            // Explicit same-name wiring must resolve to @Provide members on
+            // the parent. `with:` diagnostics can point at the keypath;
+            // `withNames:` falls back to the attribute node.
             for parentName in sub.parentDependencies {
                 if !knownParentMemberNames.contains(parentName) {
                     context.diagnose(
                         Diagnostic(
-                            node: sub.parentKeyPathSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute),
+                            node: sub.parentReferenceSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute),
                             message: SimpleDiagnostic.subUnknownParentMember(
                                 memberName: sub.name,
                                 parentMemberName: parentName
@@ -395,24 +468,51 @@ struct DIContainerValidator {
                 }
             }
 
+            let usesImplicitSubContainerParentNames = sub.sameNameWiring == .omitted
+                && sub.explicitBindings.isEmpty
+
+            if usesImplicitSubContainerParentNames,
+               !canResolveImplicitSubContainerParentNames(
+                    member: sub,
+                    autoWireParentMemberNames: model.members.map(\.name)
+               ) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subAutoWiringAmbiguous(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+            }
+
             // `.shared` sub-containers read parent members through private
             // `_storage_<name>` at init time, so `.transient` parents are
-            // off-limits (no storage slot exists for them). When the author
-            // relies on auto-matching we walk every parent member; with an
-            // explicit `with:` list we check only those.
+            // off-limits (no storage slot exists for them). Implicit
+            // auto-wiring can only select a single parent member; otherwise
+            // the ambiguity diagnostic above requires explicit wiring.
             guard sub.scope == .shared else { continue }
             let wiredParents: [String]
             if !sub.explicitBindings.isEmpty {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
-            } else if sub.parentDependencies.isEmpty {
-                wiredParents = model.members.map(\.name)
-            } else {
+            } else if sub.hasExplicitSameNameWiring {
                 wiredParents = sub.parentDependencies
+            } else if sub.sameNameWiring == .omitted {
+                wiredParents = canResolveImplicitSubContainerParentNames(
+                    member: sub,
+                    autoWireParentMemberNames: model.members.map(\.name)
+                )
+                    ? resolvedSubContainerParentNames(
+                        member: sub,
+                        autoWireParentMemberNames: model.members.map(\.name)
+                    )
+                    : []
+            } else {
+                wiredParents = []
             }
             for parentName in wiredParents where knownParentMemberNames.contains(parentName) {
                 if memberScopeByName[parentName] == .transient {
                     let diagnosticNode = sub.parentBindingKeyPathSyntax(for: parentName).map(Syntax.init)
-                        ?? sub.parentKeyPathSyntax(for: parentName).map(Syntax.init)
+                        ?? sub.parentReferenceSyntax(for: parentName).map(Syntax.init)
                         ?? Syntax(sub.attribute)
                     context.diagnose(
                         Diagnostic(

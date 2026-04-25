@@ -28,7 +28,29 @@ struct AppContainer {
     private let _storage_logger: RequestLogger
 
     init(config: Config, logger: RequestLogger? = nil, request: Request? = nil) {
-        let _lazyCell_request = _LazyCell<Request>()
+        final class _InnoDIDeferredCell<T>: @unchecked Sendable {
+            private var value: T?
+            private var resolver: (() -> T)?
+
+            func storeValue(_ value: T) {
+                self.value = value
+            }
+
+            func bindResolver(_ resolver: @escaping () -> T) {
+                self.resolver = resolver
+            }
+
+            func resolve() -> T {
+                if let value {
+                    return value
+                }
+                if let resolver {
+                    return resolver()
+                }
+                fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
+            }
+        }
+        let _lazyCell_request = _InnoDIDeferredCell<Request>()
         self._storage_config = config
         self._storage_logger = logger ?? { (request: InnoDI.Provider<Request>) in
                 RequestLogger(requests: request)

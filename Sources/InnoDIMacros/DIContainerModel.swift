@@ -49,7 +49,12 @@ struct ClosureParameterReference {
 
 struct WithDependencyReference {
     let name: String
-    let keyPath: KeyPathExprSyntax
+    /// Source-level anchor used as the diagnostic node. For `with: [\.foo]`
+    /// this is the KeyPath expression; for `withNames: ["foo"]` it is the
+    /// string-literal expression. Both forms point at the per-element
+    /// position so per-name diagnostics underline the offending entry
+    /// instead of falling back to the whole attribute.
+    let anchorExpression: ExprSyntax
 }
 
 struct SubContainerBindingReference {
@@ -61,8 +66,8 @@ struct SubContainerBindingReference {
 
 /// A member inside a `@DIContainer` annotated with `@SubContainer`. Parallel
 /// to `ProvideMemberModel` but carries sub-container-specific metadata: a
-/// scope that must be explicit (no default), and the ordered parent keypath
-/// names the author wants mapped to the child's `.input` parameters.
+/// scope that must be explicit (no default), and the ordered parent names the
+/// author wants mapped to the child's `.input` parameters.
 struct SubContainerMemberModel {
     /// Field name on the parent (e.g. `feature`).
     let name: String
@@ -79,9 +84,19 @@ struct SubContainerMemberModel {
     /// Used to anchor diagnostics to the exact bad scope expression when
     /// parsing succeeds syntactically but not semantically.
     let scopeExpressionSyntax: ExprSyntax?
-    /// Parent member names derived from `with: [\.foo, \.bar]`, in order.
-    /// Empty when the author relied on automatic name matching.
+    /// Parent member names derived from `with: [\.foo, \.bar]` or
+    /// `withNames: ["foo", "bar"]`, in order.
+    /// Empty either when the author relied on automatic name matching or when
+    /// they explicitly wrote an empty same-name subset.
     let parentDependencies: [String]
+    /// Whether the source used `with:`.
+    let hasWithDependencies: Bool
+    /// Whether the source used `withNames:`.
+    let hasWithNamesDependencies: Bool
+    /// Whether same-name wiring was omitted, fully parsed, or invalid.
+    let sameNameWiring: SubContainerSameNameWiringParseState
+    /// Original `with:` / `withNames:` expression syntax for invalid-wiring diagnostics.
+    let sameNameWiringExpressionSyntax: ExprSyntax?
     /// Explicit child `.input` -> parent member remapping from
     /// `bindings: [(child: \.foo, parent: \.bar)]`.
     let explicitBindings: [SubContainerBindingReference]
@@ -96,8 +111,22 @@ struct SubContainerMemberModel {
         "\(name)Overrides"
     }
 
-    func parentKeyPathSyntax(for parentName: String) -> KeyPathExprSyntax? {
-        parentDependencyReferences.first(where: { $0.name == parentName })?.keyPath
+    var hasExplicitSameNameWiring: Bool {
+        if case .parsed = sameNameWiring {
+            return true
+        }
+        return false
+    }
+
+    var invalidSameNameWiringLabel: SubContainerSameNameWiringLabel? {
+        if case let .invalid(label) = sameNameWiring {
+            return label
+        }
+        return nil
+    }
+
+    func parentReferenceSyntax(for parentName: String) -> ExprSyntax? {
+        parentDependencyReferences.first(where: { $0.name == parentName })?.anchorExpression
     }
 
     func childBindingKeyPathSyntax(for childInputName: String) -> KeyPathExprSyntax? {

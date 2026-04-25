@@ -1987,6 +1987,42 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports name-based same-label subset wiring")
+    func subContainerSharedWithNamesSubset() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: ["config"])
+                var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerSharedWithNamesSubset",
+            macros: Self.macros
+        )
+    }
+
+    @Test("`.shared` sub-container supports explicit empty withNames wiring")
+    func subContainerSharedWithNamesEmptySubset() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: [])
+                var feature: EmptyFeatureContainer
+            }
+            """,
+            matches: "subContainerSharedWithNamesEmptySubset",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
     func subContainerSharedBindingsMultipleRemaps() {
         assertMacroExpansionSnapshot(
@@ -2071,6 +2107,160 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer with both withNames: and bindings: emits sub.bindings-conflicts-with-with")
+    func subContainerBindingsConflictWithWithNamesDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    withNames: ["config"],
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with both with: and withNames: emits sub.with-conflicts-with-with-names")
+    func subContainerWithConflictWithWithNamesDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.config],
+                    withNames: ["config"]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer withNames: requires a literal string array")
+    func subContainerWithNamesVariableDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let dependencyNames = ["config"]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, withNames: dependencyNames)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with: requires a literal key-path array")
+    func subContainerWithVariableDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let keyPaths = [\\AppContainer.config]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: keyPaths)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer withNames: rejects empty string literals as invalid wiring")
+    func subContainerWithNamesEmptyStringDiagnosesInvalidSameNameWiring() {
+        // Empty strings can never name a parent member; rejecting them
+        // up front gives the user `sub.invalid-same-name-wiring` instead
+        // of a misleading "unknown parent member ''" trail.
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, withNames: [""])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer withNames: rejects partially dynamic literal arrays")
+    func subContainerWithNamesDynamicElementDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let dynamicName = "logger"
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: ["config", dynamicName])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with: rejects partially computed literal arrays")
+    func subContainerWithComputedElementDiagnosesInvalidSameNameWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            func makeKeyPath() -> Any { fatalError() }
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, with: [\\.config, makeKeyPath()])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer duplicate child bindings emit sub.duplicate-child-binding")
     func subContainerDuplicateChildBindingDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -2092,6 +2282,71 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "sub.duplicate-child-binding")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with bindings: + non-literal with: prefers bindings-conflict diagnostic")
+    func subContainerBindingsConflictPrecedesInvalidWiringDiagnoses() {
+        // Locks the precedence ordering when both sub.bindings-conflicts-with-with
+        // and sub.invalid-same-name-wiring would otherwise fire on the same
+        // attribute. The validator suppresses the invalid-same-name-wiring
+        // diagnostic when bindings-conflict is already emitted (see
+        // DIContainerValidator's `hasBindingWiringConflict` guard).
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let keyPaths = [\\AppContainer.config]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: keyPaths,
+                    bindings: [(child: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Container member starting with reserved prefix emits container.reserved-name-prefix")
+    func containerReservedNamePrefixDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var _storage_config: AppConfig
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer member starting with reserved prefix emits container.reserved-name-prefix")
+    func subContainerReservedNamePrefixDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.config])
+                var _innoDISubBuild_feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")
             ],
             macros: Self.macros
         )
@@ -2352,6 +2607,44 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Implicit sub-container wiring requires explicit mapping when parent has multiple candidates")
+    func subContainerAmbiguousAutoWiringDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Explicit empty with: wiring bypasses ambiguous implicit auto-wiring")
+    func subContainerExplicitEmptyWithBypassesAmbiguousAutoWiring() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, with: [])
+                var feature: EmptyFeatureContainer
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub reading a `.transient` parent member emits sub.shared-parent-must-not-be-transient")
     func subContainerSharedParentMustNotBeTransientDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -2363,7 +2656,7 @@ struct DIContainerMacroTests {
                 @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) }, concrete: true)
                 var request: Request
 
-                @SubContainer(scope: .shared)
+                @SubContainer(scope: .shared, with: [\\.request])
                 var feature: FeatureContainer
             }
             """,

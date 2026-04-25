@@ -9,6 +9,7 @@
 //  ID can link to documentation.
 //
 
+import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
 
@@ -45,6 +46,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerMainActorConflict = "container.mainactor-conflict"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
+    case containerReservedNamePrefix = "container.reserved-name-prefix"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
     case subScopeRequired = "sub.scope-required"
@@ -53,8 +55,11 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subOverridesNameConflict = "sub.overrides-name-conflict"
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
+    case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
+    case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
+    case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
     case provideLazyAliased = "provide.lazy-aliased"
     case provideProviderAliased = "provide.provider-aliased"
@@ -83,11 +88,13 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
-                .containerCustomInitUnsupported, .containerOverridesNameConflict, .graphDependencyCycle,
+                .containerCustomInitUnsupported, .containerOverridesNameConflict,
+                .containerReservedNamePrefix, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
-                .subUnknownParentMember, .subBindingsConflictsWithWith, .subDuplicateChildBinding,
-                .subUnknownChildInput, .subSharedParentMustNotBeTransient,
+                .subUnknownParentMember, .subBindingsConflictsWithWith, .subWithConflictsWithWithNames,
+                .subInvalidSameNameWiring, .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
+                .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootInvalidAlias,
@@ -431,9 +438,34 @@ extension SimpleDiagnostic {
 
     static func subBindingsConflictsWithWith(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot use both with: and bindings:. Use with: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
+            "@SubContainer on '\(memberName)' cannot use with:/withNames: together with bindings:. Use either with: or withNames: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
             code: .subBindingsConflictsWithWith
         )
+    }
+
+    static func subWithConflictsWithWithNames(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
+            code: .subWithConflictsWithWithNames
+        )
+    }
+
+    static func subInvalidSameNameWiring(
+        memberName: String,
+        label: SubContainerSameNameWiringLabel
+    ) -> Self {
+        switch label {
+        case .with:
+            return Self(
+                "@SubContainer on '\(memberName)' requires with: to be a literal array of key paths, such as with: [\\.config] or with: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
+                code: .subInvalidSameNameWiring
+            )
+        case .withNames:
+            return Self(
+                "@SubContainer on '\(memberName)' requires withNames: to be a literal array of string literals, such as withNames: [\"config\"] or withNames: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
+                code: .subInvalidSameNameWiring
+            )
+        }
     }
 
     static func subDuplicateChildBinding(memberName: String, childInputName: String) -> Self {
@@ -451,6 +483,20 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching .input member.",
             code: .subUnknownChildInput
+        )
+    }
+
+    static func subAutoWiringAmbiguous(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: or withNames: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] (or withNames: []) when the child is intentionally constructed without parent inputs.",
+            code: .subAutoWiringAmbiguous
+        )
+    }
+
+    static func containerReservedNamePrefix(memberName: String, reservedPrefix: String) -> Self {
+        Self(
+            "Container member '\(memberName)' uses the reserved prefix '\(reservedPrefix)'. InnoDI synthesizes private storage with this prefix and a user-declared member would collide with the generated symbols. Rename '\(memberName)' so it does not start with '\(reservedPrefix)'.",
+            code: .containerReservedNamePrefix
         )
     }
 

@@ -7,61 +7,41 @@ struct AppContainer {
     }
 
     private let _storage_config: AppConfig
-    var feature: FeatureContainer {
+    var logger: Logger {
         get {
-            return _innoDISubBuild_feature()
+            return _storage_logger
         }
     }
+
+    private let _storage_logger: Logger
+    var feature: FeatureContainer {
+        get {
+            return _storage_sub_feature
+        }
+    }
+
+    private let _storage_sub_feature: FeatureContainer
 
     private let _override_sub_feature: FeatureContainer?
 
     private let _override_sub_apply_feature: ((inout FeatureContainer.Overrides) -> Void)?
 
-    private let _innoDISubBuild_feature: @Sendable () -> FeatureContainer
-
-    init(config: AppConfig, feature: FeatureContainer? = nil, featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil) {
-        final class _InnoDIDeferredCell<T>: @unchecked Sendable {
-            private var value: T?
-            private var resolver: (() -> T)?
-
-            func storeValue(_ value: T) {
-                self.value = value
-            }
-
-            func bindResolver(_ resolver: @escaping () -> T) {
-                self.resolver = resolver
-            }
-
-            func resolve() -> T {
-                if let value {
-                    return value
-                }
-                if let resolver {
-                    return resolver()
-                }
-                fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
-            }
-        }
+    init(config: AppConfig, logger: Logger? = nil, feature: FeatureContainer? = nil, featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil) {
         self._storage_config = config
+        self._storage_logger = logger ?? Logger()
+        if let direct = feature {
+            self._storage_sub_feature = direct
+        } else if let apply = featureOverrides {
+            self._storage_sub_feature = FeatureContainer(config: self._storage_config, apply)
+        } else {
+            self._storage_sub_feature = FeatureContainer(config: self._storage_config)
+        }
         self._override_sub_feature = feature
         self._override_sub_apply_feature = featureOverrides
-        let _subBuildCell_feature = _InnoDIDeferredCell<FeatureContainer>()
-        self._innoDISubBuild_feature = {
-            _subBuildCell_feature.resolve()
-        }
-        let _lazySelfForSub = self
-        _subBuildCell_feature.bindResolver { () -> FeatureContainer in
-            if let direct = _lazySelfForSub._override_sub_feature {
-                return direct
-            }
-            if let apply = _lazySelfForSub._override_sub_apply_feature {
-                return FeatureContainer(config: _lazySelfForSub.config, apply)
-            }
-            return FeatureContainer(config: _lazySelfForSub.config)
-        }
     }
 
     struct Overrides {
+        var logger: Logger? = nil
         var feature: FeatureContainer? = nil
         var featureOverrides: ((inout FeatureContainer.Overrides) -> Void)? = nil
     }
@@ -69,7 +49,7 @@ struct AppContainer {
     init(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
-        self.init(config: config, feature: overrides.feature, featureOverrides: overrides.featureOverrides)
+        self.init(config: config, logger: overrides.logger, feature: overrides.feature, featureOverrides: overrides.featureOverrides)
     }
 
     static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
