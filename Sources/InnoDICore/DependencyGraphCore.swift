@@ -29,14 +29,14 @@ package struct DependencyGraphEdge: Hashable {
     package let label: String?
     /// Soft edges are excluded from global DAG cycle detection and rendered
     /// with a dashed style. They originate from factory parameters typed
-    /// `Lazy<T>` (see InnoDI's Phase K escape hatch). The current container
+    /// `Lazy<T>`, InnoDI's soft-edge escape hatch. The current container
     /// collector does not yet populate member-level edges, so this field is
     /// primarily future-proofing — but renderers and `runDAGValidation`
     /// already respect it so downstream collectors can emit soft edges the
     /// moment they have the information.
     package let isSoft: Bool
-    /// Provider edges originate from factory parameters typed `Provider<T>`
-    /// (Phase L). They are also excluded from cycle detection, but rendered
+    /// Provider edges originate from factory parameters typed `Provider<T>`.
+    /// They are also excluded from cycle detection, but rendered
     /// with a dotted style to distinguish "deferred but repeat-callable"
     /// semantics from `Lazy<T>`'s one-shot deferral. Like `isSoft`, the
     /// container collector does not yet emit member-level provider edges, but
@@ -108,9 +108,9 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
 
 /// Builds a DFS adjacency list for global DAG cycle detection.
 ///
-/// Deferred edges are intentionally excluded: `isSoft` (`Lazy<T>` — Phase K)
-/// resolves a one-shot value after construction, and `isProvider`
-/// (`Provider<T>` — Phase L) resolves a fresh transient on every call. Both
+/// Deferred edges are intentionally excluded: `isSoft` (`Lazy<T>`) resolves
+/// a one-shot value after construction, and `isProvider` (`Provider<T>`)
+/// resolves a fresh transient on every call. Both
 /// kinds participate in rendering but not in cycle detection, matching the
 /// per-container validator's hard-only DFS.
 ///

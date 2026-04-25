@@ -28,7 +28,7 @@ struct ClosureParameterReference {
     ///
     /// Populated for full parameter-clause closures (`{ (x: T) in ... }`). `nil`
     /// for shorthand closures (`{ x in ... }`) because Swift does not require
-    /// an inline type there. Used by Phase K detection (`Lazy<T>`) and reserved
+    /// an inline type there. Used by `Lazy<T>` detection and reserved
     /// for future type-aware resolution checks.
     let type: TypeSyntax?
     /// Dependency edge classification populated by `parseClosureParameterNames`.

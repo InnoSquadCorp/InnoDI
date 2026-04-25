@@ -48,6 +48,17 @@ package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
 package struct ValidationCoordinatorLockPolicy: Sendable {
     package static let `default` = Self()
 
+    /// Environment variable names honored by ``init(environment:warningHandler:)``.
+    ///
+    /// Keeping them as constants so tests and operators can reference them
+    /// by name rather than hard-coding strings.
+    package enum EnvKey {
+        /// Seconds the coordinator is willing to wait for the live-validation lock.
+        package static let lockTimeout = "INNODI_LOCK_TIMEOUT"
+        /// Age in seconds past which a leftover lock file is treated as stale.
+        package static let staleLockAge = "INNODI_STALE_LOCK_AGE"
+    }
+
     package let maxWaitSeconds: TimeInterval
     package let staleLockAgeSeconds: TimeInterval
     package let initialBackoffSeconds: TimeInterval
@@ -64,6 +75,60 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
         self.initialBackoffSeconds = initialBackoffSeconds
         self.maxBackoffSeconds = maxBackoffSeconds
     }
+
+    /// Builds a policy, honoring environment-variable overrides for the two
+    /// operator-relevant knobs.
+    ///
+    /// `INNODI_LOCK_TIMEOUT` and `INNODI_STALE_LOCK_AGE` accept a positive
+    /// floating-point number of seconds. Unparseable or non-positive values
+    /// fall back to the default and invoke `warningHandler` with a message
+    /// explaining the fallback (default implementation writes to stderr) so
+    /// the misconfiguration surfaces at the first build.
+    package init(
+        environment: [String: String],
+        warningHandler: (String) -> Void = { message in
+            FileHandle.standardError.write(Data("\(message)\n".utf8))
+        }
+    ) {
+        let base = Self()
+        let resolvedTimeout = Self.resolveTimeInterval(
+            environment: environment,
+            key: EnvKey.lockTimeout,
+            fallback: base.maxWaitSeconds,
+            warningHandler: warningHandler
+        )
+        let resolvedStale = Self.resolveTimeInterval(
+            environment: environment,
+            key: EnvKey.staleLockAge,
+            fallback: base.staleLockAgeSeconds,
+            warningHandler: warningHandler
+        )
+
+        self.init(
+            maxWaitSeconds: resolvedTimeout,
+            staleLockAgeSeconds: resolvedStale,
+            initialBackoffSeconds: base.initialBackoffSeconds,
+            maxBackoffSeconds: base.maxBackoffSeconds
+        )
+    }
+
+    private static func resolveTimeInterval(
+        environment: [String: String],
+        key: String,
+        fallback: TimeInterval,
+        warningHandler: (String) -> Void
+    ) -> TimeInterval {
+        guard let raw = environment[key], !raw.isEmpty else {
+            return fallback
+        }
+        guard let parsed = Double(raw), parsed > 0 else {
+            warningHandler(
+                "InnoDI: ignoring invalid \(key)=\(raw); falling back to \(fallback) seconds."
+            )
+            return fallback
+        }
+        return parsed
+    }
 }
 
 package struct ValidationCoordinatorRuntime: Sendable {
@@ -73,6 +138,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
         sleep: validationSleep,
         currentProcessID: { getpid() },
         processExists: validationProcessExists,
+        currentBootID: BootIDProvider.live,
         beforeStaleLockRemoval: { _ in }
     )
 
@@ -81,6 +147,10 @@ package struct ValidationCoordinatorRuntime: Sendable {
     package let sleep: @Sendable (TimeInterval) async throws -> Void
     package let currentProcessID: @Sendable () -> Int32
     package let processExists: @Sendable (Int32) -> Bool
+    /// Returns the current system boot ID, or `nil` if unavailable. The live
+    /// implementation reads `sysctl kern.boottime` on Darwin and
+    /// `/proc/stat btime` on Linux.
+    package let currentBootID: @Sendable () -> Int64?
     package let beforeStaleLockRemoval: @Sendable (URL) -> Void
 
     package init(
@@ -89,6 +159,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void,
         currentProcessID: @escaping @Sendable () -> Int32,
         processExists: @escaping @Sendable (Int32) -> Bool,
+        currentBootID: @escaping @Sendable () -> Int64? = BootIDProvider.live,
         beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
     ) {
         self.monotonicNow = monotonicNow
@@ -96,13 +167,66 @@ package struct ValidationCoordinatorRuntime: Sendable {
         self.sleep = sleep
         self.currentProcessID = currentProcessID
         self.processExists = processExists
+        self.currentBootID = currentBootID
         self.beforeStaleLockRemoval = beforeStaleLockRemoval
     }
 }
 
+/// Metadata persisted alongside a live validation lock file.
+///
+/// Schema versioning:
+/// - v1 files only had `pid` and `createdAt`. They are still decodable via
+///   the `bootID == nil` path and treated as stale so v2 writers never race
+///   with v1 consumers.
+/// - v2 adds `bootID` — the system boot time in seconds — so stale-detection
+///   can distinguish a process from another with the same PID that started
+///   after a reboot (Darwin: `sysctl kern.boottime`; Linux: `/proc/stat btime`).
 package struct ValidationCoordinatorLockMetadata: Codable, Equatable, Sendable {
     package let pid: Int32
     package let createdAt: TimeInterval
+    package let bootID: Int64?
+
+    package init(pid: Int32, createdAt: TimeInterval, bootID: Int64? = nil) {
+        self.pid = pid
+        self.createdAt = createdAt
+        self.bootID = bootID
+    }
+}
+
+/// Resolves a monotonically-stable "session" identifier for the running system.
+///
+/// On Darwin this reads `kern.boottime` via `sysctl`. The value changes on
+/// every reboot, so a persisted lock with a mismatching `bootID` is known
+/// to belong to a previous session — i.e. its PID is safe to reuse.
+///
+/// Injected through `ValidationCoordinatorRuntime` so tests can simulate
+/// reboots without actually rebooting the CI agent.
+package enum BootIDProvider {
+    package static func live() -> Int64? {
+        #if canImport(Darwin)
+        var boottime = timeval()
+        var size = MemoryLayout<timeval>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
+        let mibCount = u_int(mib.count)
+        let status = mib.withUnsafeMutableBufferPointer { bufferPointer -> Int32 in
+            sysctl(bufferPointer.baseAddress, mibCount, &boottime, &size, nil, 0)
+        }
+        guard status == 0 else { return nil }
+        return Int64(boottime.tv_sec)
+        #elseif canImport(Glibc)
+        guard let contents = try? String(contentsOfFile: "/proc/stat", encoding: .utf8) else {
+            return nil
+        }
+        for line in contents.split(separator: "\n") where line.hasPrefix("btime ") {
+            let pieces = line.split(separator: " ")
+            guard pieces.count == 2, let btime = Int64(pieces[1]) else { return nil }
+            return btime
+        }
+        return nil
+        #else
+        return nil
+        #endif
+    }
 }
 
 package let sharedRunCacheVersion = 2
@@ -171,14 +295,16 @@ package enum ValidationCoordinator {
         rootPath: String,
         toolPath: String,
         stateDirectoryPath: String,
-        outputDirectoryPath: String
+        outputDirectoryPath: String,
+        lockPolicy: ValidationCoordinatorLockPolicy = .default
     ) async throws -> ValidationExecutionOutcome {
         try await coordinate(
             rootPath: rootPath,
             toolPath: toolPath,
             stateDirectoryPath: stateDirectoryPath,
             outputDirectoryPath: outputDirectoryPath,
-            runner: LiveValidationCommandRunner()
+            runner: LiveValidationCommandRunner(),
+            lockPolicy: lockPolicy
         )
     }
 
@@ -275,7 +401,8 @@ package enum ValidationCoordinator {
         ) throws -> ValidationExecutionOutcome {
             let lockMetadata = ValidationCoordinatorLockMetadata(
                 pid: runtime.currentProcessID(),
-                createdAt: runtime.currentDate().timeIntervalSince1970
+                createdAt: runtime.currentDate().timeIntervalSince1970,
+                bootID: runtime.currentBootID()
             )
 
             do {
@@ -482,4 +609,3 @@ package enum ValidationCoordinator {
         )
     }
 }
-

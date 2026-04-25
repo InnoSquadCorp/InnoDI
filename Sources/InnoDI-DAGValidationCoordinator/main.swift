@@ -14,11 +14,15 @@ enum CoordinatorExitCode {
 
 do {
     let arguments = try parseArguments()
+    let lockPolicy = ValidationCoordinatorLockPolicy(
+        environment: ProcessInfo.processInfo.environment
+    )
     let outcome = try await ValidationCoordinator.coordinate(
         rootPath: arguments.rootPath,
         toolPath: arguments.toolPath,
         stateDirectoryPath: arguments.stateDirectoryPath,
-        outputDirectoryPath: arguments.outputDirectoryPath
+        outputDirectoryPath: arguments.outputDirectoryPath,
+        lockPolicy: lockPolicy
     )
 
     if outcome.result.exitCode != 0 || !outcome.wasCached {

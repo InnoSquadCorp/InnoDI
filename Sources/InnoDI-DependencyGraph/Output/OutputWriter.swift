@@ -1,7 +1,7 @@
 import Foundation
 
 func writeGraphOutput(_ content: String, format: OutputFormat, outputPath: String?) -> Int32 {
-    guard let outputPath else {
+    guard let outputPath, outputPath != "-" else {
         print(content)
         return ExitCode.success
     }

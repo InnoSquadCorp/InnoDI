@@ -208,6 +208,11 @@ public struct Provider<T> {
 /// effectively read-only apart from lock-protected access. External code must
 /// not race `storeValue(_:)` / `bindResolver(_:)` against `resolve()`, nor
 /// mutate the cell after the generated wrappers have escaped.
+///
+/// > Important: `_LazyCell` is an InnoDI runtime implementation detail.
+/// > The leading underscore marks it as SPI-in-spirit; its API contract may
+/// > change between minor releases. Do not consume it from application code.
+@_documentation(visibility: internal)
 public final class _LazyCell<T>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: T?
@@ -353,6 +358,11 @@ public macro SubContainer(
 /// Conforming containers expose a dependency-contract type plus an overrides
 /// builder shape that other modules can mount through `@SubContainer` while
 /// build validation enforces rooted hierarchy rules.
+///
+/// > Important: This protocol is an InnoDI implementation detail synthesized
+/// > by `@DIComponent`. The leading underscore marks it as SPI-in-spirit;
+/// > application code should not conform to it manually.
+@_documentation(visibility: internal)
 public protocol _InnoDIComponentMountable {
     associatedtype _InnoDIComponentDependencies
     associatedtype _InnoDIComponentOverrides

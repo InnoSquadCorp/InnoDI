@@ -2,8 +2,6 @@
 //  DIEnvironmentBridgeMacro.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `SwiftUIMacros.swift`.
-//
 //  `@DIEnvironmentBridge` drives SwiftUI environment wiring: a container
 //  type declares member → environment key-path mappings, and the macro
 //  synthesizes a `ViewModifier` that reads those members and injects them

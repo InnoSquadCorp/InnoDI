@@ -460,6 +460,8 @@ private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {
         switch modifier.name.text {
         case "public", "open":
             return "public"
+        case "package":
+            return "package"
         case "internal", "fileprivate", "private":
             return modifier.name.text
         default:

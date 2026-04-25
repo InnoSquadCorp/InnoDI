@@ -2,8 +2,6 @@
 //  ValidationCoordinator+Caching.swift
 //  InnoDIBuildSupport
 //
-//  Phase N-1 — extracted from `ValidationCoordinator.swift`.
-//
 //  Filesystem IO for the shared-run cache that the coordinator relies on to
 //  reuse one live validation across parallel build-plugin invocations. These
 //  helpers read/write the JSON artifacts inside the shared-run directory

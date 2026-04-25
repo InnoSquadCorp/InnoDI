@@ -2,14 +2,11 @@
 //  DIContainerWithOverridesGenerator.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `DIContainerCodeGenerator.swift`.
-//
 //  Emits the four `static func withOverrides<T>(...)` effect overloads
 //  (sync / throws / async / async throws) that wrap a scoped container
-//  construction + operation closure invocation. Phase J introduced these
-//  helpers; keeping them in a dedicated file makes the Phase M sub-container
-//  overrides threading and Phase N Sendable tightening easier to review in
-//  isolation.
+//  construction + operation closure invocation. Keeping them in a dedicated
+//  file makes the sub-container overrides threading and Sendable handling
+//  easier to review in isolation.
 //
 
 import SwiftSyntax
