@@ -2195,6 +2195,28 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer withNames: rejects empty string literals as invalid wiring")
+    func subContainerWithNamesEmptyStringDiagnosesInvalidSameNameWiring() {
+        // Empty strings can never name a parent member; rejecting them
+        // up front gives the user `sub.invalid-same-name-wiring` instead
+        // of a misleading "unknown parent member ''" trail.
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, withNames: [""])
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer withNames: rejects partially dynamic literal arrays")
     func subContainerWithNamesDynamicElementDiagnosesInvalidSameNameWiring() {
         assertMacroExpansionDiagnosticCodes(

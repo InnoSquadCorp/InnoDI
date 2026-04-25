@@ -76,6 +76,13 @@ struct RuntimeInputlessChildContainer {
     var marker: RuntimeInputlessChildMarker
 }
 
+// Compile-time proof: `withNames: []` is an explicit empty subset, so this
+// fixture must expand without `sub.auto-wiring-ambiguous` even though the
+// parent has multiple `@Provide` candidates. The runtime assertion in
+// `emptyWithNamesForwardsNoParentInputs` is technically tautological
+// (`RuntimeInputlessChildMarker` is an empty Equatable) — its real purpose
+// is to keep this container shape under test so a future regression in
+// macro expansion would fail to compile this file.
 @DIContainer
 struct RuntimeParentWithEmptyNamedSubsetContainer {
     @Provide(.input) var config: RuntimeParentConfig
@@ -223,6 +230,12 @@ struct SubContainerRuntimeTests {
 
     @Test("withNames: empty subset forwards no parent inputs")
     func emptyWithNamesForwardsNoParentInputs() {
+        // Compile-time proof: see the comment on
+        // `RuntimeParentWithEmptyNamedSubsetContainer`. The
+        // `#expect(... == RuntimeInputlessChildMarker())` line is a
+        // formality (the marker is an empty Equatable, so equality always
+        // holds); the real assertion is that this file compiles, which
+        // means the macro accepted `withNames: []` and emitted `Child()`.
         let parent = RuntimeParentWithEmptyNamedSubsetContainer(
             config: RuntimeParentConfig(endpoint: "empty-subset"),
             extra: "ignored"

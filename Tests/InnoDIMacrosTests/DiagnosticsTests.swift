@@ -63,10 +63,12 @@ struct DiagnosticsTests {
             .subUnknownParentMember,
             .subBindingsConflictsWithWith,
             .subWithConflictsWithWithNames,
+            .subInvalidSameNameWiring,
             .subDuplicateChildBinding,
             .subUnknownChildInput,
             .subAutoWiringAmbiguous,
-            .subSharedParentMustNotBeTransient
+            .subSharedParentMustNotBeTransient,
+            .containerReservedNamePrefix
         ]
 
         for code in usageCodes {
@@ -119,7 +121,8 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subWithConflictsWithWithNames(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")),
             (SimpleDiagnostic.subInvalidSameNameWiring(memberName: "feature", label: .withNames), MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")),
             (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
-            (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"))
+            (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")),
+            (SimpleDiagnostic.containerReservedNamePrefix(memberName: "_storage_config", reservedPrefix: "_storage_"), MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"))
         ]
 
         for item in cases {

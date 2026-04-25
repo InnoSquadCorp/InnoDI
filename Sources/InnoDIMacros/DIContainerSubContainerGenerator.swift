@@ -228,11 +228,7 @@ internal func canResolveImplicitSubContainerParentNames(
     // diagnostic). Users who hit the Swift-side error in single-module
     // builds should add `with: []` to call `Child()` explicitly, or
     // `bindings:` to remap to the child input that exists.
-    if autoWireParentMemberNames.count <= 1 {
-        return true
-    }
-
-    return false
+    return autoWireParentMemberNames.count <= 1
 }
 
 private func makeSubContainerOptionalBindingIfExpr(

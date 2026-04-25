@@ -271,6 +271,14 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                 return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
             }
 
+            // Empty string literals (`withNames: [""]`) cannot match any
+            // parent member name; treat them as a parse failure so the user
+            // gets the `hierarchy.invalid-same-name-wiring` diagnostic
+            // instead of a silent "unknown parent member ''" path later.
+            if segment.content.text.isEmpty {
+                return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
+            }
+
             dependencies.append(
                 HierarchyWithDependencyRecord(
                     name: segment.content.text,

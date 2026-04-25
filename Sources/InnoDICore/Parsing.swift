@@ -393,6 +393,12 @@ public func parseStrictStringArrayArgument(_ expression: ExprSyntax) -> [String]
               case let .stringSegment(segment)? = literal.segments.first else {
             return nil
         }
+        // An empty string can never match a parent member name; reject it
+        // up front so callers surface a single literal-array diagnostic
+        // instead of a delayed "unknown parent member ''" trail later.
+        if segment.content.text.isEmpty {
+            return nil
+        }
         names.append(segment.content.text)
     }
     return names
