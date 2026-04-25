@@ -195,11 +195,19 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
         }
 
         var sameNameWiring: WorkspaceHierarchySameNameWiringRecord = .omitted
+        var seenLabel: SubContainerSameNameWiringLabel?
         for argument in arguments {
             guard let labelText = argument.label?.text,
                   let label = SubContainerSameNameWiringLabel(rawValue: labelText) else {
                 continue
             }
+            if let seenLabel, seenLabel != label {
+                return .conflictingWithAndWithNames(
+                    location: sourceLocation(for: argument.expression.positionAfterSkippingLeadingTrivia)
+                )
+            }
+            seenLabel = label
+
             switch label {
             case .with:
                 switch parseHierarchyKeyPathDependencies(argument.expression) {
@@ -392,6 +400,7 @@ enum WorkspaceHierarchySameNameWiringRecord: Equatable {
     case omitted
     case parsed(label: SubContainerSameNameWiringLabel, dependencies: [HierarchyWithDependencyRecord])
     case invalid(label: SubContainerSameNameWiringLabel, location: ValidationIssueLocation)
+    case conflictingWithAndWithNames(location: ValidationIssueLocation)
 }
 
 private enum HierarchySameNameWiringParseResult {

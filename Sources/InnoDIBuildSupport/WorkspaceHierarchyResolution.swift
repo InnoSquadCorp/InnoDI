@@ -273,6 +273,37 @@ func resolvedDependencyMappings(
     child: WorkspaceHierarchyContainerRecord,
     edge: ResolvedHierarchyEdge
 ) -> ResolvedDependencyMappingsResult {
+    if case let .conflictingWithAndWithNames(location) = edge.subContainer.sameNameWiring {
+        return ResolvedDependencyMappingsResult(
+            mappings: [:],
+            issues: [
+                makeConflictingWithAndWithNamesIssue(
+                    parent: parent,
+                    child: child,
+                    edge: edge,
+                    location: location
+                )
+            ],
+            suppressesDependencySatisfaction: true
+        )
+    }
+
+    if !edge.subContainer.bindings.isEmpty,
+       let sameNameWiringLabel = edge.subContainer.sameNameWiring.label {
+        return ResolvedDependencyMappingsResult(
+            mappings: [:],
+            issues: [
+                makeConflictingSameNameAndBindingsIssue(
+                    parent: parent,
+                    child: child,
+                    edge: edge,
+                    label: sameNameWiringLabel
+                )
+            ],
+            suppressesDependencySatisfaction: true
+        )
+    }
+
     if !edge.subContainer.bindings.isEmpty {
         return resolvedDependencyMappings(
             parent: parent,
@@ -321,6 +352,19 @@ func resolvedDependencyMappings(
             ],
             suppressesDependencySatisfaction: true
         )
+    case let .conflictingWithAndWithNames(location):
+        return ResolvedDependencyMappingsResult(
+            mappings: [:],
+            issues: [
+                makeConflictingWithAndWithNamesIssue(
+                    parent: parent,
+                    child: child,
+                    edge: edge,
+                    location: location
+                )
+            ],
+            suppressesDependencySatisfaction: true
+        )
     case .omitted:
         break
     }
@@ -336,6 +380,59 @@ func resolvedDependencyMappings(
             )
         }),
         issues: []
+    )
+}
+
+private func makeConflictingSameNameAndBindingsIssue(
+    parent: WorkspaceHierarchyContainerRecord,
+    child: WorkspaceHierarchyContainerRecord,
+    edge: ResolvedHierarchyEdge,
+    label: SubContainerSameNameWiringLabel
+) -> ValidationIssue {
+    ValidationIssue(
+        code: "hierarchy.bindings-conflicts-with-with",
+        severity: .error,
+        message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' cannot use \(label.rawValue): together with bindings:.",
+        location: edge.subContainer.location,
+        notes: [
+            ValidationIssueNote(
+                message: "child component '\(child.path)' is reached from parent container '\(parent.path)'.",
+                location: child.location
+            )
+        ],
+        remediation: "Use with: or withNames: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
+        metadata: [
+            "parentContainerPath": parent.path,
+            "childContainerPath": child.path,
+            "subContainerMemberName": edge.subContainer.memberName,
+            "label": label.rawValue
+        ]
+    )
+}
+
+private func makeConflictingWithAndWithNamesIssue(
+    parent: WorkspaceHierarchyContainerRecord,
+    child: WorkspaceHierarchyContainerRecord,
+    edge: ResolvedHierarchyEdge,
+    location: ValidationIssueLocation
+) -> ValidationIssue {
+    ValidationIssue(
+        code: "hierarchy.with-conflicts-with-with-names",
+        severity: .error,
+        message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' cannot use both with: and withNames:.",
+        location: location,
+        notes: [
+            ValidationIssueNote(
+                message: "child component '\(child.path)' is reached from parent container '\(parent.path)'.",
+                location: child.location
+            )
+        ],
+        remediation: "Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
+        metadata: [
+            "parentContainerPath": parent.path,
+            "childContainerPath": child.path,
+            "subContainerMemberName": edge.subContainer.memberName
+        ]
     )
 }
 
@@ -373,6 +470,19 @@ private func makeInvalidSameNameWiringIssue(
             "label": label.rawValue
         ]
     )
+}
+
+extension WorkspaceHierarchySameNameWiringRecord {
+    var label: SubContainerSameNameWiringLabel? {
+        switch self {
+        case .omitted:
+            return nil
+        case let .parsed(label, _), let .invalid(label, _):
+            return label
+        case .conflictingWithAndWithNames:
+            return nil
+        }
+    }
 }
 
 private enum ResolvedDependencyMappingKind {

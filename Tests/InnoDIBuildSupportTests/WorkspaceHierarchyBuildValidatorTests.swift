@@ -2391,6 +2391,125 @@ struct WorkspaceHierarchyBuildValidatorTests {
         #expect(report.issues.allSatisfy { $0.code != "hierarchy.unsatisfied-dependency" })
     }
 
+    @Test("Same-name wiring with bindings reports hierarchy conflict before binding resolution")
+    func sameNameWiringWithBindingsReportsHierarchyConflict() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            let dependencyNames = ["config"]
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(
+                    scope: .shared,
+                    withNames: dependencyNames,
+                    bindings: [(child: \\.config, parent: \\.config)]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.bindings-conflicts-with-with" })
+        #expect(issue.metadata["label"] == "withNames")
+        #expect(report.issues.allSatisfy { $0.code != "hierarchy.invalid-same-name-wiring" })
+        #expect(report.issues.allSatisfy { $0.code != "hierarchy.unsatisfied-dependency" })
+    }
+
+    @Test("with and withNames together report hierarchy conflict without implicit fallback")
+    func withAndWithNamesTogetherReportsHierarchyConflict() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared, with: [\\.config], withNames: ["config"])
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.with-conflicts-with-with-names" })
+        #expect(issue.metadata["subContainerMemberName"] == "feature")
+        #expect(report.issues.allSatisfy { $0.code != "hierarchy.unsatisfied-dependency" })
+    }
+
     @Test("Duplicate withNames dependencies use string literal locations")
     func duplicateWithNamesDependenciesUseStringLiteralLocations() throws {
         let rootURL = try makeTemporaryWorkspaceRoot()
