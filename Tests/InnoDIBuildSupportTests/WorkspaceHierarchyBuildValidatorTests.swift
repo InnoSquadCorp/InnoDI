@@ -2332,6 +2332,65 @@ struct WorkspaceHierarchyBuildValidatorTests {
         #expect(report.issues.isEmpty)
     }
 
+    @Test("Non-literal withNames reports invalid same-name wiring without implicit fallback")
+    func nonLiteralWithNamesReportsInvalidSameNameWiring() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+
+        try writeSource(
+            """
+            struct Config {}
+
+            let dependencyNames = ["config"]
+
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared, withNames: dependencyNames)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        let issue = try #require(report.issues.first { $0.code == "hierarchy.invalid-same-name-wiring" })
+        #expect(issue.metadata["label"] == "withNames")
+        #expect(issue.location.filePath.hasSuffix("Sources/AppFeature/AppContainer.swift"))
+        #expect(report.issues.allSatisfy { $0.code != "hierarchy.unsatisfied-dependency" })
+    }
+
     @Test("Duplicate withNames dependencies use string literal locations")
     func duplicateWithNamesDependenciesUseStringLiteralLocations() throws {
         let rootURL = try makeTemporaryWorkspaceRoot()

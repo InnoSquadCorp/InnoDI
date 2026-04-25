@@ -82,6 +82,28 @@ public enum SubContainerScopeValue: String {
     case transient
 }
 
+/// Source spelling used for `@SubContainer` same-name wiring.
+public enum SubContainerSameNameWiringLabel: String, Equatable, Sendable {
+    /// Key-path based same-name wiring (`with: [\.foo]`).
+    case with
+    /// String based same-name wiring (`withNames: ["foo"]`).
+    case withNames
+}
+
+/// Parse state for `@SubContainer` same-name wiring.
+///
+/// The macro must distinguish omitted wiring from an explicitly empty literal
+/// array. It also must not silently treat runtime variables or partially
+/// unparseable arrays as an empty subset.
+public enum SubContainerSameNameWiringParseState: Equatable, Sendable {
+    /// Neither `with:` nor `withNames:` appeared in the source.
+    case omitted
+    /// A literal array was fully parsed. The dependency list may be empty.
+    case parsed(label: SubContainerSameNameWiringLabel, dependencies: [String])
+    /// A same-name wiring label appeared but was not a fully parseable literal array.
+    case invalid(label: SubContainerSameNameWiringLabel)
+}
+
 /// Parsed arguments extracted from a single `@SubContainer` attribute.
 public struct SubContainerAttributeInfo {
     /// Parsed scope value. `nil` when the author omitted the required
@@ -99,6 +121,8 @@ public struct SubContainerAttributeInfo {
     public let hasWithDependencies: Bool
     /// Whether the attribute contains the `withNames:` string argument.
     public let hasWithNamesDependencies: Bool
+    /// Literal parse state for `with:` / `withNames:`.
+    public let sameNameWiring: SubContainerSameNameWiringParseState
     /// Explicit child-input -> parent-member bindings passed via `bindings:`.
     /// Used when the child `.input` label differs from the parent member name.
     public let bindings: [SubContainerBindingArgument]
@@ -118,6 +142,7 @@ public struct SubContainerAttributeInfo {
         dependencies: [String],
         hasWithDependencies: Bool = false,
         hasWithNamesDependencies: Bool = false,
+        sameNameWiring: SubContainerSameNameWiringParseState = .omitted,
         bindings: [SubContainerBindingArgument]
     ) {
         self.scope = scope
@@ -125,6 +150,7 @@ public struct SubContainerAttributeInfo {
         self.dependencies = dependencies
         self.hasWithDependencies = hasWithDependencies
         self.hasWithNamesDependencies = hasWithNamesDependencies
+        self.sameNameWiring = sameNameWiring
         self.bindings = bindings
     }
 }
@@ -343,6 +369,38 @@ public func parseStringArrayArgument(_ expression: ExprSyntax) -> [String] {
     }
 }
 
+/// Strictly parses a `with: [\.foo, \.bar]` array for `@SubContainer`.
+/// Returns `nil` when the expression is not a literal array or any element is
+/// not a simple key path whose final component is a property.
+public func parseStrictKeyPathArrayArgument(_ expression: ExprSyntax) -> [String]? {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return nil }
+    var names: [String] = []
+    for element in arrayExpr.elements {
+        guard let property = finalKeyPathComponentName(from: element.expression) else {
+            return nil
+        }
+        names.append(property)
+    }
+    return names
+}
+
+/// Strictly parses a `withNames: ["foo", "bar"]` array for `@SubContainer`.
+/// Returns `nil` when the expression is not a literal array or any element is
+/// not a plain string literal.
+public func parseStrictStringArrayArgument(_ expression: ExprSyntax) -> [String]? {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return nil }
+    var names: [String] = []
+    for element in arrayExpr.elements {
+        guard let literal = element.expression.as(StringLiteralExprSyntax.self),
+              literal.segments.count == 1,
+              case let .stringSegment(segment)? = literal.segments.first else {
+            return nil
+        }
+        names.append(segment.content.text)
+    }
+    return names
+}
+
 /// Parses `bindings: [(child: \.foo, parent: \.bar)]` into semantic names.
 public func parseSubContainerBindingsArgument(_ expression: ExprSyntax) -> [SubContainerBindingArgument] {
     guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
@@ -391,6 +449,7 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     var dependencies: [String] = []
     var hasWithDependencies = false
     var hasWithNamesDependencies = false
+    var sameNameWiring: SubContainerSameNameWiringParseState = .omitted
     var bindings: [SubContainerBindingArgument] = []
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
@@ -405,10 +464,22 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                 }
             case "with":
                 hasWithDependencies = true
-                dependencies = parseKeyPathArrayArgument(argument.expression)
+                if let parsedDependencies = parseStrictKeyPathArrayArgument(argument.expression) {
+                    dependencies = parsedDependencies
+                    sameNameWiring = .parsed(label: .with, dependencies: parsedDependencies)
+                } else {
+                    dependencies = []
+                    sameNameWiring = .invalid(label: .with)
+                }
             case "withNames":
                 hasWithNamesDependencies = true
-                dependencies = parseStringArrayArgument(argument.expression)
+                if let parsedDependencies = parseStrictStringArrayArgument(argument.expression) {
+                    dependencies = parsedDependencies
+                    sameNameWiring = .parsed(label: .withNames, dependencies: parsedDependencies)
+                } else {
+                    dependencies = []
+                    sameNameWiring = .invalid(label: .withNames)
+                }
             case "bindings":
                 bindings = parseSubContainerBindingsArgument(argument.expression)
             default:
@@ -423,6 +494,7 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
         dependencies: dependencies,
         hasWithDependencies: hasWithDependencies,
         hasWithNamesDependencies: hasWithNamesDependencies,
+        sameNameWiring: sameNameWiring,
         bindings: bindings
     )
 }

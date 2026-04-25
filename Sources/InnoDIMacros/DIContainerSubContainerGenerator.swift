@@ -196,11 +196,14 @@ internal func resolvedSubContainerParentNames(
     member: SubContainerMemberModel,
     autoWireParentMemberNames: [String]
 ) -> [String] {
-    if member.hasExplicitSameNameWiring {
-        return member.parentDependencies
+    switch member.sameNameWiring {
+    case let .parsed(_, dependencies):
+        return dependencies
+    case .invalid:
+        return []
+    case .omitted:
+        return autoWireParentMemberNames
     }
-
-    return autoWireParentMemberNames
 }
 
 internal func canResolveImplicitSubContainerParentNames(

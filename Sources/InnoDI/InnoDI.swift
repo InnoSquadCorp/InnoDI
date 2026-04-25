@@ -236,10 +236,12 @@ public enum SubContainerScope {
 ///   intent visible at every declaration site.
 /// - `with`: Optional keypath list used to restrict or reorder which same-name
 ///   parent members are forwarded to the child. Each `\.parentMember` keypath
-///   is passed with the same label on the child side.
+///   is passed with the same label on the child side. This must be a literal
+///   array the macro can read, for example `with: [\.config]` or `with: []`.
 /// - `withNames`: Optional string-name form of `with`, used when same-name
 ///   wiring is needed but Swift cannot form the parent keypaths at the macro
-///   declaration site.
+///   declaration site. This must be a literal string array, for example
+///   `withNames: ["config"]` or `withNames: []`.
 /// - `bindings`: Optional explicit remapping tuples used when child `.input`
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
@@ -258,6 +260,7 @@ public enum SubContainerScope {
 /// `withNames`, or `bindings`. When `with:` or `withNames:` is provided, the
 /// listed parent members replace the implicit set but keep their same-name
 /// labels; an empty list is an explicit empty subset and generates `Child()`.
+/// Runtime variables or computed array elements are not evaluated by the macro.
 /// When `bindings:` is provided, each tuple rewrites the child label explicitly
 /// while reading from the selected parent member. Child-input verification is
 /// handled conservatively by the build-support validator across the module.
