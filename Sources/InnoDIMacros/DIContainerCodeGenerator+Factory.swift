@@ -86,10 +86,9 @@ internal func makeAsyncFactoryExpr(
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> ExprSyntax {
-    // NOTE: The embedded `fatalError(...)` call below is *generated source*,
-    // not a macro-time crash. If codegen was asked to build the task body
-    // without an async factory, that is a validator bug — we throw a
-    // CodegenInvariantError so the top-level macro emits a diagnostic.
+    // If codegen was asked to build the task body without an async factory,
+    // that is a validator bug — throw so the top-level macro emits a
+    // diagnostic instead of silently generating invalid source.
     guard let asyncFactory = member.asyncFactory else {
         throw CodegenInvariantError(description: "Missing async factory for shared dependency '\(member.name)'.")
     }

@@ -27,6 +27,21 @@ InnoDI 不是运行时状态机。运行时状态应放在你的应用层或 `In
   - tvOS 17+
   - visionOS 1+
 
+### 构建期 validator 的文件系统要求
+
+构建插件会在 Swift Package Manager derived data 目录下使用 POSIX
+`O_CREAT | O_EXCL` 锁文件串行化 live DAG validation。APFS、HFS+、ext4、
+btrfs、xfs 等本地文件系统可以正确工作，但网络路径需要额外注意。
+
+- **NFSv3** 不保证 atomic `O_EXCL` semantics；两个客户端可能同时认为自己
+  创建了锁。请使用 NFSv4，或把 derived data 移到本地路径。
+- **SMB/CIFS** share 不提供可靠的 `O_EXCL` atomicity，因此不受支持。
+- **Docker / Kubernetes bind mount** 会继承 host filesystem 的 semantics。
+  如果 host 是本地 filesystem，则可以安全使用。
+
+如果构建系统必须把 derived data 放在 shared volume 上，请在启用插件前把
+SPM 的 `--scratch-path` 或 Xcode derived-data 位置指向本地目录。
+
 ## 安装
 
 在 `Package.swift` 中加入：

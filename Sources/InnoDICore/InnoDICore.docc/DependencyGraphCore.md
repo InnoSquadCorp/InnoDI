@@ -21,7 +21,8 @@ A dependency graph is expressed as two flat collections:
     rendered with a dotted glyph.
   - `isOwnership` — parent-owned `@SubContainer`. Participates in cycle
     detection (child construction happens during parent init) and is
-    rendered with the `owns` label to emphasize the relationship.
+    classified as `EdgeKind.ownership` by renderers so they can emphasize
+    the relationship with their own label or style.
 
 Normal factory parameters land on the default (all three booleans
 false) and behave as hard dependency edges.

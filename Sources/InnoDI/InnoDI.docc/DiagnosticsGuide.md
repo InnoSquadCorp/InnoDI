@@ -42,6 +42,8 @@ Most frequently-hit codes:
 - `provide.named-property-required` — the binding must have a name.
 - `provide.explicit-type-required` — the binding must have a type annotation.
 - `provide.unknown-scope` — `.shared` / `.transient` / `.input` only.
+- `provide.input-invalid-configuration` — `.input` members cannot carry
+  factory, type, async factory, or dependency wiring configuration.
 - `provide.shared-factory-required` — `.shared` needs `factory:`, `type:`, or
   a property initializer.
 - `provide.transient-factory-required` — `.transient` needs `factory:` or
@@ -54,6 +56,8 @@ Most frequently-hit codes:
   type needs `concrete: true`.
 - `provide.unresolved-factory-parameter` — a factory parameter doesn't match
   any container member or `with:` key path.
+- `provide.unavailable-dependency-reference` — a factory references a member
+  that is declared later and is unavailable at that construction point.
 - `provide.unresolved-with-dependency` — a `with:` key path doesn't refer to
   a container member.
 - `provide.lazy-unsupported-target` — `Lazy<T>` parameter pointing at a type
@@ -66,6 +70,8 @@ Most frequently-hit codes:
   time, which defeats its purpose.
 - `provide.lazy-aliased` / `provide.provider-aliased` — a `typealias` for
   `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling.
+- `transient-factory.unnamed-parameters` — a transient factory closure used
+  shorthand or wildcard parameters; name parameters so InnoDI can inject them.
 
 ## Container-level diagnostics
 
@@ -86,7 +92,10 @@ Most frequently-hit codes:
   `sub.explicit-type-required` — structural rules mirroring `@Provide`.
 - `sub.scope-required` — `@SubContainer` requires an explicit
   `scope: .shared` or `.transient`.
+- `sub.unknown-scope` — the `scope:` value is not `.shared` or `.transient`.
 - `sub.conflicts-with-provide` — a property can't carry both attributes.
+- `sub.overrides-name-conflict` — generated child override helper storage
+  would collide with an existing parent member name.
 - `sub.unknown-parent-member` — `with:` key path doesn't map to a parent
   container member.
 - `sub.unknown-child-input` — `bindings:` child key path doesn't map to a
@@ -112,12 +121,16 @@ Most frequently-hit codes:
   on the same container.
 - `swiftui.feature-root-helper-name-conflict` — generated helper name
   collides with an existing member.
+- `swiftui.feature-root-invalid-alias` — the feature-root alias argument
+  cannot be parsed as a valid Swift identifier.
 - `swiftui.environment-bridge-unknown-member` — `@DIEnvironmentBridge`
   key path doesn't resolve to a container member.
 - `swiftui.environment-bridge-duplicate-member` — the same key path is
   listed twice.
 - `swiftui.environment-bridge-invalid-keypath` — the argument isn't a
   key-path literal.
+- `swiftui.environment-bridge-invalid-arguments` — the bridge macro received
+  arguments outside its supported key-path list shape.
 
 ## Component / Hierarchy diagnostics
 

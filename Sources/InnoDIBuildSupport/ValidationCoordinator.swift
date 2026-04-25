@@ -159,7 +159,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void,
         currentProcessID: @escaping @Sendable () -> Int32,
         processExists: @escaping @Sendable (Int32) -> Bool,
-        currentBootID: @escaping @Sendable () -> Int64? = { BootIDProvider.live() },
+        currentBootID: @escaping @Sendable () -> Int64? = BootIDProvider.live,
         beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
     ) {
         self.monotonicNow = monotonicNow
@@ -207,8 +207,9 @@ package enum BootIDProvider {
         var boottime = timeval()
         var size = MemoryLayout<timeval>.stride
         var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
+        let mibCount = u_int(mib.count)
         let status = mib.withUnsafeMutableBufferPointer { bufferPointer -> Int32 in
-            sysctl(bufferPointer.baseAddress, 2, &boottime, &size, nil, 0)
+            sysctl(bufferPointer.baseAddress, mibCount, &boottime, &size, nil, 0)
         }
         guard status == 0 else { return nil }
         return Int64(boottime.tv_sec)
@@ -294,14 +295,16 @@ package enum ValidationCoordinator {
         rootPath: String,
         toolPath: String,
         stateDirectoryPath: String,
-        outputDirectoryPath: String
+        outputDirectoryPath: String,
+        lockPolicy: ValidationCoordinatorLockPolicy = .default
     ) async throws -> ValidationExecutionOutcome {
         try await coordinate(
             rootPath: rootPath,
             toolPath: toolPath,
             stateDirectoryPath: stateDirectoryPath,
             outputDirectoryPath: outputDirectoryPath,
-            runner: LiveValidationCommandRunner()
+            runner: LiveValidationCommandRunner(),
+            lockPolicy: lockPolicy
         )
     }
 
@@ -606,4 +609,3 @@ package enum ValidationCoordinator {
         )
     }
 }
-

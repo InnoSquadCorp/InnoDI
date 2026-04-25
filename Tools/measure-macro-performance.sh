@@ -107,9 +107,10 @@ declare -a samples
 
 if [[ "$IN_PROCESS" -eq 1 ]]; then
   echo "[macro-perf] mode: in-process (SwiftSyntax direct expansion)"
+  FILTER="MacroPerformanceBenchmark"
   INNODI_MACRO_BENCH_ITERATIONS="$ITERATIONS" \
   INNODI_MACRO_BENCH_OUTPUT="$IN_PROCESS_REPORT" \
-    swift test --filter MacroPerformanceBenchmark >"$PERF_LOG" 2>&1
+    swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
   if [[ ! -s "$IN_PROCESS_REPORT" ]]; then
     echo "[macro-perf] in-process benchmark produced no report; check $PERF_LOG" >&2
     exit 1

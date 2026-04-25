@@ -4,8 +4,11 @@ import InnoDICore
 func runDependencyGraphCLI() -> Int32 {
     let parsed: ParsedArguments
     switch parseArguments() {
-    case .parsed(let args):
+    case .parsed(let args, let warnings):
         parsed = args
+        for warning in warnings {
+            fputs("\(warning)\n", stderr)
+        }
     case .helpRequested:
         printUsage()
         return 0
@@ -195,8 +198,9 @@ private func runDAGValidation(
     // re-enters a transient accessor on demand. Both still render in the
     // graph, but neither should participate in init-time cycle validation.
     let adjacency = buildCycleDetectionAdjacency(nodes: eligibleNodes, edges: eligibleEdges)
-    let cycles = detectDependencyCycles(adjacency: adjacency)
-    if cycles.isEmpty && eligibleSemanticIssues.isEmpty {
+    let cycleResult = analyzeDependencyCycles(adjacency: adjacency)
+    let cycles = cycleResult.cycles
+    if cycles.isEmpty && eligibleSemanticIssues.isEmpty && !cycleResult.truncatedByDepthLimit {
         return writeValidationMessage("DAG validation passed.\n", outputPath: outputPath)
     }
 
@@ -265,14 +269,23 @@ private func runDAGValidation(
         }
     }
 
+    if cycleResult.truncatedByDepthLimit {
+        if cycles.isEmpty {
+            lines.append("Detected dependency cycles:")
+        }
+        lines.append("- [graph.dependency-cycle] cycle detection truncated at depth limit before validation completed")
+    }
+
     let report = lines.joined(separator: "\n") + "\n"
-    if let outputPath {
+    if let outputPath, outputPath != "-" {
         do {
             try report.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
         } catch {
             fputs("Error writing to file: \(error)\n", stderr)
             return ExitCode.ioError
         }
+    } else if outputPath == "-" {
+        fputs(report, stdout)
     } else {
         fputs(report, stderr)
     }
@@ -282,13 +295,15 @@ private func runDAGValidation(
 private func writeNoContainersMessage(outputPath: String?) -> Int32 {
     let errorMessage = "No @DIContainer found in project.\n"
 
-    if let outputPath {
+    if let outputPath, outputPath != "-" {
         do {
             try errorMessage.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
         } catch {
             fputs("Error writing to file: \(error)\n", stderr)
             return ExitCode.ioError
         }
+    } else if outputPath == "-" {
+        fputs(errorMessage, stdout)
     } else {
         fputs(errorMessage, stderr)
     }
@@ -297,7 +312,7 @@ private func writeNoContainersMessage(outputPath: String?) -> Int32 {
 }
 
 private func writeValidationMessage(_ message: String, outputPath: String?) -> Int32 {
-    if let outputPath {
+    if let outputPath, outputPath != "-" {
         do {
             try message.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
         } catch {

@@ -4,11 +4,13 @@ Iterative DFS over an adjacency list with a configurable depth cap.
 
 ## Overview
 
-`detectDependencyCycles(adjacency:depthLimit:)` is the primitive that
-powers both the per-container macro validator and the global DAG CLI.
-It returns every distinct elementary cycle in the graph, keyed by the
-lexicographically smallest rotation of the cycle core — so callers get
-a stable, deduplicated list across runs.
+`analyzeDependencyCycles(adjacency:depthLimit:)` powers both the
+per-container macro validator and the global DAG CLI. It returns every
+distinct elementary cycle in the graph plus a `truncatedByDepthLimit`
+flag, keyed by the lexicographically smallest rotation of the cycle core
+so callers get a stable, deduplicated list across runs. The older
+`detectDependencyCycles(adjacency:depthLimit:)` API remains as a
+cycle-list-only convenience wrapper.
 
 ### Determinism
 
@@ -22,9 +24,9 @@ is not defined.
 The implementation uses an explicit frame stack rather than Swift's
 native call stack, so adversarially deep graphs cannot overflow. A
 configurable `depthLimit` (default: 4096) abandons any branch that
-exceeds it, returning no cycles for that branch rather than crashing.
-That default is well above realistic DI depths; lowering it is useful
-primarily in tests that exercise the fallback.
+exceeds it and marks the richer result as truncated rather than silently
+passing validation. That default is well above realistic DI depths;
+lowering it is useful primarily in tests that exercise the fallback.
 
 ### Canonical rotation
 
@@ -37,4 +39,5 @@ nodes share an id — it keeps canonicalization idempotent even there.
 
 ### Public API
 
+- `analyzeDependencyCycles(adjacency:depthLimit:)`
 - `detectDependencyCycles(adjacency:depthLimit:)`

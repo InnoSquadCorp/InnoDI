@@ -140,9 +140,13 @@ mixed real/mock graphs.
 
 ## Rollout plan
 
-1. Ship `@GenerateMock` as an experimental macro behind
-   `.enableExperimentalFeature("InnoDIMockGeneration")` for one minor
+1. Ship `@GenerateMock` as an experimental library feature for one minor
    release so we can evolve the generated shape without breaking users.
+   The gate should be either a SwiftPM trait / active compilation condition
+   such as `INNODI_EXPERIMENTAL_MOCKS`, or an explicit attribute parameter
+   like `@GenerateMock(experimental: true)`. Do not model this as
+   `.enableExperimentalFeature(...)`; that flag is for compiler features,
+   not package-level API rollout.
 2. Collect feedback from Examples and a handful of adopter repos on
    the open questions above.
 3. Promote to stable with a dedicated RFC revision that documents the

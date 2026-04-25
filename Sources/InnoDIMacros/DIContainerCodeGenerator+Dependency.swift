@@ -14,6 +14,7 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
+private let storagePrefix = "_storage_"
 private let unresolvedDependencyHelperName = "_innoDIUnresolvedDependency"
 
 /// Builds one argument expression per closure parameter of `member.factory`.
@@ -133,10 +134,12 @@ private func resolveClosureParameter(name: String, availableNames: [String]) -> 
         return name
     }
 
-    let nameWithoutPrefix = name.hasPrefix("_storage_") ? String(name.dropFirst(9)) : name
+    let nameWithoutPrefix = name.hasPrefix(storagePrefix) ? String(name.dropFirst(storagePrefix.count)) : name
 
     for availableName in availableNames {
-        let availableWithoutPrefix = availableName.hasPrefix("_storage_") ? String(availableName.dropFirst(9)) : availableName
+        let availableWithoutPrefix = availableName.hasPrefix(storagePrefix)
+            ? String(availableName.dropFirst(storagePrefix.count))
+            : availableName
         if availableWithoutPrefix == nameWithoutPrefix {
             return availableName
         }

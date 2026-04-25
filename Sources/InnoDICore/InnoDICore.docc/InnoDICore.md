@@ -34,11 +34,12 @@ cycle detector without pulling in the full macro stack.
 
 - <doc:SemanticResolution>
 
-### Parsing Helpers
+### Macro-Side Parsing Helpers
 
 The closure-parameter parser that powers `@Provide` soft/provider edge
-detection lives in `Parsing.swift` (`parseClosureParameterNames`,
-`DependencyKind`). It treats written syntax as the source of truth; it
-does not follow `typealias` chains across files. Consumers that want to
-detect aliased `Lazy<T>` / `Provider<T>` should use the macro-side
-`DILazyProviderAliasCheck` facility instead.
+detection lives in the `InnoDIMacros` target:
+`ClosureSyntaxHelpers.swift` defines `parseClosureParameterNames`, and
+`DIContainerModel.swift` defines `DependencyKind`. It treats written syntax
+as the source of truth; it does not follow `typealias` chains across files.
+Consumers that want to detect aliased `Lazy<T>` / `Provider<T>` should use
+the macro-side `DILazyProviderAliasCheck` facility instead.

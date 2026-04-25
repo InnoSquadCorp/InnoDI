@@ -1,5 +1,17 @@
 import Foundation
 
+/// Cycle detection output, including whether any branch was skipped because
+/// it reached the configured depth limit.
+public struct DependencyCycleDetectionResult: Equatable, Sendable {
+    public let cycles: [[String]]
+    public let truncatedByDepthLimit: Bool
+
+    public init(cycles: [[String]], truncatedByDepthLimit: Bool) {
+        self.cycles = cycles
+        self.truncatedByDepthLimit = truncatedByDepthLimit
+    }
+}
+
 /// Deterministic cycle detection on directed graphs.
 ///
 /// Implementation notes:
@@ -12,6 +24,8 @@ import Foundation
 /// - The linear-in-cycle-length canonical rotation relies on cycles over
 ///   distinct nodes — which is an invariant of elementary cycles in a
 ///   dependency graph.
+/// - Reports whether any traversal branch was abandoned because it exceeded
+///   the configured depth limit.
 ///
 /// - Parameters:
 ///   - adjacency: Adjacency list where each key is a node id and each value
@@ -19,11 +33,13 @@ import Foundation
 ///   - depthLimit: Maximum explicit-stack depth before a traversal branch is
 ///     abandoned. Defaults to 4096 — far beyond the depth of any realistic
 ///     DI graph but cheap enough to bound adversarial input.
-/// - Returns: Unique cycle paths. Each cycle is returned as `A -> ... -> A`.
-public func detectDependencyCycles(
+/// - Returns: Unique cycle paths plus truncation metadata. Each cycle is
+///   returned as `A -> ... -> A`.
+public func analyzeDependencyCycles(
     adjacency: [String: [String]],
     depthLimit: Int = 4096
-) -> [[String]] {
+) -> DependencyCycleDetectionResult {
+    let effectiveDepthLimit = max(1, depthLimit)
     let allNodes = Set(adjacency.keys).union(adjacency.values.flatMap { $0 })
     let sortedNodes = allNodes.sorted()
 
@@ -32,6 +48,7 @@ public func detectDependencyCycles(
     var indexByNode: [String: Int] = [:]
     var cycles: [[String]] = []
     var seenCanonical: Set<String> = []
+    var truncatedByDepthLimit = false
 
     // An explicit DFS frame. `neighbors` is sorted up-front so each step just
     // advances `nextNeighborIndex`.
@@ -107,7 +124,8 @@ public func detectDependencyCycles(
                 // configured ceiling, abandon this branch instead of descending
                 // further. The traversal state stays consistent — we simply
                 // treat the deeper edge as unexplored.
-                if frames.count >= depthLimit {
+                if frames.count >= effectiveDepthLimit {
+                    truncatedByDepthLimit = true
                     continue iterative
                 }
                 state[neighbor] = .visiting
@@ -122,9 +140,23 @@ public func detectDependencyCycles(
         }
     }
 
-    return cycles.sorted { lhs, rhs in
+    let sortedCycles = cycles.sorted { lhs, rhs in
         lhs.joined(separator: "->") < rhs.joined(separator: "->")
     }
+    return DependencyCycleDetectionResult(
+        cycles: sortedCycles,
+        truncatedByDepthLimit: truncatedByDepthLimit
+    )
+}
+
+/// Deterministic cycle detection on directed graphs.
+///
+/// - Returns: Unique cycle paths. Each cycle is returned as `A -> ... -> A`.
+public func detectDependencyCycles(
+    adjacency: [String: [String]],
+    depthLimit: Int = 4096
+) -> [[String]] {
+    analyzeDependencyCycles(adjacency: adjacency, depthLimit: depthLimit).cycles
 }
 
 private enum VisitState {

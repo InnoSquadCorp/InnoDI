@@ -79,6 +79,41 @@ struct LockBootIDTests {
         #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)))
     }
 
+    @Test("Matching bootID with a dead PID recovers the lock")
+    func matchingBootIDWithDeadPIDRecoversLock() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("innodi-lock-boot-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let lockURL = tempDir.appendingPathComponent("validation.lock")
+        let deadProcessMetadata = ValidationCoordinatorLockMetadata(
+            pid: 999_999,
+            createdAt: Date().timeIntervalSince1970,
+            bootID: 123
+        )
+        try JSONEncoder().encode(deadProcessMetadata).write(to: lockURL)
+
+        let runtime = ValidationCoordinatorRuntime(
+            monotonicNow: { 0 },
+            currentDate: { Date() },
+            sleep: { _ in },
+            currentProcessID: { 42 },
+            processExists: { _ in false },
+            currentBootID: { 123 },
+            beforeStaleLockRemoval: { _ in }
+        )
+
+        let recovered = try recoverStaleLockIfNeeded(
+            at: lockURL,
+            staleLockAgeSeconds: 60,
+            runtime: runtime
+        )
+
+        #expect(recovered)
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)) == false)
+    }
+
     @Test("Legacy v1 metadata (no bootID) still falls back to PID-only liveness")
     func v1MetadataFallback() throws {
         let tempDir = FileManager.default.temporaryDirectory

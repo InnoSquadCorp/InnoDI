@@ -6,18 +6,19 @@ import Testing
 struct ArgumentsParsingTests {
     @Test("Default invocation returns parsed values with nil format")
     func defaultInvocation() {
-        guard case let .parsed(args) = parseArguments([]) else {
+        guard case let .parsed(args, warnings) = parseArguments([]) else {
             Issue.record("Expected parsed result")
             return
         }
         #expect(args.format == nil)
         #expect(args.output == nil)
         #expect(args.validateDAG == false)
+        #expect(warnings.isEmpty)
     }
 
     @Test("Recognized options populate the struct")
     func recognizedOptions() {
-        guard case let .parsed(args) = parseArguments([
+        guard case let .parsed(args, warnings) = parseArguments([
             "--root", "/tmp/project",
             "--format", "dot",
             "--output", "out.txt",
@@ -30,6 +31,45 @@ struct ArgumentsParsingTests {
         #expect(args.format == .dot)
         #expect(args.output == "out.txt")
         #expect(args.validateDAG == true)
+        #expect(warnings.isEmpty)
+    }
+
+    @Test(
+        "Format option accepts supported renderers",
+        arguments: [
+            ("mermaid", OutputFormat.mermaid),
+            ("dot", OutputFormat.dot),
+            ("ascii", OutputFormat.ascii),
+            ("json", OutputFormat.json),
+        ]
+    )
+    func supportedFormats(rawValue: String, expected: OutputFormat) {
+        guard case let .parsed(args, warnings) = parseArguments(["--format", rawValue]) else {
+            Issue.record("Expected parsed result")
+            return
+        }
+        #expect(args.format == expected)
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("--output - is accepted as stdout")
+    func outputDashIsAccepted() {
+        guard case let .parsed(args, warnings) = parseArguments(["--output", "-"]) else {
+            Issue.record("Expected parsed result")
+            return
+        }
+        #expect(args.output == "-")
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("Unknown options are returned as warnings")
+    func unknownOptionsAreWarnings() {
+        guard case let .parsed(args, warnings) = parseArguments(["--ignored", "value"]) else {
+            Issue.record("Expected parsed result")
+            return
+        }
+        #expect(args.format == nil)
+        #expect(warnings == ["Warning: unrecognized option '--ignored'"])
     }
 
     @Test("--help short-circuits parsing")

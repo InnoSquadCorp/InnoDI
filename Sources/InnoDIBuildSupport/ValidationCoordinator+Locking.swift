@@ -11,7 +11,7 @@
 //  These helpers are strictly infrastructure — the orchestration logic in
 //  `ValidationCoordinator.swift` composes them.
 //
-//  MARK: - Filesystem requirements
+// MARK: - Filesystem requirements
 //
 //  The lock relies on `O_CREAT | O_EXCL` for atomic creation. Local
 //  filesystems (APFS, HFS+, ext4, btrfs, xfs) implement this correctly. On
