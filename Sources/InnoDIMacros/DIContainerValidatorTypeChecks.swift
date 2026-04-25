@@ -2,8 +2,6 @@
 //  DIContainerValidatorTypeChecks.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `DIContainerValidator.swift`.
-//
 //  Type-level helpers the validator leans on when deciding whether a
 //  `@Provide`d member needs `concrete: true`, when normalizing optional /
 //  tuple / attributed wrappers, and when detecting async closures. Pulling

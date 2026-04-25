@@ -2,10 +2,10 @@ import Testing
 
 import InnoDI
 
-// Smoke fixtures kept minimal — proper Phase M runtime coverage lives in
-// `SubContainerRuntimeTests.swift` (M-7). This file gates the M-4 codegen
-// against the most basic happy paths so we catch macro expansion breakage
-// before validator / CLI / docs land.
+// Smoke fixtures kept minimal — proper sub-container runtime coverage lives
+// in `SubContainerRuntimeTests.swift`. This file gates the basic codegen
+// happy paths so we catch macro expansion breakage before validator / CLI /
+// docs land.
 
 struct SubSmokeConfig: Equatable {
     let endpoint: String

@@ -76,7 +76,7 @@ struct LazyTransientContainer {
 
 // MARK: - Tests
 
-/// Runtime coverage for Phase K's `Lazy<T>` cycle escape hatch.
+/// Runtime coverage for the `Lazy<T>` cycle escape hatch.
 ///
 /// The macro's expansion is covered by snapshot tests under
 /// `Tests/InnoDIMacrosTests/`. These tests assert that the generated init

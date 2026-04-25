@@ -2,6 +2,12 @@
 //  Diagnostics.swift
 //  InnoDIMacros
 //
+//  User-facing diagnostic messages emitted by the InnoDI macros. Every code
+//  is also described in the DocC `DiagnosticsGuide` article
+//  (Sources/InnoDI/InnoDI.docc/DiagnosticsGuide.md) — keep the two in sync
+//  when adding or renaming a case so that tools surfacing the diagnostic
+//  ID can link to documentation.
+//
 
 import SwiftDiagnostics
 import SwiftSyntax
@@ -11,7 +17,7 @@ enum InnoDIDiagnosticCategory: String {
     case validation
 }
 
-enum InnoDIDiagnosticCode: String {
+enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideSingleBinding = "provide.single-binding"
     case provideNamedPropertyRequired = "provide.named-property-required"
     case provideExplicitTypeRequired = "provide.explicit-type-required"
@@ -63,6 +69,7 @@ enum InnoDIDiagnosticCode: String {
     case componentRequiresContainer = "component.requires-container"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
+    case internalCodegenInvariant = "internal.codegen-invariant"
 
     var category: InnoDIDiagnosticCategory {
         switch self {
@@ -88,7 +95,8 @@ enum InnoDIDiagnosticCode: String {
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeInvalidKeyPath,
                 .swiftUIEnvironmentBridgeInvalidArguments,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
-                .hierarchyRootRequiresContainer:
+                .hierarchyRootRequiresContainer,
+                .internalCodegenInvariant:
             return .validation
         }
     }
@@ -384,7 +392,7 @@ extension SimpleDiagnostic {
         )
     }
 
-    // MARK: - Phase M: @SubContainer diagnostics
+    // MARK: - @SubContainer diagnostics
 
     static func subScopeRequired(memberName: String) -> Self {
         Self(
@@ -475,6 +483,21 @@ extension SimpleDiagnostic {
             "Spell 'Provider<T>' (or 'InnoDI.Provider<T>') directly — the macro cannot follow typealiases, so parameter '\(parameterName)' typed '\(aliasName)' is treated as a hard edge and loses the '.transient'-target rule plus the cycle-detection exemption.",
             code: .provideProviderAliased,
             severity: .warning
+        )
+    }
+
+    // MARK: - Internal invariant violations
+    //
+    // These fire only if a codegen helper encountered a case the validator
+    // was supposed to reject first. They are reported as diagnostics
+    // (instead of `fatalError`) so the compiler plugin degrades gracefully
+    // — the user sees a clear "please file a bug" message rather than an
+    // anonymous macro crash. Each message includes the original internal
+    // description so issue reports are actionable.
+    static func internalCodegenInvariant(description: String) -> Self {
+        Self(
+            "InnoDI internal codegen invariant violated: \(description). This should have been caught by validation — please file a bug at https://github.com/InnoSquadCorp/InnoDI/issues.",
+            code: .internalCodegenInvariant
         )
     }
 }

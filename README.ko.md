@@ -29,6 +29,25 @@ InnoDI는 runtime state machine이 아닙니다. 런타임 상태는 앱 레이�
   - tvOS 17+
   - visionOS 1+
 
+### 빌드 타임 validator의 파일시스템 요구 사항
+
+빌드 플러그인은 live DAG validation을 Swift Package Manager derived data
+디렉터리 아래의 POSIX `O_CREAT | O_EXCL` lock file로 직렬화합니다. APFS,
+HFS+, ext4, btrfs, xfs 같은 로컬 파일시스템에서는 정상 동작하지만, 네트워크
+경로에는 주의가 필요합니다.
+
+- **NFSv3**는 atomic `O_EXCL` semantics를 보장하지 않아 두 클라이언트가
+  동시에 lock을 만들었다고 판단할 수 있습니다. NFSv4를 쓰거나 derived
+  data를 로컬 경로로 옮기세요.
+- **SMB/CIFS** share는 신뢰할 수 있는 `O_EXCL` atomicity를 제공하지 않으므로
+  지원하지 않습니다.
+- **Docker / Kubernetes bind mount**는 host filesystem의 semantics를
+  따릅니다. host가 로컬 filesystem이면 안전합니다.
+
+빌드 시스템이 derived data를 shared volume에 둬야 한다면, 플러그인을 켜기
+전에 SPM의 `--scratch-path` 또는 Xcode derived-data 위치를 로컬 디렉터리로
+지정하세요.
+
 ## 설치
 
 `Package.swift`에 InnoDI를 추가합니다.

@@ -2,14 +2,12 @@
 //  DIContainerOverridesGenerator.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `DIContainerCodeGenerator.swift`.
-//
 //  Emits the nested `struct Overrides` builder plus the trailing-closure
 //  convenience init that forwards named overrides into the primary init.
-//  Phase J introduced the builder; Phase M added the two extra slots per
-//  `@SubContainer` member (`<name>` direct replacement + `<name>Overrides`
-//  chained closure). Splitting these into a dedicated file keeps the
-//  primary init body focused on storage/factory wiring.
+//  Each `@SubContainer` member adds two extra slots (`<name>` direct
+//  replacement + `<name>Overrides` chained closure). Splitting these into a
+//  dedicated file keeps the primary init body focused on storage/factory
+//  wiring.
 //
 
 import SwiftSyntax
@@ -41,7 +39,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         return MemberBlockItemSyntax(decl: variableDecl)
     }
 
-    // Phase M: each `@SubContainer` member gains two slots on Overrides —
+    // Each `@SubContainer` member gains two slots on Overrides —
     // `<name>` for full replacement, `<name>Overrides` for a closure that
     // forwards into the child's own convenience init. Both default to nil so
     // tests only touch the slots they actually need.

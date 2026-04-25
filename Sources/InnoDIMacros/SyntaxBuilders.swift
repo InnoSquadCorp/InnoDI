@@ -19,15 +19,16 @@ import SwiftSyntaxBuilder
 
 // MARK: - Local bindings
 
-/// `let <bindingName> = <valueName>` 형태의 로컬 바인딩 DeclSyntax를
-/// SwiftSyntaxBuilder로 조립한다. 문자열 interpolation 대신 AST를 직접
-/// 만들어 trivia 차이를 방지한다.
+/// Assembles a `let <bindingName> = <valueName>` local binding `DeclSyntax`
+/// with `SwiftSyntaxBuilder`. Building the AST directly (instead of using
+/// string interpolation) avoids trivia differences in the emitted output.
 internal func letBinding(name bindingName: String, value valueName: String) -> DeclSyntax {
     let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
     return letBinding(name: bindingName, value: valueExpr)
 }
 
-/// 임의 표현식을 값으로 갖는 `let <bindingName> = <value>` 바인딩 생성.
+/// Creates a `let <bindingName> = <value>` binding with an arbitrary
+/// expression as the value.
 internal func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyntax {
     DeclSyntax(
         VariableDeclSyntax(
@@ -47,8 +48,8 @@ internal func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyn
 
 // MARK: - Storage peer declarations
 
-/// `private let <name>: <type>` (또는 `: <type>?`) 형태의 peer decl을 만든다.
-/// `@Provide` 매크로가 생성하는 저장소 필드의 표준 형태.
+/// Builds a `private let <name>: <type>` (or `: <type>?`) peer decl — the
+/// canonical storage field shape emitted by the `@Provide` macro.
 internal func storagePeerDecl(
     name: String,
     type: TypeSyntax,
@@ -76,8 +77,8 @@ internal func storagePeerDecl(
     return DeclSyntax(decl)
 }
 
-/// `private let <name>: Task<<successType>, <failureType>>` 형태의 async shared
-/// 저장소 peer decl을 만든다.
+/// Builds the peer decl for async-shared storage in the shape
+/// `private let <name>: Task<<successType>, <failureType>>`.
 internal func taskStoragePeerDecl(
     name: String,
     successType: String,
@@ -117,8 +118,8 @@ internal func taskStoragePeerDecl(
     return DeclSyntax(decl)
 }
 
-/// `private let _innoDISubBuild_<name>: @Sendable () -> <ChildType>`
-/// 형태의 peer decl을 만든다.
+/// Builds a peer decl in the shape
+/// `private let _innoDISubBuild_<name>: @Sendable () -> <ChildType>`.
 internal func subContainerBuildClosurePeerDecl(
     name: String,
     childType: TypeSyntax,
@@ -176,7 +177,7 @@ internal func subContainerBuildClosurePeerDecl(
 
 // MARK: - Statements
 
-/// `return <expr>` 형태의 `CodeBlockItemSyntax`.
+/// Builds a `CodeBlockItemSyntax` for a `return <expr>` statement.
 internal func returnStmt(expr: ExprSyntax) -> CodeBlockItemSyntax {
     let ret = ReturnStmtSyntax(
         returnKeyword: .keyword(.return, trailingTrivia: .space),
@@ -185,8 +186,9 @@ internal func returnStmt(expr: ExprSyntax) -> CodeBlockItemSyntax {
     return CodeBlockItemSyntax(item: .stmt(StmtSyntax(ret)))
 }
 
-/// `return [try] await <expr>` 형태의 `CodeBlockItemSyntax`.
-/// `isThrowing`이 true이면 `try await`, false이면 `await`만 적용한다.
+/// Builds a `CodeBlockItemSyntax` for `return [try] await <expr>`. When
+/// `isThrowing` is `true`, the expression is wrapped in `try await`;
+/// otherwise only `await` is applied.
 internal func awaitedReturnStmt(expr: ExprSyntax, isThrowing: Bool) -> CodeBlockItemSyntax {
     let awaited = ExprSyntax(AwaitExprSyntax(
         awaitKeyword: .keyword(.await, trailingTrivia: .space),
@@ -201,8 +203,9 @@ internal func awaitedReturnStmt(expr: ExprSyntax, isThrowing: Bool) -> CodeBlock
     return returnStmt(expr: wrapped)
 }
 
-/// `if let override = <overrideName> { return override }` 형태의
-/// `CodeBlockItemSyntax`. `@Provide(.transient, ...)`의 override 분기에 쓰인다.
+/// Builds a `CodeBlockItemSyntax` for
+/// `if let override = <overrideName> { return override }`. Emitted on the
+/// override branch of `@Provide(.transient, ...)` accessors.
 internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
     let ifStmt = IfExprSyntax(
         ifKeyword: .keyword(.if, trailingTrivia: .space),
@@ -241,7 +244,7 @@ internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
     )
 }
 
-/// `fatalError("<message>")` 호출을 담은 `CodeBlockItemSyntax`.
+/// Builds a `CodeBlockItemSyntax` containing a `fatalError("<message>")` call.
 internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
     let call = FunctionCallExprSyntax(
         calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
@@ -258,18 +261,18 @@ internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
 
 // MARK: - Lazy cycle-escape helpers
 
-/// `let _lazyCell_<name> = _LazyCell<Type>()` 형태의 로컬 바인딩을 만든다.
-///
-/// Phase K에서 soft-edge(Lazy<T>) 탈출구를 구현할 때 사용한다. 이 셀은
-/// 생성자가 돌아가는 동안 heap-allocated 상자로 캡처되어, 나중에 target
-/// 저장소가 실제 값으로 채워진 뒤에도 동일한 reference를 공유한다. `let`
-/// 바인딩이므로 컨테이너 init이 끝난 후에 생성된 Lazy 래퍼가 mutable
-/// capture 없이 안전하게 값을 읽을 수 있다.
+/// Builds a `let _lazyCell_<name> = _LazyCell<Type>()` local binding used
+/// to implement the soft-edge (`Lazy<T>`) escape hatch. The cell is
+/// captured as a heap-allocated box while the initializer runs, so any
+/// `Lazy` wrapper distributed beforehand continues to share the same
+/// reference after the target storage is populated. Because it is a `let`
+/// binding, wrappers created after container-init can read the value
+/// safely without any mutable capture.
 internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
     makeDeferredCellDecl(cellName: "_lazyCell_\(name)", type: type)
 }
 
-/// `let <cellName> = _LazyCell<Type>()` 형태의 로컬 바인딩을 만든다.
+/// Builds a `let <cellName> = _LazyCell<Type>()` local binding.
 internal func makeDeferredCellDecl(cellName: String, type: TypeSyntax) -> DeclSyntax {
     let genericClause = GenericArgumentClauseSyntax(
         arguments: GenericArgumentListSyntax([
@@ -297,10 +300,12 @@ internal func makeDeferredCellDecl(cellName: String, type: TypeSyntax) -> DeclSy
     return letBinding(name: cellName, value: ExprSyntax(initCall))
 }
 
-/// `_lazyCell_<name>.storeValue(self._storage_<name>)` 형태의 쓰기 표현식을 만든다.
+/// Builds a write expression in the shape
+/// `_lazyCell_<name>.storeValue(self._storage_<name>)`.
 ///
-/// init이 shared/input 저장소를 채운 직후에 호출되어, 미리 배포된 Lazy
-/// 래퍼가 뒤늦게 해결(resolve)할 때 같은 인스턴스를 되돌려줄 수 있게 한다.
+/// Called immediately after the init populates shared/input storage, so that
+/// a `Lazy` wrapper distributed beforehand returns the same instance when it
+/// finally resolves.
 internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSyntax {
     let cellMember = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
@@ -317,10 +322,12 @@ internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSy
     return ExprSyntax(call)
 }
 
-/// `_lazyCell_<name>.bindResolver { self.<name> }` 형태의 late-binding 표현식을 만든다.
+/// Builds a late-binding expression in the shape
+/// `_lazyCell_<name>.bindResolver { self.<name> }`.
 ///
-/// `.transient` soft target은 init이 끝난 뒤 accessor를 통해 fresh value를
-/// 다시 계산해야 하므로 concrete value를 저장하지 않고 resolver를 바인딩한다.
+/// A `.transient` soft target must recompute a fresh value through the
+/// accessor after init, so the cell binds a resolver closure instead of
+/// storing a concrete value.
 internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName: String = "self") -> ExprSyntax {
     let resolverAccess = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
@@ -341,19 +348,21 @@ internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName:
     return ExprSyntax(call)
 }
 
-/// `<Qualified>.Lazy({ _lazyCell_<name>.resolve() })` 형태의 인수 표현식을 만든다.
+/// Builds an argument expression in the shape
+/// `<Qualified>.Lazy({ _lazyCell_<name>.resolve() })`.
 ///
-/// soft 파라미터를 감지한 factory에 넘길 값이다. Lazy 의 generic
-/// 파라미터는 closure 반환 타입으로 추론되므로 `<Type>`을 명시하지 않는다.
+/// Passed to a factory that declared a soft parameter. `Lazy`'s generic
+/// parameter is inferred from the closure return type, so `<Type>` is
+/// intentionally omitted.
 internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
     makeDeferredCellWrapperExpr(name: name, calleeDescription: calleeDescription)
 }
 
-/// `<Qualified>.Lazy({ self.<name> })` 형태의 Lazy 래퍼를 만든다.
+/// Builds a `<Qualified>.Lazy({ self.<name> })` wrapper.
 ///
-/// Transient 접근자(getter) 내부에서 사용된다. getter 시점에는 `self`가
-/// 완전히 초기화된 상태이므로 저장소를 init-time box 없이 직접 읽어도
-/// 된다.
+/// Used inside a transient accessor (getter). At getter time `self` is
+/// already fully initialized, so storage can be read directly without an
+/// init-time box.
 internal func makeLazyAccessorWrapperExpr(
     name: String,
     calleeDescription: String
@@ -364,23 +373,24 @@ internal func makeLazyAccessorWrapperExpr(
     )
 }
 
-// MARK: - Provider wrappers (Phase L)
+// MARK: - Provider wrappers
 //
-// Provider<T> 래퍼는 Lazy<T> 와 동일한 형태(closure trailing call)이지만
-// 호출 시 매번 target `.transient` 저장소를 새로 resolve 한다. 생성 코드는
-// 기존 `_LazyCell` 인프라를 그대로 재사용한다 — `_LazyCell.resolver` 는
-// transient 대상에 대해 `{ self.<name> }` 를 바인딩해 두며, `resolve()` 는
-// 매 호출마다 그 클로저를 실행해 fresh 인스턴스를 반환한다. 따라서
-// Provider 용 래퍼는 "`Lazy` 대신 `Provider` 로 감쌈" 외의 차이가 없다.
+// A `Provider<T>` wrapper shares the same trailing-closure call shape as
+// `Lazy<T>`, but resolves the target `.transient` storage afresh on every
+// call. Codegen reuses the existing `_LazyCell` infrastructure: the cell
+// binds `{ self.<name> }` as its resolver, and every `resolve()` call runs
+// that closure to produce a new instance. The wrapper therefore differs
+// from `Lazy` only in which nominal type wraps the closure.
 
-/// `<Qualified>.Provider({ _lazyCell_<name>.resolve() })` 형태의 인수
-/// 표현식. `.shared` init 경로에서 `Provider<T>` 파라미터에 주입된다.
+/// Builds an argument expression in the shape
+/// `<Qualified>.Provider({ _lazyCell_<name>.resolve() })`. Injected into a
+/// `Provider<T>` parameter on the `.shared` init path.
 internal func makeProviderCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
     makeDeferredCellWrapperExpr(name: name, calleeDescription: calleeDescription)
 }
 
-/// `<Qualified>.Provider({ self.<name> })` 형태의 Provider 래퍼. transient
-/// 접근자 내부에서 사용된다 (`self` 이미 초기화 완료).
+/// Builds a `<Qualified>.Provider({ self.<name> })` wrapper. Used inside
+/// a transient accessor (`self` is already fully initialized at call time).
 internal func makeProviderAccessorWrapperExpr(
     name: String,
     calleeDescription: String
@@ -391,16 +401,17 @@ internal func makeProviderAccessorWrapperExpr(
     )
 }
 
-/// `_<lazyCell>.resolve()` 기반 deferred wrapper 표현식을 만든다.
+/// Builds a deferred wrapper expression that resolves through the
+/// `_lazyCell_<name>.resolve()` cell.
 private func makeDeferredCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
     makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
 }
 
-/// `self.<name>` 접근을 직접 캡처하는 deferred wrapper 표현식을 만든다.
+/// Builds a deferred wrapper expression that captures `self.<name>` directly.
 ///
-/// 이 경로는 의도적으로 non-`Sendable`이다. accessor-based `Lazy<T>` /
-/// `Provider<T>` 는 컨테이너의 기존 격리 도메인 안에서만 사용되며, actor
-/// boundary transport는 지원하지 않는다.
+/// This path is intentionally non-`Sendable`. Accessor-based `Lazy<T>` /
+/// `Provider<T>` are only meant for use within the container's existing
+/// isolation domain and do not support actor-boundary transport.
 private func makeDeferredAccessorWrapperExpr(
     name: String,
     calleeDescription: String
@@ -411,9 +422,9 @@ private func makeDeferredAccessorWrapperExpr(
     )
 }
 
-/// `makeDeferredCellWrapperExpr` 본체를 Lazy / Provider 양쪽에서 공유할 수
-/// 있도록 분리한 내부 구현. 호출처는 `calleeDescription` 으로 래퍼 이름
-/// ("Lazy" / "Provider" / "InnoDI.Lazy" 등)을 결정한다.
+/// Shared implementation behind `makeDeferredCellWrapperExpr` so both `Lazy`
+/// and `Provider` paths can reuse it. Callers pick the wrapper name
+/// (`"Lazy"`, `"Provider"`, `"InnoDI.Lazy"`, …) via `calleeDescription`.
 private func makeLazyCellWrapperExprCore(name: String, calleeDescription: String) -> ExprSyntax {
     let resolveAccess = MemberAccessExprSyntax(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
@@ -446,8 +457,9 @@ private func makeDeferredWrapperExpr(calleeDescription: String, resolverExpressi
 
 // MARK: - Task wrapper decl
 
+/// Assembles the `DeclSyntax` for
 /// `let <taskName> = Task<Success, Failure> { if let override = <overrideName> { return override }; return <awaitedFactoryExpr> }`
-/// 형태의 DeclSyntax를 SwiftSyntaxBuilder AST로 조립한다.
+/// directly via the `SwiftSyntaxBuilder` AST.
 internal func makeAsyncTaskDecl(
     taskName: String,
     overrideName: String,

@@ -9,8 +9,10 @@ FILTER="InnoDIMacrosTests"
 BASELINE_FILE="Tools/macro-performance-baseline.json"
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
+IN_PROCESS=0
 PERF_LOG="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf.XXXXXX")"
-trap 'rm -f "$PERF_LOG"' EXIT
+IN_PROCESS_REPORT="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf-inproc.XXXXXX")"
+trap 'rm -f "$PERF_LOG" "$IN_PROCESS_REPORT"' EXIT
 
 usage() {
   cat <<USAGE
@@ -22,6 +24,8 @@ Options:
   --baseline <PATH>       Baseline JSON path (default: Tools/macro-performance-baseline.json)
   --threshold <PCT>       Allowed regression percentage (default: 20)
   --update-baseline       Overwrite baseline with current measurements
+  --in-process            Use the in-process SwiftSyntax benchmark (single
+                          swift test spawn, lower variance, ~20x faster)
   --help                  Show this help
 USAGE
 }
@@ -64,6 +68,10 @@ while [[ $# -gt 0 ]]; do
       UPDATE_BASELINE=1
       shift
       ;;
+    --in-process)
+      IN_PROCESS=1
+      shift
+      ;;
     --help)
       usage
       exit 0
@@ -95,15 +103,35 @@ run_once_ms() {
   echo "$elapsed_ms"
 }
 
-echo "[macro-perf] warmup: swift test --filter $FILTER"
-swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
-
 declare -a samples
-for i in $(seq 1 "$ITERATIONS"); do
-  ms="$(run_once_ms)"
-  samples+=("$ms")
-  echo "[macro-perf] run $i/$ITERATIONS: ${ms} ms"
-done
+
+if [[ "$IN_PROCESS" -eq 1 ]]; then
+  echo "[macro-perf] mode: in-process (SwiftSyntax direct expansion)"
+  FILTER="MacroPerformanceBenchmark"
+  INNODI_MACRO_BENCH_ITERATIONS="$ITERATIONS" \
+  INNODI_MACRO_BENCH_OUTPUT="$IN_PROCESS_REPORT" \
+    swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
+  if [[ ! -s "$IN_PROCESS_REPORT" ]]; then
+    echo "[macro-perf] in-process benchmark produced no report; check $PERF_LOG" >&2
+    exit 1
+  fi
+  # Parse the JSON report the in-process benchmark just wrote so the rest
+  # of the script (baseline diff, exit code gating) can treat it like any
+  # other measurement run.
+  mapfile -t samples < <(python3 -c "import json,sys; print('\n'.join(f'{x:.3f}' for x in json.load(open(sys.argv[1]))['samples_ms']))" "$IN_PROCESS_REPORT")
+  for i in "${!samples[@]}"; do
+    echo "[macro-perf] run $((i+1))/$ITERATIONS: ${samples[$i]} ms"
+  done
+else
+  echo "[macro-perf] warmup: swift test --filter $FILTER"
+  swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
+
+  for i in $(seq 1 "$ITERATIONS"); do
+    ms="$(run_once_ms)"
+    samples+=("$ms")
+    echo "[macro-perf] run $i/$ITERATIONS: ${ms} ms"
+  done
+fi
 
 samples_lines="$(printf '%s\n' "${samples[@]}")"
 mean_ms="$(printf '%s\n' "$samples_lines" | awk '{sum += $1} END { printf "%.3f", sum / NR }')"

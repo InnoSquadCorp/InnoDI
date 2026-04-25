@@ -2,8 +2,7 @@
 //  SubContainerMacro.swift
 //  InnoDIMacros
 //
-//  Phase M — first-class nested containers. `@SubContainer` expands into two
-//  roles:
+//  First-class nested containers. `@SubContainer` expands into two roles:
 //
 //  1. **Peer storage** — per-member private declarations that hold the cached
 //     child instance (`.shared` scope) and/or the test override wedges that

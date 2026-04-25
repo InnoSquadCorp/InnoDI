@@ -12,10 +12,16 @@
 /// applies each configured `EnvironmentValues` key path in declaration order.
 /// `InnoDISwiftUI` keeps the public root-boundary API generic so containers
 /// do not need one-off modifier overloads.
+///
+/// > Important: Conforming types should always go through
+/// > `@DIEnvironmentBridge` — application code should not implement
+/// > `_innodiEnvironmentBridgeModifier()` directly. The underscore marks it
+/// > as an InnoDI-internal requirement whose shape may evolve.
 @MainActor
 public protocol DIEnvironmentBridging {
     associatedtype InnoDIEnvironmentBridgeModifier: ViewModifier
 
+    @_documentation(visibility: internal)
     func _innodiEnvironmentBridgeModifier() -> InnoDIEnvironmentBridgeModifier
 }
 

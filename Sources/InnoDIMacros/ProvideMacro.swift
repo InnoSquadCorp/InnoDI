@@ -31,7 +31,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         case .shared:
             if parseResult.asyncFactoryExpr != nil {
                 let storageName = "_storage_task_\(name)"
-                let successType = taskSuccessTypeDescription(from: type)
+                let successType = taskSuccessTypeDescription(for: type)
                 let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
                 return [taskStoragePeerDecl(
                     name: storageName,
@@ -151,10 +151,21 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             isMainActor: enclosingContainerMainActor
                         )]
                     }
-                    createExpr = makeTransientClosureCallExpr(
-                        closure: closure,
-                        parsed: parsedArguments
-                    )
+                    do {
+                        createExpr = try makeTransientClosureCallExpr(
+                            closure: closure,
+                            parsed: parsedArguments
+                        )
+                    } catch let error as CodegenInvariantError {
+                        return [handleCodegenInvariant(
+                            error,
+                            attribute: attribute,
+                            context: context,
+                            isAsync: true,
+                            isThrowing: parseResult.asyncFactoryIsThrowing,
+                            isMainActor: enclosingContainerMainActor
+                        )]
+                    }
                 } else {
                     createExpr = asyncFactory
                 }
@@ -193,10 +204,21 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             isMainActor: enclosingContainerMainActor
                         )]
                     }
-                    createExpr = makeTransientClosureCallExpr(
-                        closure: closure,
-                        parsed: parsedArguments
-                    )
+                    do {
+                        createExpr = try makeTransientClosureCallExpr(
+                            closure: closure,
+                            parsed: parsedArguments
+                        )
+                    } catch let error as CodegenInvariantError {
+                        return [handleCodegenInvariant(
+                            error,
+                            attribute: attribute,
+                            context: context,
+                            isAsync: false,
+                            isThrowing: false,
+                            isMainActor: enclosingContainerMainActor
+                        )]
+                    }
                 } else {
                     createExpr = factory
                 }
@@ -280,6 +302,28 @@ private func fatalErrorGetter(
     )
 }
 
+private func handleCodegenInvariant(
+    _ error: CodegenInvariantError,
+    attribute: AttributeSyntax,
+    context: some MacroExpansionContext,
+    isAsync: Bool,
+    isThrowing: Bool,
+    isMainActor: Bool
+) -> AccessorDeclSyntax {
+    context.diagnose(
+        Diagnostic(
+            node: Syntax(attribute),
+            message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
+        )
+    )
+    return fatalErrorGetter(
+        "InnoDI internal codegen invariant violated: \(error.description)",
+        isAsync: isAsync,
+        isThrowing: isThrowing,
+        isMainActor: isMainActor
+    )
+}
+
 private func makeGetter(
     statements: [CodeBlockItemSyntax],
     isAsync: Bool,
@@ -319,14 +363,6 @@ private func mainActorAccessorAttributes() -> AttributeListSyntax {
             )
         )
     ])
-}
-
-private func taskSuccessTypeDescription(from type: TypeSyntax) -> String {
-    let description = type.trimmedDescription
-    if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
-        return "(\(description))"
-    }
-    return description
 }
 
 private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) -> DIContainerAttributeInfo? {
@@ -430,17 +466,17 @@ private func enclosingProvideMemberNames(for declaration: some DeclSyntaxProtoco
 private func makeTransientClosureCallExpr(
     closure: ClosureExprSyntax,
     parsed: ClosureParameterList
-) -> ExprSyntax {
+) throws -> ExprSyntax {
     // If the references list is available, honor soft kinds; otherwise fall
     // back to the plain member-access path.
     if parsed.references.isEmpty || parsed.references.allSatisfy({ $0.kind == .hard }) {
         return makeClosureCallExpr(closure: closure, argumentNames: parsed.names)
     }
 
-    let expressions: [ExprSyntax] = parsed.references.map { ref in
+    let expressions: [ExprSyntax] = try parsed.references.map { ref in
         if ref.kind == .soft {
             guard let calleeDescription = ref.lazyWrapperCalleeDescription else {
-                fatalError("Soft transient dependency '\(ref.name)' is missing a Lazy wrapper callee.")
+                throw CodegenInvariantError(description: "Soft transient dependency '\(ref.name)' is missing a Lazy wrapper callee.")
             }
             return makeLazyAccessorWrapperExpr(
                 name: ref.name,
@@ -449,7 +485,7 @@ private func makeTransientClosureCallExpr(
         }
         if ref.kind == .provider {
             guard let calleeDescription = ref.providerWrapperCalleeDescription else {
-                fatalError("Provider transient dependency '\(ref.name)' is missing a Provider wrapper callee.")
+                throw CodegenInvariantError(description: "Provider transient dependency '\(ref.name)' is missing a Provider wrapper callee.")
             }
             return makeProviderAccessorWrapperExpr(
                 name: ref.name,

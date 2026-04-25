@@ -24,6 +24,7 @@ and graph tooling rather than runtime container mutation.
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+- <doc:DiagnosticsGuide>
 
 ### Container API
 

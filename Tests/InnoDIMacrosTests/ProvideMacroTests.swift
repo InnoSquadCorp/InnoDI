@@ -99,8 +99,8 @@ struct ProvideMacroTests {
 
     @Test("Closure parameter parser preserves type annotations on full parameter clauses")
     func parseClosureParameterNamesPreservesTypes() throws {
-        // Phase K relies on the type annotation to detect `Lazy<T>` soft
-        // edges. Shorthand closures have no type site — assert nil there.
+        // Soft-edge detection relies on the type annotation to identify
+        // `Lazy<T>`. Shorthand closures have no type site — assert nil there.
         let source = """
         @Provide(.shared, factory: { (api: APIClient, raw) in Service(api: api, raw: raw) })
         var service: Service

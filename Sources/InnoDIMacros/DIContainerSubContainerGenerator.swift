@@ -2,24 +2,20 @@
 //  DIContainerSubContainerGenerator.swift
 //  InnoDIMacros
 //
-//  Phase N-1 — extracted from `DIContainerCodeGenerator.swift`.
-//
 //  Helpers that emit `@SubContainer`-specific init statements, shared-scope
 //  `_storage_sub_<name>` assignment chains, transient `_innoDISubBuild_`
 //  closure captures, and the Swift-side `if let` ladders that implement
 //  direct-replacement / trailing-closure / default-build precedence inside
 //  the parent `@DIContainer` init.
 //
-//  Keeping these out of the main generator file isolates Phase M behavior
-//  (added in PR #21) without changing any emitted code. Verify by running
-//  `swift test --filter InnoDIMacrosTests` — snapshots must stay
-//  byte-identical after the move.
+//  Keeping these out of the main generator file isolates sub-container
+//  codegen behavior without changing any emitted code.
 //
 
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
-// MARK: - Sub-container init / build helpers (Phase M)
+// MARK: - Sub-container init / build helpers
 
 /// Emits the init-time statements for a single `@SubContainer` member:
 ///

@@ -1,9 +1,18 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
+/// Raised by codegen helpers when they encounter an invariant that the
+/// validator was supposed to reject earlier. Callers at the macro
+/// expansion boundary convert this into an `internalCodegenInvariant`
+/// diagnostic so the user sees a clear "please file a bug" message
+/// instead of an anonymous macro plugin crash.
+struct CodegenInvariantError: Error {
+    let description: String
+}
+
 struct DIContainerCodeGenerator {
-    static func generateInit(for model: DIContainerExpansionModel) -> DeclSyntax {
-        makeInitDecl(
+    static func generateInit(for model: DIContainerExpansionModel) throws -> DeclSyntax {
+        try makeInitDecl(
             sharedMembers: model.sharedMembers,
             syncSharedMembers: model.syncSharedMembers,
             asyncSharedMembers: model.asyncSharedMembers,
@@ -23,10 +32,10 @@ struct DIContainerCodeGenerator {
     /// user-defined nested `Overrides` type suppresses generation. Input-only
     /// containers now receive an empty builder so parents can always forward
     /// `@SubContainer` override closures into child containers.
-    static func generateAll(for model: DIContainerExpansionModel) -> [DeclSyntax] {
-        var decls: [DeclSyntax] = [generateInit(for: model)]
+    static func generateAll(for model: DIContainerExpansionModel) throws -> [DeclSyntax] {
+        var decls: [DeclSyntax] = [try generateInit(for: model)]
 
-        // Phase M: `.transient` sub-containers are backed by a stored
+        // `.transient` sub-containers are backed by a stored
         // builder closure that `@SubContainer.PeerMacro` emits; the init
         // assigns that closure using a `_lazySelf` snapshot so it can
         // reach parent members on every invocation. The closure logic is
@@ -40,25 +49,12 @@ struct DIContainerCodeGenerator {
     }
 }
 
-private struct AsyncTaskBinding {
+/// Tracks an async `Task`-based binding introduced by `makeInitDecl` so that
+/// downstream factory/dependency expression builders can emit
+/// `await <task>.value` (or `try await`) references in the correct order.
+internal struct AsyncTaskBinding {
     let name: String
     let isThrowing: Bool
-}
-
-private let unresolvedDependencyHelperName = "_innoDIUnresolvedDependency"
-
-internal func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax {
-    guard let accessLevel else { return DeclModifierListSyntax([]) }
-    let token: TokenSyntax
-    switch accessLevel {
-    case "public": token = .keyword(.public)
-    case "internal": token = .keyword(.internal)
-    case "fileprivate": token = .keyword(.fileprivate)
-    case "private": token = .keyword(.private)
-    default: return DeclModifierListSyntax([])
-    }
-    let modifier = DeclModifierSyntax(name: token)
-    return DeclModifierListSyntax([modifier])
 }
 
 private func makeInitDecl(
@@ -71,14 +67,15 @@ private func makeInitDecl(
     accessLevel: String?,
     mainActorEnabled: Bool,
     validateDAGEnabled: Bool
-) -> DeclSyntax {
+) throws -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
     let allowUnresolvedDependencyFallback = !validateDAGEnabled
     let fallbackOverrideNames = Set(sharedMembers.map(\.name) + transientMembers.map(\.name))
 
-    // Phase K / Phase L: only deferred wrappers that are consumed from the
-    // synthesized init (`.shared` / `asyncFactory`) need `_LazyCell` storage.
+    // Only deferred wrappers (`Lazy<T>` / `Provider<T>`) that are consumed
+    // from the synthesized init (`.shared` / `asyncFactory`) need
+    // `_LazyCell` storage.
     // Transient accessors emit `Lazy({ self.<name> })` / `Provider({ self.<name> })`
     // directly and therefore do not need init-time boxes or late resolver
     // bindings.
@@ -141,7 +138,7 @@ private func makeInitDecl(
         params.append(param)
     }
 
-    // Phase M: two parameters per `@SubContainer` member — a direct
+    // Two parameters per `@SubContainer` member — a direct
     // replacement (`<name>: Child? = nil`) and a trailing-closure override
     // block forwarded into the child's own convenience init
     // (`<name>Overrides: ((inout Child.Overrides) -> Void)? = nil`). Both
@@ -226,7 +223,7 @@ private func makeInitDecl(
     let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
     for (index, member) in syncSharedMembers.enumerated() {
         let availableStorageNames = inputStorageNames + syncSharedMembers.prefix(index).map { "_storage_\($0.name)" }
-        let factoryExpr = makeFactoryExpr(
+        let factoryExpr = try makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
             deferredTargetNameSet: deferredTargetNameSet,
@@ -263,7 +260,7 @@ private func makeInitDecl(
         let taskName = "_task_\(member.name)"
         let successType = taskSuccessTypeDescription(for: member.type)
         let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
-        let createExpr = makeAsyncFactoryExpr(
+        let createExpr = try makeAsyncFactoryExpr(
             member: member,
             resolvedValueBindings: resolvedValueBindings,
             taskBindings: taskBindings,
@@ -317,7 +314,7 @@ private func makeInitDecl(
         }
     }
 
-    // Phase M: sub-container storage.
+    // Sub-container storage.
     //
     // `.shared` children are built (or replaced by an override) exactly
     // once here and assigned to `_storage_sub_<name>`.
@@ -407,370 +404,4 @@ private func makeInitDecl(
     )
 
     return DeclSyntax(initDecl)
-}
-
-internal func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
-    let trimmed = type.trimmedDescription
-
-    if trimmed.hasPrefix("any ") || trimmed.hasPrefix("some ") || trimmed.contains("&") {
-        return TypeSyntax(stringLiteral: "(\(trimmed))?")
-    }
-
-    return TypeSyntax(stringLiteral: "\(trimmed)?")
-}
-
-private func makeFactoryExpr(
-    member: ProvideMemberModel,
-    availableNames: [String],
-    deferredTargetNameSet: Set<String>,
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
-    if let factory = member.factory {
-        if let closure = factory.as(ClosureExprSyntax.self) {
-            let argumentExpressions = closureArgumentExpressions(
-                member: member,
-                closure: closure,
-                availableNames: availableNames,
-                deferredTargetNameSet: deferredTargetNameSet,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-            )
-            return makeClosureCallExpr(closure: closure, argumentExpressions: argumentExpressions)
-        }
-        return factory
-    }
-
-    if let initializer = member.initializer {
-        return initializer
-    }
-
-    if let typeExpr = member.typeExpr {
-        let args = labeledDependencyArguments(
-            dependencies: member.withDependencies,
-            availableNames: availableNames,
-            fallbackOverrideNames: fallbackOverrideNames,
-            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-        )
-
-        let call = FunctionCallExprSyntax(
-            calledExpression: typeExpr,
-            leftParen: .leftParenToken(),
-            arguments: LabeledExprListSyntax(args),
-            rightParen: .rightParenToken()
-        )
-        return ExprSyntax(call)
-    }
-
-    fatalError("No factory expression available - validation should have caught this")
-}
-
-private func labeledDependencyArguments(
-    dependencies: [String],
-    availableNames: [String],
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> [LabeledExprSyntax] {
-    dependencies.enumerated().map { index, dependency in
-        LabeledExprSyntax(
-            label: .identifier(dependency),
-            colon: .colonToken(),
-            expression: resolvedInitDependencyExpression(
-                name: dependency,
-                availableNames: availableNames,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-            ),
-            trailingComma: index == dependencies.count - 1 ? nil : .commaToken()
-        )
-    }
-}
-
-private func makeAsyncFactoryExpr(
-    member: ProvideMemberModel,
-    resolvedValueBindings: [String: String],
-    taskBindings: [String: AsyncTaskBinding],
-    deferredTargetNameSet: Set<String>,
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
-    guard let asyncFactory = member.asyncFactory else {
-        return ExprSyntax(
-            FunctionCallExprSyntax(
-                calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
-                leftParen: .leftParenToken(),
-                arguments: LabeledExprListSyntax([
-                    LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: "Missing async factory for shared dependency '\(member.name)'.")))
-                ]),
-                rightParen: .rightParenToken()
-            )
-        )
-    }
-
-    if let closure = asyncFactory.as(ClosureExprSyntax.self) {
-        let references = member.closureParameterReferences
-        let expressions: [ExprSyntax] = references.map { ref in
-            if ref.kind == .soft {
-                guard deferredTargetNameSet.contains(ref.name),
-                      let calleeDescription = ref.lazyWrapperCalleeDescription else {
-                    fatalError("Unsupported soft dependency '\(ref.name)' reached async code generation.")
-                }
-                return makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
-            }
-            if ref.kind == .provider {
-                guard deferredTargetNameSet.contains(ref.name),
-                      let calleeDescription = ref.providerWrapperCalleeDescription else {
-                    fatalError("Unsupported provider dependency '\(ref.name)' reached async code generation.")
-                }
-                return makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
-            }
-            return dependencyExpression(
-                for: ref.name,
-                resolvedValueBindings: resolvedValueBindings,
-                taskBindings: taskBindings,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-            )
-        }
-        return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)
-    }
-
-    return asyncFactory
-}
-
-/// Builds one argument expression per closure parameter of `member.factory`.
-/// Soft parameters that point at a known soft target are replaced with
-/// `Lazy({ _lazyCell_<name>.value! })`; all other parameters fall back to
-/// `self._storage_<resolved>` via `resolveClosureParameter`.
-private func closureArgumentExpressions(
-    member: ProvideMemberModel,
-    closure: ClosureExprSyntax,
-    availableNames: [String],
-    deferredTargetNameSet: Set<String>,
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> [ExprSyntax] {
-    let references = member.closureParameterReferences
-    // Shorthand closures or attribute-level mismatches may cause the
-    // reference list to be out-of-sync with the AST; fall back to a
-    // name-only parse in that case.
-    if references.isEmpty {
-        let parsed = parseClosureParameterNames(closure)
-        return parsed.names.map { name in
-            resolvedInitDependencyExpression(
-                name: name,
-                availableNames: availableNames,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-            )
-        }
-    }
-
-    var expressions: [ExprSyntax] = []
-    for ref in references {
-        if ref.kind == .soft {
-            guard deferredTargetNameSet.contains(ref.name),
-                  let calleeDescription = ref.lazyWrapperCalleeDescription else {
-                fatalError("Unsupported soft dependency '\(ref.name)' reached code generation.")
-            }
-            expressions.append(makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
-            continue
-        }
-        if ref.kind == .provider {
-            guard deferredTargetNameSet.contains(ref.name),
-                  let calleeDescription = ref.providerWrapperCalleeDescription else {
-                fatalError("Unsupported provider dependency '\(ref.name)' reached code generation.")
-            }
-            expressions.append(makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
-            continue
-        }
-        expressions.append(
-            resolvedInitDependencyExpression(
-                name: ref.name,
-                availableNames: availableNames,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-            )
-        )
-    }
-    return expressions
-}
-
-private func dependencyExpression(
-    for dependencyName: String,
-    resolvedValueBindings: [String: String],
-    taskBindings: [String: AsyncTaskBinding],
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
-    if let resolvedName = resolvedValueBindings[dependencyName] {
-        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
-    }
-
-    if let taskBinding = taskBindings[dependencyName] {
-        // <taskBinding.name>.value
-        let valueAccess = MemberAccessExprSyntax(
-            base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(taskBinding.name))),
-            declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
-        )
-        let awaited = ExprSyntax(AwaitExprSyntax(expression: ExprSyntax(valueAccess)))
-        if taskBinding.isThrowing {
-            return ExprSyntax(TryExprSyntax(expression: awaited))
-        }
-        return awaited
-    }
-
-    return unresolvedInitDependencyFallbackExpression(
-        name: dependencyName,
-        fallbackOverrideNames: fallbackOverrideNames,
-        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-    )
-}
-
-private func closureArgumentNames(closure: ClosureExprSyntax, availableNames: [String]) -> [String] {
-    let parsedArguments = parseClosureParameterNames(closure)
-    var result: [String] = []
-
-    for (index, name) in parsedArguments.names.enumerated() {
-        guard let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) else {
-            fatalError("Unresolved closure parameter '\(name)' reached code generation at index \(index).")
-        }
-        result.append(resolvedName)
-    }
-
-    return result
-}
-
-private func resolveClosureParameter(name: String, availableNames: [String]) -> String? {
-    if availableNames.contains(name) {
-        return name
-    }
-
-    let nameWithoutPrefix = name.hasPrefix("_storage_") ? String(name.dropFirst(9)) : name
-
-    for availableName in availableNames {
-        let availableWithoutPrefix = availableName.hasPrefix("_storage_") ? String(availableName.dropFirst(9)) : availableName
-        if availableWithoutPrefix == nameWithoutPrefix {
-            return availableName
-        }
-    }
-
-    return nil
-}
-
-private func mapDependencyNameToStorageName(_ dependencyName: String, availableNames: [String]) -> String {
-    if availableNames.contains(dependencyName) {
-        return dependencyName
-    }
-
-    for availableName in availableNames where availableName.hasPrefix("_storage_") {
-        let nameWithoutPrefix = String(availableName.dropFirst(9))
-        if nameWithoutPrefix == dependencyName {
-            return availableName
-        }
-    }
-
-    fatalError("Unresolved dependency '\(dependencyName)' reached code generation.")
-}
-
-private func resolvedInitDependencyExpression(
-    name: String,
-    availableNames: [String],
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
-    if let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) {
-        return makeSelfMemberAccessExpr(name: resolvedName)
-    }
-
-    return unresolvedInitDependencyFallbackExpression(
-        name: name,
-        fallbackOverrideNames: fallbackOverrideNames,
-        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-    )
-}
-
-private func unresolvedInitDependencyFallbackExpression(
-    name: String,
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool
-) -> ExprSyntax {
-    guard allowUnresolvedDependencyFallback else {
-        fatalError("Unresolved dependency '\(name)' reached code generation.")
-    }
-
-    let unresolved = unresolvedDependencyHelperExpr(name: name)
-    if fallbackOverrideNames.contains(name) {
-        return nilCoalescingExpr(optionalName: name, fallback: unresolved)
-    }
-    return unresolved
-}
-
-private func unresolvedDependencyHelperDecl() -> DeclSyntax {
-    DeclSyntax(
-        """
-        func \(raw: unresolvedDependencyHelperName)<T>(_ name: String) -> T {
-            fatalError("InnoDI could not resolve dependency '\\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring.")
-        }
-        """
-    )
-}
-
-private func unresolvedDependencyHelperExpr(name: String) -> ExprSyntax {
-    let call = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier(unresolvedDependencyHelperName)),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: name)))
-        ]),
-        rightParen: .rightParenToken()
-    )
-    return ExprSyntax(call)
-}
-
-private func nilCoalescingExpr(optionalName: String, fallback: ExprSyntax) -> ExprSyntax {
-    ExprSyntax(
-        InfixOperatorExprSyntax(
-            leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(optionalName))),
-            operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
-            rightOperand: fallback
-        )
-    )
-}
-
-internal func assignExpr(targetName: String, valueName: String) -> ExprSyntax {
-    let valueExpr = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(valueName)))
-    let assignment = InfixOperatorExprSyntax(
-        leftOperand: makeSelfMemberAccessExpr(name: targetName),
-        operator: AssignmentExprSyntax(),
-        rightOperand: valueExpr
-    )
-    return ExprSyntax(assignment)
-}
-
-internal func assignExprWithValue(targetName: String, value: ExprSyntax) -> ExprSyntax {
-    let assignment = InfixOperatorExprSyntax(
-        leftOperand: makeSelfMemberAccessExpr(name: targetName),
-        operator: AssignmentExprSyntax(),
-        rightOperand: value
-    )
-    return ExprSyntax(assignment)
-}
-
-private func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
-    let description = type.trimmedDescription
-    if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
-        return "(\(description))"
-    }
-    return description
-}
-
-internal func mainActorAttributeList() -> AttributeListSyntax {
-    AttributeListSyntax([
-        AttributeListSyntax.Element(
-            AttributeSyntax(
-                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
-            )
-        )
-    ])
 }
