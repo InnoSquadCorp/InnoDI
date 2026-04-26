@@ -79,7 +79,7 @@ If you only ever read exit code `1` plus the metrics artifact's
 
 ### Filesystem safety guard — opt-in for unsafe scratch paths
 
-If your build runs the SPM scratch directory on **NFSv3**,
+If your build runs the SPM scratch directory on **NFS**,
 **SMB**, **CIFS**, **WebDAV**, or some FUSE-based filesystems,
 the coordinator now refuses to acquire its lock. Either:
 

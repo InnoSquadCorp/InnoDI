@@ -31,22 +31,28 @@ InnoDI는 runtime state machine이 아닙니다. 런타임 상태는 앱 레이�
 
 ### 빌드 타임 validator의 파일시스템 요구 사항
 
-빌드 플러그인은 live DAG validation을 Swift Package Manager derived data
-디렉터리 아래의 POSIX `O_CREAT | O_EXCL` lock file로 직렬화합니다. APFS,
-HFS+, ext4, btrfs, xfs 같은 로컬 파일시스템에서는 정상 동작하지만, 네트워크
-경로에는 주의가 필요합니다.
+빌드 플러그인은 live DAG validation을 Swift Package Manager scratch
+디렉터리 아래의 layered POSIX lock으로 직렬화합니다.
 
-- **NFSv3**는 atomic `O_EXCL` semantics를 보장하지 않아 두 클라이언트가
-  동시에 lock을 만들었다고 판단할 수 있습니다. NFSv4를 쓰거나 derived
-  data를 로컬 경로로 옮기세요.
-- **SMB/CIFS** share는 신뢰할 수 있는 `O_EXCL` atomicity를 제공하지 않으므로
-  지원하지 않습니다.
-- **Docker / Kubernetes bind mount**는 host filesystem의 semantics를
-  따릅니다. host가 로컬 filesystem이면 안전합니다.
+1. `open(O_CREAT | O_EXCL | O_RDWR)`가 단일 lock file을 만듭니다.
+2. `flock(LOCK_EX | LOCK_NB)`가 descriptor에 advisory exclusive lock을 더합니다.
 
-빌드 시스템이 derived data를 shared volume에 둬야 한다면, 플러그인을 켜기
-전에 SPM의 `--scratch-path` 또는 Xcode derived-data 위치를 로컬 디렉터리로
-지정하세요.
+InnoDI는 lock directory의 파일시스템을 자동 감지합니다. APFS, HFS+, ext4,
+btrfs, xfs, tmpfs 같은 로컬 파일시스템은 지원합니다. NFS mount, SMB/CIFS,
+WebDAV, FUSE 계열 파일시스템은 lock atomicity가 신뢰할 수 없을 때 shared
+validation cache가 손상될 수 있으므로 기본적으로 거부합니다.
+
+빌드 시스템이 derived data를 shared volume에 둬야 한다면, SPM의
+`--scratch-path` 또는 Xcode derived-data 위치를 로컬 디렉터리로 지정하세요.
+
+```sh
+swift build --scratch-path /tmp/innodi-cache
+```
+
+운영자는 `INNODI_ALLOW_UNSAFE_LOCK=1`로 unsafe-filesystem fail-fast를
+우회할 수 있지만, InnoDI는 감사 가능한 경고를 남기며 위험은 해당 build
+environment에 남습니다. 자세한 진단과 복구 절차, 전체 파일시스템 표는
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)를 참고하세요.
 
 ## 설치
 
@@ -54,7 +60,7 @@ HFS+, ext4, btrfs, xfs 같은 로컬 파일시스템에서는 정상 동작하�
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.1.0")
 ]
 ```
 
