@@ -183,7 +183,51 @@ internal struct POSIXLockError: LocalizedError {
     let path: String
 
     var errorDescription: String? {
-        "Failed to acquire validation lock at '\(path)' (errno: \(code))."
+        let name = errnoName(code)
+        let base = "Failed to acquire validation lock at '\(path)' (errno: \(code) \(name))."
+        if let hint = errnoActionHint(code) {
+            return "\(base) \(hint)"
+        }
+        return base
+    }
+}
+
+/// Maps a POSIX `errno` value to its symbolic name. Falls back to "unknown" so
+/// the message stays informative even if Darwin/Glibc adds new codes.
+internal func errnoName(_ code: Int32) -> String {
+    switch code {
+    case EACCES: return "EACCES"
+    case EROFS:  return "EROFS"
+    case ENOSPC: return "ENOSPC"
+    case ENOENT: return "ENOENT"
+    case EISDIR: return "EISDIR"
+    case ENAMETOOLONG: return "ENAMETOOLONG"
+    case ENOTDIR: return "ENOTDIR"
+    case EEXIST: return "EEXIST"
+    case EBUSY:  return "EBUSY"
+    case EIO:    return "EIO"
+    default:     return "unknown"
+    }
+}
+
+/// Returns a one-line, actionable hint for a subset of well-known `errno`s
+/// the lock-acquisition path can encounter. Returns `nil` for codes where a
+/// generic message is already enough.
+///
+/// See `Sources/InnoDI/InnoDI.docc/lock-safety.md` for the full
+/// troubleshooting guide.
+internal func errnoActionHint(_ code: Int32) -> String? {
+    switch code {
+    case EACCES, EROFS:
+        return "The directory is read-only or this process lacks write permission. " +
+               "Set SPM `--scratch-path` (or DerivedData) to a writable, local filesystem."
+    case ENOSPC:
+        return "The filesystem is out of space. Free space on the lock directory's volume."
+    case ENOENT, ENOTDIR:
+        return "The lock directory does not exist. Re-run with a fresh build, or supply " +
+               "`--scratch-path` to a directory that exists."
+    default:
+        return nil
     }
 }
 
@@ -195,6 +239,54 @@ internal struct ValidationCoordinatorIOError: LocalizedError {
     var errorDescription: String? {
         "Failed to \(operation) at '\(path)': \(underlying.localizedDescription)"
     }
+}
+
+// MARK: - Diagnostic rendering
+
+/// Renders the stderr message used when the coordinator gives up waiting for
+/// the validation lock. The previous version printed only the path and the
+/// elapsed wait — users had to inspect lock files manually to find the
+/// holder, the holder's age, and which env var to tune. This rendering folds
+/// all of that into a single block, plus links to the lock-safety DocC
+/// article.
+internal func lockTimeoutDiagnosticMessage(
+    lockURL: URL,
+    lockPolicy: ValidationCoordinatorLockPolicy,
+    recoveredStaleLock: Bool,
+    runtime: ValidationCoordinatorRuntime
+) -> String {
+    let path = lockURL.path(percentEncoded: false)
+    var lines: [String] = []
+    lines.append("Timed out waiting for the InnoDI validation coordinator lock.")
+    lines.append("  path:        \(path)")
+    lines.append("  waited:      \(formatSeconds(lockPolicy.maxWaitSeconds))s")
+    if recoveredStaleLock {
+        lines.append("  note:        a stale lock was recovered during this run, but contention persisted afterwards.")
+    }
+
+    if let metadata = loadLockMetadata(at: lockURL) {
+        lines.append("  holder pid:  \(metadata.pid)")
+        if let age = lockFileAgeSeconds(at: path, now: runtime.currentDate()) {
+            lines.append("  holder age:  \(formatSeconds(age))s")
+        }
+        if let bootID = metadata.bootID {
+            lines.append("  boot id:     \(bootID)")
+        }
+    } else {
+        lines.append("  holder:      <metadata unavailable — lock file missing or unreadable>")
+    }
+
+    lines.append("")
+    lines.append("Suggested actions:")
+    lines.append("  1) Re-run the build. Concurrent SPM/Xcode invocations are the most common cause.")
+    lines.append("  2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).")
+    lines.append("  3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.")
+    lines.append("  4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:")
+    lines.append("     swift build --scratch-path /tmp/innodi-cache  (NFSv3 and SMB are not safe — see lock-safety.md).")
+    lines.append("")
+    lines.append("Reference: https://github.com/InnoSquadCorp/InnoDI/blob/main/Sources/InnoDI/InnoDI.docc/lock-safety.md")
+
+    return lines.joined(separator: "\n") + "\n"
 }
 
 // MARK: - Process/IO utilities

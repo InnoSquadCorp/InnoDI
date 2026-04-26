@@ -1336,7 +1336,18 @@ struct ValidationCoordinatorTests {
 
         #expect(outcome.wasCached == false)
         #expect(outcome.result.exitCode == 1)
-        #expect(outcome.result.stderr.contains("Timed out waiting for validation coordinator lock"))
+        // The lock-timeout stderr block is documented in
+        // `Sources/InnoDI/InnoDI.docc/lock-safety.md`. Assert on the
+        // structural elements rather than the exact wording so future
+        // copy edits do not require lockstep test changes.
+        let stderr = outcome.result.stderr
+        #expect(stderr.contains("Timed out waiting"))
+        #expect(stderr.contains("InnoDI validation coordinator lock"))
+        #expect(stderr.contains("path:"))
+        #expect(stderr.contains("waited:"))
+        #expect(stderr.contains("Suggested actions:"))
+        #expect(stderr.contains("INNODI_LOCK_TIMEOUT"))
+        #expect(stderr.contains("--scratch-path"))
         #expect(outcome.metricsArtifact.reasonCodes.contains(ValidationReasonCode.lockContentionTimeout))
         #expect(outcome.metricsArtifact.issues.isEmpty)
         #expect(outcome.metricsArtifact.liveRunMetrics.customInitValidationMilliseconds == 0)
