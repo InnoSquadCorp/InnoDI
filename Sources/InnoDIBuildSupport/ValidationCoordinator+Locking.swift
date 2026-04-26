@@ -41,19 +41,58 @@ import Glibc
 
 // MARK: - Lock primitives
 
+/// Acquires the validation coordinator lock at `url`.
+///
+/// The lock is layered:
+///   1. `open(O_CREAT | O_EXCL | O_RDWR)` — atomic creation on local
+///      filesystems; the primary single-holder gate.
+///   2. `flock(LOCK_EX | LOCK_NB)` — advisory exclusive lock on the
+///      descriptor we just opened. Defense-in-depth: on filesystems
+///      where `O_EXCL` is *not* atomic across clients (NFSv4 with
+///      cooperative clients, some FUSE drivers) the advisory lock
+///      becomes the single-holder gate. On safe filesystems the
+///      advisory lock is redundant but cheap.
+///
+/// Returns:
+/// - `nil` when either layer reports contention (`EEXIST` from
+///   `open`, `EWOULDBLOCK`/`EAGAIN` from `flock`). The caller is
+///   expected to retry with backoff or recover a stale lock.
+/// - the file descriptor on success — the caller must release it
+///   via `releaseLock(descriptor:at:)`.
+///
+/// Throws `POSIXLockError` for any other failure (`EACCES`,
+/// `ENOSPC`, etc.) — see `errnoActionHint` for user-facing
+/// suggestions per code.
 internal func acquireLock(at url: URL) throws -> Int32? {
     let path = url.path(percentEncoded: false)
     let descriptor = open(path, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
-    if descriptor >= 0 {
-        return descriptor
+    if descriptor < 0 {
+        if errno == EEXIST {
+            return nil
+        }
+        throw POSIXLockError(code: errno, path: path)
     }
 
-    if errno == EEXIST {
-        return nil
+    // Layer 2: advisory exclusive lock. Non-blocking so we can fold
+    // contention into the same `nil` retry path the O_EXCL branch
+    // uses — the caller's poll loop is the right place to retry.
+    let flockResult = flock(descriptor, LOCK_EX | LOCK_NB)
+    if flockResult != 0 {
+        let flockErrno = errno
+        // The O_EXCL above succeeded, so we created this file. If
+        // flock now reports contention or fails outright, the file
+        // is ours to remove before reporting the failure — leaving
+        // it would poison the next acquire attempt.
+        try? FileManager.default.removeItem(at: url)
+        close(descriptor)
+        if flockErrno == EWOULDBLOCK || flockErrno == EAGAIN {
+            return nil
+        }
+        throw POSIXLockError(code: flockErrno, path: path)
     }
 
-    throw POSIXLockError(code: errno, path: path)
+    return descriptor
 }
 
 internal func persistLockMetadata(
