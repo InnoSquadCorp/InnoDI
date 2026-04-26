@@ -97,6 +97,11 @@ struct ParentContainer {
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
 
+    // Intentionally uses `withNames:` to keep runtime coverage of that
+    // codegen path through 4.x. Phase 3.B (4.2.0) will migrate this
+    // fixture as part of the explicit deprecation rollout — see
+    // `docs/internal/fatalerror-inventory.md` siblings (Item 3 of the
+    // P1 work plan).
     @SubContainer(scope: .shared, withNames: ["username", "greetingService", "activityService"])
     @DIFeatureRoot(SharedFeatureRootView.self)
     @DIFeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")
