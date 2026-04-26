@@ -131,14 +131,24 @@ standalone release assets.
   per-release upgrade notes from `RELEASING.md` into a "what
   changes a consumer must do" article, covering 1.x → 4.0,
   4.0 → 4.1, 4.1 → 4.2 (planned), and 4.x → 5.0 (planned).
-- **`@SubContainer` deprecation hint.** The new
+- **`@SubContainer` prefer-`with:` hint.** The new
   `sub.prefer-with-over-with-names` note diagnostic fires whenever
   `@SubContainer(... withNames: [...])` is used in isolation. The
   message includes the equivalent `with: [\.x]` form and ships with a
-  Fix-it that performs the migration in place. This is the prologue
-  for [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md):
-  `withNames:` will be promoted to a deprecation warning in 4.2.0 and
-  removed in 5.0.
+  Fix-it that performs the migration in place. The hint applies to
+  the common single-peer-macro case where Swift's type-checker
+  accepts key paths.
+
+  **RFC 0002 status update**:
+  [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md) is
+  now in `Deferred` status — the originally-planned 4.2 deprecation
+  + 5.0 removal of `withNames:` cannot ship until an upstream Swift
+  compiler limitation is resolved. When `@SubContainer` is stacked
+  with another peer macro on the same property (`@DIFeatureRoot`,
+  `@DIEnvironmentBridge`, …), every key-path spelling triggers
+  `circular reference expanding peer macros`, and `withNames:` (the
+  string form) is the only working escape hatch. The hint does not
+  recommend migrating those sites.
 
 ### Breaking or Behavior Changes
 
@@ -162,10 +172,13 @@ standalone release assets.
 
 ### Upgrade Actions
 
-- `@SubContainer(... withNames: [...])` consumers — apply the
-  Fix-it offered alongside `sub.prefer-with-over-with-names`, or
-  manually rewrite to `with: [\.x]`. `withNames:` will deprecate in
-  4.2.0 and remove in 5.0; see RFC 0002 for the timeline.
+- `@SubContainer(... withNames: [...])` consumers — for sites that
+  are *not* stacked with another peer macro, apply the Fix-it
+  offered alongside `sub.prefer-with-over-with-names` (or manually
+  rewrite to `with: [\.x]`). For sites stacked with `@DIFeatureRoot`
+  / `@DIEnvironmentBridge` / similar peer macros, leave them on
+  `withNames:` — RFC 0002 is in `Deferred` status and `withNames:`
+  remains the documented escape hatch for that combination.
 - CI runners that mount the SPM scratch directory on NFSv3 or SMB —
   redirect with `swift build --scratch-path /tmp/innodi-cache`, or
   set `INNODI_ALLOW_UNSAFE_LOCK=1` (the coordinator still emits a

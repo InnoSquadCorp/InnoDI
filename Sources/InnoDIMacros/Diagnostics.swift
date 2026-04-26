@@ -60,9 +60,15 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     /// Hint emitted whenever a SubContainer uses `withNames:`. The form
     /// is functionally equivalent to `with:` but typed by string,
     /// which loses key-path autocompletion and rename safety. Prefer
-    /// `with: [\.x]`. This message will be upgraded to a deprecation
-    /// in 4.2 and `withNames:` will be removed in 5.0 — see
-    /// `docs/rfcs/0002-subcontainer-wiring-simplification.md` (planned).
+    /// `with: [\.x]` for the common case.
+    ///
+    /// `withNames:` remains supported as the escape hatch for
+    /// stacked peer-macro contexts (`@DIFeatureRoot`,
+    /// `@DIEnvironmentBridge`, ...) where Swift's type-checker
+    /// reports `circular reference expanding peer macros` for any
+    /// key-path-rooted-at-the-enclosing-type spelling. See
+    /// `docs/rfcs/0002-subcontainer-wiring-simplification.md`
+    /// for the full rationale and the deferred removal plan.
     case subPreferWithOverWithNames = "sub.prefer-with-over-with-names"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
@@ -458,23 +464,25 @@ extension SimpleDiagnostic {
         )
     }
 
-    /// Note-severity hint that prepares users for the `withNames:`
-    /// deprecation in 4.2 and removal in 5.0. Emitted whenever
-    /// `withNames:` is used and `with:` is not, including the empty
-    /// form `withNames: []` so consumers migrate proactively.
+    /// Note-severity hint suggesting the `with:` key-path form for
+    /// `@SubContainer` same-name wiring whenever it would be safe.
     ///
-    /// We use `.note` rather than `.warning` for two reasons:
-    /// 1. `.warning` would fail every release-gate build under
-    ///    `-warnings-as-errors`, including the InnoDI test fixtures
-    ///    that intentionally exercise the `withNames:` codegen path.
-    ///    Phase 3.B (4.2.0) will explicitly migrate those fixtures and
-    ///    promote this diagnostic to `.warning` at the same time, so
-    ///    the deprecation pressure starts landing on real consumers.
-    /// 2. The hint is informational ("here's the migrated form") more
-    ///    than corrective. A note matches that intent today.
+    /// Emitted when only `withNames:` is used (no co-occurring
+    /// `with:`). The note carries a copy-paste replacement so most
+    /// users can migrate in one click, but `withNames:` itself is
+    /// **not** deprecated — see RFC 0002 § "Update — 2026-04-26"
+    /// for the upstream Swift compiler limitation that keeps the
+    /// string form necessary for stacked peer-macro contexts.
+    ///
+    /// We use `.note` rather than `.warning` so:
+    /// 1. Builds under `-warnings-as-errors` keep working in test
+    ///    fixtures that intentionally exercise `withNames:`,
+    /// 2. The hint stays informational while RFC 0002 sits in
+    ///    `Deferred`. Promotion to `.warning` is contingent on the
+    ///    upstream compiler fix landing.
     static func subPreferWithOverWithNames(memberName: String, suggestedReplacement: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' uses withNames:; prefer the key-path form for autocompletion and rename safety: \(suggestedReplacement). withNames: will be deprecated in 4.2 and removed in 5.0.",
+            "@SubContainer on '\(memberName)' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: \(suggestedReplacement). withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
             code: .subPreferWithOverWithNames,
             severity: .note
         )
