@@ -29,6 +29,7 @@ and graph tooling rather than runtime container mutation.
 ### Operations
 
 - <doc:lock-safety>
+- <doc:MigrationGuide>
 
 ### Container API
 

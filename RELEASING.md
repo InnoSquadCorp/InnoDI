@@ -116,6 +116,21 @@ standalone release assets.
   filesystem class, environment overrides, and any lock files it
   discovers (with metadata). Designed for incident response when a
   build is stuck on `lock-contention-timeout`.
+- **`InnoDI-DependencyGraph --cache-stats`.** New CLI subcommand
+  that aggregates `validation-metrics.json` artifacts under a state
+  directory into a single hit/miss table plus per-reason-code
+  counts and per-file scan totals. Useful for CI environments
+  whose cache rules look right on paper but never reuse work.
+- **flock(2) advisory layer on the validation lock.** The
+  coordinator now acquires `O_CREAT | O_EXCL` *and*
+  `flock(LOCK_EX | LOCK_NB)` on the lock descriptor. The advisory
+  layer is redundant on local filesystems but adds a single-holder
+  gate on filesystems where `O_EXCL` is non-atomic but flock is
+  honored (NFSv4 with cooperative clients, some FUSE drivers).
+- **New `MigrationGuide.md` DocC article.** Reorganizes the
+  per-release upgrade notes from `RELEASING.md` into a "what
+  changes a consumer must do" article, covering 1.x → 4.0,
+  4.0 → 4.1, 4.1 → 4.2 (planned), and 4.x → 5.0 (planned).
 - **`@SubContainer` deprecation hint.** The new
   `sub.prefer-with-over-with-names` note diagnostic fires whenever
   `@SubContainer(... withNames: [...])` is used in isolation. The
