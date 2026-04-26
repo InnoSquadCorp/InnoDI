@@ -59,7 +59,7 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
         package static let staleLockAge = "INNODI_STALE_LOCK_AGE"
         /// Set to `1`, `true`, or `yes` to bypass the filesystem safety
         /// guard and allow the coordinator to run on a filesystem where
-        /// `O_CREAT | O_EXCL` is not atomic (NFSv3, SMB/CIFS, some FUSE).
+        /// `O_CREAT | O_EXCL` is not reliable (NFS, SMB/CIFS, some FUSE).
         /// Use only when you accept that concurrent builds may corrupt
         /// the shared-run cache.
         package static let allowUnsafeLock = "INNODI_ALLOW_UNSAFE_LOCK"

@@ -27,9 +27,11 @@ Linux ship by default:
 | HFS+ | ✅ supported | |
 | ext4 / btrfs / xfs | ✅ supported | Linux SPM builds. |
 | tmpfs | ✅ supported | Often the SPM scratch path on CI. |
-| **NFSv3** | ⚠️ unreliable | `O_EXCL` is not atomic — two clients can both believe they created the file. Use NFSv4 if you must keep the path remote, or redirect the scratch path to a local volume. |
+| **NFS** | ❌ unsupported by default | InnoDI classifies NFS mounts as unsafe because the detector cannot reliably distinguish mount versions and lock semantics. Redirect the scratch path to a local volume or opt in with `INNODI_ALLOW_UNSAFE_LOCK=1`. |
 | **SMB / CIFS** | ❌ unsupported | Atomicity is not guaranteed. |
-| Container overlay FS (Docker AUFS, OverlayFS upper layer) | ⚠️ depends on host | If the *host* path is local, the bind mount inherits its semantics. If the host path is itself a network share, see NFS / SMB above. |
+| **WebDAV** | ❌ unsupported | Darwin `webdav` volumes are network-backed and classified as unsafe by default. |
+| **FUSE / macFUSE / osxfuse** | ❌ unsupported by default | FUSE filesystems vary by driver; InnoDI classifies them as unsafe so operators must opt in deliberately. |
+| Linux overlayfs / AUFS | ❌ unsupported by default | The detector classifies these as unsafe. Prefer a local bind-mounted scratch path. |
 
 If the build plugin must run where the derived-data directory is backed
 by a network share, redirect SPM's scratch path:
@@ -48,8 +50,8 @@ risk).
 ## Refusing on unsafe filesystems
 
 When the auto-detector classifies the lock directory as `nfs`,
-`smbfs`, `cifs`, or a FUSE-backed filesystem, the coordinator emits
-this stderr block and exits with status `1`:
+`smbfs`, `cifs`, `webdav`, or a FUSE-backed filesystem, the coordinator
+emits this stderr block and exits with status `1`:
 
 ```text
 InnoDI refuses to acquire its validation coordinator lock on this filesystem.
@@ -57,7 +59,7 @@ InnoDI refuses to acquire its validation coordinator lock on this filesystem.
   filesystem:  nfs (classified as unsafe)
 
 Reason:
-  `O_CREAT | O_EXCL` is not atomic on NFSv3, SMB/CIFS, and some FUSE-backed
+  `O_CREAT | O_EXCL` is not reliable on NFS, SMB/CIFS, and some FUSE-backed
   filesystems. Two concurrent builds can both believe they own the lock,
   which would corrupt the shared-run validation cache.
 
@@ -94,7 +96,7 @@ Suggested actions:
   2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).
   3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.
   4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:
-     swift build --scratch-path /tmp/innodi-cache  (NFSv3 and SMB are not safe — see lock-safety.md).
+     swift build --scratch-path /tmp/innodi-cache  (NFS and SMB are not safe by default — see lock-safety.md).
 ```
 
 Field meanings:
@@ -165,7 +167,7 @@ Common cases:
 |---|---|---|
 | `INNODI_LOCK_TIMEOUT` | `30` | Seconds the coordinator polls the lock before giving up. |
 | `INNODI_STALE_LOCK_AGE` | `30` | Seconds after which an apparently-orphaned lock is eligible for recovery. |
-| `INNODI_ALLOW_UNSAFE_LOCK` | unset | Set to `1`, `true`, `yes`, or `on` to bypass the unsafe-filesystem fail-fast (NFSv3, SMB/CIFS, FUSE). The coordinator still emits a one-line warning so the bypass is auditable in build logs. |
+| `INNODI_ALLOW_UNSAFE_LOCK` | unset | Set to `1`, `true`, `yes`, or `on` to bypass the unsafe-filesystem fail-fast (NFS, SMB/CIFS, WebDAV, FUSE). The coordinator still emits a one-line warning so the bypass is auditable in build logs. |
 
 `INNODI_LOCK_TIMEOUT` and `INNODI_STALE_LOCK_AGE` accept positive
 floating-point seconds. Unparseable values fall back to the default

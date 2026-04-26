@@ -34,20 +34,30 @@ la capa de la app o en frameworks companeros como `InnoFlow`, `InnoRouter` e
 ### Requisitos de filesystem para el validador de build
 
 El plugin de build serializa las ejecuciones live de validacion DAG con un
-lock file POSIX `O_CREAT | O_EXCL` bajo el directorio derived data de Swift
-Package Manager. Esto funciona correctamente en filesystems locales como
-APFS, HFS+, ext4, btrfs y xfs, pero los paths respaldados por red tienen
-matices importantes.
+lock POSIX por capas bajo el directorio scratch de Swift Package Manager:
 
-- **NFSv3** no garantiza semantica atomica de `O_EXCL`; dos clientes pueden
-  creer que crearon el lock. Usa NFSv4 o mueve derived data a un path local.
-- **SMB/CIFS** no ofrece atomicidad `O_EXCL` fiable y no esta soportado.
-- **Docker / Kubernetes bind mounts** heredan la semantica del filesystem
-  host. Si el host es local, son seguros.
+1. `open(O_CREAT | O_EXCL | O_RDWR)` crea un unico lock file.
+2. `flock(LOCK_EX | LOCK_NB)` agrega un lock exclusivo advisory sobre el descriptor.
+
+InnoDI detecta automaticamente el filesystem que respalda ese lock directory.
+Los filesystems locales como APFS, HFS+, ext4, btrfs, xfs y tmpfs estan
+soportados. Los mounts NFS, SMB/CIFS, WebDAV y filesystems tipo FUSE se
+rechazan por defecto porque builds concurrentes pueden corromper la cache de
+validacion compartida cuando la atomicidad del lock no es fiable.
 
 Si tu sistema de build debe poner derived data en un volumen compartido,
 apunta `--scratch-path` de SPM o la ubicacion derived-data de Xcode a un
-directorio local antes de habilitar el plugin.
+directorio local:
+
+```sh
+swift build --scratch-path /tmp/innodi-cache
+```
+
+Los operadores pueden omitir el fail-fast de unsafe filesystem con
+`INNODI_ALLOW_UNSAFE_LOCK=1`, pero InnoDI sigue emitiendo una advertencia
+auditable y el riesgo queda en ese build environment. Para diagnosticos,
+pasos de recuperacion y la tabla completa de filesystems, consulta
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
 ## Instalacion
 
@@ -55,7 +65,7 @@ Agrega InnoDI a tu `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.1.0")
 ]
 ```
 

@@ -32,23 +32,33 @@ Schicht oder in begleitende Frameworks wie `InnoFlow`, `InnoRouter` und
 
 ### Dateisystemanforderungen des Buildzeit-Validators
 
-Das Build-Plugin serialisiert Live-DAG-Validierungslaufe uber eine POSIX
-`O_CREAT | O_EXCL`-Lockdatei unter dem Swift-Package-Manager-derived-data-
-Verzeichnis. Das funktioniert auf lokalen Dateisystemen wie APFS, HFS+,
-ext4, btrfs und xfs korrekt; netzwerkgestutzte Pfade haben aber wichtige
-Einschrankungen.
+Das Build-Plugin serialisiert Live-DAG-Validierungslaufe uber einen
+geschichteten POSIX-Lock unter dem Scratch-Verzeichnis von Swift Package
+Manager:
 
-- **NFSv3** garantiert keine atomare `O_EXCL`-Semantik; zwei Clients konnen
-  beide glauben, den Lock erstellt zu haben. Nutze NFSv4 oder verschiebe
-  derived data auf einen lokalen Pfad.
-- **SMB/CIFS** bietet keine verlassliche `O_EXCL`-Atomizitat und wird nicht
-  unterstutzt.
-- **Docker / Kubernetes bind mounts** erben die Semantik des Host-
-  Dateisystems. Ist der Host lokal, sind sie sicher.
+1. `open(O_CREAT | O_EXCL | O_RDWR)` erstellt eine einzelne Lockdatei.
+2. `flock(LOCK_EX | LOCK_NB)` legt einen advisory Exclusive-Lock auf den Descriptor.
+
+InnoDI erkennt automatisch das Dateisystem hinter diesem Lock-Verzeichnis.
+Lokale Dateisysteme wie APFS, HFS+, ext4, btrfs, xfs und tmpfs werden
+unterstutzt. NFS-Mounts, SMB/CIFS, WebDAV und FUSE-artige Dateisysteme werden
+standardmassig verweigert, weil parallele Builds den geteilten
+Validierungscache beschadigen konnen, wenn Lock-Atomizitat nicht verlasslich
+ist.
 
 Wenn dein Build-System derived data auf einem geteilten Volume ablegen muss,
-zeige mit SPMs `--scratch-path` oder Xcodes derived-data-Speicherort vor dem
-Aktivieren des Plugins auf ein lokales Verzeichnis.
+zeige mit SPMs `--scratch-path` oder Xcodes derived-data-Speicherort auf ein
+lokales Verzeichnis:
+
+```sh
+swift build --scratch-path /tmp/innodi-cache
+```
+
+Operatoren konnen den unsafe-filesystem Fail-Fast mit
+`INNODI_ALLOW_UNSAFE_LOCK=1` umgehen. InnoDI schreibt dann weiterhin eine
+auditierbare Warnung, und das Risiko bleibt bei dieser Build-Umgebung. Fur
+Diagnose, Wiederherstellungsschritte und die vollstandige Dateisystemtabelle
+siehe [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
 ## Installation
 
@@ -56,7 +66,7 @@ Fuge InnoDI zu `Package.swift` hinzu:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.1.0")
 ]
 ```
 

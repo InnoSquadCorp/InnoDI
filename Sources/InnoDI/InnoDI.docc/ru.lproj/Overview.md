@@ -17,6 +17,14 @@ InnoDI превращает обычные Swift-типы в DI-контейне
 - `@SubContainer`, `@DIComponent`, `@DIHierarchyRoot`
 - SwiftUI helper в `InnoDISwiftUI`
 
+4.1.0 добавляет release hardening поверх этой baseline:
+
+- unsafe-filesystem fail-fast для lock validation coordinator
+- многоуровневый lock с `O_CREAT | O_EXCL` и `flock` на поддерживаемых файловых системах
+- build-time diagnostics вместо macro-synthesized `fatalError` accessors
+- PR/release gates, которые проверяют strict concurrency и macro-source `fatalError` allow-list
+- `@SubContainer` Fix-it guidance для `withNames:` без stacked peer macros
+
 ## Topics
 
 ### Start Here
@@ -24,3 +32,9 @@ InnoDI превращает обычные Swift-типы в DI-контейне
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+- <doc:DiagnosticsGuide>
+
+### Operations
+
+- <doc:lock-safety>
+- <doc:MigrationGuide>

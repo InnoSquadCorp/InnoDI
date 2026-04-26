@@ -16,7 +16,7 @@ jobs:
         # `swiftSettings`'s warning-only StrictConcurrency gate. Paired with
         # the main `release.yml` strict-concurrency check so every PR fails
         # on the same rules that block a tag.
-        run: swift test -Xswiftc -warnings-as-errors
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
       - name: No fatalError in synthesized code
         # Macro-synthesized accessors must never embed a `fatalError(...)`
         # trap into user code. The two allow-listed sites are explicit
@@ -29,8 +29,8 @@ jobs:
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Build Extended Examples
         run: |
-          (cd Examples/SwiftUIExample && swift build -Xswiftc -warnings-as-errors && swift test -Xswiftc -warnings-as-errors)
-          (cd Examples/PreviewInjectionExample && swift build -Xswiftc -warnings-as-errors && swift test -Xswiftc -warnings-as-errors)
+          (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
+          (cd Examples/PreviewInjectionExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
       - name: Macro Performance Check
         run: Tools/measure-macro-performance.sh --enforce
 

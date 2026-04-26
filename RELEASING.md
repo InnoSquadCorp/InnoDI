@@ -2,7 +2,7 @@
 
 This document is the single release source of truth for InnoDI.
 
-Current stable public release target: `4.0.0`
+Current stable public release target: `4.1.0`
 
 ## Release Checklist
 
@@ -63,10 +63,10 @@ this document and the release-contract tests in the same change.
 Every release should leave these entrypoints consistent:
 
 1. [README.md](README.md) and the localized README variants
-2. [Overview.md](Sources/InnoDI/InnoDI.docc/Overview.md) and localized DocC source mirrors
-3. [Validation.md](Sources/InnoDI/InnoDI.docc/Validation.md) and localized DocC source mirrors
-4. [PolicyBoundaries.md](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md) and localized DocC source mirrors
-5. [ModuleWideInitDetection.md](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md) and localized DocC source mirrors
+2. [Overview.md](Sources/InnoDI/InnoDI.docc/Overview.md) and localized DocC source mirrors where present
+3. [Validation.md](Sources/InnoDI/InnoDI.docc/Validation.md) and localized DocC source mirrors where present
+4. [PolicyBoundaries.md](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md) and localized DocC source mirrors where present
+5. [ModuleWideInitDetection.md](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md) and localized DocC source mirrors where present
 6. [ROADMAP.md](ROADMAP.md)
 
 If a release changes user-facing validation, graph semantics, hierarchy
@@ -99,7 +99,7 @@ standalone release assets.
   contributor bugs but no longer pairs with a runtime trap.
 - **Validation coordinator refuses unsafe filesystems.** A new
   `FilesystemTypeDetector` runs `statfs(2)` against the lock directory
-  before any `O_CREAT | O_EXCL` and classifies the filesystem. NFSv3,
+  before any `O_CREAT | O_EXCL` and classifies the filesystem. NFS mounts,
   SMB/CIFS, WebDAV, and FUSE-style filesystems are blocked unless the
   operator explicitly opts in via `INNODI_ALLOW_UNSAFE_LOCK=1`.
   Unrecognized filesystems emit a single-line stderr warning and
@@ -124,9 +124,9 @@ standalone release assets.
 - **flock(2) advisory layer on the validation lock.** The
   coordinator now acquires `O_CREAT | O_EXCL` *and*
   `flock(LOCK_EX | LOCK_NB)` on the lock descriptor. The advisory
-  layer is redundant on local filesystems but adds a single-holder
-  gate on filesystems where `O_EXCL` is non-atomic but flock is
-  honored (NFSv4 with cooperative clients, some FUSE drivers).
+  layer is redundant on local filesystems and acts as defense-in-depth on
+  filesystems with advisory-lock support, but it does not make NFS or other
+  unsafe filesystems supported by default.
 - **New `MigrationGuide.md` DocC article.** Reorganizes the
   per-release upgrade notes from `RELEASING.md` into a "what
   changes a consumer must do" article, covering 1.x → 4.0,
@@ -179,7 +179,7 @@ standalone release assets.
   / `@DIEnvironmentBridge` / similar peer macros, leave them on
   `withNames:` — RFC 0002 is in `Deferred` status and `withNames:`
   remains the documented escape hatch for that combination.
-- CI runners that mount the SPM scratch directory on NFSv3 or SMB —
+- CI runners that mount the SPM scratch directory on NFS or SMB —
   redirect with `swift build --scratch-path /tmp/innodi-cache`, or
   set `INNODI_ALLOW_UNSAFE_LOCK=1` (the coordinator still emits a
   warning so the bypass is auditable).
@@ -200,6 +200,13 @@ standalone release assets.
   will fail the macro-tests workflow until either the trap is
   removed or `docs/internal/fatalerror-inventory.md` and the
   allow-list are explicitly extended.
+- The PR macro-tests workflow now runs the same strict-concurrency
+  command as the tag release gate, and the release gate also runs the
+  macro-source `fatalError` guard.
+- A non-fatal SwiftSyntax/compiler-plugin JSON decode message can still
+  appear during `swift test` package test-bundle builds. It does not fail
+  the suite and is tracked separately in
+  `docs/internal/macro-plugin-json-investigation.md`.
 
 ## 4.0.0
 

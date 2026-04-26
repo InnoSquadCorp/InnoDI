@@ -17,6 +17,14 @@ InnoDI は `@DIContainer` と `@Provide` を使って通常の Swift 型を DI
 - `@SubContainer`、`@DIComponent`、`@DIHierarchyRoot`
 - `InnoDISwiftUI` の SwiftUI helper
 
+4.1.0 はこの baseline に release hardening を追加します。
+
+- validation coordinator lock の unsafe filesystem fail-fast
+- サポート対象 filesystem での `O_CREAT | O_EXCL` と `flock` の layered lock
+- macro-synthesized `fatalError` accessor の代わりになる build-time diagnostic
+- strict concurrency と macro-source `fatalError` allow-list を強制する PR/release gate
+- stacked peer macro でない `withNames:` 使用向けの `@SubContainer` Fix-it guidance
+
 ## Topics
 
 ### Start Here
@@ -24,6 +32,12 @@ InnoDI は `@DIContainer` と `@Provide` を使って通常の Swift 型を DI
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+- <doc:DiagnosticsGuide>
+
+### Operations
+
+- <doc:lock-safety>
+- <doc:MigrationGuide>
 
 ### Container API
 

@@ -1,6 +1,7 @@
 # InnoDI Examples
 
-This folder contains runnable examples that match the 4.0.0 feature set.
+This folder contains runnable examples that match the current 4.x feature set,
+including the 4.1.0 release-hardening validation and SwiftUI helpers.
 
 ## Core Macro Usage
 
