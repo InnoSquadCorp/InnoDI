@@ -73,6 +73,21 @@ Luego agrega los productos que necesites:
 
 Importa solo `InnoDI` si no usas los helpers de SwiftUI.
 
+Activa el validador DAG en build-time agregando el plugin a cada target que
+declara contenedores InnoDI:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
+        "InnoDI"
+    ],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
 ## Inicio rapido
 
 ```swift
