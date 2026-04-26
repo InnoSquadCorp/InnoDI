@@ -22,7 +22,7 @@ can decide: **eliminate** (replace with diagnostic + empty expansion),
 
 | # | File / Line | Trigger | Diagnostic emitted today? | Recommended action | Migration risk |
 |---|---|---|---|---|---|
-| 1 | `Sources/InnoDIMacros/ProvideMacro.swift:125` | `.transient` scope where `transientDependencyResolutionShouldFail()` returned `true` (a parent validator saw an unresolvable factory parameter, e.g. a closure referencing an unknown member). | The earlier validator phase emits `provide.unresolved-factory-parameter` (✅). | **Likely dead code — eliminate after audit.** The reproduce probe in `ProvideMacroTests.transientWithUnresolvedFactoryParameterEmitsDiagnostic` confirms this branch is **not reached** for the obvious inputs that fire `provideUnresolvedFactoryParameter`; the accessor expansion produces a broken `self.<unknown>` reference instead, which still fails compilation because the diagnostic is at error severity. Phase 2.B should attempt to construct an input that *does* reach line 125 — if no such input exists, delete the branch entirely. | Low — diagnostic is terminal in either case. |
+| 1 | `Sources/InnoDIMacros/ProvideMacro.swift:125` | `.transient` scope where `transientDependencyResolutionFailure()` found an unresolvable `with:` dependency or factory parameter, e.g. a closure referencing an unknown member. | The validator emits `provide.unresolved-factory-parameter` / `provide.unresolved-with-dependency` when DAG validation is enabled; the accessor re-emits the terminal diagnostic when `validateDAG: false` bypasses that validator path (✅). | **Eliminated.** Return `[]` after the terminal diagnostic so expansion never produces a broken `self.<unknown>` reference or a runtime trap. | Low — diagnostic is terminal in either case. |
 | 2 | `Sources/InnoDIMacros/ProvideMacro.swift:147` | `.transient` scope, async factory closure with **wildcard** parameter (`_:`). | `transient-factory.unnamed-parameters` (✅). | **Eliminate.** Same shape as #1 — diagnostic is at error severity. | Low. |
 | 3 | `Sources/InnoDIMacros/ProvideMacro.swift:200` | `.transient` scope, sync factory closure with **wildcard** parameter (`_:`). | `transient-factory.unnamed-parameters` (✅, covered by `transientFactoryClosureWithUnderscoreParameterEmitsDiagnostic` test). | **Eliminate.** Symmetric with #2. | Low. |
 | 4 | `Sources/InnoDIMacros/ProvideMacro.swift:244` | `.transient` scope, no `factory:`, no `typeExpr`, no inline initializer. The "I literally have no way to construct this" case. | A *separate* validator path raises `provide.transient-factory-required` for some entry points, but the accessor macro can still be reached without a prior diagnostic when the validator is short-circuited (e.g. partial expansion in an SwiftUI Preview). | **Eliminate (with new validator guard).** Add an unconditional `provide.transient-factory-required` from the accessor macro when no factory source exists, then return `[]`. | Medium — needs to confirm no path produces a successful compile that today relies on the trap being lazy. |
@@ -57,7 +57,7 @@ After Phase 2.B lands, we expect the following deltas:
 
 ### CI guard (added in Phase 2.B)
 
-```
+```sh
 grep -RIn 'fatalError' Sources/InnoDIMacros/ \
   | grep -v 'SyntaxBuilders.swift:.*deferred' \
   | grep -v 'DIContainerCodeGenerator+Dependency.swift:.*validateDAG'

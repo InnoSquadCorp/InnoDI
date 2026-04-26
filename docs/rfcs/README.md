@@ -18,6 +18,8 @@ before a PR lands.
 
 - One markdown file per RFC, numbered `NNNN-kebab-case-title.md`.
 - Status progresses: `Draft` → `Accepted` → `Implemented` (or `Rejected`).
+- `Deferred` means an accepted direction is paused on an upstream blocker;
+  it can return to `Draft` when that blocker is resolved.
 - Accepted RFCs do not need to be rewritten once implementation lands —
   but include a link from the release notes to the RFC for context.
 - Breaking-change RFCs must include a migration section before they can

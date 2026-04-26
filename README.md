@@ -98,6 +98,21 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 )
 ```
 
+Enable the build-time DAG validator by attaching the plugin to each target that
+declares InnoDI containers:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
+        "InnoDI"
+    ],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
 ## Quick Start
 
 ```swift

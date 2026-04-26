@@ -93,6 +93,9 @@ struct SubContainerMemberModel {
     let hasWithDependencies: Bool
     /// Whether the source used `withNames:`.
     let hasWithNamesDependencies: Bool
+    /// Whether another peer macro on the same property requires the
+    /// `withNames:` escape hatch until the compiler accepts the key-path form.
+    let hasStackedPeerMacroEscapeHatch: Bool
     /// Whether same-name wiring was omitted, fully parsed, or invalid.
     let sameNameWiring: SubContainerSameNameWiringParseState
     /// Original `with:` / `withNames:` expression syntax for invalid-wiring diagnostics.

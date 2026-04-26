@@ -74,6 +74,21 @@ Dann binde die benotigten Produkte ein:
 
 Wenn du die SwiftUI-Hilfen nicht brauchst, reicht `InnoDI`.
 
+Aktiviere den build-time DAG-Validator, indem du das Plugin an jedes Target
+hangst, das InnoDI-Container deklariert:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
+        "InnoDI"
+    ],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
 ## Schnellstart
 
 ```swift

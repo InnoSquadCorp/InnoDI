@@ -51,7 +51,7 @@ When the auto-detector classifies the lock directory as `nfs`,
 `smbfs`, `cifs`, or a FUSE-backed filesystem, the coordinator emits
 this stderr block and exits with status `1`:
 
-```
+```text
 InnoDI refuses to acquire its validation coordinator lock on this filesystem.
   path:        /Volumes/CIShare/.../validation-lock
   filesystem:  nfs (classified as unsafe)
@@ -82,7 +82,7 @@ When the coordinator gives up waiting for the lock (default `30s`,
 override via `INNODI_LOCK_TIMEOUT`), the plugin emits a structured
 stderr block:
 
-```
+```text
 Timed out waiting for the InnoDI validation coordinator lock.
   path:        /…/derived-data/…/validation-lock
   waited:      30.00s
@@ -143,7 +143,7 @@ In order of decreasing safety:
 The coordinator surfaces those as `POSIXLockError`, with the
 symbolic `errno` name embedded in the message:
 
-```
+```text
 Failed to acquire validation lock at '/…/lock' (errno: 13 EACCES).
 The directory is read-only or this process lacks write permission.
 Set SPM `--scratch-path` (or DerivedData) to a writable, local filesystem.

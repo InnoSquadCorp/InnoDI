@@ -116,7 +116,8 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
         let allowUnsafe = Self.resolveBool(
             environment: environment,
             key: EnvKey.allowUnsafeLock,
-            fallback: false
+            fallback: false,
+            warningHandler: warningHandler
         )
 
         self.init(
@@ -131,13 +132,18 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
     private static func resolveBool(
         environment: [String: String],
         key: String,
-        fallback: Bool
+        fallback: Bool,
+        warningHandler: (String) -> Void
     ) -> Bool {
         guard let raw = environment[key] else { return fallback }
         switch raw.trimmingCharacters(in: .whitespaces).lowercased() {
         case "1", "true", "yes", "y", "on": return true
         case "0", "false", "no", "n", "off", "": return false
-        default: return fallback
+        default:
+            warningHandler(
+                "InnoDI: ignoring invalid \(key)=\(raw); falling back to \(fallback)."
+            )
+            return fallback
         }
     }
 

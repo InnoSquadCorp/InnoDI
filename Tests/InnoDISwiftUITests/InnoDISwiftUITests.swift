@@ -97,11 +97,12 @@ struct ParentContainer {
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
 
-    // Intentionally uses `withNames:` to keep runtime coverage of that
-    // codegen path through 4.x. Phase 3.B (4.2.0) will migrate this
-    // fixture as part of the explicit deprecation rollout — see
-    // `docs/internal/fatalerror-inventory.md` siblings (Item 3 of the
-    // P1 work plan).
+    // `sharedFeature` and `transientFeature` intentionally retain
+    // explicit `withNames:` wiring because each property stacks
+    // `@SubContainer` with `@DIFeatureRoot`. These are the documented
+    // peer-macro escape-hatch cases from RFC 0002; until the compiler
+    // accepts the key-path form in this stacked context, Phase 3.B /
+    // 4.2.0 must not auto-migrate either fixture to `with:`.
     @SubContainer(scope: .shared, withNames: ["username", "greetingService", "activityService"])
     @DIFeatureRoot(SharedFeatureRootView.self)
     @DIFeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")

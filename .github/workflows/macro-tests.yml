@@ -11,12 +11,12 @@ jobs:
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
-      - name: Run Macro Tests
+      - name: Run Test Suite
         # -warnings-as-errors catches any regression that would slip through
         # `swiftSettings`'s warning-only StrictConcurrency gate. Paired with
         # the main `release.yml` strict-concurrency check so every PR fails
         # on the same rules that block a tag.
-        run: swift test --filter InnoDIMacrosTests -Xswiftc -warnings-as-errors
+        run: swift test -Xswiftc -warnings-as-errors
       - name: No fatalError in synthesized code
         # Macro-synthesized accessors must never embed a `fatalError(...)`
         # trap into user code. The two allow-listed sites are explicit
@@ -29,11 +29,10 @@ jobs:
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Build Extended Examples
         run: |
-          (cd Examples/SwiftUIExample && swift build -Xswiftc -warnings-as-errors)
-          (cd Examples/PreviewInjectionExample && swift build -Xswiftc -warnings-as-errors)
-      - name: Macro Performance Check (non-blocking)
-        continue-on-error: true
-        run: Tools/measure-macro-performance.sh --iterations 5
+          (cd Examples/SwiftUIExample && swift build -Xswiftc -warnings-as-errors && swift test -Xswiftc -warnings-as-errors)
+          (cd Examples/PreviewInjectionExample && swift build -Xswiftc -warnings-as-errors && swift test -Xswiftc -warnings-as-errors)
+      - name: Macro Performance Check
+        run: Tools/measure-macro-performance.sh --enforce
 
   path-identity:
     runs-on: macos-26

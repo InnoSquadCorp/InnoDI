@@ -151,6 +151,9 @@ Most frequently-hit codes:
   key path doesn't resolve to a container member.
 - `swiftui.environment-bridge-duplicate-member` — the same key path is
   listed twice.
+- `swiftui.environment-bridge-async-member` — an `asyncFactory`-backed
+  container member was mapped into `EnvironmentValues`; expose a synchronous
+  value or inject a service that performs async work internally.
 - `swiftui.environment-bridge-invalid-keypath` — the argument isn't a
   key-path literal.
 - `swiftui.environment-bridge-invalid-arguments` — the bridge macro received

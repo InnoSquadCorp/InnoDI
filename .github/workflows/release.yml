@@ -64,7 +64,7 @@ jobs:
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
 
       - name: Macro Performance Check
-        run: Tools/measure-macro-performance.sh --iterations 5
+        run: Tools/measure-macro-performance.sh --enforce
 
       - name: Generate DocC
         run: Tools/generate-docc.sh

@@ -80,11 +80,6 @@ internal func acquireLock(at url: URL) throws -> Int32? {
     let flockResult = flock(descriptor, LOCK_EX | LOCK_NB)
     if flockResult != 0 {
         let flockErrno = errno
-        // The O_EXCL above succeeded, so we created this file. If
-        // flock now reports contention or fails outright, the file
-        // is ours to remove before reporting the failure — leaving
-        // it would poison the next acquire attempt.
-        try? FileManager.default.removeItem(at: url)
         close(descriptor)
         if flockErrno == EWOULDBLOCK || flockErrno == EAGAIN {
             return nil
@@ -316,11 +311,13 @@ internal func checkLockFilesystemSafety(
         // warning to stderr and proceed. The user can re-run with
         // `INNODI_ALLOW_UNSAFE_LOCK=1` to silence the warning if
         // they wish, but it never blocks.
-        let identifier = classification.identifier.isEmpty
-            ? "<unavailable>"
-            : classification.identifier
-        let message = "InnoDI: lock directory '\(lockDirectory.path(percentEncoded: false))' is on an unrecognized filesystem (\(identifier)); proceeding optimistically. See lock-safety.md.\n"
-        FileHandle.standardError.write(Data(message.utf8))
+        if !allowUnsafe {
+            let identifier = classification.identifier.isEmpty
+                ? "<unavailable>"
+                : classification.identifier
+            let message = "InnoDI: lock directory '\(lockDirectory.path(percentEncoded: false))' is on an unrecognized filesystem (\(identifier)); proceeding optimistically. See lock-safety.md.\n"
+            FileHandle.standardError.write(Data(message.utf8))
+        }
         return nil
 
     case .unsafe:

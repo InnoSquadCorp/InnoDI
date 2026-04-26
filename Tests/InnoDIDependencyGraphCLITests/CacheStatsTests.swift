@@ -39,6 +39,34 @@ struct CacheStatsArgumentsTests {
     }
 }
 
+@Suite("--cache-stats artifact discovery")
+struct CacheStatsArtifactDiscoveryTests {
+    @Test("Discovery ignores shared-run records and warns on DAG artifact decode failures")
+    func ignoresSharedRunRecordsAndWarnsOnDecodeFailures() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("innodi-cache-stats-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try Data(#"{"version":4}"#.utf8).write(
+            to: directory.appendingPathComponent("validation-metrics.json")
+        )
+        let brokenDAGArtifact = directory.appendingPathComponent("dag-validation-metrics.json")
+        try Data("not-json".utf8).write(to: brokenDAGArtifact)
+
+        var warnings: [String] = []
+        let artifacts = discoverValidationMetricsArtifacts(under: directory) { warning in
+            warnings.append(warning)
+        }
+
+        #expect(artifacts.isEmpty)
+        #expect(warnings.count == 1)
+        #expect(warnings.first?.contains("failed to decode validation metrics artifact") == true)
+        #expect(warnings.first?.contains("file://") == true)
+        #expect(warnings.first?.contains(brokenDAGArtifact.lastPathComponent) == true)
+    }
+}
+
 @Suite("aggregateCacheStats — pure aggregation")
 struct AggregateCacheStatsTests {
 

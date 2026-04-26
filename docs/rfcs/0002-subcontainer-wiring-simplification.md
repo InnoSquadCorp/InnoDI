@@ -116,7 +116,7 @@ expresses cross-name (`child.foo` ← `parent.bar`) wiring.
 | Release | Action | Already shipped? |
 |---|---|---|
 | 4.1.0 | Note diagnostic `sub.prefer-with-over-with-names` + automatic Fix-it that rewrites `withNames: [...]` in place. | ✅ shipped |
-| 4.2.0 | Promote the diagnostic from `.note` to `.warning`. Add `@available(*, deprecated, message: "Use `with: [\.x]`. See RFC 0002.")` to the `withNames:` overload of the macro. Migrate the InnoDI-internal test fixtures and Examples that intentionally exercise `withNames:` to `with:` so the release-gate `-warnings-as-errors` step keeps passing. | pending |
+| 4.2.0 | Promote the diagnostic from `.note` to `.warning`. Add ``@available(*, deprecated, message: "Use `with: [\.x]`. See RFC 0002.")`` to the `withNames:` overload of the macro. Migrate the InnoDI-internal test fixtures and Examples that intentionally exercise `withNames:` to `with:` so the release-gate `-warnings-as-errors` step keeps passing. | pending |
 | 4.2.x | If consumer feedback surfaces unforeseen breakage, leave 4.2 in place and gather data. No changes. | conditional |
 | 5.0.0 | Remove the `withNames:` parameter from `@SubContainer`. Delete the parser branch, the `subPreferWithOverWithNames` diagnostic, the `subWithConflictsWithWithNames` diagnostic (no longer reachable), and the related test fixtures. Update DocC and the seven translated READMEs. | pending |
 

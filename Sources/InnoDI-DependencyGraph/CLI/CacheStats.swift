@@ -3,7 +3,7 @@
 //  InnoDI-DependencyGraph
 //
 //  Implements the `--cache-stats` subcommand. Walks a state
-//  directory for `validation-metrics.json` artifacts written by the
+//  directory for `dag-validation-metrics.json` artifacts written by the
 //  validation coordinator and aggregates them into a hit/miss table
 //  plus per-reason-code counts. Helpful when a CI image has cache
 //  rules that look right on paper but mysteriously never reuse work.
@@ -36,7 +36,7 @@ internal func runCacheStatsSubcommand(
 
     let artifacts = discoverValidationMetricsArtifacts(under: resolvedState)
     if artifacts.isEmpty {
-        lines.append("  status:        no validation-metrics.json files found")
+        lines.append("  status:        no dag-validation-metrics.json files found")
         print(lines.joined(separator: "\n"))
         return ExitCode.success
     }
@@ -88,7 +88,12 @@ private func resolveStateDirectory(rootPath: String, requested: String) -> URL {
         .appendingPathComponent(trimmed, isDirectory: true)
 }
 
-private func discoverValidationMetricsArtifacts(under directory: URL) -> [ValidationMetricsArtifact] {
+internal func discoverValidationMetricsArtifacts(
+    under directory: URL,
+    warningHandler: (String) -> Void = { message in
+        FileHandle.standardError.write(Data("\(message)\n".utf8))
+    }
+) -> [ValidationMetricsArtifact] {
     let fileManager = FileManager.default
     guard let enumerator = fileManager.enumerator(
         at: directory,
@@ -102,14 +107,19 @@ private func discoverValidationMetricsArtifacts(under directory: URL) -> [Valida
     var artifacts: [ValidationMetricsArtifact] = []
     for case let url as URL in enumerator {
         let name = url.lastPathComponent
-        guard name == "validation-metrics.json" || name == "dag-validation-metrics.json" else {
+        guard name == "dag-validation-metrics.json" else {
             continue
         }
         guard let data = try? Data(contentsOf: url) else { continue }
-        guard let artifact = try? decoder.decode(ValidationMetricsArtifact.self, from: data) else {
+        do {
+            let artifact = try decoder.decode(ValidationMetricsArtifact.self, from: data)
+            artifacts.append(artifact)
+        } catch {
+            warningHandler(
+                "InnoDI: failed to decode validation metrics artifact at \(url.absoluteString): \(error)"
+            )
             continue
         }
-        artifacts.append(artifact)
     }
     return artifacts
 }

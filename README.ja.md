@@ -73,6 +73,21 @@ dependencies: [
 
 SwiftUI helper を使わない場合は `InnoDI` だけで十分です。
 
+build-time DAG validator を有効にするには、InnoDI container を宣言する
+各 target に plugin を追加します。
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
+        "InnoDI"
+    ],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
 ## クイックスタート
 
 ```swift

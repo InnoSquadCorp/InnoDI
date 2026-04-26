@@ -160,6 +160,7 @@ func usageText() -> String {
     """
     Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii|json>] [--output <file>] [--validate-dag]
            InnoDI-DependencyGraph --diagnose-lock [<scratch-path>]
+           InnoDI-DependencyGraph --cache-stats [<scratch-path>]
 
     Options:
       --root <path>          Root directory of the project (default: current directory)

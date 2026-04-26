@@ -92,6 +92,9 @@ iOSInjectionProject/
 # macOS
 .DS_Store
 
+# Editor-local settings
+.cursor/
+
 # Swift Package Manager
 .swiftpm/
 **/.swiftpm/
@@ -106,4 +109,3 @@ iOSInjectionProject/
 
 # DocC Documentation Build
 docs-build/
-
