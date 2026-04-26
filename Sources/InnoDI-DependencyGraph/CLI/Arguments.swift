@@ -27,6 +27,10 @@ struct ParsedArguments: Equatable {
     /// validating a graph. The associated value is the directory the
     /// user passed (or the default).
     var diagnoseLockPath: String?
+    /// When non-nil, the CLI runs the `--cache-stats` subcommand
+    /// against the resolved state directory. Same path-resolution
+    /// rules as `--diagnose-lock`.
+    var cacheStatsPath: String?
 }
 
 /// Outcome of parsing command-line arguments. `.helpRequested` is a normal
@@ -52,6 +56,7 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
     var output: String?
     var validateDAG = false
     var diagnoseLockPath: String?
+    var cacheStatsPath: String?
     var warnings: [String] = []
 
     let args = rawArguments
@@ -119,6 +124,16 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
                 index += 1
             }
             continue
+        } else if arg == "--cache-stats" {
+            // Same path-handling shape as --diagnose-lock.
+            if index + 1 < args.count, !args[index + 1].hasPrefix("-") {
+                cacheStatsPath = args[index + 1]
+                index += 2
+            } else {
+                cacheStatsPath = ""
+                index += 1
+            }
+            continue
         } else if arg == "--help" || arg == "-h" {
             return .helpRequested
         } else if arg.hasPrefix("-") {
@@ -134,7 +149,8 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
             format: format,
             output: output,
             validateDAG: validateDAG,
-            diagnoseLockPath: diagnoseLockPath
+            diagnoseLockPath: diagnoseLockPath,
+            cacheStatsPath: cacheStatsPath
         ),
         warnings: warnings
     )
@@ -154,6 +170,9 @@ func usageText() -> String {
                              directory: filesystem class, environment, and any
                              active or stale lock files with their metadata.
                              Defaults to <root>/.build when no path is given.
+      --cache-stats [path]   Aggregate cache hit/miss counts from validation
+                             metrics artifacts under the given state directory.
+                             Same path-defaulting rules as --diagnose-lock.
       --help, -h             Show this help message
     """
 }
