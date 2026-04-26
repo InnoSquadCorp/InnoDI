@@ -13,9 +13,8 @@ changes a consumer must make**.
 | 1.x → 2.x | Validation policy hardening | Re-run macro tests; resolve any new diagnostics raised by the stricter validator. |
 | 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read `RELEASING.md` sections instead of legacy notes. |
 | 3.x → 4.0 | Public-contract consolidation | Adopt the new `withNames:`/`with:`/`bindings:` matrix on `@SubContainer`. Stop importing `_LazyCell`. Rename any container member starting with one of the reserved `_storage_` / `_override_sub_` / `_innoDISubBuild_` prefixes. |
-| 4.0 → 4.1 | DX hardening | Apply the `sub.prefer-with-over-with-names` Fix-it on every `@SubContainer(... withNames:)` site. Update parsers of the lock-timeout stderr block to read structured fields. |
-| 4.1 → 4.2 (planned) | `withNames:` deprecation | The hint diagnostic gets promoted from `.note` to `.warning` plus an `@available(*, deprecated)` annotation. Migrate any remaining `withNames:` usage. |
-| 4.x → 5.0 (planned) | `withNames:` removal + `@GenerateMock` | Apply the migrations from RFC 0002. Optionally adopt `@GenerateMock` for protocol-based mocks. |
+| 4.0 → 4.1 | DX hardening | Apply the `sub.prefer-with-over-with-names` Fix-it on every `@SubContainer(... withNames:)` site **where Swift's type-checker accepts the keypath form**. See [`withNames:` deferral note](#withnames-deferral-note). Update parsers of the lock-timeout stderr block to read structured fields. |
+| 4.x → 5.0 (planned) | `@GenerateMock` only | RFC 0001 lands as planned. The `withNames:` removal originally planned for 5.0 is **deferred** — see RFC 0002. |
 
 The rest of this article expands each row in the order users
 historically need them: 4.0 → 4.1 first (most consumers), then
@@ -25,7 +24,7 @@ the upcoming 4.2 / 5.0 surface, then the older 1.x → 4.0 hops.
 
 ## 4.0 → 4.1
 
-### `@SubContainer(... withNames:)` — apply the Fix-it
+### `@SubContainer(... withNames:)` — apply the Fix-it where it works
 
 InnoDI 4.1 emits a new note diagnostic
 `sub.prefer-with-over-with-names` whenever `@SubContainer` uses
@@ -43,10 +42,21 @@ var feature: FeatureContainer
 ```
 
 The two forms parse to the same internal representation, so the
-expansion and runtime behavior are identical. The motivation for
-moving to `with:` is type-safety (rename safety in IDE
-refactors) and preparing for the 5.0 removal of `withNames:` —
-see <doc:0002-subcontainer-wiring-simplification> RFC.
+expansion and runtime behavior are identical. Migrating to `with:`
+gives you key-path autocompletion and rename safety in IDE
+refactors.
+
+#### `withNames:` deferral note
+
+If your `@SubContainer` is **stacked with another peer macro on
+the same property** (`@DIFeatureRoot`, `@DIEnvironmentBridge`, …)
+and the Swift compiler reports
+`circular reference expanding peer macros`, leave that site on
+`withNames:`. RFC 0002 is currently in `Deferred` status because
+no key-path spelling currently survives this combination. The
+hint and Fix-it remain available for the common
+single-peer-macro case where the compiler accepts key paths;
+they should not be applied to sites that the compiler refuses.
 
 ### Lock-timeout stderr format change
 
@@ -116,43 +126,19 @@ Two additions that you don't have to use, but might want to:
 
 ---
 
-## 4.1 → 4.2 (planned)
-
-This section previews the next release for consumers who want
-to start migrating early. **Nothing is removed in 4.2** — only
-deprecations.
-
-### `withNames:` becomes a deprecation warning
-
-The `sub.prefer-with-over-with-names` diagnostic will be
-promoted from `.note` to `.warning`, and the `withNames:`
-parameter on `@SubContainer` will gain
-`@available(*, deprecated, message: "Use `with: [\.x]`. See
-RFC 0002.")`.
-
-Under `-warnings-as-errors` (which the InnoDI release gate uses)
-this will fail builds that still spell `withNames:`. The Fix-it
-shipped in 4.1 is the recommended migration path.
-
-### No other breaking changes
-
-4.2 is otherwise a stability release. Bug fixes and
-documentation only.
-
----
-
 ## 4.x → 5.0 (planned)
 
-5.0 is the first major release that removes deprecated surface.
-Two RFCs land together:
+5.0 is the first major release that takes additive RFCs through
+to GA. The originally-paired removal RFC is now deferred.
 
 | RFC | What | Effect on consumers |
 |---|---|---|
 | [0001 — `@GenerateMock`](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0001-macro-mock-generation.md) | New macro | Additive. No migration required. Adoption optional. |
-| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Removes `withNames:` | Apply the Fix-it from 4.1 (or migrate by hand) before upgrading to 5.0. |
+| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Originally: remove `withNames:` | **Deferred**. The upstream Swift compiler currently rejects the key-path-only form in stacked peer-macro contexts; `withNames:` stays in 5.0 so consumers retain a working spelling. The 4.1 hint + Fix-it stay in place for the common single-peer-macro case where the compiler accepts key paths. |
 
-If you completed the 4.1 → 4.2 migration, the 4.2 → 5.0 step is
-a no-op for `withNames:`.
+If your `@SubContainer` sites are **not** stacked with another
+peer macro, 5.0 is otherwise a no-op for SubContainer wiring —
+the Fix-it from 4.1 should already have moved them to `with:`.
 
 ---
 

@@ -2007,7 +2007,7 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
-                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety: with: [\\.config]. withNames: will be deprecated in 4.2 and removed in 5.0.",
+                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: with: [\\.config]. withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
                     line: 6,
                     column: 5,
                     severity: .note,
@@ -2035,7 +2035,7 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
-                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety: with: []. withNames: will be deprecated in 4.2 and removed in 5.0.",
+                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: with: []. withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
                     line: 6,
                     column: 5,
                     severity: .note,

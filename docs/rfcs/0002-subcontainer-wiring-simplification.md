@@ -1,11 +1,55 @@
 # RFC 0002 — SubContainer wiring simplification
 
-- **Status**: Draft
+- **Status**: **Deferred** (was Draft; see [Update — 2026-04-26](#update--2026-04-26))
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-26
-- **Target release**: 5.0 (deprecation in 4.2.0, removal in 5.0)
+- **Last updated**: 2026-04-26
+- **Target release**: previously planned for 5.0; now deferred until
+  the upstream Swift compiler limitation described below is fixed
 - **Supersedes**: parts of `Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md`
   documenting the four-way `@SubContainer` wiring matrix
+
+## Update — 2026-04-26
+
+The 4.1 hint diagnostic and Fix-it shipped as planned. The next
+step (4.2 deprecation + 5.0 removal of `withNames:`) was attempted
+during the same PR train and uncovered a Swift compiler
+limitation that prevents a clean removal:
+
+> When `@SubContainer(... with: [\Type.member])` is stacked with
+> another peer macro on the same property (`@DIFeatureRoot`,
+> `@DIEnvironmentBridge`, etc.), Swift's type-checker reports
+> `circular reference expanding peer macros` because resolving
+> the key-path's root type requires the enclosing
+> `@DIContainer`'s peer expansion to be complete, which in turn
+> reads the same attribute. `withNames: ["member"]` (string-typed)
+> sidesteps the cycle because strings need no type resolution.
+
+This is reproducible with both single- and multi-element
+key-path arrays, with `bindings:` keypaths, with attribute order
+swapped, and with the array elements wrapped via `as [AnyKeyPath]`
+casts. Every keypath spelling Swift's parser accepts triggers
+the type-checker phase that conflicts with peer macro expansion.
+
+Because of this, every consumer who pairs `@SubContainer` with
+`@DIFeatureRoot` (or any other peer macro) currently *must*
+write `withNames:`. Removing the parameter would break a
+documented usage pattern. The right thing to do is to:
+
+1. Keep `withNames:` available — and document it explicitly as
+   the escape hatch for the multi-peer-macro case. Done.
+2. Soften the existing
+   `sub.prefer-with-over-with-names` note diagnostic so it no
+   longer asserts that `withNames:` will be removed in 5.0; it
+   now recommends `with:` "where the type-checker accepts it."
+   Done in this same change.
+3. Park this RFC in `Deferred` status. When the upstream Swift
+   compiler ships a fix (a Swift Forums issue is the next step),
+   reopen the RFC, draft a new timeline, and resume.
+
+The 4.1 hint + Fix-it remain in place; users still get a strong
+nudge toward `with:` for the common single-peer-macro case where
+the compiler does accept key paths.
 
 ## Summary
 
