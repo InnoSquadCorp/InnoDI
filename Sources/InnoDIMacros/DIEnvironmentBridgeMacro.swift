@@ -94,6 +94,11 @@ private struct EnvironmentBridgeValidationResult {
     let mappings: [EnvironmentBridgeMappingInfo]?
 }
 
+private struct EnvironmentBridgeContainerMemberInfo {
+    let name: String
+    let isAsyncProvide: Bool
+}
+
 private func validateEnvironmentBridge(
     attribute: AttributeSyntax,
     declaration: some DeclGroupSyntax,
@@ -114,7 +119,10 @@ private func validateEnvironmentBridge(
         return EnvironmentBridgeValidationResult(mappings: nil)
     }
 
-    let memberNames = Set(containerMemberNames(in: declaration))
+    var membersByName: [String: EnvironmentBridgeContainerMemberInfo] = [:]
+    for memberInfo in containerMemberInfos(in: declaration) {
+        membersByName[memberInfo.name] = memberInfo
+    }
     var seenMembers: Set<String> = []
     var mappings: [EnvironmentBridgeMappingInfo] = []
     var hadErrors = false
@@ -180,12 +188,25 @@ private func validateEnvironmentBridge(
             continue
         }
 
-        guard memberNames.contains(memberName) else {
+        guard let memberInfo = membersByName[memberName] else {
             if emitDiagnostics {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(element.expression),
                         message: SimpleDiagnostic.swiftUIEnvironmentBridgeUnknownMember(memberName: memberName)
+                    )
+                )
+            }
+            hadErrors = true
+            continue
+        }
+
+        if memberInfo.isAsyncProvide {
+            if emitDiagnostics {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(element.expression),
+                        message: SimpleDiagnostic.swiftUIEnvironmentBridgeAsyncMember(memberName: memberName)
                     )
                 )
             }
@@ -215,6 +236,31 @@ private func validateEnvironmentBridge(
     }
 
     return EnvironmentBridgeValidationResult(mappings: hadErrors ? nil : mappings)
+}
+
+private func containerMemberInfos(in declaration: some DeclGroupSyntax) -> [EnvironmentBridgeContainerMemberInfo] {
+    declaration.memberBlock.members.flatMap { member -> [EnvironmentBridgeContainerMemberInfo] in
+        guard let variableDecl = member.decl.as(VariableDeclSyntax.self) else {
+            return []
+        }
+        guard !variableDecl.modifiers.contains(where: { $0.name.text == "static" }) else {
+            return []
+        }
+
+        let provideAttribute = findAttribute(
+            named: "Provide",
+            allowingQualifiedModules: ["InnoDI"],
+            in: variableDecl.attributes
+        )
+        let isAsyncProvide = provideAttribute.map { parseProvideArguments($0).asyncFactoryExpr != nil } ?? false
+
+        return variableDecl.bindings.compactMap { binding -> EnvironmentBridgeContainerMemberInfo? in
+            guard let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text else {
+                return nil
+            }
+            return EnvironmentBridgeContainerMemberInfo(name: name, isAsyncProvide: isAsyncProvide)
+        }
+    }
 }
 
 // MARK: - Code generation
