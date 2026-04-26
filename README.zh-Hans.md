@@ -66,6 +66,20 @@ dependencies: [
 
 如果不用 SwiftUI helper，只需导入 `InnoDI`。
 
+把 build-time DAG validator 插件加到每个声明 InnoDI container 的 target：
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
+        "InnoDI"
+    ],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
 ## 快速开始
 
 ```swift
