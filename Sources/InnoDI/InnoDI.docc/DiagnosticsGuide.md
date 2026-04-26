@@ -110,6 +110,10 @@ Most frequently-hit codes:
   exclusive).
 - `sub.with-conflicts-with-with-names` — both `with:` and `withNames:`
   appear on the same `@SubContainer` (pick exactly one).
+- `sub.prefer-with-over-with-names` — **warning**. `withNames:` is in
+  use; the message includes the equivalent `with: [\.x]` form so you
+  can copy-paste the migration. `withNames:` will be deprecated in 4.2
+  and removed in 5.0 — see the SubContainer wiring simplification RFC.
 - `sub.invalid-same-name-wiring` — `with:` / `withNames:` is not a literal
   array the macro can read (runtime variables and computed elements are
   rejected).

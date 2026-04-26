@@ -57,6 +57,13 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
+    /// Hint emitted whenever a SubContainer uses `withNames:`. The form
+    /// is functionally equivalent to `with:` but typed by string,
+    /// which loses key-path autocompletion and rename safety. Prefer
+    /// `with: [\.x]`. This message will be upgraded to a deprecation
+    /// in 4.2 and `withNames:` will be removed in 5.0 — see
+    /// `docs/rfcs/0002-subcontainer-wiring-simplification.md` (planned).
+    case subPreferWithOverWithNames = "sub.prefer-with-over-with-names"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
@@ -80,7 +87,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
                 .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
-                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters:
+                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
+                .subPreferWithOverWithNames:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
@@ -447,6 +455,28 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
             code: .subWithConflictsWithWithNames
+        )
+    }
+
+    /// Note-severity hint that prepares users for the `withNames:`
+    /// deprecation in 4.2 and removal in 5.0. Emitted whenever
+    /// `withNames:` is used and `with:` is not, including the empty
+    /// form `withNames: []` so consumers migrate proactively.
+    ///
+    /// We use `.note` rather than `.warning` for two reasons:
+    /// 1. `.warning` would fail every release-gate build under
+    ///    `-warnings-as-errors`, including the InnoDI test fixtures
+    ///    that intentionally exercise the `withNames:` codegen path.
+    ///    Phase 3.B (4.2.0) will explicitly migrate those fixtures and
+    ///    promote this diagnostic to `.warning` at the same time, so
+    ///    the deprecation pressure starts landing on real consumers.
+    /// 2. The hint is informational ("here's the migrated form") more
+    ///    than corrective. A note matches that intent today.
+    static func subPreferWithOverWithNames(memberName: String, suggestedReplacement: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' uses withNames:; prefer the key-path form for autocompletion and rename safety: \(suggestedReplacement). withNames: will be deprecated in 4.2 and removed in 5.0.",
+            code: .subPreferWithOverWithNames,
+            severity: .note
         )
     }
 

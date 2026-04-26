@@ -366,6 +366,23 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            // Item 3.A — prepare users for the 4.2 deprecation / 5.0
+            // removal of `withNames:`. We only fire when `withNames:` is
+            // used in isolation (a `with:` co-occurrence already produces
+            // the conflict diagnostic above; emitting both would be noise).
+            if sub.hasWithNamesDependencies && !sub.hasWithDependencies {
+                let suggestion = renderSubContainerWithSuggestion(parentNames: sub.parentDependencies)
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subPreferWithOverWithNames(
+                            memberName: sub.name,
+                            suggestedReplacement: suggestion
+                        )
+                    )
+                )
+            }
+
             let hasBindingWiringConflict = (sub.hasWithDependencies || sub.hasWithNamesDependencies)
                 && !sub.explicitBindings.isEmpty
             if hasBindingWiringConflict {
@@ -582,4 +599,15 @@ struct DIContainerValidator {
 
         return !hadErrors
     }
+}
+
+/// Helper for the `subPreferWithOverWithNames` hint. Renders a
+/// concrete suggested replacement so the user can copy-paste the
+/// migration without hand-translating each name.
+internal func renderSubContainerWithSuggestion(parentNames: [String]) -> String {
+    if parentNames.isEmpty {
+        return "with: []"
+    }
+    let elements = parentNames.map { "\\.\($0)" }.joined(separator: ", ")
+    return "with: [\(elements)]"
 }
