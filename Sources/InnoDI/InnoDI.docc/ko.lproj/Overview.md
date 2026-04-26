@@ -17,6 +17,14 @@ tooling에 초점을 둡니다.
 - `@SubContainer`, `@DIComponent`, `@DIHierarchyRoot`
 - `InnoDISwiftUI`의 SwiftUI helper
 
+4.1.0은 이 baseline 위에 release hardening을 추가합니다.
+
+- validation coordinator lock의 unsafe filesystem fail-fast
+- 지원 파일시스템에서 `O_CREAT | O_EXCL`와 `flock`을 함께 쓰는 layered lock
+- macro-synthesized `fatalError` accessor 대신 build-time diagnostic
+- strict concurrency와 macro-source `fatalError` allow-list를 모두 강제하는 PR/release gate
+- stacked peer macro가 없는 `withNames:` 사용에 대한 `@SubContainer` Fix-it 안내
+
 ## Topics
 
 ### Start Here
@@ -24,6 +32,12 @@ tooling에 초점을 둡니다.
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+- <doc:DiagnosticsGuide>
+
+### Operations
+
+- <doc:lock-safety>
+- <doc:MigrationGuide>
 
 ### Container API
 

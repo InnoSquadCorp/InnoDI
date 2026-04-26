@@ -36,6 +36,13 @@ jobs:
       - name: Run Strict Concurrency Test Suite
         run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
+      - name: No fatalError in synthesized code
+        # Keep the release gate aligned with the PR macro-tests workflow and
+        # RELEASING.md. Macro-synthesized accessors must never embed runtime
+        # traps into user code unless the site is explicitly inventoried and
+        # allow-listed.
+        run: Tools/check-no-fatalerror-in-macros.sh
+
       - name: Test SwiftUI Example
         run: |
           cd Examples/SwiftUIExample

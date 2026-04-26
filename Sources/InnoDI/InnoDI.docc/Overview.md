@@ -17,6 +17,15 @@ and graph tooling rather than runtime container mutation.
 - `@SubContainer`, `@DIComponent`, and `@DIHierarchyRoot`
 - SwiftUI helpers in `InnoDISwiftUI`
 
+4.1.0 adds release-hardening around that baseline:
+
+- unsafe-filesystem fail-fast for the validation coordinator lock
+- layered `O_CREAT | O_EXCL` plus `flock` locking on supported filesystems
+- build-time diagnostics instead of macro-synthesized `fatalError` accessors
+- PR and release gates that both enforce strict concurrency and the
+  macro-source `fatalError` allow-list
+- `@SubContainer` Fix-it guidance for the non-stacked `withNames:` case
+
 ## Topics
 
 ### Start Here
