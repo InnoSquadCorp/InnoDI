@@ -212,6 +212,21 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.contains("Detected dependency cycles:"))
     }
 
+    @Test("Validate DAG skips root-level generated dependency directories")
+    func validateDAGSkipsRootLevelGeneratedDependencyDirectories() throws {
+        let fixtureURL = try makeRootSkippedDirectoryFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(!result.stderr.contains("Detected dependency cycles:"))
+    }
+
     @Test("Validate DAG treats provider edges as deferred end-to-end")
     func validateDAGPassesWhenProviderBreaksCycle() throws {
         let fixtureURL = try makeProviderDeferredCycleFixtureProject()
@@ -1371,6 +1386,57 @@ private func makeCycleFixtureProject() throws -> URL {
         atomically: true,
         encoding: .utf8
     )
+
+    return fixtureURL
+}
+
+private func makeRootSkippedDirectoryFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-CLI-Root-Skips-\(UUID().uuidString)", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: fixtureURL, withIntermediateDirectories: true)
+
+    let appSource = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct AppContainer {
+        @Provide(.input)
+        var baseURL: String
+    }
+    """
+
+    let skippedSource = """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct SkippedA {
+        @Provide(.shared, factory: SkippedB(), concrete: true)
+        var b: SkippedB
+    }
+
+    @DIContainer
+    struct SkippedB {
+        @Provide(.shared, factory: SkippedA(), concrete: true)
+        var a: SkippedA
+    }
+    """
+
+    try appSource.write(
+        to: fixtureURL.appendingPathComponent("App.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    for directoryName in ["Pods", "Derived", "Carthage"] {
+        let directoryURL = fixtureURL.appendingPathComponent(directoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try skippedSource.write(
+            to: directoryURL.appendingPathComponent("Poison.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+    }
 
     return fixtureURL
 }
