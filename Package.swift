@@ -140,6 +140,7 @@ let package = Package(
             name: "InnoDIDependencyGraphCLITests",
             dependencies: [
                 "InnoDI-DependencyGraph",
+                "InnoDIBuildSupport",
                 "InnoDITestSupport",
             ],
             exclude: ["__Snapshots__"],
