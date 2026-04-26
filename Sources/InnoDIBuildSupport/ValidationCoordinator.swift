@@ -600,7 +600,12 @@ package enum ValidationCoordinator {
         let timeoutResult = ValidationCommandResult(
             exitCode: 1,
             stdout: "",
-            stderr: "Timed out waiting for validation coordinator lock at '\(lockURL.path(percentEncoded: false))' after \(formatSeconds(lockPolicy.maxWaitSeconds))s.\n"
+            stderr: lockTimeoutDiagnosticMessage(
+                lockURL: lockURL,
+                lockPolicy: lockPolicy,
+                recoveredStaleLock: recoveredStaleLock,
+                runtime: runtime
+            )
         )
         return try finalizeOutcome(
             result: timeoutResult,
