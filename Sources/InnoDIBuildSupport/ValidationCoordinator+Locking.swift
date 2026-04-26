@@ -73,7 +73,7 @@ internal func persistLockMetadata(
     }
 }
 
-internal func loadLockMetadata(at url: URL) -> ValidationCoordinatorLockMetadata? {
+package func loadLockMetadata(at url: URL) -> ValidationCoordinatorLockMetadata? {
     guard
         let data = try? Data(contentsOf: url),
         let metadata = try? JSONDecoder().decode(ValidationCoordinatorLockMetadata.self, from: data),
