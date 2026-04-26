@@ -47,23 +47,31 @@ inside feature logic when scoped runtime values are the better abstraction.
 
 ### Filesystem requirements for the build-time validator
 
-The build plugin serializes live DAG validation runs through a POSIX
-`O_CREAT | O_EXCL` lock file placed under the Swift Package Manager derived
-data directory. This works correctly on every local filesystem Apple and
-Linux distributions ship today (APFS, HFS+, ext4, btrfs, xfs), but there
-are caveats for network-backed paths:
+The build plugin serializes live DAG validation runs through a layered
+POSIX lock under the Swift Package Manager scratch directory:
 
-- **NFSv3** does not guarantee atomic `O_EXCL` semantics; two clients can
-  both believe they created the lock. Use NFSv4 or relocate derived data
-  to a local path.
-- **SMB/CIFS** shares do not provide reliable `O_EXCL` atomicity at all
-  and are not supported.
-- **Docker / Kubernetes bind mounts** inherit the semantics of the host
-  filesystem. When the host is local, they are safe.
+1. `open(O_CREAT | O_EXCL | O_RDWR)` creates a single lock file.
+2. `flock(LOCK_EX | LOCK_NB)` adds an advisory exclusive lock on the
+   descriptor.
 
-If your build system must place derived data on a shared volume, point
-SPM's `--scratch-path` (or Xcode's derived-data location) at a local
-directory before enabling the plugin.
+InnoDI auto-detects the filesystem backing that lock directory. Local
+filesystems such as APFS, HFS+, ext4, btrfs, xfs, and tmpfs are supported.
+NFS mounts, SMB/CIFS, WebDAV, and FUSE-style filesystems are refused by default
+because concurrent builds can corrupt the shared validation cache when lock
+atomicity is not reliable.
+
+If your build system must place derived data on a shared volume, point SPM's
+`--scratch-path` (or Xcode's derived-data location) at a local directory:
+
+```sh
+swift build --scratch-path /tmp/innodi-cache
+```
+
+Operators can bypass the unsafe-filesystem fail-fast with
+`INNODI_ALLOW_UNSAFE_LOCK=1`, but InnoDI still emits an auditable warning and
+the risk stays with that build environment. For diagnostics, recovery steps,
+and the full filesystem table, see
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
 ## Installation
 
@@ -71,7 +79,7 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.1.0")
 ]
 ```
 

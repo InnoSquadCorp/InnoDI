@@ -29,18 +29,28 @@ InnoDI 不是运行时状态机。运行时状态应放在你的应用层或 `In
 
 ### 构建期 validator 的文件系统要求
 
-构建插件会在 Swift Package Manager derived data 目录下使用 POSIX
-`O_CREAT | O_EXCL` 锁文件串行化 live DAG validation。APFS、HFS+、ext4、
-btrfs、xfs 等本地文件系统可以正确工作，但网络路径需要额外注意。
+构建插件会在 Swift Package Manager scratch 目录下使用分层 POSIX lock
+串行化 live DAG validation：
 
-- **NFSv3** 不保证 atomic `O_EXCL` semantics；两个客户端可能同时认为自己
-  创建了锁。请使用 NFSv4，或把 derived data 移到本地路径。
-- **SMB/CIFS** share 不提供可靠的 `O_EXCL` atomicity，因此不受支持。
-- **Docker / Kubernetes bind mount** 会继承 host filesystem 的 semantics。
-  如果 host 是本地 filesystem，则可以安全使用。
+1. `open(O_CREAT | O_EXCL | O_RDWR)` 创建唯一的 lock file。
+2. `flock(LOCK_EX | LOCK_NB)` 在 descriptor 上添加 advisory exclusive lock。
 
-如果构建系统必须把 derived data 放在 shared volume 上，请在启用插件前把
-SPM 的 `--scratch-path` 或 Xcode derived-data 位置指向本地目录。
+InnoDI 会自动检测 lock directory 背后的文件系统。APFS、HFS+、ext4、
+btrfs、xfs、tmpfs 等本地文件系统受支持。NFS mount、SMB/CIFS、WebDAV 和
+FUSE 类文件系统默认会被拒绝，因为在 lock atomicity 不可靠时，并发构建可能
+损坏共享 validation cache。
+
+如果构建系统必须把 derived data 放在 shared volume 上，请把 SPM 的
+`--scratch-path` 或 Xcode derived-data 位置指向本地目录：
+
+```sh
+swift build --scratch-path /tmp/innodi-cache
+```
+
+运维人员可以用 `INNODI_ALLOW_UNSAFE_LOCK=1` 绕过 unsafe-filesystem
+fail-fast，但 InnoDI 仍会输出可审计的警告，风险仍由该 build environment
+承担。诊断、恢复步骤和完整文件系统表见
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)。
 
 ## 安装
 
@@ -48,7 +58,7 @@ SPM 的 `--scratch-path` 或 Xcode derived-data 位置指向本地目录。
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.1.0")
 ]
 ```
 

@@ -32,22 +32,31 @@ InnoDI не является runtime state machine. Состояние врем�
 
 ### Требования build-time validator к файловой системе
 
-Build plugin сериализует live DAG validation через POSIX lock file
-`O_CREAT | O_EXCL` в директории derived data Swift Package Manager. Это
-корректно работает на локальных файловых системах вроде APFS, HFS+, ext4,
-btrfs и xfs, но сетевые пути требуют осторожности.
+Build plugin сериализует live DAG validation через многоуровневый POSIX lock
+в scratch-директории Swift Package Manager:
 
-- **NFSv3** не гарантирует atomic `O_EXCL` semantics; два клиента могут
-  одновременно решить, что они создали lock. Используйте NFSv4 или перенесите
-  derived data в локальный путь.
-- **SMB/CIFS** share не предоставляет надежную `O_EXCL` atomicity и не
-  поддерживается.
-- **Docker / Kubernetes bind mounts** наследуют semantics host filesystem.
-  Если host использует локальную filesystem, они безопасны.
+1. `open(O_CREAT | O_EXCL | O_RDWR)` создает один lock file.
+2. `flock(LOCK_EX | LOCK_NB)` добавляет advisory exclusive lock на descriptor.
 
-Если build system должна хранить derived data на shared volume, перед
-включением plugin укажите локальную директорию через SPM `--scratch-path`
-или настройку Xcode derived-data location.
+InnoDI автоматически определяет файловую систему lock directory. Локальные
+файловые системы APFS, HFS+, ext4, btrfs, xfs и tmpfs поддерживаются. NFS
+mounts, SMB/CIFS, WebDAV и FUSE-подобные файловые системы по умолчанию
+отклоняются, потому что concurrent builds могут повредить shared validation
+cache, если lock atomicity ненадежна.
+
+Если build system должна хранить derived data на shared volume, укажите
+локальную директорию через SPM `--scratch-path` или настройку Xcode
+derived-data location:
+
+```sh
+swift build --scratch-path /tmp/innodi-cache
+```
+
+Операторы могут обойти unsafe-filesystem fail-fast через
+`INNODI_ALLOW_UNSAFE_LOCK=1`, но InnoDI все равно выводит audit warning, а
+риск остается на этом build environment. Диагностика, шаги восстановления и
+полная таблица файловых систем описаны в
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
 ## Установка
 
@@ -55,7 +64,7 @@ btrfs и xfs, но сетевые пути требуют осторожност
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.1.0")
 ]
 ```
 

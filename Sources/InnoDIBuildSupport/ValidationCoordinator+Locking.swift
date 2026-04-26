@@ -17,9 +17,9 @@
 //  filesystems (APFS, HFS+, ext4, btrfs, xfs) implement this correctly. On
 //  network filesystems the story is different:
 //
-//  - NFSv3 does not guarantee atomic O_EXCL semantics; concurrent clients
-//    can both believe they created the file. Use NFSv4 or a local scratch
-//    directory.
+//  - NFS mounts are classified as unsafe because mount versions and lock
+//    semantics cannot be reliably distinguished by the detector. Use a local
+//    scratch directory, or opt in explicitly with INNODI_ALLOW_UNSAFE_LOCK=1.
 //  - SMB/CIFS shares do not provide reliable O_EXCL atomicity at all and
 //    are not supported.
 //  - Docker/Kubernetes bind mounts inherit the semantics of the host
@@ -47,11 +47,10 @@ import Glibc
 ///   1. `open(O_CREAT | O_EXCL | O_RDWR)` — atomic creation on local
 ///      filesystems; the primary single-holder gate.
 ///   2. `flock(LOCK_EX | LOCK_NB)` — advisory exclusive lock on the
-///      descriptor we just opened. Defense-in-depth: on filesystems
-///      where `O_EXCL` is *not* atomic across clients (NFSv4 with
-///      cooperative clients, some FUSE drivers) the advisory lock
-///      becomes the single-holder gate. On safe filesystems the
-///      advisory lock is redundant but cheap.
+///      descriptor we just opened. Defense-in-depth on filesystems with
+///      advisory-lock support, but it does not make filesystems classified
+///      as unsafe supported by default. On safe filesystems the advisory lock
+///      is redundant but cheap.
 ///
 /// Returns:
 /// - `nil` when either layer reports contention (`EEXIST` from
@@ -361,7 +360,7 @@ internal func unsafeFilesystemDiagnosticMessage(
     lines.append("  filesystem:  \(identifier) (classified as unsafe)")
     lines.append("")
     lines.append("Reason:")
-    lines.append("  `O_CREAT | O_EXCL` is not atomic on NFSv3, SMB/CIFS, and some FUSE-backed")
+    lines.append("  `O_CREAT | O_EXCL` is not reliable on NFS, SMB/CIFS, and some FUSE-backed")
     lines.append("  filesystems. Two concurrent builds can both believe they own the lock,")
     lines.append("  which would corrupt the shared-run validation cache.")
     lines.append("")
@@ -416,7 +415,7 @@ internal func lockTimeoutDiagnosticMessage(
     lines.append("  2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).")
     lines.append("  3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.")
     lines.append("  4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:")
-    lines.append("     swift build --scratch-path /tmp/innodi-cache  (NFSv3 and SMB are not safe — see lock-safety.md).")
+    lines.append("     swift build --scratch-path /tmp/innodi-cache  (NFS and SMB are not safe by default — see lock-safety.md).")
     lines.append("")
     lines.append("Reference: https://github.com/InnoSquadCorp/InnoDI/blob/main/Sources/InnoDI/InnoDI.docc/lock-safety.md")
 

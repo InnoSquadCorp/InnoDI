@@ -17,6 +17,14 @@ La baseline estable de 4.0.0 incluye:
 - `@SubContainer`, `@DIComponent` y `@DIHierarchyRoot`
 - helpers de SwiftUI en `InnoDISwiftUI`
 
+4.1.0 agrega hardening de release sobre esa baseline:
+
+- fail-fast de unsafe filesystem para el lock del validation coordinator
+- lock por capas con `O_CREAT | O_EXCL` mas `flock` en filesystems soportados
+- diagnosticos de build-time en lugar de accessors `fatalError` sintetizados por macros
+- PR/release gates que fuerzan strict concurrency y la allow-list de `fatalError` en macros
+- guia de Fix-it de `@SubContainer` para `withNames:` cuando no hay peer macros apilados
+
 ## Topics
 
 ### Start Here
@@ -24,6 +32,12 @@ La baseline estable de 4.0.0 incluye:
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+- <doc:DiagnosticsGuide>
+
+### Operations
+
+- <doc:lock-safety>
+- <doc:MigrationGuide>
 
 ### Container API
 

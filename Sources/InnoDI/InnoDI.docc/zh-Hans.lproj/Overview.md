@@ -16,6 +16,14 @@ InnoDI 通过 `@DIContainer` 与 `@Provide` 把普通 Swift 类型转换为 DI
 - `@SubContainer`、`@DIComponent`、`@DIHierarchyRoot`
 - `InnoDISwiftUI` 中的 SwiftUI helper
 
+4.1.0 在该基线之上加入 release hardening：
+
+- validation coordinator lock 的 unsafe filesystem fail-fast
+- 在受支持文件系统上同时使用 `O_CREAT | O_EXCL` 和 `flock` 的分层 lock
+- 用 build-time diagnostic 取代宏合成的 `fatalError` accessor
+- PR/release gate 同时强制 strict concurrency 和 macro-source `fatalError` allow-list
+- 针对未叠加 peer macro 的 `withNames:` 用法提供 `@SubContainer` Fix-it 指引
+
 ## Topics
 
 ### Start Here
@@ -23,6 +31,12 @@ InnoDI 通过 `@DIContainer` 与 `@Provide` 把普通 Swift 类型转换为 DI
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:ModuleWideInitDetection>
+- <doc:DiagnosticsGuide>
+
+### Operations
+
+- <doc:lock-safety>
+- <doc:MigrationGuide>
 
 ### Container API
 
