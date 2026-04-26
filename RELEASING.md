@@ -19,10 +19,12 @@ Before tagging a release:
    - `(cd Examples/PreviewInjectionExample && swift build && swift test)`
 6. Run the global DAG check:
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
-7. Generate DocC:
+7. Verify the macro-source `fatalError` allow-list is intact:
+   - `Tools/check-no-fatalerror-in-macros.sh`
+8. Generate DocC:
    - `Tools/generate-docc.sh`
-8. Decide whether any artifact or schema contract changed and update the contract notes below.
-9. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
+9. Decide whether any artifact or schema contract changed and update the contract notes below.
+10. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
 
 ## Release Notes Source
 
@@ -83,6 +85,93 @@ The release workflow publishes these assets to the GitHub Release:
 Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
+
+## 4.1.0
+
+### Highlights
+
+- **No more macro-synthesized `fatalError` traps in user code.** The five
+  `fatalErrorGetter` sites in `ProvideMacro` that previously produced
+  runtime-trapping accessors for malformed `@Provide` inputs now emit a
+  build-time diagnostic and an empty expansion. Invalid input fails at
+  build time, never at run time. The `internal.codegen-invariant`
+  diagnostic remains available as a defense-in-depth signal for InnoDI
+  contributor bugs but no longer pairs with a runtime trap.
+- **Validation coordinator refuses unsafe filesystems.** A new
+  `FilesystemTypeDetector` runs `statfs(2)` against the lock directory
+  before any `O_CREAT | O_EXCL` and classifies the filesystem. NFSv3,
+  SMB/CIFS, WebDAV, and FUSE-style filesystems are blocked unless the
+  operator explicitly opts in via `INNODI_ALLOW_UNSAFE_LOCK=1`.
+  Unrecognized filesystems emit a single-line stderr warning and
+  proceed.
+- **Structured lock-timeout diagnostic.** When the coordinator times
+  out waiting for the lock it now prints a multi-line block with the
+  holder PID, holder age, boot ID (when known), recovered-stale flag,
+  and four numbered remediation actions. The new
+  [`lock-safety.md`](Sources/InnoDI/InnoDI.docc/lock-safety.md) DocC
+  article documents the supported and unsupported filesystems, the
+  diagnostic's fields, and the recovery procedure.
+- **`InnoDI-DependencyGraph --diagnose-lock`.** New CLI subcommand
+  that prints the coordinator's view of a scratch directory:
+  filesystem class, environment overrides, and any lock files it
+  discovers (with metadata). Designed for incident response when a
+  build is stuck on `lock-contention-timeout`.
+- **`@SubContainer` deprecation hint.** The new
+  `sub.prefer-with-over-with-names` note diagnostic fires whenever
+  `@SubContainer(... withNames: [...])` is used in isolation. The
+  message includes the equivalent `with: [\.x]` form and ships with a
+  Fix-it that performs the migration in place. This is the prologue
+  for [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md):
+  `withNames:` will be promoted to a deprecation warning in 4.2.0 and
+  removed in 5.0.
+
+### Breaking or Behavior Changes
+
+- Malformed `@Provide(.transient)` (no factory, no typeExpr, no
+  inline initializer) now produces only the existing
+  `provide.transient-factory-required` diagnostic, plus a Swift
+  compiler "stored property has no initial value" error from the
+  property whose accessor was dropped. No `fatalError` reaches user
+  code. Source-incompatible only for callers who relied on the
+  runtime trap for unreachable cases.
+- `@Provide(.transient, factory: { (_: T) in ... })` (wildcard
+  closure parameters) and `@Provide` with an unknown scope behave
+  the same way: terminal diagnostic + no synthesized accessor.
+- The validation coordinator emits `ValidationReasonCode.unsafeFilesystem`
+  in its metrics artifact when fail-fast triggers. Downstream tooling
+  that parses metrics should add the new case.
+- The lock-timeout stderr block format has changed. CI scripts that
+  grep the previous one-line format (`Timed out waiting for
+  validation coordinator lock at '...'`) should switch to the
+  structured fields: `path:`, `waited:`, `Suggested actions:`.
+
+### Upgrade Actions
+
+- `@SubContainer(... withNames: [...])` consumers — apply the
+  Fix-it offered alongside `sub.prefer-with-over-with-names`, or
+  manually rewrite to `with: [\.x]`. `withNames:` will deprecate in
+  4.2.0 and remove in 5.0; see RFC 0002 for the timeline.
+- CI runners that mount the SPM scratch directory on NFSv3 or SMB —
+  redirect with `swift build --scratch-path /tmp/innodi-cache`, or
+  set `INNODI_ALLOW_UNSAFE_LOCK=1` (the coordinator still emits a
+  warning so the bypass is auditable).
+- If you previously parsed the validation coordinator's lock
+  timeout stderr, update the parser to read the structured fields
+  documented in `lock-safety.md`.
+- Downstream metrics consumers — handle
+  `ValidationReasonCode.unsafeFilesystem`.
+
+### Internal Notes
+
+- `Sources/InnoDIMacros/SyntaxBuilders.swift` no longer exports
+  `fatalErrorStmt`; the helper had a single caller (the
+  now-eliminated `.none` scope path) and was removed.
+- A new CI step (`Tools/check-no-fatalerror-in-macros.sh`)
+  enforces the macro-source `fatalError` allow-list. Any future
+  attempt to add a runtime trap to a macro-synthesized accessor
+  will fail the macro-tests workflow until either the trap is
+  removed or `docs/internal/fatalerror-inventory.md` and the
+  allow-list are explicitly extended.
 
 ## 4.0.0
 
