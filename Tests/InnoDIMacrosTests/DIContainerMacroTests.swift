@@ -2010,7 +2010,8 @@ struct DIContainerMacroTests {
                     message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety: with: [\\.config]. withNames: will be deprecated in 4.2 and removed in 5.0.",
                     line: 6,
                     column: 5,
-                    severity: .note
+                    severity: .note,
+                    fixIts: [FixItSpec(message: "Replace `withNames:` with `with: [\\.config]`")]
                 )
             ],
             macros: Self.macros
@@ -2037,7 +2038,8 @@ struct DIContainerMacroTests {
                     message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety: with: []. withNames: will be deprecated in 4.2 and removed in 5.0.",
                     line: 6,
                     column: 5,
-                    severity: .note
+                    severity: .note,
+                    fixIts: [FixItSpec(message: "Replace `withNames:` with `with: []`")]
                 )
             ],
             macros: Self.macros
@@ -2070,6 +2072,43 @@ struct DIContainerMacroTests {
         #expect(
             messages.contains(where: { $0.contains("with: [\\.config, \\.apiClient]") }),
             "Expected hint to include the migrated form `with: [\\.config, \\.apiClient]`; got messages: \(messages)"
+        )
+    }
+
+    @Test("@SubContainer prefer-with hint attaches a Fix-it that rewrites withNames: in place")
+    func subContainerPreferWithHintAttachesFixIt() {
+        // Item 3.A leftover — the Fix-it lets IDEs apply the migration
+        // with one click. We assert structural properties of the Fix-it
+        // (the rewrite text + that the range targets the `withNames:`
+        // labelled argument) rather than re-inventing diagnostic-spec
+        // matching.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var apiClient: APIClient
+
+                @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+                var feature: FeatureContainer
+            }
+            """
+
+        let result = expandMacroSource(source, macros: Self.macros)
+        let preferWithDiagnostic = result.diagnostics.first(where: {
+            $0.diagnosticID == InnoDIDiagnosticCode.subPreferWithOverWithNames.messageID
+        })
+        guard let preferWithDiagnostic else {
+            Issue.record("prefer-with hint was not emitted")
+            return
+        }
+        #expect(
+            preferWithDiagnostic.fixIts.count == 1,
+            "Expected exactly one Fix-it; got \(preferWithDiagnostic.fixIts.count)"
+        )
+        let fixItMessage = preferWithDiagnostic.fixIts.first?.message.message ?? ""
+        #expect(
+            fixItMessage.contains("with: [\\.config, \\.apiClient]"),
+            "Expected Fix-it message to include the migrated form; got '\(fixItMessage)'"
         )
     }
 
