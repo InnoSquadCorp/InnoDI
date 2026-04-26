@@ -1,7 +1,8 @@
 # `fatalError` Site Inventory (Macro Codegen)
 
-> **Status**: Draft (P0 deliverable for Item 2.A — fatalError → DiagnosticMessage migration)
+> **Status**: Phase 2.B applied — sites #1–#6 migrated, helpers removed, CI guard installed
 > **Created**: 2026-04-26
+> **Last updated**: 2026-04-26 (this branch)
 > **Target**: Track every `fatalError(...)` call site emitted by the macro plugin
 > so Phase 2.B can migrate them to `DiagnosticMessage` (compile-time error)
 > instead of leaving an unreachable runtime trap in user code.
