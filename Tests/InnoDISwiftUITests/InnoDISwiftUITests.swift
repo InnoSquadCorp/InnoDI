@@ -97,6 +97,12 @@ struct ParentContainer {
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
 
+    // `sharedFeature` and `transientFeature` intentionally retain
+    // explicit `withNames:` wiring because each property stacks
+    // `@SubContainer` with `@DIFeatureRoot`. These are the documented
+    // peer-macro escape-hatch cases from RFC 0002; until the compiler
+    // accepts the key-path form in this stacked context, Phase 3.B /
+    // 4.2.0 must not auto-migrate either fixture to `with:`.
     @SubContainer(scope: .shared, withNames: ["username", "greetingService", "activityService"])
     @DIFeatureRoot(SharedFeatureRootView.self)
     @DIFeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")

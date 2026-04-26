@@ -57,23 +57,32 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
         package static let lockTimeout = "INNODI_LOCK_TIMEOUT"
         /// Age in seconds past which a leftover lock file is treated as stale.
         package static let staleLockAge = "INNODI_STALE_LOCK_AGE"
+        /// Set to `1`, `true`, or `yes` to bypass the filesystem safety
+        /// guard and allow the coordinator to run on a filesystem where
+        /// `O_CREAT | O_EXCL` is not atomic (NFSv3, SMB/CIFS, some FUSE).
+        /// Use only when you accept that concurrent builds may corrupt
+        /// the shared-run cache.
+        package static let allowUnsafeLock = "INNODI_ALLOW_UNSAFE_LOCK"
     }
 
     package let maxWaitSeconds: TimeInterval
     package let staleLockAgeSeconds: TimeInterval
     package let initialBackoffSeconds: TimeInterval
     package let maxBackoffSeconds: TimeInterval
+    package let allowUnsafeFilesystem: Bool
 
     package init(
         maxWaitSeconds: TimeInterval = 30,
         staleLockAgeSeconds: TimeInterval = 30,
         initialBackoffSeconds: TimeInterval = 0.05,
-        maxBackoffSeconds: TimeInterval = 0.5
+        maxBackoffSeconds: TimeInterval = 0.5,
+        allowUnsafeFilesystem: Bool = false
     ) {
         self.maxWaitSeconds = maxWaitSeconds
         self.staleLockAgeSeconds = staleLockAgeSeconds
         self.initialBackoffSeconds = initialBackoffSeconds
         self.maxBackoffSeconds = maxBackoffSeconds
+        self.allowUnsafeFilesystem = allowUnsafeFilesystem
     }
 
     /// Builds a policy, honoring environment-variable overrides for the two
@@ -104,12 +113,38 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
             warningHandler: warningHandler
         )
 
+        let allowUnsafe = Self.resolveBool(
+            environment: environment,
+            key: EnvKey.allowUnsafeLock,
+            fallback: false,
+            warningHandler: warningHandler
+        )
+
         self.init(
             maxWaitSeconds: resolvedTimeout,
             staleLockAgeSeconds: resolvedStale,
             initialBackoffSeconds: base.initialBackoffSeconds,
-            maxBackoffSeconds: base.maxBackoffSeconds
+            maxBackoffSeconds: base.maxBackoffSeconds,
+            allowUnsafeFilesystem: allowUnsafe
         )
+    }
+
+    private static func resolveBool(
+        environment: [String: String],
+        key: String,
+        fallback: Bool,
+        warningHandler: (String) -> Void
+    ) -> Bool {
+        guard let raw = environment[key] else { return fallback }
+        switch raw.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "1", "true", "yes", "y", "on": return true
+        case "0", "false", "no", "n", "off", "": return false
+        default:
+            warningHandler(
+                "InnoDI: ignoring invalid \(key)=\(raw); falling back to \(fallback)."
+            )
+            return fallback
+        }
     }
 
     private static func resolveTimeInterval(
@@ -342,6 +377,21 @@ package enum ValidationCoordinator {
         let sharedRunRecordURL = sharedRunDirectory.appendingPathComponent("validation-metrics.json")
         let sharedSummaryURL = sharedRunDirectory.appendingPathComponent("validation-summary.md")
         let lockURL = sharedRunDirectory.appendingPathComponent("lock")
+
+        // Filesystem safety guard. Refuse to acquire the cross-process
+        // lock on filesystems where `O_CREAT | O_EXCL` is not atomic,
+        // unless the operator opted in via INNODI_ALLOW_UNSAFE_LOCK=1.
+        // See `Sources/InnoDI/InnoDI.docc/lock-safety.md`.
+        if let unsafeFailure = checkLockFilesystemSafety(
+            lockDirectory: sharedRunDirectory,
+            allowUnsafe: lockPolicy.allowUnsafeFilesystem
+        ) {
+            return try finalizeOutcome(
+                result: unsafeFailure.result,
+                wasCached: false,
+                sharedRunRecord: unsafeFailure.record
+            )
+        }
 
         func finalizeOutcome(
             result: ValidationCommandResult,
@@ -600,7 +650,12 @@ package enum ValidationCoordinator {
         let timeoutResult = ValidationCommandResult(
             exitCode: 1,
             stdout: "",
-            stderr: "Timed out waiting for validation coordinator lock at '\(lockURL.path(percentEncoded: false))' after \(formatSeconds(lockPolicy.maxWaitSeconds))s.\n"
+            stderr: lockTimeoutDiagnosticMessage(
+                lockURL: lockURL,
+                lockPolicy: lockPolicy,
+                recoveredStaleLock: recoveredStaleLock,
+                runtime: runtime
+            )
         )
         return try finalizeOutcome(
             result: timeoutResult,

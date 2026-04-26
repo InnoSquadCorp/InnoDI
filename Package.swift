@@ -78,6 +78,12 @@ let package = Package(
             name: "InnoDI-DependencyGraph",
             dependencies: [
                 "InnoDICore",
+                // Added for the `--diagnose-lock` subcommand: it uses
+                // FilesystemTypeDetector and the lock-metadata
+                // codecs to surface the same view of the world the
+                // build plugin sees. The plugin already builds both
+                // targets, so this introduces no new transitive cost.
+                "InnoDIBuildSupport",
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
@@ -134,6 +140,7 @@ let package = Package(
             name: "InnoDIDependencyGraphCLITests",
             dependencies: [
                 "InnoDI-DependencyGraph",
+                "InnoDIBuildSupport",
                 "InnoDITestSupport",
             ],
             exclude: ["__Snapshots__"],

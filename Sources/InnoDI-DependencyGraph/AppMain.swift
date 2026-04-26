@@ -23,6 +23,25 @@ func runDependencyGraphCLI() -> Int32 {
     let validateDAG = parsed.validateDAG
     let outputFormat = parsed.format ?? .mermaid
 
+    // `--diagnose-lock` short-circuits before any source loading: it
+    // does not need to parse the user's containers, only inspect the
+    // scratch directory.
+    if let requested = parsed.diagnoseLockPath {
+        return runDiagnoseLockSubcommand(
+            rootPath: rootPath,
+            requestedScratchPath: requested
+        )
+    }
+
+    // `--cache-stats` likewise only inspects on-disk metrics
+    // artifacts; it never parses source.
+    if let requested = parsed.cacheStatsPath {
+        return runCacheStatsSubcommand(
+            rootPath: rootPath,
+            requestedStatePath: requested
+        )
+    }
+
     let files = loadSwiftFiles(rootPath: rootPath)
     let parsedFiles = files.compactMap { file in
         let relative = relativePath(of: file, fromRoot: rootPath)
