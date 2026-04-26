@@ -66,7 +66,7 @@ that grep the previous wording (`Timed out waiting for
 validation coordinator lock at '...'`) should switch to the
 structured fields:
 
-```
+```text
 path:        <the lock path>
 waited:      <seconds>s
 holder pid:  <pid>

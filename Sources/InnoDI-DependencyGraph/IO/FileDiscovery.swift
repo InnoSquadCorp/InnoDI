@@ -8,10 +8,15 @@ func loadSwiftFiles(rootPath: String) -> [String] {
 
     var results: [String] = []
     while let item = enumerator.nextObject() as? String {
-        if item.hasPrefix(".") { continue }
-        if shouldSkip(path: item) { continue }
+        let fullPath = (rootPath as NSString).appendingPathComponent(item)
+        if item.hasPrefix(".") || shouldSkip(path: item) {
+            if isDirectory(at: fullPath, fileManager: fileManager) {
+                enumerator.skipDescendants()
+            }
+            continue
+        }
         if item.hasSuffix(".swift") {
-            results.append((rootPath as NSString).appendingPathComponent(item))
+            results.append(fullPath)
         }
     }
 
@@ -19,6 +24,11 @@ func loadSwiftFiles(rootPath: String) -> [String] {
 }
 
 func shouldSkip(path: String) -> Bool {
+    let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard !trimmedPath.isEmpty else {
+        return false
+    }
+    let normalizedPath = "/\(trimmedPath)/"
     let skipTokens = [
         "/.build/",
         "/Derived/",
@@ -32,10 +42,15 @@ func shouldSkip(path: String) -> Bool {
         "/.xcworkspace/"
     ]
 
-    for token in skipTokens where path.contains(token) {
+    for token in skipTokens where normalizedPath.contains(token) {
         return true
     }
     return false
+}
+
+private func isDirectory(at path: String, fileManager: FileManager) -> Bool {
+    var isDirectory: ObjCBool = false
+    return fileManager.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
 }
 
 func parseSourceFile(at path: String) throws -> SourceFileSyntax {

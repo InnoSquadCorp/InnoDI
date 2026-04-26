@@ -153,12 +153,12 @@ struct DIContainerValidator {
                     continue
                 }
 
-                if dagValidationEnabled {
-                    let status = resolutionContext.status(of: dependency, forMemberAt: index)
-                    switch status {
-                    case .available:
-                        break
-                    case .unknown:
+                let status = resolutionContext.status(of: dependency, forMemberAt: index)
+                switch status {
+                case .available:
+                    break
+                case .unknown:
+                    if dagValidationEnabled || member.scope == .transient {
                         context.diagnose(
                             makeUnresolvedFactoryParameterDiagnostic(
                                 member: member,
@@ -168,31 +168,32 @@ struct DIContainerValidator {
                             )
                         )
                         hadErrors = true
-                    case .unavailable:
-                        // Soft (Lazy<T>) and provider (Provider<T>) edges
-                        // intentionally escape declaration-order availability:
-                        // a generated local deferred cell lets a forward
-                        // reference resolve safely once init completes, and
-                        // `Provider<T>` reaches its transient target through
-                        // the same late-binding resolver. Only hard edges
-                        // still need to be reachable in declaration order.
-                        if hardClosureNames.contains(dependency) {
-                            context.diagnose(
-                                makeUnavailableDependencyDiagnostic(
-                                    member: member,
-                                    dependencyName: dependency,
-                                    referencedMember: referencedMember
-                                )
+                    }
+                case .unavailable:
+                    guard dagValidationEnabled else { continue }
+                    // Soft (Lazy<T>) and provider (Provider<T>) edges
+                    // intentionally escape declaration-order availability:
+                    // a generated local deferred cell lets a forward
+                    // reference resolve safely once init completes, and
+                    // `Provider<T>` reaches its transient target through
+                    // the same late-binding resolver. Only hard edges
+                    // still need to be reachable in declaration order.
+                    if hardClosureNames.contains(dependency) {
+                        context.diagnose(
+                            makeUnavailableDependencyDiagnostic(
+                                member: member,
+                                dependencyName: dependency,
+                                referencedMember: referencedMember
                             )
-                            hadErrors = true
-                        }
+                        )
+                        hadErrors = true
                     }
                 }
             }
 
             for dependency in deduplicateStrings(member.withDependencies) {
                 let referencedMember = memberByName[dependency]
-                guard dagValidationEnabled else { continue }
+                guard dagValidationEnabled || member.scope == .transient else { continue }
                 switch resolutionContext.status(of: dependency, forMemberAt: index) {
                 case .available:
                     break
@@ -207,6 +208,7 @@ struct DIContainerValidator {
                     )
                     hadErrors = true
                 case .unavailable:
+                    guard dagValidationEnabled else { continue }
                     context.diagnose(
                         makeUnavailableDependencyDiagnostic(
                             member: member,
@@ -370,8 +372,16 @@ struct DIContainerValidator {
             // removal of `withNames:`. We only fire when `withNames:` is
             // used in isolation (a `with:` co-occurrence already produces
             // the conflict diagnostic above; emitting both would be noise).
-            if sub.hasWithNamesDependencies && !sub.hasWithDependencies {
+            if sub.hasWithNamesDependencies
+                && !sub.hasWithDependencies
+                && !sub.hasStackedPeerMacroEscapeHatch {
                 let suggestion = renderSubContainerWithSuggestion(parentNames: sub.parentDependencies)
+                let fixIts = sub.invalidSameNameWiringLabel == nil
+                    ? makeSubPreferWithOverWithNamesFixIts(
+                        attribute: sub.attribute,
+                        replacement: suggestion
+                    )
+                    : []
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
@@ -379,10 +389,7 @@ struct DIContainerValidator {
                             memberName: sub.name,
                             suggestedReplacement: suggestion
                         ),
-                        fixIts: makeSubPreferWithOverWithNamesFixIts(
-                            attribute: sub.attribute,
-                            replacement: suggestion
-                        )
+                        fixIts: fixIts
                     )
                 )
             }

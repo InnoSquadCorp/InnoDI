@@ -34,21 +34,26 @@ import Glibc
 // imported into Swift under the name `statfs`. The Swift type checker
 // resolves a bare `statfs(...)` call to the no-arg struct initializer
 // instead of the function. We work around the collision by renaming
-// the struct to `StatfsBuffer` for our local use and looking up the
-// function pointer through `dlsym`. Both happen exactly once per
-// classify call, so the cost is negligible.
+// the struct to `StatfsBuffer` for our local use and binding the
+// platform C symbol directly.
 
 private typealias StatfsBuffer = statfs
 private typealias StatfsCFn = @convention(c) (UnsafePointer<CChar>?, UnsafeMutablePointer<StatfsBuffer>?) -> Int32
 
+#if canImport(Darwin) || canImport(Glibc)
+@_silgen_name("statfs")
+private func platformStatfs(
+    _ path: UnsafePointer<CChar>?,
+    _ buffer: UnsafeMutablePointer<StatfsBuffer>?
+) -> Int32
+#endif
+
 private let sysStatfs: StatfsCFn = {
-    guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "statfs") else {
-        // Fall back to a no-op that always reports failure; the
-        // detector will then classify everything as `.unknown`,
-        // which keeps the coordinator running rather than blocking.
-        return { _, _ in -1 }
-    }
-    return unsafeBitCast(symbol, to: StatfsCFn.self)
+    #if canImport(Darwin) || canImport(Glibc)
+    return { path, buffer in platformStatfs(path, buffer) }
+    #else
+    return { _, _ in -1 }
+    #endif
 }()
 
 // MARK: - Public surface

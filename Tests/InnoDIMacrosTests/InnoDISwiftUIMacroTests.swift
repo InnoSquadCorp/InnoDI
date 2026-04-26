@@ -147,6 +147,36 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIEnvironmentBridge rejects async Provide members")
+    func environmentBridgeRejectsAsyncProvideMembers() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "remoteService", environment: \EnvironmentValues.remoteService),
+            ])
+            struct AppContainer {
+                @Provide(.shared, asyncFactory: { () async in RemoteService() })
+                var remoteService: RemoteService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    @Provide(.shared, asyncFactory: { () async in RemoteService() })
+                    var remoteService: RemoteService
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-async-member"),
+                    message: "@DIEnvironmentBridge cannot map async container member 'remoteService' into SwiftUI EnvironmentValues. Expose a synchronous value or inject a service that performs async work internally.",
+                    line: 2,
+                    column: 5
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("DIEnvironmentBridge rejects invalid environment key paths")
     func environmentBridgeRejectsInvalidEnvironmentKeyPaths() {
         assertMacroExpansionInline(

@@ -1099,14 +1099,13 @@ struct ValidationCoordinatorTests {
         )
     }
 
-    @Test("acquireLock cleans up the lock file when the advisory flock layer fails to acquire")
-    func acquireLockCleansUpWhenAdvisoryLockContends() throws {
-        // Indirect coverage: acquireLock must not leave a half-created
-        // lock file behind if any layer fails. Easiest reproducer: hold
-        // the lock once, release it, confirm the file is gone, and a
-        // re-acquire succeeds. Combined with the test above this proves
-        // both the success-path cleanup (via releaseLock) and the
-        // error-path cleanup inside acquireLock cover their cases.
+    @Test("acquireLock removes the lock file after release and allows reacquire")
+    func acquireLockDoesNotLeaveLockFileAfterReleaseAndReacquire() throws {
+        // Indirect coverage: O_EXCL prevents directly reproducing a lone
+        // advisory-flock failure in acquireLock. This exercises the cleanup
+        // path around ValidationCoordinator+Locking.swift's close/removeItem
+        // pairing by acquiring, releasing, confirming the file is gone, and
+        // reacquiring at the same path.
         let rootURL = try makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -1118,6 +1117,22 @@ struct ValidationCoordinatorTests {
 
         let second = try #require(try acquireLock(at: lockURL))
         releaseLock(descriptor: second, at: lockURL)
+    }
+
+    @Test("lock policy warns on invalid allow-unsafe environment value")
+    func lockPolicyWarnsOnInvalidAllowUnsafeEnvironmentValue() {
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [
+                ValidationCoordinatorLockPolicy.EnvKey.allowUnsafeLock: "maybe"
+            ],
+            warningHandler: { warnings.append($0) }
+        )
+
+        #expect(policy.allowUnsafeFilesystem == false)
+        #expect(warnings == [
+            "InnoDI: ignoring invalid INNODI_ALLOW_UNSAFE_LOCK=maybe; falling back to false."
+        ])
     }
 
     @Test("releaseLock does not delete a replacement file recreated at the same path")

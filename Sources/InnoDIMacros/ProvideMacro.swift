@@ -62,7 +62,8 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return []
         }
 
-        let enclosingContainerMainActor = enclosingDIContainerInfo(for: declaration)?.mainActor == true
+        let enclosingContainerInfo = enclosingDIContainerInfo(for: declaration)
+        let enclosingContainerMainActor = enclosingContainerInfo?.mainActor == true
         let name = identifier.identifier.text
         
         switch parseResult.scope {
@@ -124,11 +125,20 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             // input that reaches this branch. Returning `[]` lets the
             // Swift compiler reject the stored property naturally, so
             // user code never embeds a `fatalError` trap.
-            if transientDependencyResolutionShouldFail(
+            if let resolutionFailure = transientDependencyResolutionFailure(
                 declaration: declaration,
                 parseResult: parseResult,
                 memberName: name
             ) {
+                if enclosingContainerInfo?.validateDAG == false,
+                   let diagnostic = resolutionFailure.diagnostic(memberName: name) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(attribute),
+                            message: diagnostic
+                        )
+                    )
+                }
                 return []
             }
 
@@ -259,16 +269,9 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
 
         case .none:
             // Site #5. The validator emits `provide.unknown-scope` when
-            // it parses this attribute. We re-emit here defensively for
-            // the same reason as site #4. Returning `[]` removes the
+            // it parses this attribute. Returning `[]` removes the
             // synthesized accessor; the user-visible compile error
             // points at the InnoDI diagnostic, never at a runtime trap.
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.provideUnknownScope(name)
-                )
-            )
             return []
         }
     }
@@ -357,19 +360,42 @@ private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) 
     return nil
 }
 
-private func transientDependencyResolutionShouldFail(
+private enum TransientDependencyResolutionFailure {
+    case unresolvedWithDependency(String)
+    case unresolvedFactoryParameter(String)
+    case missingMember
+
+    func diagnostic(memberName: String) -> SimpleDiagnostic? {
+        switch self {
+        case let .unresolvedWithDependency(dependency):
+            return .provideUnresolvedWithDependency(
+                memberName: memberName,
+                dependencyName: dependency
+            )
+        case let .unresolvedFactoryParameter(parameter):
+            return .provideUnresolvedFactoryParameter(
+                memberName: memberName,
+                parameterName: parameter
+            )
+        case .missingMember:
+            return nil
+        }
+    }
+}
+
+private func transientDependencyResolutionFailure(
     declaration: some DeclSyntaxProtocol,
     parseResult: ProvideArguments,
     memberName: String
-) -> Bool {
+) -> TransientDependencyResolutionFailure? {
     guard let members = enclosingProvideMemberNames(for: declaration) else {
-        return false
+        return nil
     }
 
     let knownNames = Set(members)
 
     for dependency in parseResult.dependencies where !knownNames.contains(dependency) {
-        return true
+        return .unresolvedWithDependency(dependency)
     }
 
     let parameterNames: [String]
@@ -382,14 +408,14 @@ private func transientDependencyResolutionShouldFail(
     }
 
     for dependency in parameterNames where !knownNames.contains(dependency) {
-        return true
+        return .unresolvedFactoryParameter(dependency)
     }
 
     if !knownNames.contains(memberName) {
-        return true
+        return .missingMember
     }
 
-    return false
+    return nil
 }
 
 private func enclosingProvideMemberNames(for declaration: some DeclSyntaxProtocol) -> [String]? {

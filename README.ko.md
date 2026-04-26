@@ -72,6 +72,21 @@ dependencies: [
 
 SwiftUI helper를 사용하지 않으면 `InnoDI`만 import하면 됩니다.
 
+InnoDI 컨테이너를 선언하는 타깃에는 build-time DAG validator 플러그인을
+연결합니다.
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
+        "InnoDI"
+    ],
+    plugins: [
+        .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+    ]
+)
+```
+
 ## 빠른 시작
 
 ```swift

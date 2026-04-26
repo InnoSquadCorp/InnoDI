@@ -4,13 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ITERATIONS=5
-FILTER="InnoDIMacrosTests"
+ITERATIONS=30
+DEFAULT_IN_PROCESS_FILTER="MacroPerformanceBenchmark"
+DEFAULT_SUBPROCESS_FILTER="InnoDIMacrosTests"
+FILTER=""
 BASELINE_FILE="Tools/macro-performance-baseline.json"
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
-IN_PROCESS=0
 EXPLICIT_REPORT_ONLY=0
+MEASURE_MODE="in-process"
+FILTER_OVERRIDE=0
 # Honor an externally-set `ENFORCE_REGRESSION_GATE` so callers can opt out of
 # the regression gate even inside GitHub Actions (e.g. a workflow that wants
 # the timing report without failing the run). Default to enforcing on
@@ -31,13 +34,14 @@ usage() {
 Usage: Tools/measure-macro-performance.sh [options]
 
 Options:
-  --iterations <N>        Number of measured runs (default: 5)
-  --filter <TEST_FILTER>  Swift test filter (default: InnoDIMacrosTests)
+  --iterations <N>        Number of measured runs (default: 30)
+  --filter <TEST_FILTER>  Swift test filter for --subprocess mode
+                          (default: InnoDIMacrosTests)
   --baseline <PATH>       Baseline JSON path (default: Tools/macro-performance-baseline.json)
   --threshold <PCT>       Allowed regression percentage (default: 20)
   --update-baseline       Overwrite baseline with current measurements
-  --in-process            Use the in-process SwiftSyntax benchmark (single
-                          swift test spawn, lower variance, ~20x faster)
+  --in-process            Use the in-process SwiftSyntax benchmark (default)
+  --subprocess            Measure a full swift test subprocess run
   --enforce               Fail when the threshold is exceeded
   --report-only           Report threshold results without failing
   --help                  Show this help
@@ -66,6 +70,7 @@ while [[ $# -gt 0 ]]; do
     --filter)
       require_option_value "--filter" "$FILTER" "${2:-}"
       FILTER="$2"
+      FILTER_OVERRIDE=1
       shift 2
       ;;
     --baseline)
@@ -83,7 +88,11 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --in-process)
-      IN_PROCESS=1
+      MEASURE_MODE="in-process"
+      shift
+      ;;
+    --subprocess)
+      MEASURE_MODE="subprocess"
       shift
       ;;
     --enforce)
@@ -117,6 +126,102 @@ if ! [[ "$THRESHOLD_PERCENT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   exit 1
 fi
 
+if [[ -z "$FILTER" ]]; then
+  if [[ "$MEASURE_MODE" == "in-process" ]]; then
+    FILTER="$DEFAULT_IN_PROCESS_FILTER"
+  else
+    FILTER="$DEFAULT_SUBPROCESS_FILTER"
+  fi
+fi
+
+if [[ "$MEASURE_MODE" == "in-process" && "$FILTER_OVERRIDE" -eq 1 ]]; then
+  echo "[macro-perf] --filter is only supported with --subprocess" >&2
+  echo "[macro-perf] in-process mode always uses '${DEFAULT_IN_PROCESS_FILTER}'" >&2
+  exit 1
+fi
+
+read_json_string() {
+  local key="$1"
+  local file="$2"
+  local value=""
+
+  if command -v jq >/dev/null 2>&1; then
+    value="$(jq -r ".${key} // empty" "$file" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$value" ]]; then
+    value="$(sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$file" | head -n 1)"
+  fi
+
+  printf '%s\n' "$value"
+}
+
+read_json_number() {
+  local key="$1"
+  local file="$2"
+  local value=""
+
+  if command -v jq >/dev/null 2>&1; then
+    value="$(jq -r ".${key} // empty" "$file" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$value" ]]; then
+    value="$(sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\\([0-9.][0-9.]*\\).*/\\1/p" "$file" | head -n 1)"
+  fi
+
+  printf '%s\n' "$value"
+}
+
+swift_version="$(swift --version 2>/dev/null | head -n 1 | sed 's/"/\\"/g')"
+
+preflight_baseline_compatibility() {
+  if [[ "$UPDATE_BASELINE" -eq 1 || ! -f "$BASELINE_FILE" ]]; then
+    return 0
+  fi
+
+  local baseline_mode
+  baseline_mode="$(read_json_string mode "$BASELINE_FILE")"
+  if [[ -z "$baseline_mode" ]]; then
+    echo "[macro-perf] baseline mode missing from $BASELINE_FILE; update baseline with --update-baseline" >&2
+    exit 1
+  fi
+
+  if [[ "$baseline_mode" != "$MEASURE_MODE" ]]; then
+    echo "[macro-perf] baseline mode mismatch; refusing to run incompatible measurement" >&2
+    echo "[macro-perf] baseline mode='${baseline_mode}'" >&2
+    echo "[macro-perf] current mode='${MEASURE_MODE}'" >&2
+    echo "[macro-perf] use a baseline generated with the same measurement mode" >&2
+    exit 1
+  fi
+
+  local baseline_filter
+  baseline_filter="$(read_json_string filter "$BASELINE_FILE")"
+  if [[ -z "$baseline_filter" ]]; then
+    echo "[macro-perf] baseline filter missing from $BASELINE_FILE; update baseline with --update-baseline" >&2
+    exit 1
+  fi
+
+  if [[ "$baseline_filter" != "$FILTER" ]]; then
+    echo "[macro-perf] baseline filter mismatch; refusing to run incompatible measurement" >&2
+    echo "[macro-perf] baseline filter='${baseline_filter}'" >&2
+    echo "[macro-perf] current filter='${FILTER}'" >&2
+    echo "[macro-perf] use a baseline generated with the same test filter" >&2
+    exit 1
+  fi
+
+  local baseline_swift_version
+  baseline_swift_version="$(read_json_string swift_version "$BASELINE_FILE")"
+  if [[ -n "$baseline_swift_version" && "$baseline_swift_version" != "$swift_version" ]]; then
+    echo "[macro-perf] baseline swift version mismatch; skipping regression gate"
+    echo "[macro-perf] baseline swift='${baseline_swift_version}'"
+    echo "[macro-perf] current swift='${swift_version}'"
+    echo "[macro-perf] update baseline with --update-baseline when toolchain migration stabilizes"
+    exit 0
+  fi
+}
+
+preflight_baseline_compatibility
+
 run_once_ms() {
   local started ended elapsed_ms
   started="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
@@ -128,9 +233,8 @@ run_once_ms() {
 
 declare -a samples
 
-if [[ "$IN_PROCESS" -eq 1 ]]; then
+if [[ "$MEASURE_MODE" == "in-process" ]]; then
   echo "[macro-perf] mode: in-process (SwiftSyntax direct expansion)"
-  FILTER="MacroPerformanceBenchmark"
   INNODI_MACRO_BENCH_ITERATIONS="$ITERATIONS" \
   INNODI_MACRO_BENCH_OUTPUT="$IN_PROCESS_REPORT" \
     swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
@@ -141,11 +245,14 @@ if [[ "$IN_PROCESS" -eq 1 ]]; then
   # Parse the JSON report the in-process benchmark just wrote so the rest
   # of the script (baseline diff, exit code gating) can treat it like any
   # other measurement run.
-  mapfile -t samples < <(python3 -c "import json,sys; print('\n'.join(f'{x:.3f}' for x in json.load(open(sys.argv[1]))['samples_ms']))" "$IN_PROCESS_REPORT")
+  while IFS= read -r sample; do
+    samples+=("$sample")
+  done < <(python3 -c "import json,sys; print('\n'.join(f'{x:.3f}' for x in json.load(open(sys.argv[1]))['samples_ms']))" "$IN_PROCESS_REPORT")
   for i in "${!samples[@]}"; do
     echo "[macro-perf] run $((i+1))/$ITERATIONS: ${samples[$i]} ms"
   done
 else
+  echo "[macro-perf] mode: subprocess (swift test process timing)"
   echo "[macro-perf] warmup: swift test --filter $FILTER"
   swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
 
@@ -162,7 +269,6 @@ min_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 < min { min = $1 }
 max_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 > max { max = $1 } END { printf "%.3f", max }')"
 stdev_ms="$(printf '%s\n' "$samples_lines" | awk -v mean="$mean_ms" '{sum += ($1 - mean)^2} END { if (NR <= 1) { printf "%.3f", 0.0 } else { printf "%.3f", sqrt(sum / (NR - 1)) } }')"
 
-swift_version="$(swift --version 2>/dev/null | head -n 1 | sed 's/"/\\"/g')"
 updated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 samples_json="$(printf '%s\n' "${samples[@]}" | awk 'BEGIN { printf "[" } NR > 1 { printf ", " } { printf "%s", $1 } END { printf "]" }')"
 
@@ -170,6 +276,7 @@ report_json="$(cat <<JSON
 {
   "updated_at": "${updated_at}",
   "swift_version": "${swift_version}",
+  "mode": "${MEASURE_MODE}",
   "filter": "${FILTER}",
   "iterations": ${ITERATIONS},
   "mean_ms": ${mean_ms},
@@ -191,35 +298,11 @@ if [[ "$UPDATE_BASELINE" -eq 1 || ! -f "$BASELINE_FILE" ]]; then
   exit 0
 fi
 
-baseline_mean=""
-if command -v jq >/dev/null 2>&1; then
-  baseline_mean="$(jq -r '.mean_ms // empty' "$BASELINE_FILE" 2>/dev/null || true)"
-fi
-
-if [[ -z "$baseline_mean" ]]; then
-  baseline_mean="$(sed -n 's/.*"mean_ms"[[:space:]]*:[[:space:]]*\([0-9.][0-9.]*\).*/\1/p' "$BASELINE_FILE" | head -n 1)"
-fi
+baseline_mean="$(read_json_number mean_ms "$BASELINE_FILE")"
 
 if [[ -z "$baseline_mean" ]]; then
   echo "[macro-perf] failed to parse baseline mean_ms from $BASELINE_FILE" >&2
   exit 1
-fi
-
-baseline_swift_version=""
-if command -v jq >/dev/null 2>&1; then
-  baseline_swift_version="$(jq -r '.swift_version // empty' "$BASELINE_FILE" 2>/dev/null || true)"
-fi
-
-if [[ -z "$baseline_swift_version" ]]; then
-  baseline_swift_version="$(sed -n 's/.*"swift_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BASELINE_FILE" | head -n 1)"
-fi
-
-if [[ -n "$baseline_swift_version" && "$baseline_swift_version" != "$swift_version" ]]; then
-  echo "[macro-perf] baseline swift version mismatch; skipping regression gate"
-  echo "[macro-perf] baseline swift='${baseline_swift_version}'"
-  echo "[macro-perf] current swift='${swift_version}'"
-  echo "[macro-perf] update baseline with --update-baseline when toolchain migration stabilizes"
-  exit 0
 fi
 
 regression_pct="$(awk -v current="$mean_ms" -v baseline="$baseline_mean" 'BEGIN { if (baseline == 0) { print "0.00" } else { printf "%.2f", ((current - baseline) / baseline) * 100.0 } }')"

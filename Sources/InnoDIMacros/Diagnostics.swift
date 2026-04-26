@@ -82,6 +82,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case swiftUIFeatureRootInvalidAlias = "swiftui.feature-root-invalid-alias"
     case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
     case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
+    case swiftUIEnvironmentBridgeAsyncMember = "swiftui.environment-bridge-async-member"
     case swiftUIEnvironmentBridgeInvalidKeyPath = "swiftui.environment-bridge-invalid-keypath"
     case swiftUIEnvironmentBridgeInvalidArguments = "swiftui.environment-bridge-invalid-arguments"
     case componentRequiresContainer = "component.requires-container"
@@ -113,7 +114,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
                 .swiftUIFeatureRootInvalidAlias,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
-                .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeInvalidKeyPath,
+                .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeAsyncMember,
+                .swiftUIEnvironmentBridgeInvalidKeyPath,
                 .swiftUIEnvironmentBridgeInvalidArguments,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
                 .hierarchyRootRequiresContainer,
@@ -308,6 +310,13 @@ extension SimpleDiagnostic {
         Self(
             "@DIEnvironmentBridge maps container member '\(memberName)' more than once.",
             code: .swiftUIEnvironmentBridgeDuplicateMember
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeAsyncMember(memberName: String) -> Self {
+        Self(
+            "@DIEnvironmentBridge cannot map async container member '\(memberName)' into SwiftUI EnvironmentValues. Expose a synchronous value or inject a service that performs async work internally.",
+            code: .swiftUIEnvironmentBridgeAsyncMember
         )
     }
 
