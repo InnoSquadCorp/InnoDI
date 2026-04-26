@@ -266,6 +266,104 @@ struct ProvideMacroTests {
         )
     }
 
+    // MARK: - fatalError-getter reproduce tests (Item 2.A inventory)
+    //
+    // The five sites in `ProvideMacro.swift` that synthesize a
+    // `fatalErrorGetter(...)` are tracked in
+    // `docs/internal/fatalerror-inventory.md`. Each of the tests below
+    // pins the *current* behavior so Phase 2.B can flip the assertion
+    // from "expansion contains fatalError" to "expansion contains no
+    // fatalError" with confidence. The diagnostic-code assertion
+    // remains stable across the migration.
+
+    @Test("Async transient factory with underscore parameter emits diagnostic and (currently) a fatalError getter")
+    func asyncTransientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() {
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, asyncFactory: { (_: APIClient) async in await ViewModel.load() }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        let result = expandMacroSource(source, macros: Self.macros)
+        let observed = result.diagnostics.map(\.diagnosticID)
+        #expect(
+            observed.contains(InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID),
+            "Expected `transient-factory.unnamed-parameters` diagnostic for async wildcard parameter; observed: \(observed)"
+        )
+
+        // Pre-Phase-2.B baseline. After migration, flip to:
+        //     #expect(!result.expansion.contains("fatalError("))
+        #expect(
+            result.expansion.contains("fatalError("),
+            "Pre-migration baseline: macro currently synthesizes a fatalError getter at ProvideMacro.swift:147."
+        )
+    }
+
+    @Test("Transient with no factory, no typeExpr, no initializer emits diagnostic and (currently) a fatalError getter")
+    func transientMissingFactoryEmitsDiagnostic() {
+        // No `factory:`, no `Type.self` typeExpr, no inline initializer.
+        // Hits ProvideMacro.swift:244 — site #4 in the inventory.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient)
+                var viewModel: ViewModel
+            }
+            """
+
+        let result = expandMacroSource(source, macros: Self.macros)
+        let observed = result.diagnostics.map(\.diagnosticID)
+        #expect(
+            observed.contains(InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID),
+            "Expected `provide.transient-factory-required` diagnostic for bare @Provide(.transient); observed: \(observed)"
+        )
+
+        // Pre-Phase-2.B baseline.
+        #expect(
+            result.expansion.contains("fatalError("),
+            "Pre-migration baseline: macro currently synthesizes a fatalError getter at ProvideMacro.swift:244."
+        )
+    }
+
+    @Test("Transient with unresolved factory parameter emits diagnostic (site #1 inventory probe)")
+    func transientWithUnresolvedFactoryParameterEmitsDiagnostic() {
+        // The closure references a parameter (`missing`) that doesn't
+        // resolve to any sibling member. The validator emits
+        // `provideUnresolvedFactoryParameter`. Empirically the accessor
+        // does NOT also reach site #1 (`fatalErrorGetter` at line 125) for
+        // this input — instead the expansion produces a broken
+        // `(self.missing)` reference. That broken expansion never compiles
+        // because the diagnostic is at error severity, so user code is
+        // still safe; the `fatalErrorGetter` at line 125 may in fact be
+        // unreachable for any input the validator surfaces a diagnostic
+        // for. See `docs/internal/fatalerror-inventory.md` (site #1).
+        //
+        // For Phase 2.B this means site #1 can likely be deleted
+        // outright after a single audit pass, with no diagnostic change.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        let result = expandMacroSource(source, macros: Self.macros)
+        let observed = result.diagnostics.map(\.diagnosticID)
+        #expect(
+            observed.contains(InnoDIDiagnosticCode.provideUnresolvedFactoryParameter.messageID),
+            "Expected `provide.unresolved-factory-parameter` diagnostic; observed: \(observed)"
+        )
+    }
+
     @Test("Async transient factory generates async accessor")
     func asyncTransientFactoryGeneratesAsyncAccessor() {
         assertMacroExpansionSnapshot(
