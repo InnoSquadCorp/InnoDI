@@ -244,21 +244,6 @@ internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
     )
 }
 
-/// Builds a `CodeBlockItemSyntax` containing a `fatalError("<message>")` call.
-internal func fatalErrorStmt(message: String) -> CodeBlockItemSyntax {
-    let call = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(
-                expression: ExprSyntax(StringLiteralExprSyntax(content: message))
-            )
-        ]),
-        rightParen: .rightParenToken()
-    )
-    return CodeBlockItemSyntax(item: .expr(ExprSyntax(call)))
-}
-
 // MARK: - Deferred wrapper cycle-escape helpers
 
 /// Local reference cell emitted inside macro-generated init bodies.
