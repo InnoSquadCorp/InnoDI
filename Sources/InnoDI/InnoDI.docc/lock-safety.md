@@ -38,9 +38,43 @@ by a network share, redirect SPM's scratch path:
 swift build --scratch-path /tmp/innodi-cache
 ```
 
-A future release (Phase 1.B of this hardening track) will detect
-unsafe filesystems automatically and refuse to run on them unless
-`INNODI_ALLOW_UNSAFE_LOCK=1` is set.
+InnoDI auto-detects the filesystem under the lock directory at the
+start of every run. If it lands on an unsafe one, the coordinator
+fails fast with the diagnostic block shown in
+[Refusing on unsafe filesystems](#refusing-on-unsafe-filesystems).
+Set `INNODI_ALLOW_UNSAFE_LOCK=1` to bypass the check (you keep the
+risk).
+
+## Refusing on unsafe filesystems
+
+When the auto-detector classifies the lock directory as `nfs`,
+`smbfs`, `cifs`, or a FUSE-backed filesystem, the coordinator emits
+this stderr block and exits with status `1`:
+
+```
+InnoDI refuses to acquire its validation coordinator lock on this filesystem.
+  path:        /Volumes/CIShare/.../validation-lock
+  filesystem:  nfs (classified as unsafe)
+
+Reason:
+  `O_CREAT | O_EXCL` is not atomic on NFSv3, SMB/CIFS, and some FUSE-backed
+  filesystems. Two concurrent builds can both believe they own the lock,
+  which would corrupt the shared-run validation cache.
+
+Suggested actions:
+  1) Move SPM's scratch path to a local filesystem:
+       swift build --scratch-path /tmp/innodi-cache
+  2) If you understand the risk and want to proceed anyway:
+       INNODI_ALLOW_UNSAFE_LOCK=1 swift build
+```
+
+If the detector returns `unknown` (a filesystem InnoDI does not yet
+recognize) the coordinator emits a single-line warning and proceeds —
+we never block on an unrecognized filesystem because the most common
+cause is a new, perfectly safe filesystem we haven't added to the
+table yet. Filesystems we have not classified yet are tracked in
+`Sources/InnoDIBuildSupport/FilesystemTypeDetector.swift` — please
+open an issue if your filesystem warrants explicit handling.
 
 ## Reading a lock-timeout diagnostic
 
@@ -131,12 +165,12 @@ Common cases:
 |---|---|---|
 | `INNODI_LOCK_TIMEOUT` | `30` | Seconds the coordinator polls the lock before giving up. |
 | `INNODI_STALE_LOCK_AGE` | `30` | Seconds after which an apparently-orphaned lock is eligible for recovery. |
+| `INNODI_ALLOW_UNSAFE_LOCK` | unset | Set to `1`, `true`, `yes`, or `on` to bypass the unsafe-filesystem fail-fast (NFSv3, SMB/CIFS, FUSE). The coordinator still emits a one-line warning so the bypass is auditable in build logs. |
 
-Both accept positive integers. Floating-point values are not
-supported.
-
-A future release will add `INNODI_SCRATCH_PATH` and
-`INNODI_ALLOW_UNSAFE_LOCK` (Phase 1.B).
+`INNODI_LOCK_TIMEOUT` and `INNODI_STALE_LOCK_AGE` accept positive
+floating-point seconds. Unparseable values fall back to the default
+and emit a stderr warning so the misconfiguration surfaces at the
+first build.
 
 ## See also
 

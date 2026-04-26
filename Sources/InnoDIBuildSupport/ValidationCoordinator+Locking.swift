@@ -241,6 +241,104 @@ internal struct ValidationCoordinatorIOError: LocalizedError {
     }
 }
 
+// MARK: - Filesystem safety guard
+
+/// Bundle returned by `checkLockFilesystemSafety` when the
+/// coordinator must refuse to run. The tuple shape mirrors the
+/// shared-run-record path so the caller can hand it directly to
+/// `finalizeOutcome` without case-by-case plumbing.
+internal struct UnsafeLockFilesystemOutcome {
+    let result: ValidationCommandResult
+    let record: SharedValidationRunRecord
+}
+
+/// Inspects the filesystem under `lockDirectory` and decides whether
+/// the coordinator should proceed.
+///
+/// - Returns: `nil` to mean "proceed" (safe filesystem, or operator
+///   explicitly opted-in via `INNODI_ALLOW_UNSAFE_LOCK`, or the
+///   detector returned `.unknown` — in the unknown case a stderr
+///   warning is emitted but the run continues so we never block on a
+///   filesystem we don't yet recognize). A non-`nil` value means
+///   "refuse" — the bundled `result` carries an `exitCode == 1` and a
+///   structured stderr block that points users at lock-safety.md.
+internal func checkLockFilesystemSafety(
+    lockDirectory: URL,
+    allowUnsafe: Bool
+) -> UnsafeLockFilesystemOutcome? {
+    let classification = FilesystemTypeDetector.classify(directory: lockDirectory)
+
+    switch classification.safetyClass {
+    case .safe:
+        return nil
+
+    case .unknown:
+        // We don't recognize this filesystem; emit a one-line
+        // warning to stderr and proceed. The user can re-run with
+        // `INNODI_ALLOW_UNSAFE_LOCK=1` to silence the warning if
+        // they wish, but it never blocks.
+        let identifier = classification.identifier.isEmpty
+            ? "<unavailable>"
+            : classification.identifier
+        let message = "InnoDI: lock directory '\(lockDirectory.path(percentEncoded: false))' is on an unrecognized filesystem (\(identifier)); proceeding optimistically. See lock-safety.md.\n"
+        FileHandle.standardError.write(Data(message.utf8))
+        return nil
+
+    case .unsafe:
+        if allowUnsafe {
+            let identifier = classification.identifier.isEmpty
+                ? "<unavailable>"
+                : classification.identifier
+            let message = "InnoDI: INNODI_ALLOW_UNSAFE_LOCK=1 set; proceeding on unsafe filesystem (\(identifier)). Concurrent builds may corrupt the shared-run cache.\n"
+            FileHandle.standardError.write(Data(message.utf8))
+            return nil
+        }
+        let stderr = unsafeFilesystemDiagnosticMessage(
+            lockDirectory: lockDirectory,
+            classification: classification
+        )
+        let result = ValidationCommandResult(exitCode: 1, stdout: "", stderr: stderr)
+        let record = SharedValidationRunRecord(
+            liveRunMetrics: ValidationLiveRunMetrics(
+                customInitValidationMilliseconds: 0,
+                semanticValidationMilliseconds: 0,
+                hierarchyValidationMilliseconds: 0,
+                dagValidationMilliseconds: 0
+            ),
+            reasonCodes: [.unsafeFilesystem],
+            issues: []
+        )
+        return UnsafeLockFilesystemOutcome(result: result, record: record)
+    }
+}
+
+internal func unsafeFilesystemDiagnosticMessage(
+    lockDirectory: URL,
+    classification: FilesystemClassification
+) -> String {
+    let identifier = classification.identifier.isEmpty
+        ? "<unavailable>"
+        : classification.identifier
+    var lines: [String] = []
+    lines.append("InnoDI refuses to acquire its validation coordinator lock on this filesystem.")
+    lines.append("  path:        \(lockDirectory.path(percentEncoded: false))")
+    lines.append("  filesystem:  \(identifier) (classified as unsafe)")
+    lines.append("")
+    lines.append("Reason:")
+    lines.append("  `O_CREAT | O_EXCL` is not atomic on NFSv3, SMB/CIFS, and some FUSE-backed")
+    lines.append("  filesystems. Two concurrent builds can both believe they own the lock,")
+    lines.append("  which would corrupt the shared-run validation cache.")
+    lines.append("")
+    lines.append("Suggested actions:")
+    lines.append("  1) Move SPM's scratch path to a local filesystem:")
+    lines.append("       swift build --scratch-path /tmp/innodi-cache")
+    lines.append("  2) If you understand the risk and want to proceed anyway:")
+    lines.append("       INNODI_ALLOW_UNSAFE_LOCK=1 swift build")
+    lines.append("")
+    lines.append("Reference: https://github.com/InnoSquadCorp/InnoDI/blob/main/Sources/InnoDI/InnoDI.docc/lock-safety.md")
+    return lines.joined(separator: "\n") + "\n"
+}
+
 // MARK: - Diagnostic rendering
 
 /// Renders the stderr message used when the coordinator gives up waiting for
