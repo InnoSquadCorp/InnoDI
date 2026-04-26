@@ -1989,6 +1989,9 @@ struct DIContainerMacroTests {
 
     @Test("`.shared` sub-container supports name-based same-label subset wiring")
     func subContainerSharedWithNamesSubset() {
+        // Expansion stays as it was; the new `subPreferWithOverWithNames`
+        // warning is emitted in addition (Item 3.A — preparing for the
+        // 4.2 deprecation / 5.0 removal of `withNames:`).
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -2001,6 +2004,16 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "subContainerSharedWithNamesSubset",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
+                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: with: [\\.config]. withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
+                    line: 6,
+                    column: 5,
+                    severity: .note,
+                    fixIts: [FixItSpec(message: "Replace `withNames:` with `with: [\\.config]`")]
+                )
+            ],
             macros: Self.macros
         )
     }
@@ -2019,7 +2032,149 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "subContainerSharedWithNamesEmptySubset",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
+                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: with: []. withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
+                    line: 6,
+                    column: 5,
+                    severity: .note,
+                    fixIts: [FixItSpec(message: "Replace `withNames:` with `with: []`")]
+                )
+            ],
             macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with withNames: emits the prefer-with hint with a concrete migration suggestion")
+    func subContainerWithNamesEmitsPreferWithHint() {
+        // Item 3.A — the hint diagnostic must include the exact
+        // replacement form so users can copy-paste the migration.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var apiClient: APIClient
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+                var feature: FeatureContainer
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [InnoDIDiagnosticCode.subPreferWithOverWithNames.messageID],
+            macros: Self.macros
+        )
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "subContainerWithNamesEmitsPreferWithHint",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.subPreferWithOverWithNames.messageID,
+                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: with: [\\.config, \\.apiClient]. withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
+                    line: 7,
+                    column: 5,
+                    severity: .note,
+                    fixIts: [FixItSpec(message: "Replace `withNames:` with `with: [\\.config, \\.apiClient]`")]
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer prefer-with hint attaches a Fix-it that rewrites withNames: in place")
+    func subContainerPreferWithHintAttachesFixIt() {
+        // Item 3.A leftover — the Fix-it lets IDEs apply the migration
+        // with one click. We assert structural properties of the Fix-it
+        // (the rewrite text + that the range targets the `withNames:`
+        // labelled argument) rather than re-inventing diagnostic-spec
+        // matching.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var apiClient: APIClient
+
+                @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+                var feature: FeatureContainer
+            }
+            """
+
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "subContainerPreferWithHintAttachesFixIt",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.subPreferWithOverWithNames.messageID,
+                    message: "@SubContainer on 'feature' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: with: [\\.config, \\.apiClient]. withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
+                    line: 6,
+                    column: 5,
+                    severity: .note,
+                    fixIts: [FixItSpec(message: "Replace `withNames:` with `with: [\\.config, \\.apiClient]`")]
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer with both `with:` and `withNames:` does NOT also emit the prefer-with hint")
+    func subContainerBothFormsSuppressesHint() {
+        // When `with:` and `withNames:` co-occur, the existing
+        // `subWithConflictsWithWithNames` error already tells the user
+        // to pick one form. Emitting the prefer-with hint on top would
+        // be redundant noise.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.config], withNames: ["config"])
+                var feature: FeatureContainer
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [InnoDIDiagnosticCode.subWithConflictsWithWithNames.messageID],
+            macros: Self.macros
+        )
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "subContainerBothFormsSuppressesHint",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.subWithConflictsWithWithNames.messageID,
+                    message: "@SubContainer on 'feature' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
+                    line: 5,
+                    column: 5,
+                    severity: .error
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer withNames: stacked with DIFeatureRoot suppresses the migration hint")
+    func subContainerWithNamesStackedWithDIFeatureRootSuppressesHint() {
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, withNames: ["config"])
+                @DIFeatureRoot(FeatureRootView.self)
+                var feature: FeatureContainer
+            }
+            """
+
+        var macros = Self.macros
+        macros["DIFeatureRoot"] = DIFeatureRootMacro.self
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [],
+            macros: macros
         )
     }
 
@@ -2124,7 +2279,10 @@ struct DIContainerMacroTests {
             }
             """,
             expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
+                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with"),
+                // Item 3.A — the prefer-with hint also fires because
+                // `withNames:` is in use without `with:`.
+                MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
             ],
             macros: Self.macros
         )
@@ -2168,7 +2326,10 @@ struct DIContainerMacroTests {
             }
             """,
             expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring"),
+                // Item 3.A — prefer-with hint co-fires whenever
+                // `withNames:` appears without `with:`.
+                MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
             ],
             macros: Self.macros
         )
@@ -2200,8 +2361,7 @@ struct DIContainerMacroTests {
         // Empty strings can never name a parent member; rejecting them
         // up front gives the user `sub.invalid-same-name-wiring` instead
         // of a misleading "unknown parent member ''" trail.
-        assertMacroExpansionDiagnosticCodes(
-            """
+        let source = """
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
@@ -2209,11 +2369,24 @@ struct DIContainerMacroTests {
                 @SubContainer(scope: .shared, withNames: [""])
                 var feature: FeatureContainer
             }
-            """,
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
             expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring"),
+                MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
             ],
             macros: Self.macros
+        )
+
+        let result = expandMacroSource(source, macros: Self.macros)
+        let preferWithDiagnostic = result.diagnostics.first(where: {
+            $0.diagnosticID == InnoDIDiagnosticCode.subPreferWithOverWithNames.messageID
+        })
+        #expect(
+            preferWithDiagnostic?.fixIts.isEmpty == true,
+            "Invalid withNames: syntax should keep the note but suppress the auto-migration Fix-it."
         )
     }
 
@@ -2233,7 +2406,8 @@ struct DIContainerMacroTests {
             }
             """,
             expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring"),
+                MessageID(domain: "InnoDI.usage", id: "sub.prefer-with-over-with-names"),
             ],
             macros: Self.macros
         )

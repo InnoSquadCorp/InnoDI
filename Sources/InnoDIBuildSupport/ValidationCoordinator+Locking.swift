@@ -41,19 +41,53 @@ import Glibc
 
 // MARK: - Lock primitives
 
+/// Acquires the validation coordinator lock at `url`.
+///
+/// The lock is layered:
+///   1. `open(O_CREAT | O_EXCL | O_RDWR)` — atomic creation on local
+///      filesystems; the primary single-holder gate.
+///   2. `flock(LOCK_EX | LOCK_NB)` — advisory exclusive lock on the
+///      descriptor we just opened. Defense-in-depth: on filesystems
+///      where `O_EXCL` is *not* atomic across clients (NFSv4 with
+///      cooperative clients, some FUSE drivers) the advisory lock
+///      becomes the single-holder gate. On safe filesystems the
+///      advisory lock is redundant but cheap.
+///
+/// Returns:
+/// - `nil` when either layer reports contention (`EEXIST` from
+///   `open`, `EWOULDBLOCK`/`EAGAIN` from `flock`). The caller is
+///   expected to retry with backoff or recover a stale lock.
+/// - the file descriptor on success — the caller must release it
+///   via `releaseLock(descriptor:at:)`.
+///
+/// Throws `POSIXLockError` for any other failure (`EACCES`,
+/// `ENOSPC`, etc.) — see `errnoActionHint` for user-facing
+/// suggestions per code.
 internal func acquireLock(at url: URL) throws -> Int32? {
     let path = url.path(percentEncoded: false)
     let descriptor = open(path, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
-    if descriptor >= 0 {
-        return descriptor
+    if descriptor < 0 {
+        if errno == EEXIST {
+            return nil
+        }
+        throw POSIXLockError(code: errno, path: path)
     }
 
-    if errno == EEXIST {
-        return nil
+    // Layer 2: advisory exclusive lock. Non-blocking so we can fold
+    // contention into the same `nil` retry path the O_EXCL branch
+    // uses — the caller's poll loop is the right place to retry.
+    let flockResult = flock(descriptor, LOCK_EX | LOCK_NB)
+    if flockResult != 0 {
+        let flockErrno = errno
+        close(descriptor)
+        if flockErrno == EWOULDBLOCK || flockErrno == EAGAIN {
+            return nil
+        }
+        throw POSIXLockError(code: flockErrno, path: path)
     }
 
-    throw POSIXLockError(code: errno, path: path)
+    return descriptor
 }
 
 internal func persistLockMetadata(
@@ -73,7 +107,7 @@ internal func persistLockMetadata(
     }
 }
 
-internal func loadLockMetadata(at url: URL) -> ValidationCoordinatorLockMetadata? {
+package func loadLockMetadata(at url: URL) -> ValidationCoordinatorLockMetadata? {
     guard
         let data = try? Data(contentsOf: url),
         let metadata = try? JSONDecoder().decode(ValidationCoordinatorLockMetadata.self, from: data),
@@ -183,7 +217,51 @@ internal struct POSIXLockError: LocalizedError {
     let path: String
 
     var errorDescription: String? {
-        "Failed to acquire validation lock at '\(path)' (errno: \(code))."
+        let name = errnoName(code)
+        let base = "Failed to acquire validation lock at '\(path)' (errno: \(code) \(name))."
+        if let hint = errnoActionHint(code) {
+            return "\(base) \(hint)"
+        }
+        return base
+    }
+}
+
+/// Maps a POSIX `errno` value to its symbolic name. Falls back to "unknown" so
+/// the message stays informative even if Darwin/Glibc adds new codes.
+internal func errnoName(_ code: Int32) -> String {
+    switch code {
+    case EACCES: return "EACCES"
+    case EROFS:  return "EROFS"
+    case ENOSPC: return "ENOSPC"
+    case ENOENT: return "ENOENT"
+    case EISDIR: return "EISDIR"
+    case ENAMETOOLONG: return "ENAMETOOLONG"
+    case ENOTDIR: return "ENOTDIR"
+    case EEXIST: return "EEXIST"
+    case EBUSY:  return "EBUSY"
+    case EIO:    return "EIO"
+    default:     return "unknown"
+    }
+}
+
+/// Returns a one-line, actionable hint for a subset of well-known `errno`s
+/// the lock-acquisition path can encounter. Returns `nil` for codes where a
+/// generic message is already enough.
+///
+/// See `Sources/InnoDI/InnoDI.docc/lock-safety.md` for the full
+/// troubleshooting guide.
+internal func errnoActionHint(_ code: Int32) -> String? {
+    switch code {
+    case EACCES, EROFS:
+        return "The directory is read-only or this process lacks write permission. " +
+               "Set SPM `--scratch-path` (or DerivedData) to a writable, local filesystem."
+    case ENOSPC:
+        return "The filesystem is out of space. Free space on the lock directory's volume."
+    case ENOENT, ENOTDIR:
+        return "The lock directory does not exist. Re-run with a fresh build, or supply " +
+               "`--scratch-path` to a directory that exists."
+    default:
+        return nil
     }
 }
 
@@ -195,6 +273,154 @@ internal struct ValidationCoordinatorIOError: LocalizedError {
     var errorDescription: String? {
         "Failed to \(operation) at '\(path)': \(underlying.localizedDescription)"
     }
+}
+
+// MARK: - Filesystem safety guard
+
+/// Bundle returned by `checkLockFilesystemSafety` when the
+/// coordinator must refuse to run. The tuple shape mirrors the
+/// shared-run-record path so the caller can hand it directly to
+/// `finalizeOutcome` without case-by-case plumbing.
+internal struct UnsafeLockFilesystemOutcome {
+    let result: ValidationCommandResult
+    let record: SharedValidationRunRecord
+}
+
+/// Inspects the filesystem under `lockDirectory` and decides whether
+/// the coordinator should proceed.
+///
+/// - Returns: `nil` to mean "proceed" (safe filesystem, or operator
+///   explicitly opted-in via `INNODI_ALLOW_UNSAFE_LOCK`, or the
+///   detector returned `.unknown` — in the unknown case a stderr
+///   warning is emitted but the run continues so we never block on a
+///   filesystem we don't yet recognize). A non-`nil` value means
+///   "refuse" — the bundled `result` carries an `exitCode == 1` and a
+///   structured stderr block that points users at lock-safety.md.
+internal func checkLockFilesystemSafety(
+    lockDirectory: URL,
+    allowUnsafe: Bool
+) -> UnsafeLockFilesystemOutcome? {
+    let classification = FilesystemTypeDetector.classify(directory: lockDirectory)
+
+    switch classification.safetyClass {
+    case .safe:
+        return nil
+
+    case .unknown:
+        // We don't recognize this filesystem; emit a one-line
+        // warning to stderr and proceed. The user can re-run with
+        // `INNODI_ALLOW_UNSAFE_LOCK=1` to silence the warning if
+        // they wish, but it never blocks.
+        if !allowUnsafe {
+            let identifier = classification.identifier.isEmpty
+                ? "<unavailable>"
+                : classification.identifier
+            let message = "InnoDI: lock directory '\(lockDirectory.path(percentEncoded: false))' is on an unrecognized filesystem (\(identifier)); proceeding optimistically. See lock-safety.md.\n"
+            FileHandle.standardError.write(Data(message.utf8))
+        }
+        return nil
+
+    case .unsafe:
+        if allowUnsafe {
+            let identifier = classification.identifier.isEmpty
+                ? "<unavailable>"
+                : classification.identifier
+            let message = "InnoDI: INNODI_ALLOW_UNSAFE_LOCK=1 set; proceeding on unsafe filesystem (\(identifier)). Concurrent builds may corrupt the shared-run cache.\n"
+            FileHandle.standardError.write(Data(message.utf8))
+            return nil
+        }
+        let stderr = unsafeFilesystemDiagnosticMessage(
+            lockDirectory: lockDirectory,
+            classification: classification
+        )
+        let result = ValidationCommandResult(exitCode: 1, stdout: "", stderr: stderr)
+        let record = SharedValidationRunRecord(
+            liveRunMetrics: ValidationLiveRunMetrics(
+                customInitValidationMilliseconds: 0,
+                semanticValidationMilliseconds: 0,
+                hierarchyValidationMilliseconds: 0,
+                dagValidationMilliseconds: 0
+            ),
+            reasonCodes: [.unsafeFilesystem],
+            issues: []
+        )
+        return UnsafeLockFilesystemOutcome(result: result, record: record)
+    }
+}
+
+internal func unsafeFilesystemDiagnosticMessage(
+    lockDirectory: URL,
+    classification: FilesystemClassification
+) -> String {
+    let identifier = classification.identifier.isEmpty
+        ? "<unavailable>"
+        : classification.identifier
+    var lines: [String] = []
+    lines.append("InnoDI refuses to acquire its validation coordinator lock on this filesystem.")
+    lines.append("  path:        \(lockDirectory.path(percentEncoded: false))")
+    lines.append("  filesystem:  \(identifier) (classified as unsafe)")
+    lines.append("")
+    lines.append("Reason:")
+    lines.append("  `O_CREAT | O_EXCL` is not atomic on NFSv3, SMB/CIFS, and some FUSE-backed")
+    lines.append("  filesystems. Two concurrent builds can both believe they own the lock,")
+    lines.append("  which would corrupt the shared-run validation cache.")
+    lines.append("")
+    lines.append("Suggested actions:")
+    lines.append("  1) Move SPM's scratch path to a local filesystem:")
+    lines.append("       swift build --scratch-path /tmp/innodi-cache")
+    lines.append("  2) If you understand the risk and want to proceed anyway:")
+    lines.append("       INNODI_ALLOW_UNSAFE_LOCK=1 swift build")
+    lines.append("")
+    lines.append("Reference: https://github.com/InnoSquadCorp/InnoDI/blob/main/Sources/InnoDI/InnoDI.docc/lock-safety.md")
+    return lines.joined(separator: "\n") + "\n"
+}
+
+// MARK: - Diagnostic rendering
+
+/// Renders the stderr message used when the coordinator gives up waiting for
+/// the validation lock. The previous version printed only the path and the
+/// elapsed wait — users had to inspect lock files manually to find the
+/// holder, the holder's age, and which env var to tune. This rendering folds
+/// all of that into a single block, plus links to the lock-safety DocC
+/// article.
+internal func lockTimeoutDiagnosticMessage(
+    lockURL: URL,
+    lockPolicy: ValidationCoordinatorLockPolicy,
+    recoveredStaleLock: Bool,
+    runtime: ValidationCoordinatorRuntime
+) -> String {
+    let path = lockURL.path(percentEncoded: false)
+    var lines: [String] = []
+    lines.append("Timed out waiting for the InnoDI validation coordinator lock.")
+    lines.append("  path:        \(path)")
+    lines.append("  waited:      \(formatSeconds(lockPolicy.maxWaitSeconds))s")
+    if recoveredStaleLock {
+        lines.append("  note:        a stale lock was recovered during this run, but contention persisted afterwards.")
+    }
+
+    if let metadata = loadLockMetadata(at: lockURL) {
+        lines.append("  holder pid:  \(metadata.pid)")
+        if let age = lockFileAgeSeconds(at: path, now: runtime.currentDate()) {
+            lines.append("  holder age:  \(formatSeconds(age))s")
+        }
+        if let bootID = metadata.bootID {
+            lines.append("  boot id:     \(bootID)")
+        }
+    } else {
+        lines.append("  holder:      <metadata unavailable — lock file missing or unreadable>")
+    }
+
+    lines.append("")
+    lines.append("Suggested actions:")
+    lines.append("  1) Re-run the build. Concurrent SPM/Xcode invocations are the most common cause.")
+    lines.append("  2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).")
+    lines.append("  3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.")
+    lines.append("  4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:")
+    lines.append("     swift build --scratch-path /tmp/innodi-cache  (NFSv3 and SMB are not safe — see lock-safety.md).")
+    lines.append("")
+    lines.append("Reference: https://github.com/InnoSquadCorp/InnoDI/blob/main/Sources/InnoDI/InnoDI.docc/lock-safety.md")
+
+    return lines.joined(separator: "\n") + "\n"
 }
 
 // MARK: - Process/IO utilities

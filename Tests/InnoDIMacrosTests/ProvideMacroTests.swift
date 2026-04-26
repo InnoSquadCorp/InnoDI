@@ -266,6 +266,202 @@ struct ProvideMacroTests {
         )
     }
 
+    @Test("validateDAG: false transient factory misses still emit terminal InnoDI diagnostic")
+    func validateDAGFalseTransientFactoryMissingParameterEmitsDiagnostic() {
+        let source = """
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [InnoDIDiagnosticCode.provideUnresolvedFactoryParameter.messageID],
+            macros: Self.macros
+        )
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "validateDAGFalseTransientFactoryMissingParameterEmitsDiagnostic",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.provideUnresolvedFactoryParameter.messageID,
+                    message: "Factory parameter 'missing' for 'viewModel' does not match any injectable container member.",
+                    line: 6,
+                    column: 38,
+                    severity: .error,
+                    notes: [
+                        NoteSpec(
+                            message: "Rename the factory parameter to match an injectable member name, or switch to explicit wiring inside the factory body.",
+                            line: 6,
+                            column: 5
+                        ),
+                        NoteSpec(
+                            message: "'viewModel' can only inject members declared in the container by exact member name.",
+                            line: 7,
+                            column: 9
+                        ),
+                    ]
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    // MARK: - Eliminated-fatalError reproduce tests (Phase 2.B)
+    //
+    // The five sites in `ProvideMacro.swift` that previously synthesized
+    // a `fatalErrorGetter(...)` are tracked in
+    // `docs/internal/fatalerror-inventory.md`. After Phase 2.B these
+    // tests assert two things:
+    //   1) The user-facing diagnostic is still emitted at error severity.
+    //   2) The macro expansion no longer contains a `fatalError(` call —
+    //      malformed input fails to compile because the synthesized
+    //      property has no accessor, never because of a runtime trap.
+
+    @Test("Async transient factory with underscore parameter emits diagnostic without trap")
+    func asyncTransientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() {
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, asyncFactory: { (_: APIClient) async in await ViewModel.load() }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [
+                InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
+                InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
+            ],
+            macros: Self.macros
+        )
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "asyncTransientFactoryClosureWithUnderscoreParameterEmitsDiagnostic",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
+                    message: "Factory closure parameters must be named for injection.",
+                    line: 3,
+                    column: 40,
+                    severity: .error
+                ),
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
+                    message: "Factory closure parameters must be named for injection.",
+                    line: 6,
+                    column: 5,
+                    severity: .error
+                ),
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Transient with no factory, no typeExpr, no initializer emits diagnostic without trap")
+    func transientMissingFactoryEmitsDiagnostic() {
+        // No `factory:`, no `Type.self` typeExpr, no inline initializer.
+        // Site #4 in the inventory — accessor now re-emits the
+        // `provide.transient-factory-required` diagnostic defensively.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [
+                InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
+                InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
+            ],
+            macros: Self.macros
+        )
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "transientMissingFactoryEmitsDiagnostic",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
+                    message: "@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.",
+                    line: 3,
+                    column: 5,
+                    severity: .error
+                ),
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
+                    message: "@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.",
+                    line: 3,
+                    column: 5,
+                    severity: .error
+                ),
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Transient with unresolved factory parameter emits diagnostic without trap (site #1)")
+    func transientWithUnresolvedFactoryParameterEmitsDiagnostic() {
+        // Site #1 in the inventory. After Phase 2.B the
+        // `transientDependencyResolutionFailure` branch returns []
+        // instead of synthesizing a fatalError getter, so the
+        // expansion contains no trap regardless of which validator
+        // path produced the diagnostic.
+        let source = """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var apiClient: APIClient
+
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                var viewModel: ViewModel
+            }
+            """
+
+        assertMacroExpansionDiagnosticCodes(
+            source,
+            expectedCodes: [InnoDIDiagnosticCode.provideUnresolvedFactoryParameter.messageID],
+            macros: Self.macros
+        )
+        assertMacroExpansionSnapshot(
+            source,
+            matches: "transientWithUnresolvedFactoryParameterEmitsDiagnostic",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: InnoDIDiagnosticCode.provideUnresolvedFactoryParameter.messageID,
+                    message: "Factory parameter 'missing' for 'viewModel' does not match any injectable container member.",
+                    line: 6,
+                    column: 38,
+                    severity: .error,
+                    notes: [
+                        NoteSpec(
+                            message: "Rename the factory parameter to match an injectable member name, or switch to explicit wiring inside the factory body.",
+                            line: 6,
+                            column: 5
+                        ),
+                        NoteSpec(
+                            message: "'viewModel' can only inject members declared in the container by exact member name.",
+                            line: 7,
+                            column: 9
+                        ),
+                    ]
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("Async transient factory generates async accessor")
     func asyncTransientFactoryGeneratesAsyncAccessor() {
         assertMacroExpansionSnapshot(

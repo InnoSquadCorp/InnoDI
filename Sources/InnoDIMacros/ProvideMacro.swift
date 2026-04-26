@@ -62,7 +62,8 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return []
         }
 
-        let enclosingContainerMainActor = enclosingDIContainerInfo(for: declaration)?.mainActor == true
+        let enclosingContainerInfo = enclosingDIContainerInfo(for: declaration)
+        let enclosingContainerMainActor = enclosingContainerInfo?.mainActor == true
         let name = identifier.identifier.text
         
         switch parseResult.scope {
@@ -117,19 +118,30 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         case .transient:
             let overrideName = "_override_\(name)"
 
-            if transientDependencyResolutionShouldFail(
+            // Site #1 in `docs/internal/fatalerror-inventory.md`. The
+            // validator phase emits a terminal diagnostic
+            // (`provide.unresolved-factory-parameter`,
+            // `provide.unresolved-with-dependency`, etc.) for every
+            // input that reaches this branch. Returning `[]` lets the
+            // Swift compiler reject the stored property naturally, so
+            // user code never embeds a `fatalError` trap.
+            if let resolutionFailure = transientDependencyResolutionFailure(
                 declaration: declaration,
                 parseResult: parseResult,
                 memberName: name
             ) {
-                return [fatalErrorGetter(
-                    "Transient dependency resolution failed validation.",
-                    isAsync: parseResult.asyncFactoryExpr != nil,
-                    isThrowing: parseResult.asyncFactoryIsThrowing,
-                    isMainActor: enclosingContainerMainActor
-                )]
+                if enclosingContainerInfo?.validateDAG == false,
+                   let diagnostic = resolutionFailure.diagnostic(memberName: name) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(attribute),
+                            message: diagnostic
+                        )
+                    )
+                }
+                return []
             }
-            
+
             let overrideCheck = overrideCheckStmt(overrideName: overrideName)
 
             if let asyncFactory = parseResult.asyncFactoryExpr {
@@ -138,18 +150,16 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                 if let closure = asyncFactory.as(ClosureExprSyntax.self) {
                     let parsedArguments = parseClosureParameterNames(closure)
                     if parsedArguments.hasWildcard {
+                        // Site #2. Diagnostic stays terminal; returning
+                        // `[]` lets the compiler surface the missing
+                        // accessor instead of trapping at runtime.
                         context.diagnose(
                             Diagnostic(
                                 node: Syntax(closure),
                                 message: SimpleDiagnostic.transientFactoryUnnamedParameters()
                             )
                         )
-                        return [fatalErrorGetter(
-                            "Transient factory closure parameters must be named for injection.",
-                            isAsync: true,
-                            isThrowing: parseResult.asyncFactoryIsThrowing,
-                            isMainActor: enclosingContainerMainActor
-                        )]
+                        return []
                     }
                     do {
                         createExpr = try makeTransientClosureCallExpr(
@@ -157,14 +167,11 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             parsed: parsedArguments
                         )
                     } catch let error as CodegenInvariantError {
-                        return [handleCodegenInvariant(
+                        return handleCodegenInvariant(
                             error,
                             attribute: attribute,
-                            context: context,
-                            isAsync: true,
-                            isThrowing: parseResult.asyncFactoryIsThrowing,
-                            isMainActor: enclosingContainerMainActor
-                        )]
+                            context: context
+                        )
                     }
                 } else {
                     createExpr = asyncFactory
@@ -191,18 +198,14 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                 if let closure = factory.as(ClosureExprSyntax.self) {
                     let parsedArguments = parseClosureParameterNames(closure)
                     if parsedArguments.hasWildcard {
+                        // Site #3. Symmetric with site #2 above.
                         context.diagnose(
                             Diagnostic(
                                 node: Syntax(closure),
                                 message: SimpleDiagnostic.transientFactoryUnnamedParameters()
                             )
                         )
-                        return [fatalErrorGetter(
-                            "Transient factory closure parameters must be named for injection.",
-                            isAsync: false,
-                            isThrowing: false,
-                            isMainActor: enclosingContainerMainActor
-                        )]
+                        return []
                     }
                     do {
                         createExpr = try makeTransientClosureCallExpr(
@@ -210,14 +213,11 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                             parsed: parsedArguments
                         )
                     } catch let error as CodegenInvariantError {
-                        return [handleCodegenInvariant(
+                        return handleCodegenInvariant(
                             error,
                             attribute: attribute,
-                            context: context,
-                            isAsync: false,
-                            isThrowing: false,
-                            isMainActor: enclosingContainerMainActor
-                        )]
+                            context: context
+                        )
                     }
                 } else {
                     createExpr = factory
@@ -241,12 +241,18 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             } else if let initializer = binding.initializer?.value {
                 createExpr = initializer
             } else {
-                return [fatalErrorGetter(
-                    "Missing factory for transient dependency",
-                    isAsync: false,
-                    isThrowing: false,
-                    isMainActor: enclosingContainerMainActor
-                )]
+                // Site #4. The validator emits
+                // `provide.transient-factory-required` for this input;
+                // we re-emit defensively so the message still surfaces
+                // even if the validator path is short-circuited (e.g.
+                // partial expansion in SwiftUI Previews).
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(attribute),
+                        message: SimpleDiagnostic.provideTransientFactoryRequired()
+                    )
+                )
+                return []
             }
             
             let getter = makeGetter(
@@ -262,66 +268,32 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return [getter]
 
         case .none:
-            let getter = makeGetter(
-                statements: [
-                    fatalErrorStmt(message: "Unknown scope")
-                ],
-                isAsync: false,
-                isThrowing: false,
-                isMainActor: enclosingContainerMainActor
-            )
-            return [getter]
+            // Site #5. The validator emits `provide.unknown-scope` when
+            // it parses this attribute. Returning `[]` removes the
+            // synthesized accessor; the user-visible compile error
+            // points at the InnoDI diagnostic, never at a runtime trap.
+            return []
         }
     }
 }
 
-private func fatalErrorGetter(
-    _ message: String,
-    isAsync: Bool,
-    isThrowing: Bool,
-    isMainActor: Bool
-) -> AccessorDeclSyntax {
-    let fatalErrorCall = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("fatalError")),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(
-                expression: ExprSyntax(StringLiteralExprSyntax(content: message))
-            )
-        ]),
-        rightParen: .rightParenToken()
-    )
-
-    return makeGetter(
-        statements: [
-            CodeBlockItemSyntax(item: .expr(ExprSyntax(fatalErrorCall)))
-        ],
-        isAsync: isAsync,
-        isThrowing: isThrowing,
-        isMainActor: isMainActor
-    )
-}
-
+/// Site #6 in `docs/internal/fatalerror-inventory.md`. Internal codegen
+/// invariants previously synthesized a `fatalError` getter as a "should
+/// never happen" runtime trap. Phase 2.B downgrades it to a
+/// diagnostic-only path so that an InnoDI invariant bug surfaces as a
+/// build error rather than a release-time crash.
 private func handleCodegenInvariant(
     _ error: CodegenInvariantError,
     attribute: AttributeSyntax,
-    context: some MacroExpansionContext,
-    isAsync: Bool,
-    isThrowing: Bool,
-    isMainActor: Bool
-) -> AccessorDeclSyntax {
+    context: some MacroExpansionContext
+) -> [AccessorDeclSyntax] {
     context.diagnose(
         Diagnostic(
             node: Syntax(attribute),
             message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
         )
     )
-    return fatalErrorGetter(
-        "InnoDI internal codegen invariant violated: \(error.description)",
-        isAsync: isAsync,
-        isThrowing: isThrowing,
-        isMainActor: isMainActor
-    )
+    return []
 }
 
 private func makeGetter(
@@ -388,19 +360,42 @@ private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) 
     return nil
 }
 
-private func transientDependencyResolutionShouldFail(
+private enum TransientDependencyResolutionFailure {
+    case unresolvedWithDependency(String)
+    case unresolvedFactoryParameter(String)
+    case missingMember
+
+    func diagnostic(memberName: String) -> SimpleDiagnostic? {
+        switch self {
+        case let .unresolvedWithDependency(dependency):
+            return .provideUnresolvedWithDependency(
+                memberName: memberName,
+                dependencyName: dependency
+            )
+        case let .unresolvedFactoryParameter(parameter):
+            return .provideUnresolvedFactoryParameter(
+                memberName: memberName,
+                parameterName: parameter
+            )
+        case .missingMember:
+            return nil
+        }
+    }
+}
+
+private func transientDependencyResolutionFailure(
     declaration: some DeclSyntaxProtocol,
     parseResult: ProvideArguments,
     memberName: String
-) -> Bool {
+) -> TransientDependencyResolutionFailure? {
     guard let members = enclosingProvideMemberNames(for: declaration) else {
-        return false
+        return nil
     }
 
     let knownNames = Set(members)
 
     for dependency in parseResult.dependencies where !knownNames.contains(dependency) {
-        return true
+        return .unresolvedWithDependency(dependency)
     }
 
     let parameterNames: [String]
@@ -413,14 +408,14 @@ private func transientDependencyResolutionShouldFail(
     }
 
     for dependency in parameterNames where !knownNames.contains(dependency) {
-        return true
+        return .unresolvedFactoryParameter(dependency)
     }
 
     if !knownNames.contains(memberName) {
-        return true
+        return .missingMember
     }
 
-    return false
+    return nil
 }
 
 private func enclosingProvideMemberNames(for declaration: some DeclSyntaxProtocol) -> [String]? {

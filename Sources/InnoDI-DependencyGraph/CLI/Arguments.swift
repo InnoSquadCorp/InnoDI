@@ -22,6 +22,15 @@ struct ParsedArguments: Equatable {
     var format: OutputFormat?
     var output: String?
     var validateDAG: Bool
+    /// When non-nil, the CLI runs the `--diagnose-lock` subcommand
+    /// against the resolved scratch path instead of rendering or
+    /// validating a graph. The associated value is the directory the
+    /// user passed (or the default).
+    var diagnoseLockPath: String?
+    /// When non-nil, the CLI runs the `--cache-stats` subcommand
+    /// against the resolved state directory. Same path-resolution
+    /// rules as `--diagnose-lock`.
+    var cacheStatsPath: String?
 }
 
 /// Outcome of parsing command-line arguments. `.helpRequested` is a normal
@@ -46,6 +55,8 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
     var format: OutputFormat?
     var output: String?
     var validateDAG = false
+    var diagnoseLockPath: String?
+    var cacheStatsPath: String?
     var warnings: [String] = []
 
     let args = rawArguments
@@ -101,6 +112,28 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
             validateDAG = true
             index += 1
             continue
+        } else if arg == "--diagnose-lock" {
+            // `--diagnose-lock` accepts an optional path. Without it
+            // the subcommand defaults to scanning `<root>/.build`,
+            // which matches SPM's standard scratch directory.
+            if index + 1 < args.count, !args[index + 1].hasPrefix("-") {
+                diagnoseLockPath = args[index + 1]
+                index += 2
+            } else {
+                diagnoseLockPath = ""  // sentinel: caller fills in default
+                index += 1
+            }
+            continue
+        } else if arg == "--cache-stats" {
+            // Same path-handling shape as --diagnose-lock.
+            if index + 1 < args.count, !args[index + 1].hasPrefix("-") {
+                cacheStatsPath = args[index + 1]
+                index += 2
+            } else {
+                cacheStatsPath = ""
+                index += 1
+            }
+            continue
         } else if arg == "--help" || arg == "-h" {
             return .helpRequested
         } else if arg.hasPrefix("-") {
@@ -111,7 +144,14 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
     }
 
     return .parsed(
-        ParsedArguments(root: root, format: format, output: output, validateDAG: validateDAG),
+        ParsedArguments(
+            root: root,
+            format: format,
+            output: output,
+            validateDAG: validateDAG,
+            diagnoseLockPath: diagnoseLockPath,
+            cacheStatsPath: cacheStatsPath
+        ),
         warnings: warnings
     )
 }
@@ -119,13 +159,22 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
 func usageText() -> String {
     """
     Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii|json>] [--output <file>] [--validate-dag]
+           InnoDI-DependencyGraph --diagnose-lock [<scratch-path>]
+           InnoDI-DependencyGraph --cache-stats [<scratch-path>]
 
     Options:
-      --root <path>    Root directory of the project (default: current directory)
-      --format <fmt>   Output format: mermaid (default), dot, ascii, json
-      --output <file>  Output file path (default: stdout; use - for stdout)
-      --validate-dag   Validate dependency graph DAG and fail on cycles/ambiguity
-      --help, -h       Show this help message
+      --root <path>          Root directory of the project (default: current directory)
+      --format <fmt>         Output format: mermaid (default), dot, ascii, json
+      --output <file>        Output file path (default: stdout; use - for stdout)
+      --validate-dag         Validate dependency graph DAG and fail on cycles/ambiguity
+      --diagnose-lock [path] Print the validation coordinator's view of the lock
+                             directory: filesystem class, environment, and any
+                             active or stale lock files with their metadata.
+                             Defaults to <root>/.build when no path is given.
+      --cache-stats [path]   Aggregate cache hit/miss counts from validation
+                             metrics artifacts under the given state directory.
+                             Same path-defaulting rules as --diagnose-lock.
+      --help, -h             Show this help message
     """
 }
 

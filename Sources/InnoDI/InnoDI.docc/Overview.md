@@ -26,6 +26,11 @@ and graph tooling rather than runtime container mutation.
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 
+### Operations
+
+- <doc:lock-safety>
+- <doc:MigrationGuide>
+
 ### Container API
 
 - <doc:DIContainer>

@@ -17,6 +17,14 @@ jobs:
         # the main `release.yml` strict-concurrency check so every PR fails
         # on the same rules that block a tag.
         run: swift test -Xswiftc -warnings-as-errors
+      - name: No fatalError in synthesized code
+        # Macro-synthesized accessors must never embed a `fatalError(...)`
+        # trap into user code. The two allow-listed sites are explicit
+        # opt-outs (validateDAG: false) and the Lazy/Provider deferred-cell
+        # ordering invariant; both are documented in
+        # `docs/internal/fatalerror-inventory.md`. A drift in either
+        # allow-list pattern is a forcing function for an inventory update.
+        run: Tools/check-no-fatalerror-in-macros.sh
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Build Extended Examples

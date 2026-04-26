@@ -110,6 +110,15 @@ Most frequently-hit codes:
   exclusive).
 - `sub.with-conflicts-with-with-names` — both `with:` and `withNames:`
   appear on the same `@SubContainer` (pick exactly one).
+- `sub.prefer-with-over-with-names` — **note**. `withNames:` is in
+  use; the message includes the equivalent `with: [\.x]` form so you
+  can copy-paste the migration when Swift's type-checker accepts it.
+  `withNames:` itself is **not** deprecated — RFC 0002 is in
+  `Deferred` status because stacked peer-macro contexts
+  (`@DIFeatureRoot`, `@DIEnvironmentBridge`, ...) currently *require*
+  the string form. Reach for `with: [\.x]` first; fall back to
+  `withNames:` whenever the type-checker reports
+  `circular reference expanding peer macros`.
 - `sub.invalid-same-name-wiring` — `with:` / `withNames:` is not a literal
   array the macro can read (runtime variables and computed elements are
   rejected).

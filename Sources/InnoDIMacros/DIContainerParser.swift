@@ -131,6 +131,7 @@ struct DIContainerParser {
                         parentDependencies: subArgs.dependencies,
                         hasWithDependencies: subArgs.hasWithDependencies,
                         hasWithNamesDependencies: subArgs.hasWithNamesDependencies,
+                        hasStackedPeerMacroEscapeHatch: !featureRootAttributes(in: varDecl.attributes).isEmpty,
                         sameNameWiring: subArgs.sameNameWiring,
                         sameNameWiringExpressionSyntax: sameNameWiringExpressionSyntax(
                             for: subArgs.sameNameWiring,
