@@ -1,56 +1,60 @@
-# Integration Guide
+# Руководство по интеграции
 
-Use InnoDI as generated Swift source plus build-time validation. Most tooling
-works best when it treats macro output as compiler-generated implementation
-detail and keeps user-authored container declarations as the review surface.
+Используйте InnoDI как сгенерированный Swift-код вместе с build-time validation.
+Большинство инструментов работает лучше, когда macro output считается
+compiler-generated implementation detail, а написанные пользователем объявления
+container остаются основной поверхностью для review.
 
 ## Periphery
 
-- Run Periphery against generated build settings, not hand-written source
-  globs, so macro-expanded members are visible to the compiler.
-- Keep `@DIContainer`, `@Provide`, `@SubContainer`, and generated override
-  entry points reachable through tests, sample apps, or explicit retention
-  rules when they are only invoked by reflection-free wiring.
-- Prefer suppressing generated-member noise by retaining the container type or
-  its public entry points rather than ignoring the whole module.
+- Запускайте Periphery с generated build settings, а не с hand-written source
+  globs, чтобы macro-expanded members были видимы компилятору.
+- Держите `@DIContainer`, `@Provide`, `@SubContainer` и generated override entry
+  points reachable через tests, sample apps или explicit retention rules, если
+  они вызываются только reflection-free wiring.
+- Чтобы снизить generated-member noise, лучше retain container type или его public
+  entry points, а не игнорировать весь module.
 
 ## SwiftLint
 
-- Lint user-authored source normally.
-- Do not lint macro-expanded output as if it were handwritten code.
-- If your setup checks generated interface artifacts, exclude InnoDI's reserved
-  generated prefixes: `_storage_`, `_override_`, `_lazyCell_`,
-  `_subBuildCell_`, `_innoDISubBuild_`, and `_lazySelfForSub`.
+- Линтуйте user-authored source обычным образом.
+- Не линтуйте macro-expanded output как hand-written code.
+- Если конфигурация проверяет generated interface artifacts, исключите reserved
+  generated prefixes InnoDI: `_storage_`, `_override_`, `_lazyCell_`,
+  `_subBuildCell_`, `_innoDISubBuild_`, `_lazySelfForSub`.
 
 ## SwiftFormat
 
-- Format the container declarations you write.
-- Do not require a separate formatting pass over macro expansion snapshots in
-  consumer projects.
-- Keep attributes and factory closures readable at the declaration site; that
-  is the source reviewers should inspect.
+- Форматируйте container declarations, которые вы пишете вручную.
+- Не требуйте отдельный formatting pass для macro expansion snapshots в consumer
+  projects.
+- Сохраняйте attributes и factory closures читаемыми в месте объявления; именно
+  этот source должны просматривать reviewers.
 
-## Macro-Generated Members
+## Сгенерированные макросами члены
 
-InnoDI generates initializers, storage, overrides, and helper closures from
-container declarations. Treat those generated members as part of the compiled
-API surface, but keep manual dependencies explicit in the source container.
+InnoDI генерирует initializers, storage, overrides и helper closures из container
+declarations. Считайте эти generated members частью compiled API surface, но
+оставляйте manual dependencies явно описанными в source container.
 
-When a tool reports a generated symbol, map it back to the nearest
-`@DIContainer`, `@Provide`, or `@SubContainer` declaration before deciding
-whether the report is actionable.
+Когда инструмент сообщает о generated symbol, сначала сопоставьте его с ближайшим
+`@DIContainer`, `@Provide` или `@SubContainer`, и только потом решайте, является ли
+сообщение actionable.
 
-## Build Plugin
+## Build-плагин
 
-Attach `InnoDIDAGValidationPlugin` to each target that declares containers.
-The plugin now runs the DAG validator in-process through the build coordinator;
-the standalone `InnoDI-DependencyGraph` executable remains available for local
-inspection and CI artifacts.
+Подключайте `InnoDIDAGValidationPlugin` к каждому target, который объявляет
+containers. Plugin теперь запускает DAG validator in-process через build
+coordinator; standalone executable `InnoDI-DependencyGraph` остается доступным
+для local inspection и CI artifacts.
 
-Use a local SwiftPM scratch path when derived data lives on a network volume:
+Если derived data находится на network volume, используйте local SwiftPM scratch
+path. Scratch path должен находиться на local disk и быть writable; замените
+`/tmp` на подходящий local temporary directory для вашей OS или CI-среды, если
+это необходимо.
 
 ```sh
 swift build --scratch-path /tmp/innodi-cache
 ```
 
-See <doc:lock-safety> for filesystem classifications and lock recovery.
+Классификация filesystem и lock recovery описаны в <doc:lock-safety>.

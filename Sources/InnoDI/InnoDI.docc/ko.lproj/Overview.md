@@ -23,7 +23,7 @@ tooling에 초점을 둡니다.
 - 지원 파일시스템에서 `O_CREAT | O_EXCL`와 `flock`을 함께 쓰는 layered lock
 - macro-synthesized `fatalError` accessor 대신 build-time diagnostic
 - strict concurrency와 macro-source `fatalError` allow-list를 모두 강제하는 PR/release gate
-- stacked peer macro가 없는 `withNames:` 사용에 대한 `@SubContainer` Fix-it 안내
+- stacked peer macro가 없는 `withNames:` 사용에 대한 `@SubContainer` key-path 안내
 
 ## Topics
 

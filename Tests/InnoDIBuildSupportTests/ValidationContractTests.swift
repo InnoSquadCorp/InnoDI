@@ -294,7 +294,7 @@ private struct ContractValidationRunner: ValidationCommandRunning, Sendable {
     let result: ValidationCommandResult
 
     func runValidationTool(
-        toolPath: String,
+        toolPath: String?,
         rootPath: String,
         snapshot: WorkspaceSourceSnapshot
     ) throws -> ValidationCommandResult {

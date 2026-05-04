@@ -116,6 +116,23 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.isEmpty)
     }
 
+    @Test("--output - preserves stderr for DAG validation failures")
+    func outputDashPreservesValidationFailureStderr() throws {
+        let fixtureURL = try makeCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag",
+            "--output", "-"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("DAG validation failed."))
+        #expect(result.stderr.contains("Detected dependency cycles:"))
+    }
+
     @Test("Unknown option emits warning but continues")
     func unknownOptionWarnsAndContinues() throws {
         let fixtureURL = try makeFixtureProject()

@@ -48,6 +48,8 @@ the standalone `InnoDI-DependencyGraph` executable remains available for local
 inspection and CI artifacts.
 
 Use a local SwiftPM scratch path when derived data lives on a network volume:
+the scratch path must be writable and on a local disk. Replace `/tmp` with the
+appropriate local temporary directory for your OS or CI environment when needed.
 
 ```sh
 swift build --scratch-path /tmp/innodi-cache
