@@ -1,19 +1,7 @@
 import Foundation
+import InnoDIWorkspaceAnalysis
 import SwiftParser
 import SwiftSyntax
-
-let validationSkipTokens = [
-    "/.build/",
-    "/Derived/",
-    "/Tuist/Dependencies/",
-    "/.tuist/",
-    "/.git/",
-    "/Pods/",
-    "/Carthage/",
-    "/.swiftpm/",
-    "/.xcodeproj/",
-    "/.xcworkspace/"
-]
 
 /// Minimal parsing abstraction so signature tests can inject deterministic
 /// syntax parsers without touching the filesystem cache behavior.
@@ -50,7 +38,7 @@ struct ValidationFileDigestRecord: Codable, Equatable, Sendable {
 /// This is the durable source of truth for the three-stage cache flow:
 /// metadata fingerprint -> raw content hash -> normalized AST digest.
 struct ValidationDigestManifest: Codable, Equatable, Sendable {
-    static let currentVersion = 2
+    static let currentVersion = 3
 
     let version: Int
     let files: [String: ValidationFileDigestRecord]
@@ -85,7 +73,10 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
 
     /// Returns the signature plus cache-hit diagnostics used by coordinator
     /// metrics artifacts and release tooling.
-    func collectWithMetrics(rootPath: String) throws -> ValidationSignatureCollectionResult {
+    func collectWithMetrics(
+        rootPath: String,
+        persistManifestUpdates: Bool = true
+    ) throws -> ValidationSignatureCollectionResult {
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
         try fileManager.createDirectory(at: stateDirectoryURL, withIntermediateDirectories: true)
@@ -162,8 +153,10 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             )
         }
 
-        let manifest = ValidationDigestManifest(files: updatedRecords)
-        try persistManifest(manifest, to: manifestURL)
+        if persistManifestUpdates {
+            let manifest = ValidationDigestManifest(files: updatedRecords)
+            try persistManifest(manifest, to: manifestURL)
+        }
 
         var hasher = StableHasher()
         hasher.combine("count:\(sourceFiles.count)")
@@ -207,7 +200,8 @@ func collectValidationSignature(
 /// why it was reused or rebuilt.
 func collectValidationSignatureWithMetrics(
     rootPath: String,
-    stateDirectoryPath: String? = nil
+    stateDirectoryPath: String? = nil,
+    persistManifestUpdates: Bool = true
 ) throws -> ValidationSignatureCollectionResult {
     let resolvedStateDirectoryPath: String
     if let stateDirectoryPath {
@@ -223,7 +217,10 @@ func collectValidationSignatureWithMetrics(
         stateDirectoryPath: resolvedStateDirectoryPath,
         parser: LiveValidationSyntaxParser()
     )
-    .collectWithMetrics(rootPath: rootPath)
+    .collectWithMetrics(
+        rootPath: rootPath,
+        persistManifestUpdates: persistManifestUpdates
+    )
 }
 
 /// Discovers Swift source files that participate in build validation.
@@ -231,43 +228,11 @@ func collectValidationSignatureWithMetrics(
 /// The returned paths are relative to `rootPath` and sorted so the final
 /// stable hash does not depend on directory enumeration order.
 func discoverValidationSourceFiles(rootPath: String) -> [String] {
-    let fileManager = FileManager.default
-    guard let enumerator = fileManager.enumerator(atPath: rootPath) else {
-        return []
-    }
-
-    var sourceFiles: [String] = []
-
-    while let item = enumerator.nextObject() as? String {
-        if validationPathShouldPruneDescendants(item) {
-            enumerator.skipDescendants()
-            continue
-        }
-        guard item.hasSuffix(".swift") else { continue }
-        sourceFiles.append(item)
-    }
-
-    return sourceFiles.sorted()
+    discoverWorkspaceSourceFiles(rootPath: rootPath)
 }
 
 func validationPathShouldPruneDescendants(_ path: String) -> Bool {
-    validationPathHasHiddenRootComponent(path) || validationPathMatchesSkipToken(path)
-}
-
-private func validationPathHasHiddenRootComponent(_ path: String) -> Bool {
-    guard let firstComponent = path.split(separator: "/").first else {
-        return false
-    }
-    return firstComponent.hasPrefix(".")
-}
-
-private func validationPathMatchesSkipToken(_ path: String) -> Bool {
-    let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    let normalizedPath = "/\(trimmedPath)/"
-    for token in validationSkipTokens where normalizedPath.contains(token) {
-        return true
-    }
-    return false
+    workspacePathShouldPruneDescendants(path)
 }
 
 private func makeFingerprint(for fileURL: URL) throws -> ValidationFileFingerprint {
@@ -354,23 +319,40 @@ private func persistManifest(_ manifest: ValidationDigestManifest, to url: URL) 
 }
 
 struct StableHasher {
-    private var state: UInt64 = 14_695_981_039_346_656_037
+    private var highState: UInt64 = 14_695_981_039_346_656_037
+    private var lowState: UInt64 = 10_995_116_282_11
 
     mutating func combine(_ value: String) {
         for byte in value.utf8 {
-            state ^= UInt64(byte)
-            state &*= 1_099_511_628_211
+            combine(byte)
         }
     }
 
     mutating func combine(_ data: Data) {
         for byte in data {
-            state ^= UInt64(byte)
-            state &*= 1_099_511_628_211
+            combine(byte)
         }
     }
 
     func finalize() -> String {
-        String(state, radix: 16)
+        paddedHex(highState) + paddedHex(lowState)
+    }
+
+    private mutating func combine(_ byte: UInt8) {
+        highState ^= UInt64(byte)
+        highState &*= 1_099_511_628_211
+
+        lowState &+= UInt64(byte) &* 0x9e37_79b9_7f4a_7c15
+        lowState ^= lowState >> 33
+        lowState &*= 0xff51_afd7_ed55_8ccd
+        lowState ^= lowState >> 33
+    }
+
+    private func paddedHex(_ value: UInt64) -> String {
+        let raw = String(value, radix: 16)
+        guard raw.count < 16 else {
+            return raw
+        }
+        return String(repeating: "0", count: 16 - raw.count) + raw
     }
 }

@@ -1,4 +1,6 @@
 import Foundation
+import InnoDIDependencyGraphCore
+import InnoDIWorkspaceAnalysis
 
 #if canImport(Darwin)
 import Darwin
@@ -34,7 +36,11 @@ package struct ValidationExecutionOutcome: Equatable, Sendable {
 /// Abstraction over the DAG validation command so tests can inject deterministic
 /// runners.
 package protocol ValidationCommandRunning: Sendable {
-    func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult
+    func runValidationTool(
+        toolPath: String,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult
 }
 
 /// Shared record persisted for one live validation run keyed by the normalized
@@ -264,7 +270,7 @@ package enum BootIDProvider {
     }
 }
 
-package let sharedRunCacheVersion = 2
+package let sharedRunCacheVersion = 3
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
@@ -280,8 +286,35 @@ package func validationSleep(_ interval: TimeInterval) async throws {
 }
 
 /// Default process runner used by the coordinator to execute the DAG validator.
+package struct InProcessValidationCommandRunner: ValidationCommandRunning {
+    package init() {}
+
+    package func runValidationTool(
+        toolPath: String,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult {
+        let result = validateDependencyGraph(snapshot: snapshot)
+        return ValidationCommandResult(
+            exitCode: result.exitCode,
+            stdout: result.stdout,
+            stderr: result.stderr
+        )
+    }
+}
+
+/// Compatibility process runner used by focused process-IO tests and by
+/// package-internal callers that still need to exercise an external tool.
 package struct LiveValidationCommandRunner: ValidationCommandRunning {
     package init() {}
+
+    package func runValidationTool(
+        toolPath: String,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult {
+        try runValidationTool(toolPath: toolPath, rootPath: rootPath)
+    }
 
     package func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult {
         let process = Process()
@@ -338,7 +371,7 @@ package enum ValidationCoordinator {
             toolPath: toolPath,
             stateDirectoryPath: stateDirectoryPath,
             outputDirectoryPath: outputDirectoryPath,
-            runner: LiveValidationCommandRunner(),
+            runner: InProcessValidationCommandRunner(),
             lockPolicy: lockPolicy
         )
     }
@@ -361,37 +394,35 @@ package enum ValidationCoordinator {
         try fileManager.createDirectory(at: stateDirectoryURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: outputDirectoryURL, withIntermediateDirectories: true)
 
-        let signatureCollectionStartTime = validationNow()
-        let signatureCollection = try collectValidationSignatureWithMetrics(
-            rootPath: rootPath,
-            stateDirectoryPath: stateDirectoryPath
+        // Check the lock filesystem before signature collection. On unsafe
+        // filesystems we still compute a one-shot signature for the emitted
+        // metrics artifact, but we do not acquire signature.lock or write the
+        // AST digest manifest.
+        let unsafeFilesystemOutcome = checkLockFilesystemSafety(
+            lockDirectory: stateDirectoryURL,
+            allowUnsafe: lockPolicy.allowUnsafeFilesystem
         )
+
+        let signatureCollectionStartTime = validationNow()
+        let signatureCollection: ValidationSignatureCollectionResult
+        if unsafeFilesystemOutcome != nil {
+            signatureCollection = try collectValidationSignatureWithMetrics(
+                rootPath: rootPath,
+                stateDirectoryPath: stateDirectoryPath,
+                persistManifestUpdates: false
+            )
+        } else {
+            signatureCollection = try await collectValidationSignatureWithSharedCacheLock(
+                rootPath: rootPath,
+                stateDirectoryURL: stateDirectoryURL,
+                stateDirectoryPath: stateDirectoryPath,
+                lockPolicy: lockPolicy,
+                runtime: runtime
+            )
+        }
         let signature = signatureCollection.signature
         let sharedRunKey = sharedRunCacheKey(for: signature)
         let signatureCollectionMilliseconds = validationElapsedMilliseconds(since: signatureCollectionStartTime)
-        let sharedRunDirectory = stateDirectoryURL.appendingPathComponent(sharedRunKey, isDirectory: true)
-        try fileManager.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
-        try pruneSharedRunDirectories(keepingDirectoryName: sharedRunKey, in: stateDirectoryURL)
-
-        let resultURL = sharedRunDirectory.appendingPathComponent("result.json")
-        let sharedRunRecordURL = sharedRunDirectory.appendingPathComponent("validation-metrics.json")
-        let sharedSummaryURL = sharedRunDirectory.appendingPathComponent("validation-summary.md")
-        let lockURL = sharedRunDirectory.appendingPathComponent("lock")
-
-        // Filesystem safety guard. Refuse to acquire the cross-process
-        // lock on filesystems where `O_CREAT | O_EXCL` is not atomic,
-        // unless the operator opted in via INNODI_ALLOW_UNSAFE_LOCK=1.
-        // See `Sources/InnoDI/InnoDI.docc/lock-safety.md`.
-        if let unsafeFailure = checkLockFilesystemSafety(
-            lockDirectory: sharedRunDirectory,
-            allowUnsafe: lockPolicy.allowUnsafeFilesystem
-        ) {
-            return try finalizeOutcome(
-                result: unsafeFailure.result,
-                wasCached: false,
-                sharedRunRecord: unsafeFailure.record
-            )
-        }
 
         func finalizeOutcome(
             result: ValidationCommandResult,
@@ -438,6 +469,23 @@ package enum ValidationCoordinator {
             )
         }
 
+        if let unsafeFilesystemOutcome {
+            return try finalizeOutcome(
+                result: unsafeFilesystemOutcome.result,
+                wasCached: false,
+                sharedRunRecord: unsafeFilesystemOutcome.record
+            )
+        }
+
+        let sharedRunDirectory = stateDirectoryURL.appendingPathComponent(sharedRunKey, isDirectory: true)
+        try fileManager.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
+        try pruneSharedRunDirectories(keepingDirectoryName: sharedRunKey, in: stateDirectoryURL)
+
+        let resultURL = sharedRunDirectory.appendingPathComponent("result.json")
+        let sharedRunRecordURL = sharedRunDirectory.appendingPathComponent("validation-metrics.json")
+        let sharedSummaryURL = sharedRunDirectory.appendingPathComponent("validation-summary.md")
+        let lockURL = sharedRunDirectory.appendingPathComponent("lock")
+
         if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
             resultURL: resultURL,
             sharedRunRecordURL: sharedRunRecordURL
@@ -472,7 +520,8 @@ package enum ValidationCoordinator {
 
             let result: ValidationCommandResult
             let customInitStartTime = validationNow()
-            let customInitValidation = try CustomInitBuildValidator.validate(rootPath: rootPath)
+            let workspaceSnapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath)
+            let customInitValidation = try CustomInitBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitFailure = customInitValidation.asCommandResult()
             let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
 
@@ -492,7 +541,7 @@ package enum ValidationCoordinator {
                 issues = customInitValidation.issues
             } else {
                 let semanticValidationStartTime = validationNow()
-                let semanticValidation = try ContainerSemanticBuildValidator.validate(rootPath: rootPath)
+                let semanticValidation = try ContainerSemanticBuildValidator.validate(snapshot: workspaceSnapshot)
                 let semanticFailure = semanticValidation.asCommandResult()
                 semanticValidationMilliseconds = validationElapsedMilliseconds(since: semanticValidationStartTime)
 
@@ -504,7 +553,11 @@ package enum ValidationCoordinator {
                     issues = semanticValidation.issues
                 } else {
                     let hierarchyValidationStartTime = validationNow()
-                    let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(rootPath: rootPath)
+                    let moduleGraph = try ModuleGraphProvider.snapshot(rootPath: rootPath)
+                    let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(
+                        snapshot: workspaceSnapshot,
+                        moduleGraph: moduleGraph
+                    )
                     let hierarchyFailure = hierarchyValidation.asCommandResult()
                     hierarchyValidationMilliseconds = validationElapsedMilliseconds(since: hierarchyValidationStartTime)
 
@@ -516,7 +569,11 @@ package enum ValidationCoordinator {
                         issues = semanticValidation.issues + hierarchyValidation.issues
                     } else {
                         let dagValidationStartTime = validationNow()
-                        result = try runner.runValidationTool(toolPath: toolPath, rootPath: rootPath)
+                        result = try runner.runValidationTool(
+                            toolPath: toolPath,
+                            rootPath: rootPath,
+                            snapshot: workspaceSnapshot
+                        )
                         dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
                         liveRunReasonCodes.append(.liveRunSemanticValidation)
                         liveRunReasonCodes.append(.liveRunHierarchyValidation)
@@ -662,5 +719,89 @@ package enum ValidationCoordinator {
             wasCached: false,
             sharedRunRecord: timeoutRecord
         )
+    }
+
+    /// Serializes access to the AST digest manifest used by signature
+    /// collection.
+    ///
+    /// Build-tool plugins are instantiated once per target. Without this
+    /// best-effort lock, many target-level coordinator processes can all
+    /// discover the same cold manifest and reparse the whole workspace before
+    /// the live DAG-validation lock has a chance to share the result. The live
+    /// run was already serialized; this lock moves the expensive signature
+    /// cache warm-up into the same shape so later target invocations usually
+    /// hit metadata-only cache paths instead of doing duplicate AST work.
+    private static func collectValidationSignatureWithSharedCacheLock(
+        rootPath: String,
+        stateDirectoryURL: URL,
+        stateDirectoryPath: String,
+        lockPolicy: ValidationCoordinatorLockPolicy,
+        runtime: ValidationCoordinatorRuntime
+    ) async throws -> ValidationSignatureCollectionResult {
+        guard shouldSerializeSignatureCollection(
+            stateDirectoryURL: stateDirectoryURL
+        ) else {
+            return try collectValidationSignatureWithMetrics(
+                rootPath: rootPath,
+                stateDirectoryPath: stateDirectoryPath,
+                persistManifestUpdates: false
+            )
+        }
+
+        let lockURL = stateDirectoryURL.appendingPathComponent("signature.lock")
+        let lockAcquisitionDeadline = runtime.monotonicNow() + lockPolicy.maxWaitSeconds
+        var backoffSeconds = lockPolicy.initialBackoffSeconds
+
+        while runtime.monotonicNow() < lockAcquisitionDeadline {
+            if let descriptor = try acquireLock(at: lockURL) {
+                defer { releaseLock(descriptor: descriptor, at: lockURL) }
+                return try collectValidationSignatureWithMetrics(
+                    rootPath: rootPath,
+                    stateDirectoryPath: stateDirectoryPath
+                )
+            }
+
+            if try recoverStaleLockIfNeeded(
+                at: lockURL,
+                staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
+                runtime: runtime
+            ) {
+                backoffSeconds = lockPolicy.initialBackoffSeconds
+                continue
+            }
+
+            let remainingWait = lockAcquisitionDeadline - runtime.monotonicNow()
+            guard remainingWait > 0 else {
+                break
+            }
+
+            let delaySeconds = min(backoffSeconds, remainingWait)
+            try await runtime.sleep(delaySeconds)
+            backoffSeconds = min(backoffSeconds * 2, lockPolicy.maxBackoffSeconds)
+        }
+
+        FileHandle.standardError.write(
+            Data(
+                "InnoDI: timed out waiting for the signature cache lock; collecting the source signature without serialization.\n"
+                    .utf8
+            )
+        )
+        return try collectValidationSignatureWithMetrics(
+            rootPath: rootPath,
+            stateDirectoryPath: stateDirectoryPath,
+            persistManifestUpdates: false
+        )
+    }
+
+    private static func shouldSerializeSignatureCollection(
+        stateDirectoryURL: URL
+    ) -> Bool {
+        let classification = FilesystemTypeDetector.classify(directory: stateDirectoryURL)
+        switch classification.safetyClass {
+        case .safe, .unknown:
+            return true
+        case .unsafe:
+            return false
+        }
     }
 }

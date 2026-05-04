@@ -43,6 +43,14 @@ let package = Package(
             swiftSettings: innoDISharedSwiftSettings
         ),
         .target(
+            name: "InnoDIWorkspaceAnalysis",
+            dependencies: [
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+            ],
+            swiftSettings: innoDISharedSwiftSettings
+        ),
+        .target(
             name: "InnoDITestSupport",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -65,11 +73,21 @@ let package = Package(
             swiftSettings: innoDISharedSwiftSettings
         ),
         .target(
-            name: "InnoDIBuildSupport"
-            ,
+            name: "InnoDIBuildSupport",
             dependencies: [
                 "InnoDICore",
+                "InnoDIDependencyGraphCore",
+                "InnoDIWorkspaceAnalysis",
                 .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+            ],
+            swiftSettings: innoDISharedSwiftSettings
+        ),
+        .target(
+            name: "InnoDIDependencyGraphCore",
+            dependencies: [
+                "InnoDICore",
+                "InnoDIWorkspaceAnalysis",
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ],
             swiftSettings: innoDISharedSwiftSettings
@@ -78,6 +96,8 @@ let package = Package(
             name: "InnoDI-DependencyGraph",
             dependencies: [
                 "InnoDICore",
+                "InnoDIDependencyGraphCore",
+                "InnoDIWorkspaceAnalysis",
                 // Added for the `--diagnose-lock` subcommand: it uses
                 // FilesystemTypeDetector and the lock-metadata
                 // codecs to surface the same view of the world the
@@ -100,8 +120,7 @@ let package = Package(
             name: "InnoDIDAGValidationPlugin",
             capability: .buildTool(),
             dependencies: [
-                "InnoDI-DAGValidationCoordinator",
-                "InnoDI-DependencyGraph"
+                "InnoDI-DAGValidationCoordinator"
             ]
         ),
         .macro(
@@ -140,6 +159,7 @@ let package = Package(
             name: "InnoDIDependencyGraphCLITests",
             dependencies: [
                 "InnoDI-DependencyGraph",
+                "InnoDIDependencyGraphCore",
                 "InnoDIBuildSupport",
                 "InnoDITestSupport",
             ],
@@ -151,6 +171,7 @@ let package = Package(
             dependencies: [
                 "InnoDIBuildSupport",
                 "InnoDICore",
+                "InnoDIWorkspaceAnalysis",
                 "InnoDITestSupport"
             ],
             swiftSettings: innoDISharedSwiftSettings

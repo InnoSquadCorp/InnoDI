@@ -1,19 +1,60 @@
 import Foundation
+import InnoDIWorkspaceAnalysis
 import SwiftParser
 import SwiftSyntax
 
 struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
     let modules: [WorkspaceModuleRecord]
     let swiftPMProducts: [WorkspaceSwiftPMProductRecord]
+    let modulesByID: [String: WorkspaceModuleRecord]
+
+    private let moduleIDsByTargetLookup: [WorkspaceModuleTargetLookup: Set<String>]
+    private let swiftPMProductsByLookup: [WorkspaceSwiftPMProductLookup: [WorkspaceSwiftPMProductRecord]]
+    private let moduleIDByCachedFilePath: [String: String]
+
+    init(
+        modules: [WorkspaceModuleRecord],
+        swiftPMProducts: [WorkspaceSwiftPMProductRecord],
+        cachedFilePaths: [String] = []
+    ) {
+        self.modules = modules
+        self.swiftPMProducts = swiftPMProducts
+        self.modulesByID = Dictionary(uniqueKeysWithValues: modules.map { ($0.moduleID, $0) })
+        self.moduleIDsByTargetLookup = Self.buildTargetLookup(modules: modules)
+        self.swiftPMProductsByLookup = Dictionary(grouping: swiftPMProducts) {
+            WorkspaceSwiftPMProductLookup(
+                manifestPath: $0.manifestPath,
+                productName: $0.productName
+            )
+        }
+
+        var cached: [String: String] = [:]
+        cached.reserveCapacity(cachedFilePaths.count)
+        for filePath in cachedFilePaths {
+            if let record = Self.bestModuleRecord(forFilePath: filePath, modules: modules) {
+                cached[filePath] = record.moduleID
+            }
+        }
+        self.moduleIDByCachedFilePath = cached
+    }
+
+    func cachingPathMatches(for filePaths: [String]) -> WorkspaceModuleGraphSnapshot {
+        WorkspaceModuleGraphSnapshot(
+            modules: modules,
+            swiftPMProducts: swiftPMProducts,
+            cachedFilePaths: filePaths.sorted()
+        )
+    }
 
     func moduleRecord(forFilePath filePath: String) -> WorkspaceModuleRecord? {
-        modules
-            .filter { $0.matches(filePath: filePath) }
-            .max { $0.matchSpecificity(for: filePath) < $1.matchSpecificity(for: filePath) }
+        if let cachedModuleID = moduleIDByCachedFilePath[filePath] {
+            return modulesByID[cachedModuleID]
+        }
+        return Self.bestModuleRecord(forFilePath: filePath, modules: modules)
     }
 
     func moduleRecord(moduleID: String) -> WorkspaceModuleRecord? {
-        modules.first(where: { $0.moduleID == moduleID })
+        modulesByID[moduleID]
     }
 
     func declaresDependencyEdge(from parent: WorkspaceModuleRecord, to child: WorkspaceModuleRecord) -> Bool? {
@@ -63,12 +104,15 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
             guard let manifestPath = dependencyRef.manifestPath else {
                 return .resolved([])
             }
-            let moduleIDs = modules.filter {
-                $0.buildSystem == "tuist"
-                    && $0.manifestPath == manifestPath
-                    && $0.name == dependencyRef.targetName
-            }.map(\.moduleID)
-            return .resolved(Set(moduleIDs))
+            return .resolved(
+                moduleIDsByTargetLookup[
+                    WorkspaceModuleTargetLookup(
+                        buildSystem: "tuist",
+                        manifestPath: manifestPath,
+                        name: dependencyRef.targetName
+                    )
+                ] ?? []
+            )
         }
     }
 
@@ -77,12 +121,13 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
         parent: WorkspaceModuleRecord
     ) -> Set<String> {
         let manifestPath = dependencyRef.manifestPath ?? parent.manifestPath
-        let moduleIDs = modules.filter {
-            $0.buildSystem == parent.buildSystem
-                && $0.manifestPath == manifestPath
-                && $0.name == dependencyRef.targetName
-        }.map(\.moduleID)
-        return Set(moduleIDs)
+        return moduleIDsByTargetLookup[
+            WorkspaceModuleTargetLookup(
+                buildSystem: parent.buildSystem,
+                manifestPath: manifestPath,
+                name: dependencyRef.targetName
+            )
+        ] ?? []
     }
 
     private func resolveSwiftPMProductModuleIDs(
@@ -115,8 +160,13 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
             candidateManifestPaths = Set(parent.swiftPMPackageDependencies.compactMap(\.resolvedManifestPath))
         }
 
-        let matchingProducts = swiftPMProducts.filter {
-            candidateManifestPaths.contains($0.manifestPath) && $0.productName == productName
+        let matchingProducts = candidateManifestPaths.sorted().flatMap { manifestPath in
+            swiftPMProductsByLookup[
+                WorkspaceSwiftPMProductLookup(
+                    manifestPath: manifestPath,
+                    productName: productName
+                )
+            ] ?? []
         }
         if matchingProducts.count > 1 {
             return .ambiguous
@@ -127,12 +177,58 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
 
         return .resolved(Set(product.exportedModuleIDs))
     }
+
+    private static func buildTargetLookup(modules: [WorkspaceModuleRecord]) -> [WorkspaceModuleTargetLookup: Set<String>] {
+        var lookup: [WorkspaceModuleTargetLookup: Set<String>] = [:]
+        for module in modules {
+            lookup[
+                WorkspaceModuleTargetLookup(
+                    buildSystem: module.buildSystem,
+                    manifestPath: module.manifestPath,
+                    name: module.name
+                ),
+                default: []
+            ].insert(module.moduleID)
+        }
+        return lookup
+    }
+
+    private static func bestModuleRecord(
+        forFilePath filePath: String,
+        modules: [WorkspaceModuleRecord]
+    ) -> WorkspaceModuleRecord? {
+        var bestRecord: WorkspaceModuleRecord?
+        var bestSpecificity = -1
+        for module in modules {
+            let specificity = module.matchSpecificity(for: filePath)
+            guard specificity > bestSpecificity else {
+                continue
+            }
+            guard specificity > 0 || module.matches(filePath: filePath) else {
+                continue
+            }
+            bestRecord = module
+            bestSpecificity = specificity
+        }
+        return bestRecord
+    }
 }
 
 private enum DependencyResolutionResult: Equatable {
     case resolved(Set<String>)
     case ambiguous
     case unknown
+}
+
+private struct WorkspaceModuleTargetLookup: Hashable, Sendable {
+    let buildSystem: String
+    let manifestPath: String
+    let name: String
+}
+
+private struct WorkspaceSwiftPMProductLookup: Hashable, Sendable {
+    let manifestPath: String
+    let productName: String
 }
 
 struct WorkspaceModuleRecord: Equatable, Sendable {
@@ -247,7 +343,7 @@ private func discoverManifestURLs(rootPath: String) -> ManifestURLs {
     var tuistProjects: [URL] = []
 
     while let item = enumerator.nextObject() as? String {
-        if validationPathShouldPruneDescendants(item) {
+        if workspacePathShouldPruneDescendants(item) {
             enumerator.skipDescendants()
             continue
         }
