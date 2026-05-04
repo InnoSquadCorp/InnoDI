@@ -1,56 +1,62 @@
-# Integration Guide
+# Integrationsleitfaden
 
-Use InnoDI as generated Swift source plus build-time validation. Most tooling
-works best when it treats macro output as compiler-generated implementation
-detail and keeps user-authored container declarations as the review surface.
+Verwenden Sie InnoDI als generierten Swift-Quellcode plus Build-Time-Validation.
+Die meisten Werkzeuge funktionieren am besten, wenn sie Macro-Ausgabe als vom
+Compiler erzeugtes Implementierungsdetail behandeln und die vom Nutzer
+geschriebenen Container-Deklarationen als Review-Oberflaeche beibehalten.
 
 ## Periphery
 
-- Run Periphery against generated build settings, not hand-written source
-  globs, so macro-expanded members are visible to the compiler.
-- Keep `@DIContainer`, `@Provide`, `@SubContainer`, and generated override
-  entry points reachable through tests, sample apps, or explicit retention
-  rules when they are only invoked by reflection-free wiring.
-- Prefer suppressing generated-member noise by retaining the container type or
-  its public entry points rather than ignoring the whole module.
+- Fuehren Sie Periphery gegen die generierten Build Settings aus, nicht gegen
+  handgeschriebene Source-Globs, damit macro-expanded members fuer den Compiler
+  sichtbar sind.
+- Halten Sie `@DIContainer`, `@Provide`, `@SubContainer` und generierte Override
+  Entry Points ueber Tests, Sample Apps oder explizite Retention-Regeln erreichbar,
+  wenn sie nur durch reflection-free wiring aufgerufen werden.
+- Reduzieren Sie generated-member noise bevorzugt durch Retention des Container-Typs
+  oder seiner public entry points, statt das ganze Modul zu ignorieren.
 
 ## SwiftLint
 
-- Lint user-authored source normally.
-- Do not lint macro-expanded output as if it were handwritten code.
-- If your setup checks generated interface artifacts, exclude InnoDI's reserved
-  generated prefixes: `_storage_`, `_override_`, `_lazyCell_`,
-  `_subBuildCell_`, `_innoDISubBuild_`, and `_lazySelfForSub`.
+- Linten Sie user-authored source normal.
+- Linten Sie macro-expanded output nicht so, als waere er handgeschriebener Code.
+- Wenn Ihre Konfiguration generated interface artifacts prueft, schliessen Sie
+  die reservierten InnoDI-Prefixe aus: `_storage_`, `_override_`, `_lazyCell_`,
+  `_subBuildCell_`, `_innoDISubBuild_` und `_lazySelfForSub`.
 
 ## SwiftFormat
 
-- Format the container declarations you write.
-- Do not require a separate formatting pass over macro expansion snapshots in
-  consumer projects.
-- Keep attributes and factory closures readable at the declaration site; that
-  is the source reviewers should inspect.
+- Formatieren Sie die Container-Deklarationen, die Sie schreiben.
+- Verlangen Sie in Consumer-Projekten keinen separaten Formatting-Pass ueber
+  Macro-Expansion-Snapshots.
+- Halten Sie Attribute und Factory Closures an der Deklarationsstelle lesbar;
+  diese Source ist die Flaeche, die Reviewer pruefen sollten.
 
-## Macro-Generated Members
+## Von Macros generierte Member
 
-InnoDI generates initializers, storage, overrides, and helper closures from
-container declarations. Treat those generated members as part of the compiled
-API surface, but keep manual dependencies explicit in the source container.
+InnoDI erzeugt Initializer, Storage, Overrides und Helper Closures aus
+Container-Deklarationen. Behandeln Sie diese generated members als Teil der
+kompilierten API-Oberflaeche, halten Sie manuelle Dependencies aber explizit im
+Source-Container.
 
-When a tool reports a generated symbol, map it back to the nearest
-`@DIContainer`, `@Provide`, or `@SubContainer` declaration before deciding
-whether the report is actionable.
+Wenn ein Tool ein generiertes Symbol meldet, ordnen Sie es zuerst der naechsten
+`@DIContainer`-, `@Provide`- oder `@SubContainer`-Deklaration zu, bevor Sie
+entscheiden, ob der Report actionable ist.
 
-## Build Plugin
+## Build-Plugin
 
-Attach `InnoDIDAGValidationPlugin` to each target that declares containers.
-The plugin now runs the DAG validator in-process through the build coordinator;
-the standalone `InnoDI-DependencyGraph` executable remains available for local
-inspection and CI artifacts.
+Haengen Sie `InnoDIDAGValidationPlugin` an jedes Target, das Container deklariert.
+Das Plugin fuehrt den DAG-Validator jetzt in-process ueber den Build Coordinator
+aus; das standalone Executable `InnoDI-DependencyGraph` bleibt fuer lokale
+Inspektion und CI-Artefakte verfuegbar.
 
-Use a local SwiftPM scratch path when derived data lives on a network volume:
+Verwenden Sie einen lokalen SwiftPM scratch path, wenn derived data auf einem
+Network Volume liegt. Der scratch path muss auf einer lokalen Disk liegen und
+schreibbar sein; ersetzen Sie `/tmp` je nach OS oder CI-Umgebung durch ein
+passendes lokales Temporary Directory.
 
 ```sh
 swift build --scratch-path /tmp/innodi-cache
 ```
 
-See <doc:lock-safety> for filesystem classifications and lock recovery.
+Filesystem-Klassen und Lock-Recovery sind in <doc:lock-safety> beschrieben.

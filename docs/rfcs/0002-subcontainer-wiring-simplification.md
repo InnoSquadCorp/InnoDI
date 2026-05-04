@@ -3,7 +3,7 @@
 - **Status**: **Deferred** (was Draft; see [Update — 2026-04-26](#update--2026-04-26))
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-26
-- **Last updated**: 2026-04-26
+- **Last updated**: 2026-05-04
 - **Target release**: previously planned for 5.0; now deferred until
   the upstream Swift compiler limitation described below is fixed
 - **Supersedes**: parts of `Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md`
@@ -11,10 +11,12 @@
 
 ## Update — 2026-04-26
 
-The 4.1 hint diagnostic and Fix-it shipped as planned. The next
-step (4.2 deprecation + 5.0 removal of `withNames:`) was attempted
-during the same PR train and uncovered a Swift compiler
-limitation that prevents a clean removal:
+The original 4.1 hint diagnostic and the next step
+(4.2 deprecation + 5.0 removal of `withNames:`) were attempted
+during the same PR train. That work uncovered two blockers: a
+Swift compiler limitation that prevents a clean removal, and an
+unstable compiler-plugin diagnostic path for non-essential
+top-level remarks.
 
 > When `@SubContainer(... with: [\Type.member])` is stacked with
 > another peer macro on the same property (`@DIFeatureRoot`,
@@ -38,31 +40,34 @@ documented usage pattern. The right thing to do is to:
 
 1. Keep `withNames:` available — and document it explicitly as
    the escape hatch for the multi-peer-macro case. Done.
-2. Soften the existing
-   `sub.prefer-with-over-with-names` note diagnostic so it no
-   longer asserts that `withNames:` will be removed in 5.0; it
-   now recommends `with:` "where the type-checker accepts it."
-   Done in this same change.
+2. Disable the non-essential informational diagnostic for
+   `withNames:` after real macro-client builds exposed Swift
+   compiler-plugin JSON decoding internal errors for top-level
+   remark diagnostics. Documentation continues to recommend `with:`
+   where the type-checker accepts it, but supported syntax should
+   not produce unstable diagnostics.
 3. Park this RFC in `Deferred` status. When the upstream Swift
    compiler ships a fix (a Swift Forums issue is the next step),
    reopen the RFC, draft a new timeline, and resume.
 
-The 4.1 hint + Fix-it remain in place; users still get a strong
-nudge toward `with:` for the common single-peer-macro case where
-the compiler does accept key paths.
+The macro no longer emits a migration hint for `withNames:`. Users
+still get documentation guidance toward `with:` for the common
+single-peer-macro case where the compiler accepts key paths.
 
 ## Summary
 
-Reduce `@SubContainer` same-name wiring from four spellings (implicit,
-`with:`, `withNames:`, `bindings:`) to two by deprecating
-`withNames:` in 4.2.0 and removing it in 5.0. The `with:` and
-`bindings:` forms continue to cover every wiring shape the four-way
-matrix covered today, with no expressive loss.
+This RFC originally proposed reducing `@SubContainer` same-name
+wiring from four spellings (implicit, `with:`, `withNames:`,
+`bindings:`) to two by deprecating `withNames:` in 4.2.0 and
+removing it in 5.0. That timeline is now deferred because stacked
+peer-macro sites still require the string-typed escape hatch, and
+because the attempted informational diagnostic proved unstable in
+real macro-client builds.
 
-The hint diagnostic that prepares the deprecation
-(`sub.prefer-with-over-with-names`) and its automatic Fix-it
-already shipped in 4.1.0; this RFC formalizes the timeline through
-5.0 and pins the migration story.
+The current guidance is conservative: prefer `with:` where Swift's
+type-checker accepts key paths, keep `withNames:` for stacked
+peer-macro contexts, and do not emit migration diagnostics for
+supported syntax.
 
 ## Motivation
 
@@ -115,35 +120,28 @@ expresses cross-name (`child.foo` ← `parent.bar`) wiring.
 
 | Release | Action | Already shipped? |
 |---|---|---|
-| 4.1.0 | Note diagnostic `sub.prefer-with-over-with-names` + automatic Fix-it that rewrites `withNames: [...]` in place. | ✅ shipped |
-| 4.2.0 | Promote the diagnostic from `.note` to `.warning`. Add ``@available(*, deprecated, message: "Use `with: [\.x]`. See RFC 0002.")`` to the `withNames:` overload of the macro. Migrate the InnoDI-internal test fixtures and Examples that intentionally exercise `withNames:` to `with:` so the release-gate `-warnings-as-errors` step keeps passing. | pending |
-| 4.2.x | If consumer feedback surfaces unforeseen breakage, leave 4.2 in place and gather data. No changes. | conditional |
-| 5.0.0 | Remove the `withNames:` parameter from `@SubContainer`. Delete the parser branch, the `subPreferWithOverWithNames` diagnostic, the `subWithConflictsWithWithNames` diagnostic (no longer reachable), and the related test fixtures. Update DocC and the seven translated READMEs. | pending |
+| 4.1.x | Keep both `with:` and `withNames:`. Prefer `with:` in documentation where key paths type-check, but do not emit a migration diagnostic. | active |
+| Future Swift fix | Re-test stacked peer-macro key-path expansion after the upstream compiler limitation is fixed. | pending |
+| Future major | If key paths work in stacked peer-macro contexts and user feedback supports it, draft a new deprecation/removal timeline. | deferred |
 
 ## Migration
 
-For an existing user, the change is a one-line edit per
-`@SubContainer` member that uses `withNames:`:
+There is no required migration for existing users. For new
+single-peer-macro sites where Swift accepts key paths, prefer
+`with:`:
 
 ```swift
-// 4.0 / 4.1
+// Supported, and required for stacked peer-macro escape-hatch cases
 @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 var feature: FeatureContainer
 
-// 4.2 onward (Fix-it applies this automatically)
+// Preferred where key paths type-check
 @SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
-The InnoDI macro plugin already emits a Fix-it that rewrites the
-labelled argument in place (see
-`makeSubPreferWithOverWithNamesFixIts` in
-`Sources/InnoDIMacros/DIContainerValidator.swift`). IDEs that
-honor SwiftSyntax Fix-it metadata will offer a one-click migration.
-
-For users who cannot move to 5.0 immediately, the 4.2.x line will
-keep `withNames:` working with a deprecation warning. There is no
-plan to back-port the 5.0 removal to 4.x.
+The InnoDI macro plugin intentionally does not emit a warning,
+remark, or Fix-It for `withNames:` while this RFC is deferred.
 
 ## Alternatives considered
 
@@ -174,19 +172,19 @@ every existing user. The opposite of the desired direction.
 
 ## Open questions
 
-1. **Should the 4.2 promotion to `.warning` happen as part of the
-   4.2.0 GA cut, or as a 4.2.0-rc to give consumers one more
-   release to react?**
-   The InnoDI maintainers' preference (subject to feedback) is to
-   ship the warning in 4.2.0 GA. The Fix-it already lands in 4.1.0,
-   so by the time 4.2.0 ships, every consumer with IDE Fix-it
-   support has had at least one minor cycle to migrate.
+1. **What upstream Swift compiler change would make key-path wiring
+   viable in stacked peer-macro contexts?**
+   The likely path is a compiler fix that lets peer-macro expansion
+   and key-path root type-checking avoid the current circular
+   dependency. This RFC should stay deferred until that behavior is
+   observable in a stable toolchain.
 
-2. **Do we need a separate `@available(*, unavailable)` step in a
-   4.3.0 to surface the removal more loudly than a warning?**
-   Probably not — the warning + Fix-it should be sufficient. We
-   can re-evaluate based on inbound issue reports between 4.1 and
-   4.2.
+2. **Can a future diagnostic be emitted without triggering
+   compiler-plugin IPC instability?**
+   Any renewed diagnostic should be validated in real macro-client
+   targets, not only snapshot expansion tests, because the previous
+   top-level informational diagnostic exposed JSON decoding internal
+   errors during ordinary builds.
 
 3. **Compatibility plan for downstream RFC 0001 (`@GenerateMock`)
    if both ship in 5.0?**
@@ -198,30 +196,36 @@ every existing user. The opposite of the desired direction.
 
 ## Acceptance criteria
 
-For 5.0 release:
+Before reopening a deprecation/removal plan:
 
 1. `grep -RIn 'withNames' Sources/ Examples/ Tests/` returns zero
    matches outside of `docs/` (where the historical reference is
    permitted).
-2. The `@SubContainer` macro definition in
+2. Real macro-client build targets that currently use stacked
+   `@SubContainer` + `@DIFeatureRoot` / `@DIEnvironmentBridge`
+   compile successfully with `with:` key paths.
+3. Any proposed diagnostic is validated with `swift build` /
+   `swift test` on real client targets and does not emit Swift
+   compiler-plugin JSON decoding internal errors.
+4. The `@SubContainer` macro definition in
    `Sources/InnoDI/InnoDI.swift` no longer accepts `withNames:`.
-3. `Sources/InnoDIMacros/DIContainerParser.swift` no longer parses
+5. `Sources/InnoDIMacros/DIContainerParser.swift` no longer parses
    `withNames:`.
-4. `Sources/InnoDIMacros/Diagnostics.swift` removes
-   `subPreferWithOverWithNames`, `subWithConflictsWithWithNames`,
+6. `Sources/InnoDIMacros/Diagnostics.swift` removes
+   `subWithConflictsWithWithNames`,
    and the `withNames`-specific branch of
    `subInvalidSameNameWiring`.
-5. `Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md` documents two
+7. `Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md` documents two
    spellings (`with:`, `bindings:`) plus the implicit form.
-6. The seven translated READMEs are in sync.
-7. `MigrationGuide.md` (new) covers 1.x → 5.0 with explicit
+8. The seven translated READMEs are in sync.
+9. `MigrationGuide.md` covers 1.x → 5.0 with explicit
    pointers from each release's deprecations to their 5.0
    replacements.
 
 ## References
 
 - `Sources/InnoDIMacros/DIContainerValidator.swift` — current
-  emission of the prefer-with hint and Fix-it.
+  validation for mutually exclusive `with:` / `withNames:` wiring.
 - `Sources/InnoDIMacros/DIContainerParser.swift` —
   `extractWithDependencyReferences` parses both forms today.
 - `docs/internal/fatalerror-inventory.md` — sibling work item from

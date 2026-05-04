@@ -25,9 +25,9 @@ func writeDOTAsPNG(
     environment: [String: String] = ProcessInfo.processInfo.environment
 ) -> Int32 {
     do {
-        let tempFileName = "innodi_temp_\(ProcessInfo.processInfo.globallyUniqueString).dot"
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(tempFileName)
-        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let tempDirectory = try makePrivateTemporaryDirectory(prefix: "innodi-dot")
+        let tempURL = tempDirectory.appendingPathComponent("graph.dot")
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         try dotContent.write(to: tempURL, atomically: true, encoding: .utf8)
 
@@ -99,15 +99,34 @@ private func runProcessCapturingOutput(
     process.executableURL = URL(fileURLWithPath: executablePath)
     process.arguments = arguments
 
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = stderrPipe
+    let fileManager = FileManager.default
+    let tempDirectory = try makePrivateTemporaryDirectory(prefix: "innodi-dot-output")
+    let stdoutURL = tempDirectory.appendingPathComponent("stdout")
+    let stderrURL = tempDirectory.appendingPathComponent("stderr")
+    try createEmptyCaptureFile(at: stdoutURL)
+    try createEmptyCaptureFile(at: stderrURL)
+    defer { try? fileManager.removeItem(at: tempDirectory) }
+
+    let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+    let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+    var handlesClosed = false
+    defer {
+        if !handlesClosed {
+            stdoutHandle.closeFile()
+            stderrHandle.closeFile()
+        }
+    }
+    process.standardOutput = stdoutHandle
+    process.standardError = stderrHandle
 
     try process.run()
-    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
+
+    stdoutHandle.closeFile()
+    stderrHandle.closeFile()
+    handlesClosed = true
+    let stdoutData = try Data(contentsOf: stdoutURL)
+    let stderrData = try Data(contentsOf: stderrURL)
 
     return CapturedProcessOutput(
         exitCode: process.terminationStatus,
@@ -121,4 +140,31 @@ private func isExecutableFile(atPath path: String) -> Bool {
     return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
         && !isDirectory.boolValue
         && FileManager.default.isExecutableFile(atPath: path)
+}
+
+private enum ProcessCaptureError: Error {
+    case failedToCreateCaptureFile(String)
+}
+
+private func makePrivateTemporaryDirectory(prefix: String) throws -> URL {
+    let fileManager = FileManager.default
+    let url = fileManager.temporaryDirectory
+        .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
+    try fileManager.createDirectory(
+        at: url,
+        withIntermediateDirectories: false,
+        attributes: [.posixPermissions: 0o700]
+    )
+    return url
+}
+
+private func createEmptyCaptureFile(at url: URL) throws {
+    let path = url.path(percentEncoded: false)
+    guard FileManager.default.createFile(
+        atPath: path,
+        contents: nil,
+        attributes: [.posixPermissions: 0o600]
+    ) else {
+        throw ProcessCaptureError.failedToCreateCaptureFile(path)
+    }
 }

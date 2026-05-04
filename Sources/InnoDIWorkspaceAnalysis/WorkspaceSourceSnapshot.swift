@@ -10,25 +10,27 @@ package let workspaceSourceSkipTokens = [
     "/.git/",
     "/Pods/",
     "/Carthage/",
-    "/.swiftpm/",
-    "/.xcodeproj/",
-    "/.xcworkspace/"
+    "/.swiftpm/"
+]
+
+// Xcode bundle names include project-specific prefixes, such as Sample.xcodeproj.
+private let workspaceSourceSkippedPathComponentSuffixes = [
+    ".xcodeproj",
+    ".xcworkspace"
 ]
 
 package struct WorkspaceSourceFile {
     package let relativePath: String
     package let fileURL: URL
-    package let source: String
     package let syntax: SourceFileSyntax
 
     package var filePath: String {
         fileURL.path(percentEncoded: false)
     }
 
-    package init(relativePath: String, fileURL: URL, source: String, syntax: SourceFileSyntax) {
+    package init(relativePath: String, fileURL: URL, syntax: SourceFileSyntax) {
         self.relativePath = relativePath
         self.fileURL = fileURL
-        self.source = source
         self.syntax = syntax
     }
 }
@@ -52,7 +54,10 @@ package struct WorkspaceSourceSnapshot {
     }
 }
 
-package func loadWorkspaceSourceSnapshot(rootPath: String) throws -> WorkspaceSourceSnapshot {
+package func loadWorkspaceSourceSnapshot(
+    rootPath: String,
+    onFileReadError: ((String, URL, Error) -> Void)? = nil
+) throws -> WorkspaceSourceSnapshot {
     let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
     let sourceFiles = discoverWorkspaceSourceFiles(rootPath: rootPath)
     var files: [WorkspaceSourceFile] = []
@@ -60,13 +65,21 @@ package func loadWorkspaceSourceSnapshot(rootPath: String) throws -> WorkspaceSo
 
     for relativePath in sourceFiles {
         let fileURL = rootURL.appendingPathComponent(relativePath)
-        let source = try String(contentsOf: fileURL, encoding: .utf8)
+        let source: String
+        do {
+            source = try String(contentsOf: fileURL, encoding: .utf8)
+        } catch {
+            if let onFileReadError {
+                onFileReadError(relativePath, fileURL, error)
+                continue
+            }
+            throw error
+        }
         let syntax = Parser.parse(source: source)
         files.append(
             WorkspaceSourceFile(
                 relativePath: relativePath,
                 fileURL: fileURL,
-                source: source,
                 syntax: syntax
             )
         )
@@ -120,12 +133,13 @@ package func workspaceRelativePath(of path: String, fromRoot rootPath: String) -
         return String(fullPath.dropFirst(rootPrefix.count))
     }
 
+    let hash = stableWorkspacePathHash(fullPath)
     let parentName = pathURL.deletingLastPathComponent().lastPathComponent
     let fileName = pathURL.lastPathComponent
     if parentName.isEmpty {
-        return "__external__/\(fileName)"
+        return "__external__/\(hash)/\(fileName)"
     }
-    return "__external__/\(parentName)/\(fileName)"
+    return "__external__/\(hash)/\(parentName)/\(fileName)"
 }
 
 package func parseWorkspaceSourceFile(at path: String) throws -> SourceFileSyntax {
@@ -146,5 +160,31 @@ private func workspacePathMatchesSkipToken(_ path: String) -> Bool {
     for token in workspaceSourceSkipTokens where normalizedPath.contains(token) {
         return true
     }
+    let pathComponents = trimmedPath.split(separator: "/")
+    for component in pathComponents {
+        if workspaceSourceSkippedPathComponentSuffixes.contains(where: { component.hasSuffix($0) }) {
+            return true
+        }
+    }
     return false
+}
+
+private func stableWorkspacePathHash(_ path: String) -> String {
+    var highState: UInt64 = 14_695_981_039_346_656_037
+    var lowState: UInt64 = 1_099_511_628_211
+
+    for byte in path.utf8 {
+        highState ^= UInt64(byte)
+        highState = highState &* 1_099_511_628_211
+
+        lowState ^= UInt64(byte) &+ 0x9e37_79b9_7f4a_7c15
+        lowState = lowState &* 1_099_511_628_211
+    }
+
+    return paddedHex(highState) + paddedHex(lowState)
+}
+
+private func paddedHex(_ value: UInt64) -> String {
+    let hex = String(value, radix: 16)
+    return String(repeating: "0", count: max(0, 16 - hex.count)) + hex
 }

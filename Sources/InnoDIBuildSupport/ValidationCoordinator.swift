@@ -37,7 +37,7 @@ package struct ValidationExecutionOutcome: Equatable, Sendable {
 /// runners.
 package protocol ValidationCommandRunning: Sendable {
     func runValidationTool(
-        toolPath: String,
+        toolPath: String?,
         rootPath: String,
         snapshot: WorkspaceSourceSnapshot
     ) throws -> ValidationCommandResult
@@ -290,7 +290,7 @@ package struct InProcessValidationCommandRunner: ValidationCommandRunning {
     package init() {}
 
     package func runValidationTool(
-        toolPath: String,
+        toolPath: String?,
         rootPath: String,
         snapshot: WorkspaceSourceSnapshot
     ) throws -> ValidationCommandResult {
@@ -309,11 +309,18 @@ package struct LiveValidationCommandRunner: ValidationCommandRunning {
     package init() {}
 
     package func runValidationTool(
-        toolPath: String,
+        toolPath: String?,
         rootPath: String,
         snapshot: WorkspaceSourceSnapshot
     ) throws -> ValidationCommandResult {
-        try runValidationTool(toolPath: toolPath, rootPath: rootPath)
+        guard let toolPath, !toolPath.isEmpty else {
+            return try InProcessValidationCommandRunner().runValidationTool(
+                toolPath: nil,
+                rootPath: rootPath,
+                snapshot: snapshot
+            )
+        }
+        return try runValidationTool(toolPath: toolPath, rootPath: rootPath)
     }
 
     package func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult {
@@ -322,34 +329,69 @@ package struct LiveValidationCommandRunner: ValidationCommandRunning {
         process.arguments = ["--root", rootPath, "--validate-dag"]
         process.currentDirectoryURL = URL(fileURLWithPath: rootPath)
 
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        let fileManager = FileManager.default
+        let tempDirectory = try makePrivateValidationProcessCaptureDirectory()
+        let stdoutURL = tempDirectory.appendingPathComponent("stdout")
+        let stderrURL = tempDirectory.appendingPathComponent("stderr")
+        try createEmptyValidationProcessCaptureFile(at: stdoutURL)
+        try createEmptyValidationProcessCaptureFile(at: stderrURL)
+        defer { try? fileManager.removeItem(at: tempDirectory) }
 
-        let stdoutBuffer = LockedDataBuffer()
-        let stderrBuffer = LockedDataBuffer()
-        installReadHandler(on: stdoutPipe.fileHandleForReading, buffer: stdoutBuffer)
-        installReadHandler(on: stderrPipe.fileHandleForReading, buffer: stderrBuffer)
+        let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+        var handlesClosed = false
+        defer {
+            if !handlesClosed {
+                stdoutHandle.closeFile()
+                stderrHandle.closeFile()
+            }
+        }
+        process.standardOutput = stdoutHandle
+        process.standardError = stderrHandle
 
         try process.run()
         process.waitUntilExit()
 
-        let stdoutHandle = stdoutPipe.fileHandleForReading
-        let stderrHandle = stderrPipe.fileHandleForReading
-        stdoutHandle.readabilityHandler = nil
-        stderrHandle.readabilityHandler = nil
-        stdoutBuffer.append(stdoutHandle.readDataToEndOfFile())
-        stderrBuffer.append(stderrHandle.readDataToEndOfFile())
-
-        let stdout = String(data: stdoutBuffer.data, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrBuffer.data, encoding: .utf8) ?? ""
+        stdoutHandle.closeFile()
+        stderrHandle.closeFile()
+        handlesClosed = true
+        let stdoutData = try Data(contentsOf: stdoutURL)
+        let stderrData = try Data(contentsOf: stderrURL)
+        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
 
         return ValidationCommandResult(
             exitCode: process.terminationStatus,
             stdout: stdout,
             stderr: stderr
         )
+    }
+}
+
+private enum ValidationProcessCaptureError: Error {
+    case failedToCreateCaptureFile(String)
+}
+
+private func makePrivateValidationProcessCaptureDirectory() throws -> URL {
+    let fileManager = FileManager.default
+    let url = fileManager.temporaryDirectory
+        .appendingPathComponent("innodi-validation-output-\(UUID().uuidString)", isDirectory: true)
+    try fileManager.createDirectory(
+        at: url,
+        withIntermediateDirectories: false,
+        attributes: [.posixPermissions: 0o700]
+    )
+    return url
+}
+
+private func createEmptyValidationProcessCaptureFile(at url: URL) throws {
+    let path = url.path(percentEncoded: false)
+    guard FileManager.default.createFile(
+        atPath: path,
+        contents: nil,
+        attributes: [.posixPermissions: 0o600]
+    ) else {
+        throw ValidationProcessCaptureError.failedToCreateCaptureFile(path)
     }
 }
 
@@ -361,7 +403,7 @@ package struct LiveValidationCommandRunner: ValidationCommandRunning {
 package enum ValidationCoordinator {
     package static func coordinate(
         rootPath: String,
-        toolPath: String,
+        toolPath: String?,
         stateDirectoryPath: String,
         outputDirectoryPath: String,
         lockPolicy: ValidationCoordinatorLockPolicy = .default
@@ -378,7 +420,7 @@ package enum ValidationCoordinator {
 
     package static func coordinate<Runner: ValidationCommandRunning>(
         rootPath: String,
-        toolPath: String,
+        toolPath: String?,
         stateDirectoryPath: String,
         outputDirectoryPath: String,
         runner: Runner,
@@ -409,7 +451,8 @@ package enum ValidationCoordinator {
             signatureCollection = try collectValidationSignatureWithMetrics(
                 rootPath: rootPath,
                 stateDirectoryPath: stateDirectoryPath,
-                persistManifestUpdates: false
+                persistManifestUpdates: false,
+                useManifestCache: false
             )
         } else {
             signatureCollection = try await collectValidationSignatureWithSharedCacheLock(
@@ -744,7 +787,8 @@ package enum ValidationCoordinator {
             return try collectValidationSignatureWithMetrics(
                 rootPath: rootPath,
                 stateDirectoryPath: stateDirectoryPath,
-                persistManifestUpdates: false
+                persistManifestUpdates: false,
+                useManifestCache: false
             )
         }
 
@@ -782,14 +826,15 @@ package enum ValidationCoordinator {
 
         FileHandle.standardError.write(
             Data(
-                "InnoDI: timed out waiting for the signature cache lock; collecting the source signature without serialization.\n"
+                "InnoDI: timed out waiting for the signature cache lock; collecting a one-shot source signature without using the manifest cache.\n"
                     .utf8
             )
         )
         return try collectValidationSignatureWithMetrics(
             rootPath: rootPath,
             stateDirectoryPath: stateDirectoryPath,
-            persistManifestUpdates: false
+            persistManifestUpdates: false,
+            useManifestCache: false
         )
     }
 

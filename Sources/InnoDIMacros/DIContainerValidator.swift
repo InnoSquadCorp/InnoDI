@@ -368,32 +368,6 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            // Item 3.A — prepare users for the 4.2 deprecation / 5.0
-            // removal of `withNames:`. We only fire when `withNames:` is
-            // used in isolation (a `with:` co-occurrence already produces
-            // the conflict diagnostic above; emitting both would be noise).
-            if sub.hasWithNamesDependencies
-                && !sub.hasWithDependencies
-                && !sub.hasStackedPeerMacroEscapeHatch {
-                let suggestion = renderSubContainerWithSuggestion(parentNames: sub.parentDependencies)
-                let fixIts = sub.invalidSameNameWiringLabel == nil
-                    ? makeSubPreferWithOverWithNamesFixIts(
-                        attribute: sub.attribute,
-                        replacement: suggestion
-                    )
-                    : []
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subPreferWithOverWithNames(
-                            memberName: sub.name,
-                            suggestedReplacement: suggestion
-                        ),
-                        fixIts: fixIts
-                    )
-                )
-            }
-
             let hasBindingWiringConflict = (sub.hasWithDependencies || sub.hasWithNamesDependencies)
                 && !sub.explicitBindings.isEmpty
             if hasBindingWiringConflict {
@@ -610,60 +584,4 @@ struct DIContainerValidator {
 
         return !hadErrors
     }
-}
-
-/// Helper for the `subPreferWithOverWithNames` hint. Renders a
-/// concrete suggested replacement so the user can copy-paste the
-/// migration without hand-translating each name.
-internal func renderSubContainerWithSuggestion(parentNames: [String]) -> String {
-    if parentNames.isEmpty {
-        return "with: []"
-    }
-    let elements = parentNames.map { "\\.\($0)" }.joined(separator: ", ")
-    return "with: [\(elements)]"
-}
-
-/// Builds the Fix-it that rewrites `withNames: ["x", "y"]` to
-/// `with: [\.x, \.y]` in place. Returns an empty array (no
-/// fix-it offered) when:
-/// - the attribute has no parseable argument list,
-/// - no `withNames:` argument is present (defensive — caller
-///   should have filtered already),
-/// - the parser produced an empty `parentDependencies` list AND the
-///   replacement is the trivial `with: []` empty form (still safe to
-///   apply, but skipping keeps the IDE quieter on degenerate cases).
-internal func makeSubPreferWithOverWithNamesFixIts(
-    attribute: AttributeSyntax,
-    replacement: String
-) -> [FixIt] {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-        return []
-    }
-    guard let withNamesArg = arguments.first(where: { $0.label?.text == "withNames" }) else {
-        return []
-    }
-
-    // Replace from the start of the `withNames:` label through the
-    // end of the array literal. We deliberately do NOT include the
-    // surrounding comma trivia — Swift will normalize whitespace
-    // after the rewrite.
-    let startPosition = withNamesArg.positionAfterSkippingLeadingTrivia
-    let endPosition = withNamesArg.endPositionBeforeTrailingTrivia
-
-    return [
-        FixIt(
-            message: SimpleFixIt(
-                "Replace `withNames:` with `\(replacement)`",
-                code: .subPreferWithOverWithNames,
-                suffix: "rewrite-with-names"
-            ),
-            changes: [
-                .replaceText(
-                    range: startPosition..<endPosition,
-                    with: replacement,
-                    in: Syntax(attribute.root)
-                )
-            ]
-        )
-    ]
 }

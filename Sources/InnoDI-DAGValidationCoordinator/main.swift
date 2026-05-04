@@ -19,7 +19,7 @@ do {
     )
     let outcome = try await ValidationCoordinator.coordinate(
         rootPath: arguments.rootPath,
-        toolPath: arguments.toolPath ?? "",
+        toolPath: arguments.toolPath,
         stateDirectoryPath: arguments.stateDirectoryPath,
         outputDirectoryPath: arguments.outputDirectoryPath,
         lockPolicy: lockPolicy

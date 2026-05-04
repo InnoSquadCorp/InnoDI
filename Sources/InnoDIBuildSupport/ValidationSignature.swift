@@ -75,14 +75,26 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
     /// metrics artifacts and release tooling.
     func collectWithMetrics(
         rootPath: String,
-        persistManifestUpdates: Bool = true
+        persistManifestUpdates: Bool = true,
+        useManifestCache: Bool = true
     ) throws -> ValidationSignatureCollectionResult {
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
-        try fileManager.createDirectory(at: stateDirectoryURL, withIntermediateDirectories: true)
+        if persistManifestUpdates {
+            try fileManager.createDirectory(at: stateDirectoryURL, withIntermediateDirectories: true)
+        }
 
         let manifestURL = stateDirectoryURL.appendingPathComponent("ast-digest-cache.json")
-        let loadedManifest = try loadManifest(at: manifestURL)
+        let loadedManifest: LoadedValidationDigestManifest
+        if useManifestCache {
+            loadedManifest = try loadManifest(at: manifestURL)
+        } else {
+            loadedManifest = LoadedValidationDigestManifest(
+                manifest: ValidationDigestManifest(files: [:]),
+                invalidatedByCorruption: false,
+                invalidatedByVersion: false
+            )
+        }
         let existingManifest = loadedManifest.manifest
         let sourceFiles = discoverValidationSourceFiles(rootPath: rootPath)
         var updatedRecords: [String: ValidationFileDigestRecord] = [:]
@@ -201,7 +213,8 @@ func collectValidationSignature(
 func collectValidationSignatureWithMetrics(
     rootPath: String,
     stateDirectoryPath: String? = nil,
-    persistManifestUpdates: Bool = true
+    persistManifestUpdates: Bool = true,
+    useManifestCache: Bool = true
 ) throws -> ValidationSignatureCollectionResult {
     let resolvedStateDirectoryPath: String
     if let stateDirectoryPath {
@@ -219,7 +232,8 @@ func collectValidationSignatureWithMetrics(
     )
     .collectWithMetrics(
         rootPath: rootPath,
-        persistManifestUpdates: persistManifestUpdates
+        persistManifestUpdates: persistManifestUpdates,
+        useManifestCache: useManifestCache
     )
 }
 
@@ -320,7 +334,7 @@ private func persistManifest(_ manifest: ValidationDigestManifest, to url: URL) 
 
 struct StableHasher {
     private var highState: UInt64 = 14_695_981_039_346_656_037
-    private var lowState: UInt64 = 10_995_116_282_11
+    private var lowState: UInt64 = 1_099_511_628_211
 
     mutating func combine(_ value: String) {
         for byte in value.utf8 {
