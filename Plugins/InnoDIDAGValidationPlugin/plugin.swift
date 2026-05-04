@@ -9,7 +9,6 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
         }
 
         let coordinator = try context.tool(named: "InnoDI-DAGValidationCoordinator")
-        let dependencyGraphTool = try context.tool(named: "InnoDI-DependencyGraph")
         let outputDirectory = context.pluginWorkDirectoryURL
         let rootPath = context.package.directoryURL.path
         let sharedStateDirectory = context.package.directoryURL
@@ -22,7 +21,6 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
                 executable: coordinator.url,
                 arguments: [
                     "--root", rootPath,
-                    "--tool", dependencyGraphTool.url.path,
                     "--state-dir", sharedStateDirectory.path,
                     "--output-dir", outputDirectory.path,
                 ],

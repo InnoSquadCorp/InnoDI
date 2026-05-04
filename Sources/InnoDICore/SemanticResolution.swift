@@ -158,9 +158,11 @@ package struct SemanticResolverIndex: Equatable, Sendable {
         ]
         var visited: Set<String> = [reference.displayPath]
         var results: [ResolutionCandidate] = []
+        var index = 0
 
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
+        while index < queue.count {
+            let current = queue[index]
+            index += 1
             results.append(current)
 
             for expansion in directAliasExpansions(for: current.reference) {

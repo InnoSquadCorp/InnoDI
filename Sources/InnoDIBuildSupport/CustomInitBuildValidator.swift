@@ -1,27 +1,25 @@
 import Foundation
 import InnoDICore
-import SwiftParser
+import InnoDIWorkspaceAnalysis
 import SwiftSyntax
 
 package enum CustomInitBuildValidator {
     package static func validate(rootPath: String) throws -> ValidationIssueReport {
-        let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
-        let sourceFiles = discoverValidationSourceFiles(rootPath: rootPath)
+        try validate(snapshot: loadWorkspaceSourceSnapshot(rootPath: rootPath))
+    }
 
+    package static func validate(snapshot: WorkspaceSourceSnapshot) throws -> ValidationIssueReport {
         var containersByPath: [String: [ContainerDeclarationRecord]] = [:]
         var extensionRecords: [ExtensionInitializerRecord] = []
         var nominalTypes: [SemanticNominalTypeRecord] = []
         var typeAliases: [SemanticTypeAliasRecord] = []
 
-        for relativePath in sourceFiles {
-            let fileURL = rootURL.appendingPathComponent(relativePath)
-            let source = try String(contentsOf: fileURL, encoding: .utf8)
-            let syntax = Parser.parse(source: source)
+        for sourceFile in snapshot.files {
             let collector = CustomInitFileCollector(
-                filePath: fileURL.path(percentEncoded: false),
-                syntax: syntax
+                filePath: sourceFile.filePath,
+                syntax: sourceFile.syntax
             )
-            collector.walk(syntax)
+            collector.walk(sourceFile.syntax)
 
             for container in collector.containerDeclarations {
                 containersByPath[container.declarationPath, default: []].append(container)

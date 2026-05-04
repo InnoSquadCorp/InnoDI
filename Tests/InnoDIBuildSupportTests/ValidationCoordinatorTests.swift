@@ -1,5 +1,6 @@
 import Foundation
 import InnoDICore
+import InnoDIWorkspaceAnalysis
 import SwiftParser
 import SwiftSyntax
 import Testing
@@ -1505,6 +1506,8 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 1)
         #expect(results.contains { $0.wasCached })
         #expect(results.contains { !$0.wasCached })
+        #expect(results.reduce(0) { $0 + $1.metricsArtifact.signatureMetrics.astReparseCount } == 1)
+        #expect(results.contains { $0.metricsArtifact.signatureMetrics.metadataCacheHitCount == 1 })
     }
 
     @Test("Changing source input invalidates the cached result")
@@ -2025,7 +2028,11 @@ private final class MockValidationRunner: ValidationCommandRunning, @unchecked S
         return currentInvocationCount
     }
 
-    func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult {
+    func runValidationTool(
+        toolPath: String,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult {
         lock.lock()
         let invocationIndex = currentInvocationCount
         currentInvocationCount += 1
