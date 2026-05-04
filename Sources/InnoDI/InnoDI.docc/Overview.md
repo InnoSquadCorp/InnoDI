@@ -8,6 +8,11 @@ InnoDI turns plain Swift types into DI containers through `@DIContainer` and
 `@Provide`. The package focuses on explicit wiring, deterministic validation,
 and graph tooling rather than runtime container mutation.
 
+The generated API is intentionally initializer-centered. InnoDI does not ship
+an `@Injected` property wrapper or a dynamic registration container; those
+patterns are useful in runtime DI tools, but InnoDI optimizes for code-review
+visibility, deterministic macro expansion, and build-time graph validation.
+
 4.0.0 treats the following as the stable baseline:
 
 - macro-generated container APIs
@@ -22,6 +27,8 @@ and graph tooling rather than runtime container mutation.
 - unsafe-filesystem fail-fast for the validation coordinator lock
 - layered `O_CREAT | O_EXCL` plus `flock` locking on supported filesystems
 - build-time diagnostics instead of macro-synthesized `fatalError` accessors
+- shared parsed workspace snapshots across build validators
+- in-process DAG validation from the build coordinator
 - PR and release gates that both enforce strict concurrency and the
   macro-source `fatalError` allow-list
 - `@SubContainer` Fix-it guidance for the non-stacked `withNames:` case
@@ -32,6 +39,7 @@ and graph tooling rather than runtime container mutation.
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 

@@ -5,6 +5,23 @@
 InnoDI は、コンパイル時およびビルド時の検証、依存グラフツール、
 階層検証、SwiftUI ヘルパーを備えた Swift 向けのマクロ駆動 DI フレームワークです。
 
+## 最小限の実用例
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## InnoDI を使う理由
 
 DI の wiring を明示的かつレビューしやすい形で保ち、失敗をできるだけ早く
@@ -18,6 +35,9 @@ DI の wiring を明示的かつレビューしやすい形で保ち、失敗を
 InnoDI はランタイムの state machine ではありません。ランタイム状態は
 アプリ層や `InnoFlow`、`InnoRouter`、`InnoNetwork` のような補助
 フレームワークに置く前提です。
+InnoDI は意図的に `@Injected` property wrapper や dynamic registration API
+を提供しません。その代わり、明示的な generated initializer、レビュー可能な
+wiring、より早い検証を選びます。
 
 ## 要件
 

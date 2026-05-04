@@ -30,6 +30,7 @@ InnoDI 通过 `@DIContainer` 与 `@Provide` 把普通 Swift 类型转换为 DI
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 

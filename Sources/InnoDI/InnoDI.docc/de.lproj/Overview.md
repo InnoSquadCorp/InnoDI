@@ -31,6 +31,7 @@ Die stabile 4.0.0-Baseline umfasst:
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 

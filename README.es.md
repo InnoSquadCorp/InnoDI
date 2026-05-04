@@ -6,6 +6,23 @@ Framework de inyeccion de dependencias basado en macros para Swift con
 validacion en compilacion y build, herramientas de grafo de dependencias,
 validacion de jerarquia y helpers para SwiftUI.
 
+## Ejemplo minimo util
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## Por que InnoDI
 
 InnoDI esta pensado para equipos que quieren mantener el wiring de DI
@@ -20,6 +37,9 @@ explicito y revisable, detectando fallos lo antes posible.
 InnoDI no es una state machine en runtime. El estado en runtime debe vivir en
 la capa de la app o en frameworks companeros como `InnoFlow`, `InnoRouter` e
 `InnoNetwork`.
+InnoDI no ofrece intencionalmente un property wrapper `@Injected` ni una API de
+registro dinamico. El tradeoff es usar initializers generados explicitos,
+wiring revisable y validacion mas temprana.
 
 ## Requisitos
 
