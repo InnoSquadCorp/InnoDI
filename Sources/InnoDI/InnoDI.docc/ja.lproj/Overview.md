@@ -31,6 +31,7 @@ InnoDI は `@DIContainer` と `@Provide` を使って通常の Swift 型を DI
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 

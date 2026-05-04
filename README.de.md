@@ -6,6 +6,23 @@ Makrogetriebenes Dependency Injection fur Swift mit Compile- und Build-
 Validierung, Dependency-Graph-Werkzeugen, Hierarchieprufungen und SwiftUI-
 Hilfen.
 
+## Minimales nutzliches Beispiel
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## Warum InnoDI
 
 InnoDI ist fur Teams gedacht, die DI-Wiring explizit und reviewbar halten
@@ -19,6 +36,9 @@ wollen und Fehler fruher erkennen mochten.
 InnoDI ist keine Runtime-State-Machine. Runtime-Zustand gehort in die App-
 Schicht oder in begleitende Frameworks wie `InnoFlow`, `InnoRouter` und
 `InnoNetwork`.
+InnoDI bietet bewusst keinen `@Injected` Property Wrapper und keine Dynamic-
+Registration-API. Der Tradeoff sind explizite generierte Initializer,
+reviewbares Wiring und fruhere Validierung.
 
 ## Anforderungen
 

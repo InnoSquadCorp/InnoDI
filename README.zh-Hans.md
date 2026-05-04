@@ -5,6 +5,23 @@
 面向 Swift 的宏驱动依赖注入框架，提供编译期与构建期校验、依赖图工具、
 层级校验以及 SwiftUI 辅助能力。
 
+## 最小可用示例
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## 为什么选择 InnoDI
 
 InnoDI 适合希望让 DI wiring 保持显式、可审查，并尽可能提前发现错误的团队。
@@ -16,6 +33,8 @@ InnoDI 适合希望让 DI wiring 保持显式、可审查，并尽可能提前�
 
 InnoDI 不是运行时状态机。运行时状态应放在你的应用层或 `InnoFlow`、
 `InnoRouter`、`InnoNetwork` 这类配套框架中。
+InnoDI 有意不提供 `@Injected` property wrapper 或 dynamic registration API。
+它选择的取舍是显式生成 initializer、可审查的 wiring，以及更早的校验。
 
 ## 要求
 

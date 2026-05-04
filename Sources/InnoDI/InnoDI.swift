@@ -63,10 +63,10 @@ public macro Provide(
 ///     // Declare the soft-target side first. `a`'s factory only consumes
 ///     // the already-initialized `b` via a Lazy wrapper, so `a` compiles
 ///     // cleanly even though `b` references `a` in turn.
-///     @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) })
+///     @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
 ///     var a: CoordinatorA
 ///
-///     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) })
+///     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) }, concrete: true)
 ///     var b: CoordinatorB
 /// }
 /// ```
@@ -127,12 +127,12 @@ public struct Lazy<T> {
 ///
 ///     @Provide(.transient, factory: { (config: Config) in
 ///         Request(config: config)
-///     })
+///     }, concrete: true)
 ///     var request: Request
 ///
 ///     @Provide(.shared, factory: { (requests: Provider<Request>) in
 ///         RequestLogger(requests: requests)
-///     })
+///     }, concrete: true)
 ///     var logger: RequestLogger
 /// }
 ///

@@ -31,6 +31,7 @@ InnoDI превращает обычные Swift-типы в DI-контейне
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 
