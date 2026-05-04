@@ -30,7 +30,6 @@ extension DIComponentMacro: PeerMacro {
             return []
         }
 
-        let accessLevel = hierarchyAccessLevelModifierText(for: declGroup.modifiers)
         let protocolName = "\(nominalInfo.baseName)Dependencies"
         let inputMembers = hierarchyInputMembers(in: declGroup)
         let protocolDecl = makeComponentDependenciesProtocolDecl(
@@ -39,7 +38,6 @@ extension DIComponentMacro: PeerMacro {
             inputMembers: inputMembers
         )
 
-        _ = accessLevel
         return [DeclSyntax(protocolDecl)]
     }
 }
