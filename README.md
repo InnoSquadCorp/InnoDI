@@ -149,7 +149,9 @@ declares InnoDI containers:
 
 ## Quick Start
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -171,7 +173,7 @@ struct AppContainer {
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 Use a factory closure when names or construction logic do not line up with

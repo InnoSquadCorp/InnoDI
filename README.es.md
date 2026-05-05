@@ -8,6 +8,7 @@ validacion de jerarquia y helpers para SwiftUI.
 
 ## Ejemplo minimo util
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -120,7 +121,9 @@ declara contenedores InnoDI:
 
 ## Inicio rapido
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -142,7 +145,7 @@ struct AppContainer {
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 Usa una factory closure cuando los nombres o la logica de construccion no

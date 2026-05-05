@@ -68,7 +68,10 @@ while IFS= read -r file; do
     extract_snippets "$file"
 done < <(
     {
-        printf '%s\n' "README.md"
+        # All canonical and localized README files plus the in-repo docs
+        # tree. Localized READMEs ride the same gate so a structural
+        # divergence in their marked snippets surfaces as a build failure.
+        find . -maxdepth 1 -type f -name 'README*.md'
         find Sources/InnoDI/InnoDI.docc docs -type f -name '*.md'
     } | sort -u
 )
