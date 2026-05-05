@@ -76,6 +76,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
     case previewWithContainerMissingContainerExpression = "swiftui.preview-with-container-missing-container"
     case previewWithContainerMissingTrailingClosure = "swiftui.preview-with-container-missing-closure"
+    case generateMockRequiresProtocol = "mock.requires-protocol"
+    case generateMockExperimentalSkeleton = "mock.experimental-skeleton"
     case internalCodegenInvariant = "internal.codegen-invariant"
 
     var category: InnoDIDiagnosticCategory {
@@ -108,6 +110,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .hierarchyRootRequiresContainer,
                 .previewWithContainerMissingContainerExpression,
                 .previewWithContainerMissingTrailingClosure,
+                .generateMockRequiresProtocol,
+                .generateMockExperimentalSkeleton,
                 .internalCodegenInvariant:
             return .validation
         }
@@ -558,6 +562,21 @@ extension SimpleDiagnostic {
         Self(
             "#PreviewWithContainer requires a trailing closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
             code: .previewWithContainerMissingTrailingClosure
+        )
+    }
+
+    static func generateMockRequiresProtocol() -> Self {
+        Self(
+            "@GenerateMock can only be attached to a protocol declaration. See docs/rfcs/0001-macro-mock-generation.md for the supported attachment sites.",
+            code: .generateMockRequiresProtocol
+        )
+    }
+
+    static func generateMockExperimentalSkeleton(protocolName: String) -> Self {
+        Self(
+            "@GenerateMock attached to '\(protocolName)' is currently a skeleton. The protocol-extraction stage lands in a follow-up commit; track RFC 0001 for the rollout schedule.",
+            code: .generateMockExperimentalSkeleton,
+            severity: .note
         )
     }
 }
