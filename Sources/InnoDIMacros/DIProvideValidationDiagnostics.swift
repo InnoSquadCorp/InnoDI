@@ -464,6 +464,51 @@ private func makeConcreteOptInFixIts(attribute: AttributeSyntax) -> [FixIt] {
     ]
 }
 
+internal func makeSubAutoWiringAmbiguousFixIts(
+    attribute: AttributeSyntax,
+    parentMemberNames: [String]
+) -> [FixIt] {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+          !arguments.isEmpty else {
+        return []
+    }
+
+    var seen = Set<String>()
+    let candidates = parentMemberNames.filter { name in
+        guard !name.isEmpty else { return false }
+        return seen.insert(name).inserted
+    }
+
+    let withListBody: String
+    if candidates.isEmpty {
+        // No parent members at all is unusual (the validator only fires when
+        // there are 2+ candidates), but be defensive: still offer the
+        // explicit empty-subset spelling that calls `Child()`.
+        withListBody = ""
+    } else {
+        withListBody = candidates.map { "\\.\($0)" }.joined(separator: ", ")
+    }
+
+    let insertion = ", with: [\(withListBody)]"
+    let position = arguments.endPositionBeforeTrailingTrivia
+    return [
+        FixIt(
+            message: SimpleFixIt(
+                "Add explicit with: [...] listing parent members",
+                code: .subAutoWiringAmbiguous,
+                suffix: "insert-with"
+            ),
+            changes: [
+                .replaceText(
+                    range: position..<position,
+                    with: insertion,
+                    in: Syntax(attribute.root)
+                )
+            ]
+        )
+    ]
+}
+
 private func makeReplaceSyntaxTextFixIts(
     syntax: Syntax?,
     replacementCandidates: [String],

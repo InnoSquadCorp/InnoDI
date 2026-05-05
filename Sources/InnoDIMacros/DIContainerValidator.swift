@@ -464,10 +464,15 @@ struct DIContainerValidator {
                     member: sub,
                     autoWireParentMemberNames: model.members.map(\.name)
                ) {
+                let parentCandidates = model.members.map(\.name)
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subAutoWiringAmbiguous(memberName: sub.name)
+                        message: SimpleDiagnostic.subAutoWiringAmbiguous(memberName: sub.name),
+                        fixIts: makeSubAutoWiringAmbiguousFixIts(
+                            attribute: sub.attribute,
+                            parentMemberNames: parentCandidates
+                        )
                     )
                 )
                 hadErrors = true
