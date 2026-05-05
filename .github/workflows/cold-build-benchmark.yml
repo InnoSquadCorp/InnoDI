@@ -1,0 +1,51 @@
+name: Cold Build Benchmark
+
+on:
+  schedule:
+    # Mondays at 04:00 UTC — paired with consumer-benchmark.yml at 03:00
+    # but with explicit cache eviction to expose swift-syntax cold-start
+    # cost. Splitting them keeps the regression signal isolated.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      bindings:
+        description: "Synthetic consumer @Provide bindings count"
+        default: "100"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  cold-build:
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - root
+          - consumer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        uses: ./.github/actions/select-xcode
+      - name: Run cold build benchmark
+        env:
+          BINDINGS: ${{ github.event.inputs.bindings || '100' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .build-metrics
+          if [[ "${{ matrix.scenario }}" == "consumer" ]]; then
+            Tools/cold-build-benchmark.sh --target consumer --bindings "$BINDINGS" \
+              | tee ".build-metrics/cold-${{ matrix.scenario }}.json"
+          else
+            Tools/cold-build-benchmark.sh --target root \
+              | tee ".build-metrics/cold-${{ matrix.scenario }}.json"
+          fi
+      - name: Upload cold build metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cold-build-${{ matrix.scenario }}
+          path: .build-metrics/
