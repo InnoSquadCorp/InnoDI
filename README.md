@@ -5,6 +5,23 @@
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 
+## Minimum Useful Example
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## Why InnoDI
 
 InnoDI is designed for teams that want DI wiring to stay explicit and
@@ -17,6 +34,9 @@ reviewable while moving failure detection earlier.
 
 InnoDI is not a runtime state machine. Runtime state belongs in your app layer
 or companion frameworks such as `InnoFlow`, `InnoRouter`, and `InnoNetwork`.
+It intentionally does not provide an `@Injected` property wrapper or dynamic
+registration API; the tradeoff is explicit generated initializers, reviewable
+wiring, and earlier validation.
 
 ## When to Choose InnoDI
 
@@ -288,14 +308,14 @@ every call.
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-})
+}, concrete: true)
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-})
+}, concrete: true)
 var logger: RequestLogger
 ```
 

@@ -1,5 +1,6 @@
 import Foundation
 import InnoDICore
+import InnoDIDependencyGraphCore
 import Testing
 
 @testable import InnoDI_DependencyGraph

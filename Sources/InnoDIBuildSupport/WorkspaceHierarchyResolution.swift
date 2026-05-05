@@ -168,9 +168,11 @@ func reachablePathsAndEdges(
     var visited: Set<String> = []
     var reachableEdges: [ResolvedHierarchyEdge] = []
     var queue = rootContainerIDs
+    var index = 0
 
-    while !queue.isEmpty {
-        let current = queue.removeFirst()
+    while index < queue.count {
+        let current = queue[index]
+        index += 1
         if !visited.insert(current).inserted {
             continue
         }

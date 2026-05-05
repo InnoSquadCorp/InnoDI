@@ -23,7 +23,7 @@ La baseline estable de 4.0.0 incluye:
 - lock por capas con `O_CREAT | O_EXCL` mas `flock` en filesystems soportados
 - diagnosticos de build-time en lugar de accessors `fatalError` sintetizados por macros
 - PR/release gates que fuerzan strict concurrency y la allow-list de `fatalError` en macros
-- guia de Fix-it de `@SubContainer` para `withNames:` cuando no hay peer macros apilados
+- guía key-path de `@SubContainer` para `withNames:` cuando no hay peer macros apilados
 
 ## Topics
 
@@ -31,6 +31,7 @@ La baseline estable de 4.0.0 incluye:
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 

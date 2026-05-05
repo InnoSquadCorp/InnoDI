@@ -28,7 +28,7 @@ extension DIFeatureRootMacro: PeerMacro {
               varDecl.bindings.count == 1,
               let binding = varDecl.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-              let typeAnnotation = binding.typeAnnotation,
+              binding.typeAnnotation != nil,
               let info = parseFeatureRootAttribute(node) else {
             return []
         }
@@ -100,18 +100,34 @@ extension DIFeatureRootMacro: PeerMacro {
             return []
         }
 
-        let accessLevel = accessLevelModifierText(for: enclosingDeclGroup(in: context)?.modifiers)
-        let childTypeName = typeAnnotation.type.trimmedDescription
+        let accessLevel = accessLevelModifiers(for: enclosingDeclGroup(in: context)?.modifiers)
         let rootViewTypeName = info.rootViewTypeName
 
-        let helperDecl: DeclSyntax = """
-            \(raw: accessLevel)func \(raw: helperName)() -> \(raw: rootViewTypeName) {
-                \(raw: rootViewTypeName)(container: \(raw: propertyName))
-            }
-            """
+        let rootViewCall = FunctionCallExprSyntax(
+            calledExpression: ExprSyntax("\(raw: rootViewTypeName)"),
+            leftParen: .leftParenToken(),
+            arguments: LabeledExprListSyntax([
+                LabeledExprSyntax(
+                    label: .identifier("container"),
+                    colon: .colonToken(),
+                    expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(propertyName)))
+                )
+            ]),
+            rightParen: .rightParenToken()
+        )
+        let helperDecl = FunctionDeclSyntax(
+            modifiers: accessLevel,
+            name: .identifier(helperName),
+            signature: FunctionSignatureSyntax(
+                parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax([])),
+                returnClause: ReturnClauseSyntax(type: TypeSyntax("\(raw: rootViewTypeName)"))
+            ),
+            body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+                CodeBlockItemSyntax(item: .expr(ExprSyntax(rootViewCall)))
+            ]))
+        )
 
-        _ = childTypeName
-        return [helperDecl]
+        return [DeclSyntax(helperDecl)]
     }
 }
 

@@ -19,7 +19,7 @@ private let unresolvedDependencyHelperName = "_innoDIUnresolvedDependency"
 
 /// Builds one argument expression per closure parameter of `member.factory`.
 /// Soft parameters that point at a known soft target are replaced with
-/// `Lazy({ _lazyCell_<name>.value! })`; all other parameters fall back to
+/// `Lazy({ _lazyCell_<name>.resolve() })`; all other parameters fall back to
 /// `self._storage_<resolved>` via `resolveClosureParameter`.
 internal func closureArgumentExpressions(
     member: ProvideMemberModel,

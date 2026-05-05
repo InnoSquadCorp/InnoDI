@@ -5,6 +5,23 @@
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
 
+## 최소 예제
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## 왜 InnoDI인가
 
 InnoDI는 DI wiring을 명시적이고 리뷰 가능한 상태로 유지하면서, 실패를 더
@@ -18,6 +35,9 @@ InnoDI는 DI wiring을 명시적이고 리뷰 가능한 상태로 유지하면�
 InnoDI는 runtime state machine이 아닙니다. 런타임 상태는 앱 레이어나
 `InnoFlow`, `InnoRouter`, `InnoNetwork` 같은 companion framework에 두는
 것을 전제로 합니다.
+InnoDI는 의도적으로 `@Injected` property wrapper나 dynamic registration API를
+제공하지 않습니다. 대신 명시적인 generated initializer, 리뷰 가능한 wiring,
+더 이른 검증을 선택합니다.
 
 ## 요구 사항
 
@@ -257,14 +277,14 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-})
+}, concrete: true)
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-})
+}, concrete: true)
 var logger: RequestLogger
 ```
 

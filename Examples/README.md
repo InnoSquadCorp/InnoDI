@@ -11,12 +11,19 @@ Reference source:
 
 ## Dependency Graph CLI Sample
 
-Runnable sample files:
+Runnable sample:
 
-- `Examples/SampleApp/AppContainer.swift`
-- `Examples/SampleApp/App.swift`
+- [Examples/SampleApp](SampleApp)
 
 Commands:
+
+```bash
+cd Examples/SampleApp
+swift build
+swift run SampleApp
+```
+
+Graph commands from the repository root:
 
 ```bash
 swift run InnoDI-DependencyGraph --root Examples/SampleApp

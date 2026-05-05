@@ -4,9 +4,8 @@
 //
 //  POSIX-level cross-process locking + stale-lock recovery used by the
 //  coordinator to serialize live DAG validation runs per signature. Also
-//  hosts the small IO-adjacent utilities (process existence check, pipe
-//  read-handler installer, thread-safe buffer, duration formatter) and the
-//  two `LocalizedError` wrappers the lock path throws.
+//  hosts the small lock-adjacent utilities (process existence check, duration
+//  formatter) and the two `LocalizedError` wrappers the lock path throws.
 //
 //  These helpers are strictly infrastructure — the orchestration logic in
 //  `ValidationCoordinator.swift` composes them.
@@ -422,29 +421,6 @@ internal func lockTimeoutDiagnosticMessage(
     return lines.joined(separator: "\n") + "\n"
 }
 
-// MARK: - Process/IO utilities
-
-internal final class LockedDataBuffer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage = Data()
-
-    var data: Data {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
-    }
-
-    func append(_ chunk: Data) {
-        guard !chunk.isEmpty else {
-            return
-        }
-
-        lock.lock()
-        storage.append(chunk)
-        lock.unlock()
-    }
-}
-
 internal func validationProcessExists(_ pid: Int32) -> Bool {
     guard pid > 0 else {
         return false
@@ -460,16 +436,4 @@ internal func validationProcessExists(_ pid: Int32) -> Bool {
 
 internal func formatSeconds(_ value: TimeInterval) -> String {
     String(format: "%.2f", value)
-}
-
-internal func installReadHandler(on handle: FileHandle, buffer: LockedDataBuffer) {
-    handle.readabilityHandler = { readableHandle in
-        let chunk = readableHandle.availableData
-        if chunk.isEmpty {
-            readableHandle.readabilityHandler = nil
-            return
-        }
-
-        buffer.append(chunk)
-    }
 }

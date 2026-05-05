@@ -116,6 +116,73 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.isEmpty)
     }
 
+    @Test("--output - preserves stderr for DAG validation failures")
+    func outputDashPreservesValidationFailureStderr() throws {
+        let fixtureURL = try makeCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag",
+            "--output", "-"
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("DAG validation failed."))
+        #expect(result.stderr.contains("Detected dependency cycles:"))
+    }
+
+    @Test("--validate-dag fails strict source loading on invalid UTF-8")
+    func validateDAGFailsStrictSourceLoadingOnInvalidUTF8() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        try Data([0xff, 0xfe, 0xfd]).write(to: fixtureURL.appendingPathComponent("Broken.swift"))
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag"
+        ])
+
+        #expect(result.exitCode == 1)
+        #expect(result.stderr.contains("Error loading Swift sources"))
+        #expect(!result.stderr.contains("DAG validation passed."))
+    }
+
+    @Test("Render mode warns and skips invalid UTF-8 sources")
+    func renderModeWarnsAndSkipsInvalidUTF8Sources() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        try Data([0xff, 0xfe, 0xfd]).write(to: fixtureURL.appendingPathComponent("Broken.swift"))
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--format", "json"
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"schemaVersion\""))
+        #expect(result.stderr.contains("Warning: failed to read 'Broken.swift'"))
+    }
+
+    @Test("Validation output files still mirror stderr diagnostics")
+    func validationOutputFileStillMirrorsStderrDiagnostics() throws {
+        let fixtureURL = try makeCycleFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let outputURL = fixtureURL.appendingPathComponent("validation.txt")
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag",
+            "--output", outputURL.path(percentEncoded: false)
+        ])
+
+        let content = try String(contentsOf: outputURL, encoding: .utf8)
+        #expect(result.exitCode == 3)
+        #expect(content.contains("DAG validation failed."))
+        #expect(result.stderr.contains("DAG validation failed."))
+    }
+
     @Test("Unknown option emits warning but continues")
     func unknownOptionWarnsAndContinues() throws {
         let fixtureURL = try makeFixtureProject()

@@ -18,7 +18,7 @@ struct Cache {
 }
 
 struct APIClient {
-    let baseURL: String
+    let config: AppConfig
     let logger: Logger
 }
 
@@ -50,12 +50,19 @@ struct FeatureContainer {
     var cache: Cache
 
     @Provide(.input)
+    var database: Database
+
+    @Provide(.input)
     var analytics: Analytics
 
-    @Provide(.shared, factory: AuthService(apiClient: apiClient, cache: cache))
+    @Provide(.shared, factory: { (apiClient: APIClient, cache: Cache) in
+        AuthService(apiClient: apiClient, cache: cache)
+    }, concrete: true)
     var authService: AuthService
 
-    @Provide(.shared, factory: { (authService: AuthService) in UserRepository(database: Database(path: "app.db"), authService: authService) })
+    @Provide(.shared, factory: { (database: Database, authService: AuthService) in
+        UserRepository(database: database, authService: authService)
+    }, concrete: true)
     var userRepository: UserRepository
 }
 
@@ -64,24 +71,34 @@ struct AppContainer {
     @Provide(.input)
     var config: AppConfig
 
-    @Provide(.shared, factory: Logger(subsystem: "InnoDI.SampleApp"))
+    @Provide(.shared, factory: Logger(subsystem: "InnoDI.SampleApp"), concrete: true)
     var logger: Logger
 
-    @Provide(.shared, factory: Database(path: "app.db"))
+    @Provide(.shared, factory: Database(path: "app.db"), concrete: true)
     var database: Database
 
-    @Provide(.shared, factory: Cache(maxEntries: 500))
+    @Provide(.shared, factory: Cache(maxEntries: 500), concrete: true)
     var cache: Cache
 
-    @Provide(.shared, APIClient.self, with: [\.config, \.logger])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.config, \AppContainer.logger], concrete: true)
     var apiClient: APIClient
 
-    @Provide(.shared, Analytics.self, with: [\.apiClient, \.logger])
+    @Provide(.shared, Analytics.self, with: [\AppContainer.apiClient, \AppContainer.logger], concrete: true)
     var analytics: Analytics
 
-    @Provide(.shared, factory: FeatureFlags(environment: config.environment))
+    @Provide(.shared, factory: { (config: AppConfig) in
+        FeatureFlags(environment: config.environment)
+    }, concrete: true)
     var featureFlags: FeatureFlags
 
-    @Provide(.shared, factory: FeatureContainer(apiClient: apiClient, cache: cache, analytics: analytics))
+    @SubContainer(
+        scope: .shared,
+        with: [
+            \AppContainer.apiClient,
+            \AppContainer.cache,
+            \AppContainer.database,
+            \AppContainer.analytics
+        ]
+    )
     var featureContainer: FeatureContainer
 }

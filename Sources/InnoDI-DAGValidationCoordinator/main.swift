@@ -3,7 +3,7 @@ import InnoDIBuildSupport
 
 struct CoordinatorArguments {
     let rootPath: String
-    let toolPath: String
+    let toolPath: String?
     let stateDirectoryPath: String
     let outputDirectoryPath: String
 }
@@ -82,7 +82,7 @@ private func parseArguments() throws -> CoordinatorArguments {
         }
     }
 
-    guard let rootPath, let toolPath, let stateDirectoryPath, let outputDirectoryPath else {
+    guard let rootPath, let stateDirectoryPath, let outputDirectoryPath else {
         throw CoordinatorArgumentError.missingRequiredArguments
     }
 
@@ -106,7 +106,7 @@ enum CoordinatorArgumentError: LocalizedError {
         case let .unknownOption(option):
             return "Unknown option \(option)."
         case .missingRequiredArguments:
-            return "Required options: --root, --tool, --state-dir, --output-dir."
+            return "Required options: --root, --state-dir, --output-dir. Optional compatibility input: --tool <path>."
         }
     }
 }

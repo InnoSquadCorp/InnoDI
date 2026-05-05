@@ -1,4 +1,5 @@
 import Foundation
+import InnoDIWorkspaceAnalysis
 import Testing
 
 @testable import InnoDIBuildSupport
@@ -21,8 +22,8 @@ struct ValidationContractTests {
 
     @Test("Shared-run cache keys stay version salted")
     func sharedRunCacheKeyUsesCurrentVersionSalt() {
-        #expect(sharedRunCacheVersion == 2)
-        #expect(sharedRunCacheKey(for: "abc123") == "shared-run-v2-abc123")
+        #expect(sharedRunCacheVersion == 3)
+        #expect(sharedRunCacheKey(for: "abc123") == "shared-run-v3-abc123")
     }
 
     @Test("Coordinator emits decodable metrics and matching Markdown summary artifacts")
@@ -292,7 +293,11 @@ private func canonicalJSONString<Value: Encodable>(_ value: Value) throws -> Str
 private struct ContractValidationRunner: ValidationCommandRunning, Sendable {
     let result: ValidationCommandResult
 
-    func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult {
+    func runValidationTool(
+        toolPath: String?,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult {
         result
     }
 }
