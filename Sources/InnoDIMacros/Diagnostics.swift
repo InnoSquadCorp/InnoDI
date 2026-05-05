@@ -74,6 +74,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case componentRequiresContainer = "component.requires-container"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
+    case previewWithContainerMissingContainerExpression = "swiftui.preview-with-container-missing-container"
+    case previewWithContainerMissingTrailingClosure = "swiftui.preview-with-container-missing-closure"
     case internalCodegenInvariant = "internal.codegen-invariant"
 
     var category: InnoDIDiagnosticCategory {
@@ -104,6 +106,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIEnvironmentBridgeInvalidArguments,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
                 .hierarchyRootRequiresContainer,
+                .previewWithContainerMissingContainerExpression,
+                .previewWithContainerMissingTrailingClosure,
                 .internalCodegenInvariant:
             return .validation
         }
@@ -540,6 +544,20 @@ extension SimpleDiagnostic {
         Self(
             "InnoDI internal codegen invariant violated: \(description). This should have been caught by validation — please file a bug at https://github.com/InnoSquadCorp/InnoDI/issues.",
             code: .internalCodegenInvariant
+        )
+    }
+
+    static func previewWithContainerMissingContainerExpression() -> Self {
+        Self(
+            "#PreviewWithContainer requires a container expression as its first argument, e.g. `#PreviewWithContainer(AppContainer(baseURL: \"...\")) { container in ... }`.",
+            code: .previewWithContainerMissingContainerExpression
+        )
+    }
+
+    static func previewWithContainerMissingTrailingClosure() -> Self {
+        Self(
+            "#PreviewWithContainer requires a trailing closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
+            code: .previewWithContainerMissingTrailingClosure
         )
     }
 }
