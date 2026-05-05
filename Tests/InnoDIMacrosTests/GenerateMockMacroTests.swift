@@ -13,20 +13,34 @@ struct GenerateMockMacroTests {
         "GenerateMock": GenerateMockMacro.self,
     ]
 
-    @Test("GenerateMock skips async/throws members and warns once")
-    func generateMockWarnsOnUnsupportedAsyncThrowsMember() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @GenerateMock
-            protocol UserService {
-                func fetch(id: String) async throws -> String
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
-            ],
-            macros: Self.macros
+    @Test("GenerateMock synthesizes async-throwing stubs with a Result return slot")
+    func generateMockSynthesizesAsyncThrowingMember() throws {
+        let source = """
+        @GenerateMock
+        protocol UserService {
+            func fetch(id: String) async throws -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse async-throws fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
         )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("func fetch(id: String) async throws -> String"))
+        #expect(peer.contains("var fetchResult: Result<String, Error>"))
+        #expect(peer.contains("try fetchResult.get()"))
+        #expect(peer.contains("struct _InnoDIMockNotStubbed: Error"))
     }
 
     @Test("GenerateMock attached to an empty protocol emits the experimental skeleton note")

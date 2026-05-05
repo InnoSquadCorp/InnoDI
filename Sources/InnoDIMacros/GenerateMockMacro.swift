@@ -35,6 +35,7 @@ public struct GenerateMockMacro: PeerMacro {
         let mockTypeName = "\(protocolDecl.name.text)Mock"
         var bodyLines: [String] = []
         var unsupportedMembers: [String] = []
+        var generatedThrowingFunction = false
         if protocolDecl.memberBlock.members.isEmpty {
             // Empty protocol — emit the skeleton note so consumers can still
             // confirm the macro plugin sees the attribute.
@@ -52,6 +53,9 @@ public struct GenerateMockMacro: PeerMacro {
             if let function = member.decl.as(FunctionDeclSyntax.self) {
                 if let snippet = renderFunctionMock(function: function) {
                     bodyLines.append(snippet)
+                    if function.signature.effectSpecifiers?.throwsClause != nil {
+                        generatedThrowingFunction = true
+                    }
                 } else {
                     unsupportedMembers.append(function.name.text)
                 }
@@ -79,6 +83,18 @@ public struct GenerateMockMacro: PeerMacro {
             )
         }
 
+        if generatedThrowingFunction {
+            bodyLines.insert(
+                """
+                    struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
+                        let selector: String
+                        var description: String { "InnoDI mock selector '\\(selector)' was not stubbed before invocation." }
+                    }
+                """,
+                at: 0
+            )
+        }
+
         let bodyJoined = bodyLines.joined(separator: "\n\n")
         let renderedBody: String
         if bodyJoined.isEmpty {
@@ -103,9 +119,6 @@ private func renderFunctionMock(function: FunctionDeclSyntax) -> String? {
     let signature = function.signature
     let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
     let isThrowing = signature.effectSpecifiers?.throwsClause != nil
-    if isAsync || isThrowing {
-        return nil
-    }
 
     let baseName = function.name.text
     let parameters = signature.parameterClause.parameters
@@ -129,6 +142,14 @@ private func renderFunctionMock(function: FunctionDeclSyntax) -> String? {
     let callStructName = "\(baseName.capitalizedFirst)Call"
     let callsProperty = "\(baseName)Calls"
     let returnProperty = "\(baseName)ReturnValue"
+    let resultProperty = "\(baseName)Result"
+
+    var effectSpecifierTokens: [String] = []
+    if isAsync { effectSpecifierTokens.append("async") }
+    if isThrowing { effectSpecifierTokens.append("throws") }
+    let effectSpecifiersJoined = effectSpecifierTokens.isEmpty
+        ? ""
+        : " " + effectSpecifierTokens.joined(separator: " ")
 
     var snippetLines: [String] = []
 
@@ -143,19 +164,43 @@ private func renderFunctionMock(function: FunctionDeclSyntax) -> String? {
     snippetLines.append("    private(set) var \(callsProperty): [\(callStructName)] = []")
 
     if !returnsVoid {
-        snippetLines.append("    var \(returnProperty): \(returnTypeRendered)?")
+        if isThrowing {
+            // `Result<T, Error>` keeps the typed `throw` lossy but lets the
+            // mock author choose between `.success(value)` and `.failure(error)`
+            // with a single assignment. The default failure prompts the test
+            // author with the missing stub identifier through the nested
+            // `_InnoDIMockNotStubbed` error.
+            snippetLines.append(
+                "    var \(resultProperty): Result<\(returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \"\(baseName)\"))"
+            )
+        } else {
+            snippetLines.append("    var \(returnProperty): \(returnTypeRendered)?")
+        }
+    } else if isThrowing {
+        // Even a Void-returning throwing function needs an opt-in error
+        // hook so tests can simulate the failure path.
+        snippetLines.append("    var \(baseName)ThrownError: Error?")
     }
 
     let recordArgs = callParameters
         .map { "\($0.name): \($0.name)" }
         .joined(separator: ", ")
-    snippetLines.append("    func \(baseName)(\(parametersRendered)) -> \(returnTypeRendered) {")
+    let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
+    snippetLines.append("    func \(baseName)(\(parametersRendered))\(effectSpecifiersJoined)\(returnFragment) {")
     snippetLines.append("        \(callsProperty).append(.init(\(recordArgs)))")
     if !returnsVoid {
-        snippetLines.append("        guard let value = \(returnProperty) else {")
-        snippetLines.append("            preconditionFailure(\"\(returnProperty) was not set on \\(type(of: self)) before \(baseName) was invoked\")")
+        if isThrowing {
+            snippetLines.append("        return try \(resultProperty).get()")
+        } else {
+            snippetLines.append("        guard let value = \(returnProperty) else {")
+            snippetLines.append("            preconditionFailure(\"\(returnProperty) was not set on \\(type(of: self)) before \(baseName) was invoked\")")
+            snippetLines.append("        }")
+            snippetLines.append("        return value")
+        }
+    } else if isThrowing {
+        snippetLines.append("        if let error = \(baseName)ThrownError {")
+        snippetLines.append("            throw error")
         snippetLines.append("        }")
-        snippetLines.append("        return value")
     }
     snippetLines.append("    }")
 
