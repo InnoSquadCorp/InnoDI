@@ -1,6 +1,6 @@
 import InnoDICore
 
-func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+package func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
     let aliases = nodeAliases(nodes: nodes)
     let duplicateDisplayNames = duplicateDisplayNameSet(nodes: nodes)
 
@@ -53,7 +53,7 @@ func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -
     return result
 }
 
-func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+package func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
     let aliases = nodeAliases(nodes: nodes)
     let duplicateDisplayNames = duplicateDisplayNameSet(nodes: nodes)
 
@@ -112,7 +112,7 @@ func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> St
     return result
 }
 
-func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+package func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
     let duplicateDisplayNames = duplicateDisplayNameSet(nodes: nodes)
     let labelsByID = Dictionary(uniqueKeysWithValues: nodes.map {
         ($0.id, displayLabel(for: $0, duplicateDisplayNames: duplicateDisplayNames))

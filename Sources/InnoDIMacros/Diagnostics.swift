@@ -57,19 +57,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
-    /// Hint emitted whenever a SubContainer uses `withNames:`. The form
-    /// is functionally equivalent to `with:` but typed by string,
-    /// which loses key-path autocompletion and rename safety. Prefer
-    /// `with: [\.x]` for the common case.
-    ///
-    /// `withNames:` remains supported as the escape hatch for
-    /// stacked peer-macro contexts (`@DIFeatureRoot`,
-    /// `@DIEnvironmentBridge`, ...) where Swift's type-checker
-    /// reports `circular reference expanding peer macros` for any
-    /// key-path-rooted-at-the-enclosing-type spelling. See
-    /// `docs/rfcs/0002-subcontainer-wiring-simplification.md`
-    /// for the full rationale and the deferred removal plan.
-    case subPreferWithOverWithNames = "sub.prefer-with-over-with-names"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
@@ -94,8 +81,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
                 .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
-                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
-                .subPreferWithOverWithNames:
+                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
@@ -470,30 +456,6 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
             code: .subWithConflictsWithWithNames
-        )
-    }
-
-    /// Note-severity hint suggesting the `with:` key-path form for
-    /// `@SubContainer` same-name wiring whenever it would be safe.
-    ///
-    /// Emitted when only `withNames:` is used (no co-occurring
-    /// `with:`). The note carries a copy-paste replacement so most
-    /// users can migrate in one click, but `withNames:` itself is
-    /// **not** deprecated — see RFC 0002 § "Update — 2026-04-26"
-    /// for the upstream Swift compiler limitation that keeps the
-    /// string form necessary for stacked peer-macro contexts.
-    ///
-    /// We use `.note` rather than `.warning` so:
-    /// 1. Builds under `-warnings-as-errors` keep working in test
-    ///    fixtures that intentionally exercise `withNames:`,
-    /// 2. The hint stays informational while RFC 0002 sits in
-    ///    `Deferred`. Promotion to `.warning` is contingent on the
-    ///    upstream compiler fix landing.
-    static func subPreferWithOverWithNames(memberName: String, suggestedReplacement: String) -> Self {
-        Self(
-            "@SubContainer on '\(memberName)' uses withNames:; prefer the key-path form for autocompletion and rename safety where the compiler accepts it: \(suggestedReplacement). withNames: remains the documented escape hatch for stacked peer-macro contexts (e.g. @DIFeatureRoot) — see RFC 0002.",
-            code: .subPreferWithOverWithNames,
-            severity: .note
         )
     }
 

@@ -10,7 +10,7 @@ import InnoDICore
 /// Schema version is embedded as `"schemaVersion": 1`; any breaking change
 /// must bump that number and extend the consumer contract in a RELEASING
 /// note.
-func renderJSON(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
+package func renderJSON(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) -> String {
     let nodePayloads: [GraphJSON.Node] = nodes.map { node in
         GraphJSON.Node(
             id: node.id,
@@ -56,29 +56,29 @@ private func edgeKind(for edge: DependencyGraphEdge) -> GraphJSON.EdgeKind {
 
 /// Namespaces the JSON schema types so they stay close to the renderer
 /// and aren't accidentally reused for an unrelated payload.
-enum GraphJSON {
-    struct Document: Codable, Equatable {
-        let schemaVersion: Int
-        let nodes: [Node]
-        let edges: [Edge]
+package enum GraphJSON {
+    package struct Document: Codable, Equatable {
+        package let schemaVersion: Int
+        package let nodes: [Node]
+        package let edges: [Edge]
     }
 
-    struct Node: Codable, Equatable {
-        let id: String
-        let displayName: String
-        let semanticPath: String
-        let isRoot: Bool
-        let requiredInputs: [String]
+    package struct Node: Codable, Equatable {
+        package let id: String
+        package let displayName: String
+        package let semanticPath: String
+        package let isRoot: Bool
+        package let requiredInputs: [String]
     }
 
-    struct Edge: Codable, Equatable {
-        let from: String
-        let to: String
-        let label: String?
-        let kind: EdgeKind
+    package struct Edge: Codable, Equatable {
+        package let from: String
+        package let to: String
+        package let label: String?
+        package let kind: EdgeKind
     }
 
-    enum EdgeKind: String, Codable, Equatable {
+    package enum EdgeKind: String, Codable, Equatable {
         case hard
         case soft
         case provider

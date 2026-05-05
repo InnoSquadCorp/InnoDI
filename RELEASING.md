@@ -131,13 +131,11 @@ standalone release assets.
   per-release upgrade notes from `RELEASING.md` into a "what
   changes a consumer must do" article, covering 1.x → 4.0,
   4.0 → 4.1, 4.1 → 4.2 (planned), and 4.x → 5.0 (planned).
-- **`@SubContainer` prefer-`with:` hint.** The new
-  `sub.prefer-with-over-with-names` note diagnostic fires whenever
-  `@SubContainer(... withNames: [...])` is used in isolation. The
-  message includes the equivalent `with: [\.x]` form and ships with a
-  Fix-it that performs the migration in place. The hint applies to
-  the common single-peer-macro case where Swift's type-checker
-  accepts key paths.
+- **`@SubContainer` `withNames:` deferral.** `withNames:` remains
+  supported and does not emit a migration diagnostic. Prefer
+  `with: [\.x]` for new single-peer-macro sites where Swift's
+  type-checker accepts key paths, but keep `withNames:` for stacked
+  peer-macro contexts.
 
   **RFC 0002 status update**:
   [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md) is
@@ -147,8 +145,9 @@ standalone release assets.
   with another peer macro on the same property (`@DIFeatureRoot`,
   `@DIEnvironmentBridge`, …), every key-path spelling triggers
   `circular reference expanding peer macros`, and `withNames:` (the
-  string form) is the only working escape hatch. The hint does not
-  recommend migrating those sites.
+  string form) is the only working escape hatch. InnoDI now keeps
+  this guidance in documentation instead of emitting a non-essential
+  diagnostic for supported syntax.
 
 ### Breaking or Behavior Changes
 
@@ -172,13 +171,12 @@ standalone release assets.
 
 ### Upgrade Actions
 
-- `@SubContainer(... withNames: [...])` consumers — for sites that
-  are *not* stacked with another peer macro, apply the Fix-it
-  offered alongside `sub.prefer-with-over-with-names` (or manually
-  rewrite to `with: [\.x]`). For sites stacked with `@DIFeatureRoot`
-  / `@DIEnvironmentBridge` / similar peer macros, leave them on
-  `withNames:` — RFC 0002 is in `Deferred` status and `withNames:`
-  remains the documented escape hatch for that combination.
+- `@SubContainer(... withNames: [...])` consumers — no release-blocking
+  migration is required. For new sites that are *not* stacked with
+  another peer macro, prefer `with: [\.x]`. For sites stacked with
+  `@DIFeatureRoot` / `@DIEnvironmentBridge` / similar peer macros,
+  leave them on `withNames:` — RFC 0002 is in `Deferred` status and
+  `withNames:` remains the documented escape hatch for that combination.
 - CI runners that mount the SPM scratch directory on NFS or SMB —
   redirect with `swift build --scratch-path /tmp/innodi-cache`, or
   set `INNODI_ALLOW_UNSAFE_LOCK=1` (the coordinator still emits a

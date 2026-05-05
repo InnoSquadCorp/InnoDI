@@ -1,5 +1,6 @@
 import Foundation
 import InnoDICore
+import InnoDIWorkspaceAnalysis
 import SwiftParser
 import SwiftSyntax
 import Testing
@@ -67,6 +68,147 @@ struct ValidationCoordinatorTests {
         let secondSignature = try collectValidationSignature(rootPath: secondRoot.path(percentEncoded: false))
 
         #expect(firstSignature == secondSignature)
+    }
+
+    @Test("Workspace snapshots can skip unreadable source files when requested")
+    func workspaceSnapshotSkipsUnreadableSourceFilesWhenRequested() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try Data([0xff, 0xfe, 0xfd]).write(to: rootURL.appendingPathComponent("Broken.swift"), options: .atomic)
+        try "struct Valid { let value = 1 }\n".write(
+            to: rootURL.appendingPathComponent("Valid.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        var skippedPaths: [String] = []
+        let snapshot = try loadWorkspaceSourceSnapshot(rootPath: rootURL.path(percentEncoded: false)) { relativePath, _, _ in
+            skippedPaths.append(relativePath)
+        }
+
+        var strictLoadFailed = false
+        do {
+            _ = try loadWorkspaceSourceSnapshot(rootPath: rootURL.path(percentEncoded: false))
+        } catch {
+            strictLoadFailed = true
+        }
+
+        #expect(snapshot.files.map(\.relativePath) == ["Valid.swift"])
+        #expect(skippedPaths == ["Broken.swift"])
+        #expect(strictLoadFailed)
+    }
+
+    @Test("Workspace snapshots reject missing and non-directory roots")
+    func workspaceSnapshotRejectsInvalidRoots() throws {
+        let missingRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-Missing-Root-\(UUID().uuidString)", isDirectory: true)
+
+        do {
+            _ = try loadWorkspaceSourceSnapshot(rootPath: missingRootURL.path(percentEncoded: false))
+            Issue.record("Expected missing workspace root to throw")
+        } catch {
+            #expect(error.localizedDescription.contains("does not exist"))
+        }
+
+        let fileRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-File-Root-\(UUID().uuidString).swift")
+        defer { try? FileManager.default.removeItem(at: fileRootURL) }
+        try "struct NotADirectory {}\n".write(to: fileRootURL, atomically: true, encoding: .utf8)
+
+        do {
+            _ = try loadWorkspaceSourceSnapshot(rootPath: fileRootURL.path(percentEncoded: false))
+            Issue.record("Expected file workspace root to throw")
+        } catch {
+            #expect(error.localizedDescription.contains("not a directory"))
+        }
+
+        if geteuid() != 0 {
+            let unreadableRootURL = try makeTemporaryRoot()
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o700],
+                    ofItemAtPath: unreadableRootURL.path(percentEncoded: false)
+                )
+                try? FileManager.default.removeItem(at: unreadableRootURL)
+            }
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000],
+                ofItemAtPath: unreadableRootURL.path(percentEncoded: false)
+            )
+
+            do {
+                _ = try loadWorkspaceSourceSnapshot(rootPath: unreadableRootURL.path(percentEncoded: false))
+                Issue.record("Expected unreadable workspace root to throw")
+            } catch {
+                #expect(error.localizedDescription.contains("not readable"))
+            }
+        }
+    }
+
+    @Test("Workspace discovery prunes Xcode project and workspace bundles")
+    func workspaceDiscoveryPrunesXcodeBundles() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let sourceDirectory = rootURL.appendingPathComponent("Sources", isDirectory: true)
+        let projectDirectory = rootURL.appendingPathComponent("Sample.xcodeproj", isDirectory: true)
+        let workspaceDirectory = rootURL.appendingPathComponent("Sample.xcworkspace", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: projectDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workspaceDirectory, withIntermediateDirectories: true)
+
+        try "struct AppSource {}\n".write(
+            to: sourceDirectory.appendingPathComponent("AppSource.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "struct ProjectGenerated {}\n".write(
+            to: projectDirectory.appendingPathComponent("ProjectGenerated.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "struct WorkspaceGenerated {}\n".write(
+            to: workspaceDirectory.appendingPathComponent("WorkspaceGenerated.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let files = try discoverWorkspaceSourceFiles(rootPath: rootURL.path(percentEncoded: false))
+
+        #expect(files == ["Sources/AppSource.swift"])
+    }
+
+    @Test("External workspace relative paths include a stable full-path discriminator")
+    func externalWorkspaceRelativePathsAreCollisionResistant() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let firstExternal = rootURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("First", isDirectory: true)
+            .appendingPathComponent("Generated", isDirectory: true)
+            .appendingPathComponent("Feature.swift")
+        let secondExternal = rootURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Second", isDirectory: true)
+            .appendingPathComponent("Generated", isDirectory: true)
+            .appendingPathComponent("Feature.swift")
+
+        let first = workspaceRelativePath(
+            of: firstExternal.path(percentEncoded: false),
+            fromRoot: rootURL.path(percentEncoded: false)
+        )
+        let second = workspaceRelativePath(
+            of: secondExternal.path(percentEncoded: false),
+            fromRoot: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(first.hasPrefix("__external__/"))
+        #expect(second.hasPrefix("__external__/"))
+        #expect(first.hasSuffix("/Generated/Feature.swift"))
+        #expect(second.hasSuffix("/Generated/Feature.swift"))
+        #expect(first != second)
     }
 
     @Test("Unchanged files reuse cached normalized AST digests")
@@ -274,6 +416,70 @@ struct ValidationCoordinatorTests {
         #expect(third.metrics.astReparseCount == 0)
     }
 
+    @Test("One-shot signature collection ignores existing AST digest manifests")
+    func oneShotSignatureCollectionIgnoresExistingManifestCache() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let featureURL = fixture.rootURL.appendingPathComponent("Feature.swift")
+        let resourceValues = try featureURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let manifestURL = fixture.stateURL.appendingPathComponent("ast-digest-cache.json")
+        let staleManifest = ValidationDigestManifest(
+            files: [
+                "Feature.swift": ValidationFileDigestRecord(
+                    fingerprint: ValidationFileFingerprint(
+                        fileSize: resourceValues.fileSize ?? 0,
+                        modifiedAt: resourceValues.contentModificationDate?.timeIntervalSince1970 ?? 0
+                    ),
+                    contentHash: "stale-content-hash",
+                    digest: "stale-normalized-digest"
+                )
+            ]
+        )
+        try JSONEncoder().encode(staleManifest).write(to: manifestURL, options: .atomic)
+
+        let parser = MockValidationSyntaxParser()
+        let collector = ValidationSignatureCollector(
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            parser: parser
+        )
+
+        let result = try collector.collectWithMetrics(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            persistManifestUpdates: false,
+            useManifestCache: false
+        )
+        let manifestAfter = try loadDigestManifest(at: manifestURL)
+
+        #expect(parser.parseCount == 1)
+        #expect(result.metrics.metadataCacheHitCount == 0)
+        #expect(result.metrics.contentHashReuseCount == 0)
+        #expect(result.metrics.astReparseCount == 1)
+        #expect(result.reasonCodes.contains(.cacheHitMetadata) == false)
+        #expect(result.reasonCodes.contains(.cacheHitContentHash) == false)
+        #expect(manifestAfter == staleManifest)
+    }
+
+    @Test("One-shot signature collection does not create a missing state directory")
+    func oneShotSignatureCollectionAvoidsStateDirectoryCreation() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let missingStateURL = fixture.rootURL.appendingPathComponent("missing-state", isDirectory: true)
+        let collector = ValidationSignatureCollector(
+            stateDirectoryPath: missingStateURL.path(percentEncoded: false),
+            parser: MockValidationSyntaxParser()
+        )
+
+        let result = try collector.collectWithMetrics(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            persistManifestUpdates: false
+        )
+
+        #expect(result.metrics.astReparseCount == 1)
+        #expect(FileManager.default.fileExists(atPath: missingStateURL.path(percentEncoded: false)) == false)
+    }
+
     @Test("Validation signature collection result is codable")
     func validationSignatureCollectionResultIsCodable() throws {
         let result = ValidationSignatureCollectionResult(
@@ -425,6 +631,49 @@ struct ValidationCoordinatorTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.count > 150_000)
         #expect(result.stderr.contains("stderr complete"))
+    }
+
+    @Test("Default coordinator honors an external validation tool path")
+    func defaultCoordinatorHonorsExternalToolPath() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let scriptURL = fixture.rootURL.appendingPathComponent("external-validator.sh")
+        try """
+        #!/bin/sh
+        printf 'external validator marker\\n'
+        exit 0
+        """.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: scriptURL.path(percentEncoded: false)
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: scriptURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false)
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.result.stdout.contains("external validator marker"))
+    }
+
+    @Test("Default coordinator falls back to in-process validation without a tool path")
+    func defaultCoordinatorFallsBackToInProcessWithoutToolPath() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: nil,
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false)
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.result.stdout.contains("DAG validation passed"))
     }
 
     @Test("Success result is reused for identical input signature")
@@ -1505,6 +1754,8 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 1)
         #expect(results.contains { $0.wasCached })
         #expect(results.contains { !$0.wasCached })
+        #expect(results.reduce(0) { $0 + $1.metricsArtifact.signatureMetrics.astReparseCount } == 1)
+        #expect(results.contains { $0.metricsArtifact.signatureMetrics.metadataCacheHitCount == 1 })
     }
 
     @Test("Changing source input invalidates the cached result")
@@ -2025,7 +2276,11 @@ private final class MockValidationRunner: ValidationCommandRunning, @unchecked S
         return currentInvocationCount
     }
 
-    func runValidationTool(toolPath: String, rootPath: String) throws -> ValidationCommandResult {
+    func runValidationTool(
+        toolPath: String?,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult {
         lock.lock()
         let invocationIndex = currentInvocationCount
         currentInvocationCount += 1

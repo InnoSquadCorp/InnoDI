@@ -13,7 +13,7 @@ changes a consumer must make**.
 | 1.x → 2.x | Validation policy hardening | Re-run macro tests; resolve any new diagnostics raised by the stricter validator. |
 | 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read `RELEASING.md` sections instead of legacy notes. |
 | 3.x → 4.0 | Public-contract consolidation | Adopt the new `withNames:`/`with:`/`bindings:` matrix on `@SubContainer`. Stop importing `_LazyCell`. Rename any container member starting with one of the reserved `_storage_` / `_override_sub_` / `_innoDISubBuild_` prefixes. |
-| 4.0 → 4.1 | DX hardening | Apply the `sub.prefer-with-over-with-names` Fix-it on every `@SubContainer(... withNames:)` site **where Swift's type-checker accepts the keypath form**. See [`withNames:` deferral note](#withnames-deferral-note). Update parsers of the lock-timeout stderr block to read structured fields. |
+| 4.0 → 4.1 | DX hardening | No `@SubContainer(... withNames:)` migration is required. Continue using `withNames:` in stacked peer-macro contexts and prefer `with:` for new single-macro sites where Swift's type-checker accepts key paths. Update parsers of the lock-timeout stderr block to read structured fields. |
 | 4.x → 5.0 (planned) | `@GenerateMock` only | RFC 0001 lands as planned. The `withNames:` removal originally planned for 5.0 is **deferred** — see RFC 0002. |
 
 The rest of this article expands each row in the order users
@@ -24,27 +24,22 @@ the upcoming 4.2 / 5.0 surface, then the older 1.x → 4.0 hops.
 
 ## 4.0 → 4.1
 
-### `@SubContainer(... withNames:)` — apply the Fix-it where it works
-
-InnoDI 4.1 emits a new note diagnostic
-`sub.prefer-with-over-with-names` whenever `@SubContainer` uses
-`withNames:` in isolation. The diagnostic ships with a
-SwiftSyntax Fix-it that rewrites the labelled argument in place.
+### `@SubContainer(... withNames:)` — no required migration
 
 ```swift
-// Before — note diagnostic + Fix-it offered
+// Supported escape hatch, especially for stacked peer-macro sites
 @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 var feature: FeatureContainer
 
-// After — recommended form
+// Preferred for new single-macro sites where key paths type-check
 @SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
 The two forms parse to the same internal representation, so the
-expansion and runtime behavior are identical. Migrating to `with:`
-gives you key-path autocompletion and rename safety in IDE
-refactors.
+expansion and runtime behavior are identical. `with:` gives you
+key-path autocompletion and rename safety in IDE refactors, so use
+it for new non-stacked sites when Swift accepts the key-path form.
 
 #### `withNames:` deferral note
 
@@ -54,9 +49,11 @@ and the Swift compiler reports
 `circular reference expanding peer macros`, leave that site on
 `withNames:`. RFC 0002 is currently in `Deferred` status because
 no key-path spelling currently survives this combination. The
-hint and Fix-it remain available for the common
-single-peer-macro case where the compiler accepts key paths;
-they should not be applied to sites that the compiler refuses.
+dedicated informational diagnostic was also disabled after real
+macro-client builds exposed Swift compiler-plugin JSON decoding
+internal errors for top-level remark diagnostics. Documentation
+continues to recommend `with:` where it works, but builds should
+not emit non-essential diagnostics for supported syntax.
 
 ### Lock-timeout stderr format change
 
@@ -134,11 +131,12 @@ to GA. The originally-paired removal RFC is now deferred.
 | RFC | What | Effect on consumers |
 |---|---|---|
 | [0001 — `@GenerateMock`](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0001-macro-mock-generation.md) | New macro | Additive. No migration required. Adoption optional. |
-| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Originally: remove `withNames:` | **Deferred**. The upstream Swift compiler currently rejects the key-path-only form in stacked peer-macro contexts; `withNames:` stays in 5.0 so consumers retain a working spelling. The 4.1 hint + Fix-it stay in place for the common single-peer-macro case where the compiler accepts key paths. |
+| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Originally: remove `withNames:` | **Deferred**. The upstream Swift compiler currently rejects the key-path-only form in stacked peer-macro contexts; `withNames:` stays in 5.0 so consumers retain a working spelling. Documentation recommends `with:` for the common single-peer-macro case where the compiler accepts key paths, but the macro does not emit a migration diagnostic for supported `withNames:` syntax. |
 
 If your `@SubContainer` sites are **not** stacked with another
 peer macro, 5.0 is otherwise a no-op for SubContainer wiring —
-the Fix-it from 4.1 should already have moved them to `with:`.
+use `with:` for new code where key paths type-check, but existing
+`withNames:` sites do not need a release-blocking migration.
 
 ---
 

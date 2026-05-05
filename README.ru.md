@@ -6,6 +6,23 @@ InnoDI — это макро-ориентированный DI-фреймвор�
 этапе компиляции и сборки, инструментами графа зависимостей, иерархической
 валидацией и помощниками для SwiftUI.
 
+## Минимальный полезный пример
+
+```swift
+import InnoDI
+
+struct APIClient { let baseURL: String }
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var baseURL: String
+    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    var apiClient: APIClient
+}
+
+let client = AppContainer(baseURL: "https://api.example.com").apiClient
+```
+
 ## Зачем нужен InnoDI
 
 InnoDI подходит командам, которые хотят сохранить wiring DI явным и удобным
@@ -19,6 +36,9 @@ InnoDI подходит командам, которые хотят сохран
 InnoDI не является runtime state machine. Состояние времени выполнения должно
 жить в слое приложения или во вспомогательных фреймворках вроде `InnoFlow`,
 `InnoRouter` и `InnoNetwork`.
+InnoDI намеренно не предоставляет property wrapper `@Injected` или API
+dynamic registration. Его компромисс — явные generated initializers,
+reviewable wiring и более ранняя validation.
 
 ## Требования
 

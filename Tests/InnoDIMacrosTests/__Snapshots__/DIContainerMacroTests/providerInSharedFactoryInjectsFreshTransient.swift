@@ -41,13 +41,13 @@ struct AppContainer {
             }
 
             func resolve() -> T {
-                if let value {
-                    return value
+                guard let value else {
+                    if let resolver {
+                        return resolver()
+                    }
+                    preconditionFailure("InnoDI codegen invariant violated: deferred dependency resolved before initialization completed.")
                 }
-                if let resolver {
-                    return resolver()
-                }
-                fatalError("_InnoDIDeferredCell resolved before the dependency was initialized.")
+                return value
             }
         }
         let _lazyCell_request = _InnoDIDeferredCell<Request>()
