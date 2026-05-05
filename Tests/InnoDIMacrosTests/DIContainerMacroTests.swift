@@ -2002,6 +2002,67 @@ struct DIContainerMacroTests {
         #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
     }
 
+    @Test("Concrete opt-in fix-it appends to existing arguments instead of replacing them")
+    func concreteOptInFixItPreservesExistingArgumentsForTransient() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.transient, APIClient.self, with: [\\AppContainer.config])
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse transient concrete opt-in fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
+        }) else {
+            Issue.record("Expected concrete opt-in diagnostic for the transient member")
+            return
+        }
+
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
+    }
+
+    @Test("Concrete opt-in fix-it is suppressed when concrete is already declared")
+    func concreteOptInFixItIsSuppressedWhenAlreadyConcrete() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient(), concrete: true)
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse already-concrete fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let optInDiagnostics = context.diagnostics.filter {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
+        }
+
+        #expect(optInDiagnostics.isEmpty)
+    }
+
     // MARK: - @SubContainer
 
     @Test("`.shared` sub-container auto-matches parent members into the child init")
