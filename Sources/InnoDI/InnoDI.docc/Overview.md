@@ -57,6 +57,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 - <doc:lock-safety>
 - <doc:DAGValidation>
+- <doc:PluginOptOut>
 - <doc:MigrationGuide>
 
 ### Container API

@@ -8,6 +8,15 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
             return []
         }
 
+        // Opt-out hook for consumers that intentionally skip the build-time
+        // DAG gate (PoCs, fast iteration loops, or builds running on a
+        // shared volume that already runs validation in a separate CI job).
+        // Production CI must leave the variable unset so the gate runs.
+        if let optOut = ProcessInfo.processInfo.environment["INNODI_DISABLE_BUILD_VALIDATION"],
+           ["1", "true", "TRUE", "yes", "YES"].contains(optOut) {
+            return []
+        }
+
         let coordinator = try context.tool(named: "InnoDI-DAGValidationCoordinator")
         let outputDirectory = context.pluginWorkDirectoryURL
         let rootPath = context.package.directoryURL.path
