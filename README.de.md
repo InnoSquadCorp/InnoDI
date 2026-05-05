@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -138,7 +138,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -236,7 +236,7 @@ Beide Wrapper sind absichtlich non-`Sendable`.
 `@SubContainer` modelliert Child-Container, die einem Parent gehoren:
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -247,14 +247,12 @@ Wichtige Regeln:
   oder einen `@Provide`-Kandidaten hat. Bei mehreren Kandidaten muss
   explizites Wiring hinzugefugt werden statt sich auf vom Compiler
   generierte Initializer-Fehler zu verlassen.
-- `with:` oder `withNames:` leitet eine explizite Same-Name-Untermenge bzw.
-  -Reihenfolge weiter. Beide Formen mussen literale Arrays sein, die der
-  Macro lesen kann; Runtime-Variablen oder berechnete Elemente werden nicht
-  unterstutzt.
-- `with: []` oder `withNames: []` ist eine explizit leere Untermenge und
-  ruft `Child()` auf.
+- `with:` leitet eine explizite Same-Name-Untermenge bzw. -Reihenfolge weiter.
+  Es muss ein literales Key-Path-Array sein, das der Macro lesen kann;
+  Runtime-Variablen oder berechnete Elemente werden nicht unterstutzt.
+- `with: []` ist eine explizit leere Untermenge und ruft `Child()` auf.
 - `bindings:` mappt Child-Input-Labels auf andere Parent-Member-Namen.
-- Genau eine Wiring-Form verwenden: `with:`, `withNames:` oder `bindings:`.
+- Genau eine Wiring-Form verwenden: `with:` oder `bindings:`.
 - `Overrides` des Parents enthalt sowohl einen Vollersatz-Slot (`feature`)
   als auch eine Child-Override-Closure (`featureOverrides`).
 

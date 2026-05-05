@@ -14,8 +14,8 @@ InnoDI 4.0.0 now treats the following capabilities as the stable baseline:
   - `Lazy<T>` for soft-edge cycle escape hatches
   - `Provider<T>` for `.transient` re-entry
 - Nested containers with `@SubContainer`, including ownership edges in graph output,
-  explicit same-name wiring through exactly one of `with:` / `withNames:`,
-  and child-to-parent label remapping through `bindings:`.
+  explicit same-name wiring through `with:`, and child-to-parent label
+  remapping through `bindings:`.
 - Cross-module hierarchy support with `@DIComponent` and `@DIHierarchyRoot`.
 - SwiftUI helpers through `InnoDISwiftUI`, including environment bridging and feature-root helpers.
 - Validation artifacts, DocC generation, and a release workflow centered on `RELEASING.md`.
@@ -37,9 +37,21 @@ surface:
   failure at build time.
 - PR and release gates both run the strict-concurrency suite and the
   macro-source `fatalError` allow-list guard.
-- `@SubContainer(... withNames:)` now offers a `with:` Fix-it where Swift's
-  peer-macro expansion rules allow the key-path form. RFC 0002 remains
-  deferred for stacked peer-macro cases.
+- `@SubContainer(... withNames:)` remained supported in 4.1.0 while RFC 0002
+  was evaluated for stacked peer-macro cases.
+
+## Shipped After 4.1.0
+
+- `@SubContainer(withNames:)` has been removed from the public macro
+  signature, parser, diagnostics, build-support hierarchy validation, examples,
+  and runtime tests. Supported explicit wiring is now `with:` or `bindings:`.
+- SwiftUI stacked helper examples that previously needed the string escape
+  hatch now split root helper construction into ordinary extension methods.
+- The DAG validation plugin stores lock/cache state below SwiftPM's plugin work
+  directory instead of `<package>/.build/innodi-dag-validation`, keeping the
+  documented `--scratch-path` recovery route valid on unsafe package roots.
+- `Tools/check-docs-code-blocks.sh` now compiles marked Swift documentation
+  snippets, and CI/release gates run it.
 
 ## Post-4.1.0 Priorities
 
@@ -88,15 +100,15 @@ ordered by user-facing trust risk first.
        duplication issue.
 
 3. Documentation-code contract
-   - Status: open.
+   - Status: addressed for marked snippets; continue expanding coverage.
    - Problem: repository docs are comprehensive, but Markdown snippets are not
      all machine-verified. The risk is documentation drifting from macro
-     diagnostics, especially around concrete storage, `with:` vs `withNames:`,
-     and deferred wrappers.
-   - Recommended next step:
-     - Extend `Tools/record-macro-snapshots.sh` or add a dedicated
-       `Tools/check-docs-code-blocks.sh` that extracts Swift fences marked as
-       compileable fixtures and builds them under strict concurrency.
+     diagnostics, especially around concrete storage, sub-container wiring, and
+     deferred wrappers.
+   - Completed work:
+     - Added `Tools/check-docs-code-blocks.sh`.
+     - Wired the script into PR and release gates.
+     - Marked the canonical README minimum example as a compiled snippet.
    - Completion criteria:
      - CI fails when canonical README or DocC snippets stop compiling.
      - Non-compilable illustrative snippets are explicitly marked so the gate
@@ -118,23 +130,26 @@ ordered by user-facing trust risk first.
        macro benchmark numbers, and migration notes.
 
 5. `withNames:` lifecycle
-   - Status: deferred by RFC 0002.
-   - Problem: the key-path form is better for rename safety, but stacked peer
-     macro contexts still need `withNames:` as a compiler escape hatch.
-   - Recommended next step:
-     - Keep the current note diagnostic for non-stacked sites.
-     - Revisit removal only after upstream Swift peer-macro behavior changes.
+   - Status: removed.
+   - Problem: the string form duplicated `with:` semantics without rename
+     safety and complicated diagnostics/build-support parsing.
+   - Completed work:
+     - Public macro signature, parser, diagnostics, examples, and tests now use
+       `with:` / `bindings:` only.
+     - Stacked SwiftUI helper examples use manual helper methods instead of a
+       string escape hatch.
    - Completion criteria:
-     - No removal plan until stacked `@SubContainer` + SwiftUI helper sites can
-       use `with:` without circular peer-macro expansion failures.
+     - `rg 'withNames' Sources/ Examples/ Tests/` returns only intentional
+       historical documentation references, not supported API or examples.
 
 1. Sub-container validation polish
    - `bindings:` now provides rename-safe child-to-parent label remapping.
      Future work should improve diagnostics for cross-module child input
      discovery, especially when build-support validation cannot see the child
      container.
-   - Track the upstream Swift peer-macro limitation that keeps RFC 0002
-     deferred for stacked `@SubContainer` + SwiftUI peer-macro sites.
+   - Keep stacked SwiftUI helper guidance explicit: use `with:` on the child
+     container member and split helper construction into ordinary extension
+     methods when peer macro ordering becomes fragile.
 2. Deferred and lifetime ergonomics
    - Evaluate whether `Lazy<T>` needs a lighter-weight surface such as a property-wrapper form, and whether the three built-in scopes need finer-grained lifetime variants for server-side or multi-window workloads.
 3. CLI and validation polish

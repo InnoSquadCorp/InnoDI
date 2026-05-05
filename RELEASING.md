@@ -86,6 +86,48 @@ Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
 
+## Unreleased
+
+### Highlights
+
+- **`@SubContainer(withNames:)` removed.** Same-name child wiring now has a
+  single supported explicit spelling: `with: [\.member]`. Use `bindings:` when
+  child input labels differ from parent member names, and use `with: []` for an
+  intentionally empty same-name subset.
+- **Stacked peer-macro escape hatch removed from the API.** Sites that
+  previously combined `@SubContainer(... withNames:)` with `@DIFeatureRoot` or
+  another peer macro should split helper generation out into normal extension
+  methods or another non-stacked helper surface.
+- **DAG validation plugin state follows SwiftPM plugin work directories.** The
+  build plugin no longer writes lock/cache state under
+  `<package>/.build/innodi-dag-validation`; state is placed below
+  `context.pluginWorkDirectoryURL`, so `swift build --scratch-path <local-dir>`
+  moves validation state off unsafe package-root filesystems.
+- **Documentation snippet compile gate.** `Tools/check-docs-code-blocks.sh`
+  compiles Swift code fences marked with `<!-- innodi:compile -->`, and both PR
+  and release gates run it.
+
+### Breaking or Behavior Changes
+
+- The public `@SubContainer` signature no longer accepts `withNames:`. Existing
+  consumers must migrate to `with:` or `bindings:` before upgrading.
+- Macro diagnostics and build-support diagnostics no longer include
+  `sub.with-conflicts-with-with-names` or
+  `hierarchy.with-conflicts-with-with-names`.
+- `InnoDICore` no longer exposes `parseStrictStringArrayArgument`, and
+  `SubContainerAttributeInfo` no longer carries `hasWithNamesDependencies`.
+
+### Upgrade Actions
+
+- Replace `@SubContainer(scope: .shared, withNames: ["config"])` with
+  `@SubContainer(scope: .shared, with: [\.config])`.
+- Replace `withNames: []` with `with: []`.
+- For stacked peer-macro sites, keep `@SubContainer(scope:with:)` on the child
+  container property and write the root/helper method manually.
+- If CI diagnosed unsafe filesystem locks, move SwiftPM scratch/plugin work
+  state with `swift build --scratch-path /tmp/innodi-cache`; `--diagnose-lock`
+  can inspect the scratch or plugin state directory recursively.
+
 ## 4.1.0
 
 ### Highlights

@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -137,7 +137,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -276,7 +276,7 @@ Ambos wrappers son intencionalmente non-`Sendable`.
 `@SubContainer` modela child containers poseidos por un parent:
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -286,14 +286,13 @@ Reglas clave:
 - El wiring implicito por nombre solo es una convenience cuando el parent
   tiene 0 o 1 candidato `@Provide`. Si hay varios candidatos, agrega wiring
   explicito en vez de depender de errores del initializer generado.
-- `with:` o `withNames:` reenvia un subconjunto explicito con el mismo
-  nombre u orden. Ambas formas deben ser arreglos literales legibles por el
-  macro; variables en tiempo de ejecucion o elementos calculados no estan
+- `with:` reenvia un subconjunto explicito con el mismo nombre u orden. Debe
+  ser un arreglo literal de key paths legible por el macro; variables en
+  tiempo de ejecucion o elementos calculados no estan
   soportados.
-- `with: []` o `withNames: []` es un subconjunto vacio explicito y llama a
-  `Child()`.
+- `with: []` es un subconjunto vacio explicito y llama a `Child()`.
 - `bindings:` remapea labels de input del child a otros nombres del parent.
-- Elige exactamente una forma de wiring: `with:`, `withNames:` o `bindings:`.
+- Elige exactamente una forma de wiring: `with:` o `bindings:`.
 - El `Overrides` del parent gana tanto un slot de reemplazo completo
   (`feature`) como un closure de override del child (`featureOverrides`).
 

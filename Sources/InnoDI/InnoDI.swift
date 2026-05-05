@@ -224,7 +224,7 @@ public enum SubContainerScope {
 ///
 ///     // Explicit same-name wiring calls
 ///     // `FeatureContainer.init(config:apiClient:)`.
-///     @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+///     @SubContainer(scope: .shared, with: [\.config, \.apiClient])
 ///     var feature: FeatureContainer
 /// }
 /// ```
@@ -238,17 +238,13 @@ public enum SubContainerScope {
 ///   parent members are forwarded to the child. Each `\.parentMember` keypath
 ///   is passed with the same label on the child side. This must be a literal
 ///   array the macro can read, for example `with: [\.config]` or `with: []`.
-/// - `withNames`: Optional string-name form of `with`, used when same-name
-///   wiring is needed but Swift cannot form the parent keypaths at the macro
-///   declaration site. This must be a literal string array, for example
-///   `withNames: ["config"]` or `withNames: []`.
 /// - `bindings`: Optional explicit remapping tuples used when child `.input`
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
 ///
-/// `with`, `withNames`, and `bindings` are mutually exclusive wiring forms:
-/// choose exactly one of `with` or `withNames` for same-name subset/reorder
-/// shorthand, or use `bindings` for rename-aware explicit wiring.
+/// `with` and `bindings` are mutually exclusive wiring forms: choose `with`
+/// for same-name subset/reorder shorthand, or use `bindings` for rename-aware
+/// explicit wiring.
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or
@@ -256,10 +252,10 @@ public enum SubContainerScope {
 /// `Child(config: self.config, apiClient: self.apiClient, …)`. With no
 /// explicit wiring, the macro only applies same-name implicit wiring when the
 /// parent has zero or one `@Provide` candidate; if multiple parent members
-/// exist, InnoDI emits `sub.auto-wiring-ambiguous` and requires `with`,
-/// `withNames`, or `bindings`. When `with:` or `withNames:` is provided, the
-/// listed parent members replace the implicit set but keep their same-name
-/// labels; an empty list is an explicit empty subset and generates `Child()`.
+/// exist, InnoDI emits `sub.auto-wiring-ambiguous` and requires `with` or
+/// `bindings`. When `with:` is provided, the listed parent members replace
+/// the implicit set but keep their same-name labels; an empty list is an
+/// explicit empty subset and generates `Child()`.
 /// Runtime variables or computed array elements are not evaluated by the macro.
 /// When `bindings:` is provided, each tuple rewrites the child label explicitly
 /// while reading from the selected parent member. Child-input verification is
@@ -285,8 +281,7 @@ public enum SubContainerScope {
 public macro SubContainer(
     scope: SubContainerScope,
     with dependencies: [AnyKeyPath] = [],
-    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = [],
-    withNames dependencyNames: [String] = []
+    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")
 
 /// Marker protocol synthesized by `@DIComponent`.

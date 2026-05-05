@@ -23,7 +23,7 @@ InnoDI は `@DIContainer` と `@Provide` を使って通常の Swift 型を DI
 - サポート対象 filesystem での `O_CREAT | O_EXCL` と `flock` の layered lock
 - macro-synthesized `fatalError` accessor の代わりになる build-time diagnostic
 - strict concurrency と macro-source `fatalError` allow-list を強制する PR/release gate
-- stacked peer macro でない `withNames:` 使用向けの `@SubContainer` key-path guidance
+- `@SubContainer` の same-name wiring は `with:` のみになり、`withNames:` escape hatch は削除されました
 
 ## Topics
 

@@ -1987,8 +1987,8 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("`.shared` sub-container supports name-based same-label subset wiring")
-    func subContainerSharedWithNamesSubset() {
+    @Test("`.shared` sub-container supports key-path same-label subset wiring")
+    func subContainerSharedWithSubset() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -1996,17 +1996,17 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
                 @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
 
-                @SubContainer(scope: .shared, withNames: ["config"])
+                @SubContainer(scope: .shared, with: [\\.config])
                 var feature: FeatureContainer
             }
             """,
-            matches: "subContainerSharedWithNamesSubset",
+            matches: "subContainerSharedWithSubset",
             macros: Self.macros
         )
     }
 
-    @Test("`.shared` sub-container supports explicit empty withNames wiring")
-    func subContainerSharedWithNamesEmptySubset() {
+    @Test("`.shared` sub-container supports explicit empty with wiring")
+    func subContainerSharedWithEmptySubset() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -2014,67 +2014,12 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
                 @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
 
-                @SubContainer(scope: .shared, withNames: [])
+                @SubContainer(scope: .shared, with: [])
                 var feature: EmptyFeatureContainer
             }
             """,
-            matches: "subContainerSharedWithNamesEmptySubset",
+            matches: "subContainerSharedWithEmptySubset",
             macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer with both `with:` and `withNames:` emits the conflict diagnostic")
-    func subContainerBothFormsDiagnosesConflict() {
-        let source = """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, with: [\\.config], withNames: ["config"])
-                var feature: FeatureContainer
-            }
-            """
-
-        assertMacroExpansionDiagnosticCodes(
-            source,
-            expectedCodes: [InnoDIDiagnosticCode.subWithConflictsWithWithNames.messageID],
-            macros: Self.macros
-        )
-        assertMacroExpansionSnapshot(
-            source,
-            matches: "subContainerBothFormsSuppressesHint",
-            diagnostics: [
-                DiagnosticSpec(
-                    id: InnoDIDiagnosticCode.subWithConflictsWithWithNames.messageID,
-                    message: "@SubContainer on 'feature' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
-                    line: 5,
-                    column: 5,
-                    severity: .error
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: stacked with DIFeatureRoot remains supported")
-    func subContainerWithNamesStackedWithDIFeatureRootRemainsSupported() {
-        let source = """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, withNames: ["config"])
-                @DIFeatureRoot(FeatureRootView.self)
-                var feature: FeatureContainer
-            }
-            """
-
-        var macros = Self.macros
-        macros["DIFeatureRoot"] = DIFeatureRootMacro.self
-        assertMacroExpansionDiagnosticCodes(
-            source,
-            expectedCodes: [],
-            macros: macros
         )
     }
 
@@ -2162,73 +2107,6 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("@SubContainer with both withNames: and bindings: emits sub.bindings-conflicts-with-with")
-    func subContainerBindingsConflictWithWithNamesDiagnoses() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(
-                    scope: .shared,
-                    withNames: ["config"],
-                    bindings: [(child: \\.featureConfig, parent: \\.config)]
-                )
-                var feature: FeatureBindingsContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer with both with: and withNames: emits sub.with-conflicts-with-with-names")
-    func subContainerWithConflictWithWithNamesDiagnoses() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(
-                    scope: .shared,
-                    with: [\\.config],
-                    withNames: ["config"]
-                )
-                var feature: FeatureContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: requires a literal string array")
-    func subContainerWithNamesVariableDiagnosesInvalidSameNameWiring() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            let dependencyNames = ["config"]
-
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, withNames: dependencyNames)
-                var feature: FeatureContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
-            ],
-            macros: Self.macros
-        )
-    }
-
     @Test("@SubContainer with: requires a literal key-path array")
     func subContainerWithVariableDiagnosesInvalidSameNameWiring() {
         assertMacroExpansionDiagnosticCodes(
@@ -2240,52 +2118,6 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
 
                 @SubContainer(scope: .shared, with: keyPaths)
-                var feature: FeatureContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: rejects empty string literals as invalid wiring")
-    func subContainerWithNamesEmptyStringDiagnosesInvalidSameNameWiring() {
-        // Empty strings can never name a parent member; rejecting them
-        // up front gives the user `sub.invalid-same-name-wiring` instead
-        // of a misleading "unknown parent member ''" trail.
-        let source = """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, withNames: [""])
-                var feature: FeatureContainer
-            }
-            """
-
-        assertMacroExpansionDiagnosticCodes(
-            source,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: rejects partially dynamic literal arrays")
-    func subContainerWithNamesDynamicElementDiagnosesInvalidSameNameWiring() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            let dynamicName = "logger"
-
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
-
-                @SubContainer(scope: .shared, withNames: ["config", dynamicName])
                 var feature: FeatureContainer
             }
             """,
