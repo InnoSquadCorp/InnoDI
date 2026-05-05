@@ -78,6 +78,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case previewWithContainerMissingTrailingClosure = "swiftui.preview-with-container-missing-closure"
     case generateMockRequiresProtocol = "mock.requires-protocol"
     case generateMockExperimentalSkeleton = "mock.experimental-skeleton"
+    case generateMockUnsupportedMember = "mock.unsupported-member"
     case internalCodegenInvariant = "internal.codegen-invariant"
 
     var category: InnoDIDiagnosticCategory {
@@ -112,6 +113,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .previewWithContainerMissingTrailingClosure,
                 .generateMockRequiresProtocol,
                 .generateMockExperimentalSkeleton,
+                .generateMockUnsupportedMember,
                 .internalCodegenInvariant:
             return .validation
         }
@@ -577,6 +579,16 @@ extension SimpleDiagnostic {
             "@GenerateMock attached to '\(protocolName)' is currently a skeleton. The protocol-extraction stage lands in a follow-up commit; track RFC 0001 for the rollout schedule.",
             code: .generateMockExperimentalSkeleton,
             severity: .note
+        )
+    }
+
+    static func generateMockUnsupportedMember(memberNames: [String]) -> Self {
+        let listed = memberNames.prefix(5).joined(separator: ", ")
+        let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
+        return Self(
+            "@GenerateMock skipped one or more protocol members in this declaration: \(listed)\(suffix). Async, throwing, mutating, and associated-type requirements are tracked for the next RFC 0001 stage. Implement those mocks manually in the meantime.",
+            code: .generateMockUnsupportedMember,
+            severity: .warning
         )
     }
 }
