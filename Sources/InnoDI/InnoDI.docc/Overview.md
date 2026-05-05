@@ -67,6 +67,14 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - ``DIComponent()``
 - ``DIHierarchyRoot()``
 
+### SwiftUI Preview Helper
+
+- `#PreviewWithContainer` (in `InnoDISwiftUI`) wraps Xcode 16's `#Preview`
+  so a preview body declares its container once instead of repeating
+  `let container = ...; container.featureRootView()`. See
+  `Examples/PreviewInjectionExample/Sources/PreviewInjectionExample/main.swift`
+  for the live, preview, and failure scenarios after migration.
+
 ### Symbols
 
 - ``DIContainer(root:validateDAG:mainActor:)``
