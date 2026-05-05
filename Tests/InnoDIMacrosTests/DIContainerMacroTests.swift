@@ -1605,6 +1605,77 @@ struct DIContainerMacroTests {
         #expect(diagnostic.fixIts.first?.message.message.contains("baseURL") == true)
     }
 
+    @Test("Factory parameter diagnostics suggest a typo fix-it when only a Damerau-Levenshtein match exists")
+    func unresolvedFactoryParameterDiagnosticsIncludeTypoFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var apiClient: APIClient
+
+            @Provide(.shared, factory: { (apiClent: APIClient) in
+                Service(client: apiClent)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse typo unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("apiClient") == true)
+    }
+
+    @Test("Factory parameter diagnostics omit a fix-it when no member is within typo distance")
+    func unresolvedFactoryParameterDiagnosticsHaveNoFixItForFarMisses() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var apiClient: APIClient
+
+            @Provide(.shared, factory: { (totallyDifferent: APIClient) in
+                Service(client: totallyDifferent)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse far-miss unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(diagnostic.fixIts.isEmpty)
+    }
+
     @Test("Factory parameter diagnostics skip fix-its when multiple candidates exist")
     func unresolvedFactoryParameterDiagnosticsSkipAmbiguousFixIt() throws {
         let source = """
