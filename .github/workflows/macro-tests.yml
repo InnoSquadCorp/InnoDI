@@ -27,6 +27,13 @@ jobs:
         run: Tools/check-no-fatalerror-in-macros.sh
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
+      - name: Validate localized README structural sync
+        # Advisory until the localized READMEs catch up to the English
+        # canonical structure. Flip the strict mode on once the localized
+        # files are re-aligned (drop the env var to enforce).
+        env:
+          INNODI_README_SYNC_STRICT: "0"
+        run: Tools/check-localized-readme-sync.sh
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Build Extended Examples
