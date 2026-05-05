@@ -11,6 +11,7 @@ struct InnoDISwiftUIMacroTests {
         "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
         "DIFeatureRoot": DIFeatureRootMacro.self,
         "InnoDISwiftUI.DIFeatureRoot": DIFeatureRootMacro.self,
+        "PreviewWithContainer": PreviewWithContainerMacro.self,
     ]
 
     @Test("DIEnvironmentBridge generates modifier storage and protocol conformance")
@@ -538,6 +539,42 @@ struct InnoDISwiftUIMacroTests {
                     }
                 }
                 """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer wraps the trailing closure inside a #Preview block")
+    func previewWithContainerExpandsToPreviewBlock() {
+        assertMacroExpansionInline(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer(baseURL: "https://example.com")) { container in
+                container.dashboardRootView()
+            }
+            """#,
+            expandedSource: ##"""
+                let preview = #Preview {
+                    let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
+                    return ({
+                        container in
+                            container.dashboardRootView()
+                    })(__innodi_preview_container)
+                }
+                """##,
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses a missing container expression")
+    func previewWithContainerDiagnosesMissingContainerExpression() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer { container in
+                container.dashboardRootView()
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-container")
+            ],
             macros: Self.macros
         )
     }
