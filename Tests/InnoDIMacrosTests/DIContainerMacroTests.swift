@@ -2648,6 +2648,61 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Ambiguous sub-container auto-wiring offers a with: [...] template fix-it listing parent members")
+    func subContainerAmbiguousAutoWiringOffersTemplateFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+            @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse ambiguous auto-wiring fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
+        }) else {
+            Issue.record("Expected sub.auto-wiring-ambiguous diagnostic")
+            return
+        }
+
+        #expect(diagnostic.fixIts.count == 1)
+        let fixItMessage = diagnostic.fixIts.first?.message.message ?? ""
+        #expect(fixItMessage.contains("with:"))
+
+        // The fix-it inserts `, with: [\.config, \.logger]` so both parent
+        // member key paths are part of the synthesized change. We don't have
+        // a direct way to assert the resulting source from a Diagnostic, but
+        // verifying the change spans the expected text protects the contract
+        // that the fix-it lists every parent member candidate.
+        let combinedChanges = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replace(_, newNode) = change {
+                    return newNode.description
+                }
+                if case let .replaceText(_, replacementText, _) = change {
+                    return replacementText
+                }
+                return nil
+            }
+            .joined(separator: " ")
+        #expect(combinedChanges.contains("\\.config"))
+        #expect(combinedChanges.contains("\\.logger"))
+    }
+
     @Test("Explicit empty with: wiring bypasses ambiguous implicit auto-wiring")
     func subContainerExplicitEmptyWithBypassesAmbiguousAutoWiring() {
         assertMacroExpansionDiagnosticCodes(
