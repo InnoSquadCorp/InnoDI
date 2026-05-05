@@ -364,3 +364,18 @@ public macro DIComponent() = #externalMacro(module: "InnoDIMacros", type: "DICom
 /// such as orphan components, duplicate parents, and module-edge mismatches
 /// when at least one `@DIHierarchyRoot` is present in the workspace.
 public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "DIHierarchyRootMacro")
+
+/// Experimental — synthesizes a call-recording mock peer for a protocol.
+///
+/// `@GenerateMock` is the RFC 0001 entry point. Attach it to a protocol
+/// declaration to have InnoDI emit a `Mock` peer with stubbed return
+/// values, recorded call lists, and protocol conformance. The skeleton
+/// drop in 4.x performs attribute validation and emits a tracking note;
+/// subsequent commits flesh out the protocol-extraction stage and the
+/// `Overrides` builder bundling option (see `bundleWithOverrides:`).
+///
+/// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
+/// rollout schedule. Adoption is opt-in until the macro reaches GA in
+/// 5.0; expect the generated shape to evolve before then.
+@attached(peer, names: arbitrary)
+public macro GenerateMock() = #externalMacro(module: "InnoDIMacros", type: "GenerateMockMacro")

@@ -1,9 +1,20 @@
 # RFC 0001 — Macro-driven mock generation
 
-- **Status**: Draft
+- **Status**: Accepted (experimental); shipping in 4.x as opt-in
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
-- **Target release**: TBD (post 4.x, likely 5.0)
+- **Last updated**: 2026-05-06
+- **Target release**: 4.x experimental, GA in 5.0
+
+## Initial answers to open questions
+
+| Question | Answer |
+|---|---|
+| Generic protocols | Synthesize a generic mock class; preserves callability and matches user expectations. |
+| Associated types | Require explicit pinning via `@GenerateMock(associatedTypes: ...)` until cross-module resolution lands in SwiftSyntax. |
+| Actor protocols | Out-of-scope for the initial drop. Track in a follow-up RFC; users can manually implement actor mocks for now. |
+| Mutation tracking | Provide an opt-in `reset()` helper; default behavior records all calls without bound. |
+| Snapshot of call args | Generated `Call` structs conform to `Equatable` when all parameters do, otherwise fall back to `Any`-typed record. |
 
 ## Summary
 
