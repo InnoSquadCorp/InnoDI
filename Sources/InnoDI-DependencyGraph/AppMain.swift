@@ -44,11 +44,15 @@ func runDependencyGraphCLI() -> Int32 {
 
     let snapshot: WorkspaceSourceSnapshot
     do {
-        snapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath) { relativePath, fileURL, error in
-            fputs(
-                "Warning: failed to read '\(relativePath)' (\(fileURL.path(percentEncoded: false))): \(error)\n",
-                stderr
-            )
+        if parsed.validateDAG {
+            snapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath)
+        } else {
+            snapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath) { relativePath, fileURL, error in
+                fputs(
+                    "Warning: failed to read '\(relativePath)' (\(fileURL.path(percentEncoded: false))): \(error)\n",
+                    stderr
+                )
+            }
         }
     } catch {
         fputs("Error loading Swift sources: \(error)\n", stderr)
@@ -96,6 +100,9 @@ private func writeValidationResult(
         } catch {
             fputs("Error writing to file: \(error)\n", stderr)
             return ExitCode.ioError
+        }
+        if !result.stderr.isEmpty {
+            fputs(result.stderr, stderr)
         }
         return result.exitCode
     }

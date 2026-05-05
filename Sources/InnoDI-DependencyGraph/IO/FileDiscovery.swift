@@ -2,8 +2,8 @@ import Foundation
 import InnoDIWorkspaceAnalysis
 import SwiftSyntax
 
-func loadSwiftFiles(rootPath: String) -> [String] {
-    discoverWorkspaceSourceFiles(rootPath: rootPath)
+func loadSwiftFiles(rootPath: String) throws -> [String] {
+    try discoverWorkspaceSourceFiles(rootPath: rootPath)
         .map { (rootPath as NSString).appendingPathComponent($0) }
 }
 

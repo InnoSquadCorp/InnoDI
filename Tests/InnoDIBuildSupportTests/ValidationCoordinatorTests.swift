@@ -99,6 +99,53 @@ struct ValidationCoordinatorTests {
         #expect(strictLoadFailed)
     }
 
+    @Test("Workspace snapshots reject missing and non-directory roots")
+    func workspaceSnapshotRejectsInvalidRoots() throws {
+        let missingRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-Missing-Root-\(UUID().uuidString)", isDirectory: true)
+
+        do {
+            _ = try loadWorkspaceSourceSnapshot(rootPath: missingRootURL.path(percentEncoded: false))
+            Issue.record("Expected missing workspace root to throw")
+        } catch {
+            #expect(error.localizedDescription.contains("does not exist"))
+        }
+
+        let fileRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-File-Root-\(UUID().uuidString).swift")
+        defer { try? FileManager.default.removeItem(at: fileRootURL) }
+        try "struct NotADirectory {}\n".write(to: fileRootURL, atomically: true, encoding: .utf8)
+
+        do {
+            _ = try loadWorkspaceSourceSnapshot(rootPath: fileRootURL.path(percentEncoded: false))
+            Issue.record("Expected file workspace root to throw")
+        } catch {
+            #expect(error.localizedDescription.contains("not a directory"))
+        }
+
+        if geteuid() != 0 {
+            let unreadableRootURL = try makeTemporaryRoot()
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o700],
+                    ofItemAtPath: unreadableRootURL.path(percentEncoded: false)
+                )
+                try? FileManager.default.removeItem(at: unreadableRootURL)
+            }
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000],
+                ofItemAtPath: unreadableRootURL.path(percentEncoded: false)
+            )
+
+            do {
+                _ = try loadWorkspaceSourceSnapshot(rootPath: unreadableRootURL.path(percentEncoded: false))
+                Issue.record("Expected unreadable workspace root to throw")
+            } catch {
+                #expect(error.localizedDescription.contains("not readable"))
+            }
+        }
+    }
+
     @Test("Workspace discovery prunes Xcode project and workspace bundles")
     func workspaceDiscoveryPrunesXcodeBundles() throws {
         let rootURL = try makeTemporaryRoot()
@@ -127,7 +174,7 @@ struct ValidationCoordinatorTests {
             encoding: .utf8
         )
 
-        let files = discoverWorkspaceSourceFiles(rootPath: rootURL.path(percentEncoded: false))
+        let files = try discoverWorkspaceSourceFiles(rootPath: rootURL.path(percentEncoded: false))
 
         #expect(files == ["Sources/AppSource.swift"])
     }
@@ -584,6 +631,49 @@ struct ValidationCoordinatorTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.count > 150_000)
         #expect(result.stderr.contains("stderr complete"))
+    }
+
+    @Test("Default coordinator honors an external validation tool path")
+    func defaultCoordinatorHonorsExternalToolPath() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let scriptURL = fixture.rootURL.appendingPathComponent("external-validator.sh")
+        try """
+        #!/bin/sh
+        printf 'external validator marker\\n'
+        exit 0
+        """.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: scriptURL.path(percentEncoded: false)
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: scriptURL.path(percentEncoded: false),
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false)
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.result.stdout.contains("external validator marker"))
+    }
+
+    @Test("Default coordinator falls back to in-process validation without a tool path")
+    func defaultCoordinatorFallsBackToInProcessWithoutToolPath() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: nil,
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false)
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(outcome.result.stdout.contains("DAG validation passed"))
     }
 
     @Test("Success result is reused for identical input signature")

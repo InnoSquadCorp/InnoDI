@@ -96,7 +96,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             )
         }
         let existingManifest = loadedManifest.manifest
-        let sourceFiles = discoverValidationSourceFiles(rootPath: rootPath)
+        let sourceFiles = try discoverValidationSourceFiles(rootPath: rootPath)
         var updatedRecords: [String: ValidationFileDigestRecord] = [:]
         var metadataCacheHitCount = 0
         var contentHashReuseCount = 0
@@ -241,8 +241,8 @@ func collectValidationSignatureWithMetrics(
 ///
 /// The returned paths are relative to `rootPath` and sorted so the final
 /// stable hash does not depend on directory enumeration order.
-func discoverValidationSourceFiles(rootPath: String) -> [String] {
-    discoverWorkspaceSourceFiles(rootPath: rootPath)
+func discoverValidationSourceFiles(rootPath: String) throws -> [String] {
+    try discoverWorkspaceSourceFiles(rootPath: rootPath)
 }
 
 func validationPathShouldPruneDescendants(_ path: String) -> Bool {
