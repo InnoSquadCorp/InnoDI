@@ -155,6 +155,29 @@ Most frequently-hit codes:
 - `hierarchy-root.requires-container` — `@DIHierarchyRoot` must be
   attached to a `@DIContainer` type.
 
+## Mock generation diagnostics
+
+- `mock.requires-protocol` — `@GenerateMock` was attached to something
+  other than a protocol declaration. Move the attribute to a protocol or
+  remove it from a struct/class/enum.
+- `mock.experimental-skeleton` — emitted as a note when the protocol
+  declares no members. Confirms the macro plugin saw the attribute and
+  produced the empty mock skeleton.
+- `mock.unsupported-member` — one or more protocol requirements were
+  skipped (mutating, static, subscript, or unresolved associated types).
+  The diagnostic message lists up to five member names; implement those
+  mocks manually until the next RFC 0001 stage lands.
+
+See <doc:AutoMock> for the supported member shapes and the generated
+storage layout.
+
+## Preview macro diagnostics
+
+- `swiftui.preview-with-container-missing-container` — `#PreviewWithContainer`
+  was invoked without a container expression as its first argument.
+- `swiftui.preview-with-container-missing-closure` — `#PreviewWithContainer`
+  was invoked without a trailing closure.
+
 ## Internal diagnostics
 
 - `internal.codegen-invariant` — the code generator encountered a case

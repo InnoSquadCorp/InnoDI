@@ -67,6 +67,10 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - ``DIComponent()``
 - ``DIHierarchyRoot()``
 
+### Experimental
+
+- <doc:AutoMock> — `@GenerateMock` (RFC 0001), opt-in mock synthesis.
+
 ### SwiftUI Preview Helper
 
 - `#PreviewWithContainer` (in `InnoDISwiftUI`) wraps Xcode 16's `#Preview`
