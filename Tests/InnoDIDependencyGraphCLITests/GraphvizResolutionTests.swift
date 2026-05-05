@@ -52,7 +52,7 @@ struct GraphvizResolutionTests {
         )
     }
 
-    @Test("process capture drains stdout and stderr without deadlock")
+    @Test("process capture drains stdout and stderr without deadlock", .timeLimit(.minutes(1)))
     func processCaptureDrainsStdoutAndStderrWithoutDeadlock() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("innodi-process-capture-\(UUID().uuidString)", isDirectory: true)

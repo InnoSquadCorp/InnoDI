@@ -413,7 +413,7 @@ package enum ValidationCoordinator {
             toolPath: toolPath,
             stateDirectoryPath: stateDirectoryPath,
             outputDirectoryPath: outputDirectoryPath,
-            runner: InProcessValidationCommandRunner(),
+            runner: LiveValidationCommandRunner(),
             lockPolicy: lockPolicy
         )
     }

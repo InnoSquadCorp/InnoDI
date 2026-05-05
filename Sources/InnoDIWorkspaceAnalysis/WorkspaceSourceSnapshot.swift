@@ -54,12 +54,35 @@ package struct WorkspaceSourceSnapshot {
     }
 }
 
+package enum WorkspaceSourceSnapshotError: LocalizedError {
+    case missingRoot(rootPath: String, rootURL: URL)
+    case rootIsNotDirectory(rootPath: String, rootURL: URL)
+    case unreadableRoot(rootPath: String, rootURL: URL)
+    case failedToCreateEnumerator(rootPath: String, rootURL: URL)
+    case enumerationFailed(rootPath: String, rootURL: URL, underlying: Error)
+
+    package var errorDescription: String? {
+        switch self {
+        case .missingRoot(let rootPath, let rootURL):
+            return "Workspace root does not exist: '\(rootPath)' (\(rootURL.path(percentEncoded: false)))."
+        case .rootIsNotDirectory(let rootPath, let rootURL):
+            return "Workspace root is not a directory: '\(rootPath)' (\(rootURL.path(percentEncoded: false)))."
+        case .unreadableRoot(let rootPath, let rootURL):
+            return "Workspace root is not readable: '\(rootPath)' (\(rootURL.path(percentEncoded: false)))."
+        case .failedToCreateEnumerator(let rootPath, let rootURL):
+            return "Failed to enumerate workspace root: '\(rootPath)' (\(rootURL.path(percentEncoded: false)))."
+        case .enumerationFailed(let rootPath, let rootURL, let underlying):
+            return "Failed to enumerate workspace source path '\(rootURL.path(percentEncoded: false))' under root '\(rootPath)': \(underlying)."
+        }
+    }
+}
+
 package func loadWorkspaceSourceSnapshot(
     rootPath: String,
     onFileReadError: ((String, URL, Error) -> Void)? = nil
 ) throws -> WorkspaceSourceSnapshot {
-    let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
-    let sourceFiles = discoverWorkspaceSourceFiles(rootPath: rootPath)
+    let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
+    let sourceFiles = try discoverWorkspaceSourceFiles(rootPath: rootPath)
     var files: [WorkspaceSourceFile] = []
     files.reserveCapacity(sourceFiles.count)
 
@@ -93,21 +116,52 @@ package func loadWorkspaceSourceSnapshot(
 /// The returned paths are relative to `rootPath` and sorted so callers can
 /// build deterministic signatures or diagnostics independent of filesystem
 /// enumeration order.
-package func discoverWorkspaceSourceFiles(rootPath: String) -> [String] {
+package func discoverWorkspaceSourceFiles(rootPath: String) throws -> [String] {
     let fileManager = FileManager.default
-    guard let enumerator = fileManager.enumerator(atPath: rootPath) else {
-        return []
+    let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
+    let rootPrefix = rootURL.path(percentEncoded: false).hasSuffix("/")
+        ? rootURL.path(percentEncoded: false)
+        : rootURL.path(percentEncoded: false) + "/"
+    var enumerationError: WorkspaceSourceSnapshotError?
+
+    guard let enumerator = fileManager.enumerator(
+        at: rootURL,
+        includingPropertiesForKeys: nil,
+        options: [],
+        errorHandler: { url, error in
+            enumerationError = .enumerationFailed(rootPath: rootPath, rootURL: url, underlying: error)
+            return false
+        }
+    ) else {
+        throw WorkspaceSourceSnapshotError.failedToCreateEnumerator(rootPath: rootPath, rootURL: rootURL)
     }
 
     var sourceFiles: [String] = []
 
-    while let item = enumerator.nextObject() as? String {
-        if workspacePathShouldPruneDescendants(item) {
+    while let itemURL = enumerator.nextObject() as? URL {
+        if let enumerationError {
+            throw enumerationError
+        }
+
+        let itemPath = itemURL
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path(percentEncoded: false)
+        guard itemPath.hasPrefix(rootPrefix) else {
+            continue
+        }
+        let relativePath = String(itemPath.dropFirst(rootPrefix.count))
+
+        if workspacePathShouldPruneDescendants(relativePath) {
             enumerator.skipDescendants()
             continue
         }
-        guard item.hasSuffix(".swift") else { continue }
-        sourceFiles.append(item)
+        guard relativePath.hasSuffix(".swift") else { continue }
+        sourceFiles.append(relativePath)
+    }
+
+    if let enumerationError {
+        throw enumerationError
     }
 
     return sourceFiles.sorted()
@@ -145,6 +199,25 @@ package func workspaceRelativePath(of path: String, fromRoot rootPath: String) -
 package func parseWorkspaceSourceFile(at path: String) throws -> SourceFileSyntax {
     let source = try String(contentsOfFile: path, encoding: .utf8)
     return Parser.parse(source: source)
+}
+
+private func validatedWorkspaceRootURL(rootPath: String) throws -> URL {
+    let fileManager = FileManager.default
+    let rootURL = URL(fileURLWithPath: rootPath).standardizedFileURL
+    let rootFilePath = rootURL.path(percentEncoded: false)
+    var isDirectory = ObjCBool(false)
+
+    guard fileManager.fileExists(atPath: rootFilePath, isDirectory: &isDirectory) else {
+        throw WorkspaceSourceSnapshotError.missingRoot(rootPath: rootPath, rootURL: rootURL)
+    }
+    guard isDirectory.boolValue else {
+        throw WorkspaceSourceSnapshotError.rootIsNotDirectory(rootPath: rootPath, rootURL: rootURL)
+    }
+    guard fileManager.isReadableFile(atPath: rootFilePath) else {
+        throw WorkspaceSourceSnapshotError.unreadableRoot(rootPath: rootPath, rootURL: rootURL)
+    }
+
+    return rootURL.resolvingSymlinksInPath().standardizedFileURL
 }
 
 private func workspacePathHasHiddenRootComponent(_ path: String) -> Bool {
