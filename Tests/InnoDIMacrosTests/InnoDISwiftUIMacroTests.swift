@@ -460,6 +460,88 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIEnvironmentBridge generates a single-member modifier")
+    func environmentBridgeSingleMemberShape() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "greetingService", environment: \EnvironmentValues.greetingService),
+            ])
+            struct AppContainer {
+                var greetingService: GreetingService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    var greetingService: GreetingService
+
+                    struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
+                        let container: AppContainer
+                        func body(content: Content) -> some SwiftUI.View {
+                            content.environment(\EnvironmentValues.greetingService, container.greetingService)
+                        }
+                    }
+
+                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    }
+                }
+
+                extension AppContainer: DIEnvironmentBridging {
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot generates a single named helper with `as:` alias")
+    func featureRootGeneratesSingleAliasedHelper() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+
+                    func dashboardShellRootView() -> DashboardShellView {
+                        DashboardShellView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot composes with .transient SubContainer scope")
+    func featureRootGeneratesHelperOverTransientSubContainer() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .transient)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .transient)
+                    var dashboard: DashboardContainer
+
+                    func dashboardRootView() -> DashboardRootView {
+                        DashboardRootView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
     @Test("DIFeatureRoot ignores foreign qualified SubContainer attributes")
     func featureRootIgnoresForeignQualifiedSubContainer() {
         assertMacroExpansionInline(
