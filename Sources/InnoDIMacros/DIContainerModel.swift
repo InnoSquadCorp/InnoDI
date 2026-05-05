@@ -50,10 +50,8 @@ struct ClosureParameterReference {
 struct WithDependencyReference {
     let name: String
     /// Source-level anchor used as the diagnostic node. For `with: [\.foo]`
-    /// this is the KeyPath expression; for `withNames: ["foo"]` it is the
-    /// string-literal expression. Both forms point at the per-element
-    /// position so per-name diagnostics underline the offending entry
-    /// instead of falling back to the whole attribute.
+    /// this is the KeyPath expression so per-name diagnostics underline the
+    /// offending entry instead of falling back to the whole attribute.
     let anchorExpression: ExprSyntax
 }
 
@@ -84,21 +82,15 @@ struct SubContainerMemberModel {
     /// Used to anchor diagnostics to the exact bad scope expression when
     /// parsing succeeds syntactically but not semantically.
     let scopeExpressionSyntax: ExprSyntax?
-    /// Parent member names derived from `with: [\.foo, \.bar]` or
-    /// `withNames: ["foo", "bar"]`, in order.
+    /// Parent member names derived from `with: [\.foo, \.bar]`, in order.
     /// Empty either when the author relied on automatic name matching or when
     /// they explicitly wrote an empty same-name subset.
     let parentDependencies: [String]
     /// Whether the source used `with:`.
     let hasWithDependencies: Bool
-    /// Whether the source used `withNames:`.
-    let hasWithNamesDependencies: Bool
-    /// Whether another peer macro on the same property requires the
-    /// `withNames:` escape hatch until the compiler accepts the key-path form.
-    let hasStackedPeerMacroEscapeHatch: Bool
     /// Whether same-name wiring was omitted, fully parsed, or invalid.
     let sameNameWiring: SubContainerSameNameWiringParseState
-    /// Original `with:` / `withNames:` expression syntax for invalid-wiring diagnostics.
+    /// Original `with:` expression syntax for invalid-wiring diagnostics.
     let sameNameWiringExpressionSyntax: ExprSyntax?
     /// Explicit child `.input` -> parent member remapping from
     /// `bindings: [(child: \.foo, parent: \.bar)]`.

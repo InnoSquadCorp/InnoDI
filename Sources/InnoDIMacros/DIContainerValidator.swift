@@ -357,19 +357,7 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            let hasSameNameWiringConflict = sub.hasWithDependencies && sub.hasWithNamesDependencies
-            if hasSameNameWiringConflict {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subWithConflictsWithWithNames(memberName: sub.name)
-                    )
-                )
-                hadErrors = true
-            }
-
-            let hasBindingWiringConflict = (sub.hasWithDependencies || sub.hasWithNamesDependencies)
-                && !sub.explicitBindings.isEmpty
+            let hasBindingWiringConflict = sub.hasWithDependencies && !sub.explicitBindings.isEmpty
             if hasBindingWiringConflict {
                 context.diagnose(
                     Diagnostic(
@@ -420,8 +408,7 @@ struct DIContainerValidator {
                 continue
             }
 
-            if !hasSameNameWiringConflict,
-               !hasBindingWiringConflict,
+            if !hasBindingWiringConflict,
                let invalidLabel = sub.invalidSameNameWiringLabel {
                 context.diagnose(
                     Diagnostic(
@@ -437,8 +424,7 @@ struct DIContainerValidator {
             }
 
             // Explicit same-name wiring must resolve to @Provide members on
-            // the parent. `with:` diagnostics can point at the keypath;
-            // `withNames:` falls back to the attribute node.
+            // the parent. `with:` diagnostics point at the keypath element.
             for parentName in sub.parentDependencies {
                 if !knownParentMemberNames.contains(parentName) {
                     context.diagnose(

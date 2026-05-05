@@ -55,7 +55,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subOverridesNameConflict = "sub.overrides-name-conflict"
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
-    case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
@@ -93,7 +92,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerReservedNamePrefix, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
-                .subUnknownParentMember, .subBindingsConflictsWithWith, .subWithConflictsWithWithNames,
+                .subUnknownParentMember, .subBindingsConflictsWithWith,
                 .subInvalidSameNameWiring, .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
@@ -447,15 +446,8 @@ extension SimpleDiagnostic {
 
     static func subBindingsConflictsWithWith(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot use with:/withNames: together with bindings:. Use either with: or withNames: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
+            "@SubContainer on '\(memberName)' cannot use with: together with bindings:. Use with: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
             code: .subBindingsConflictsWithWith
-        )
-    }
-
-    static func subWithConflictsWithWithNames(memberName: String) -> Self {
-        Self(
-            "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
-            code: .subWithConflictsWithWithNames
         )
     }
 
@@ -467,11 +459,6 @@ extension SimpleDiagnostic {
         case .with:
             return Self(
                 "@SubContainer on '\(memberName)' requires with: to be a literal array of key paths, such as with: [\\.config] or with: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
-                code: .subInvalidSameNameWiring
-            )
-        case .withNames:
-            return Self(
-                "@SubContainer on '\(memberName)' requires withNames: to be a literal array of string literals, such as withNames: [\"config\"] or withNames: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
                 code: .subInvalidSameNameWiring
             )
         }
@@ -497,7 +484,7 @@ extension SimpleDiagnostic {
 
     static func subAutoWiringAmbiguous(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: or withNames: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] (or withNames: []) when the child is intentionally constructed without parent inputs.",
+            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] when the child is intentionally constructed without parent inputs.",
             code: .subAutoWiringAmbiguous
         )
     }

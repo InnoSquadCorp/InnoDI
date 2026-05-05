@@ -222,10 +222,10 @@ func validateDependencySatisfaction(
         return issues
     }
 
-    // Detect entries declared in `withNames:` / `with:` / `bindings:` that
+    // Detect entries declared in `with:` / `bindings:` that
     // do not correspond to any child input. The dependency-satisfaction loop
     // below iterates `requiredInputs` keys, so extras would otherwise be
-    // silently dropped — making `withNames: ["bogus"]` look successful.
+    // silently dropped — making `with: [\.bogus]` look successful.
     let extraMappings = resolvedMappings.mappings.keys
         .filter { requiredInputs[$0] == nil }
         .sorted()
@@ -243,7 +243,7 @@ func validateDependencySatisfaction(
                         location: child.location
                     )
                 ],
-                remediation: "Remove '\(extraName)' from with:/withNames:/bindings:, or declare a matching .input on '\(child.displayName)'.",
+                remediation: "Remove '\(extraName)' from with:/bindings:, or declare a matching .input on '\(child.displayName)'.",
                 metadata: [
                     "parentContainerPath": parent.path,
                     "childContainerPath": child.path,

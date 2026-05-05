@@ -105,18 +105,14 @@ Most frequently-hit codes:
   container member.
 - `sub.unknown-child-input` — `bindings:` child key path doesn't map to a
   child input.
-- `sub.bindings-conflicts-with-with` — `bindings:` and `with:`/`withNames:`
-  appear on the same `@SubContainer` (the wiring forms are mutually
-  exclusive).
-- `sub.with-conflicts-with-with-names` — both `with:` and `withNames:`
-  appear on the same `@SubContainer` (pick exactly one).
-- `sub.invalid-same-name-wiring` — `with:` / `withNames:` is not a literal
-  array the macro can read (runtime variables and computed elements are
-  rejected).
+- `sub.bindings-conflicts-with-with` — `bindings:` and `with:` appear on the
+  same `@SubContainer` (the wiring forms are mutually exclusive).
+- `sub.invalid-same-name-wiring` — `with:` is not a literal key-path array the
+  macro can read (runtime variables and computed elements are rejected).
 - `sub.auto-wiring-ambiguous` — implicit same-name wiring cannot be
   inferred because the parent has multiple `@Provide` candidates. Add
-  explicit `with:` / `withNames:` / `bindings:`, or use `with: []` if the
-  child takes no parent inputs.
+  explicit `with:` / `bindings:`, or use `with: []` if the child takes no
+  parent inputs.
 - `sub.duplicate-child-binding` — the same child input is bound twice.
 - `sub.shared-parent-must-not-be-transient` — `.shared` sub-container
   cannot read a `.transient` parent.

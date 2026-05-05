@@ -130,8 +130,6 @@ struct DIContainerParser {
                         scopeExpressionSyntax: extractArgumentExpression(label: "scope", from: subAttribute),
                         parentDependencies: subArgs.dependencies,
                         hasWithDependencies: subArgs.hasWithDependencies,
-                        hasWithNamesDependencies: subArgs.hasWithNamesDependencies,
-                        hasStackedPeerMacroEscapeHatch: !featureRootAttributes(in: varDecl.attributes).isEmpty,
                         sameNameWiring: subArgs.sameNameWiring,
                         sameNameWiringExpressionSyntax: sameNameWiringExpressionSyntax(
                             for: subArgs.sameNameWiring,
@@ -385,12 +383,6 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
         return []
     }
 
-    // Walk both `with:` (key paths) and `withNames:` (string literals) so
-    // diagnostics can anchor at the per-element source position regardless
-    // of which same-name wiring form the user picked. Without the
-    // `withNames:` branch a misspelled `withNames: ["foo"]` ends up with an
-    // empty references list and `parentReferenceSyntax(for:)` falls back to
-    // the whole attribute.
     for argument in arguments {
         guard let label = argument.label?.text else { continue }
         switch label {
@@ -406,20 +398,6 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
                 return WithDependencyReference(
                     name: property,
                     anchorExpression: ExprSyntax(keyPath)
-                )
-            }
-        case "withNames":
-            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else { continue }
-            return arrayExpr.elements.compactMap { element in
-                guard let literal = element.expression.as(StringLiteralExprSyntax.self),
-                      literal.segments.count == 1,
-                      case let .stringSegment(segment)? = literal.segments.first,
-                      !segment.content.text.isEmpty else {
-                    return nil
-                }
-                return WithDependencyReference(
-                    name: segment.content.text,
-                    anchorExpression: ExprSyntax(literal)
                 )
             }
         default:
@@ -439,11 +417,6 @@ private func sameNameWiringExpressionSyntax(
         return nil
     case let .parsed(label, _), let .invalid(label):
         return extractArgumentExpression(label: label.rawValue, from: attribute)
-    case .bothSpecified:
-        // Either label can serve as the diagnostic anchor; prefer `with:` so
-        // the underline lands on the keypath array when both appear.
-        return extractArgumentExpression(label: SubContainerSameNameWiringLabel.with.rawValue, from: attribute)
-            ?? extractArgumentExpression(label: SubContainerSameNameWiringLabel.withNames.rawValue, from: attribute)
     }
 }
 

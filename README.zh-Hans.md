@@ -15,7 +15,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -128,7 +128,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -216,7 +216,7 @@ closure 依然可以编译，并作为 no-op 运行。
 `@SubContainer` 用来建模父容器拥有的子容器：
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -226,11 +226,11 @@ var feature: FeatureContainer
 - 只有父容器有 0 个或 1 个 `@Provide` 候选时，才会使用按名称的隐式 wiring。
   父容器有多个候选时必须显式添加 wiring，不要依赖生成的 Swift initializer
   错误。
-- `with:` 或 `withNames:` 转发同名的显式子集或顺序。两种形式都必须是宏可
-  以读取的字面量数组；不支持运行时变量或计算得到的数组元素。
-- `with: []` 或 `withNames: []` 是显式的空子集，将调用 `Child()`。
+- `with:` 转发同名的显式子集或顺序。它必须是宏可以读取的 key path
+  字面量数组；不支持运行时变量或计算得到的数组元素。
+- `with: []` 是显式的空子集，将调用 `Child()`。
 - `bindings:` 将子容器 input label remap 到不同的父成员名。
-- `with:`、`withNames:`、`bindings:` 三种 wiring form 只能选择一种。
+- `with:`、`bindings:` 两种 wiring form 只能选择一种。
 - 父容器的 `Overrides` 同时拥有完整替换槽 (`feature`) 和子容器 override
   closure (`featureOverrides`)。
 

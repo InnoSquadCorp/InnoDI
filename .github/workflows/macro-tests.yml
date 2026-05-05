@@ -25,6 +25,8 @@ jobs:
         # `docs/internal/fatalerror-inventory.md`. A drift in either
         # allow-list pattern is a forcing function for an inventory update.
         run: Tools/check-no-fatalerror-in-macros.sh
+      - name: Validate compiled documentation snippets
+        run: Tools/check-docs-code-blocks.sh
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Build Extended Examples

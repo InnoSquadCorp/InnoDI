@@ -15,7 +15,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -134,7 +134,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -236,7 +236,7 @@ input-only コンテナも空の builder を生成します。子コンテナが
 `@SubContainer` は親が所有する子コンテナを表します:
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -247,13 +247,12 @@ var feature: FeatureContainer
   implicit wiring が convenience として有効です。親候補が複数ある場合は
   生成された Swift initializer のエラーに頼らず、必ず explicit wiring を
   追加してください。
-- `with:` または `withNames:` は同名の明示 subset / 順序を転送します。
-  どちらの形式もマクロが読み取れるリテラル配列でなければならず、
-  ランタイム変数や計算された配列要素はサポートされません。
-- `with: []` または `withNames: []` は明示的な空 subset で、`Child()` を
-  呼び出します。
+- `with:` は同名の明示 subset / 順序を転送します。マクロが読み取れる
+  key path リテラル配列でなければならず、ランタイム変数や計算された
+  配列要素はサポートされません。
+- `with: []` は明示的な空 subset で、`Child()` を呼び出します。
 - `bindings:` は子 input label を別の親メンバー名に remap します。
-- `with:`、`withNames:`、`bindings:` の wiring form は 1 つだけ選びます。
+- `with:`、`bindings:` の wiring form は 1 つだけ選びます。
 - 親の `Overrides` には完全置換スロット (`feature`) と子 override closure
   (`featureOverrides`) の両方が追加されます。
 

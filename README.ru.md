@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -136,7 +136,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -221,7 +221,7 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 `@SubContainer` моделирует дочерние контейнеры, которыми владеет родитель:
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -232,14 +232,13 @@ var feature: FeatureContainer
   родителя 0 или 1 кандидат `@Provide`. Если кандидатов несколько, добавьте
   явное wiring вместо того, чтобы полагаться на ошибки сгенерированного
   Swift initializer.
-- `with:` или `withNames:` пробрасывает явное одноименное подмножество или
-  порядок. Обе формы должны быть литеральными массивами, которые может
-  прочитать макрос; runtime-переменные и вычисляемые элементы не
+- `with:` пробрасывает явное одноименное подмножество или порядок. Это должен
+  быть литеральный массив key path, который может прочитать макрос;
+  runtime-переменные и вычисляемые элементы не
   поддерживаются.
-- `with: []` или `withNames: []` — явно пустое подмножество, вызывает
-  `Child()`.
+- `with: []` — явно пустое подмножество, вызывает `Child()`.
 - `bindings:` remap-ит child input label на другое имя member родителя.
-- Выбирайте ровно одну wiring form: `with:`, `withNames:` или `bindings:`.
+- Выбирайте ровно одну wiring form: `with:` или `bindings:`.
 - `Overrides` родителя получает и слот полной замены (`feature`), и
   child-override closure (`featureOverrides`).
 

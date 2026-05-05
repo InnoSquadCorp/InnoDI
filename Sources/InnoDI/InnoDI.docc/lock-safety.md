@@ -10,7 +10,8 @@ for example a CLI build alongside an open Xcode window — the plugin
 serializes the live DAG-validation step through a single POSIX lock per
 *signature* (the normalized hash of every container source). The lock is
 acquired with `open(O_CREAT | O_EXCL | O_RDWR)` against a file inside
-SPM's scratch directory.
+SwiftPM's plugin work directory, which is created under the active SPM
+scratch/derived-data location.
 
 This article explains the requirements that lock places on the
 filesystem, what the error messages mean, and how to recover when a
@@ -39,6 +40,11 @@ by a network share, redirect SPM's scratch path:
 ```sh
 swift build --scratch-path /tmp/innodi-cache
 ```
+
+The plugin state directory follows that scratch path. InnoDI no longer writes
+its build-plugin lock/cache state to `<package>/.build/innodi-dag-validation`,
+so a local `--scratch-path` is the documented recovery path for unsafe package
+roots.
 
 InnoDI auto-detects the filesystem under the lock directory at the
 start of every run. If it lands on an unsafe one, the coordinator
@@ -138,6 +144,16 @@ In order of decreasing safety:
 4. **Reduce the stale threshold** with `INNODI_STALE_LOCK_AGE=10` if
    the holder has been frozen for longer than the new threshold and
    the PID check is unreliable (rare).
+
+For a read-only diagnostic pass, run:
+
+```sh
+swift run InnoDI-DependencyGraph --diagnose-lock /tmp/innodi-cache
+```
+
+Pass the scratch directory or the plugin state directory named in the
+diagnostic. The command recursively discovers InnoDI lock files below that
+path.
 
 ## Permission and disk-full failures
 

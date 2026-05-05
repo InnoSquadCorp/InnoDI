@@ -31,7 +31,9 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - in-process DAG validation from the build coordinator
 - PR and release gates that both enforce strict concurrency and the
   macro-source `fatalError` allow-list
-- `@SubContainer` key-path guidance for the non-stacked `withNames:` case
+- compiled documentation snippet checks in CI
+- `@SubContainer` same-name wiring through `with:` only; the string-based
+  `withNames:` escape hatch has been removed
 
 ## Topics
 

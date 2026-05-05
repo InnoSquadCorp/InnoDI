@@ -86,8 +86,6 @@ public enum SubContainerScopeValue: String {
 public enum SubContainerSameNameWiringLabel: String, Equatable, Sendable {
     /// Key-path based same-name wiring (`with: [\.foo]`).
     case with
-    /// String based same-name wiring (`withNames: ["foo"]`).
-    case withNames
 }
 
 /// Parse state for `@SubContainer` same-name wiring.
@@ -96,22 +94,13 @@ public enum SubContainerSameNameWiringLabel: String, Equatable, Sendable {
 /// array. It also must not silently treat runtime variables or partially
 /// unparseable arrays as an empty subset.
 ///
-/// `with:` and `withNames:` are mutually exclusive. When both labels appear in
-/// the same attribute the parser yields `.bothSpecified` so the macro
-/// validator and build-support hierarchy validator can react to the same
-/// parse-time signal instead of relying on auxiliary boolean flags.
 public enum SubContainerSameNameWiringParseState: Equatable, Sendable {
-    /// Neither `with:` nor `withNames:` appeared in the source.
+    /// `with:` did not appear in the source.
     case omitted
     /// A literal array was fully parsed. The dependency list may be empty.
     case parsed(label: SubContainerSameNameWiringLabel, dependencies: [String])
-    /// A same-name wiring label appeared but was not a fully parseable literal array.
+    /// `with:` appeared but was not a fully parseable literal array.
     case invalid(label: SubContainerSameNameWiringLabel)
-    /// Both `with:` and `withNames:` appeared in the same attribute.
-    /// Diagnosing this conflict is the validator's job; the parse state stops
-    /// pretending one of the labels won, so consumers do not silently see a
-    /// `.parsed` value derived from the last-seen label.
-    case bothSpecified
 }
 
 /// Parsed arguments extracted from a single `@SubContainer` attribute.
@@ -123,15 +112,13 @@ public struct SubContainerAttributeInfo {
     /// Raw textual scope spelling as written so diagnostics can echo the
     /// exact source expression (for example, `.shared` or `someScope`).
     public let scopeName: String?
-    /// Member names passed via `with:` / `withNames:`, in the order they appear.
+    /// Member names passed via `with:`, in the order they appear.
     /// Used to re-map parent members when child `.input` parameter names do
     /// not match the parent side by name.
     public let dependencies: [String]
     /// Whether the attribute contains the `with:` keypath argument.
     public let hasWithDependencies: Bool
-    /// Whether the attribute contains the `withNames:` string argument.
-    public let hasWithNamesDependencies: Bool
-    /// Literal parse state for `with:` / `withNames:`.
+    /// Literal parse state for `with:`.
     public let sameNameWiring: SubContainerSameNameWiringParseState
     /// Explicit child-input -> parent-member bindings passed via `bindings:`.
     /// Used when the child `.input` label differs from the parent member name.
@@ -143,15 +130,13 @@ public struct SubContainerAttributeInfo {
     ///   - scope: Parsed scope value when the `scope:` expression matches a
     ///     supported `SubContainerScopeValue`.
     ///   - scopeName: Raw textual scope spelling or expression fragment.
-    ///   - dependencies: Parsed dependency names from `with:` / `withNames:`.
+    ///   - dependencies: Parsed dependency names from `with:`.
     ///   - hasWithDependencies: Whether `with:` appeared in the source.
-    ///   - hasWithNamesDependencies: Whether `withNames:` appeared in the source.
     public init(
         scope: SubContainerScopeValue?,
         scopeName: String?,
         dependencies: [String],
         hasWithDependencies: Bool = false,
-        hasWithNamesDependencies: Bool = false,
         sameNameWiring: SubContainerSameNameWiringParseState = .omitted,
         bindings: [SubContainerBindingArgument]
     ) {
@@ -159,7 +144,6 @@ public struct SubContainerAttributeInfo {
         self.scopeName = scopeName
         self.dependencies = dependencies
         self.hasWithDependencies = hasWithDependencies
-        self.hasWithNamesDependencies = hasWithNamesDependencies
         self.sameNameWiring = sameNameWiring
         self.bindings = bindings
     }
@@ -381,29 +365,6 @@ public func parseStrictKeyPathArrayArgument(_ expression: ExprSyntax) -> [String
     return names
 }
 
-/// Strictly parses a `withNames: ["foo", "bar"]` array for `@SubContainer`.
-/// Returns `nil` when the expression is not a literal array or any element is
-/// not a plain string literal.
-public func parseStrictStringArrayArgument(_ expression: ExprSyntax) -> [String]? {
-    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return nil }
-    var names: [String] = []
-    for element in arrayExpr.elements {
-        guard let literal = element.expression.as(StringLiteralExprSyntax.self),
-              literal.segments.count == 1,
-              case let .stringSegment(segment)? = literal.segments.first else {
-            return nil
-        }
-        // An empty string can never match a parent member name; reject it
-        // up front so callers surface a single literal-array diagnostic
-        // instead of a delayed "unknown parent member ''" trail later.
-        if segment.content.text.isEmpty {
-            return nil
-        }
-        names.append(segment.content.text)
-    }
-    return names
-}
-
 /// Parses `bindings: [(child: \.foo, parent: \.bar)]` into semantic names.
 public func parseSubContainerBindingsArgument(_ expression: ExprSyntax) -> [SubContainerBindingArgument] {
     guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
@@ -451,7 +412,6 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     var scopeName: String?
     var dependencies: [String] = []
     var hasWithDependencies = false
-    var hasWithNamesDependencies = false
     var sameNameWiring: SubContainerSameNameWiringParseState = .omitted
     var bindings: [SubContainerBindingArgument] = []
 
@@ -467,30 +427,12 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                 }
             case "with":
                 hasWithDependencies = true
-                if hasWithNamesDependencies {
-                    // Both labels present — collapse to the conflict state so
-                    // downstream consumers do not have to reconstruct it from
-                    // boolean flags.
-                    dependencies = []
-                    sameNameWiring = .bothSpecified
-                } else if let parsedDependencies = parseStrictKeyPathArrayArgument(argument.expression) {
+                if let parsedDependencies = parseStrictKeyPathArrayArgument(argument.expression) {
                     dependencies = parsedDependencies
                     sameNameWiring = .parsed(label: .with, dependencies: parsedDependencies)
                 } else {
                     dependencies = []
                     sameNameWiring = .invalid(label: .with)
-                }
-            case "withNames":
-                hasWithNamesDependencies = true
-                if hasWithDependencies {
-                    dependencies = []
-                    sameNameWiring = .bothSpecified
-                } else if let parsedDependencies = parseStrictStringArrayArgument(argument.expression) {
-                    dependencies = parsedDependencies
-                    sameNameWiring = .parsed(label: .withNames, dependencies: parsedDependencies)
-                } else {
-                    dependencies = []
-                    sameNameWiring = .invalid(label: .withNames)
                 }
             case "bindings":
                 bindings = parseSubContainerBindingsArgument(argument.expression)
@@ -505,7 +447,6 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
         scopeName: scopeName,
         dependencies: dependencies,
         hasWithDependencies: hasWithDependencies,
-        hasWithNamesDependencies: hasWithNamesDependencies,
         sameNameWiring: sameNameWiring,
         bindings: bindings
     )
