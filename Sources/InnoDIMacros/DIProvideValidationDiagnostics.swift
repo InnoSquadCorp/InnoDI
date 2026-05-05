@@ -328,9 +328,59 @@ internal func makeConcreteOptInDiagnostic(member: ProvideMemberModel) -> Diagnos
 }
 
 private func matchingDependencyCandidates(for dependencyName: String, in knownNames: Set<String>) -> [String] {
-    knownNames
+    let normalizedMatches = knownNames
         .filter { normalizedDependencyLookupKey($0) == normalizedDependencyLookupKey(dependencyName) }
         .sorted()
+    if !normalizedMatches.isEmpty {
+        return normalizedMatches
+    }
+    // Fall back to typo-tolerant matching (Damerau-Levenshtein distance <= 2)
+    // when no underscore/case-insensitive variant matches. This catches the
+    // common single-character typo case ("apiClent" -> "apiClient") without
+    // changing behavior whenever a normalized match is already available.
+    let typoMatches = knownNames
+        .compactMap { name -> (name: String, distance: Int)? in
+            let distance = damerauLevenshteinDistance(dependencyName, name)
+            return distance <= 2 ? (name, distance) : nil
+        }
+        .sorted { lhs, rhs in
+            if lhs.distance != rhs.distance { return lhs.distance < rhs.distance }
+            return lhs.name < rhs.name
+        }
+    return typoMatches.map(\.name)
+}
+
+private func damerauLevenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
+    let lhsChars = Array(lhs)
+    let rhsChars = Array(rhs)
+    let m = lhsChars.count
+    let n = rhsChars.count
+    if m == 0 { return n }
+    if n == 0 { return m }
+
+    var distance = Array(
+        repeating: Array(repeating: 0, count: n + 1),
+        count: m + 1
+    )
+    for i in 0...m { distance[i][0] = i }
+    for j in 0...n { distance[0][j] = j }
+
+    for i in 1...m {
+        for j in 1...n {
+            let cost = lhsChars[i - 1] == rhsChars[j - 1] ? 0 : 1
+            distance[i][j] = min(
+                distance[i - 1][j] + 1,
+                distance[i][j - 1] + 1,
+                distance[i - 1][j - 1] + cost
+            )
+            if i > 1, j > 1,
+               lhsChars[i - 1] == rhsChars[j - 2],
+               lhsChars[i - 2] == rhsChars[j - 1] {
+                distance[i][j] = min(distance[i][j], distance[i - 2][j - 2] + 1)
+            }
+        }
+    }
+    return distance[m][n]
 }
 
 private struct MatchingDependencyCandidates {
