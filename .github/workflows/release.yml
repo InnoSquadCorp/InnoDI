@@ -46,6 +46,14 @@ jobs:
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
 
+      - name: Validate localized README structural sync
+        # Advisory until the localized READMEs catch up to the English
+        # canonical structure. Drop the env var to enforce strict parity
+        # once the localized files have been re-aligned.
+        env:
+          INNODI_README_SYNC_STRICT: "0"
+        run: Tools/check-localized-readme-sync.sh
+
       - name: Test SwiftUI Example
         run: |
           cd Examples/SwiftUIExample
