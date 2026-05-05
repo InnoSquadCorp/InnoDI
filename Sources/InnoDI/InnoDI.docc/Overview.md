@@ -48,6 +48,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 ### Operations
 
 - <doc:lock-safety>
+- <doc:DAGValidation>
 - <doc:MigrationGuide>
 
 ### Container API
