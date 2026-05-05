@@ -8,6 +8,7 @@ Hilfen.
 
 ## Minimales nutzliches Beispiel
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -121,7 +122,9 @@ hangst, das InnoDI-Container deklariert:
 
 ## Schnellstart
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -143,7 +146,7 @@ struct AppContainer {
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 Nutze eine Factory-Closure, wenn Namen oder Konstruktionslogik nicht zu

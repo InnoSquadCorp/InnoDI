@@ -7,6 +7,7 @@ InnoDI は、コンパイル時およびビルド時の検証、依存グラフ�
 
 ## 最小限の実用例
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -117,7 +118,9 @@ build-time DAG validator を有効にするには、InnoDI container を宣言�
 
 ## クイックスタート
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -139,7 +142,7 @@ struct AppContainer {
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 ## 先に読むドキュメント

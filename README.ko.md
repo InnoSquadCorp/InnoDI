@@ -7,6 +7,7 @@ SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워�
 
 ## 최소 예제
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -115,7 +116,9 @@ InnoDI 컨테이너를 선언하는 타깃에는 build-time DAG validator 플러
 
 ## 빠른 시작
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -137,7 +140,7 @@ struct AppContainer {
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 이름이나 생성 로직이 `Type.self` + `with:`와 맞지 않으면 factory closure를

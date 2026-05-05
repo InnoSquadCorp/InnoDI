@@ -8,6 +8,7 @@ InnoDI — это макро-ориентированный DI-фреймвор�
 
 ## Минимальный полезный пример
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -119,7 +120,9 @@ dependencies: [
 
 ## Быстрый старт
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -141,7 +144,7 @@ struct AppContainer {
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 ## Что читать дальше
