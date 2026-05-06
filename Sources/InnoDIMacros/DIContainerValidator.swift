@@ -69,24 +69,26 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if let factory = member.factory, isAsyncClosureExpression(factory) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(factory),
-                        message: SimpleDiagnostic.provideFactoryMustBeSync(memberName: member.name)
+            if let factory = member.factory {
+                if isAsyncClosureExpression(factory) || factoryExpressionContainsAwait(factory) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(factory),
+                            message: SimpleDiagnostic.provideFactoryMustBeSync(memberName: member.name)
+                        )
                     )
-                )
-                hadErrors = true
-            }
+                    hadErrors = true
+                }
 
-            if let factory = member.factory, isThrowingClosureExpression(factory) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(factory),
-                        message: SimpleDiagnostic.provideFactoryMustNotThrow(memberName: member.name)
+                if isThrowingClosureExpression(factory) || factoryExpressionContainsPlainTry(factory) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(factory),
+                            message: SimpleDiagnostic.provideFactoryMustNotThrow(memberName: member.name)
+                        )
                     )
-                )
-                hadErrors = true
+                    hadErrors = true
+                }
             }
 
             if member.scope != .input && !member.concreteOptIn && requiresConcreteOptIn(type: member.type) {
@@ -488,7 +490,7 @@ struct DIContainerValidator {
             }
 
             let usesImplicitSubContainerParentNames = sub.sameNameWiring == .omitted
-                && sub.explicitBindings.isEmpty
+                && !sub.hasBindingsArgument
 
             if usesImplicitSubContainerParentNames,
                !canResolveImplicitSubContainerParentNames(
@@ -516,7 +518,7 @@ struct DIContainerValidator {
             // the ambiguity diagnostic above requires explicit wiring.
             guard sub.scope == .shared else { continue }
             let wiredParents: [String]
-            if !sub.explicitBindings.isEmpty {
+            if sub.hasBindingsArgument {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
             } else if sub.hasExplicitSameNameWiring {
                 wiredParents = sub.parentDependencies

@@ -43,7 +43,7 @@ struct DeferredWrapperAliasBuildValidatorTests {
     }
 
     @Test("Lazy alias is reported as a warning with file location")
-    func lazyAliasReportedAsWarning() {
+    func lazyAliasReportedAsWarning() throws {
         let snapshot = makeSnapshot([
             ("Sources/Feature/Aliases.swift", "typealias DeferredFoo = Lazy<Foo>\n")
         ])
@@ -51,9 +51,7 @@ struct DeferredWrapperAliasBuildValidatorTests {
         let report = DeferredWrapperAliasBuildValidator.validate(snapshot: snapshot)
 
         #expect(report.issues.count == 1)
-        guard let issue = report.issues.first else {
-            return
-        }
+        let issue = try #require(report.issues.first, "expected a single report issue")
         #expect(issue.code == "deferred-alias.workspace-finding")
         #expect(issue.severity == .warning)
         #expect(issue.location.filePath == "Sources/Feature/Aliases.swift")
@@ -64,7 +62,7 @@ struct DeferredWrapperAliasBuildValidatorTests {
     }
 
     @Test("Provider alias renames are reported with provider metadata")
-    func providerAliasReportedWithMetadata() {
+    func providerAliasReportedWithMetadata() throws {
         let snapshot = makeSnapshot([
             ("Sources/Feature/Aliases.swift", "typealias FreshBar = InnoDI.Provider<Bar>\n")
         ])
@@ -72,9 +70,7 @@ struct DeferredWrapperAliasBuildValidatorTests {
         let report = DeferredWrapperAliasBuildValidator.validate(snapshot: snapshot)
 
         #expect(report.issues.count == 1)
-        guard let issue = report.issues.first else {
-            return
-        }
+        let issue = try #require(report.issues.first, "expected a single report issue")
         #expect(issue.metadata["aliasKind"] == "provider")
         #expect(issue.message.contains("Provider<...>"))
     }

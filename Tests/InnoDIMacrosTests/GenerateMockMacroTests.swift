@@ -114,6 +114,64 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("func greet(name: String) -> String"))
     }
 
+    @Test("GenerateMock refuses Sendable-inherited protocols")
+    func generateMockRefusesSendableInheritedProtocols() throws {
+        let source = """
+        @GenerateMock
+        protocol SharedAPI: Sendable {
+            func load() -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(parsed.statements.first?.item.as(ProtocolDeclSyntax.self))
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
+                    && $0.message.contains("Sendable inheritance")
+            }
+        )
+    }
+
+    @Test("GenerateMock refuses qualified Sendable-inherited protocols")
+    func generateMockRefusesQualifiedSendableInheritedProtocols() throws {
+        let source = """
+        @GenerateMock
+        protocol SharedAPI: Swift.Sendable {
+            func load() -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(parsed.statements.first?.item.as(ProtocolDeclSyntax.self))
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
+                    && $0.message.contains("Sendable inheritance")
+            }
+        )
+    }
+
     @Test("GenerateMock keeps property backing storage names unique after normalization")
     func generateMockKeepsPropertyBackingStorageNamesUnique() throws {
         let source = """

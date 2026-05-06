@@ -266,13 +266,20 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                 var childLocation: ValidationIssueLocation?
                 var parentLocation: ValidationIssueLocation?
 
+                guard tupleExpr.elements.count == 2 else {
+                    return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
+                }
+
                 for tupleElement in tupleExpr.elements {
                     guard let label = tupleElement.label?.text else {
-                        continue
+                        return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
                     }
 
                     switch label {
                     case "child":
+                        guard childName == nil else {
+                            return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
+                        }
                         guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
                               let property = keyPath.components.last?
                                 .component.as(KeyPathPropertyComponentSyntax.self)?
@@ -282,6 +289,9 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                         childName = property
                         childLocation = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     case "parent":
+                        guard parentName == nil else {
+                            return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
+                        }
                         guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
                               let property = keyPath.components.last?
                                 .component.as(KeyPathPropertyComponentSyntax.self)?
@@ -291,7 +301,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                         parentName = property
                         parentLocation = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     default:
-                        continue
+                        return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
                     }
                 }
 

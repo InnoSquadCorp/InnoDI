@@ -1309,6 +1309,154 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("sync factory rejects inferred throwing closure body")
+    func syncFactoryRejectsInferredThrowingClosureBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { try makeService() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing expression factory")
+    func syncFactoryRejectsThrowingExpressionFactory() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: try makeService(), concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects inferred async closure body")
+    func syncFactoryRejectsInferredAsyncClosureBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { await makeService() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-be-sync")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory allows nonthrowing try variants")
+    func syncFactoryAllowsNonthrowingTryVariants() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { try? makeService() }, concrete: true)
+                var optionalService: Service?
+
+                @Provide(.transient, factory: { try! makeRequiredService() }, concrete: true)
+                var requiredService: Service
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory allows handled throwing closure body")
+    func syncFactoryAllowsHandledThrowingClosureBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .transient,
+                    factory: {
+                        do {
+                            return try makeService()
+                        } catch {
+                            return fallbackService()
+                        }
+                    },
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing catch handler body")
+    func syncFactoryRejectsThrowingCatchHandlerBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .transient,
+                    factory: {
+                        do {
+                            return try makeService()
+                        } catch {
+                            return try fallbackService()
+                        }
+                    },
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing body with nonexhaustive catch")
+    func syncFactoryRejectsThrowingBodyWithNonexhaustiveCatch() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .transient,
+                    factory: {
+                        do {
+                            return try makeService()
+                        } catch let error as ServiceError {
+                            return fallbackService(error)
+                        }
+                    },
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("async shared factory generates task-backed initialization")
     func asyncSharedFactoryGeneratesTaskBackedInit() {
         assertMacroExpansionSnapshot(
@@ -2287,6 +2435,24 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports explicit empty bindings wiring")
+    func subContainerSharedWithEmptyBindings() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, bindings: [])
+                var feature: EmptyFeatureContainer
+            }
+            """,
+            matches: "subContainerSharedWithEmptyBindings",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
     func subContainerSharedBindingsMultipleRemaps() {
         assertMacroExpansionSnapshot(
@@ -2444,6 +2610,51 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
 
                 @SubContainer(scope: .shared, bindings: [(child: \\.featureConfig)])
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: rejects duplicate labels inside a tuple")
+    func subContainerBindingsDuplicateTupleLabelDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var fallbackConfig: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(child: \\.featureConfig, child: \\.fallbackConfig)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: rejects unknown labels inside a tuple")
+    func subContainerBindingsUnknownTupleLabelDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(source: \\.featureConfig, parent: \\.config)]
+                )
                 var feature: FeatureBindingsContainer
             }
             """,
