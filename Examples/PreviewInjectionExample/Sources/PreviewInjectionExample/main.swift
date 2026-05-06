@@ -307,10 +307,9 @@ public struct QuotePreviewScenario: CaseIterable {
 
 #if os(iOS)
 // Each preview now declares its container in the `#PreviewWithContainer`
-// argument and reads it back through the trailing closure parameter — no
-// scenario-array indexing or `let` capture, and the title still flows in
-// as a regular argument because the macro forwards it verbatim into the
-// generated `#Preview`.
+// argument and reads it back through the trailing closure parameter. The
+// scenario array keeps the example compact, while the macro removes the
+// repeated container `let` capture from each generated `#Preview`.
 #PreviewWithContainer(QuotePreviewScenario.allCases[0].container) { container in
     QuoteAppRootView(title: "Live", container: container)
 }

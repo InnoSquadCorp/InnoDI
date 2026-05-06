@@ -13,10 +13,12 @@
 custom_rules:
   innodi_validate_dag_in_production:
     name: "InnoDI validateDAG opt-out"
-    regex: '@DIContainer\([^)]*validateDAG:\s*false'
+    regex: '@DIContainer\b[\s\S]*?validateDAG\s*:\s*false'
     match_kinds:
       - attribute.builtin
+      - argument
       - identifier
+      - keyword
       - typeidentifier
     message: |
       `@DIContainer(validateDAG: false)` opts the container out of the

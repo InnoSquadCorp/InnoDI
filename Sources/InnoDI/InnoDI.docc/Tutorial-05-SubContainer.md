@@ -57,7 +57,7 @@ print(container.feature.service.describe())
   available even when the child has no overrideable members yet.
 * Because the wiring uses `with:`, the parent and child member names line
   up. If the labels differ, switch to `bindings:`:
-  `bindings: [(child: \FeatureContainer.config, parent: \AppContainer.environment)]`.
+  `bindings: [(child: \FeatureContainer.config, parent: \AppContainer.config)]`.
 
 ## When to choose `.shared` vs `.transient`
 
@@ -73,7 +73,7 @@ print(container.feature.service.describe())
 * Override the child entirely from a test:
   `overrides.feature = FeatureContainer(config: testConfig)`.
 * Forward an overrides block instead:
-  `overrides.featureOverrides = { $0.service = MockFeatureService() }`.
+  `overrides.featureOverrides = { $0.service = FeatureService(config: testConfig) }`.
 * Stack the child with `@DIComponent` for cross-module ownership and
   re-read <doc:DIContainer> for the cross-module surface.
 

@@ -215,7 +215,7 @@ private func renderTypedFunctionMock(
             // author with the missing stub identifier through the nested
             // `_InnoDIMockNotStubbed` error.
             snippetLines.append(
-                "    var \(names.resultProperty): Result<\(returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \"\(baseName)\"))"
+                "    var \(names.resultProperty): Result<\(returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \"\(names.resultProperty)\"))"
             )
         } else {
             snippetLines.append("    var \(names.returnProperty): \(optionalStorageType(returnTypeRendered))")
@@ -347,7 +347,7 @@ private func renderVariableMock(variable: VariableDeclSyntax) -> String? {
     let name = (binding.pattern.as(IdentifierPatternSyntax.self))?.identifier.text ?? "<unknown>"
     let type = typeAnnotation.type.trimmedDescription
     let escapedName = name.escapedSwiftIdentifier
-    let storageName = "__innodi_\(name.safeLowerCamelIdentifier)StubValue"
+    let storageName = "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)StubValue"
     let storageType = optionalStorageType(type)
     return """
         private var \(storageName): \(storageType)
@@ -518,6 +518,15 @@ private extension String {
         let stem = identifierStem
         guard let first = stem.first else { return "value" }
         return String(first).lowercased() + stem.dropFirst()
+    }
+
+    var stableIdentifierSuffix: String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(format: "h%016llx", hash)
     }
 
     private func splitIntoIdentifierWords() -> [String] {

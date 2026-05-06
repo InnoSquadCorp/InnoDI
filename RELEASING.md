@@ -207,7 +207,7 @@ standalone release assets.
   `bindings:` only.
 
   **RFC 0002 status update**:
-  [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md) is
+  [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md)
   was `Deferred` in 4.1.0 while the stacked peer-macro escape hatch was still
   public. The current branch applies the removal before 5.0 and documents the
   replacement path in the Unreleased upgrade actions.

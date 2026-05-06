@@ -105,12 +105,43 @@ struct GenerateMockMacroTests {
         // Storage and method shape — just substring assertions because the
         // exact whitespace is defined by the generator.
         #expect(peer.contains("final class GreeterMock"))
-        #expect(peer.contains("private var __innodi_prefixStubValue: String?"))
+        #expect(peer.contains("private var __innodi_prefix_hba8821b572531e29StubValue: String?"))
         #expect(peer.contains("var prefix: String {"))
-        #expect(peer.contains("__innodi_prefixStubValue = newValue"))
+        #expect(peer.contains("__innodi_prefix_hba8821b572531e29StubValue = newValue"))
         #expect(peer.contains("private(set) var greetCalls"))
         #expect(peer.contains("var greetReturnValue: String?"))
         #expect(peer.contains("func greet(name: String) -> String"))
+    }
+
+    @Test("GenerateMock keeps property backing storage names unique after normalization")
+    func generateMockKeepsPropertyBackingStorageNamesUnique() throws {
+        let source = """
+        @GenerateMock
+        protocol CollidingProperties {
+            var foo_bar: Int { get set }
+            var fooBar: Int { get set }
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse colliding property fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("private var __innodi_fooBar_hd82736431662ffbdStubValue: Int?"))
+        #expect(peer.contains("private var __innodi_fooBar_h9b9c617294f0c148StubValue: Int?"))
+        #expect(peer.contains("var foo_bar: Int {"))
+        #expect(peer.contains("var fooBar: Int {"))
     }
 
     @Test("GenerateMock qualifies helper names for overloaded methods")
@@ -142,6 +173,35 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("struct FetchPageIntCall"))
         #expect(peer.contains("var fetchIdStringReturnValue: String?"))
         #expect(peer.contains("var fetchPageIntReturnValue: String?"))
+    }
+
+    @Test("GenerateMock qualifies not-stubbed selectors for throwing overloads")
+    func generateMockQualifiesNotStubbedSelectorsForThrowingOverloads() throws {
+        let source = """
+        @GenerateMock
+        protocol ThrowingAPI {
+            func fetch(id: String) throws -> String
+            func fetch(page: Int) throws -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse throwing overloaded API protocol fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("var fetchIdStringResult: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchIdStringResult\"))"))
+        #expect(peer.contains("var fetchPageIntResult: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchPageIntResult\"))"))
     }
 
     @Test("GenerateMock keeps unnamed call-record fields unique")

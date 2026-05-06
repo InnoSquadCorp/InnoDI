@@ -184,7 +184,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `swiftui.preview-with-container-missing-container` —
   `#PreviewWithContainer`가 첫 번째 container expression 없이 호출됐습니다.
 - `swiftui.preview-with-container-missing-closure` —
-  `#PreviewWithContainer`가 trailing closure 없이 호출됐습니다.
+  `#PreviewWithContainer`가 preview body closure 없이 호출됐습니다.
+- `swiftui.preview-with-container-missing-parameter` —
+  `#PreviewWithContainer` body closure가 macro가 전달하는 container
+  파라미터를 선언하지 않았습니다.
 
 ## 내부 진단
 

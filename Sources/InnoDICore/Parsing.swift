@@ -112,9 +112,9 @@ public struct SubContainerAttributeInfo {
     /// Raw textual scope spelling as written so diagnostics can echo the
     /// exact source expression (for example, `.shared` or `someScope`).
     public let scopeName: String?
-    /// Member names passed via `with:`, in the order they appear.
-    /// Used to re-map parent members when child `.input` parameter names do
-    /// not match the parent side by name.
+    /// Parent member names passed via `with:`, in the order they appear.
+    /// These select the same-named inputs that are forwarded to the child.
+    /// Use `bindings:` when child input names differ from parent names.
     public let dependencies: [String]
     /// Whether the attribute contains the `with:` keypath argument.
     public let hasWithDependencies: Bool

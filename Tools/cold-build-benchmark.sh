@@ -81,6 +81,11 @@ case "$CONFIG" in
         ;;
 esac
 
+if ! [[ "$BINDINGS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "--bindings must be a positive integer" >&2
+    exit 1
+fi
+
 clear_caches() {
     local package_dir="$1"
     rm -rf "$package_dir/.build" "$package_dir/.swiftpm/cache"

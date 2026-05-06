@@ -564,6 +564,27 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("PreviewWithContainer accepts the preview body as an argument closure")
+    func previewWithContainerAcceptsArgumentClosure() {
+        assertMacroExpansionInline(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer(baseURL: "https://example.com"), { container in
+                container.dashboardRootView()
+            })
+            """#,
+            expandedSource: ##"""
+                let preview = #Preview {
+                    let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
+                    ({
+                        container in
+                            container.dashboardRootView()
+                    })(__innodi_preview_container)
+                }
+                """##,
+            macros: Self.macros
+        )
+    }
+
     @Test("PreviewWithContainer diagnoses a missing container expression")
     func previewWithContainerDiagnosesMissingContainerExpression() {
         assertMacroExpansionDiagnosticCodes(
@@ -574,6 +595,36 @@ struct InnoDISwiftUIMacroTests {
             """#,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-container")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses a closure without a container parameter")
+    func previewWithContainerDiagnosesMissingContainerParameter() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer()) {
+                DashboardRootView()
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses an explicitly parameterless closure")
+    func previewWithContainerDiagnosesExplicitlyParameterlessClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer()) { () in
+                DashboardRootView()
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
             ],
             macros: Self.macros
         )

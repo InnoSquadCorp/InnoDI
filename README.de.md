@@ -247,6 +247,8 @@ Weitere Regeln:
 - `factory` und `asyncFactory` sind gegenseitig ausschliessend.
 - `asyncFactory` muss eine `async`-Closure sein.
 - Konkrete `.shared`- und `.transient`-Typen brauchen `concrete: true`.
+- Die Namensauflosung fur factory-Parameter und `with:`-Wiring ist streng
+  an Member-Namen gebunden.
 
 ## Validierungsmodell
 
