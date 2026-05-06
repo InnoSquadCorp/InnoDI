@@ -76,6 +76,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
     case previewWithContainerMissingContainerExpression = "swiftui.preview-with-container-missing-container"
     case previewWithContainerMissingTrailingClosure = "swiftui.preview-with-container-missing-closure"
+    case previewWithContainerMissingContainerParameter = "swiftui.preview-with-container-missing-parameter"
     case generateMockRequiresProtocol = "mock.requires-protocol"
     case generateMockExperimentalSkeleton = "mock.experimental-skeleton"
     case generateMockUnsupportedMember = "mock.unsupported-member"
@@ -111,6 +112,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .hierarchyRootRequiresContainer,
                 .previewWithContainerMissingContainerExpression,
                 .previewWithContainerMissingTrailingClosure,
+                .previewWithContainerMissingContainerParameter,
                 .generateMockRequiresProtocol,
                 .generateMockExperimentalSkeleton,
                 .generateMockUnsupportedMember,
@@ -562,8 +564,15 @@ extension SimpleDiagnostic {
 
     static func previewWithContainerMissingTrailingClosure() -> Self {
         Self(
-            "#PreviewWithContainer requires a trailing closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
+            "#PreviewWithContainer requires a closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
             code: .previewWithContainerMissingTrailingClosure
+        )
+    }
+
+    static func previewWithContainerMissingContainerParameter() -> Self {
+        Self(
+            "#PreviewWithContainer requires the preview closure to declare one container parameter, e.g. `{ container in container.featureRootView() }`. Use #Preview directly when the body does not need the container.",
+            code: .previewWithContainerMissingContainerParameter
         )
     }
 

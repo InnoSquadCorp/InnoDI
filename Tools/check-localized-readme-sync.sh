@@ -6,7 +6,7 @@
 # canonical because new sections or examples in English signal a need
 # for a parallel translation update.
 #
-# Default mode is advisory: differences are reported and the script exits
+# Default mode is strict: differences are reported and the script exits
 # non-zero. Set `INNODI_README_SYNC_STRICT=0` to demote failures to
 # warnings during a soft-rollout window.
 

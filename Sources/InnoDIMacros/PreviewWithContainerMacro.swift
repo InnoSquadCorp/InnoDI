@@ -13,6 +13,10 @@
 //          container.dashboardRootView()
 //      }
 //
+//      #PreviewWithContainer(AppContainer(baseURL: "https://example.com"), { container in
+//          container.dashboardRootView()
+//      })
+//
 //  Expansion (current MVP):
 //
 //      #Preview {
@@ -43,7 +47,10 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
             return "()"
         }
 
-        guard let trailingClosure = node.trailingClosure else {
+        let previewClosure = node.trailingClosure
+            ?? node.arguments.dropFirst().first?.expression.as(ClosureExprSyntax.self)
+
+        guard let previewClosure else {
             context.diagnose(
                 Diagnostic(
                     node: Syntax(node),
@@ -53,14 +60,19 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
             return "()"
         }
 
-        let bodyStatements = trailingClosure.statements
-        let signatureSource: String
-        if let signature = trailingClosure.signature, signature.parameterClause != nil {
-            signatureSource = signature.trimmedDescription + "\n"
-        } else {
-            signatureSource = ""
+        guard let signature = previewClosure.signature,
+              signature.declaresAtLeastOneParameter else {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(previewClosure),
+                    message: SimpleDiagnostic.previewWithContainerMissingContainerParameter()
+                )
+            )
+            return "()"
         }
 
+        let bodyStatements = previewClosure.statements
+        let signatureSource = signature.trimmedDescription + "\n"
         let bodySource = bodyStatements.map(\.trimmedDescription).joined(separator: "\n")
         let containerSource = containerExpression.trimmedDescription
 
@@ -73,5 +85,20 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
         }
         """
         return expanded
+    }
+}
+
+private extension ClosureSignatureSyntax {
+    var declaresAtLeastOneParameter: Bool {
+        guard let parameterClause else {
+            return false
+        }
+
+        switch parameterClause {
+        case .simpleInput(let parameters):
+            return !parameters.isEmpty
+        case .parameterClause(let parameters):
+            return !parameters.parameters.isEmpty
+        }
     }
 }

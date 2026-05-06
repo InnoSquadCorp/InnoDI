@@ -177,7 +177,10 @@ storage layout.
 - `swiftui.preview-with-container-missing-container` — `#PreviewWithContainer`
   was invoked without a container expression as its first argument.
 - `swiftui.preview-with-container-missing-closure` — `#PreviewWithContainer`
-  was invoked without a trailing closure.
+  was invoked without a preview body closure.
+- `swiftui.preview-with-container-missing-parameter` — the
+  `#PreviewWithContainer` body closure did not declare the container
+  parameter that the macro passes into the body.
 
 ## Internal diagnostics
 

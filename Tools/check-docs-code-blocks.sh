@@ -38,18 +38,21 @@ extract_snippets() {
         fi
 
         if [[ "$marked" == true ]]; then
-            case "$line" in
-                '```swift'|'```swift '*)
-                    count=$((count + 1))
-                    current="$SNIPPET_DIR/$(printf '%03d' "$count").swift"
-                    {
-                        printf '// Source: %s:%d\n' "$file" "$line_no"
-                        printf '\n'
-                    } > "$current"
-                    in_block=true
-                    ;;
-            esac
-            marked=false
+            if [[ "$line" == '```swift' || "$line" == '```swift '* ]]; then
+                count=$((count + 1))
+                current="$SNIPPET_DIR/$(printf '%03d' "$count").swift"
+                {
+                    printf '// Source: %s:%d\n' "$file" "$line_no"
+                    printf '\n'
+                } > "$current"
+                in_block=true
+                marked=false
+            elif [[ "$line" =~ ^[[:space:]]*$ ]]; then
+                :
+            else
+                echo "Expected marked Swift code block after innodi:compile marker in $file:$line_no" >&2
+                exit 1
+            fi
             continue
         fi
 
@@ -60,6 +63,10 @@ extract_snippets() {
 
     if [[ "$in_block" == true ]]; then
         echo "Unclosed marked Swift code block in $file" >&2
+        exit 1
+    fi
+    if [[ "$marked" == true ]]; then
+        echo "Missing marked Swift code block after innodi:compile marker in $file" >&2
         exit 1
     fi
 }

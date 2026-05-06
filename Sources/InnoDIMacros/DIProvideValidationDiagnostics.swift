@@ -486,7 +486,7 @@ internal func makeSubAutoWiringAmbiguousFixIts(
         // explicit empty-subset spelling that calls `Child()`.
         withListBody = ""
     } else {
-        withListBody = candidates.map { "\\.\($0)" }.joined(separator: ", ")
+        withListBody = candidates.map(renderKeyPathComponent).joined(separator: ", ")
     }
 
     let insertion = ", with: [\(withListBody)]"
@@ -508,6 +508,34 @@ internal func makeSubAutoWiringAmbiguousFixIts(
         )
     ]
 }
+
+private func renderKeyPathComponent(_ name: String) -> String {
+    let unescaped = name.trimmingIdentifierBackticks
+    if subContainerFixItSwiftKeywords.contains(unescaped) {
+        return "\\.`\(unescaped)`"
+    }
+    return "\\.\(name)"
+}
+
+private extension String {
+    var trimmingIdentifierBackticks: String {
+        guard first == "`", last == "`", count >= 2 else {
+            return self
+        }
+        return String(dropFirst().dropLast())
+    }
+}
+
+private let subContainerFixItSwiftKeywords: Set<String> = [
+    "associatedtype", "class", "deinit", "enum", "extension", "fileprivate",
+    "func", "import", "init", "inout", "internal", "let", "open",
+    "operator", "private", "precedencegroup", "protocol", "public", "rethrows",
+    "static", "struct", "subscript", "typealias", "var", "break", "case",
+    "catch", "continue", "default", "defer", "do", "else", "fallthrough",
+    "for", "guard", "if", "in", "repeat", "return", "throw", "switch",
+    "where", "while", "as", "Any", "catch", "false", "is", "nil",
+    "super", "self", "Self", "throw", "throws", "true", "try"
+]
 
 private func makeReplaceSyntaxTextFixIts(
     syntax: Syntax?,

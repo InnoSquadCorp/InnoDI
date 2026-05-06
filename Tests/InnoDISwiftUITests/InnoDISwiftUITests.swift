@@ -91,6 +91,30 @@ struct TransientFeatureRootView: View {
     }
 }
 
+final class MutableUsername: @unchecked Sendable {
+    var value: String
+
+    init(_ value: String) {
+        self.value = value
+    }
+}
+
+@DIContainer
+struct MutableTransientFeatureContainer {
+    @Provide(.input) var username: MutableUsername
+}
+
+@DIContainer
+struct MutableParentContainer {
+    @Provide(.input) var username: MutableUsername
+
+    @SubContainer(
+        scope: .transient,
+        with: [\MutableParentContainer.username]
+    )
+    var transientFeature: MutableTransientFeatureContainer
+}
+
 @DIContainer
 struct ParentContainer {
     @Provide(.input) var username: String
@@ -186,9 +210,9 @@ struct InnoDISwiftUITests {
         #expect(String(reflecting: type(of: modifier)).contains("_InnoDIEnvironmentBridgeModifier"))
     }
 
-    @Test("innodi modifier is application-order independent")
+    @Test("innodi modifier exposes application order in its generic type shape")
     @MainActor
-    func innodiModifierApplicationOrderIsStable() {
+    func innodiModifierApplicationOrderIsVisibleInTypeShape() {
         let container = BridgeOnlyContainer(
             greetingService: TestGreetingService(),
             activityService: TestActivityService()
@@ -201,17 +225,16 @@ struct InnoDISwiftUITests {
             .padding()
             .innodi(container)
 
-        // The modifier outputs a deterministic generic type signature
-        // regardless of where in the chain it is applied — protects against
-        // accidental order-dependent shape changes during macro refactors.
+        // SwiftUI's ModifiedContent type shape includes modifier order. The
+        // contract here is that both orders compile and retain the generated
+        // InnoDI bridge modifier somewhere in the resulting type signature.
+        let leadingType = String(reflecting: type(of: leadingApply))
+        let trailingType = String(reflecting: type(of: trailingApply))
         #expect(
-            String(reflecting: type(of: leadingApply))
-                != String(reflecting: type(of: trailingApply))
+            leadingType != trailingType
         )
-        // Both ends must still resolve to opaque View types — i.e. no
-        // ambient compile error from order dependency.
-        _ = leadingApply
-        _ = trailingApply
+        #expect(leadingType.contains("_InnoDIEnvironmentBridgeModifier"))
+        #expect(trailingType.contains("_InnoDIEnvironmentBridgeModifier"))
     }
 
     @Test("shared sub-container helper preserves parent input identity across reads")
@@ -231,21 +254,19 @@ struct InnoDISwiftUITests {
 
     @Test("transient sub-container helper forwards the latest parent inputs each read")
     func transientSubContainerForwardsLiveParentInputs() {
-        let parent = ParentContainer(
-            username: "Live",
-            greetingService: TestGreetingService(),
-            activityService: TestActivityService()
-        )
+        let username = MutableUsername("First")
+        let parent = MutableParentContainer(username: username)
 
         // The transient builder closure captures the parent storage by
         // reference; each fresh build sees the parent member values that
         // exist at read time. This regression test pins down the same-name
         // forwarding contract that with: [\\.username, ...] expands to.
-        let snapshotA = parent.transientFeatureRootView().container.username
-        let snapshotB = parent.transientFeatureRootView().container.username
+        let snapshotA = parent.transientFeature.username.value
+        username.value = "Second"
+        let snapshotB = parent.transientFeature.username.value
 
-        #expect(snapshotA == "Live")
-        #expect(snapshotB == "Live")
+        #expect(snapshotA == "First")
+        #expect(snapshotB == "Second")
     }
 
     @Test("shared sub-container token survives a child override closure on unrelated child storage")

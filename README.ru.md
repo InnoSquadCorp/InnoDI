@@ -240,6 +240,14 @@ var apiClient: any APIClientProtocol
 | `.shared` | Создается один раз на экземпляр контейнера и переиспользуется | Нужны `factory`, `asyncFactory` или `Type.self` плюс `with:` |
 | `.transient` | Создается заново при каждом доступе | Нужны `factory`, `asyncFactory` или `Type.self` плюс `with:` |
 
+Дополнительные правила:
+
+- `factory` и `asyncFactory` являются взаимоисключающими.
+- `asyncFactory` должен быть `async` closure.
+- Для concrete `.shared` и `.transient` storage требуется `concrete: true`.
+- Разрешение имен для параметров factory и `with:` wiring строго выполняется
+  по именам members.
+
 ## Модель валидации
 
 InnoDI валидирует в несколько слоев:
