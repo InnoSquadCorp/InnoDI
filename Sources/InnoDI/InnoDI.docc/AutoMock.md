@@ -65,6 +65,11 @@ For each supported protocol member the macro emits the following:
   stores an erased `([Any]) -> Any` handler, with matching `async` / `throws`
   effects when needed. Tests cast through the generic return type at the call
   boundary.
+* **`mutating` requirements** — supported through the generated `final class`
+  mock; the synthesized method does not need to be marked `mutating`.
+* **Escaping closure arguments** — recorded with property-safe function types
+  (`@escaping` / `@autoclosure` are removed from the call-record field while
+  the conforming method keeps the original parameter spelling).
 
 ## Currently unsupported
 
@@ -72,9 +77,11 @@ The first drop intentionally rejects the following requirements with a
 `mock.unsupported-member` warning. InnoDI does not synthesize a partial mock
 when any of these appear, because that would generate a broken conformance:
 
-* `mutating` requirements (the mock is a `final class`, not a struct).
 * `static` and `class` requirements (RFC 0001 stage 4).
 * `subscript` requirements (no stable lowering yet).
+* `inout` parameters (call-record storage would need a copy policy).
+* `rethrows` and typed `throws(ErrorType)` requirements.
+* Opaque `some` return types.
 * Associated types — hand-roll those mocks until the RFC settles on the
   pinning and cross-module resolution path.
 

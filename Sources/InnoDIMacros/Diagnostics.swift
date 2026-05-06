@@ -586,7 +586,7 @@ extension SimpleDiagnostic {
         let listed = memberNames.prefix(5).joined(separator: ", ")
         let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
         return Self(
-            "@GenerateMock cannot synthesize this protocol because one or more members are unsupported: \(listed)\(suffix). Associated types, static/class requirements, and subscripts need a hand-written mock until the RFC 0001 support matrix expands.",
+            "@GenerateMock cannot synthesize this protocol because one or more members are unsupported: \(listed)\(suffix). Associated types, static/class requirements, subscripts, rethrows or typed throws, inout parameters, and opaque return types need a hand-written mock until the RFC 0001 support matrix expands.",
             code: .generateMockUnsupportedMember,
             severity: .warning
         )

@@ -40,6 +40,23 @@ InnoDI は意図的に `@Injected` property wrapper や dynamic registration API
 を提供しません。その代わり、明示的な generated initializer、レビュー可能な
 wiring、より早い検証を選びます。
 
+## InnoDI を選ぶタイミング
+
+依存関係の wiring を code review で見える形にし、runtime より前に検証し、
+graph artifact として調査できるようにしたい場合に InnoDI を選びます。
+
+| 優先したいこと | 候補 | 理由 |
+| --- | --- | --- |
+| app dependency graph の compile/build-time validation | InnoDI、[SafeDI](https://github.com/dfed/SafeDI)、[Needle](https://github.com/uber/needle) | InnoDI は macro-expanded Swift の container surface、macro diagnostics、build-support checks、DAG CLI を組み合わせます。 |
+| runtime registration や late binding | [Swinject](https://github.com/Swinject/Swinject) または [Factory](https://github.com/hmlongco/Factory) | runtime container は動的な登録差し替えが得意です。InnoDI は明示 initializer と早期検証を優先します。 |
+| SwiftUI preview と scoped test override | [Factory](https://github.com/hmlongco/Factory)、[swift-dependencies](https://github.com/pointfreeco/swift-dependencies)、または InnoDI | InnoDI は validated app container の上に generated SwiftUI root helpers を置きたい場合に向きます。 |
+| hierarchical feature ownership と graph visibility | InnoDI、[Needle](https://github.com/uber/needle)、[SafeDI](https://github.com/dfed/SafeDI) | InnoDI は `@SubContainer` で親子 ownership を表し、graph CLI に ownership edge を出します。 |
+| 既存 app への最小導入コスト | [Factory](https://github.com/hmlongco/Factory)、[swift-dependencies](https://github.com/pointfreeco/swift-dependencies)、または incremental InnoDI adoption | InnoDI は container 定義と macro/build validation を受け入れる必要があります。 |
+
+実運用では runtime tool と併用できます。application graph は InnoDI で検証し、
+feature 内の局所的な runtime value は `swift-dependencies` や小さな factory
+に任せる構成も有効です。
+
 ## 要件
 
 - Swift tools version `6.2`
@@ -72,6 +89,9 @@ SPM の `--scratch-path` または Xcode の derived-data 位置をローカル
 swift build --scratch-path /tmp/innodi-cache
 ```
 
+plugin は package root の `.build/innodi-dag-validation` には lock/cache state
+を作りません。scratch path を移すと validation state も一緒に移動します。
+
 運用者は `INNODI_ALLOW_UNSAFE_LOCK=1` で unsafe-filesystem fail-fast を
 迂回できますが、InnoDI は監査可能な警告を出し、リスクはその build
 environment に残ります。診断、復旧手順、完全な filesystem 表は
@@ -93,13 +113,22 @@ dependencies: [
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+SwiftUI helper が必要な場合だけ `InnoDISwiftUI` を追加します。
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-SwiftUI helper を使わない場合は `InnoDI` だけで十分です。
 
 build-time DAG validator を有効にするには、InnoDI container を宣言する
 各 target に plugin を追加します。
@@ -145,14 +174,25 @@ let container = AppContainer(baseURL: "https://api.example.com")
 _ = container.apiClient
 ```
 
+名前や構築ロジックが `Type.self` と `with:` だけでは合わない場合は
+factory closure を使います。
+
+```swift
+@Provide(.shared, factory: { (baseURL: String) in
+    APIClient(baseURL: baseURL)
+})
+var apiClient: any APIClientProtocol
+```
+
 ## 先に読むドキュメント
 
 1. [Overview](Sources/InnoDI/InnoDI.docc/ja.lproj/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/ja.lproj/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ja.lproj/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ja.lproj/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ja.lproj/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## コア API
 
@@ -167,6 +207,10 @@ _ = container.apiClient
 
 ユーザー定義のネスト `Overrides` 型がない限り、すべてのコンテナが
 overrides scaffolding を生成します。
+
+```swift
+@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+```
 
 | パラメータ | 既定値 | 意味 |
 |---|---|---|
@@ -224,6 +268,16 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 }
 ```
 
+1 回の operation だけに override を閉じ込めることもできます。
+
+```swift
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.apiClient.fetch()
+}
+```
+
 input-only コンテナも空の builder を生成します。子コンテナが input-only
 の場合でも `<name>Overrides` closure はコンパイルでき、no-op として動作します。
 
@@ -231,6 +285,20 @@ input-only コンテナも空の builder を生成します。子コンテナが
 
 - `Lazy<T>` は soft edge を作り、cycle detection から外したいときに使います。
 - `Provider<T>` は `.transient` 依存に毎回再入するために使います。
+
+```swift
+@Provide(.shared, factory: { (service: Lazy<Service>) in
+    Consumer(service: service)
+}, concrete: true)
+var consumer: Consumer
+```
+
+```swift
+@Provide(.shared, factory: { (requests: Provider<Request>) in
+    RequestLogger(requests: requests)
+}, concrete: true)
+var logger: RequestLogger
+```
 
 どちらも意図的に non-`Sendable` です。
 

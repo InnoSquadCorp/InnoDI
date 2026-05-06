@@ -174,8 +174,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   발생합니다. 매크로 plugin이 attribute를 보고 빈 mock skeleton을
   생성했음을 확인하는 신호입니다.
 - `mock.unsupported-member` — static/class requirement, subscript,
-  associated type 등 때문에 mock synthesis가 불가능합니다. 메시지에
-  최대 다섯 개의 member 이름이 표시되며, 해당 mock은 수동 구현해야 합니다.
+  associated type, `inout` parameter, `rethrows`/typed `throws`,
+  opaque `some` return type 등 때문에 mock synthesis가 불가능합니다.
+  메시지에 최대 다섯 개의 member 이름이 표시되며, 해당 mock은 수동
+  구현해야 합니다.
 
 ## Preview macro 진단
 

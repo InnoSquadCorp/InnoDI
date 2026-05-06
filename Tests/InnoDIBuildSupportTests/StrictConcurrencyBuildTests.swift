@@ -160,6 +160,22 @@ struct StrictConcurrencyBuildTests {
                 func load<T>(_ type: T.Type) async throws -> T
             }
 
+            @GenerateMock
+            protocol CallbackAPI {
+                mutating func bump(`repeat`: Int)
+                func observe(_ handler: @escaping @Sendable () -> Void)
+                func reset() -> ()
+            }
+
+            protocol Event: Sendable {}
+            struct ConcreteEvent: Event {}
+
+            @GenerateMock
+            protocol EventFactory {
+                func makeEvent() -> any Event
+                func makeHandler() -> @Sendable () -> Void
+            }
+
             @main
             struct FixtureApp {
                 static func main() async throws {
@@ -179,6 +195,17 @@ struct StrictConcurrencyBuildTests {
                     let _: String = try generic.fail(String.self)
                     let _: String = await generic.wait(String.self)
                     let _: String = try await generic.load(String.self)
+
+                    let callbacks = CallbackAPIMock()
+                    callbacks.bump(repeat: 1)
+                    callbacks.observe {}
+                    callbacks.reset()
+
+                    let eventFactory = EventFactoryMock()
+                    eventFactory.makeEventReturnValue = ConcreteEvent()
+                    eventFactory.makeHandlerReturnValue = {}
+                    _ = eventFactory.makeEvent()
+                    eventFactory.makeHandler()()
                 }
             }
             """)

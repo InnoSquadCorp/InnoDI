@@ -41,6 +41,23 @@ InnoDI bietet bewusst keinen `@Injected` Property Wrapper und keine Dynamic-
 Registration-API. Der Tradeoff sind explizite generierte Initializer,
 reviewbares Wiring und fruhere Validierung.
 
+## Wann InnoDI wahlen
+
+Wahle InnoDI, wenn Dependency-Wiring im Code Review sichtbar bleiben, vor der
+Runtime validiert und als Graph-Artefakt inspizierbar sein soll.
+
+| Prioritat | Bevorzugen | Warum |
+| --- | --- | --- |
+| Compile/build-time validation eines App-Dependency-Graphen | InnoDI, [SafeDI](https://github.com/dfed/SafeDI) oder [Needle](https://github.com/uber/needle) | InnoDI halt die Container-Oberflache in macro-expanded Swift und kombiniert lokale Macro-Diagnosen, Build-Support-Checks und eine DAG CLI. |
+| Runtime registration, late binding oder plugin-artige Composition | [Swinject](https://github.com/Swinject/Swinject) oder [Factory](https://github.com/hmlongco/Factory) | Runtime-Container erleichtern dynamische Registrierungen. InnoDI priorisiert explizite generierte Initializer und fruhe Validierung. |
+| SwiftUI previews und scoped test overrides | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) oder InnoDI | InnoDI passt, wenn diese Overrides auf einem validierten App-Container und generated SwiftUI root helpers liegen sollen. |
+| Hierarchical feature ownership und graph visibility | InnoDI, [Needle](https://github.com/uber/needle) oder [SafeDI](https://github.com/dfed/SafeDI) | InnoDI modelliert Parent-owned Child-Container mit `@SubContainer` und rendert Ownership-Edges in der Graph CLI. |
+| Niedrigste Einstiegskosten in einer bestehenden App | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) oder inkrementelle InnoDI-Adoption | InnoDI verlangt Container-Definitionen und Macro/Build-Validierung; das lohnt sich vor allem fur reviewbares Wiring, generated Overrides und Graph-Checks. |
+
+InnoDI kann in der Praxis mit Runtime-Tools koexistieren: nutze InnoDI fur den
+validierten Application Graph und `swift-dependencies` oder kleine Factories
+fur lokale Runtime-Werte innerhalb von Features.
+
 ## Anforderungen
 
 - Swift tools version `6.2`
@@ -75,6 +92,10 @@ lokales Verzeichnis:
 swift build --scratch-path /tmp/innodi-cache
 ```
 
+Das Plugin legt keinen Lock-/Cache-State unter `.build/innodi-dag-validation`
+im Package Root an; ein verschobener Scratch Path verschiebt auch den
+Validation-State.
+
 Operatoren konnen den unsafe-filesystem Fail-Fast mit
 `INNODI_ALLOW_UNSAFE_LOCK=1` umgehen. InnoDI schreibt dann weiterhin eine
 auditierbare Warnung, und das Risiko bleibt bei dieser Build-Umgebung. Fur
@@ -97,13 +118,22 @@ Dann binde die benotigten Produkte ein:
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+Fuge `InnoDISwiftUI` nur hinzu, wenn du die SwiftUI-Hilfen benotigst:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-Wenn du die SwiftUI-Hilfen nicht brauchst, reicht `InnoDI`.
 
 Aktiviere den build-time DAG-Validator, indem du das Plugin an jedes Target
 hangst, das InnoDI-Container deklariert:
@@ -152,14 +182,22 @@ _ = container.apiClient
 Nutze eine Factory-Closure, wenn Namen oder Konstruktionslogik nicht zu
 `Type.self` plus `with:` passen.
 
+```swift
+@Provide(.shared, factory: { (baseURL: String) in
+    APIClient(baseURL: baseURL)
+})
+var apiClient: any APIClientProtocol
+```
+
 ## Weiterfuhrende Dokumente
 
 1. [Overview](Sources/InnoDI/InnoDI.docc/de.lproj/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/de.lproj/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/de.lproj/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/de.lproj/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/de.lproj/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## Kern-API
 
@@ -186,6 +224,17 @@ verschachtelter Typ `Overrides` vom Benutzer definiert wird.
 | `mainActor` | `false` | Wendet `@MainActor` auf die generierte Container-API an. Fur UI-Roots empfohlen. |
 
 ### `@Provide` und Scopes
+
+```swift
+@Provide(
+    _ scope: DIScope = .shared,
+    _ type: Any.Type? = nil,
+    with dependencies: [AnyKeyPath] = [],
+    factory: Any? = nil,
+    asyncFactory: Any? = nil,
+    concrete: Bool = false
+)
+```
 
 | Scope | Bedeutung | Konstruktionsregeln |
 |---|---|---|
@@ -223,6 +272,16 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 }
 ```
 
+Oder beschranke den Override auf eine einzelne Operation:
+
+```swift
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.apiClient.fetch()
+}
+```
+
 Input-only-Container erzeugen ebenfalls einen leeren Builder. Wenn ein Child-
 Container nur Inputs besitzt, kompilieren `<name>Overrides`-Closures trotzdem
 und laufen als No-op.
@@ -231,6 +290,20 @@ und laufen als No-op.
 
 - `Lazy<T>` erzeugt eine Soft-Edge und ist fur Zyklus-Flucht gedacht.
 - `Provider<T>` tritt bei jedem Aufruf erneut in eine `.transient`-Abhangigkeit ein.
+
+```swift
+@Provide(.shared, factory: { (service: Lazy<Service>) in
+    Consumer(service: service)
+}, concrete: true)
+var consumer: Consumer
+```
+
+```swift
+@Provide(.shared, factory: { (requests: Provider<Request>) in
+    RequestLogger(requests: requests)
+}, concrete: true)
+var logger: RequestLogger
+```
 
 Beide Wrapper sind absichtlich non-`Sendable`.
 
