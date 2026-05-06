@@ -54,6 +54,14 @@ InnoDI 有意不提供 `@Injected` property wrapper 或 dynamic registration API
 在 feature logic 内使用 `swift-dependencies` 或小型 factories 处理局部
 runtime values。
 
+实战中较稳的分层是：把*构造*交给 InnoDI，把*调用粒度的临时 override*交给
+`swift-dependencies`。composition root 解析 `DependencyKey`（例如
+`@Dependency(\.date)`）后，把结果作为 `.input` 槽传入 container；测试用
+`withDependencies { $0.date = .constant(...) } operation:` 只替换一棵调用树，
+无需重新构造 container，也无需重新校验 graph。container 级 `Overrides`
+builder 仍是替换全 app 范围依赖（如假 `APIClient`）的正确工具；只有当
+override 仅应在单次 operation 内生效时，才取出 `swift-dependencies`。
+
 ## 要求
 
 - Swift tools version `6.2`

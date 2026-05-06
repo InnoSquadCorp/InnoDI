@@ -60,6 +60,17 @@ InnoDI para el grafo validado de la aplicacion y `swift-dependencies` o
 factories pequenas dentro de feature logic cuando los valores runtime
 locales sean una mejor abstraccion.
 
+El patron de capas que mejor funciona separa *construccion* (InnoDI) de
+*overrides efimeros por llamada* (`swift-dependencies`). El composition root
+resuelve un `DependencyKey` (por ejemplo `@Dependency(\.date)`) y pasa el
+valor al contenedor como un slot `.input`; los tests lo intercambian por un
+arbol de llamadas con `withDependencies { $0.date = .constant(...) }
+operation:`, sin reconstruir el contenedor ni revalidar su grafo. El builder
+`Overrides` a nivel de contenedor sigue siendo la herramienta adecuada para
+swaps de toda la app, como un `APIClient` falso; recurre a
+`swift-dependencies` solo cuando el override deba vivir el tiempo de una
+unica operacion.
+
 ## Requisitos
 
 - Swift tools version `6.2`

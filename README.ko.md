@@ -57,6 +57,16 @@ artifact로 점검 가능해야 한다면 InnoDI가 잘 맞습니다.
 feature 내부의 runtime 값은 `swift-dependencies`나 작은 factory로 처리할 수
 있습니다.
 
+권장 layering 패턴은 *생성*은 InnoDI, *호출 단위 일시 override*는
+`swift-dependencies`로 분리하는 것입니다. composition root에서
+`@Dependency(\.date)` 같은 `DependencyKey`를 해석한 뒤 그 값을 container의
+`.input` 슬롯으로 전달하고, 테스트는
+`withDependencies { $0.date = .constant(...) } operation:`로 한 호출 트리만
+교체합니다. container를 다시 만들 필요도, validated graph를 재검증할 필요도
+없습니다. InnoDI의 container 레벨 `Overrides` 빌더는 가짜 `APIClient` 같은
+앱 전체 swap에 그대로 두고, `swift-dependencies`는 한 operation 동안만 유효한
+override가 필요할 때 꺼냅니다.
+
 ## 요구 사항
 
 - Swift tools version `6.2`
