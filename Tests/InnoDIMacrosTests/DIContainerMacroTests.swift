@@ -1162,6 +1162,67 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@Provide concrete: requires a literal Bool")
+    func provideConcreteRequiresLiteralBool() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { Service() }, concrete: FeatureFlags.useConcrete)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.bool-literal-required")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@Provide with: requires a literal key-path array")
+    func provideWithRequiresLiteralKeyPathArray() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let dependencies = [\\AppContainer.config]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, Service.self, with: dependencies, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.invalid-with-dependencies")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@Provide with: rejects malformed literal array elements")
+    func provideWithRejectsMalformedLiteralArrayElements() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            func makeKeyPath() -> Any { fatalError() }
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, Service.self, with: [\\.config, makeKeyPath()], concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.invalid-with-dependencies")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("asyncFactory and factory cannot be used together")
     func asyncFactoryAndFactoryConflictProducesDiagnostic() {
         assertMacroExpansionDiagnosticCodes(
