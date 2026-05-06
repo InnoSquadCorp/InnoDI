@@ -78,14 +78,23 @@ final class StorageStressContainerBox: @unchecked Sendable {
     }
 }
 
-/// Stress-tests the macro-synthesized `_storage_*` accessors under concurrent
-/// reads. `.shared` must return the same instance to every caller and run the
-/// factory exactly once; `.transient` must return a fresh instance every time
-/// and the factory call count must equal the read count exactly.
+/// Contract-regression tests for the macro-synthesized `_storage_*`
+/// accessors under concurrent reads. `.shared` must return the same
+/// instance to every caller and run the factory exactly once at init;
+/// `.transient` must return a fresh instance every read with a factory
+/// call count that matches the read count exactly.
 ///
-/// These tests close the gap noted in the May 2026 review: the runtime suite
-/// previously verified type-level concurrency only, leaving real concurrent
-/// access of the synthesized storage cells uncovered.
+/// These tests are not race detectors. The current macro lowers `.shared`
+/// to a struct-stored value populated at init, so concurrent reads hit
+/// frozen memory — the value of the suite is that any future codegen
+/// switch (lazy first-access caching, reference-typed storage) that
+/// would introduce a race window must keep the same `factory.count == 1`
+/// and identity-stability contracts. The suite catches contract
+/// regressions, not memory ordering bugs.
+///
+/// Closes the runtime-side observability gap noted in the May 2026
+/// review: the runtime suite previously verified only the type-level
+/// sendability surface of `Lazy`/`Provider`.
 @Suite("Storage concurrent access")
 struct StorageConcurrentAccessTests {
     private static let iterations = 1024
