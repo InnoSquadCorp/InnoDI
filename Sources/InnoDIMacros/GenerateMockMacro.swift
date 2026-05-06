@@ -119,7 +119,7 @@ public struct GenerateMockMacro: PeerMacro {
 
         let mockDecl: DeclSyntax = """
         /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
-        final class \(raw: mockTypeName): \(raw: protocolDecl.name.text), @unchecked Sendable {
+        final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
             init() {}
 
         \(raw: renderedBody)
