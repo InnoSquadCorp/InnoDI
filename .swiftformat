@@ -1,0 +1,78 @@
+# InnoDI swiftformat configuration.
+#
+# This file is a *documentation* baseline of the repository's existing
+# whitespace conventions. It is intentionally permissive: contributors can
+# run `swiftformat --lint Sources Tests` to catch indentation drift or
+# stray tabs, but stylistic decisions (line wrapping, doc-comment
+# placement, generic parameter syntax, redundant-Sendable expressions on
+# non-public types, etc.) are deliberately left to author judgment so
+# macro fixtures and validator pipelines can keep their current shapes.
+#
+# Enforcement is opt-in. CI does not block merges on swiftformat output;
+# the rule set below mirrors only the conventions the codebase already
+# satisfies.
+
+--swiftversion 6.2
+
+# Layout the repository already follows
+--indent 4
+--tabwidth 4
+--linebreaks lf
+--commas inline
+--semicolons never
+--ranges spaced
+--operatorfunc spaced
+--nospaceoperators ..<,...
+--self init-only
+--patternlet inline
+--shortoptionals always
+
+# Disabled rules
+#
+# Each rule below is disabled because at least one source file in the
+# repository deliberately violates it. Re-enabling any of them must come
+# with a single PR that reformats the affected files in one pass.
+--disable redundantSelf
+--disable redundantReturn
+--disable hoistPatternLet
+--disable wrapMultilineStatementBraces
+--disable conditionalAssignment
+--disable preferKeyPath
+--disable redundantOptionalBinding
+--disable unusedArguments
+--disable wrap
+--disable trailingCommas
+--disable trailingClosures
+--disable indent
+--disable trailingSpace
+--disable blankLinesAroundMark
+--disable andOperator
+--disable braces
+--disable consecutiveSpaces
+--disable docComments
+--disable docCommentsBeforeModifiers
+--disable enumNamespaces
+--disable hoistTry
+--disable numberFormatting
+--disable opaqueGenericParameters
+--disable redundantInternal
+--disable redundantSendable
+--disable redundantType
+--disable redundantVariable
+--disable sortImports
+--disable wrapArguments
+--disable wrapLoopBodies
+--disable wrapPropertyBodies
+--disable blankLinesAtEndOfScope
+--disable blankLinesAtStartOfScope
+--disable blankLinesBetweenImports
+--disable blankLinesBetweenScopes
+--disable environmentEntry
+--disable redundantMemberwiseInit
+--disable redundantThrows
+--disable spaceInsideParens
+--disable swiftTestingTestCaseNames
+--disable wrapFunctionBodies
+
+# Path exclusions
+--exclude .build,Examples/*/.build,Tests/InnoDIMacrosTests/__Snapshots__,Tests/InnoDIDependencyGraphCLITests/__Snapshots__
