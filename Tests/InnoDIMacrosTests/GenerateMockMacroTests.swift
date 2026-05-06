@@ -110,4 +110,125 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("var greetReturnValue: String?"))
         #expect(peer.contains("func greet(name: String) -> String"))
     }
+
+    @Test("GenerateMock qualifies helper names for overloaded methods")
+    func generateMockQualifiesOverloadedMemberHelpers() throws {
+        let source = """
+        @GenerateMock
+        protocol API {
+            func fetch(id: String) -> String
+            func fetch(page: Int) -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse overloaded API protocol fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("struct FetchIdStringCall"))
+        #expect(peer.contains("struct FetchPageIntCall"))
+        #expect(peer.contains("var fetchIdStringReturnValue: String?"))
+        #expect(peer.contains("var fetchPageIntReturnValue: String?"))
+    }
+
+    @Test("GenerateMock keeps unnamed call-record fields unique")
+    func generateMockKeepsUnnamedCallRecordFieldsUnique() throws {
+        let source = """
+        @GenerateMock
+        protocol Transformer {
+            func transform(_: Int, _: String) -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse unnamed-parameter protocol fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("let value1: Int"))
+        #expect(peer.contains("let value2: String"))
+        #expect(peer.contains("transformCalls.append(.init(value1: value1, value2: value2))"))
+    }
+
+    @Test("GenerateMock supports generic methods with erased handlers")
+    func generateMockSynthesizesGenericMethodHandlers() throws {
+        let source = """
+        @GenerateMock
+        protocol Codec {
+            func decode<T>(_ type: T.Type) -> T
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse generic Codec protocol fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("func decode<T>(_ type: T.Type) -> T"))
+        #expect(peer.contains("var decodeUnlabeledTTypeHandler: (([Any]) -> Any)?"))
+        #expect(peer.contains("guard let value = rawValue as? T"))
+    }
+
+    @Test("GenerateMock refuses unsupported protocols without partial conformance")
+    func generateMockRefusesUnsupportedProtocolsWithoutPartialConformance() throws {
+        let source = """
+        @GenerateMock
+        protocol Repository {
+            associatedtype Entity
+            subscript(id: String) -> Entity { get }
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(ProtocolDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse unsupported Repository protocol fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
+            }
+        )
+    }
 }

@@ -163,8 +163,8 @@ Most frequently-hit codes:
 - `mock.experimental-skeleton` — emitted as a note when the protocol
   declares no members. Confirms the macro plugin saw the attribute and
   produced the empty mock skeleton.
-- `mock.unsupported-member` — one or more protocol requirements were
-  skipped (mutating, static, subscript, or unresolved associated types).
+- `mock.unsupported-member` — one or more protocol requirements prevent
+  synthesis (static/class requirements, subscripts, or associated types).
   The diagnostic message lists up to five member names; implement those
   mocks manually until the next RFC 0001 stage lands.
 

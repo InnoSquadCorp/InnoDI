@@ -40,6 +40,23 @@ InnoDI는 의도적으로 `@Injected` property wrapper나 dynamic registration A
 제공하지 않습니다. 대신 명시적인 generated initializer, 리뷰 가능한 wiring,
 더 이른 검증을 선택합니다.
 
+## 언제 InnoDI를 선택할까
+
+dependency wiring이 코드 리뷰에서 보이고, runtime 이전에 검증되며, graph
+artifact로 점검 가능해야 한다면 InnoDI가 잘 맞습니다.
+
+| 우선순위 | 추천 | 이유 |
+| --- | --- | --- |
+| 앱 dependency graph의 compile/build-time 검증 | InnoDI, [SafeDI](https://github.com/dfed/SafeDI), [Needle](https://github.com/uber/needle) | InnoDI는 macro-expanded Swift 표면, local macro diagnostic, build-support check, DAG CLI를 함께 제공합니다. |
+| runtime registration, late binding, plugin-style composition | [Swinject](https://github.com/Swinject/Swinject), [Factory](https://github.com/hmlongco/Factory) | runtime container는 동적 교체가 쉽습니다. InnoDI는 명시적 initializer와 early validation을 우선합니다. |
+| SwiftUI preview와 scoped test override | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), InnoDI | InnoDI는 검증된 app container 위에 override와 SwiftUI root helper를 얹고 싶을 때 적합합니다. |
+| feature ownership hierarchy와 graph visibility | InnoDI, [Needle](https://github.com/uber/needle), [SafeDI](https://github.com/dfed/SafeDI) | `@SubContainer`와 graph CLI ownership edge로 parent-owned child container를 표현합니다. |
+| 기존 앱의 최저 도입 비용 | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), incremental InnoDI | InnoDI는 container 정의와 macro/build validation을 요구합니다. payoff는 wiring 가시성과 graph check가 필요한 시점에 커집니다. |
+
+실무에서는 공존도 가능합니다. 검증된 application graph는 InnoDI에 두고,
+feature 내부의 runtime 값은 `swift-dependencies`나 작은 factory로 처리할 수
+있습니다.
+
 ## 요구 사항
 
 - Swift tools version `6.2`
@@ -91,13 +108,22 @@ dependencies: [
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-SwiftUI helper를 사용하지 않으면 `InnoDI`만 import하면 됩니다.
 
 InnoDI 컨테이너를 선언하는 타깃에는 build-time DAG validator 플러그인을
 연결합니다.
@@ -160,9 +186,10 @@ var apiClient: any APIClientProtocol
 1. [Overview](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/ko.lproj/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ko.lproj/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ko.lproj/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/ko.lproj/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ko.lproj/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## 핵심 API
 

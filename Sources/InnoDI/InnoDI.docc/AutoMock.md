@@ -20,8 +20,8 @@ protocol UserService {
 }
 ```
 
-The macro emits a peer `final class UserServiceMock: UserService,
-@unchecked Sendable` next to the protocol. Tests instantiate the mock,
+The macro emits a peer mock class next to the protocol. The generated class
+conforms to the protocol and `@unchecked Sendable`. Tests instantiate the mock,
 populate the stubs, and read recorded calls back:
 
 ```swift
@@ -59,18 +59,24 @@ For each supported protocol member the macro emits the following:
   `var nameThrownError: Error?` hook the generated body re-throws when
   set.
 * **`func name(args) async throws -> T`** — combines the two cases.
+* **Overloaded functions** — helper names include selector labels and parameter
+  type stems so `fetch(id:)` and `fetch(page:)` do not collide.
+* **Generic functions** — the generated method preserves generic clauses and
+  stores an erased `([Any]) -> Any` handler, with matching `async` / `throws`
+  effects when needed. Tests cast through the generic return type at the call
+  boundary.
 
 ## Currently unsupported
 
 The first drop intentionally rejects the following requirements with a
-`mock.unsupported-member` warning. Each protocol-level mock is otherwise
-still synthesized, only the listed members are skipped:
+`mock.unsupported-member` warning. InnoDI does not synthesize a partial mock
+when any of these appear, because that would generate a broken conformance:
 
 * `mutating` requirements (the mock is a `final class`, not a struct).
 * `static` and `class` requirements (RFC 0001 stage 4).
 * `subscript` requirements (no stable lowering yet).
-* Cross-module associated types — pin them locally with a typealias or
-  hand-roll those mocks until the RFC settles on the resolution path.
+* Associated types — hand-roll those mocks until the RFC settles on the
+  pinning and cross-module resolution path.
 
 If the protocol declares no members at all, the macro emits the
 informational `mock.experimental-skeleton` note so adopters can confirm
@@ -82,7 +88,7 @@ the macro plugin saw the attribute.
 |---|---|---|
 | `mock.requires-protocol` | error | `@GenerateMock` was attached to something other than a protocol declaration. |
 | `mock.experimental-skeleton` | note | The protocol has no members; the macro emits an empty mock skeleton. |
-| `mock.unsupported-member` | warning | One or more protocol members are skipped; the listed names appear in the diagnostic message. |
+| `mock.unsupported-member` | warning | One or more protocol members prevent synthesis; the listed names appear in the diagnostic message. |
 
 The DiagnosticsGuide article lists every InnoDI diagnostic with the same
 codes and links back to the recovery action.

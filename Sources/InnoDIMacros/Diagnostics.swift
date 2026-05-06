@@ -576,7 +576,7 @@ extension SimpleDiagnostic {
 
     static func generateMockExperimentalSkeleton(protocolName: String) -> Self {
         Self(
-            "@GenerateMock attached to '\(protocolName)' is currently a skeleton. The protocol-extraction stage lands in a follow-up commit; track RFC 0001 for the rollout schedule.",
+            "@GenerateMock attached to '\(protocolName)' found no mockable members; the generated mock contains only the RFC 0001 skeleton.",
             code: .generateMockExperimentalSkeleton,
             severity: .note
         )
@@ -586,7 +586,7 @@ extension SimpleDiagnostic {
         let listed = memberNames.prefix(5).joined(separator: ", ")
         let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
         return Self(
-            "@GenerateMock skipped one or more protocol members in this declaration: \(listed)\(suffix). Async, throwing, mutating, and associated-type requirements are tracked for the next RFC 0001 stage. Implement those mocks manually in the meantime.",
+            "@GenerateMock cannot synthesize this protocol because one or more members are unsupported: \(listed)\(suffix). Associated types, static/class requirements, and subscripts need a hand-written mock until the RFC 0001 support matrix expands.",
             code: .generateMockUnsupportedMember,
             severity: .warning
         )

@@ -52,7 +52,11 @@ for file in "${LOCALIZED[@]}"; do
     h2=$(count_h2_headers "$file")
 
     if [[ "$fences" != "$canonical_fences" || "$h2" != "$canonical_h2" ]]; then
-        echo "::error file=$file::structure drift (swift_fences=$fences want=$canonical_fences, h2_headers=$h2 want=$canonical_h2)"
+        annotation="error"
+        if [[ "$STRICT" != "1" ]]; then
+            annotation="warning"
+        fi
+        echo "::$annotation file=$file::structure drift (swift_fences=$fences want=$canonical_fences, h2_headers=$h2 want=$canonical_h2)"
         drift_count=$((drift_count + 1))
     else
         echo "OK $file: swift_fences=$fences h2_headers=$h2"

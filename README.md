@@ -193,9 +193,10 @@ Start with these documents in order:
 1. [Overview](Sources/InnoDI/InnoDI.docc/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## Core API
 

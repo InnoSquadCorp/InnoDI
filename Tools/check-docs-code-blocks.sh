@@ -69,10 +69,11 @@ while IFS= read -r file; do
 done < <(
     {
         # All canonical and localized README files plus the in-repo docs
-        # tree. Localized READMEs ride the same gate so a structural
-        # divergence in their marked snippets surfaces as a build failure.
+        # tree, including DocC interactive tutorials. Localized READMEs ride
+        # the same gate so a structural divergence in their marked snippets
+        # surfaces as a build failure.
         find . -maxdepth 1 -type f -name 'README*.md'
-        find Sources/InnoDI/InnoDI.docc docs -type f -name '*.md'
+        find Sources/InnoDI/InnoDI.docc docs -type f \( -name '*.md' -o -name '*.tutorial' \)
     } | sort -u
 )
 
