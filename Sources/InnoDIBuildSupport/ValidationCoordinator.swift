@@ -657,7 +657,7 @@ package enum ValidationCoordinator {
                     totalCoordinatorMilliseconds: validationElapsedMilliseconds(since: coordinatorStartTime)
                 ),
                 liveRunMetrics: sharedRunRecord.liveRunMetrics,
-                issues: issues,
+                issues: issues + aliasReport.issues,
                 humanSummarySource: "validation-summary.md"
             )
             try persistSummaryReport(
