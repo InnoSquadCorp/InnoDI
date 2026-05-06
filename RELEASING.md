@@ -25,6 +25,18 @@ Before tagging a release:
    - `Tools/generate-docc.sh`
 9. Decide whether any artifact or schema contract changed and update the contract notes below.
 10. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
+11. For public-discovery releases, confirm Swift Package Index readiness:
+    - repository is public
+    - `Package.swift` is at the root
+    - a semantic-version tag exists
+    - `swift package dump-package` succeeds with the current Swift toolchain
+    - package URL submitted to SPI includes `https://` and `.git`
+    - after the package appears on SPI, use the maintainer badge markdown from
+      the package page and add it to `README.md`
+12. After tagging, evaluate external discovery PRs:
+    - `matteocrippa/awesome-swift` for the compile-time DI category
+    - the current leading SwiftUI awesome list only if the submitted entry
+      focuses on `InnoDISwiftUI` helpers rather than core DI
 
 ## Release Notes Source
 
@@ -86,6 +98,63 @@ Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
 
+## Unreleased
+
+### Highlights
+
+- **`@SubContainer(withNames:)` removed.** Same-name child wiring now has a
+  single supported explicit spelling: `with: [\.member]`. Use `bindings:` when
+  child input labels differ from parent member names, and use `with: []` for an
+  intentionally empty same-name subset.
+- **Stacked peer-macro escape hatch removed from the API.** Sites that
+  previously combined `@SubContainer(... withNames:)` with `@DIFeatureRoot` or
+  another peer macro should split helper generation out into normal extension
+  methods or another non-stacked helper surface.
+- **DAG validation plugin state follows SwiftPM plugin work directories.** The
+  build plugin no longer writes lock/cache state under
+  `<package>/.build/innodi-dag-validation`; state is placed below
+  `context.pluginWorkDirectoryURL`, so `swift build --scratch-path <local-dir>`
+  moves validation state off unsafe package-root filesystems.
+- **Documentation snippet compile gate.** `Tools/check-docs-code-blocks.sh`
+  compiles Swift code fences marked with `<!-- innodi:compile -->`, and both PR
+  and release gates run it.
+- **`@GenerateMock` consumer compile hardening.** The experimental mock macro
+  now declares a deterministic `Mock` suffix, supports top-level protocols,
+  qualifies helper names for overloaded methods, and handles generic method
+  requirements through erased handler closures.
+- **Korean adoption and DX docs.** The Korean README mirrors the English
+  structure, migration guidance now includes internal v1-v3 adopter sequencing,
+  and DocC includes anti-pattern guidance plus an interactive getting-started
+  tutorial.
+
+### Breaking or Behavior Changes
+
+- The public `@SubContainer` signature no longer accepts `withNames:`. Existing
+  consumers must migrate to `with:` or `bindings:` before upgrading.
+- Macro diagnostics and build-support diagnostics no longer include
+  `sub.with-conflicts-with-with-names` or
+  `hierarchy.with-conflicts-with-with-names`.
+- `InnoDICore` no longer exposes `parseStrictStringArrayArgument`, and
+  `SubContainerAttributeInfo` no longer carries `hasWithNamesDependencies`.
+- `@GenerateMock` remains experimental. The attribute name is stable, but
+  generated helper storage names are not release-frozen until the planned 5.0
+  GA.
+
+### Upgrade Actions
+
+- Replace `@SubContainer(scope: .shared, withNames: ["config"])` with
+  `@SubContainer(scope: .shared, with: [\.config])`.
+- Replace `withNames: []` with `with: []`.
+- For stacked peer-macro sites, keep `@SubContainer(scope:with:)` on the child
+  container property and write the root/helper method manually.
+- If CI diagnosed unsafe filesystem locks, move SwiftPM scratch/plugin work
+  state with `swift build --scratch-path /tmp/innodi-cache`; `--diagnose-lock`
+  can inspect the scratch or plugin state directory recursively.
+- For teams adopting 4.x from early internal versions, migrate diagnostics and
+  SubContainer wiring first, then enable the build plugin and repo documentation
+  gates. See the migration guide and anti-patterns article before wrapping
+  InnoDI in a runtime service locator.
+
 ## 4.1.0
 
 ### Highlights
@@ -131,23 +200,17 @@ standalone release assets.
   per-release upgrade notes from `RELEASING.md` into a "what
   changes a consumer must do" article, covering 1.x → 4.0,
   4.0 → 4.1, 4.1 → 4.2 (planned), and 4.x → 5.0 (planned).
-- **`@SubContainer` `withNames:` deferral.** `withNames:` remains
-  supported and does not emit a migration diagnostic. Prefer
-  `with: [\.x]` for new single-peer-macro sites where Swift's
-  type-checker accepts key paths, but keep `withNames:` for stacked
-  peer-macro contexts.
+- **Historical `@SubContainer` `withNames:` deferral.** 4.1.0 kept
+  `withNames:` supported while the stacked peer-macro limitation was being
+  evaluated. That deferral is superseded by the Unreleased wiring
+  simplification above: current consumers should migrate to `with:` or
+  `bindings:` only.
 
   **RFC 0002 status update**:
-  [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md) is
-  now in `Deferred` status — the originally-planned 4.2 deprecation
-  + 5.0 removal of `withNames:` cannot ship until an upstream Swift
-  compiler limitation is resolved. When `@SubContainer` is stacked
-  with another peer macro on the same property (`@DIFeatureRoot`,
-  `@DIEnvironmentBridge`, …), every key-path spelling triggers
-  `circular reference expanding peer macros`, and `withNames:` (the
-  string form) is the only working escape hatch. InnoDI now keeps
-  this guidance in documentation instead of emitting a non-essential
-  diagnostic for supported syntax.
+  [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md)
+  was `Deferred` in 4.1.0 while the stacked peer-macro escape hatch was still
+  public. The current branch applies the removal before 5.0 and documents the
+  replacement path in the Unreleased upgrade actions.
 
 ### Breaking or Behavior Changes
 
@@ -171,12 +234,10 @@ standalone release assets.
 
 ### Upgrade Actions
 
-- `@SubContainer(... withNames: [...])` consumers — no release-blocking
-  migration is required. For new sites that are *not* stacked with
-  another peer macro, prefer `with: [\.x]`. For sites stacked with
-  `@DIFeatureRoot` / `@DIEnvironmentBridge` / similar peer macros,
-  leave them on `withNames:` — RFC 0002 is in `Deferred` status and
-  `withNames:` remains the documented escape hatch for that combination.
+- `@SubContainer(... withNames: [...])` consumers on 4.1.0 had no
+  release-blocking migration at that time. Consumers upgrading beyond this
+  release should follow the Unreleased migration path and replace every
+  `withNames:` site with `with:` or `bindings:`.
 - CI runners that mount the SPM scratch directory on NFS or SMB —
   redirect with `swift build --scratch-path /tmp/innodi-cache`, or
   set `INNODI_ALLOW_UNSAFE_LOCK=1` (the coordinator still emits a

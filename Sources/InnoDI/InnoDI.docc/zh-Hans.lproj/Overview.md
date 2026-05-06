@@ -22,7 +22,7 @@ InnoDI 通过 `@DIContainer` 与 `@Provide` 把普通 Swift 类型转换为 DI
 - 在受支持文件系统上同时使用 `O_CREAT | O_EXCL` 和 `flock` 的分层 lock
 - 用 build-time diagnostic 取代宏合成的 `fatalError` accessor
 - PR/release gate 同时强制 strict concurrency 和 macro-source `fatalError` allow-list
-- 针对未叠加 peer macro 的 `withNames:` 用法提供 `@SubContainer` key-path 指引
+- `@SubContainer` 同名 wiring 只使用 `with:`；`withNames:` escape hatch 已移除
 
 ## Topics
 

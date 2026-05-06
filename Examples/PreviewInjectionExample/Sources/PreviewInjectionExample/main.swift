@@ -306,19 +306,20 @@ public struct QuotePreviewScenario: CaseIterable {
 }
 
 #if os(iOS)
-#Preview("Live") {
-    let scenario = QuotePreviewScenario.allCases[0]
-    QuoteAppRootView(title: scenario.title, container: scenario.container)
+// Each preview now declares its container in the `#PreviewWithContainer`
+// argument and reads it back through the trailing closure parameter. The
+// scenario array keeps the example compact, while the macro removes the
+// repeated container `let` capture from each generated `#Preview`.
+#PreviewWithContainer(QuotePreviewScenario.allCases[0].container) { container in
+    QuoteAppRootView(title: "Live", container: container)
 }
 
-#Preview("Preview") {
-    let scenario = QuotePreviewScenario.allCases[1]
-    QuoteAppRootView(title: scenario.title, container: scenario.container)
+#PreviewWithContainer(QuotePreviewScenario.allCases[1].container) { container in
+    QuoteAppRootView(title: "Preview", container: container)
 }
 
-#Preview("Failure") {
-    let scenario = QuotePreviewScenario.allCases[2]
-    QuoteAppRootView(title: scenario.title, container: scenario.container)
+#PreviewWithContainer(QuotePreviewScenario.allCases[2].container) { container in
+    QuoteAppRootView(title: "Failure", container: container)
 }
 
 #Preview("Matrix") {

@@ -8,15 +8,23 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
             return []
         }
 
+        // Opt-out hook for consumers that intentionally skip the build-time
+        // DAG gate (PoCs, fast iteration loops, or builds running on a
+        // shared volume that already runs validation in a separate CI job).
+        // Production CI must leave the variable unset so the gate runs.
+        if let optOut = ProcessInfo.processInfo.environment["INNODI_DISABLE_BUILD_VALIDATION"],
+           ["1", "true", "TRUE", "yes", "YES"].contains(optOut) {
+            return []
+        }
+
         let coordinator = try context.tool(named: "InnoDI-DAGValidationCoordinator")
         let outputDirectory = context.pluginWorkDirectoryURL
         let rootPath = context.package.directoryURL.path
-        let sharedStateDirectory = context.package.directoryURL
-            .appending(path: ".build", directoryHint: .isDirectory)
-            .appending(path: "innodi-dag-validation", directoryHint: .isDirectory)
+        let sharedStateDirectory = outputDirectory
+            .appending(path: "innodi-dag-validation-state", directoryHint: .isDirectory)
 
         return [
-            .prebuildCommand(
+            .buildCommand(
                 displayName: "Validate InnoDI DAG for \(target.name)",
                 executable: coordinator.url,
                 arguments: [
@@ -24,8 +32,57 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
                     "--state-dir", sharedStateDirectory.path,
                     "--output-dir", outputDirectory.path,
                 ],
-                outputFilesDirectory: outputDirectory
+                inputFiles: validationInputFiles(packageRoot: context.package.directoryURL),
+                outputFiles: [
+                    outputDirectory.appending(path: "dag-validation-stamp.txt"),
+                    outputDirectory.appending(path: "dag-validation-metrics.json"),
+                    outputDirectory.appending(path: "dag-validation-summary.md"),
+                ]
             )
         ]
+    }
+
+    private func validationInputFiles(packageRoot: URL) -> [URL] {
+        let fileManager = FileManager.default
+        let excludedDirectories: Set<String> = [
+            ".build",
+            ".git",
+            ".swiftpm",
+        ]
+
+        guard let enumerator = fileManager.enumerator(
+            at: packageRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return [packageRoot.appending(path: "Package.swift")]
+        }
+
+        var inputs: [URL] = [
+            packageRoot.appending(path: "Package.swift"),
+        ]
+
+        for case let url as URL in enumerator {
+            if excludedDirectories.contains(url.lastPathComponent) {
+                enumerator.skipDescendants()
+                continue
+            }
+
+            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey]) else {
+                continue
+            }
+            if values.isDirectory == true {
+                continue
+            }
+            guard values.isRegularFile == true else {
+                continue
+            }
+
+            if url.pathExtension == "swift" || url.lastPathComponent == "Package.swift" {
+                inputs.append(url)
+            }
+        }
+
+        return Array(Set(inputs)).sorted { $0.path < $1.path }
     }
 }

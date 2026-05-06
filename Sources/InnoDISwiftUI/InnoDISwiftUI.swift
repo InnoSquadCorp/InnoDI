@@ -80,3 +80,23 @@ public macro DIFeatureRoot(
     _ rootView: Any.Type,
     as alias: String? = nil
 ) = #externalMacro(module: "InnoDIMacros", type: "DIFeatureRootMacro")
+
+/// Wraps Xcode 16's `#Preview` so a SwiftUI preview can express a typed
+/// container parameter once instead of constructing it, capturing it in a
+/// `let`, and reading it back inside the trailing closure.
+///
+/// ```swift
+/// #PreviewWithContainer(AppContainer(baseURL: "https://example.com")) { container in
+///     container.dashboardRootView()
+/// }
+/// ```
+///
+/// The generated expansion always wraps a `#Preview` macro, so all of
+/// Xcode's preview features (timing, traits, multiple previews per file)
+/// remain available; the InnoDI helper only removes the boilerplate of
+/// referring to the same container twice.
+@freestanding(expression)
+public macro PreviewWithContainer<Container, Result>(
+    _ container: @autoclosure () -> Container,
+    _ body: (Container) -> Result
+) -> Result = #externalMacro(module: "InnoDIMacros", type: "PreviewWithContainerMacro")

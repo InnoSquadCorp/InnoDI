@@ -3,8 +3,6 @@ import InnoDICore
 import InnoDIDependencyGraphCore
 import Testing
 
-@testable import InnoDI_DependencyGraph
-
 /// Verifies the renderer styling for soft edges.
 ///
 /// These tests bypass the CLI pipeline and call the render functions directly

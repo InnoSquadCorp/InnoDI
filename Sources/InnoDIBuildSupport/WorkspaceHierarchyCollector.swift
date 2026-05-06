@@ -195,29 +195,15 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
         }
 
         var sameNameWiring: WorkspaceHierarchySameNameWiringRecord = .omitted
-        var seenLabel: SubContainerSameNameWiringLabel?
         for argument in arguments {
             guard let labelText = argument.label?.text,
                   let label = SubContainerSameNameWiringLabel(rawValue: labelText) else {
                 continue
             }
-            if let seenLabel, seenLabel != label {
-                return .conflictingWithAndWithNames(
-                    location: sourceLocation(for: argument.expression.positionAfterSkippingLeadingTrivia)
-                )
-            }
-            seenLabel = label
 
             switch label {
             case .with:
                 switch parseHierarchyKeyPathDependencies(argument.expression) {
-                case let .parsed(dependencies):
-                    sameNameWiring = .parsed(label: label, dependencies: dependencies)
-                case let .invalid(location):
-                    sameNameWiring = .invalid(label: label, location: location)
-                }
-            case .withNames:
-                switch parseHierarchyStringDependencies(argument.expression) {
                 case let .parsed(dependencies):
                     sameNameWiring = .parsed(label: label, dependencies: dependencies)
                 case let .invalid(location):
@@ -249,40 +235,6 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                 HierarchyWithDependencyRecord(
                     name: property,
                     location: sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
-                )
-            )
-        }
-
-        return .parsed(dependencies)
-    }
-
-    private func parseHierarchyStringDependencies(
-        _ expression: ExprSyntax
-    ) -> HierarchySameNameWiringParseResult {
-        guard let arrayExpr = expression.as(ArrayExprSyntax.self) else {
-            return .invalid(sourceLocation(for: expression.positionAfterSkippingLeadingTrivia))
-        }
-
-        var dependencies: [HierarchyWithDependencyRecord] = []
-        for element in arrayExpr.elements {
-            guard let literal = element.expression.as(StringLiteralExprSyntax.self),
-                  literal.segments.count == 1,
-                  case let .stringSegment(segment)? = literal.segments.first else {
-                return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
-            }
-
-            // Empty string literals (`withNames: [""]`) cannot match any
-            // parent member name; treat them as a parse failure so the user
-            // gets the `hierarchy.invalid-same-name-wiring` diagnostic
-            // instead of a silent "unknown parent member ''" path later.
-            if segment.content.text.isEmpty {
-                return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
-            }
-
-            dependencies.append(
-                HierarchyWithDependencyRecord(
-                    name: segment.content.text,
-                    location: sourceLocation(for: literal.positionAfterSkippingLeadingTrivia)
                 )
             )
         }
@@ -408,7 +360,6 @@ enum WorkspaceHierarchySameNameWiringRecord: Equatable {
     case omitted
     case parsed(label: SubContainerSameNameWiringLabel, dependencies: [HierarchyWithDependencyRecord])
     case invalid(label: SubContainerSameNameWiringLabel, location: ValidationIssueLocation)
-    case conflictingWithAndWithNames(location: ValidationIssueLocation)
 }
 
 private enum HierarchySameNameWiringParseResult {

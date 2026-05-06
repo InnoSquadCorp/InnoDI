@@ -265,9 +265,9 @@ private func reasonDescription(_ reason: ValidationReasonCode) -> String {
     case .cacheMissDeletedFile:
         return "A previously cached Swift source file disappeared and forced a signature recomputation."
     case .cacheMissManifestCorrupted:
-        return "The AST digest manifest could not be decoded, so the cache was discarded and rebuilt."
+        return "The AST digest manifest could not be decoded, so the cache was discarded and rebuilt. Run `swift package clean` if this reason recurs across consecutive builds."
     case .cacheMissManifestVersion:
-        return "The AST digest manifest version changed, so the cache was rebuilt from scratch."
+        return "The AST digest manifest schema version changed (expected v\(ValidationDigestManifest.currentVersion)). The cache was rebuilt from scratch automatically; this typically happens once after upgrading InnoDI. If the reason persists across consecutive builds, run `swift package clean` to discard any stale plugin state."
     case .staleLockRecovered:
         return "A stale validation coordinator lock was detected and removed before the live run continued."
     case .lockContentionTimeout:

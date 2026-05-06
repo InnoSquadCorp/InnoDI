@@ -29,9 +29,19 @@ struct MacroPerformanceBenchmark {
         "DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
         "SubContainer": SubContainerMacro.self,
+        "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
+        "DIFeatureRoot": DIFeatureRootMacro.self,
     ]
 
+    /// A composite fixture that exercises the macro surface a real consumer
+    /// hits in one expansion: a root `@DIContainer` with mixed scopes,
+    /// a `@SubContainer`, a SwiftUI `@DIEnvironmentBridge`, and a stacked
+    /// `@DIFeatureRoot`. Adding a new macro to the dictionary above without
+    /// also extending this fixture leaves the new path unmeasured.
     private static let representativeSource = """
+    @DIEnvironmentBridge([
+        (member: "userService", environment: \\EnvironmentValues.userService),
+    ])
     @DIContainer
     struct AppContainer {
         @Provide(.input) var config: AppConfig
@@ -44,6 +54,7 @@ struct MacroPerformanceBenchmark {
         @Provide(.transient, factory: RequestBuilder(api: apiClient))
         var requestBuilder: RequestBuilder
         @SubContainer(scope: .shared)
+        @DIFeatureRoot(DashboardRootView.self)
         var dashboard: DashboardContainer
     }
     """

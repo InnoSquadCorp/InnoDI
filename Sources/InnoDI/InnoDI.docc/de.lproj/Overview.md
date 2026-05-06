@@ -23,7 +23,7 @@ Die stabile 4.0.0-Baseline umfasst:
 - geschichteter Lock mit `O_CREAT | O_EXCL` plus `flock` auf unterstutzten Dateisystemen
 - Buildzeit-Diagnosen statt makrosynthetisierter `fatalError`-Accessors
 - PR- und Release-Gates, die strict concurrency und die macro-source `fatalError` Allow-List erzwingen
-- `@SubContainer` key-path-Hinweis fur `withNames:` ohne gestapelte Peer-Makros
+- `@SubContainer` nutzt fur Same-Name-Wiring nur noch `with:`; der `withNames:` Escape Hatch wurde entfernt
 
 ## Topics
 

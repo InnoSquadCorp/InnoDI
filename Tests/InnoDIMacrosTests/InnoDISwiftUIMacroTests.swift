@@ -11,6 +11,7 @@ struct InnoDISwiftUIMacroTests {
         "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
         "DIFeatureRoot": DIFeatureRootMacro.self,
         "InnoDISwiftUI.DIFeatureRoot": DIFeatureRootMacro.self,
+        "PreviewWithContainer": PreviewWithContainerMacro.self,
     ]
 
     @Test("DIEnvironmentBridge generates modifier storage and protocol conformance")
@@ -455,6 +456,205 @@ struct InnoDISwiftUIMacroTests {
                     line: 2,
                     column: 5
                 )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge generates a single-member modifier")
+    func environmentBridgeSingleMemberShape() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "greetingService", environment: \EnvironmentValues.greetingService),
+            ])
+            struct AppContainer {
+                var greetingService: GreetingService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    var greetingService: GreetingService
+
+                    struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
+                        let container: AppContainer
+                        func body(content: Content) -> some SwiftUI.View {
+                            content.environment(\EnvironmentValues.greetingService, container.greetingService)
+                        }
+                    }
+
+                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    }
+                }
+
+                extension AppContainer: DIEnvironmentBridging {
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot generates a single named helper with `as:` alias")
+    func featureRootGeneratesSingleAliasedHelper() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+
+                    func dashboardShellRootView() -> DashboardShellView {
+                        DashboardShellView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIFeatureRoot composes with .transient SubContainer scope")
+    func featureRootGeneratesHelperOverTransientSubContainer() {
+        assertMacroExpansionInline(
+            #"""
+            struct ParentContainer {
+                @SubContainer(scope: .transient)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                struct ParentContainer {
+                    @SubContainer(scope: .transient)
+                    var dashboard: DashboardContainer
+
+                    func dashboardRootView() -> DashboardRootView {
+                        DashboardRootView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer wraps the trailing closure inside a #Preview block")
+    func previewWithContainerExpandsToPreviewBlock() {
+        assertMacroExpansionInline(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer(baseURL: "https://example.com")) { container in
+                container.dashboardRootView()
+            }
+            """#,
+            expandedSource: ##"""
+                let preview = #Preview {
+                    let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
+                    ({
+                        container in
+                            container.dashboardRootView()
+                    })(__innodi_preview_container)
+                }
+                """##,
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer accepts the preview body as an argument closure")
+    func previewWithContainerAcceptsArgumentClosure() {
+        assertMacroExpansionInline(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer(baseURL: "https://example.com"), { container in
+                container.dashboardRootView()
+            })
+            """#,
+            expandedSource: ##"""
+                let preview = #Preview {
+                    let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
+                    ({
+                        container in
+                            container.dashboardRootView()
+                    })(__innodi_preview_container)
+                }
+                """##,
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses a missing container expression")
+    func previewWithContainerDiagnosesMissingContainerExpression() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer { container in
+                container.dashboardRootView()
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-container")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses a closure without a container parameter")
+    func previewWithContainerDiagnosesMissingContainerParameter() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer()) {
+                DashboardRootView()
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses an explicitly parameterless closure")
+    func previewWithContainerDiagnosesExplicitlyParameterlessClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer()) { () in
+                DashboardRootView()
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses a trailing closure with multiple container parameters")
+    func previewWithContainerDiagnosesMultiParameterTrailingClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer()) { container, other in
+                container.dashboardRootView(other)
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses an argument closure with multiple container parameters")
+    func previewWithContainerDiagnosesMultiParameterArgumentClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer(), { container, other in
+                container.dashboardRootView(other)
+            })
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
             ],
             macros: Self.macros
         )

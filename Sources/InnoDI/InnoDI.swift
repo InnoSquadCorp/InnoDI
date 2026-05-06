@@ -21,6 +21,11 @@ public enum DIScope {
 ///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.
 ///   - validateDAG: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and the macro's local cycle plus closure/`with:` diagnostics are skipped, but raw-expression `factory:` / initializer references and structural diagnostics still apply.
 ///   - mainActor: Isolates generated container API on the main actor.
+///
+/// > Important: `validateDAG: false` is a narrow opt-out from the global
+/// > DAG and local cycle gates. Treat it as a temporary fixture rather than
+/// > a release-quality flag — production builds should keep the default. See
+/// > <doc:DAGValidation> for the configuration-aware enforcement pattern.
 public macro DIContainer(
     root: Bool = false,
     validateDAG: Bool = true,
@@ -90,6 +95,14 @@ public macro Provide(
 /// hard edge — use the canonical name at factory-parameter sites. If your
 /// module also defines `Lazy<T>`, prefer spelling the wrapper as
 /// `InnoDI.Lazy<T>` so the generated code preserves that qualification.
+///
+/// > Warning: Detection is by canonical identifier only. The macro emits a
+/// > warning when a typealias to `Lazy<T>` lives in the same file as the
+/// > factory parameter, but cross-file aliases stay invisible until the
+/// > planned workspace-analysis check ships. A renamed cross-file alias
+/// > silently behaves as a hard edge and disables cycle escape, so prefer
+/// > the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at every factory
+/// > parameter site.
 public struct Lazy<T> {
     @usableFromInline
     let resolver: () -> T
@@ -168,6 +181,14 @@ public struct Lazy<T> {
 /// `Lazy<T>` limitation. If your module also defines `Provider<T>`, prefer
 /// spelling the wrapper as `InnoDI.Provider<T>` so the generated code
 /// preserves that qualification.
+///
+/// > Warning: Detection is by canonical identifier only. The macro emits a
+/// > warning when a typealias to `Provider<T>` lives in the same file as
+/// > the factory parameter, but cross-file aliases stay invisible until the
+/// > planned workspace-analysis check ships. A renamed cross-file alias
+/// > silently behaves as a hard edge with re-entry semantics lost, so
+/// > prefer the canonical `Provider<T>` or `InnoDI.Provider<T>` spelling at
+/// > every factory parameter site.
 public struct Provider<T> {
     @usableFromInline
     let resolver: () -> T
@@ -224,7 +245,7 @@ public enum SubContainerScope {
 ///
 ///     // Explicit same-name wiring calls
 ///     // `FeatureContainer.init(config:apiClient:)`.
-///     @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+///     @SubContainer(scope: .shared, with: [\.config, \.apiClient])
 ///     var feature: FeatureContainer
 /// }
 /// ```
@@ -238,17 +259,13 @@ public enum SubContainerScope {
 ///   parent members are forwarded to the child. Each `\.parentMember` keypath
 ///   is passed with the same label on the child side. This must be a literal
 ///   array the macro can read, for example `with: [\.config]` or `with: []`.
-/// - `withNames`: Optional string-name form of `with`, used when same-name
-///   wiring is needed but Swift cannot form the parent keypaths at the macro
-///   declaration site. This must be a literal string array, for example
-///   `withNames: ["config"]` or `withNames: []`.
 /// - `bindings`: Optional explicit remapping tuples used when child `.input`
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
 ///
-/// `with`, `withNames`, and `bindings` are mutually exclusive wiring forms:
-/// choose exactly one of `with` or `withNames` for same-name subset/reorder
-/// shorthand, or use `bindings` for rename-aware explicit wiring.
+/// `with` and `bindings` are mutually exclusive wiring forms: choose `with`
+/// for same-name subset/reorder shorthand, or use `bindings` for rename-aware
+/// explicit wiring.
 ///
 /// ### Wiring
 /// The macro emits a parent-side property whose getter (for `.transient`) or
@@ -256,10 +273,10 @@ public enum SubContainerScope {
 /// `Child(config: self.config, apiClient: self.apiClient, …)`. With no
 /// explicit wiring, the macro only applies same-name implicit wiring when the
 /// parent has zero or one `@Provide` candidate; if multiple parent members
-/// exist, InnoDI emits `sub.auto-wiring-ambiguous` and requires `with`,
-/// `withNames`, or `bindings`. When `with:` or `withNames:` is provided, the
-/// listed parent members replace the implicit set but keep their same-name
-/// labels; an empty list is an explicit empty subset and generates `Child()`.
+/// exist, InnoDI emits `sub.auto-wiring-ambiguous` and requires `with` or
+/// `bindings`. When `with:` is provided, the listed parent members replace
+/// the implicit set but keep their same-name labels; an empty list is an
+/// explicit empty subset and generates `Child()`.
 /// Runtime variables or computed array elements are not evaluated by the macro.
 /// When `bindings:` is provided, each tuple rewrites the child label explicitly
 /// while reading from the selected parent member. Child-input verification is
@@ -280,13 +297,18 @@ public enum SubContainerScope {
 /// child containers synthesize an empty nested `Overrides` type, so chain
 /// closures compile and execute as no-ops until the child gains overrideable
 /// members.
+///
+/// > Note: `with:` and `bindings:` are the supported wiring forms. The
+/// > legacy string-literal `withNames:` parameter was removed in 4.2 — use
+/// > `with: [\.member]` for same-name forwarding or `bindings: [(child:
+/// > \.x, parent: \.y)]` for explicit relabeling. See <doc:MigrationGuide>
+/// > for the rationale and a stacked-peer-macro recipe.
 @attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
 @attached(accessor)
 public macro SubContainer(
     scope: SubContainerScope,
     with dependencies: [AnyKeyPath] = [],
-    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = [],
-    withNames dependencyNames: [String] = []
+    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")
 
 /// Marker protocol synthesized by `@DIComponent`.
@@ -342,3 +364,19 @@ public macro DIComponent() = #externalMacro(module: "InnoDIMacros", type: "DICom
 /// such as orphan components, duplicate parents, and module-edge mismatches
 /// when at least one `@DIHierarchyRoot` is present in the workspace.
 public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "DIHierarchyRootMacro")
+
+/// Experimental — synthesizes a call-recording mock peer for a protocol.
+///
+/// `@GenerateMock` is the RFC 0001 entry point. Attach it to a protocol
+/// declaration to have InnoDI emit a `Mock` peer with stubbed return
+/// values, recorded call lists, and protocol conformance. The 4.x
+/// experimental drop supports top-level protocols, overload-qualified
+/// helper names, and generic method requirements through erased handlers.
+/// The `Overrides` builder bundling option remains planned (see
+/// `bundleWithOverrides:`).
+///
+/// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
+/// rollout schedule. Adoption is opt-in until the macro reaches GA in
+/// 5.0; expect the generated shape to evolve before then.
+@attached(peer, names: suffixed(Mock))
+public macro GenerateMock() = #externalMacro(module: "InnoDIMacros", type: "GenerateMockMacro")

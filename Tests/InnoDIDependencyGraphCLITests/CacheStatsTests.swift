@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import InnoDIBuildSupport
 
-@testable import InnoDI_DependencyGraph
+@testable import InnoDIDependencyGraphCLI
 
 @Suite("--cache-stats argument parsing")
 struct CacheStatsArgumentsTests {

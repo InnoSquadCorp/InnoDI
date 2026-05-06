@@ -1,0 +1,50 @@
+@Tutorial(time: 15) {
+    @Intro(title: "Build a Validated Container") {
+        Create a small InnoDI container, wire one dependency explicitly, and
+        see where validation fits into the workflow.
+    }
+
+    @Section(title: "Create the container") {
+        @ContentAndMedia {
+            Start with a plain Swift type. `@DIContainer` owns the generated
+            initializer and accessors, and `@Provide` describes how each
+            dependency enters the graph.
+        }
+
+        @Steps {
+            @Step {
+                Add a minimal service and container.
+
+                @Code(name: "Container.swift", file: GettingStartedContainer.swift)
+            }
+
+            @Step {
+                Keep construction logic explicit when labels or initialization
+                code do not match a simple `Type.self` plus `with:` mapping.
+
+                @Code(name: "FactoryProvider.swift", file: GettingStartedFactoryProvider.swift)
+            }
+        }
+    }
+
+    @Section(title: "Validate before runtime") {
+        @ContentAndMedia {
+            InnoDI catches local macro mistakes during expansion and global
+            graph mistakes through the DAG validator.
+        }
+
+        @Steps {
+            @Step {
+                Run the package tests with strict concurrency enabled.
+
+                @Code(name: "Strict concurrency", file: GettingStartedStrictConcurrency.sh)
+            }
+
+            @Step {
+                Validate the global dependency graph.
+
+                @Code(name: "DAG validation", file: GettingStartedDAGValidation.sh)
+            }
+        }
+    }
+}
