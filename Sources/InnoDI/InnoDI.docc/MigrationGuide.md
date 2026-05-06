@@ -24,6 +24,30 @@ historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 
 ---
 
+## Internal v1-v3 adopters moving to 4.x
+
+Teams that adopted early InnoDI builds inside an InnoSquad or Banksalad-style
+monorepo should treat 4.x as a validation and public-contract migration, not
+only a package-version bump.
+
+Recommended order:
+
+1. Add the 4.x package dependency and build one target without the DAG plugin.
+2. Fix macro diagnostics first: reserved generated prefixes, missing factories,
+   concrete opt-ins, and custom `init` declarations inside container types.
+3. Migrate nested container wiring to `with:` or `bindings:` before enabling the
+   hierarchy validator.
+4. Enable `InnoDIDAGValidationPlugin` on the target and move `--scratch-path`
+   to a local disk if derived data lives on a shared volume.
+5. Add `Tools/check-docs-code-blocks.sh` and strict-concurrency tests to the
+   repo gate so local examples and internal tutorials do not drift.
+
+Do not migrate by wrapping InnoDI in a runtime service locator. That preserves
+old call sites but removes the reviewability and graph validation that make the
+4.x line worth adopting. See <doc:AntiPatterns> for boundary examples.
+
+---
+
 ## 4.1 → 4.2
 
 ### `@SubContainer(... withNames:)` removed

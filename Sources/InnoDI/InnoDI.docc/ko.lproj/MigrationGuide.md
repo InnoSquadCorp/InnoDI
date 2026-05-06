@@ -23,6 +23,31 @@ breaking change 표는
 
 ---
 
+## 사내 v1-v3 사용자가 4.x로 옮길 때
+
+InnoSquad나 뱅크샐러드식 monorepo에서 초기 InnoDI를 이미 쓰고 있었다면,
+4.x 업그레이드는 단순한 package version bump가 아니라 validation과 공개
+계약 정리로 다루는 편이 안전합니다.
+
+권장 순서:
+
+1. 4.x package dependency를 추가하고, 먼저 DAG plugin 없이 한 target을
+   빌드합니다.
+2. macro diagnostic을 먼저 해결합니다: reserved generated prefix, missing
+   factory, concrete opt-in, container type 내부 custom `init` 선언.
+3. nested container wiring을 `with:` 또는 `bindings:`로 옮긴 뒤 hierarchy
+   validator를 켭니다.
+4. target에 `InnoDIDAGValidationPlugin`을 붙이고, derived data가 shared
+   volume에 있다면 `--scratch-path`를 local disk로 옮깁니다.
+5. `Tools/check-docs-code-blocks.sh`와 strict-concurrency test를 repo gate에
+   넣어 예제와 내부 튜토리얼이 drift되지 않게 합니다.
+
+기존 call site를 보존하려고 InnoDI 위에 runtime service locator를 덮지
+마세요. 그렇게 하면 4.x 라인의 핵심 가치인 reviewability와 graph validation을
+잃습니다. 경계 예시는 <doc:AntiPatterns>를 참고하세요.
+
+---
+
 ## 4.1 → 4.2
 
 ### `@SubContainer(... withNames:)` 제거

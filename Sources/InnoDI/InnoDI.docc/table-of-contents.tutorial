@@ -1,0 +1,15 @@
+@Tutorials(name: "InnoDI Tutorials") {
+    @Intro(title: "Learn InnoDI") {
+        Start with an explicit container, then move through inputs, concrete
+        wiring, and subcontainers when the graph spans features.
+    }
+
+    @Chapter(name: "Getting Started") {
+        Build a validated container before moving into the article-based
+        tutorials.
+
+        @Image(source: "GettingStartedChapter.svg", alt: "A simple dependency graph flowing from inputs into a validated container.")
+
+        @TutorialReference(tutorial: "doc:GettingStarted")
+    }
+}

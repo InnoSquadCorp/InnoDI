@@ -165,6 +165,25 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `hierarchy-root.requires-container` — `@DIHierarchyRoot`는
   `@DIContainer` 타입에 부착되어야 합니다.
 
+## Mock generation 진단
+
+- `mock.requires-protocol` — `@GenerateMock`가 protocol 선언이 아닌
+  struct/class/enum 등에 붙었습니다. attribute를 protocol로 옮기거나
+  제거하세요.
+- `mock.experimental-skeleton` — protocol에 member가 없을 때 note로
+  발생합니다. 매크로 plugin이 attribute를 보고 빈 mock skeleton을
+  생성했음을 확인하는 신호입니다.
+- `mock.unsupported-member` — static/class requirement, subscript,
+  associated type 등 때문에 mock synthesis가 불가능합니다. 메시지에
+  최대 다섯 개의 member 이름이 표시되며, 해당 mock은 수동 구현해야 합니다.
+
+## Preview macro 진단
+
+- `swiftui.preview-with-container-missing-container` —
+  `#PreviewWithContainer`가 첫 번째 container expression 없이 호출됐습니다.
+- `swiftui.preview-with-container-missing-closure` —
+  `#PreviewWithContainer`가 trailing closure 없이 호출됐습니다.
+
 ## 내부 진단
 
 - `internal.codegen-invariant` — 코드 생성기가 validation이 거부했어야

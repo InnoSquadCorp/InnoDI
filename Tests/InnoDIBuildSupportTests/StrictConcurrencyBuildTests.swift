@@ -138,6 +138,109 @@ struct StrictConcurrencyBuildTests {
         #expect(result.exitCode == 0)
     }
 
+    @Test("GenerateMock builds for top-level overloaded and generic protocol methods")
+    func generateMockConsumerSurfaceBuilds() throws {
+        let fixture = try makeStrictConcurrencyFixture(
+            name: "GenerateMockConsumerSurface",
+            dependencies: ["InnoDI"],
+            source: """
+            import InnoDI
+
+            @GenerateMock
+            protocol API {
+                func fetch(id: String) -> String
+                func fetch(page: Int) -> String
+            }
+
+            @GenerateMock
+            protocol GenericAPI {
+                func make<T>(_ type: T.Type) -> T
+                func fail<T>(_ type: T.Type) throws -> T
+                func wait<T>(_ type: T.Type) async -> T
+                func load<T>(_ type: T.Type) async throws -> T
+            }
+
+            @main
+            struct FixtureApp {
+                static func main() async throws {
+                    let api = APIMock()
+                    api.fetchIdStringReturnValue = "id"
+                    api.fetchPageIntReturnValue = "page"
+                    _ = api.fetch(id: "42")
+                    _ = api.fetch(page: 1)
+
+                    let generic = GenericAPIMock()
+                    generic.makeUnlabeledTTypeHandler = { _ in "made" }
+                    generic.failUnlabeledTTypeHandler = { _ in "failed" }
+                    generic.waitUnlabeledTTypeHandler = { _ in "waited" }
+                    generic.loadUnlabeledTTypeHandler = { _ in "loaded" }
+
+                    let _: String = generic.make(String.self)
+                    let _: String = try generic.fail(String.self)
+                    let _: String = await generic.wait(String.self)
+                    let _: String = try await generic.load(String.self)
+                }
+            }
+            """)
+        defer { try? FileManager.default.removeItem(at: fixture) }
+
+        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+
+        if result.timedOut || result.exitCode != 0 {
+            Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
+        }
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0)
+    }
+
+    @Test("DAG validation plugin state follows an explicit scratch path")
+    func dagValidationPluginStateFollowsScratchPath() throws {
+        let fixture = try makeStrictConcurrencyFixture(
+            name: "PluginScratchPath",
+            dependencies: ["InnoDI"],
+            plugins: ["InnoDIDAGValidationPlugin"],
+            source: """
+            import InnoDI
+
+            struct Service: Sendable {}
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+            }
+
+            @main
+            struct FixtureApp {
+                static func main() {
+                    _ = AppContainer().service
+                }
+            }
+            """)
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-PluginScratch-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: fixture)
+            try? FileManager.default.removeItem(at: scratch)
+        }
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+
+        let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+
+        if result.timedOut || result.exitCode != 0 {
+            Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
+        }
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0)
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: fixture
+                    .appendingPathComponent(".build/innodi-dag-validation", isDirectory: true)
+                    .path(percentEncoded: false)
+            )
+        )
+    }
+
     @Test("Deferred wrappers remain non-Sendable even when the payload is Sendable")
     func deferredWrappersStillFailInSendableHolders() throws {
         let fixture = try makeStrictConcurrencyFixture(
@@ -223,19 +326,31 @@ private final class StrictConcurrencyDataSink: @unchecked Sendable {
     }
 }
 
-private func runStrictConcurrencyBuild(packageURL: URL) throws -> StrictConcurrencyBuildResult {
+private func runStrictConcurrencyBuild(
+    packageURL: URL,
+    scratchPath: URL? = nil
+) throws -> StrictConcurrencyBuildResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = [
+    var arguments = [
         "swift",
         "build",
         "--package-path",
         packageURL.path(percentEncoded: false),
+    ]
+    if let scratchPath {
+        arguments.append(contentsOf: [
+            "--scratch-path",
+            scratchPath.path(percentEncoded: false),
+        ])
+    }
+    arguments.append(contentsOf: [
         "-Xswiftc",
         "-strict-concurrency=complete",
         "-Xswiftc",
         "-warnings-as-errors",
-    ]
+    ])
+    process.arguments = arguments
     process.currentDirectoryURL = packageRootURL()
 
     return try runCapturedProcess(
@@ -315,6 +430,7 @@ private func waitForCapturedProcessTermination(
 private func makeStrictConcurrencyFixture(
     name: String,
     dependencies: [String],
+    plugins: [String] = [],
     source: String
 ) throws -> URL {
     let rootURL = FileManager.default.temporaryDirectory
@@ -341,6 +457,10 @@ private func makeStrictConcurrencyFixture(
     let dependencyList = dependencies
         .map { ".product(name: \"\($0)\", package: \"\(dependencyPackageIdentity)\")" }
         .joined(separator: ", ")
+    let pluginList = plugins
+        .map { ".plugin(name: \"\($0)\", package: \"\(dependencyPackageIdentity)\")" }
+        .joined(separator: ", ")
+    let pluginsClause = pluginList.isEmpty ? "" : ",\n                plugins: [\(pluginList)]"
 
     let manifest = """
     // swift-tools-version: 6.2
@@ -358,7 +478,7 @@ private func makeStrictConcurrencyFixture(
         targets: [
             .executableTarget(
                 name: "FixtureApp",
-                dependencies: [\(dependencyList)]
+                dependencies: [\(dependencyList)]\(pluginsClause)
             )
         ]
     )

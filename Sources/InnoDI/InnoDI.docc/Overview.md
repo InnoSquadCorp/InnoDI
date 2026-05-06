@@ -39,6 +39,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 ### Tutorials
 
+- <doc:GettingStarted>
 - <doc:Tutorial-01-Hello>
 - <doc:Tutorial-02-Inputs>
 - <doc:Tutorial-03-Wiring>
@@ -49,6 +50,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:AntiPatterns>
 - <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
@@ -69,15 +71,11 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 ### Experimental
 
-- <doc:AutoMock> — `@GenerateMock` (RFC 0001), opt-in mock synthesis.
+- <doc:AutoMock>
 
 ### SwiftUI Preview Helper
 
-- `#PreviewWithContainer` (in `InnoDISwiftUI`) wraps Xcode 16's `#Preview`
-  so a preview body declares its container once instead of repeating
-  `let container = ...; container.featureRootView()`. See
-  `Examples/PreviewInjectionExample/Sources/PreviewInjectionExample/main.swift`
-  for the live, preview, and failure scenarios after migration.
+- <doc:SwiftUIPreviewHelper>
 
 ### Symbols
 

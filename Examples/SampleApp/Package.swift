@@ -17,10 +17,20 @@ let package = Package(
                 .product(name: "InnoDI", package: "InnoDI")
             ],
             path: ".",
+            exclude: [
+                "Tests"
+            ],
             sources: [
                 "App.swift",
                 "AppContainer.swift"
             ]
+        ),
+        .testTarget(
+            name: "SampleAppTests",
+            dependencies: [
+                "SampleApp"
+            ],
+            path: "Tests"
         )
     ]
 )

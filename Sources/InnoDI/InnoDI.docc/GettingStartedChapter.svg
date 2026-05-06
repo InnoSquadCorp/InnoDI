@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">InnoDI tutorial chapter</title>
+  <desc id="desc">Inputs flow into a validated dependency container and then into a feature root.</desc>
+  <rect width="1200" height="675" fill="#F7FAFC"/>
+  <rect x="116" y="238" width="220" height="128" rx="18" fill="#E6F4F1" stroke="#1A7F64" stroke-width="6"/>
+  <rect x="490" y="202" width="260" height="200" rx="22" fill="#FFFFFF" stroke="#1B365D" stroke-width="8"/>
+  <rect x="882" y="238" width="220" height="128" rx="18" fill="#FFF4D6" stroke="#A15C00" stroke-width="6"/>
+  <path d="M346 302h120" fill="none" stroke="#1B365D" stroke-width="10" stroke-linecap="round"/>
+  <path d="M452 282l36 20-36 20z" fill="#1B365D"/>
+  <path d="M760 302h98" fill="none" stroke="#1B365D" stroke-width="10" stroke-linecap="round"/>
+  <path d="M844 282l36 20-36 20z" fill="#1B365D"/>
+  <text x="226" y="294" fill="#0B3B31" font-family="Helvetica, Arial, sans-serif" font-size="40" text-anchor="middle" font-weight="700">Inputs</text>
+  <text x="620" y="292" fill="#14213D" font-family="Helvetica, Arial, sans-serif" font-size="42" text-anchor="middle" font-weight="700">Container</text>
+  <text x="620" y="346" fill="#49627A" font-family="Helvetica, Arial, sans-serif" font-size="30" text-anchor="middle">validated graph</text>
+  <text x="992" y="294" fill="#633800" font-family="Helvetica, Arial, sans-serif" font-size="40" text-anchor="middle" font-weight="700">Feature</text>
+  <text x="600" y="536" fill="#25364A" font-family="Helvetica, Arial, sans-serif" font-size="34" text-anchor="middle">Explicit wiring, compile-time checks, build-time DAG validation</text>
+</svg>
