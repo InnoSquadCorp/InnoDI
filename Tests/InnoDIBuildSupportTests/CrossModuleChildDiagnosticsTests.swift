@@ -11,8 +11,7 @@ struct CrossModuleChildDiagnosticsTests {
         parentModule: ResolvedHierarchyModuleContext? = nil,
         childModule: ResolvedHierarchyModuleContext? = nil
     ) -> ResolvedHierarchyEdge {
-        let location = ValidationIssueLocation(filePath: "App.swift", line: 1, column: 1)
-        return ResolvedHierarchyEdge(
+        ResolvedHierarchyEdge(
             parentContainerID: "AppContainer#1",
             parentPath: "AppContainer",
             parentLocation: ValidationIssueLocation(filePath: "App.swift", line: 1, column: 1),
