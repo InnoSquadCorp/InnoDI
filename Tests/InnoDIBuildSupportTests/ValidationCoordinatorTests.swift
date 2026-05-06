@@ -859,6 +859,11 @@ struct ValidationCoordinatorTests {
         #expect(outcome.metricsArtifact.issues.filter { $0.severity == .error }.count == 2)
         #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredLazy" })
         #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredProvider" })
+        // Alias warnings must surface in the markdown-summary artifact alongside
+        // the JSON metrics; the sharedArtifact path previously dropped them.
+        #expect(outcome.metricsArtifact.issues.contains {
+            $0.code == "deferred-alias.workspace-finding" && $0.severity == .warning
+        })
         #expect(runner.invocationCount == 0)
     }
 
