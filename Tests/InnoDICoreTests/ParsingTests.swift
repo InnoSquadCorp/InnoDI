@@ -45,6 +45,24 @@ struct ParsingTests {
     }
 
     @Test
+    func parseDIContainerAttributePreservesInvalidBoolArguments() throws {
+        let source = """
+        @DIContainer(root: isRoot, validateDAG: !FAST_BUILD, mainActor: Flags.mainActor)
+        struct AppContainer {}
+        """
+        let decl = try #require(firstStructDecl(in: source))
+
+        let parsed = InnoDICore.parseDIContainerAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.root == false)
+        #expect(info.validateDAG == true)
+        #expect(info.mainActor == false)
+        #expect(info.rootParseState == .invalid)
+        #expect(info.validateDAGParseState == .invalid)
+        #expect(info.mainActorParseState == .invalid)
+    }
+
+    @Test
     func parseProvideAttributeSharedFactory() throws {
         let source = """
         struct AppContainer {
@@ -159,6 +177,54 @@ struct ParsingTests {
         let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
         let info = try #require(parsed)
         #expect(info.concrete == false)
+    }
+
+    @Test
+    func parseProvideAttributePreservesInvalidConcreteBool() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(.shared, factory: SomeService(), concrete: shouldUseConcrete)
+            var service: SomeService
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.concrete == false)
+        #expect(info.concreteParseState == .invalid)
+    }
+
+    @Test
+    func parseProvideAttributePreservesInvalidWithArgument() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(.shared, SomeService.self, with: dependencies)
+            var service: SomeServiceProtocol
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.dependencies.isEmpty)
+        #expect(info.dependenciesParseState == .invalid)
+    }
+
+    @Test
+    func parseSubContainerAttributePreservesMalformedBindings() throws {
+        let source = """
+        struct AppContainer {
+            @SubContainer(scope: .shared, bindings: [(child: \\.featureConfig)])
+            var feature: FeatureContainer
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseSubContainerAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.bindings.isEmpty)
+        #expect(info.bindingsParseState == .invalid)
     }
 
     @Test

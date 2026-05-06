@@ -1143,6 +1143,25 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.isEmpty)
     }
 
+    @Test("DIContainer Bool options must be literals")
+    func containerBoolOptionsRequireLiterals() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(root: isRoot, validateDAG: !FAST_BUILD, mainActor: Flags.mainActor)
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.bool-literal-required"),
+                MessageID(domain: "InnoDI.validation", id: "container.bool-literal-required"),
+                MessageID(domain: "InnoDI.validation", id: "container.bool-literal-required"),
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("asyncFactory and factory cannot be used together")
     func asyncFactoryAndFactoryConflictProducesDiagnostic() {
         assertMacroExpansionDiagnosticCodes(

@@ -170,7 +170,9 @@ struct ProvideMemberModel {
     let typeExpr: ExprSyntax?
     let initializer: ExprSyntax?
     let concreteOptIn: Bool
+    let concreteParseState: BoolArgumentParseState
     let withDependencies: [String]
+    let withDependenciesParseState: KeyPathArrayArgumentParseState
     let withDependencyReferences: [WithDependencyReference]
     let closureDependencies: [String]
     let closureParameterReferences: [ClosureParameterReference]
