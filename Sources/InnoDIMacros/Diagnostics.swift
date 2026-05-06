@@ -224,7 +224,7 @@ extension SimpleDiagnostic {
 
     static func provideConcreteOptInRequired(name: String, typeDescription: String) -> Self {
         Self(
-            "Concrete dependency '\(name): \(typeDescription)' requires concrete: true. InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable; declaring a concrete type is an explicit opt-in.",
+            "Concrete dependency '\(name): \(typeDescription)' requires concrete: true.",
             code: .provideConcreteOptInRequired
         )
     }

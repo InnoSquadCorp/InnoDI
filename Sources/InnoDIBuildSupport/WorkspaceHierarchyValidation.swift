@@ -98,6 +98,11 @@ func validateResolvedEdges(
 /// references that the resolver accepted but the workspace collector did
 /// not finish loading. The diagnostic now states which child reference
 /// could not be located and points at the concrete remediation steps.
+///
+/// Distinct from `hierarchy.unresolved-child-reference`, which fires
+/// earlier when the resolver itself rejected the type reference; this
+/// code path runs only after a successful resolution that the workspace
+/// snapshot still cannot map to a container record.
 func makeChildContainerOutOfWorkspaceIssue(edge: ResolvedHierarchyEdge) -> ValidationIssue {
     let parentModuleName = edge.parentModule?.displayName ?? "<unknown>"
     let childModuleName = edge.childModule?.displayName ?? "<unknown-or-not-loaded>"

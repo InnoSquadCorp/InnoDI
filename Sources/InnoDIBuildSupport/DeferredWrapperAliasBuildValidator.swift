@@ -14,6 +14,13 @@ import InnoDIWorkspaceAnalysis
 /// surface in the structured metrics artifact and in stderr if the
 /// coordinator is rendering warnings — but they do flag the most common
 /// silent regression path the same-file lint rule cannot reach.
+///
+/// Warnings are emitted unconditionally per coordinator invocation, so they
+/// surface in the metrics artifact even when an upstream validator failure
+/// (custom-init, semantic, or hierarchy) short-circuits the build. This is
+/// intentional: an alias declared during a failing build is still a future
+/// regression hazard, and the warning makes it visible alongside the
+/// failure issues.
 package enum DeferredWrapperAliasBuildValidator {
     package static func validate(rootPath: String) throws -> ValidationIssueReport {
         try validate(snapshot: loadWorkspaceSourceSnapshot(rootPath: rootPath))
