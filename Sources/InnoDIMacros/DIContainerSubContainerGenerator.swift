@@ -177,7 +177,7 @@ internal func resolvedSubContainerArguments(
     member: SubContainerMemberModel,
     autoWireParentMemberNames: [String]
 ) -> [(childLabel: String, parentName: String)] {
-    if !member.explicitBindings.isEmpty {
+    if member.hasBindingsArgument {
         return member.explicitBindings.map { binding in
             (childLabel: binding.childInputName, parentName: binding.parentMemberName)
         }

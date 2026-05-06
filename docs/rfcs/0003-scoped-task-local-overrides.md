@@ -68,7 +68,10 @@ try await container.withScopedOverrides({ overrides in
 ```
 
 The override builder type is the existing `Overrides` struct generated
-by `@DIContainer`; only the *application* differs. A scoped override:
+by `@DIContainer`; only the *application* differs. `withScopedOverrides`
+uses the same builder convention as `withOverrides`: the first closure
+has signature `(inout Overrides) -> Void`, and callers mutate the
+generated `Overrides` value in place. A scoped override:
 
 1. Merges the inner `Overrides` on top of the currently-bound outer
    `Overrides` (see Merge semantics below) and binds the result through
@@ -82,7 +85,8 @@ by `@DIContainer`; only the *application* differs. A scoped override:
 ## Generated implementation sketch
 
 `@DIContainer` already synthesizes both `init(...)` and the four
-`withOverrides(...)` effect overloads. This RFC adds:
+`withOverrides(...)` effect overloads. For containers that opt in with
+`@DIContainer(scopedOverrides: true)`, this RFC additionally synthesizes:
 
 - A `private static let _scopedOverrides: TaskLocal<Overrides?> = .init(wrappedValue: nil)`
   on each container type.
@@ -91,12 +95,13 @@ by `@DIContainer`; only the *application* differs. A scoped override:
 - A small adjustment to each accessor's body so it consults
   `Self._scopedOverrides.get()` before reading its `_storage_*` cell.
 
-The accessor change is the only generated-code shape that changes for
-existing call sites. To keep the generated code well-typed under strict
-concurrency, every accessor that participates in the scoped path must
-have a `Sendable` storage type (the macro already requires `Sendable`
-for `.input` and most factory outputs; the validator will enforce the
-remaining cases).
+Non-opt-in containers do not synthesize any of these additions, and
+their accessors keep the current shape. For opt-in containers, the
+accessor adjustment is paired with the private TaskLocal storage and the
+four `withScopedOverrides` overloads above. To keep that generated code
+well-typed under strict concurrency, the scoped `Overrides` value must
+be `Sendable` (the macro already requires `Sendable` for `.input` and
+most factory outputs; the validator will enforce the remaining cases).
 
 ## Validation contract
 
@@ -111,7 +116,10 @@ Scoped overrides must not subvert the validated graph:
 - `.transient` overrides replace the factory closure for the duration
   of the scope. Concurrent calls inside the scope all see the override.
 - Deferred wrappers (`Lazy<T>`, `Provider<T>`) stay non-`Sendable`. A
-  scoped override does not change their isolation story.
+  scoped override does not change their isolation story, so stored
+  members typed as `Lazy<T>` or `Provider<T>` are treated as
+  non-overrideable and are excluded from the synthesized `Overrides`
+  struct for scoped override purposes.
 
 `@DIContainer(scopedOverrides: true)` additionally synthesizes a
 `Sendable` conformance for the generated `Overrides` struct. The macro
@@ -119,8 +127,12 @@ validates at expansion time that every overrideable member's stored type
 is `Sendable`; if a `.transient` factory closure or a `.shared` value
 type cannot satisfy `Sendable` (for example because it captures
 non-`Sendable` state), the macro emits a structured diagnostic and
-declines to enable scoped overrides on that container. Containers that
-do not opt in keep their current non-`Sendable` `Overrides` shape.
+declines to enable scoped overrides on that container. `Lazy<T>` and
+`Provider<T>` members are skipped for this Sendable check rather than
+rejecting the container; the macro emits a structured informational or
+warning diagnostic naming the omitted members and explaining that the
+deferred wrapper surface is not scoped-overrideable. Containers that do
+not opt in keep their current non-`Sendable` `Overrides` shape.
 
 The graph CLI gains no new node kinds; scoped overrides are an
 operation-time concept, not a graph-time concept.
@@ -202,10 +214,11 @@ need a small TaskLocal seam.
 
 ## Migration
 
-This is purely additive. Existing containers continue to compile and
-run identically; the `withScopedOverrides` surface only appears for
-users who explicitly call it. No deprecations; the RFC explicitly
-keeps `withOverrides` as the canonical app-wide swap.
+This is purely additive. Existing containers that do not opt in continue
+to compile and run identically, with the same generated shape. The
+`withScopedOverrides` surface appears only on containers that explicitly
+request `@DIContainer(scopedOverrides: true)`. No deprecations; the RFC
+explicitly keeps `withOverrides` as the canonical app-wide swap.
 
 ## Implementation phases
 

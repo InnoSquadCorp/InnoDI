@@ -509,21 +509,33 @@ public func parseSubContainerBindingsArgumentState(_ expression: ExprSyntax) -> 
         var childName: String?
         var parentName: String?
 
+        guard tupleExpr.elements.count == 2 else {
+            return .invalid
+        }
+
         for tupleElement in tupleExpr.elements {
-            guard let label = tupleElement.label?.text else { continue }
+            guard let label = tupleElement.label?.text else {
+                return .invalid
+            }
             switch label {
             case "child":
+                guard childName == nil else {
+                    return .invalid
+                }
                 guard let parsed = finalKeyPathComponentName(from: tupleElement.expression) else {
                     return .invalid
                 }
                 childName = parsed
             case "parent":
+                guard parentName == nil else {
+                    return .invalid
+                }
                 guard let parsed = finalKeyPathComponentName(from: tupleElement.expression) else {
                     return .invalid
                 }
                 parentName = parsed
             default:
-                continue
+                return .invalid
             }
         }
 

@@ -228,6 +228,49 @@ struct ParsingTests {
     }
 
     @Test
+    func parseSubContainerAttributeRejectsStrictBindingTupleViolations() throws {
+        let bindingSources = [
+            "(child: \\.featureConfig, parent: \\.config, extra: \\.other)",
+            "(\\.featureConfig, parent: \\.config)",
+            "(child: \\.featureConfig, child: \\.fallbackConfig)",
+            "(child: \\.featureConfig, parent: \\.config, parent: \\.fallbackConfig)",
+            "(source: \\.featureConfig, parent: \\.config)",
+        ]
+
+        for bindingSource in bindingSources {
+            let source = """
+            struct AppContainer {
+                @SubContainer(scope: .shared, bindings: [\(bindingSource)])
+                var feature: FeatureContainer
+            }
+            """
+            let decl = try #require(firstVarDecl(in: source))
+
+            let parsed = InnoDICore.parseSubContainerAttribute(decl.attributes)
+            let info = try #require(parsed)
+            #expect(info.bindings.isEmpty)
+            #expect(info.bindingsParseState == .invalid)
+        }
+    }
+
+    @Test
+    func parseSubContainerAttributeAcceptsReversedStrictBindingTuple() throws {
+        let source = """
+        struct AppContainer {
+            @SubContainer(scope: .shared, bindings: [(parent: \\.config, child: \\.featureConfig)])
+            var feature: FeatureContainer
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseSubContainerAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.bindings == [
+            SubContainerBindingArgument(childName: "featureConfig", parentName: "config")
+        ])
+    }
+
+    @Test
     func findAttributeAcceptsAllowedQualifiedModuleNames() throws {
         let source = """
         struct ParentContainer {

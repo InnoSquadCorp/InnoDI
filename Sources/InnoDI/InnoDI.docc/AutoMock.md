@@ -114,9 +114,9 @@ generated shape inline.
 
 A few starting points that work well alongside InnoDI:
 
-* [swift-mocking](https://github.com/RougeWare/Swift-Mocking) and similar
-  protocol-witness or partial-mock packages are a good fit when the protocol
-  needs `static` requirements or associated-type binding.
+* Third-party libraries supporting protocol-witness or partial-mock patterns
+  are a good fit when the protocol needs `static` requirements,
+  `Sendable` inheritance, or associated-type binding.
 * Hand-written conforming structs/classes remain the lightest option for
   small protocols; the macro is meant to remove repetitive boilerplate, not
   to replace one-off conformances.
