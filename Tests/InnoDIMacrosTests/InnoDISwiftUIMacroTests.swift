@@ -554,7 +554,7 @@ struct InnoDISwiftUIMacroTests {
             expandedSource: ##"""
                 let preview = #Preview {
                     let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
-                    return ({
+                    ({
                         container in
                             container.dashboardRootView()
                     })(__innodi_preview_container)

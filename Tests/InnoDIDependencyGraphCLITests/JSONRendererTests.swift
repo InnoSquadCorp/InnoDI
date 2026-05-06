@@ -3,8 +3,6 @@ import InnoDICore
 import InnoDIDependencyGraphCore
 import Testing
 
-@testable import InnoDI_DependencyGraph
-
 @Suite("JSON renderer")
 struct JSONRendererTests {
     private func makeGraph() -> ([DependencyGraphNode], [DependencyGraphEdge]) {

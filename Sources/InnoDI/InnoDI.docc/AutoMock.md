@@ -41,8 +41,8 @@ mock.reset()
 
 For each supported protocol member the macro emits the following:
 
-* **`var prop: T { get set }`** — `var prop: T!` (implicit-unwrapped
-  optional storage; populate before reading).
+* **`var prop: T { get set }`** — an exact-typed computed `var prop: T`
+  backed by private optional stub storage; populate before reading.
 * **`func name(args)` (sync, non-throwing)** — a `struct NameCall`
   capturing the arguments, a `private(set) var nameCalls: [NameCall]`
   list, an optional `var nameReturnValue: ReturnType?` slot, and the

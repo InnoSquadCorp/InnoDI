@@ -105,7 +105,9 @@ struct GenerateMockMacroTests {
         // Storage and method shape — just substring assertions because the
         // exact whitespace is defined by the generator.
         #expect(peer.contains("final class GreeterMock"))
-        #expect(peer.contains("var prefix: String!"))
+        #expect(peer.contains("private var __innodi_prefixStubValue: String?"))
+        #expect(peer.contains("var prefix: String {"))
+        #expect(peer.contains("__innodi_prefixStubValue = newValue"))
         #expect(peer.contains("private(set) var greetCalls"))
         #expect(peer.contains("var greetReturnValue: String?"))
         #expect(peer.contains("func greet(name: String) -> String"))

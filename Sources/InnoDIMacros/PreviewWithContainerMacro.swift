@@ -17,7 +17,7 @@
 //
 //      #Preview {
 //          let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
-//          return ({ container in
+//          ({ container in
 //              container.dashboardRootView()
 //          })(__innodi_preview_container)
 //      }
@@ -67,7 +67,7 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
         let expanded: ExprSyntax = """
         #Preview {
             let __innodi_preview_container = \(raw: containerSource)
-            return ({
+            ({
                 \(raw: signatureSource)\(raw: bodySource)
             })(__innodi_preview_container)
         }

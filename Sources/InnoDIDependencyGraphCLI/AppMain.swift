@@ -2,7 +2,7 @@ import Foundation
 import InnoDIDependencyGraphCore
 import InnoDIWorkspaceAnalysis
 
-func runDependencyGraphCLI() -> Int32 {
+package func runDependencyGraphCLI() -> Int32 {
     let parsed: ParsedArguments
     switch parseArguments() {
     case .parsed(let args, let warnings):

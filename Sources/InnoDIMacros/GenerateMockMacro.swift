@@ -346,9 +346,23 @@ private func renderVariableMock(variable: VariableDeclSyntax) -> String? {
     }
     let name = (binding.pattern.as(IdentifierPatternSyntax.self))?.identifier.text ?? "<unknown>"
     let type = typeAnnotation.type.trimmedDescription
-    // Implicit-unwrapped optional storage so the synthesized mock has a
-    // valid `init()`; tests must populate the property before it is read.
-    return "    var \(name): \(type)!"
+    let escapedName = name.escapedSwiftIdentifier
+    let storageName = "__innodi_\(name.safeLowerCamelIdentifier)StubValue"
+    let storageType = optionalStorageType(type)
+    return """
+        private var \(storageName): \(storageType)
+        var \(escapedName): \(type) {
+            get {
+                guard let value = \(storageName) else {
+                    preconditionFailure("\(name) was not set on \\(Swift.type(of: self)) before it was read")
+                }
+                return value
+            }
+            set {
+                \(storageName) = newValue
+            }
+        }
+    """
 }
 
 private func renderableCallParameters(
