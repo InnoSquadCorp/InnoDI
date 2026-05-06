@@ -41,12 +41,12 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable; declaring a concrete type is an explicit opt-in.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true. The fixit below inserts the argument; protocol-typed storage stays the default so reviewers can spot a concrete swap in the diff.",
                             line: 3,
                             column: 5
                         ),
@@ -87,12 +87,12 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClientProtocol' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClientProtocol' requires concrete: true. InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable; declaring a concrete type is an explicit opt-in.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true. The fixit below inserts the argument; protocol-typed storage stays the default so reviewers can spot a concrete swap in the diff.",
                             line: 3,
                             column: 5
                         ),
@@ -133,12 +133,12 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClientProtocol?' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClientProtocol?' requires concrete: true. InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable; declaring a concrete type is an explicit opt-in.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true. The fixit below inserts the argument; protocol-typed storage stays the default so reviewers can spot a concrete swap in the diff.",
                             line: 3,
                             column: 5
                         ),
