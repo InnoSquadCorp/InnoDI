@@ -1005,6 +1005,58 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Semantic validation preserves malformed bindings as an error")
+    func semanticValidationRejectsMalformedBindings() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        let explicitBindings = [(child: \\FeatureContainer.config, parent: \\AppContainer.appConfig)]
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var config: AppConfig
+        }
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var appConfig: AppConfig
+
+            @SubContainer(scope: .shared, bindings: explicitBindings)
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("MalformedBindings.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.invalid-bindings"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(outcome.metricsArtifact.issues.first?.metadata["subContainerMemberName"] == "feature")
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Qualified InnoDI containers still reject bindings: that target an unknown child input")
     func qualifiedContainersRejectUnknownChildInputBinding() async throws {
         let fixture = try makeFixture()

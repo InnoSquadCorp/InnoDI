@@ -2353,6 +2353,46 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer bindings: requires a literal tuple key-path array")
+    func subContainerBindingsVariableDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let explicitBindings = [(child: \\FeatureBindingsContainer.featureConfig, parent: \\AppContainer.config)]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, bindings: explicitBindings)
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: rejects malformed tuple entries")
+    func subContainerBindingsMalformedTupleDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, bindings: [(child: \\.featureConfig)])
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer duplicate child bindings emit sub.duplicate-child-binding")
     func subContainerDuplicateChildBindingDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
