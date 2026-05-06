@@ -52,6 +52,15 @@ Most frequently-hit codes:
 - `provide.async-factory-invalid-scope` — `asyncFactory:` is only valid for
   `.shared`.
 - `provide.async-factory-must-be-async` — the supplied closure is not `async`.
+- `provide.factory-must-be-sync` — `factory:` was given an `async` closure;
+  move async construction to `asyncFactory:`.
+- `provide.factory-must-not-throw` — `factory:` was given a throwing closure;
+  handle errors inside the factory or move asynchronous throwing work to
+  `asyncFactory:`.
+- `provide.bool-literal-required` — a `@Provide` Boolean option, such as
+  `concrete:`, must be literal `true` or `false`.
+- `provide.invalid-with-dependencies` — `with:` is not a literal key-path
+  array the macro can read.
 - `provide.concrete-opt-in-required` — `.shared`/`.transient` with a concrete
   type needs `concrete: true`.
 - `provide.unresolved-factory-parameter` — a factory parameter doesn't match
@@ -85,6 +94,9 @@ Most frequently-hit codes:
   collides with the synthesized builder.
 - `container.mainactor-conflict` — `@DIContainer(mainActor: true)` combined
   with an asynchronous factory that can't run on the main actor.
+- `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
+  was not literal `true` or `false`; use conditional compilation to choose
+  different attribute spellings.
 - `container.reserved-name-prefix` — a `@Provide` or `@SubContainer`
   member name starts with one of the prefixes the macro reserves for
   generated storage (for example `_storage_`, `_override_sub_`,
@@ -109,6 +121,8 @@ Most frequently-hit codes:
   same `@SubContainer` (the wiring forms are mutually exclusive).
 - `sub.invalid-same-name-wiring` — `with:` is not a literal key-path array the
   macro can read (runtime variables and computed elements are rejected).
+- `sub.invalid-bindings` — `bindings:` is not a literal array of
+  `(child:parent:)` key-path tuples.
 - `sub.auto-wiring-ambiguous` — implicit same-name wiring cannot be
   inferred because the parent has multiple `@Provide` candidates. Add
   explicit `with:` / `bindings:`, or use `with: []` if the child takes no

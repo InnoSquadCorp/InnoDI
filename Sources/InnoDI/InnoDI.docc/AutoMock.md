@@ -21,8 +21,8 @@ protocol UserService {
 ```
 
 The macro emits a peer mock class next to the protocol. The generated class
-conforms to the protocol and `@unchecked Sendable`. Tests instantiate the mock,
-populate the stubs, and read recorded calls back:
+conforms to the protocol. Tests instantiate the mock, populate the stubs, and
+read recorded calls back:
 
 ```swift
 let mock = UserServiceMock()
@@ -70,6 +70,9 @@ For each supported protocol member the macro emits the following:
 * **Escaping closure arguments** — recorded with property-safe function types
   (`@escaping` / `@autoclosure` are removed from the call-record field while
   the conforming method keeps the original parameter spelling).
+* **Concurrency** — generated mocks are not thread-safe by default. Keep a mock
+  instance on one test executor or provide your own locking wrapper when a test
+  intentionally shares it across tasks.
 
 ## Currently unsupported
 
