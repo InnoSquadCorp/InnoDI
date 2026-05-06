@@ -167,6 +167,12 @@ struct StrictConcurrencyBuildTests {
                 func reset() -> ()
             }
 
+            @GenerateMock
+            protocol GreeterAPI {
+                var prefix: String { get set }
+                var fallback: String? { get set }
+            }
+
             protocol Event: Sendable {}
             struct ConcreteEvent: Event {}
 
@@ -201,6 +207,12 @@ struct StrictConcurrencyBuildTests {
                     callbacks.observe {}
                     callbacks.reset()
 
+                    let greeter = GreeterAPIMock()
+                    greeter.prefix = "Hello"
+                    greeter.fallback = nil
+                    _ = greeter.prefix
+                    _ = greeter.fallback
+
                     let eventFactory = EventFactoryMock()
                     eventFactory.makeEventReturnValue = ConcreteEvent()
                     eventFactory.makeHandlerReturnValue = {}
@@ -209,6 +221,50 @@ struct StrictConcurrencyBuildTests {
                 }
             }
             """)
+        defer { try? FileManager.default.removeItem(at: fixture) }
+
+        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+
+        if result.timedOut || result.exitCode != 0 {
+            Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
+        }
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0)
+    }
+
+    @Test("PreviewWithContainer builds without ViewBuilder warnings")
+    func previewWithContainerConsumerSurfaceBuilds() throws {
+        let fixture = try makeStrictConcurrencyFixture(
+            name: "PreviewWithContainerConsumerSurface",
+            dependencies: ["InnoDISwiftUI"],
+            source: """
+            import SwiftUI
+            import InnoDISwiftUI
+
+            struct PreviewContainer {
+                let title: String
+            }
+
+            struct PreviewRootView: View {
+                let container: PreviewContainer
+
+                var body: some View {
+                    Text(container.title)
+                }
+            }
+
+            #PreviewWithContainer(PreviewContainer(title: "Preview")) { container in
+                PreviewRootView(container: container)
+            }
+
+            @main
+            struct FixtureApp {
+                static func main() {
+                    _ = PreviewRootView(container: PreviewContainer(title: "Runtime"))
+                }
+            }
+            """
+        )
         defer { try? FileManager.default.removeItem(at: fixture) }
 
         let result = try runStrictConcurrencyBuild(packageURL: fixture)
