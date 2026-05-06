@@ -70,3 +70,10 @@ internal func isAsyncClosureExpression(_ expr: ExprSyntax) -> Bool {
     }
     return closure.signature?.effectSpecifiers?.asyncSpecifier != nil
 }
+
+internal func isThrowingClosureExpression(_ expr: ExprSyntax) -> Bool {
+    guard let closure = expr.as(ClosureExprSyntax.self) else {
+        return false
+    }
+    return closure.signature?.effectSpecifiers?.throwsClause != nil
+}

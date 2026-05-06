@@ -69,6 +69,26 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            if let factory = member.factory, isAsyncClosureExpression(factory) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(factory),
+                        message: SimpleDiagnostic.provideFactoryMustBeSync(memberName: member.name)
+                    )
+                )
+                hadErrors = true
+            }
+
+            if let factory = member.factory, isThrowingClosureExpression(factory) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(factory),
+                        message: SimpleDiagnostic.provideFactoryMustNotThrow(memberName: member.name)
+                    )
+                )
+                hadErrors = true
+            }
+
             if member.scope != .input && !member.concreteOptIn && requiresConcreteOptIn(type: member.type) {
                 context.diagnose(
                     makeConcreteOptInDiagnostic(member: member)
