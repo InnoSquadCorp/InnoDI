@@ -61,7 +61,7 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
         }
 
         guard let signature = previewClosure.signature,
-              signature.declaresAtLeastOneParameter else {
+              signature.declaresExactlyOneParameter else {
             context.diagnose(
                 Diagnostic(
                     node: Syntax(previewClosure),
@@ -89,16 +89,16 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
 }
 
 private extension ClosureSignatureSyntax {
-    var declaresAtLeastOneParameter: Bool {
+    var declaresExactlyOneParameter: Bool {
         guard let parameterClause else {
             return false
         }
 
         switch parameterClause {
         case .simpleInput(let parameters):
-            return !parameters.isEmpty
+            return parameters.count == 1
         case .parameterClause(let parameters):
-            return !parameters.parameters.isEmpty
+            return parameters.parameters.count == 1
         }
     }
 }

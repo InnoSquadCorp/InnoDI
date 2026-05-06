@@ -43,6 +43,9 @@ jobs:
         # allow-listed.
         run: Tools/check-no-fatalerror-in-macros.sh
 
+      - name: Validate CI keeps build validation enabled
+        run: Tools/check-ci-validation-opt-out.sh
+
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
 

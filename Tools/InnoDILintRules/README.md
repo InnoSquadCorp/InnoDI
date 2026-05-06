@@ -10,7 +10,6 @@ companion gate, not a replacement for the macro's compile-time diagnostics.
 |---|---|---|
 | `innodi_validate_dag_in_production` | error | `@DIContainer(validateDAG: false)` left in the codebase. Pair with the configuration-aware pattern in DAGValidation.md if you need a per-build switch. |
 | `innodi_no_lazy_typealias` | warning | `typealias Foo = InnoDI.Lazy<...>` (or `Provider<...>`). The macro detects only canonical identifiers, so a cross-file alias silently disables cycle escape. |
-| `innodi_disable_validation_in_workflow` | error | `INNODI_DISABLE_BUILD_VALIDATION=1` in a CI workflow file. The opt-out is for local iteration; CI must keep the gate live. |
 
 ## Adopting
 
@@ -31,6 +30,13 @@ patterns rather than AST queries. Two consequences worth knowing:
   pattern. Use `// swiftlint:disable:next` to suppress on a known-safe line.
 * If the macro signature changes (e.g. a new opt-out parameter), update the
   regex in the same PR that lands the macro change so the lint rule keeps up.
+
+## CI Workflow Guard
+
+SwiftLint does not lint workflow YAML files, so CI opt-out checks live outside
+this rules file. Run `Tools/check-ci-validation-opt-out.sh` in CI to reject
+`INNODI_DISABLE_BUILD_VALIDATION=1` (or truthy equivalents) in GitHub Actions,
+GitLab CI, or CircleCI configuration files.
 
 ## Related
 

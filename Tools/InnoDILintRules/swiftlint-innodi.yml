@@ -6,9 +6,11 @@
 #     - Tools/InnoDILintRules/swiftlint-innodi.yml
 # (when your SwiftLint version supports `included` configs).
 #
-# These rules enforce InnoDI invariants the macro plugin cannot diagnose
-# from a single declaration site. They complement the macro diagnostics
-# rather than replace them.
+# These rules enforce Swift-source invariants the macro plugin cannot
+# diagnose from a single declaration site. They complement the macro
+# diagnostics rather than replace them. CI workflow YAML checks live in
+# Tools/check-ci-validation-opt-out.sh because SwiftLint does not lint
+# workflow files.
 
 custom_rules:
   innodi_validate_dag_in_production:
@@ -41,17 +43,3 @@ custom_rules:
       disable cycle escape. Spell `Lazy<T>` or `InnoDI.Lazy<T>` at every
       factory parameter site.
     severity: warning
-
-  innodi_disable_validation_in_workflow:
-    name: "INNODI_DISABLE_BUILD_VALIDATION in CI"
-    regex: 'INNODI_DISABLE_BUILD_VALIDATION:\s*[''"]?(?:1|true|TRUE|yes|YES)'
-    included:
-      - .github/workflows/.*\.ya?ml
-      - .gitlab-ci\.yml
-      - .circleci/.*
-    message: |
-      The DAG validation build plugin is the gate that emits the
-      validation metrics artifact. CI workflows must not set
-      INNODI_DISABLE_BUILD_VALIDATION=1; opt out only in local
-      iteration loops. See InnoDI.docc/PluginOptOut.md.
-    severity: error

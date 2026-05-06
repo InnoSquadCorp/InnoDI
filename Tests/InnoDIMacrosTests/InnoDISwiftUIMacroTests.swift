@@ -630,6 +630,36 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("PreviewWithContainer diagnoses a trailing closure with multiple container parameters")
+    func previewWithContainerDiagnosesMultiParameterTrailingClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer()) { container, other in
+                container.dashboardRootView(other)
+            }
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("PreviewWithContainer diagnoses an argument closure with multiple container parameters")
+    func previewWithContainerDiagnosesMultiParameterArgumentClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            let preview = #PreviewWithContainer(AppContainer(), { container, other in
+                container.dashboardRootView(other)
+            })
+            """#,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.preview-with-container-missing-parameter")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("DIFeatureRoot ignores foreign qualified SubContainer attributes")
     func featureRootIgnoresForeignQualifiedSubContainer() {
         assertMacroExpansionInline(
