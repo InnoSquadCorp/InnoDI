@@ -301,7 +301,7 @@ internal func makeConcreteOptInDiagnostic(member: ProvideMemberModel) -> Diagnos
         Note(
             node: Syntax(member.attribute),
             message: SimpleNote(
-                "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                "If this dependency must remain a concrete type, opt in explicitly with concrete: true. The fixit below inserts the argument; protocol-typed storage stays the default so reviewers can spot a concrete swap in the diff.",
                 code: .provideConcreteOptInRequired,
                 suffix: "opt-in"
             )
