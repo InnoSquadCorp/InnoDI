@@ -43,7 +43,11 @@ echo "Canonical $CANONICAL: swift_fences=$canonical_fences h2_headers=$canonical
 drift_count=0
 for file in "${LOCALIZED[@]}"; do
     if [[ ! -f "$file" ]]; then
-        echo "::warning file=$file::missing localized README"
+        annotation="error"
+        if [[ "$STRICT" != "1" ]]; then
+            annotation="warning"
+        fi
+        echo "::$annotation file=$file::missing localized README"
         drift_count=$((drift_count + 1))
         continue
     fi

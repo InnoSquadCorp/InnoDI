@@ -9,9 +9,9 @@
 #   Tools/cold-build-benchmark.sh --target root [--config release]
 #   Tools/cold-build-benchmark.sh --target consumer --bindings 100
 #
-# Output: a single-line JSON object on stdout with the elapsed milliseconds,
-# the binary path, and a few environment markers. Exit non-zero if the build
-# fails. Designed to be parsed by CI artifact uploads.
+# Output: a single-line JSON object on stdout with the elapsed milliseconds
+# and a few environment markers. Exit non-zero if the build fails. Designed
+# to be parsed by CI artifact uploads.
 
 set -euo pipefail
 
