@@ -570,6 +570,7 @@ package enum ValidationCoordinator {
             let result: ValidationCommandResult
             let customInitStartTime = validationNow()
             let workspaceSnapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath)
+            let aliasReport = DeferredWrapperAliasBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitValidation = try CustomInitBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitFailure = customInitValidation.asCommandResult()
             let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
@@ -640,7 +641,7 @@ package enum ValidationCoordinator {
                     dagValidationMilliseconds: dagValidationMilliseconds
                 ),
                 reasonCodes: liveRunReasonCodes,
-                issues: issues
+                issues: issues + aliasReport.issues
             )
             try persistSharedRunRecord(sharedRunRecord, to: sharedRunRecordURL)
             try persistResult(result, to: resultURL)
