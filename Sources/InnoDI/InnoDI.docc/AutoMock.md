@@ -103,6 +103,33 @@ the macro plugin saw the attribute.
 The DiagnosticsGuide article lists every InnoDI diagnostic with the same
 codes and links back to the recovery action.
 
+## When InnoDI's mock isn't enough
+
+`@GenerateMock` deliberately covers only the protocol shapes that InnoDI can
+synthesize without leaving the call site ambiguous. When a test case lands on
+one of the unsupported requirements above — associated types, `subscript`,
+`inout`, `rethrows`, opaque returns, `static`/`class` members — the recommended
+path is to reach for an external mocking framework rather than to extend the
+generated shape inline.
+
+A few starting points that work well alongside InnoDI:
+
+* [swift-mocking](https://github.com/RougeWare/Swift-Mocking) and similar
+  protocol-witness or partial-mock packages are a good fit when the protocol
+  needs `static` requirements or associated-type binding.
+* Hand-written conforming structs/classes remain the lightest option for
+  small protocols; the macro is meant to remove repetitive boilerplate, not
+  to replace one-off conformances.
+* For rapidly evolving protocols still under design, prefer a hand-rolled mock
+  until the API stabilizes; once the shape settles, swapping in
+  `@GenerateMock` is mechanical.
+
+The InnoDI overrides builder accepts any conforming instance, so the choice
+of mock library is independent of the container surface. Keep external mocks
+in test targets only and pin the version separately from `InnoDI`; the
+generated and hand-written paths can coexist without affecting graph
+validation.
+
 ## Stability
 
 * `@GenerateMock` is an experimental opt-in API. The attribute is

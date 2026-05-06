@@ -57,6 +57,17 @@ graph artifact として調査できるようにしたい場合に InnoDI を選
 feature 内の局所的な runtime value は `swift-dependencies` や小さな factory
 に任せる構成も有効です。
 
+おすすめのレイヤリングは「生成は InnoDI、呼び出し単位の一時 override は
+`swift-dependencies`」という分離です。composition root で
+`@Dependency(\.date)` などの `DependencyKey` を解決し、その値を container の
+`.input` スロットへ渡します。テストは
+`withDependencies { $0.date = .constant(...) } operation:` で 1 つの呼び出し
+ツリーだけを差し替え、container を作り直したり validated graph を再検証する
+必要はありません。InnoDI の container レベル `Overrides` builder は偽の
+`APIClient` のようなアプリ全体の差し替えにそのまま使い、
+`swift-dependencies` は 1 operation の間だけ有効な override が欲しいときに
+取り出します。
+
 ## 要件
 
 - Swift tools version `6.2`
