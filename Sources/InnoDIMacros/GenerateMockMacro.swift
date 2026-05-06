@@ -151,6 +151,9 @@ private func renderFunctionMock(
     if hasAnyModifier(function.modifiers, named: ["static", "class"]) {
         return nil
     }
+    if hasUnsupportedThrowsClause(function.signature) {
+        return nil
+    }
     let isGeneric = function.genericParameterClause != nil
     if isGeneric {
         return renderGenericFunctionMock(function: function, forceQualifiedNames: isOverloaded)
@@ -168,16 +171,16 @@ private func renderTypedFunctionMock(
 
     let baseName = function.name.text
     let parameters = signature.parameterClause.parameters
-    let callParameters = renderableCallParameters(parameters)
-
-    let returnsVoid: Bool
-    if let returnClause = signature.returnClause {
-        returnsVoid = returnClause.type.trimmedDescription == "Void"
-    } else {
-        returnsVoid = true
+    guard let callParameters = renderableCallParameters(parameters) else {
+        return nil
     }
 
+    let returnsVoid = isVoidReturnType(signature.returnClause?.type.trimmedDescription)
+
     let returnTypeRendered = signature.returnClause?.type.trimmedDescription ?? "Void"
+    if !returnsVoid && isOpaqueType(returnTypeRendered) {
+        return nil
+    }
     let parametersRendered = parameters.map { $0.trimmedDescription }.joined(separator: ", ")
     let names = makeFunctionNames(
         baseName: baseName,
@@ -215,7 +218,7 @@ private func renderTypedFunctionMock(
                 "    var \(names.resultProperty): Result<\(returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \"\(baseName)\"))"
             )
         } else {
-            snippetLines.append("    var \(names.returnProperty): \(returnTypeRendered)?")
+            snippetLines.append("    var \(names.returnProperty): \(optionalStorageType(returnTypeRendered))")
         }
     } else if isThrowing {
         // Even a Void-returning throwing function needs an opt-in error
@@ -224,7 +227,7 @@ private func renderTypedFunctionMock(
     }
 
     let recordArgs = callParameters
-        .map { "\($0.name): \($0.name)" }
+        .map { "\($0.label): \($0.name)" }
         .joined(separator: ", ")
     let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
     snippetLines.append("    func \(baseName)(\(parametersRendered))\(effectSpecifiersJoined)\(returnFragment) {")
@@ -261,11 +264,12 @@ private func renderGenericFunctionMock(
 
     let baseName = function.name.text
     let parameters = signature.parameterClause.parameters
-    let callParameters = renderableCallParameters(parameters, eraseTypes: true)
+    guard let callParameters = renderableCallParameters(parameters, eraseTypes: true) else {
+        return nil
+    }
     let parametersRendered = parameters.map { $0.trimmedDescription }.joined(separator: ", ")
     let returnTypeRendered = signature.returnClause?.type.trimmedDescription ?? "Void"
-    let returnsVoid = signature.returnClause?.type.trimmedDescription == nil
-        || signature.returnClause?.type.trimmedDescription == "Void"
+    let returnsVoid = isVoidReturnType(signature.returnClause?.type.trimmedDescription)
     let names = makeFunctionNames(
         baseName: baseName,
         parameters: parameters,
@@ -301,7 +305,7 @@ private func renderGenericFunctionMock(
 
     let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
     snippetLines.append("    func \(baseName)\(genericParameterClause)(\(parametersRendered))\(effectSpecifiersJoined)\(returnFragment)\(genericWhereClause) {")
-    let recordArgs = callParameters.map { "\($0.name): \($0.name)" }.joined(separator: ", ")
+    let recordArgs = callParameters.map { "\($0.label): \($0.name)" }.joined(separator: ", ")
     snippetLines.append("        \(names.callsProperty).append(.init(\(recordArgs)))")
     if returnsVoid {
         snippetLines.append("        if let handler = \(names.handlerProperty) {")
@@ -350,19 +354,39 @@ private func renderVariableMock(variable: VariableDeclSyntax) -> String? {
 private func renderableCallParameters(
     _ parameters: FunctionParameterListSyntax,
     eraseTypes: Bool = false
-) -> [(name: String, type: String)] {
+) -> [(label: String, name: String, type: String)]? {
     var usedNames: [String: Int] = [:]
-    return parameters.enumerated().map { index, parameter in
+    var rendered: [(label: String, name: String, type: String)] = []
+    for (index, parameter) in parameters.enumerated() {
         let internalName = (parameter.secondName?.text ?? parameter.firstName.text)
         let baseFieldName = internalName == "_"
             ? "value\(index + 1)"
-            : internalName.safeLowerCamelIdentifier
+            : internalName.unescapedIdentifier.safeLowerCamelIdentifier
         let count = usedNames[baseFieldName, default: 0]
         usedNames[baseFieldName] = count + 1
-        let fieldName = count == 0 ? baseFieldName : "\(baseFieldName)\(count + 1)"
-        let typeText = eraseTypes ? "Any" : parameter.type.trimmedDescription
-        return (fieldName, typeText)
+        let unescapedFieldName = count == 0 ? baseFieldName : "\(baseFieldName)\(count + 1)"
+        guard let typeText = renderableCallRecordType(parameter.type.trimmedDescription, eraseTypes: eraseTypes) else {
+            return nil
+        }
+        rendered.append((unescapedFieldName, unescapedFieldName.escapedSwiftIdentifier, typeText))
     }
+    return rendered
+}
+
+private func renderableCallRecordType(_ typeText: String, eraseTypes: Bool) -> String? {
+    if typeText.hasPrefix("inout ") {
+        return nil
+    }
+    if eraseTypes {
+        return "Any"
+    }
+    if isOpaqueType(typeText) {
+        return nil
+    }
+
+    return typeText
+        .replacingOccurrences(of: "@escaping ", with: "")
+        .replacingOccurrences(of: "@autoclosure ", with: "")
 }
 
 private func makeFunctionNames(
@@ -408,6 +432,34 @@ private func hasAnyModifier(_ modifiers: DeclModifierListSyntax, named names: Se
     }
 }
 
+private func hasUnsupportedThrowsClause(_ signature: FunctionSignatureSyntax) -> Bool {
+    guard let throwsClause = signature.effectSpecifiers?.throwsClause else {
+        return false
+    }
+    return throwsClause.trimmedDescription != "throws"
+}
+
+private func isOpaqueType(_ typeText: String) -> Bool {
+    typeText == "some" || typeText.hasPrefix("some ") || typeText.contains(" some ")
+}
+
+private func isVoidReturnType(_ typeText: String?) -> Bool {
+    guard let typeText else {
+        return true
+    }
+    return typeText == "Void" || typeText == "()" || typeText == "(Void)"
+}
+
+private func optionalStorageType(_ typeText: String) -> String {
+    if typeText.hasPrefix("any ")
+        || typeText.hasSuffix("?")
+        || typeText.contains("->")
+        || typeText.contains("&") {
+        return "(\(typeText))?"
+    }
+    return "\(typeText)?"
+}
+
 private func unsupportedMemberName(_ decl: DeclSyntax) -> String {
     if let associatedType = decl.as(AssociatedTypeDeclSyntax.self) {
         return associatedType.name.text
@@ -419,6 +471,24 @@ private func unsupportedMemberName(_ decl: DeclSyntax) -> String {
 }
 
 private extension String {
+    var unescapedIdentifier: String {
+        var value = self
+        if value.first == "`" {
+            value.removeFirst()
+        }
+        if value.last == "`" {
+            value.removeLast()
+        }
+        return value
+    }
+
+    var escapedSwiftIdentifier: String {
+        if swiftKeywords.contains(self) {
+            return "`\(self)`"
+        }
+        return self
+    }
+
     var capitalizedFirst: String {
         guard let first = first else { return self }
         return String(first).uppercased() + dropFirst()
@@ -453,3 +523,60 @@ private extension String {
         return words
     }
 }
+
+private let swiftKeywords: Set<String> = [
+    "associatedtype",
+    "class",
+    "deinit",
+    "enum",
+    "extension",
+    "fileprivate",
+    "func",
+    "import",
+    "init",
+    "inout",
+    "internal",
+    "let",
+    "open",
+    "operator",
+    "private",
+    "precedencegroup",
+    "protocol",
+    "public",
+    "rethrows",
+    "static",
+    "struct",
+    "subscript",
+    "typealias",
+    "var",
+    "break",
+    "case",
+    "catch",
+    "continue",
+    "default",
+    "defer",
+    "do",
+    "else",
+    "fallthrough",
+    "for",
+    "guard",
+    "if",
+    "in",
+    "repeat",
+    "return",
+    "throw",
+    "switch",
+    "where",
+    "while",
+    "as",
+    "Any",
+    "false",
+    "is",
+    "nil",
+    "self",
+    "Self",
+    "super",
+    "throws",
+    "true",
+    "try",
+]

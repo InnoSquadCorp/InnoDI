@@ -164,9 +164,10 @@ Most frequently-hit codes:
   declares no members. Confirms the macro plugin saw the attribute and
   produced the empty mock skeleton.
 - `mock.unsupported-member` — one or more protocol requirements prevent
-  synthesis (static/class requirements, subscripts, or associated types).
-  The diagnostic message lists up to five member names; implement those
-  mocks manually until the next RFC 0001 stage lands.
+  synthesis (static/class requirements, subscripts, associated types,
+  `inout` parameters, `rethrows` or typed `throws`, or opaque `some`
+  return types). The diagnostic message lists up to five member names;
+  implement those mocks manually until the next RFC 0001 stage lands.
 
 See <doc:AutoMock> for the supported member shapes and the generated
 storage layout.

@@ -42,6 +42,24 @@ InnoDI no ofrece intencionalmente un property wrapper `@Injected` ni una API de
 registro dinamico. El tradeoff es usar initializers generados explicitos,
 wiring revisable y validacion mas temprana.
 
+## Cuando elegir InnoDI
+
+Elige InnoDI cuando el wiring de dependencias debe ser visible en code review,
+validarse antes del runtime y poder inspeccionarse como un artefacto de grafo.
+
+| Si tu prioridad es... | Prefiere... | Por que |
+| --- | --- | --- |
+| Validacion compile/build-time de un dependency graph de app | InnoDI, [SafeDI](https://github.com/dfed/SafeDI) o [Needle](https://github.com/uber/needle) | InnoDI mantiene la superficie del contenedor en Swift expandido por macros y agrega diagnosticos locales, checks de build-support y un CLI DAG. |
+| Runtime registration, late binding o composicion tipo plugin | [Swinject](https://github.com/Swinject/Swinject) o [Factory](https://github.com/hmlongco/Factory) | Los contenedores runtime facilitan cambiar registros dinamicamente. InnoDI favorece initializers generados explicitos y validacion temprana. |
+| SwiftUI previews y scoped test overrides con poca ceremonia | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) o InnoDI | InnoDI encaja cuando esos overrides deben estar encima de un app container validado y helpers SwiftUI generados. |
+| Hierarchical feature ownership y visibilidad del grafo | InnoDI, [Needle](https://github.com/uber/needle) o [SafeDI](https://github.com/dfed/SafeDI) | InnoDI modela child containers poseidos por el parent con `@SubContainer` y renderiza ownership edges en el CLI del grafo. |
+| Menor costo de adopcion en una app existente | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) o adopcion incremental de InnoDI | InnoDI exige definir contenedores y aceptar macro/build validation; ese costo vale mas cuando necesitas wiring revisable, overrides generados y checks de grafo. |
+
+En la practica, InnoDI tambien puede coexistir con herramientas runtime: usa
+InnoDI para el grafo validado de la aplicacion y `swift-dependencies` o
+factories pequenas dentro de feature logic cuando los valores runtime
+locales sean una mejor abstraccion.
+
 ## Requisitos
 
 - Swift tools version `6.2`
@@ -74,6 +92,9 @@ directorio local:
 swift build --scratch-path /tmp/innodi-cache
 ```
 
+El plugin no crea estado de lock/cache bajo `.build/innodi-dag-validation` en
+el package root; mover el scratch path tambien mueve el validation state.
+
 Los operadores pueden omitir el fail-fast de unsafe filesystem con
 `INNODI_ALLOW_UNSAFE_LOCK=1`, pero InnoDI sigue emitiendo una advertencia
 auditable y el riesgo queda en ese build environment. Para diagnosticos,
@@ -96,13 +117,22 @@ Luego agrega los productos que necesites:
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+Agrega `InnoDISwiftUI` solo si tambien necesitas los helpers de SwiftUI:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-Importa solo `InnoDI` si no usas los helpers de SwiftUI.
 
 Activa el validador DAG en build-time agregando el plugin a cada target que
 declara contenedores InnoDI:
@@ -165,9 +195,10 @@ Empieza por estos documentos en este orden:
 1. [Overview](Sources/InnoDI/InnoDI.docc/es.lproj/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/es.lproj/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/es.lproj/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/es.lproj/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/es.lproj/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## API principal
 
@@ -271,6 +302,20 @@ quedar fuera de la deteccion de ciclos.
 
 Usa `Provider<T>` cuando una factory necesita reingresar a una dependencia
 `.transient` en cada llamada.
+
+```swift
+@Provide(.shared, factory: { (service: Lazy<Service>) in
+    Consumer(service: service)
+}, concrete: true)
+var consumer: Consumer
+```
+
+```swift
+@Provide(.shared, factory: { (requests: Provider<Request>) in
+    RequestLogger(requests: requests)
+}, concrete: true)
+var logger: RequestLogger
+```
 
 Ambos wrappers son intencionalmente non-`Sendable`.
 

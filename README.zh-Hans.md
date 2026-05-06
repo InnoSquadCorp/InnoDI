@@ -37,6 +37,23 @@ InnoDI 不是运行时状态机。运行时状态应放在你的应用层或 `In
 InnoDI 有意不提供 `@Injected` property wrapper 或 dynamic registration API。
 它选择的取舍是显式生成 initializer、可审查的 wiring，以及更早的校验。
 
+## 何时选择 InnoDI
+
+当依赖 wiring 需要在 code review 中清晰可见、在 runtime 之前完成校验，并能
+作为 graph artifact 被检查时，选择 InnoDI。
+
+| 优先目标 | 可选方案 | 原因 |
+| --- | --- | --- |
+| app dependency graph 的 compile/build-time validation | InnoDI、[SafeDI](https://github.com/dfed/SafeDI) 或 [Needle](https://github.com/uber/needle) | InnoDI 保留 macro-expanded Swift container surface，并提供 macro diagnostics、build-support checks 和 DAG CLI。 |
+| runtime registration、late binding 或 plugin-like composition | [Swinject](https://github.com/Swinject/Swinject) 或 [Factory](https://github.com/hmlongco/Factory) | runtime container 更适合动态替换注册。InnoDI 刻意优先选择显式 initializer 和早期校验。 |
+| SwiftUI previews 与 scoped test overrides | [Factory](https://github.com/hmlongco/Factory)、[swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 或 InnoDI | 当这些 override 应建立在 validated app container 与 generated SwiftUI root helpers 之上时，InnoDI 更合适。 |
+| hierarchical feature ownership 与 graph visibility | InnoDI、[Needle](https://github.com/uber/needle) 或 [SafeDI](https://github.com/dfed/SafeDI) | InnoDI 使用 `@SubContainer` 建模 parent-owned child containers，并在 graph CLI 中渲染 ownership edges。 |
+| 既有 app 的最低导入成本 | [Factory](https://github.com/hmlongco/Factory)、[swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 或渐进式 InnoDI adoption | InnoDI 需要定义 container 并接受 macro/build validation；当你需要可审查 wiring、generated overrides 和 graph checks 时，这个成本才值得。 |
+
+实践中 InnoDI 也可以与 runtime tools 共存：用 InnoDI 校验 application graph，
+在 feature logic 内使用 `swift-dependencies` 或小型 factories 处理局部
+runtime values。
+
 ## 要求
 
 - Swift tools version `6.2`
@@ -67,6 +84,9 @@ FUSE 类文件系统默认会被拒绝，因为在 lock atomicity 不可靠时�
 swift build --scratch-path /tmp/innodi-cache
 ```
 
+插件不会在 package root 的 `.build/innodi-dag-validation` 下创建 lock/cache
+state；移动 scratch path 也会移动 validation state。
+
 运维人员可以用 `INNODI_ALLOW_UNSAFE_LOCK=1` 绕过 unsafe-filesystem
 fail-fast，但 InnoDI 仍会输出可审计的警告，风险仍由该 build environment
 承担。诊断、恢复步骤和完整文件系统表见
@@ -88,13 +108,22 @@ dependencies: [
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+只有需要 SwiftUI helper 时才添加 `InnoDISwiftUI`：
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-如果不用 SwiftUI helper，只需导入 `InnoDI`。
 
 把 build-time DAG validator 插件加到每个声明 InnoDI container 的 target：
 
@@ -141,14 +170,22 @@ _ = container.apiClient
 
 当名称或构造逻辑无法直接匹配 `Type.self` 加 `with:` 时，请使用 factory closure。
 
+```swift
+@Provide(.shared, factory: { (baseURL: String) in
+    APIClient(baseURL: baseURL)
+})
+var apiClient: any APIClientProtocol
+```
+
 ## 建议阅读顺序
 
 1. [Overview](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## 核心 API
 
@@ -175,6 +212,17 @@ scaffolding。
 | `mainActor` | `false` | 给生成的容器 API 加上 `@MainActor` 隔离，适合 UI 根容器。 |
 
 ### `@Provide` 与作用域
+
+```swift
+@Provide(
+    _ scope: DIScope = .shared,
+    _ type: Any.Type? = nil,
+    with dependencies: [AnyKeyPath] = [],
+    factory: Any? = nil,
+    asyncFactory: Any? = nil,
+    concrete: Bool = false
+)
+```
 
 | Scope | 含义 | 构造规则 |
 |---|---|---|
@@ -204,6 +252,16 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 }
 ```
 
+也可以把 override 限定到单次 operation：
+
+```swift
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.apiClient.fetch()
+}
+```
+
 只有 `.input` 的容器也会生成空 builder。若子容器只有 input，`<name>Overrides`
 closure 依然可以编译，并作为 no-op 运行。
 
@@ -211,6 +269,20 @@ closure 依然可以编译，并作为 no-op 运行。
 
 - `Lazy<T>` 用于把依赖边变成 soft edge，从而跳出 cycle detection。
 - `Provider<T>` 用于每次调用时重新进入 `.transient` 依赖。
+
+```swift
+@Provide(.shared, factory: { (service: Lazy<Service>) in
+    Consumer(service: service)
+}, concrete: true)
+var consumer: Consumer
+```
+
+```swift
+@Provide(.shared, factory: { (requests: Provider<Request>) in
+    RequestLogger(requests: requests)
+}, concrete: true)
+var logger: RequestLogger
+```
 
 这两个 wrapper 都刻意保持为 non-`Sendable`。
 
