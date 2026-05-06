@@ -92,8 +92,8 @@ let package = Package(
             ],
             swiftSettings: innoDISharedSwiftSettings
         ),
-        .executableTarget(
-            name: "InnoDI-DependencyGraph",
+        .target(
+            name: "InnoDIDependencyGraphCLI",
             dependencies: [
                 "InnoDICore",
                 "InnoDIDependencyGraphCore",
@@ -106,6 +106,13 @@ let package = Package(
                 "InnoDIBuildSupport",
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
+            ],
+            swiftSettings: innoDISharedSwiftSettings
+        ),
+        .executableTarget(
+            name: "InnoDI-DependencyGraph",
+            dependencies: [
+                "InnoDIDependencyGraphCLI"
             ],
             swiftSettings: innoDISharedSwiftSettings
         ),
@@ -159,6 +166,7 @@ let package = Package(
             name: "InnoDIDependencyGraphCLITests",
             dependencies: [
                 "InnoDI-DependencyGraph",
+                "InnoDIDependencyGraphCLI",
                 "InnoDIDependencyGraphCore",
                 "InnoDIBuildSupport",
                 "InnoDITestSupport",

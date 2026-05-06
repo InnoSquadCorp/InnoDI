@@ -190,10 +190,8 @@ struct AppContainer {
 
     @SubContainer(
         scope: .shared,
-        withNames: ["username", "greetingService", "activityService"]
+        with: [\AppContainer.username, \AppContainer.greetingService, \AppContainer.activityService]
     )
-    @DIFeatureRoot(DashboardFeatureRootView.self)
-    @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
     var dashboard: DashboardFeatureContainer
 }
 
@@ -354,6 +352,16 @@ struct DashboardShellView: View {
             DashboardFeatureRootView(container: container)
         }
         .background(.background)
+    }
+}
+
+extension AppContainer {
+    func dashboardRootView() -> DashboardFeatureRootView {
+        DashboardFeatureRootView(container: dashboard)
+    }
+
+    func dashboardShellRootView() -> DashboardShellView {
+        DashboardShellView(container: dashboard)
     }
 }
 

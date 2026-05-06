@@ -1,0 +1,58 @@
+name: Examples
+
+on:
+  pull_request:
+    paths:
+      - 'Examples/**'
+      - 'Sources/**'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - '.github/workflows/examples.yml'
+  schedule:
+    # Weekly Monday 06:00 UTC catches drift between Examples and Sources
+    # even when no PR touches the Examples paths directly.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  sample-app:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        uses: ./.github/actions/select-xcode
+      - name: Build SampleApp
+        run: |
+          cd Examples/SampleApp
+          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - name: Run SampleApp
+        run: |
+          cd Examples/SampleApp
+          swift run SampleApp
+
+  swiftui-example:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        uses: ./.github/actions/select-xcode
+      - name: Build and Test SwiftUIExample
+        run: |
+          cd Examples/SwiftUIExample
+          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
+  preview-injection-example:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        uses: ./.github/actions/select-xcode
+      - name: Build and Test PreviewInjectionExample
+        run: |
+          cd Examples/PreviewInjectionExample
+          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors

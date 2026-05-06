@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import InnoDI_DependencyGraph
+@testable import InnoDIDependencyGraphCLI
 
 @Suite("Graphviz executable resolution")
 struct GraphvizResolutionTests {

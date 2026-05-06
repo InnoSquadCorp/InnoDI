@@ -8,6 +8,7 @@ InnoDI — это макро-ориентированный DI-фреймвор�
 
 ## Минимальный полезный пример
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -16,7 +17,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -39,6 +40,23 @@ InnoDI не является runtime state machine. Состояние врем�
 InnoDI намеренно не предоставляет property wrapper `@Injected` или API
 dynamic registration. Его компромисс — явные generated initializers,
 reviewable wiring и более ранняя validation.
+
+## Когда выбирать InnoDI
+
+Выбирайте InnoDI, когда dependency wiring должен быть виден на code review,
+проверяться до runtime и оставаться доступным для анализа как graph artifact.
+
+| Если приоритет... | Предпочтите... | Почему |
+| --- | --- | --- |
+| Compile/build-time validation графа зависимостей приложения | InnoDI, [SafeDI](https://github.com/dfed/SafeDI) или [Needle](https://github.com/uber/needle) | InnoDI сохраняет container surface в macro-expanded Swift и добавляет локальные macro diagnostics, build-support checks и DAG CLI. |
+| Runtime registration, late binding или plugin-like composition | [Swinject](https://github.com/Swinject/Swinject) или [Factory](https://github.com/hmlongco/Factory) | Runtime containers удобны для динамической замены registrations. InnoDI намеренно выбирает explicit generated initializers и early validation. |
+| SwiftUI previews и scoped test overrides | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) или InnoDI | InnoDI лучше подходит, когда overrides должны стоять поверх validated app container и generated SwiftUI root helpers. |
+| Hierarchical feature ownership и graph visibility | InnoDI, [Needle](https://github.com/uber/needle) или [SafeDI](https://github.com/dfed/SafeDI) | InnoDI моделирует parent-owned child containers через `@SubContainer` и показывает ownership edges в graph CLI. |
+| Минимальная стоимость внедрения в существующую app | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) или incremental InnoDI adoption | InnoDI требует определить containers и принять macro/build validation; это окупается, когда нужны reviewable wiring, generated overrides и graph checks. |
+
+На практике InnoDI может сосуществовать с runtime tools: используйте InnoDI
+для validated application graph, а `swift-dependencies` или небольшие
+factories внутри feature logic — для локальных runtime values.
 
 ## Требования
 
@@ -72,6 +90,10 @@ derived-data location:
 swift build --scratch-path /tmp/innodi-cache
 ```
 
+Plugin не создает lock/cache state в package root
+`.build/innodi-dag-validation`; перенос scratch path переносит и validation
+state.
+
 Операторы могут обойти unsafe-filesystem fail-fast через
 `INNODI_ALLOW_UNSAFE_LOCK=1`, но InnoDI все равно выводит audit warning, а
 риск остается на этом build environment. Диагностика, шаги восстановления и
@@ -94,13 +116,22 @@ dependencies: [
 .target(
     name: "YourApp",
     dependencies: [
+        "InnoDI"
+    ]
+)
+```
+
+Добавляйте `InnoDISwiftUI` только если нужны SwiftUI helpers:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: [
         "InnoDI",
         "InnoDISwiftUI"
     ]
 )
 ```
-
-Если SwiftUI helper не нужен, достаточно `InnoDI`.
 
 Включите build-time DAG validator, добавив plugin в каждый target, где
 объявляются InnoDI containers:
@@ -119,7 +150,9 @@ dependencies: [
 
 ## Быстрый старт
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -136,12 +169,22 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
+```
+
+Используйте factory closure, когда имена или логика создания не совпадают с
+`Type.self` плюс `with:`.
+
+```swift
+@Provide(.shared, factory: { (baseURL: String) in
+    APIClient(baseURL: baseURL)
+})
+var apiClient: any APIClientProtocol
 ```
 
 ## Что читать дальше
@@ -149,9 +192,10 @@ let client = container.apiClient
 1. [Overview](Sources/InnoDI/InnoDI.docc/ru.lproj/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/ru.lproj/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ru.lproj/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ru.lproj/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ru.lproj/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## Основной API
 
@@ -167,6 +211,10 @@ let client = container.apiClient
 Все контейнеры генерируют overrides scaffolding, если пользователь сам не
 объявил вложенный тип `Overrides`.
 
+```swift
+@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+```
+
 | Параметр | По умолчанию | Значение |
 |---|---|---|
 | `root` | `false` | Флаг точки входа только для рендера графа. Если есть хотя бы один root, вывод Mermaid, DOT и ASCII сужается до узлов и ребер, достижимых от root. |
@@ -175,11 +223,30 @@ let client = container.apiClient
 
 ### `@Provide` и области действия
 
+```swift
+@Provide(
+    _ scope: DIScope = .shared,
+    _ type: Any.Type? = nil,
+    with dependencies: [AnyKeyPath] = [],
+    factory: Any? = nil,
+    asyncFactory: Any? = nil,
+    concrete: Bool = false
+)
+```
+
 | Scope | Значение | Правила создания |
 |---|---|---|
 | `.input` | Внешняя зависимость, передаваемая при инициализации контейнера | Без `factory` и `asyncFactory` |
 | `.shared` | Создается один раз на экземпляр контейнера и переиспользуется | Нужны `factory`, `asyncFactory` или `Type.self` плюс `with:` |
 | `.transient` | Создается заново при каждом доступе | Нужны `factory`, `asyncFactory` или `Type.self` плюс `with:` |
+
+Дополнительные правила:
+
+- `factory` и `asyncFactory` являются взаимоисключающими.
+- `asyncFactory` должен быть `async` closure.
+- Для concrete `.shared` и `.transient` storage требуется `concrete: true`.
+- Разрешение имен для параметров factory и `with:` wiring строго выполняется
+  по именам members.
 
 ## Модель валидации
 
@@ -205,6 +272,16 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 }
 ```
 
+Или ограничьте override одной operation:
+
+```swift
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.apiClient.fetch()
+}
+```
+
 Контейнеры только с `.input` тоже получают пустой builder. Если дочерний
 контейнер input-only, closure `<name>Overrides` все равно компилируется и
 выполняется как no-op.
@@ -214,6 +291,20 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 - `Lazy<T>` создает soft edge и используется как выход из cycle detection.
 - `Provider<T>` повторно входит в `.transient` зависимость при каждом вызове.
 
+```swift
+@Provide(.shared, factory: { (service: Lazy<Service>) in
+    Consumer(service: service)
+}, concrete: true)
+var consumer: Consumer
+```
+
+```swift
+@Provide(.shared, factory: { (requests: Provider<Request>) in
+    RequestLogger(requests: requests)
+}, concrete: true)
+var logger: RequestLogger
+```
+
 Оба wrapper намеренно non-`Sendable`.
 
 ## Вложенные контейнеры и иерархия
@@ -221,7 +312,7 @@ let container = AppContainer(baseURL: "https://test.example.com") { overrides in
 `@SubContainer` моделирует дочерние контейнеры, которыми владеет родитель:
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -232,14 +323,13 @@ var feature: FeatureContainer
   родителя 0 или 1 кандидат `@Provide`. Если кандидатов несколько, добавьте
   явное wiring вместо того, чтобы полагаться на ошибки сгенерированного
   Swift initializer.
-- `with:` или `withNames:` пробрасывает явное одноименное подмножество или
-  порядок. Обе формы должны быть литеральными массивами, которые может
-  прочитать макрос; runtime-переменные и вычисляемые элементы не
+- `with:` пробрасывает явное одноименное подмножество или порядок. Это должен
+  быть литеральный массив key path, который может прочитать макрос;
+  runtime-переменные и вычисляемые элементы не
   поддерживаются.
-- `with: []` или `withNames: []` — явно пустое подмножество, вызывает
-  `Child()`.
+- `with: []` — явно пустое подмножество, вызывает `Child()`.
 - `bindings:` remap-ит child input label на другое имя member родителя.
-- Выбирайте ровно одну wiring form: `with:`, `withNames:` или `bindings:`.
+- Выбирайте ровно одну wiring form: `with:` или `bindings:`.
 - `Overrides` родителя получает и слот полной замены (`feature`), и
   child-override closure (`featureOverrides`).
 

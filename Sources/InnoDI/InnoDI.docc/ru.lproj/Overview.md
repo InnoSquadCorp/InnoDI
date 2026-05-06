@@ -23,7 +23,7 @@ InnoDI превращает обычные Swift-типы в DI-контейне
 - многоуровневый lock с `O_CREAT | O_EXCL` и `flock` на поддерживаемых файловых системах
 - build-time diagnostics вместо macro-synthesized `fatalError` accessors
 - PR/release gates, которые проверяют strict concurrency и macro-source `fatalError` allow-list
-- `@SubContainer` key-path guidance для `withNames:` без stacked peer macros
+- `@SubContainer` использует только `with:` для same-name wiring; escape hatch `withNames:` удален
 
 ## Topics
 

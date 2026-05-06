@@ -199,10 +199,10 @@ internal func resolvedSubContainerParentNames(
     switch member.sameNameWiring {
     case let .parsed(_, dependencies):
         return dependencies
-    case .invalid, .bothSpecified:
-        // The validator emits the conflict / invalid diagnostic; fall back to
-        // an empty subset so the generator does not synthesize against a
-        // half-known wiring.
+    case .invalid:
+        // The validator emits the invalid diagnostic; fall back to an empty
+        // subset so the generator does not synthesize against half-known
+        // wiring.
         return []
     case .omitted:
         return autoWireParentMemberNames

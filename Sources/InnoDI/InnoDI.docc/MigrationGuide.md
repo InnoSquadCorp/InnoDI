@@ -14,46 +14,90 @@ changes a consumer must make**.
 | 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read `RELEASING.md` sections instead of legacy notes. |
 | 3.x → 4.0 | Public-contract consolidation | Adopt the new `withNames:`/`with:`/`bindings:` matrix on `@SubContainer`. Stop importing `_LazyCell`. Rename any container member starting with one of the reserved `_storage_` / `_override_sub_` / `_innoDISubBuild_` prefixes. |
 | 4.0 → 4.1 | DX hardening | No `@SubContainer(... withNames:)` migration is required. Continue using `withNames:` in stacked peer-macro contexts and prefer `with:` for new single-macro sites where Swift's type-checker accepts key paths. Update parsers of the lock-timeout stderr block to read structured fields. |
-| 4.x → 5.0 (planned) | `@GenerateMock` only | RFC 0001 lands as planned. The `withNames:` removal originally planned for 5.0 is **deferred** — see RFC 0002. |
+| 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
+| 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
+| 4.x → 5.0 (planned) | `@GenerateMock` GA | RFC 0001 promotes to stable; the generated names freeze as part of the 5.0 release contract. RFC 0002 has already been applied by the 4.2 wiring simplification. |
 
 The rest of this article expands each row in the order users
-historically need them: 4.0 → 4.1 first (most consumers), then
-the upcoming 4.2 / 5.0 surface, then the older 1.x → 4.0 hops.
+historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
+→ 4.1 operational hardening, then the upcoming 5.0 surface and older hops.
 
 ---
 
-## 4.0 → 4.1
+## Internal v1-v3 adopters moving to 4.x
 
-### `@SubContainer(... withNames:)` — no required migration
+Teams that adopted early InnoDI builds inside an InnoSquad or Banksalad-style
+monorepo should treat 4.x as a validation and public-contract migration, not
+only a package-version bump.
+
+Recommended order:
+
+1. Add the 4.x package dependency and build one target without the DAG plugin.
+2. Fix macro diagnostics first: reserved generated prefixes, missing factories,
+   concrete opt-ins, and custom `init` declarations inside container types.
+3. Migrate nested container wiring to `with:` or `bindings:` before enabling the
+   hierarchy validator.
+4. Enable `InnoDIDAGValidationPlugin` on the target and move `--scratch-path`
+   to a local disk if derived data lives on a shared volume.
+5. Add `Tools/check-docs-code-blocks.sh` and strict-concurrency tests to the
+   repo gate so local examples and internal tutorials do not drift.
+
+Do not migrate by wrapping InnoDI in a runtime service locator. That preserves
+old call sites but removes the reviewability and graph validation that make the
+4.x line worth adopting. See <doc:AntiPatterns> for boundary examples.
+
+---
+
+## 4.1 → 4.2
+
+### `@SubContainer(... withNames:)` removed
 
 ```swift
-// Supported escape hatch, especially for stacked peer-macro sites
+// Before
 @SubContainer(scope: .shared, withNames: ["config", "apiClient"])
 var feature: FeatureContainer
 
-// Preferred for new single-macro sites where key paths type-check
+// After
 @SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
-The two forms parse to the same internal representation, so the
-expansion and runtime behavior are identical. `with:` gives you
-key-path autocompletion and rename safety in IDE refactors, so use
-it for new non-stacked sites when Swift accepts the key-path form.
+`withNames:` is no longer present in the public `@SubContainer` signature,
+the macro parser, or build-support hierarchy validation. Most sites should
+move directly to `with:` because it gives key-path autocompletion and rename
+safety in IDE refactors.
 
-#### `withNames:` deferral note
+If a property previously stacked `@SubContainer` with another peer macro and
+used `withNames:` to avoid Swift's key-path circular reference limitation,
+split that helper generation instead of keeping the string escape hatch. For
+example, keep `@SubContainer(scope:with:)` on the container member and add a
+small extension method that constructs the root view from the generated child
+container.
 
-If your `@SubContainer` is **stacked with another peer macro on
-the same property** (`@DIFeatureRoot`, `@DIEnvironmentBridge`, …)
-and the Swift compiler reports
-`circular reference expanding peer macros`, leave that site on
-`withNames:`. RFC 0002 is currently in `Deferred` status because
-no key-path spelling currently survives this combination. The
-dedicated informational diagnostic was also disabled after real
-macro-client builds exposed Swift compiler-plugin JSON decoding
-internal errors for top-level remark diagnostics. Documentation
-continues to recommend `with:` where it works, but builds should
-not emit non-essential diagnostics for supported syntax.
+`bindings:` remains the explicit child-label to parent-member remapping form,
+and `with: []` remains the explicit empty same-name subset that emits
+`Child()`.
+
+### Validation plugin state directory
+
+The DAG validation build plugin now stores its lock/cache state under
+SwiftPM's `pluginWorkDirectoryURL` instead of `<package>/.build`. This keeps
+state off unsafe package-root filesystems when callers move the SwiftPM
+scratch path with `swift build --scratch-path /tmp/innodi-cache`.
+
+For lock diagnostics, pass the scratch/plugin state directory you want to
+inspect to `swift run InnoDI-DependencyGraph --diagnose-lock <path>`.
+
+### Documentation snippet gate
+
+Release and PR gates now run `Tools/check-docs-code-blocks.sh`. Only Swift
+fenced blocks immediately preceded by `<!-- innodi:compile -->` are compiled,
+so illustrative snippets stay unmarked while contract snippets fail CI when
+they drift.
+
+---
+
+## 4.0 → 4.1
 
 ### Lock-timeout stderr format change
 
@@ -126,17 +170,16 @@ Two additions that you don't have to use, but might want to:
 ## 4.x → 5.0 (planned)
 
 5.0 is the first major release that takes additive RFCs through
-to GA. The originally-paired removal RFC is now deferred.
+to GA. The originally-paired wiring simplification has already
+landed before 5.0.
 
 | RFC | What | Effect on consumers |
 |---|---|---|
 | [0001 — `@GenerateMock`](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0001-macro-mock-generation.md) | New macro | Additive. No migration required. Adoption optional. |
-| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Originally: remove `withNames:` | **Deferred**. The upstream Swift compiler currently rejects the key-path-only form in stacked peer-macro contexts; `withNames:` stays in 5.0 so consumers retain a working spelling. Documentation recommends `with:` for the common single-peer-macro case where the compiler accepts key paths, but the macro does not emit a migration diagnostic for supported `withNames:` syntax. |
+| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Remove `withNames:` | Already applied before 5.0. Consumers should be on `with:` or `bindings:` only. |
 
-If your `@SubContainer` sites are **not** stacked with another
-peer macro, 5.0 is otherwise a no-op for SubContainer wiring —
-use `with:` for new code where key paths type-check, but existing
-`withNames:` sites do not need a release-blocking migration.
+If your project already builds without `withNames:`, 5.0 is otherwise a
+no-op for SubContainer wiring.
 
 ---
 
@@ -145,8 +188,9 @@ use `with:` for new code where key paths type-check, but existing
 Covered in detail in [`RELEASING.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md).
 The high-impact items:
 
-- New `@SubContainer` wiring matrix: `with:` / `withNames:` /
-  `bindings:` plus the implicit form. Pick exactly one
+- New `@SubContainer` wiring matrix at the time: `with:` / `withNames:` /
+  `bindings:` plus the implicit form. Current releases accept `with:` /
+  `bindings:` only. Pick exactly one
   spelling per member (the validator now diagnoses conflicts).
 - `Lazy<T>` and `Provider<T>` are intentionally non-`Sendable`
   deferred handles that must stay on the container's original

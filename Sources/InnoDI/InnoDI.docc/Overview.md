@@ -31,14 +31,26 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - in-process DAG validation from the build coordinator
 - PR and release gates that both enforce strict concurrency and the
   macro-source `fatalError` allow-list
-- `@SubContainer` key-path guidance for the non-stacked `withNames:` case
+- compiled documentation snippet checks in CI
+- `@SubContainer` same-name wiring through `with:` only; the string-based
+  `withNames:` escape hatch has been removed
 
 ## Topics
+
+### Tutorials
+
+- <doc:GettingStarted>
+- <doc:Tutorial-01-Hello>
+- <doc:Tutorial-02-Inputs>
+- <doc:Tutorial-03-Wiring>
+- <doc:Tutorial-04-Concrete>
+- <doc:Tutorial-05-SubContainer>
 
 ### Start Here
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
+- <doc:AntiPatterns>
 - <doc:IntegrationGuide>
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
@@ -46,6 +58,8 @@ visibility, deterministic macro expansion, and build-time graph validation.
 ### Operations
 
 - <doc:lock-safety>
+- <doc:DAGValidation>
+- <doc:PluginOptOut>
 - <doc:MigrationGuide>
 
 ### Container API
@@ -54,6 +68,14 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:Provide>
 - ``DIComponent()``
 - ``DIHierarchyRoot()``
+
+### Experimental
+
+- <doc:AutoMock>
+
+### SwiftUI Preview Helper
+
+- <doc:SwiftUIPreviewHelper>
 
 ### Symbols
 

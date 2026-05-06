@@ -43,6 +43,17 @@ jobs:
         # allow-listed.
         run: Tools/check-no-fatalerror-in-macros.sh
 
+      - name: Validate CI keeps build validation enabled
+        run: Tools/check-ci-validation-opt-out.sh
+
+      - name: Validate compiled documentation snippets
+        run: Tools/check-docs-code-blocks.sh
+
+      - name: Validate localized README structural sync
+        # Release tags must keep localized READMEs structurally aligned with
+        # the English canonical README.
+        run: Tools/check-localized-readme-sync.sh
+
       - name: Test SwiftUI Example
         run: |
           cd Examples/SwiftUIExample

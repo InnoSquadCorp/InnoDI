@@ -91,26 +91,61 @@ struct TransientFeatureRootView: View {
     }
 }
 
+final class MutableUsername: @unchecked Sendable {
+    var value: String
+
+    init(_ value: String) {
+        self.value = value
+    }
+}
+
+@DIContainer
+struct MutableTransientFeatureContainer {
+    @Provide(.input) var username: MutableUsername
+}
+
+@DIContainer
+struct MutableParentContainer {
+    @Provide(.input) var username: MutableUsername
+
+    @SubContainer(
+        scope: .transient,
+        with: [\MutableParentContainer.username]
+    )
+    var transientFeature: MutableTransientFeatureContainer
+}
+
 @DIContainer
 struct ParentContainer {
     @Provide(.input) var username: String
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
 
-    // `sharedFeature` and `transientFeature` intentionally retain
-    // explicit `withNames:` wiring because each property stacks
-    // `@SubContainer` with `@DIFeatureRoot`. These are the documented
-    // peer-macro escape-hatch cases from RFC 0002; until the compiler
-    // accepts the key-path form in this stacked context, Phase 3.B /
-    // 4.2.0 must not auto-migrate either fixture to `with:`.
-    @SubContainer(scope: .shared, withNames: ["username", "greetingService", "activityService"])
-    @DIFeatureRoot(SharedFeatureRootView.self)
-    @DIFeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")
+    @SubContainer(
+        scope: .shared,
+        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService]
+    )
     var sharedFeature: SharedFeatureContainer
 
-    @SubContainer(scope: .transient, withNames: ["username", "greetingService", "activityService"])
-    @DIFeatureRoot(TransientFeatureRootView.self)
+    @SubContainer(
+        scope: .transient,
+        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService]
+    )
     var transientFeature: TransientFeatureContainer
+}
+
+extension ParentContainer {
+    func sharedFeatureRootView() -> SharedFeatureRootView {
+        SharedFeatureRootView(container: sharedFeature)
+    }
+
+    func sharedFeatureShellRootView() -> SharedFeatureShellView {
+        SharedFeatureShellView(container: sharedFeature)
+    }
+
+    func transientFeatureRootView() -> TransientFeatureRootView {
+        TransientFeatureRootView(container: transientFeature)
+    }
 }
 
 @Suite("InnoDISwiftUI integration")
@@ -158,5 +193,98 @@ struct InnoDISwiftUITests {
         let second = parent.transientFeatureRootView().container.token
 
         #expect(first != second)
+    }
+
+    @Test("environment-bridge containers conform to DIEnvironmentBridging")
+    @MainActor
+    func bridgeOnlyContainerConformsToBridging() {
+        let container = BridgeOnlyContainer(
+            greetingService: TestGreetingService(),
+            activityService: TestActivityService()
+        )
+        let bridging: any DIEnvironmentBridging = container
+        // Compiler-checkable contract: the synthesized helper exists on the
+        // protocol witness and the conformance does not require any
+        // additional ceremony at the call site.
+        let modifier = bridging._innodiEnvironmentBridgeModifier()
+        #expect(String(reflecting: type(of: modifier)).contains("_InnoDIEnvironmentBridgeModifier"))
+    }
+
+    @Test("innodi modifier exposes application order in its generic type shape")
+    @MainActor
+    func innodiModifierApplicationOrderIsVisibleInTypeShape() {
+        let container = BridgeOnlyContainer(
+            greetingService: TestGreetingService(),
+            activityService: TestActivityService()
+        )
+
+        let leadingApply = Text("hello")
+            .innodi(container)
+            .padding()
+        let trailingApply = Text("hello")
+            .padding()
+            .innodi(container)
+
+        // SwiftUI's ModifiedContent type shape includes modifier order. The
+        // contract here is that both orders compile and retain the generated
+        // InnoDI bridge modifier somewhere in the resulting type signature.
+        let leadingType = String(reflecting: type(of: leadingApply))
+        let trailingType = String(reflecting: type(of: trailingApply))
+        #expect(
+            leadingType != trailingType
+        )
+        #expect(leadingType.contains("_InnoDIEnvironmentBridgeModifier"))
+        #expect(trailingType.contains("_InnoDIEnvironmentBridgeModifier"))
+    }
+
+    @Test("shared sub-container helper preserves parent input identity across reads")
+    func sharedSubContainerPreservesParentInputs() {
+        let parent = ParentContainer(
+            username: "Identity",
+            greetingService: TestGreetingService(),
+            activityService: TestActivityService()
+        )
+
+        let firstUsername = parent.sharedFeatureRootView().container.username
+        let secondUsername = parent.sharedFeatureShellRootView().container.username
+
+        #expect(firstUsername == "Identity")
+        #expect(secondUsername == "Identity")
+    }
+
+    @Test("transient sub-container helper forwards the latest parent inputs each read")
+    func transientSubContainerForwardsLiveParentInputs() {
+        let username = MutableUsername("First")
+        let parent = MutableParentContainer(username: username)
+
+        // The transient builder closure captures the parent storage by
+        // reference; each fresh build sees the parent member values that
+        // exist at read time. This regression test pins down the same-name
+        // forwarding contract that with: [\\.username, ...] expands to.
+        let snapshotA = parent.transientFeature.username.value
+        username.value = "Second"
+        let snapshotB = parent.transientFeature.username.value
+
+        #expect(snapshotA == "First")
+        #expect(snapshotB == "Second")
+    }
+
+    @Test("shared sub-container token survives a child override closure on unrelated child storage")
+    func sharedSubContainerSurvivesChildOverrideClosure() {
+        let parent = ParentContainer(
+            username: "Stable",
+            greetingService: TestGreetingService(),
+            activityService: TestActivityService()
+        ) { overrides in
+            // The child override closure runs against the child's nested
+            // Overrides builder. We do not mutate the cached child slot
+            // itself, so the same shared instance must surface from both
+            // helper paths.
+            overrides.sharedFeatureOverrides = { _ in }
+        }
+
+        let firstToken = parent.sharedFeatureRootView().container.token
+        let secondToken = parent.sharedFeatureShellRootView().container.token
+        #expect(firstToken == secondToken)
     }
 }

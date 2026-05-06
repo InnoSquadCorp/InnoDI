@@ -55,7 +55,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subOverridesNameConflict = "sub.overrides-name-conflict"
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
-    case subWithConflictsWithWithNames = "sub.with-conflicts-with-with-names"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
@@ -75,6 +74,12 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case componentRequiresContainer = "component.requires-container"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
+    case previewWithContainerMissingContainerExpression = "swiftui.preview-with-container-missing-container"
+    case previewWithContainerMissingTrailingClosure = "swiftui.preview-with-container-missing-closure"
+    case previewWithContainerMissingContainerParameter = "swiftui.preview-with-container-missing-parameter"
+    case generateMockRequiresProtocol = "mock.requires-protocol"
+    case generateMockExperimentalSkeleton = "mock.experimental-skeleton"
+    case generateMockUnsupportedMember = "mock.unsupported-member"
     case internalCodegenInvariant = "internal.codegen-invariant"
 
     var category: InnoDIDiagnosticCategory {
@@ -93,7 +98,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerReservedNamePrefix, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
-                .subUnknownParentMember, .subBindingsConflictsWithWith, .subWithConflictsWithWithNames,
+                .subUnknownParentMember, .subBindingsConflictsWithWith,
                 .subInvalidSameNameWiring, .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
@@ -105,6 +110,12 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIEnvironmentBridgeInvalidArguments,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
                 .hierarchyRootRequiresContainer,
+                .previewWithContainerMissingContainerExpression,
+                .previewWithContainerMissingTrailingClosure,
+                .previewWithContainerMissingContainerParameter,
+                .generateMockRequiresProtocol,
+                .generateMockExperimentalSkeleton,
+                .generateMockUnsupportedMember,
                 .internalCodegenInvariant:
             return .validation
         }
@@ -447,15 +458,8 @@ extension SimpleDiagnostic {
 
     static func subBindingsConflictsWithWith(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot use with:/withNames: together with bindings:. Use either with: or withNames: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
+            "@SubContainer on '\(memberName)' cannot use with: together with bindings:. Use with: for same-name subset/reorder wiring, or bindings: for explicit child-to-parent remapping.",
             code: .subBindingsConflictsWithWith
-        )
-    }
-
-    static func subWithConflictsWithWithNames(memberName: String) -> Self {
-        Self(
-            "@SubContainer on '\(memberName)' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
-            code: .subWithConflictsWithWithNames
         )
     }
 
@@ -467,11 +471,6 @@ extension SimpleDiagnostic {
         case .with:
             return Self(
                 "@SubContainer on '\(memberName)' requires with: to be a literal array of key paths, such as with: [\\.config] or with: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
-                code: .subInvalidSameNameWiring
-            )
-        case .withNames:
-            return Self(
-                "@SubContainer on '\(memberName)' requires withNames: to be a literal array of string literals, such as withNames: [\"config\"] or withNames: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
                 code: .subInvalidSameNameWiring
             )
         }
@@ -497,7 +496,7 @@ extension SimpleDiagnostic {
 
     static func subAutoWiringAmbiguous(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: or withNames: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] (or withNames: []) when the child is intentionally constructed without parent inputs.",
+            "@SubContainer on '\(memberName)' cannot infer child inputs because the parent has multiple @Provide members. Add with: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] when the child is intentionally constructed without parent inputs.",
             code: .subAutoWiringAmbiguous
         )
     }
@@ -553,6 +552,52 @@ extension SimpleDiagnostic {
         Self(
             "InnoDI internal codegen invariant violated: \(description). This should have been caught by validation — please file a bug at https://github.com/InnoSquadCorp/InnoDI/issues.",
             code: .internalCodegenInvariant
+        )
+    }
+
+    static func previewWithContainerMissingContainerExpression() -> Self {
+        Self(
+            "#PreviewWithContainer requires a container expression as its first argument, e.g. `#PreviewWithContainer(AppContainer(baseURL: \"...\")) { container in ... }`.",
+            code: .previewWithContainerMissingContainerExpression
+        )
+    }
+
+    static func previewWithContainerMissingTrailingClosure() -> Self {
+        Self(
+            "#PreviewWithContainer requires a closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
+            code: .previewWithContainerMissingTrailingClosure
+        )
+    }
+
+    static func previewWithContainerMissingContainerParameter() -> Self {
+        Self(
+            "#PreviewWithContainer requires the preview closure to declare one container parameter, e.g. `{ container in container.featureRootView() }`. Use #Preview directly when the body does not need the container.",
+            code: .previewWithContainerMissingContainerParameter
+        )
+    }
+
+    static func generateMockRequiresProtocol() -> Self {
+        Self(
+            "@GenerateMock can only be attached to a protocol declaration. See docs/rfcs/0001-macro-mock-generation.md for the supported attachment sites.",
+            code: .generateMockRequiresProtocol
+        )
+    }
+
+    static func generateMockExperimentalSkeleton(protocolName: String) -> Self {
+        Self(
+            "@GenerateMock attached to '\(protocolName)' found no mockable members; the generated mock contains only the RFC 0001 skeleton.",
+            code: .generateMockExperimentalSkeleton,
+            severity: .note
+        )
+    }
+
+    static func generateMockUnsupportedMember(memberNames: [String]) -> Self {
+        let listed = memberNames.prefix(5).joined(separator: ", ")
+        let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
+        return Self(
+            "@GenerateMock cannot synthesize this protocol because one or more members are unsupported: \(listed)\(suffix). Associated types, static/class requirements, subscripts, rethrows or typed throws, inout parameters, and opaque return types need a hand-written mock until the RFC 0001 support matrix expands.",
+            code: .generateMockUnsupportedMember,
+            severity: .warning
         )
     }
 }

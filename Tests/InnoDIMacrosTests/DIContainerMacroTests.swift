@@ -1605,6 +1605,77 @@ struct DIContainerMacroTests {
         #expect(diagnostic.fixIts.first?.message.message.contains("baseURL") == true)
     }
 
+    @Test("Factory parameter diagnostics suggest a typo fix-it when only a Damerau-Levenshtein match exists")
+    func unresolvedFactoryParameterDiagnosticsIncludeTypoFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var apiClient: APIClient
+
+            @Provide(.shared, factory: { (apiClent: APIClient) in
+                Service(client: apiClent)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse typo unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("apiClient") == true)
+    }
+
+    @Test("Factory parameter diagnostics omit a fix-it when no member is within typo distance")
+    func unresolvedFactoryParameterDiagnosticsHaveNoFixItForFarMisses() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var apiClient: APIClient
+
+            @Provide(.shared, factory: { (totallyDifferent: APIClient) in
+                Service(client: totallyDifferent)
+            }, concrete: true)
+            var service: Service
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse far-miss unresolved factory parameter fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")
+        }) else {
+            Issue.record("Expected unresolved factory parameter diagnostic")
+            return
+        }
+
+        #expect(diagnostic.fixIts.isEmpty)
+    }
+
     @Test("Factory parameter diagnostics skip fix-its when multiple candidates exist")
     func unresolvedFactoryParameterDiagnosticsSkipAmbiguousFixIt() throws {
         let source = """
@@ -1931,6 +2002,85 @@ struct DIContainerMacroTests {
         #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
     }
 
+    @Test("Concrete opt-in fix-it appends to existing arguments instead of replacing them")
+    func concreteOptInFixItPreservesExistingArgumentsForTransient() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            @Provide(.transient, APIClient.self, with: [\\AppContainer.config])
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse transient concrete opt-in fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
+        }) else {
+            Issue.record("Expected concrete opt-in diagnostic for the transient member")
+            return
+        }
+
+        #expect(diagnostic.fixIts.count == 1)
+        #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
+        let replacementTexts = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replaceText(_, replacementText, _) = change {
+                    return replacementText
+                }
+                return nil
+            }
+        let replacementNodes = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replace(_, newNode) = change {
+                    return newNode.description
+                }
+                return nil
+            }
+        #expect(replacementTexts == [", concrete: true"])
+        #expect(replacementNodes.isEmpty)
+    }
+
+    @Test("Concrete opt-in fix-it is suppressed when concrete is already declared")
+    func concreteOptInFixItIsSuppressedWhenAlreadyConcrete() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, factory: APIClient(), concrete: true)
+            var apiClient: APIClient
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse already-concrete fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        let optInDiagnostics = context.diagnostics.filter {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
+        }
+
+        #expect(optInDiagnostics.isEmpty)
+    }
+
     // MARK: - @SubContainer
 
     @Test("`.shared` sub-container auto-matches parent members into the child init")
@@ -1987,8 +2137,8 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("`.shared` sub-container supports name-based same-label subset wiring")
-    func subContainerSharedWithNamesSubset() {
+    @Test("`.shared` sub-container supports key-path same-label subset wiring")
+    func subContainerSharedWithSubset() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -1996,17 +2146,17 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
                 @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
 
-                @SubContainer(scope: .shared, withNames: ["config"])
+                @SubContainer(scope: .shared, with: [\\.config])
                 var feature: FeatureContainer
             }
             """,
-            matches: "subContainerSharedWithNamesSubset",
+            matches: "subContainerSharedWithSubset",
             macros: Self.macros
         )
     }
 
-    @Test("`.shared` sub-container supports explicit empty withNames wiring")
-    func subContainerSharedWithNamesEmptySubset() {
+    @Test("`.shared` sub-container supports explicit empty with wiring")
+    func subContainerSharedWithEmptySubset() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -2014,67 +2164,12 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
                 @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
 
-                @SubContainer(scope: .shared, withNames: [])
+                @SubContainer(scope: .shared, with: [])
                 var feature: EmptyFeatureContainer
             }
             """,
-            matches: "subContainerSharedWithNamesEmptySubset",
+            matches: "subContainerSharedWithEmptySubset",
             macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer with both `with:` and `withNames:` emits the conflict diagnostic")
-    func subContainerBothFormsDiagnosesConflict() {
-        let source = """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, with: [\\.config], withNames: ["config"])
-                var feature: FeatureContainer
-            }
-            """
-
-        assertMacroExpansionDiagnosticCodes(
-            source,
-            expectedCodes: [InnoDIDiagnosticCode.subWithConflictsWithWithNames.messageID],
-            macros: Self.macros
-        )
-        assertMacroExpansionSnapshot(
-            source,
-            matches: "subContainerBothFormsSuppressesHint",
-            diagnostics: [
-                DiagnosticSpec(
-                    id: InnoDIDiagnosticCode.subWithConflictsWithWithNames.messageID,
-                    message: "@SubContainer on 'feature' cannot use both with: and withNames:. Use exactly one same-name wiring form, or use bindings: for explicit child-to-parent remapping.",
-                    line: 5,
-                    column: 5,
-                    severity: .error
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: stacked with DIFeatureRoot remains supported")
-    func subContainerWithNamesStackedWithDIFeatureRootRemainsSupported() {
-        let source = """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, withNames: ["config"])
-                @DIFeatureRoot(FeatureRootView.self)
-                var feature: FeatureContainer
-            }
-            """
-
-        var macros = Self.macros
-        macros["DIFeatureRoot"] = DIFeatureRootMacro.self
-        assertMacroExpansionDiagnosticCodes(
-            source,
-            expectedCodes: [],
-            macros: macros
         )
     }
 
@@ -2162,73 +2257,6 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("@SubContainer with both withNames: and bindings: emits sub.bindings-conflicts-with-with")
-    func subContainerBindingsConflictWithWithNamesDiagnoses() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(
-                    scope: .shared,
-                    withNames: ["config"],
-                    bindings: [(child: \\.featureConfig, parent: \\.config)]
-                )
-                var feature: FeatureBindingsContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.bindings-conflicts-with-with")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer with both with: and withNames: emits sub.with-conflicts-with-with-names")
-    func subContainerWithConflictWithWithNamesDiagnoses() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(
-                    scope: .shared,
-                    with: [\\.config],
-                    withNames: ["config"]
-                )
-                var feature: FeatureContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.with-conflicts-with-with-names")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: requires a literal string array")
-    func subContainerWithNamesVariableDiagnosesInvalidSameNameWiring() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            let dependencyNames = ["config"]
-
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, withNames: dependencyNames)
-                var feature: FeatureContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
-            ],
-            macros: Self.macros
-        )
-    }
-
     @Test("@SubContainer with: requires a literal key-path array")
     func subContainerWithVariableDiagnosesInvalidSameNameWiring() {
         assertMacroExpansionDiagnosticCodes(
@@ -2240,52 +2268,6 @@ struct DIContainerMacroTests {
                 @Provide(.input) var config: AppConfig
 
                 @SubContainer(scope: .shared, with: keyPaths)
-                var feature: FeatureContainer
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: rejects empty string literals as invalid wiring")
-    func subContainerWithNamesEmptyStringDiagnosesInvalidSameNameWiring() {
-        // Empty strings can never name a parent member; rejecting them
-        // up front gives the user `sub.invalid-same-name-wiring` instead
-        // of a misleading "unknown parent member ''" trail.
-        let source = """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-
-                @SubContainer(scope: .shared, withNames: [""])
-                var feature: FeatureContainer
-            }
-            """
-
-        assertMacroExpansionDiagnosticCodes(
-            source,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("@SubContainer withNames: rejects partially dynamic literal arrays")
-    func subContainerWithNamesDynamicElementDiagnosesInvalidSameNameWiring() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            let dynamicName = "logger"
-
-            @DIContainer
-            struct AppContainer {
-                @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
-
-                @SubContainer(scope: .shared, withNames: ["config", dynamicName])
                 var feature: FeatureContainer
             }
             """,
@@ -2682,6 +2664,107 @@ struct DIContainerMacroTests {
             ],
             macros: Self.macros
         )
+    }
+
+    @Test("Ambiguous sub-container auto-wiring offers a with: [...] template fix-it listing parent members")
+    func subContainerAmbiguousAutoWiringOffersTemplateFixIt() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var config: AppConfig
+            @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse ambiguous auto-wiring fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
+        }) else {
+            Issue.record("Expected sub.auto-wiring-ambiguous diagnostic")
+            return
+        }
+
+        #expect(diagnostic.fixIts.count == 1)
+        let fixItMessage = diagnostic.fixIts.first?.message.message ?? ""
+        #expect(fixItMessage.contains("with:"))
+
+        // The fix-it inserts `, with: [\.config, \.logger]` so both parent
+        // member key paths are part of the synthesized change. We don't have
+        // a direct way to assert the resulting source from a Diagnostic, but
+        // verifying the change spans the expected text protects the contract
+        // that the fix-it lists every parent member candidate.
+        let combinedChanges = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replace(_, newNode) = change {
+                    return newNode.description
+                }
+                if case let .replaceText(_, replacementText, _) = change {
+                    return replacementText
+                }
+                return nil
+            }
+            .joined(separator: " ")
+        #expect(combinedChanges.contains("\\.config"))
+        #expect(combinedChanges.contains("\\.logger"))
+    }
+
+    @Test("Ambiguous sub-container auto-wiring fix-it escapes keyword parent members")
+    func subContainerAmbiguousAutoWiringFixItEscapesKeywordMembers() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var `repeat`: String
+            @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+            @SubContainer(scope: .shared)
+            var feature: FeatureContainer
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse keyword auto-wiring fixture")
+            return
+        }
+
+        let context = TestMacroExpansionContext()
+        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
+
+        guard let diagnostic = context.diagnostics.first(where: {
+            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
+        }) else {
+            Issue.record("Expected sub.auto-wiring-ambiguous diagnostic")
+            return
+        }
+
+        let combinedChanges = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replace(_, newNode) = change {
+                    return newNode.description
+                }
+                if case let .replaceText(_, replacementText, _) = change {
+                    return replacementText
+                }
+                return nil
+            }
+            .joined(separator: " ")
+        #expect(combinedChanges.contains("\\.`repeat`"))
+        #expect(combinedChanges.contains("\\.logger"))
     }
 
     @Test("Explicit empty with: wiring bypasses ambiguous implicit auto-wiring")

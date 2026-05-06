@@ -1,6 +1,6 @@
 import Testing
 
-@testable import InnoDI_DependencyGraph
+@testable import InnoDIDependencyGraphCLI
 
 @Suite("CLI argument parsing")
 struct ArgumentsParsingTests {

@@ -7,6 +7,7 @@ validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 
 ## Minimum Useful Example
 
+<!-- innodi:compile -->
 ```swift
 import InnoDI
 
@@ -15,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -68,7 +69,8 @@ inside feature logic when scoped runtime values are the better abstraction.
 ### Filesystem requirements for the build-time validator
 
 The build plugin serializes live DAG validation runs through a layered
-POSIX lock under the Swift Package Manager scratch directory:
+POSIX lock under SwiftPM's plugin work directory, which follows the Swift
+Package Manager scratch directory:
 
 1. `open(O_CREAT | O_EXCL | O_RDWR)` creates a single lock file.
 2. `flock(LOCK_EX | LOCK_NB)` adds an advisory exclusive lock on the
@@ -86,6 +88,10 @@ If your build system must place derived data on a shared volume, point SPM's
 ```sh
 swift build --scratch-path /tmp/innodi-cache
 ```
+
+The plugin does not create lock/cache state under the package root
+`.build/innodi-dag-validation`; moving the scratch path moves the validation
+state as well.
 
 Operators can bypass the unsafe-filesystem fail-fast with
 `INNODI_ALLOW_UNSAFE_LOCK=1`, but InnoDI still emits an auditable warning and
@@ -143,7 +149,9 @@ declares InnoDI containers:
 
 ## Quick Start
 
+<!-- innodi:compile -->
 ```swift
+import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
@@ -160,12 +168,12 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\.baseURL])
+    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
     var apiClient: any APIClientProtocol
 }
 
 let container = AppContainer(baseURL: "https://api.example.com")
-let client = container.apiClient
+_ = container.apiClient
 ```
 
 Use a factory closure when names or construction logic do not line up with
@@ -185,9 +193,10 @@ Start with these documents in order:
 1. [Overview](Sources/InnoDI/InnoDI.docc/Overview.md)
 2. [Validation](Sources/InnoDI/InnoDI.docc/Validation.md)
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md)
-4. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
-5. [RELEASING.md](RELEASING.md)
-6. [ROADMAP.md](ROADMAP.md)
+4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
+5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
+6. [RELEASING.md](RELEASING.md)
+7. [ROADMAP.md](ROADMAP.md)
 
 ## Core API
 
@@ -327,7 +336,7 @@ original isolation domain.
 `@SubContainer` models parent-owned child containers:
 
 ```swift
-@SubContainer(scope: .shared, withNames: ["config", "apiClient"])
+@SubContainer(scope: .shared, with: [\.config, \.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -337,12 +346,12 @@ Key rules:
 - Implicit same-name wiring is only a convenience for zero or one parent
   `@Provide` candidate. If the parent has multiple candidates, add explicit
   wiring instead of relying on generated Swift initializer errors.
-- `with:` or `withNames:` forwards an explicit same-name subset or order.
-  Both forms must be literal arrays the macro can read; runtime variables or
+- `with:` forwards an explicit same-name subset or order. It must be a
+  literal key-path array the macro can read; runtime variables or
   computed array elements are unsupported.
-- `with: []` or `withNames: []` is an explicit empty subset and calls `Child()`.
+- `with: []` is an explicit empty subset and calls `Child()`.
 - `bindings:` remaps child input labels to different parent member names.
-- Choose exactly one wiring form: `with:`, `withNames:`, or `bindings:`.
+- Choose exactly one wiring form: `with:` or `bindings:`.
 - Parent `Overrides` gain both a full replacement slot (`feature`) and a child
   override closure (`featureOverrides`).
 
