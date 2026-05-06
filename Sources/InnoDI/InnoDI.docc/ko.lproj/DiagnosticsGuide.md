@@ -56,6 +56,15 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   에서만 유효합니다.
 - `provide.async-factory-must-be-async` — 주어진 closure가 `async`가
   아닙니다.
+- `provide.factory-must-be-sync` — `factory:`에 `async` closure가
+  주어졌습니다. async construction은 `asyncFactory:`로 옮기세요.
+- `provide.factory-must-not-throw` — `factory:`에 throwing closure가
+  주어졌습니다. 에러를 factory 내부에서 처리하거나 asynchronous throwing
+  작업은 `asyncFactory:`로 옮기세요.
+- `provide.bool-literal-required` — `concrete:` 같은 `@Provide` Bool
+  옵션은 literal `true` 또는 `false`여야 합니다.
+- `provide.invalid-with-dependencies` — `with:`가 매크로가 읽을 수 있는
+  literal key-path 배열이 아닙니다.
 - `provide.concrete-opt-in-required` — concrete 타입의
   `.shared`/`.transient`는 `concrete: true`가 필요합니다.
 - `provide.unresolved-factory-parameter` — factory 파라미터가 컨테이너
@@ -91,6 +100,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   타입이 합성된 빌더와 충돌합니다.
 - `container.mainactor-conflict` — `@DIContainer(mainActor: true)`가
   main actor에서 실행될 수 없는 asynchronous factory와 결합됐습니다.
+- `container.bool-literal-required` — `root:`, `validateDAG:`,
+  `mainActor:`가 literal `true` 또는 `false`가 아닙니다. build
+  configuration별 attribute 분기는 conditional compilation을 쓰세요.
 - `container.reserved-name-prefix` — `@Provide` 또는 `@SubContainer`
   멤버 이름이 매크로가 generated storage용으로 예약한 prefix
   (예: `_storage_`, `_override_sub_`, `_innoDISubBuild_`,
@@ -118,6 +130,8 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   배타적).
 - `sub.invalid-same-name-wiring` — `with:`가 매크로가 읽을 수 있는
   literal key-path 배열이 아닙니다 (런타임 변수와 계산된 원소는 거부).
+- `sub.invalid-bindings` — `bindings:`가 literal `(child:parent:)`
+  key-path tuple 배열이 아닙니다.
 - `sub.auto-wiring-ambiguous` — parent에 여러 `@Provide` 후보가 있어
   implicit same-name wiring을 추론할 수 없습니다. 명시적 `with:` /
   `bindings:`를 추가하거나, child가 parent input을 받지 않는 경우
