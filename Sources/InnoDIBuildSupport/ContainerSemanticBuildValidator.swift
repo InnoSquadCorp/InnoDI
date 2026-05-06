@@ -46,6 +46,11 @@ package enum ContainerSemanticBuildValidator {
         var issues: [ValidationIssue] = []
 
         for subContainer in subContainers {
+            if let invalidBindingsLocation = subContainer.invalidBindingsLocation {
+                issues.append(makeInvalidBindingsIssue(for: subContainer, location: invalidBindingsLocation))
+                continue
+            }
+
             guard let childReference = subContainer.childReference else {
                 continue
             }
@@ -174,6 +179,7 @@ private struct SemanticSubContainerRecord: Equatable {
     let memberName: String
     let childReference: SemanticTypeReference?
     let bindings: [SubContainerBindingValidationRecord]
+    let invalidBindingsLocation: ValidationIssueLocation?
 }
 
 private struct DeferredWrapperParameterRecord: Equatable {
@@ -329,13 +335,15 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
         if let subContainerAttribute = findInnoDIAttribute(named: "SubContainer", in: node.attributes),
            let childType = binding.type {
             let subArguments = parseSubContainerArguments(subContainerAttribute)
-            if !subArguments.bindings.isEmpty {
+            let bindingParseState = extractBindingValidationRecords(from: subContainerAttribute)
+            if subArguments.bindingsParseState.hasArgument {
                 subContainers.append(
                     SemanticSubContainerRecord(
                         parentContainerPath: currentContainerPath,
                         memberName: binding.name,
                         childReference: normalizedSemanticTypeReference(childType),
-                        bindings: extractBindingValidationRecords(from: subContainerAttribute)
+                        bindings: bindingParseState.bindings,
+                        invalidBindingsLocation: bindingParseState.invalidLocation
                     )
                 )
             }
@@ -435,19 +443,20 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
         }
     }
 
-    private func extractBindingValidationRecords(from attribute: AttributeSyntax) -> [SubContainerBindingValidationRecord] {
+    private func extractBindingValidationRecords(from attribute: AttributeSyntax) -> BindingValidationParseState {
         guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-            return []
+            return .omitted
         }
 
         for argument in arguments where argument.label?.text == "bindings" {
             guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-                return []
+                return .invalid(sourceLocation(for: argument.expression.positionAfterSkippingLeadingTrivia))
             }
 
-            return arrayExpr.elements.compactMap { element in
+            var bindings: [SubContainerBindingValidationRecord] = []
+            for element in arrayExpr.elements {
                 guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
-                    return nil
+                    return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
                 }
 
                 var childName: String?
@@ -456,19 +465,25 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                 var parentLocation: ValidationIssueLocation?
 
                 for tupleElement in tupleExpr.elements {
-                    guard let label = tupleElement.label?.text,
-                          let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
-                          let property = keyPath.components.last?
-                            .component.as(KeyPathPropertyComponentSyntax.self)?
-                            .declName.baseName.text else {
-                        continue
-                    }
+                    guard let label = tupleElement.label?.text else { continue }
 
                     switch label {
                     case "child":
+                        guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
+                              let property = keyPath.components.last?
+                                .component.as(KeyPathPropertyComponentSyntax.self)?
+                                .declName.baseName.text else {
+                            return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
+                        }
                         childName = property
                         childLocation = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     case "parent":
+                        guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
+                              let property = keyPath.components.last?
+                                .component.as(KeyPathPropertyComponentSyntax.self)?
+                                .declName.baseName.text else {
+                            return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
+                        }
                         parentName = property
                         parentLocation = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     default:
@@ -477,19 +492,40 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                 }
 
                 guard let childName, let parentName, let childLocation, let parentLocation else {
-                    return nil
+                    return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
                 }
 
-                return SubContainerBindingValidationRecord(
+                bindings.append(SubContainerBindingValidationRecord(
                     childInputName: childName,
                     parentMemberName: parentName,
                     childLocation: childLocation,
                     parentLocation: parentLocation
-                )
+                ))
             }
+            return .parsed(bindings)
         }
 
+        return .omitted
+    }
+}
+
+private enum BindingValidationParseState {
+    case omitted
+    case parsed([SubContainerBindingValidationRecord])
+    case invalid(ValidationIssueLocation)
+
+    var bindings: [SubContainerBindingValidationRecord] {
+        if case let .parsed(bindings) = self {
+            return bindings
+        }
         return []
+    }
+
+    var invalidLocation: ValidationIssueLocation? {
+        if case let .invalid(location) = self {
+            return location
+        }
+        return nil
     }
 }
 
@@ -497,6 +533,24 @@ private struct SemanticContainerBuilder {
     let path: String
     let location: ValidationIssueLocation
     var inputMembers: Set<String> = []
+}
+
+private func makeInvalidBindingsIssue(
+    for subContainer: SemanticSubContainerRecord,
+    location: ValidationIssueLocation
+) -> ValidationIssue {
+    ValidationIssue(
+        code: "sub.invalid-bindings",
+        severity: .error,
+        message: "@SubContainer on '\(subContainer.memberName)' requires bindings: to be a literal array of (child:parent:) key-path tuples.",
+        location: location,
+        notes: [],
+        remediation: "Use bindings: [(child: \\.childInput, parent: \\.parentMember)] or remove bindings: to use implicit same-name wiring.",
+        metadata: [
+            "parentContainerPath": subContainer.parentContainerPath,
+            "subContainerMemberName": subContainer.memberName
+        ]
+    )
 }
 
 private struct ValidatedVariableBinding {

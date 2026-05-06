@@ -377,7 +377,7 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            let hasBindingWiringConflict = sub.hasWithDependencies && !sub.explicitBindings.isEmpty
+            let hasBindingWiringConflict = sub.hasWithDependencies && sub.hasBindingsArgument
             if hasBindingWiringConflict {
                 context.diagnose(
                     Diagnostic(
@@ -386,6 +386,17 @@ struct DIContainerValidator {
                     )
                 )
                 hadErrors = true
+            }
+
+            if !hasBindingWiringConflict, sub.hasInvalidBindings {
+                context.diagnose(
+                    Diagnostic(
+                        node: sub.invalidBindingAnchorExpression.map(Syntax.init) ?? Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subInvalidBindings(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+                continue
             }
 
             var seenChildInputs: Set<String> = []

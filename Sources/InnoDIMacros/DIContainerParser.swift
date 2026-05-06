@@ -129,6 +129,7 @@ struct DIContainerParser {
                 let subArgs = InnoDICore.parseSubContainerArguments(subAttribute)
                 let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
                 let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
+                let invalidBindingReferences = extractInvalidSubContainerBindingReferences(from: subAttribute)
                 subContainerMembers.append(
                     SubContainerMemberModel(
                         name: validatedBinding.identifier.identifier.text,
@@ -144,6 +145,8 @@ struct DIContainerParser {
                             in: subAttribute
                         ),
                         explicitBindings: bindingReferences,
+                        invalidBindingReferences: invalidBindingReferences,
+                        bindingsParseState: subArgs.bindingsParseState,
                         parentDependencyReferences: parentDependencyReferences,
                         attribute: subAttribute,
                         bindingSyntax: validatedBinding.binding
@@ -537,6 +540,71 @@ private func extractSubContainerBindingReferences(from attribute: AttributeSynta
     }
 
     return []
+}
+
+private func extractInvalidSubContainerBindingReferences(from attribute: AttributeSyntax) -> [InvalidSubContainerBindingReference] {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return []
+    }
+
+    for argument in arguments where argument.label?.text == "bindings" {
+        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+            return [
+                InvalidSubContainerBindingReference(anchorExpression: argument.expression)
+            ]
+        }
+
+        var invalidReferences: [InvalidSubContainerBindingReference] = []
+        for element in arrayExpr.elements {
+            guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
+                invalidReferences.append(
+                    InvalidSubContainerBindingReference(anchorExpression: element.expression)
+                )
+                continue
+            }
+
+            var hasChild = false
+            var hasParent = false
+            var elementIsInvalid = false
+
+            for tupleElement in tupleExpr.elements {
+                guard let label = tupleElement.label?.text else { continue }
+                switch label {
+                case "child", "parent":
+                    guard finalKeyPathExpression(tupleElement.expression) != nil else {
+                        elementIsInvalid = true
+                        continue
+                    }
+                    if label == "child" {
+                        hasChild = true
+                    } else {
+                        hasParent = true
+                    }
+                default:
+                    continue
+                }
+            }
+
+            if elementIsInvalid || !hasChild || !hasParent {
+                invalidReferences.append(
+                    InvalidSubContainerBindingReference(anchorExpression: element.expression)
+                )
+            }
+        }
+        return invalidReferences
+    }
+
+    return []
+}
+
+private func finalKeyPathExpression(_ expression: ExprSyntax) -> KeyPathExprSyntax? {
+    guard let keyPath = expression.as(KeyPathExprSyntax.self),
+          keyPath.components.last?
+            .component.as(KeyPathPropertyComponentSyntax.self)?
+            .declName.baseName.text != nil else {
+        return nil
+    }
+    return keyPath
 }
 
 private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {

@@ -122,6 +122,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
 
         if let subContainerAttribute = findInnoDIAttribute(named: "SubContainer", in: node.attributes),
            let childType = binding.type {
+            let bindingParseState = extractSubContainerBindings(from: subContainerAttribute)
             var builder = containerBuilders[currentContainerPath, default: WorkspaceHierarchyContainerBuilder(
                 path: currentContainerPath,
                 filePath: filePath,
@@ -134,7 +135,9 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                     childReferenceDisplayPath: childType.trimmedDescription,
                     childReference: normalizedSemanticTypeReference(childType),
                     sameNameWiring: extractSameNameWiring(from: subContainerAttribute),
-                    bindings: extractSubContainerBindings(from: subContainerAttribute)
+                    bindings: bindingParseState.bindings,
+                    hasBindingsArgument: bindingParseState.hasArgument,
+                    invalidBindingsLocation: bindingParseState.invalidLocation
                 )
             )
             containerBuilders[currentContainerPath] = builder
@@ -242,19 +245,20 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
         return .parsed(dependencies)
     }
 
-    private func extractSubContainerBindings(from attribute: AttributeSyntax) -> [HierarchyBindingRecord] {
+    private func extractSubContainerBindings(from attribute: AttributeSyntax) -> HierarchyBindingParseState {
         guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-            return []
+            return .omitted
         }
 
         for argument in arguments where argument.label?.text == "bindings" {
             guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-                return []
+                return .invalid(sourceLocation(for: argument.expression.positionAfterSkippingLeadingTrivia))
             }
 
-            return arrayExpr.elements.compactMap { element in
+            var bindings: [HierarchyBindingRecord] = []
+            for element in arrayExpr.elements {
                 guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
-                    return nil
+                    return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
                 }
 
                 var childName: String?
@@ -263,22 +267,29 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                 var parentLocation: ValidationIssueLocation?
 
                 for tupleElement in tupleExpr.elements {
-                    guard let label = tupleElement.label?.text,
-                          let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
-                          let property = keyPath.components.last?
-                            .component.as(KeyPathPropertyComponentSyntax.self)?
-                            .declName.baseName.text else {
+                    guard let label = tupleElement.label?.text else {
                         continue
                     }
 
-                    let location = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     switch label {
                     case "child":
+                        guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
+                              let property = keyPath.components.last?
+                                .component.as(KeyPathPropertyComponentSyntax.self)?
+                                .declName.baseName.text else {
+                            return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
+                        }
                         childName = property
-                        childLocation = location
+                        childLocation = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     case "parent":
+                        guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
+                              let property = keyPath.components.last?
+                                .component.as(KeyPathPropertyComponentSyntax.self)?
+                                .declName.baseName.text else {
+                            return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
+                        }
                         parentName = property
-                        parentLocation = location
+                        parentLocation = sourceLocation(for: keyPath.positionAfterSkippingLeadingTrivia)
                     default:
                         continue
                     }
@@ -288,19 +299,20 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
                       let parentName,
                       let childLocation,
                       let parentLocation else {
-                    return nil
+                    return .invalid(sourceLocation(for: element.expression.positionAfterSkippingLeadingTrivia))
                 }
 
-                return HierarchyBindingRecord(
+                bindings.append(HierarchyBindingRecord(
                     childInputName: childName,
                     parentMemberName: parentName,
                     childLocation: childLocation,
                     parentLocation: parentLocation
-                )
+                ))
             }
+            return .parsed(bindings)
         }
 
-        return []
+        return .omitted
     }
 }
 
@@ -354,6 +366,8 @@ struct WorkspaceHierarchySubContainerRecord: Equatable {
     let childReference: SemanticTypeReference?
     let sameNameWiring: WorkspaceHierarchySameNameWiringRecord
     let bindings: [HierarchyBindingRecord]
+    let hasBindingsArgument: Bool
+    let invalidBindingsLocation: ValidationIssueLocation?
 }
 
 enum WorkspaceHierarchySameNameWiringRecord: Equatable {
@@ -365,6 +379,35 @@ enum WorkspaceHierarchySameNameWiringRecord: Equatable {
 private enum HierarchySameNameWiringParseResult {
     case parsed([HierarchyWithDependencyRecord])
     case invalid(ValidationIssueLocation)
+}
+
+private enum HierarchyBindingParseState {
+    case omitted
+    case parsed([HierarchyBindingRecord])
+    case invalid(ValidationIssueLocation)
+
+    var bindings: [HierarchyBindingRecord] {
+        if case let .parsed(bindings) = self {
+            return bindings
+        }
+        return []
+    }
+
+    var invalidLocation: ValidationIssueLocation? {
+        if case let .invalid(location) = self {
+            return location
+        }
+        return nil
+    }
+
+    var hasArgument: Bool {
+        switch self {
+        case .omitted:
+            return false
+        case .parsed, .invalid:
+            return true
+        }
+    }
 }
 
 struct HierarchyWithDependencyRecord: Equatable {
