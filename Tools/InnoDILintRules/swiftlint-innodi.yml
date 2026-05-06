@@ -13,7 +13,7 @@
 custom_rules:
   innodi_validate_dag_in_production:
     name: "InnoDI validateDAG opt-out"
-    regex: '@DIContainer\b[\s\S]*?validateDAG\s*:\s*false'
+    regex: '@DIContainer\b(?:(?!@DIContainer\b|(?:^|\n)\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:(?:public|internal|private|fileprivate|open|package|final|nonisolated)\s+)*(?:struct|class|actor|enum)\b)[\s\S])*?validateDAG\s*:\s*false'
     match_kinds:
       - attribute.builtin
       - argument
@@ -30,6 +30,10 @@ custom_rules:
   innodi_no_lazy_typealias:
     name: "InnoDI Lazy/Provider typealias"
     regex: 'typealias\s+\w+\s*=\s*(?:InnoDI\.)?(?:Lazy|Provider)\b'
+    match_kinds:
+      - identifier
+      - keyword
+      - typeidentifier
     message: |
       Avoid `typealias Foo = InnoDI.Lazy<...>` (or `Provider<...>`).
       The macro recognizes the deferred wrappers by canonical

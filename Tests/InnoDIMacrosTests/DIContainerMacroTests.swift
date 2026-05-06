@@ -2034,6 +2034,24 @@ struct DIContainerMacroTests {
 
         #expect(diagnostic.fixIts.count == 1)
         #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
+        let replacementTexts = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replaceText(_, replacementText, _) = change {
+                    return replacementText
+                }
+                return nil
+            }
+        let replacementNodes = diagnostic.fixIts
+            .flatMap(\.changes)
+            .compactMap { change -> String? in
+                if case let .replace(_, newNode) = change {
+                    return newNode.description
+                }
+                return nil
+            }
+        #expect(replacementTexts == [", concrete: true"])
+        #expect(replacementNodes.isEmpty)
     }
 
     @Test("Concrete opt-in fix-it is suppressed when concrete is already declared")
