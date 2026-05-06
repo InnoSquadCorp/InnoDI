@@ -17,6 +17,7 @@ custom_rules:
     name: "InnoDI validateDAG opt-out"
     regex: '@DIContainer\b(?:(?!@DIContainer\b|(?:^|\n)\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:(?:public|internal|private|fileprivate|open|package|final|nonisolated)\s+)*(?:struct|class|actor|enum)\b)[\s\S])*?validateDAG\s*:\s*false'
     match_kinds:
+      - attribute.id
       - attribute.builtin
       - argument
       - identifier

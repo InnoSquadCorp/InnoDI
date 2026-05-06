@@ -48,7 +48,7 @@ for file in "${targets[@]}"; do
         fi
 
         if [[ "$line" =~ $pattern ]]; then
-            display_file="${file#$ROOT/}"
+            display_file="${file#"$ROOT"/}"
             echo "::error file=$display_file,line=$line_number::CI workflows must not set INNODI_DISABLE_BUILD_VALIDATION to a truthy value."
             failed=1
         fi
