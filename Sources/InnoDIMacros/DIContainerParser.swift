@@ -68,6 +68,14 @@ struct DIContainerParser {
         var subContainerMembers: [SubContainerMemberModel] = []
         var hadErrors = false
 
+        if diagnoseInvalidContainerBoolArguments(
+            options: options,
+            declaration: decl,
+            context: context
+        ) {
+            hadErrors = true
+        }
+
         if options.mainActor, let conflictingActor = detectConflictingGlobalActor(in: decl.attributes) {
             context.diagnose(
                 Diagnostic(
@@ -158,6 +166,31 @@ struct DIContainerParser {
             }
 
             let parseResult = InnoDICore.parseProvideArguments(attribute)
+            var memberHadErrors = false
+            if parseResult.concreteParseState.isInvalid {
+                context.diagnose(
+                    Diagnostic(
+                        node: extractArgumentExpression(label: "concrete", from: attribute).map(Syntax.init) ?? Syntax(attribute),
+                        message: SimpleDiagnostic.provideBoolLiteralRequired(label: "concrete")
+                    )
+                )
+                memberHadErrors = true
+            }
+            if parseResult.dependenciesParseState.isInvalid {
+                context.diagnose(
+                    Diagnostic(
+                        node: extractArgumentExpression(label: "with", from: attribute).map(Syntax.init) ?? Syntax(attribute),
+                        message: SimpleDiagnostic.provideInvalidWithDependencies(
+                            memberName: validatedBinding.identifier.identifier.text
+                        )
+                    )
+                )
+                memberHadErrors = true
+            }
+            if memberHadErrors {
+                hadErrors = true
+                continue
+            }
             guard let scope = parseResult.scope else {
                 if let name = parseResult.scopeName {
                     context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideUnknownScope(name)))
@@ -204,7 +237,9 @@ struct DIContainerParser {
                     typeExpr: parseResult.typeExpr,
                     initializer: initializerExpr,
                     concreteOptIn: parseResult.concrete,
+                    concreteParseState: parseResult.concreteParseState,
                     withDependencies: parseResult.dependencies,
+                    withDependenciesParseState: parseResult.dependenciesParseState,
                     withDependencyReferences: withDependencyReferences,
                     closureDependencies: closureParameterList.names,
                     closureParameterReferences: closureParameterList.references,
@@ -376,6 +411,33 @@ private func extractArgumentExpression(label: String, from attribute: AttributeS
     }
 
     return nil
+}
+
+private func diagnoseInvalidContainerBoolArguments(
+    options: DIContainerAttributeInfo,
+    declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext
+) -> Bool {
+    guard let attribute = InnoDICore.findInnoDIAttribute(named: "DIContainer", in: declaration.attributes) else {
+        return false
+    }
+
+    let states: [(label: String, state: BoolArgumentParseState)] = [
+        ("root", options.rootParseState),
+        ("validateDAG", options.validateDAGParseState),
+        ("mainActor", options.mainActorParseState)
+    ]
+    var hadErrors = false
+    for item in states where item.state.isInvalid {
+        context.diagnose(
+            Diagnostic(
+                node: extractArgumentExpression(label: item.label, from: attribute).map(Syntax.init) ?? Syntax(attribute),
+                message: SimpleDiagnostic.containerBoolLiteralRequired(label: item.label)
+            )
+        )
+        hadErrors = true
+    }
+    return hadErrors
 }
 
 private func extractWithDependencyReferences(from attribute: AttributeSyntax) -> [WithDependencyReference] {
