@@ -70,11 +70,14 @@ try await container.withScopedOverrides({ overrides in
 The override builder type is the existing `Overrides` struct generated
 by `@DIContainer`; only the *application* differs. A scoped override:
 
-1. Pushes the override map onto a per-container TaskLocal stack at the
-   start of the operation closure.
-2. Resolves dependencies through that stack first, falling back to the
-   container's stored values when no override is set.
-3. Pops the stack on closure exit (success or throw).
+1. Merges the inner `Overrides` on top of the currently-bound outer
+   `Overrides` (see Merge semantics below) and binds the result through
+   `TaskLocal.withValue` for the duration of the operation closure.
+2. Resolves dependencies through that bound value first, falling back
+   to the container's stored values when no override is set on the
+   relevant field.
+3. Restores the previous TaskLocal binding on closure exit (success or
+   throw).
 
 ## Generated implementation sketch
 
@@ -110,8 +113,47 @@ Scoped overrides must not subvert the validated graph:
 - Deferred wrappers (`Lazy<T>`, `Provider<T>`) stay non-`Sendable`. A
   scoped override does not change their isolation story.
 
+`@DIContainer(scopedOverrides: true)` additionally synthesizes a
+`Sendable` conformance for the generated `Overrides` struct. The macro
+validates at expansion time that every overrideable member's stored type
+is `Sendable`; if a `.transient` factory closure or a `.shared` value
+type cannot satisfy `Sendable` (for example because it captures
+non-`Sendable` state), the macro emits a structured diagnostic and
+declines to enable scoped overrides on that container. Containers that
+do not opt in keep their current non-`Sendable` `Overrides` shape.
+
 The graph CLI gains no new node kinds; scoped overrides are an
 operation-time concept, not a graph-time concept.
+
+## Merge semantics
+
+`TaskLocal.withValue` is binding-overshadowing, not merging. A naive
+implementation that simply binds the inner `Overrides` would erase
+every override the outer scope set unless the inner caller copied each
+field forward. That regression is non-obvious and surfaces only in
+nested-scope tests, so the RFC requires explicit merge semantics.
+
+When `withScopedOverrides` enters a nested scope, the macro-synthesized
+implementation merges the inner overrides on top of the outer-effective
+overrides before binding the TaskLocal. The macro emits a
+`merge(into:)` helper on `Overrides` that copies non-`nil` fields from
+the inner builder into a copy of the currently-bound outer value;
+fields the inner caller did not touch keep the outer override in scope.
+The cost is one struct copy per scope entry, which is acceptable given
+that scoped overrides are an operation-time tool, not a hot-path
+abstraction.
+
+```swift
+container.withScopedOverrides({ outer in outer.clock = TestClock.frozen }) {
+    container.withScopedOverrides({ inner in inner.logger = NoopLogger() }) {
+        // Both overrides apply; inner.clock falls through to outer's TestClock.frozen.
+    }
+}
+```
+
+`Overrides.merge(into:)` is `Sendable`-respecting: it only ever copies
+already-`Sendable` values (see `Sendable` conformance above) and never
+captures non-`Sendable` closures.
 
 ## Comparison with swift-dependencies
 
@@ -148,10 +190,15 @@ need a small TaskLocal seam.
   member to remain immutable for the duration of a scope? The current
   proposal makes every member overrideable; an opt-out would mirror
   the existing `Overrides` builder shape exactly.
-- Strict-concurrency: do we need to mark the per-container TaskLocal
-  with `@MainActor` when the container itself is `mainActor: true`?
-  Current sketch keeps it `nonisolated` and relies on the wrapped
-  value's own `Sendable` story.
+- ~~Strict-concurrency: do we need to mark the per-container TaskLocal
+  with `@MainActor` when the container itself is `mainActor: true`?~~
+  Resolved (2026-05-06): the per-container TaskLocal stays `nonisolated`
+  regardless of `mainActor: true`. The wrapped `Overrides` value is
+  `Sendable` (see Validation contract), so reading it from any
+  isolation domain is safe. `@MainActor` containers continue to read
+  scoped overrides without crossing isolation boundaries; the macro
+  emits the TaskLocal storage as a plain `static let` and the access
+  helper is `nonisolated`.
 
 ## Migration
 
