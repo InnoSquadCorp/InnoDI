@@ -1214,6 +1214,40 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("sync factory rejects async closure")
+    func syncFactoryRejectsAsyncClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { () async in Service() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-be-sync")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing closure")
+    func syncFactoryRejectsThrowingClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { () throws in Service() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("async shared factory generates task-backed initialization")
     func asyncSharedFactoryGeneratesTaskBackedInit() {
         assertMacroExpansionSnapshot(
