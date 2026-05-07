@@ -2,6 +2,7 @@ import Foundation
 import Dispatch
 import Darwin
 import Testing
+import InnoDIBuildSupport
 import InnoDITestSupport
 
 @Suite("Strict concurrency build integration", .serialized, .tags(.slow))
@@ -328,6 +329,43 @@ struct StrictConcurrencyBuildTests {
         )
     }
 
+    @Test("DAG validation plugin shares state across multiple plugin-attached targets", .tags(.slow))
+    func dagValidationPluginSharesStateAcrossTargets() throws {
+        let fixture = try makeMultiTargetPluginFixture()
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-MultiTargetPlugin-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: fixture)
+            try? FileManager.default.removeItem(at: scratch)
+        }
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+
+        let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+
+        if result.timedOut || result.exitCode != 0 {
+            Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
+        }
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0)
+
+        let stampURLs = try findFiles(named: "dag-validation-stamp.txt", under: scratch)
+        let metricsURLs = try findFiles(named: "dag-validation-metrics.json", under: scratch)
+        let sharedStateDirectories = try findDirectories(named: "innodi-dag-validation-state", under: scratch)
+        let metrics = try metricsURLs.map { url in
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(ValidationMetricsArtifact.self, from: data)
+        }
+
+        #expect(stampURLs.count >= 2)
+        #expect(metrics.count >= 2)
+        #expect(sharedStateDirectories.count == 1)
+        #expect(metrics.contains { $0.wasCached })
+        if let sharedStateDirectory = sharedStateDirectories.first {
+            let sharedRunResults = try findFiles(named: "result.json", under: sharedStateDirectory)
+            #expect(sharedRunResults.count == 1)
+        }
+    }
+
     @Test("Deferred wrappers remain non-Sendable even when the payload is Sendable")
     func deferredWrappersStillFailInSendableHolders() throws {
         let fixture = try makeStrictConcurrencyFixture(
@@ -585,6 +623,98 @@ private func makeStrictConcurrencyFixture(
     return rootURL
 }
 
+private func makeMultiTargetPluginFixture() throws -> URL {
+    let rootURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("InnoDI-MultiTargetPluginFixture-\(UUID().uuidString)", isDirectory: true)
+    let featureAURL = rootURL.appendingPathComponent("Sources/FeatureA", isDirectory: true)
+    let featureBURL = rootURL.appendingPathComponent("Sources/FeatureB", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: featureAURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: featureBURL, withIntermediateDirectories: true)
+
+    let escapedRepoPath = packageRootURL()
+        .path(percentEncoded: false)
+        .replacingOccurrences(of: "\\", with: "\\\\")
+    let dependencyPackageIdentity: String = {
+        var identity = packageRootURL().lastPathComponent.lowercased()
+        if identity.hasSuffix(".git") {
+            identity.removeLast(".git".count)
+        }
+        return identity
+    }()
+
+    let manifest = """
+    // swift-tools-version: 6.2
+    import PackageDescription
+
+    let package = Package(
+        name: "MultiTargetPluginFixture",
+        platforms: [
+            .macOS(.v14),
+            .iOS(.v17)
+        ],
+        dependencies: [
+            .package(path: "\(escapedRepoPath)")
+        ],
+        targets: [
+            .executableTarget(
+                name: "FeatureA",
+                dependencies: [
+                    .product(name: "InnoDI", package: "\(dependencyPackageIdentity)")
+                ],
+                plugins: [
+                    .plugin(name: "InnoDIDAGValidationPlugin", package: "\(dependencyPackageIdentity)")
+                ]
+            ),
+            .executableTarget(
+                name: "FeatureB",
+                dependencies: [
+                    .product(name: "InnoDI", package: "\(dependencyPackageIdentity)")
+                ],
+                plugins: [
+                    .plugin(name: "InnoDIDAGValidationPlugin", package: "\(dependencyPackageIdentity)")
+                ]
+            )
+        ]
+    )
+    """
+
+    try manifest.write(
+        to: rootURL.appendingPathComponent("Package.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try multiTargetFeatureSource(containerName: "FeatureAContainer").write(
+        to: featureAURL.appendingPathComponent("main.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try multiTargetFeatureSource(containerName: "FeatureBContainer").write(
+        to: featureBURL.appendingPathComponent("main.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    return rootURL
+}
+
+private func multiTargetFeatureSource(containerName: String) -> String {
+    """
+    import InnoDI
+
+    struct Service: Sendable {}
+
+    @DIContainer
+    struct \(containerName) {
+        @Provide(.shared, factory: Service(), concrete: true)
+        var service: Service
+    }
+
+    let container = \(containerName)()
+    _ = container.service
+    """
+}
+
 private func packageRootURL() -> URL {
     if let override = ProcessInfo.processInfo.environment["PACKAGE_ROOT"],
        !override.isEmpty {
@@ -608,6 +738,34 @@ private func packageRootURL() -> URL {
 private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 180
 private let strictConcurrencyTerminationGracePeriodSeconds: TimeInterval = 5
 private let strictConcurrencyHardKillGracePeriodSeconds: TimeInterval = 2
+
+private func findFiles(named name: String, under rootURL: URL) throws -> [URL] {
+    try findFileSystemEntries(named: name, under: rootURL, isDirectory: false)
+}
+
+private func findDirectories(named name: String, under rootURL: URL) throws -> [URL] {
+    try findFileSystemEntries(named: name, under: rootURL, isDirectory: true)
+}
+
+private func findFileSystemEntries(named name: String, under rootURL: URL, isDirectory: Bool) throws -> [URL] {
+    guard let enumerator = FileManager.default.enumerator(
+        at: rootURL,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles]
+    ) else {
+        return []
+    }
+
+    var matches: [URL] = []
+    for case let url as URL in enumerator {
+        guard url.lastPathComponent == name else { continue }
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey])
+        if values.isDirectory == isDirectory {
+            matches.append(url)
+        }
+    }
+    return matches.sorted { $0.path < $1.path }
+}
 
 private func installStrictConcurrencyReadHandler(
     on handle: FileHandle,

@@ -121,6 +121,14 @@ func makeChildContainerOutOfWorkspaceIssue(edge: ResolvedHierarchyEdge) -> Valid
             )
         )
     }
+    if let parentModule = edge.parentModule {
+        notes.append(
+            ValidationIssueNote(
+                message: "parent module '\(parentModule.displayName)' is declared at '\(parentModule.manifestPath)'. Confirm this manifest or project file declares a dependency on the child target/product.",
+                location: edge.parentLocation
+            )
+        )
+    }
     notes.append(contentsOf: hierarchyModuleDisambiguationNotes(for: edge))
 
     var metadata: [String: String] = [
@@ -132,9 +140,11 @@ func makeChildContainerOutOfWorkspaceIssue(edge: ResolvedHierarchyEdge) -> Valid
     ]
     if let parentModule = edge.parentModule {
         metadata["parentModuleID"] = parentModule.moduleID
+        metadata["parentManifestPath"] = parentModule.manifestPath
     }
     if let childModule = edge.childModule {
         metadata["childModuleID"] = childModule.moduleID
+        metadata["childManifestPath"] = childModule.manifestPath
     }
 
     return ValidationIssue(
@@ -143,7 +153,7 @@ func makeChildContainerOutOfWorkspaceIssue(edge: ResolvedHierarchyEdge) -> Valid
         message: "@SubContainer '\(edge.subContainer.memberName)' on '\(edge.parentPath)' (module '\(parentModuleName)') references child container '\(edge.childPath)', but the workspace validator could not find a container record for it. Cross-module checks (component marker, module dependency edge, dependency satisfaction) are skipped for this edge.",
         location: edge.subContainer.location,
         notes: notes,
-        remediation: "Confirm the child target ships @DIComponent and that the parent module's manifest depends on the child module, then re-run validation. If the child intentionally lives outside the validated workspace, treat this warning as the contract you are accepting.",
+        remediation: "Confirm the child target ships @DIComponent, add the child target/product to the parent module's manifest dependencies, and re-run validation. If the child intentionally lives outside the validated workspace, treat this warning as the contract you are accepting.",
         metadata: metadata
     )
 }

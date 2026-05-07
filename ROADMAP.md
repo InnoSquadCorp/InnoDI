@@ -45,13 +45,22 @@ surface:
 - `@SubContainer(withNames:)` has been removed from the public macro
   signature, parser, diagnostics, build-support hierarchy validation, examples,
   and runtime tests. Supported explicit wiring is now `with:` or `bindings:`.
+- Direct `Lazy<T>` calls during `.shared` construction now produce
+  `provide.lazy-eager-call`, matching the Provider eager-call guard and keeping
+  soft edges from silently becoming eager runtime traps.
 - SwiftUI stacked helper examples that previously needed the string escape
   hatch now split root helper construction into ordinary extension methods.
 - The DAG validation plugin stores lock/cache state below SwiftPM's plugin work
   directory instead of `<package>/.build/innodi-dag-validation`, keeping the
   documented `--scratch-path` recovery route valid on unsafe package roots.
+- The validation plugin now uses a package-level shared state directory across
+  target-level plugin work directories, and the repository includes a
+  multi-target SwiftPM integration fixture that verifies cache reuse.
 - `Tools/check-docs-code-blocks.sh` now compiles marked Swift documentation
   snippets, and CI/release gates run it.
+- `InnoDIValidationTools` scaffolds the optional prebuilt macOS validation
+  plugin package and release artifact tooling for consumers that have measured
+  source-tool compilation as their main build-cost bottleneck.
 
 ## Post-4.1.0 Priorities
 
@@ -154,6 +163,9 @@ ordered by user-facing trust risk first.
    - Evaluate whether `Lazy<T>` needs a lighter-weight surface such as a property-wrapper form, and whether the three built-in scopes need finer-grained lifetime variants for server-side or multi-window workloads.
 3. CLI and validation polish
    - Add stronger `--help` coverage, more usage tests, and sharper diagnostics around graph collection, fix-its, and release artifacts.
+   - Promote the prebuilt validation-tools package from scaffold to published
+     companion release after the first tagged artifact is produced and measured
+     against the source plugin in a synthetic consumer.
 4. Toolchain compatibility hardening
    - Keep SwiftSyntax, DocC, and build-plugin behavior stable across new Swift
      and Xcode toolchains without weakening the documented validation contract.

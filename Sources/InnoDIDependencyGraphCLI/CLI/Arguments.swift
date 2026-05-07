@@ -44,6 +44,7 @@ enum ArgumentParseResult: Equatable {
 enum ArgumentsError: Error, Equatable {
     case missingOptionValue(option: String)
     case invalidFormat(value: String)
+    case unknownOption(option: String)
 }
 
 /// Pure-function argument parser. No process exit, no stderr writes — the
@@ -57,7 +58,7 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
     var validateDAG = false
     var diagnoseLockPath: String?
     var cacheStatsPath: String?
-    var warnings: [String] = []
+    let warnings: [String] = []
 
     let args = rawArguments
     var index = 0
@@ -137,7 +138,7 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
         } else if arg == "--help" || arg == "-h" {
             return .helpRequested
         } else if arg.hasPrefix("-") {
-            warnings.append("Warning: unrecognized option '\(arg)'")
+            return .failed(.unknownOption(option: arg))
         }
 
         index += 1
@@ -190,6 +191,8 @@ extension ArgumentsError {
             return "Error: Option \(option) requires a value"
         case .invalidFormat(let value):
             return "Error: Invalid --format value '\(value)'"
+        case .unknownOption(let option):
+            return "Error: Unknown option \(option)"
         }
     }
 }
