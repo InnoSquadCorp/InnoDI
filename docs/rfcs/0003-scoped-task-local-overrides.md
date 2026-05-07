@@ -257,9 +257,12 @@ apply, with the following surface-specific specializations:
    surprises, and the layered swift-dependencies pattern documented in the
    README still works for the cases this surface intentionally does not
    cover.
-5. **Promotion PR.** Same 7-day cooldown promotion PR pattern as the macro
-   surfaces — flips the docstring, the ROADMAP entry, and bumps the
-   relevant minor in `RELEASING.md`.
+5. **Promotion PR.** Same promotion pattern as the macro surfaces: after all
+   gates above are true on `main`, a maintainer opens a dedicated promotion PR
+   and waits 7 calendar days before merge so adopters can object to the symbol
+   shape. That PR flips the public docstring from experimental to stable,
+   moves this surface's [ROADMAP](../../ROADMAP.md) entry to GA, and updates
+   `RELEASING.md` for the minor-version bump plus any upgrade notes.
 
 If the macro/runtime work for this surface ever ships behind a feature flag
 or package trait, document the flag/trait and its removal plan inline above

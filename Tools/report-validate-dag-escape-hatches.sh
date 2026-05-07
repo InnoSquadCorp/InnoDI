@@ -79,8 +79,8 @@ fixture_count=$(printf '%s' "$FIXTURE_HITS" | grep -cE '.' || true)
 
 env_disabled="false"
 env_disabled_value="${INNODI_DISABLE_BUILD_VALIDATION:-}"
-case "${env_disabled_value,,}" in
-    1|true|yes) env_disabled="true";;
+case "$env_disabled_value" in
+    1|true|TRUE|True|yes|YES|Yes) env_disabled="true";;
 esac
 
 # ---- Markdown report (stdout) ----

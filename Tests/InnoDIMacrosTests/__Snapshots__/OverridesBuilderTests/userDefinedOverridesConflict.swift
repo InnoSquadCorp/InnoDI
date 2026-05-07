@@ -18,6 +18,7 @@ struct AppContainer {
 
     private let _storage_apiClient: APIClient
 
+    // MARK: - Initialization
     init(userID: String, apiClient: APIClient? = nil) {
         self._storage_userID = userID
         self._storage_apiClient = apiClient ?? APIClient()

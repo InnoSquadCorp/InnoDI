@@ -72,7 +72,13 @@ public struct DIContainerMacro: MemberMacro {
                 return [try DIContainerCodeGenerator.generateInit(for: model)]
             }
 
-            return try DIContainerCodeGenerator.generateAll(for: model)
+            return try DIContainerCodeGenerator.generateAll(
+                for: model,
+                prependingInitializationMARK: !hasHierarchyAttribute(
+                    named: "DIComponent",
+                    in: decl.attributes
+                )
+            )
         } catch let error as CodegenInvariantError {
             context.diagnose(
                 Diagnostic(

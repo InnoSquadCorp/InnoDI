@@ -93,3 +93,17 @@ internal func accessModifiers(_ accessLevel: String?) -> DeclModifierListSyntax 
     let modifier = DeclModifierSyntax(name: token)
     return DeclModifierListSyntax([modifier])
 }
+
+extension DeclSyntax {
+    /// Prepends a `// MARK: ...` line comment to this declaration's leading
+    /// trivia so that macro expansions render with section dividers in the
+    /// generated source.
+    internal func prependingMARK(_ comment: String) -> DeclSyntax {
+        let markTrivia: Trivia = [
+            .newlines(1),
+            .lineComment(comment),
+            .newlines(1),
+        ]
+        return self.with(\.leadingTrivia, markTrivia + self.leadingTrivia)
+    }
+}
