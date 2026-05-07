@@ -109,3 +109,6 @@ iOSInjectionProject/
 
 # DocC Documentation Build
 docs-build/
+
+# Code coverage artifacts produced by Tools/collect-coverage.sh
+coverage/
