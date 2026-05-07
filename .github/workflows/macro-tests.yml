@@ -15,8 +15,31 @@ jobs:
         # -warnings-as-errors catches any regression that would slip through
         # `swiftSettings`'s warning-only StrictConcurrency gate. Paired with
         # the main `release.yml` strict-concurrency check so every PR fails
-        # on the same rules that block a tag.
-        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+        # on the same rules that block a tag. `--enable-code-coverage`
+        # makes the next step's per-module rollup possible without a second
+        # build run.
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage
+      - name: Collect Code Coverage
+        # Coverage is informational — surfaced in the workflow step summary
+        # and uploaded as an artifact, but not a merge gate. The PR template
+        # asks reviewers to scan the per-module table for unexpected drops.
+        run: |
+          Tools/collect-coverage.sh
+          {
+            echo "## Code coverage"
+            echo
+            cat coverage/summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Coverage Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage/lcov.info
+            coverage/report.txt
+            coverage/summary.json
+            coverage/summary.md
+          if-no-files-found: error
       - name: No fatalError in synthesized code
         # Macro-synthesized accessors must never embed a `fatalError(...)`
         # trap into user code. The two allow-listed sites are explicit

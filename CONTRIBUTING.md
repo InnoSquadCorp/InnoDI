@@ -49,6 +49,24 @@ H2 in `README.md`, mirror the change into all six localized files in the same
 PR. The script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit
 soft-rollout window for canonical restructures.
 
+## Code Coverage
+
+The PR workflow runs `swift test --enable-code-coverage` once and feeds the
+profile data into `Tools/collect-coverage.sh`, which exports a per-module
+rollup. The rollup appears in the workflow run's step summary and is
+uploaded as an `actions/upload-artifact` artifact named `coverage`. Locally:
+
+```sh
+swift test --enable-code-coverage
+Tools/collect-coverage.sh
+# → coverage/lcov.info, coverage/report.txt, coverage/summary.json, coverage/summary.md
+```
+
+Coverage is informational: it surfaces unexpected per-module drops without
+gating merges on a threshold. Tests, examples, swift-syntax, and the
+`.build` cache are excluded so the report tracks the library surface, not
+fixtures or third-party code.
+
 ## PR Expectations
 
 - Keep changes scoped and explain user-facing behavior changes.
