@@ -102,6 +102,16 @@ swift build --scratch-path /tmp/innodi-cache
 environment에 남습니다. 자세한 진단과 복구 절차, 전체 파일시스템 표는
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)를 참고하세요.
 
+## 개인정보 보호
+
+InnoDI는 두 런타임 제품 `InnoDI`와 `InnoDISwiftUI`에 Apple Privacy Manifest
+(`PrivacyInfo.xcprivacy`)를 동봉합니다. 매니페스트는 사용자 추적 없음, 추적
+도메인 없음, 수집 데이터 유형 없음, Required Reason API 사용 없음을 선언합니다.
+빌드 시점 도구(InnoDIBuildSupport, dependency-graph CLI, 매크로 플러그인)는
+사용자 앱에 임베드되지 않으므로 매니페스트에 영향을 주지 않습니다. iOS, watchOS,
+tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 자동으로
+번들링하고 앱의 집계 개인정보 보고서에 표시됩니다.
+
 ## 설치
 
 `Package.swift`에 InnoDI를 추가합니다.

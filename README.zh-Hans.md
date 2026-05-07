@@ -100,6 +100,15 @@ fail-fast，但 InnoDI 仍会输出可审计的警告，风险仍由该 build en
 承担。诊断、恢复步骤和完整文件系统表见
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)。
 
+## 隐私
+
+InnoDI 在两个运行时产品 `InnoDI` 和 `InnoDISwiftUI` 中附带 Apple Privacy
+Manifest（`PrivacyInfo.xcprivacy`）。该清单声明无用户追踪、无追踪域名、无收集
+的数据类型、无 Required Reason API 使用。构建时工具（InnoDIBuildSupport、
+dependency-graph CLI、宏插件）不会嵌入到用户应用中，因此不会影响该清单。如果
+将 InnoDI 嵌入到 iOS、watchOS、tvOS 或 visionOS 应用中，SwiftPM 会自动捆绑
+该清单，并使其出现在应用的汇总隐私报告中。
+
 ## 安装
 
 在 `Package.swift` 中加入：

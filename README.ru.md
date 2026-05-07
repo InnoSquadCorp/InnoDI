@@ -110,6 +110,18 @@ state.
 полная таблица файловых систем описаны в
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
+## Конфиденциальность
+
+InnoDI поставляется с Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) в двух
+runtime-продуктах: `InnoDI` и `InnoDISwiftUI`. Манифест декларирует отсутствие
+отслеживания пользователей, отсутствие доменов отслеживания, отсутствие
+собираемых типов данных и отсутствие использования Required Reason API.
+Инструменты времени сборки (InnoDIBuildSupport, dependency-graph CLI,
+macro plugin) не встраиваются в приложения пользователей и поэтому не влияют
+на манифест. При встраивании InnoDI в приложение iOS, watchOS, tvOS или
+visionOS SwiftPM автоматически упаковывает манифест, и он отображается в
+агрегированном отчёте о конфиденциальности приложения.
+
 ## Установка
 
 Добавьте InnoDI в `Package.swift`:

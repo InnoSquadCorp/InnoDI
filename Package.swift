@@ -65,11 +65,17 @@ let package = Package(
         .target(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"],
+            resources: [
+                .copy("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: innoDISharedSwiftSettings
         ),
         .target(
             name: "InnoDISwiftUI",
             dependencies: ["InnoDI", "InnoDIMacros"],
+            resources: [
+                .copy("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: innoDISharedSwiftSettings
         ),
         .target(

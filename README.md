@@ -109,6 +109,17 @@ the risk stays with that build environment. For diagnostics, recovery steps,
 and the full filesystem table, see
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
+## Privacy
+
+InnoDI ships an Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) with both
+runtime products, `InnoDI` and `InnoDISwiftUI`. The manifest declares no user
+tracking, no tracking domains, no collected data types, and no Required Reason
+API usage. Build-time tools — `InnoDIBuildSupport`, the dependency-graph CLI,
+and the macro plugin — are not embedded in consumer apps and therefore do not
+contribute to the manifest. If you embed InnoDI into an iOS, watchOS, tvOS, or
+visionOS app, the manifest is bundled automatically by SwiftPM and surfaces in
+your aggregated privacy report.
+
 ## Installation
 
 Add InnoDI to your `Package.swift`:
