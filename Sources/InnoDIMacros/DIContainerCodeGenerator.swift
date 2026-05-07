@@ -11,8 +11,11 @@ struct CodegenInvariantError: Error {
 }
 
 struct DIContainerCodeGenerator {
-    static func generateInit(for model: DIContainerExpansionModel) throws -> DeclSyntax {
-        try makeInitDecl(
+    static func generateInit(
+        for model: DIContainerExpansionModel,
+        prependingInitializationMARK: Bool = true
+    ) throws -> DeclSyntax {
+        let initDecl = try makeInitDecl(
             sharedMembers: model.sharedMembers,
             syncSharedMembers: model.syncSharedMembers,
             asyncSharedMembers: model.asyncSharedMembers,
@@ -23,6 +26,10 @@ struct DIContainerCodeGenerator {
             mainActorEnabled: model.options.mainActor,
             validateDAGEnabled: model.options.validateDAG
         )
+        if prependingInitializationMARK {
+            return initDecl.prependingMARK("// MARK: - Initialization")
+        }
+        return initDecl
     }
 
     /// Generates the full member set: primary init + (if applicable) `Overrides`
@@ -38,7 +45,10 @@ struct DIContainerCodeGenerator {
     /// snapshots in code review) can scan the four logical sections —
     /// initialization, overrides builder, convenience init, withOverrides
     /// effect overloads — without parsing the whole expansion.
-    static func generateAll(for model: DIContainerExpansionModel) throws -> [DeclSyntax] {
+    static func generateAll(
+        for model: DIContainerExpansionModel,
+        prependingInitializationMARK: Bool = true
+    ) throws -> [DeclSyntax] {
         var decls: [DeclSyntax] = []
 
         // `.transient` sub-containers are backed by a stored
@@ -48,8 +58,12 @@ struct DIContainerCodeGenerator {
         // generated inline by `makeSubContainerInitStatements` — no extra
         // member-level decls are needed here.
 
-        let initDecl = try generateInit(for: model)
-        decls.append(initDecl.prependingMARK("// MARK: - Initialization"))
+        decls.append(
+            try generateInit(
+                for: model,
+                prependingInitializationMARK: prependingInitializationMARK
+            )
+        )
 
         decls.append(
             makeOverridesStructDecl(model: model)
@@ -67,32 +81,20 @@ struct DIContainerCodeGenerator {
         let withOverridesMethods = makeWithOverridesMethods(model: model)
         let withOverridesLabels = [
             "// MARK: - withOverrides",
-            "// MARK: withOverrides (throws)",
-            "// MARK: withOverrides (async)",
-            "// MARK: withOverrides (async throws)",
+            "// MARK: - withOverrides (throws)",
+            "// MARK: - withOverrides (async)",
+            "// MARK: - withOverrides (async throws)",
         ]
+        guard withOverridesMethods.count == withOverridesLabels.count else {
+            throw CodegenInvariantError(
+                description: "makeWithOverridesMethods produced \(withOverridesMethods.count) overload(s), but DIContainerCodeGenerator has \(withOverridesLabels.count) withOverrides MARK label(s). Keep makeWithOverridesMethods, withOverridesLabels, and decl insertion in sync."
+            )
+        }
         for (index, method) in withOverridesMethods.enumerated() {
-            let label = index < withOverridesLabels.count
-                ? withOverridesLabels[index]
-                : "// MARK: withOverrides"
-            decls.append(method.prependingMARK(label))
+            decls.append(method.prependingMARK(withOverridesLabels[index]))
         }
 
         return decls
-    }
-}
-
-extension DeclSyntax {
-    /// Prepends a `// MARK: ...` line comment to this declaration's leading
-    /// trivia so that macro expansions render with section dividers in the
-    /// generated source.
-    fileprivate func prependingMARK(_ comment: String) -> DeclSyntax {
-        let markTrivia: Trivia = [
-            .newlines(1),
-            .lineComment(comment),
-            .newlines(1),
-        ]
-        return self.with(\.leadingTrivia, markTrivia + self.leadingTrivia)
     }
 }
 

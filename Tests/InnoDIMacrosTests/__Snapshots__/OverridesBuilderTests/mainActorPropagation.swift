@@ -34,25 +34,25 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides
-    @MainActor static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return operation(container)
     }
 
-    // MARK: withOverrides (throws)
-    @MainActor static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+    // MARK: - withOverrides (throws)
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try operation(container)
     }
 
-    // MARK: withOverrides (async)
-    @MainActor static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+    // MARK: - withOverrides (async)
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return await operation(container)
     }
 
-    // MARK: withOverrides (async throws)
-    @MainActor static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+    // MARK: - withOverrides (async throws)
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try await operation(container)
     }
