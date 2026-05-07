@@ -62,6 +62,10 @@ struct SubContainerBindingReference {
     let parentKeyPath: KeyPathExprSyntax
 }
 
+struct InvalidSubContainerBindingReference {
+    let anchorExpression: ExprSyntax
+}
+
 /// A member inside a `@DIContainer` annotated with `@SubContainer`. Parallel
 /// to `ProvideMemberModel` but carries sub-container-specific metadata: a
 /// scope that must be explicit (no default), and the ordered parent names the
@@ -95,6 +99,10 @@ struct SubContainerMemberModel {
     /// Explicit child `.input` -> parent member remapping from
     /// `bindings: [(child: \.foo, parent: \.bar)]`.
     let explicitBindings: [SubContainerBindingReference]
+    /// Invalid `bindings:` expression or element anchors.
+    let invalidBindingReferences: [InvalidSubContainerBindingReference]
+    /// Literal parse state for `bindings:`.
+    let bindingsParseState: SubContainerBindingsParseState
     /// Original key-path expressions from `with:`. Preserved so validation can
     /// point at the exact unknown parent member rather than the whole
     /// attribute.
@@ -118,6 +126,23 @@ struct SubContainerMemberModel {
             return label
         }
         return nil
+    }
+
+    var hasBindingsArgument: Bool {
+        switch bindingsParseState {
+        case .omitted:
+            return false
+        case .parsed, .invalid:
+            return true
+        }
+    }
+
+    var hasInvalidBindings: Bool {
+        bindingsParseState.isInvalid
+    }
+
+    var invalidBindingAnchorExpression: ExprSyntax? {
+        invalidBindingReferences.first?.anchorExpression
     }
 
     func parentReferenceSyntax(for parentName: String) -> ExprSyntax? {
@@ -170,7 +195,9 @@ struct ProvideMemberModel {
     let typeExpr: ExprSyntax?
     let initializer: ExprSyntax?
     let concreteOptIn: Bool
+    let concreteParseState: BoolArgumentParseState
     let withDependencies: [String]
+    let withDependenciesParseState: KeyPathArrayArgumentParseState
     let withDependencyReferences: [WithDependencyReference]
     let closureDependencies: [String]
     let closureParameterReferences: [ClosureParameterReference]

@@ -21,8 +21,8 @@ protocol UserService {
 ```
 
 The macro emits a peer mock class next to the protocol. The generated class
-conforms to the protocol and `@unchecked Sendable`. Tests instantiate the mock,
-populate the stubs, and read recorded calls back:
+conforms to the protocol. Tests instantiate the mock, populate the stubs, and
+read recorded calls back:
 
 ```swift
 let mock = UserServiceMock()
@@ -70,6 +70,9 @@ For each supported protocol member the macro emits the following:
 * **Escaping closure arguments** — recorded with property-safe function types
   (`@escaping` / `@autoclosure` are removed from the call-record field while
   the conforming method keeps the original parameter spelling).
+* **Concurrency** — generated mocks are not thread-safe by default. Keep a mock
+  instance on one test executor or provide your own locking wrapper when a test
+  intentionally shares it across tasks.
 
 ## Currently unsupported
 
@@ -99,6 +102,33 @@ the macro plugin saw the attribute.
 
 The DiagnosticsGuide article lists every InnoDI diagnostic with the same
 codes and links back to the recovery action.
+
+## When InnoDI's mock isn't enough
+
+`@GenerateMock` deliberately covers only the protocol shapes that InnoDI can
+synthesize without leaving the call site ambiguous. When a test case lands on
+one of the unsupported requirements above — associated types, `subscript`,
+`inout`, `rethrows`, opaque returns, `static`/`class` members — the recommended
+path is to reach for an external mocking framework rather than to extend the
+generated shape inline.
+
+A few starting points that work well alongside InnoDI:
+
+* Third-party libraries supporting protocol-witness or partial-mock patterns
+  are a good fit when the protocol needs `static` requirements,
+  `Sendable` inheritance, or associated-type binding.
+* Hand-written conforming structs/classes remain the lightest option for
+  small protocols; the macro is meant to remove repetitive boilerplate, not
+  to replace one-off conformances.
+* For rapidly evolving protocols still under design, prefer a hand-rolled mock
+  until the API stabilizes; once the shape settles, swapping in
+  `@GenerateMock` is mechanical.
+
+The InnoDI overrides builder accepts any conforming instance, so the choice
+of mock library is independent of the container surface. Keep external mocks
+in test targets only and pin the version separately from `InnoDI`; the
+generated and hand-written paths can coexist without affecting graph
+validation.
 
 ## Stability
 

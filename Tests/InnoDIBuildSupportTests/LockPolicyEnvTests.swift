@@ -68,6 +68,51 @@ struct LockPolicyEnvTests {
         #expect(warnings.allSatisfy { $0.contains("0") })
     }
 
+    @Test("Non-finite values fall back to defaults and warn")
+    func nonFiniteOverridesAreInvalid() {
+        let cases = [
+            ("Inf", "NaN"),
+            ("INF", "-nan"),
+            ("+inf", "-inf"),
+        ]
+        for (lockTimeout, staleLockAge) in cases {
+            var warnings: [String] = []
+            let policy = ValidationCoordinatorLockPolicy(
+                environment: [
+                    ValidationCoordinatorLockPolicy.EnvKey.lockTimeout: lockTimeout,
+                    ValidationCoordinatorLockPolicy.EnvKey.staleLockAge: staleLockAge
+                ],
+                warningHandler: { warnings.append($0) }
+            )
+            let defaults = ValidationCoordinatorLockPolicy.default
+            #expect(policy.maxWaitSeconds == defaults.maxWaitSeconds)
+            #expect(policy.staleLockAgeSeconds == defaults.staleLockAgeSeconds)
+            #expect(warnings.count == 2)
+            #expect(warnings.contains(where: { $0.contains(lockTimeout) }))
+            #expect(warnings.contains(where: { $0.contains(staleLockAge) }))
+        }
+    }
+
+    @Test("Excessively large values fall back to defaults and warn")
+    func hugeOverridesAreInvalid() {
+        let lockTimeout = "315360000"
+        let staleLockAge = "999999999"
+        var warnings: [String] = []
+        let policy = ValidationCoordinatorLockPolicy(
+            environment: [
+                ValidationCoordinatorLockPolicy.EnvKey.lockTimeout: lockTimeout,
+                ValidationCoordinatorLockPolicy.EnvKey.staleLockAge: staleLockAge
+            ],
+            warningHandler: { warnings.append($0) }
+        )
+        let defaults = ValidationCoordinatorLockPolicy.default
+        #expect(policy.maxWaitSeconds == defaults.maxWaitSeconds)
+        #expect(policy.staleLockAgeSeconds == defaults.staleLockAgeSeconds)
+        #expect(warnings.count == 2)
+        #expect(warnings.contains(where: { $0.contains(lockTimeout) }))
+        #expect(warnings.contains(where: { $0.contains(staleLockAge) }))
+    }
+
     @Test("Empty values are ignored without warning")
     func emptyValuesIgnored() {
         var warnings: [String] = []

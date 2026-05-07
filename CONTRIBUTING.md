@@ -49,6 +49,32 @@ localized DocC files are maintained as source mirrors in the repository.
 - If release notes, upgrade guidance, artifact naming, or schema expectations change, update `RELEASING.md` in the same change.
 - Prefer `SwiftSyntaxBuilder` over string-built AST when changing macro generation.
 
+## Code Style Conventions
+
+InnoDI does not enforce code style through an automated formatter. The
+repository follows these whitespace conventions consistently across both
+`Sources/` and `Tests/`; new contributions should match what neighboring
+files already do:
+
+- Swift tools version `6.2`.
+- Indent with 4 spaces; no tabs.
+- LF line endings.
+- No trailing semicolons; no trailing whitespace.
+- Spaces around binary operators and after commas; no spaces inside
+  `..<` or `...` ranges.
+- Imports grouped with `@testable` imports trailing.
+- `self.` only inside initializers; rely on Swift's default elsewhere.
+- Use `some Protocol` / `any Protocol` deliberately — the macro and
+  validator pipelines treat them as distinct, and changing one to the
+  other can shift diagnostics or graph edges.
+
+Stylistic decisions that are not in this list (line wrapping, doc
+comment placement, redundant-`Sendable` conformances on non-public
+types, generic parameter syntax) are deliberately left to author
+judgment. Macro fixtures and validator pipelines often have a reason
+for their current shape; do not reformat unrelated code in a behavior
+PR.
+
 ## Issues and Discussions
 
 - Use issues for reproducible bugs, missing diagnostics, or feature requests.

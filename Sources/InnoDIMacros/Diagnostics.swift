@@ -33,6 +33,10 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideFactoryConflict = "provide.factory-conflict"
     case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
+    case provideFactoryMustBeSync = "provide.factory-must-be-sync"
+    case provideFactoryMustNotThrow = "provide.factory-must-not-throw"
+    case provideBoolLiteralRequired = "provide.bool-literal-required"
+    case provideInvalidWithDependencies = "provide.invalid-with-dependencies"
     case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
     case provideProviderNonTransientTarget = "provide.provider-non-transient-target"
     case provideProviderUnsupportedTarget = "provide.provider-unsupported-target"
@@ -44,6 +48,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerUnknownDependency = "container.unknown-dependency"
     case containerDependencyCycle = "container.dependency-cycle"
     case containerMainActorConflict = "container.mainactor-conflict"
+    case containerBoolLiteralRequired = "container.bool-literal-required"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
@@ -56,6 +61,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subUnknownParentMember = "sub.unknown-parent-member"
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
+    case subInvalidBindings = "sub.invalid-bindings"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
@@ -90,16 +96,20 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
+                .provideFactoryMustBeSync, .provideFactoryMustNotThrow,
+                .provideBoolLiteralRequired, .provideInvalidWithDependencies,
                 .provideLazyUnsupportedTarget, .provideProviderNonTransientTarget, .provideProviderUnsupportedTarget,
                 .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
+                .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerReservedNamePrefix, .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith,
-                .subInvalidSameNameWiring, .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
+                .subInvalidSameNameWiring, .subInvalidBindings,
+                .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
@@ -153,6 +163,8 @@ struct SimpleNote: NoteMessage {
 }
 
 struct SimpleFixIt: FixItMessage {
+    static let addConcreteTrueTitle = "Add concrete: true"
+
     let message: String
     let fixItID: MessageID
 
@@ -214,7 +226,7 @@ extension SimpleDiagnostic {
 
     static func provideConcreteOptInRequired(name: String, typeDescription: String) -> Self {
         Self(
-            "Concrete dependency '\(name): \(typeDescription)' requires concrete: true. Prefer protocol types when possible.",
+            "Concrete dependency '\(name): \(typeDescription)' requires concrete: true.",
             code: .provideConcreteOptInRequired
         )
     }
@@ -237,6 +249,34 @@ extension SimpleDiagnostic {
         Self(
             "asyncFactory must be an async closure expression.",
             code: .provideAsyncFactoryMustBeAsync
+        )
+    }
+
+    static func provideFactoryMustBeSync(memberName: String) -> Self {
+        Self(
+            "factory: for '\(memberName)' must be synchronous. Use asyncFactory: for async construction.",
+            code: .provideFactoryMustBeSync
+        )
+    }
+
+    static func provideFactoryMustNotThrow(memberName: String) -> Self {
+        Self(
+            "factory: for '\(memberName)' must be non-throwing. Handle errors inside the factory or use asyncFactory: when asynchronous throwing construction is required.",
+            code: .provideFactoryMustNotThrow
+        )
+    }
+
+    static func provideBoolLiteralRequired(label: String) -> Self {
+        Self(
+            "@Provide \(label): requires a literal true or false. Macros cannot evaluate arbitrary Bool expressions.",
+            code: .provideBoolLiteralRequired
+        )
+    }
+
+    static func provideInvalidWithDependencies(memberName: String) -> Self {
+        Self(
+            "@Provide for '\(memberName)' requires with: to be a literal key-path array such as [\\.config] or [].",
+            code: .provideInvalidWithDependencies
         )
     }
 
@@ -404,6 +444,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func containerBoolLiteralRequired(label: String) -> Self {
+        Self(
+            "@DIContainer \(label): requires a literal true or false. Use conditional compilation to choose different attribute spellings per build configuration.",
+            code: .containerBoolLiteralRequired
+        )
+    }
+
     static func containerCustomInitUnsupported() -> Self {
         Self(
             "@DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring.",
@@ -474,6 +521,13 @@ extension SimpleDiagnostic {
                 code: .subInvalidSameNameWiring
             )
         }
+    }
+
+    static func subInvalidBindings(memberName: String) -> Self {
+        Self(
+            "@SubContainer on '\(memberName)' requires bindings: to be a literal array of (child:parent:) key-path tuples.",
+            code: .subInvalidBindings
+        )
     }
 
     static func subDuplicateChildBinding(memberName: String, childInputName: String) -> Self {
@@ -595,7 +649,7 @@ extension SimpleDiagnostic {
         let listed = memberNames.prefix(5).joined(separator: ", ")
         let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
         return Self(
-            "@GenerateMock cannot synthesize this protocol because one or more members are unsupported: \(listed)\(suffix). Associated types, static/class requirements, subscripts, rethrows or typed throws, inout parameters, and opaque return types need a hand-written mock until the RFC 0001 support matrix expands.",
+            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Associated types, Sendable inheritance, static/class requirements, subscripts, rethrows or typed throws, inout parameters, and opaque return types need a hand-written mock until the RFC 0001 support matrix expands.",
             code: .generateMockUnsupportedMember,
             severity: .warning
         )

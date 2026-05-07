@@ -61,12 +61,16 @@ the change and treat the diagnostic as the source of truth.
 ## Configuration-Aware Enforcement
 
 A common pattern is to keep validation enabled in production while letting
-internal builds skip it during a known-bad migration window. The flag accepts
-any compile-time `Bool` expression, so a build configuration boolean keeps
-the default safe:
+internal builds skip it during a known-bad migration window. Macro Boolean
+options must be literal `true` or `false`, so use conditional compilation to
+choose the attribute spelling:
 
 ```swift
-@DIContainer(validateDAG: !FAST_BUILD)
+#if FAST_BUILD
+@DIContainer(validateDAG: false)
+#else
+@DIContainer
+#endif
 struct AppContainer {
     // ...
 }

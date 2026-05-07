@@ -191,16 +191,7 @@ struct StrictConcurrencyBuildTests {
                     _ = api.fetch(id: "42")
                     _ = api.fetch(page: 1)
 
-                    let generic = GenericAPIMock()
-                    generic.makeUnlabeledTTypeHandler = { _ in "made" }
-                    generic.failUnlabeledTTypeHandler = { _ in "failed" }
-                    generic.waitUnlabeledTTypeHandler = { _ in "waited" }
-                    generic.loadUnlabeledTTypeHandler = { _ in "loaded" }
-
-                    let _: String = generic.make(String.self)
-                    let _: String = try generic.fail(String.self)
-                    let _: String = await generic.wait(String.self)
-                    let _: String = try await generic.load(String.self)
+                    try await exerciseGenericAPI()
 
                     let callbacks = CallbackAPIMock()
                     callbacks.bump(repeat: 1)
@@ -218,6 +209,19 @@ struct StrictConcurrencyBuildTests {
                     eventFactory.makeHandlerReturnValue = {}
                     _ = eventFactory.makeEvent()
                     eventFactory.makeHandler()()
+                }
+
+                nonisolated static func exerciseGenericAPI() async throws {
+                    let generic = GenericAPIMock()
+                    generic.makeUnlabeledTTypeHandler = { _ in "made" }
+                    generic.failUnlabeledTTypeHandler = { _ in "failed" }
+                    generic.waitUnlabeledTTypeHandler = { _ in "waited" }
+                    generic.loadUnlabeledTTypeHandler = { _ in "loaded" }
+
+                    let _: String = generic.make(String.self)
+                    let _: String = try generic.fail(String.self)
+                    let _: String = await generic.wait(String.self)
+                    let _: String = try await generic.load(String.self)
                 }
             }
             """)

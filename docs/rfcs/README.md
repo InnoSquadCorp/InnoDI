@@ -13,6 +13,7 @@ before a PR lands.
 |------|---------------------------------------|--------|
 | 0001 | [Macro-driven mock generation](0001-macro-mock-generation.md) | Draft |
 | 0002 | [SubContainer wiring simplification](0002-subcontainer-wiring-simplification.md) | Deferred |
+| 0003 | [Scoped TaskLocal overrides](0003-scoped-task-local-overrides.md) | Draft |
 
 ## Conventions
 

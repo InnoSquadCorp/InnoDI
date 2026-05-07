@@ -77,6 +77,44 @@ struct ProvideMacroTests {
         #expect(args.dependencies == ["config", "logger"])
     }
 
+    @Test("Provide parser preserves invalid concrete: Bool")
+    func parseProvideWithNonLiteralConcretePreservesInvalidState() throws {
+        let source = """
+        @Provide(.shared, factory: SomeType(), concrete: shouldUseConcrete)
+        var foo: SomeType
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide")
+            return
+        }
+
+        let args = parseProvideArguments(attr)
+        #expect(args.concrete == false)
+        #expect(args.concreteParseState == .invalid)
+    }
+
+    @Test("Provide parser preserves invalid with: dependencies")
+    func parseProvideWithNonLiteralDependenciesPreservesInvalidState() throws {
+        let source = """
+        @Provide(.shared, APIClient.self, with: dependencyKeyPaths)
+        var apiClient: APIClientProtocol
+        """
+
+        let parsed = Parser.parse(source: source)
+        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse @Provide")
+            return
+        }
+
+        let args = parseProvideArguments(attr)
+        #expect(args.dependencies.isEmpty)
+        #expect(args.dependenciesParseState == .invalid)
+    }
+
     @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
     func parseClosureParameterNamesSkipsWildcard() throws {
         let source = """

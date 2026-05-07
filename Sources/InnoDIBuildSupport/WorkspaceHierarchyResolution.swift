@@ -277,7 +277,7 @@ func resolvedDependencyMappings(
 ) -> ResolvedDependencyMappingsResult {
     var conflictIssues: [ValidationIssue] = []
 
-    if !edge.subContainer.bindings.isEmpty,
+    if edge.subContainer.hasBindingsArgument,
        let bindingsConflictLabel = edge.subContainer.sameNameWiring.label {
         conflictIssues.append(
             makeConflictingSameNameAndBindingsIssue(
@@ -297,7 +297,22 @@ func resolvedDependencyMappings(
         )
     }
 
-    if !edge.subContainer.bindings.isEmpty {
+    if let invalidBindingsLocation = edge.subContainer.invalidBindingsLocation {
+        return ResolvedDependencyMappingsResult(
+            mappings: [:],
+            issues: [
+                makeInvalidBindingsIssue(
+                    parent: parent,
+                    child: child,
+                    edge: edge,
+                    location: invalidBindingsLocation
+                )
+            ],
+            suppressesDependencySatisfaction: true
+        )
+    }
+
+    if edge.subContainer.hasBindingsArgument {
         return resolvedDependencyMappings(
             parent: parent,
             child: child,
@@ -420,6 +435,32 @@ private func makeInvalidSameNameWiringIssue(
             "childContainerPath": child.path,
             "subContainerMemberName": edge.subContainer.memberName,
             "label": label.rawValue
+        ]
+    )
+}
+
+private func makeInvalidBindingsIssue(
+    parent: WorkspaceHierarchyContainerRecord,
+    child: WorkspaceHierarchyContainerRecord,
+    edge: ResolvedHierarchyEdge,
+    location: ValidationIssueLocation
+) -> ValidationIssue {
+    ValidationIssue(
+        code: "hierarchy.invalid-bindings",
+        severity: .error,
+        message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' uses bindings: that is not a fully parseable literal child-to-parent key-path tuple array.",
+        location: location,
+        notes: [
+            ValidationIssueNote(
+                message: "child component '\(child.path)' is reached from parent container '\(parent.path)'.",
+                location: child.location
+            )
+        ],
+        remediation: "Use a literal array such as bindings: [(child: \\.config, parent: \\.appConfig)]. Runtime variables and malformed tuple entries are not supported.",
+        metadata: [
+            "parentContainerPath": parent.path,
+            "childContainerPath": child.path,
+            "subContainerMemberName": edge.subContainer.memberName
         ]
     )
 }

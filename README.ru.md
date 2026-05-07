@@ -58,6 +58,16 @@ reviewable wiring и более ранняя validation.
 для validated application graph, а `swift-dependencies` или небольшие
 factories внутри feature logic — для локальных runtime values.
 
+Рабочий шаблон layering — отделить *конструирование* (InnoDI) от
+*эфемерных, вызов-локальных override* (`swift-dependencies`). Composition root
+разрешает `DependencyKey` (например `@Dependency(\.date)`) и передаёт
+полученное значение в container как `.input`; тесты заменяют его на одно
+дерево вызовов через `withDependencies { $0.date = .constant(...) }
+operation:`, не пересобирая container и не перепроверяя его validated graph.
+Container-level `Overrides` builder остаётся правильным инструментом для
+app-wide swap (например подменить `APIClient`); `swift-dependencies` —
+только когда override должен жить ровно одну operation.
+
 ## Требования
 
 - Swift tools version `6.2`

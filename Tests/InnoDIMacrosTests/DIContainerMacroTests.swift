@@ -41,12 +41,12 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
                             line: 3,
                             column: 5
                         ),
@@ -87,12 +87,12 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClientProtocol' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClientProtocol' requires concrete: true.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
                             line: 3,
                             column: 5
                         ),
@@ -133,12 +133,12 @@ struct DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClientProtocol?' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClientProtocol?' requires concrete: true.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
                             line: 3,
                             column: 5
                         ),
@@ -1143,6 +1143,86 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.isEmpty)
     }
 
+    @Test("DIContainer Bool options must be literals")
+    func containerBoolOptionsRequireLiterals() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(root: isRoot, validateDAG: !FAST_BUILD, mainActor: Flags.mainActor)
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.bool-literal-required"),
+                MessageID(domain: "InnoDI.validation", id: "container.bool-literal-required"),
+                MessageID(domain: "InnoDI.validation", id: "container.bool-literal-required"),
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@Provide concrete: requires a literal Bool")
+    func provideConcreteRequiresLiteralBool() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { Service() }, concrete: FeatureFlags.useConcrete)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.bool-literal-required")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@Provide with: requires a literal key-path array")
+    func provideWithRequiresLiteralKeyPathArray() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let dependencies = [\\AppContainer.config]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, Service.self, with: dependencies, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.invalid-with-dependencies")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@Provide with: rejects malformed literal array elements")
+    func provideWithRejectsMalformedLiteralArrayElements() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            func makeKeyPath() -> Any { fatalError() }
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, Service.self, with: [\\.config, makeKeyPath()], concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.invalid-with-dependencies")
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("asyncFactory and factory cannot be used together")
     func asyncFactoryAndFactoryConflictProducesDiagnostic() {
         assertMacroExpansionDiagnosticCodes(
@@ -1190,6 +1270,188 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "provide.async-factory-must-be-async")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects async closure")
+    func syncFactoryRejectsAsyncClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { () async in Service() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-be-sync")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing closure")
+    func syncFactoryRejectsThrowingClosure() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { () throws in Service() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects inferred throwing closure body")
+    func syncFactoryRejectsInferredThrowingClosureBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { try makeService() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing expression factory")
+    func syncFactoryRejectsThrowingExpressionFactory() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: try makeService(), concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects inferred async closure body")
+    func syncFactoryRejectsInferredAsyncClosureBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { await makeService() }, concrete: true)
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-be-sync")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory allows nonthrowing try variants")
+    func syncFactoryAllowsNonthrowingTryVariants() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: { try? makeService() }, concrete: true)
+                var optionalService: Service?
+
+                @Provide(.transient, factory: { try! makeRequiredService() }, concrete: true)
+                var requiredService: Service
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory allows handled throwing closure body")
+    func syncFactoryAllowsHandledThrowingClosureBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .transient,
+                    factory: {
+                        do {
+                            return try makeService()
+                        } catch {
+                            return fallbackService()
+                        }
+                    },
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing catch handler body")
+    func syncFactoryRejectsThrowingCatchHandlerBody() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .transient,
+                    factory: {
+                        do {
+                            return try makeService()
+                        } catch {
+                            return try fallbackService()
+                        }
+                    },
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("sync factory rejects throwing body with nonexhaustive catch")
+    func syncFactoryRejectsThrowingBodyWithNonexhaustiveCatch() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .transient,
+                    factory: {
+                        do {
+                            return try makeService()
+                        } catch let error as ServiceError {
+                            return fallbackService(error)
+                        }
+                    },
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.factory-must-not-throw")
             ],
             macros: Self.macros
         )
@@ -2173,6 +2435,24 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("`.shared` sub-container supports explicit empty bindings wiring")
+    func subContainerSharedWithEmptyBindings() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+
+                @SubContainer(scope: .shared, bindings: [])
+                var feature: EmptyFeatureContainer
+            }
+            """,
+            matches: "subContainerSharedWithEmptyBindings",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.shared` sub-container supports multiple bindings remapping different child/parent pairs")
     func subContainerSharedBindingsMultipleRemaps() {
         assertMacroExpansionSnapshot(
@@ -2295,6 +2575,91 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "sub.invalid-same-name-wiring")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: requires a literal tuple key-path array")
+    func subContainerBindingsVariableDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let explicitBindings = [(child: \\FeatureBindingsContainer.featureConfig, parent: \\AppContainer.config)]
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, bindings: explicitBindings)
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: rejects malformed tuple entries")
+    func subContainerBindingsMalformedTupleDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, bindings: [(child: \\.featureConfig)])
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: rejects duplicate labels inside a tuple")
+    func subContainerBindingsDuplicateTupleLabelDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+                @Provide(.input) var fallbackConfig: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(child: \\.featureConfig, child: \\.fallbackConfig)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer bindings: rejects unknown labels inside a tuple")
+    func subContainerBindingsUnknownTupleLabelDiagnosesInvalidBindings() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    bindings: [(source: \\.featureConfig, parent: \\.config)]
+                )
+                var feature: FeatureBindingsContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "sub.invalid-bindings")
             ],
             macros: Self.macros
         )
