@@ -1,0 +1,83 @@
+name: Graph & DAG validation
+description: Cycle detection, dependency-graph CLI output, build plugin lock or cache problems.
+title: "[graph] "
+labels: ["validation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the issue is about how InnoDI sees your
+        dependency graph: missed cycles, false cycles, surprising
+        `validateDAG` behavior, build plugin lock failures, scratch-path
+        issues, or `--diagnose-lock` output you cannot interpret.
+
+  - type: input
+    id: innodi-version
+    attributes:
+      label: InnoDI version
+      placeholder: "4.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scenario
+    attributes:
+      label: What kind of graph problem?
+      options:
+        - "False positive: validation rejects a graph I believe is valid"
+        - "False negative: a real cycle slipped through"
+        - "Cross-file Lazy<T> / Provider<T> alias not recognized"
+        - "Sub-container ownership / binding mismatch"
+        - "Cross-module hierarchy (@DIHierarchyRoot, @DIComponent)"
+        - "Build plugin filesystem lock / scratch path"
+        - "Dependency-graph CLI rendering (Mermaid / DOT / ASCII)"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: container
+    attributes:
+      label: Container declaration(s)
+      description: |
+        The `@DIContainer` (or `@SubContainer`) plus relevant `@Provide`
+        members. If the issue is multi-module, include the parent and child
+        containers and how they are mounted.
+      render: swift
+    validations:
+      required: true
+
+  - type: textarea
+    id: validate-dag
+    attributes:
+      label: validateDAG / escape hatches in use
+      description: |
+        Are any containers in the failing graph using `validateDAG: false`?
+        Is `INNODI_DISABLE_BUILD_VALIDATION` set in your environment? Is
+        `INNODI_ALLOW_UNSAFE_LOCK=1` set?
+      placeholder: "validateDAG: true everywhere; no env vars set."
+
+  - type: textarea
+    id: cli-output
+    attributes:
+      label: Dependency-graph CLI output
+      description: |
+        Output of `swift run InnoDI-DependencyGraph --root . --validate-dag`
+        or the relevant `--format mermaid|dot|ascii` rendering. For lock
+        issues, include `--diagnose-lock` output.
+      render: text
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: workspace
+    attributes:
+      label: Workspace shape (optional)
+      description: |
+        Single SwiftPM package vs. multi-package monorepo. Filesystem of the
+        scratch path (APFS, NFS, etc.) if relevant.
