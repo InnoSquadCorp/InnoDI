@@ -161,3 +161,66 @@ ordered by user-facing trust risk first.
      tracked in `docs/internal/macro-plugin-json-investigation.md`.
 5. Example and onboarding quality
    - Keep the SwiftUI examples, README set, and localized DocC aligned so new adopters can get to a working container and graph render quickly.
+
+## Experimental Features & Promotion Criteria
+
+InnoDI ships some surfaces as **experimental** before promoting them to the
+release-frozen public API. Experimental surfaces remain opt-in, may change
+generated-code shape between minor releases, and are documented as such in
+their own docstrings. This section is the single registry of which surfaces
+are experimental, where they sit in the rollout pipeline, and what has to be
+true before the next minor release can promote them.
+
+### Pipeline phases
+
+| Phase | Meaning |
+|---|---|
+| `skeleton` | Macro/runtime stub exists; not enabled in any example or stable test. |
+| `stage-2` | Functional drop in 4.x; at least one example or runtime test exercises it; generated shape may still change. |
+| `pre-GA` | Behavior frozen on `main`; only doc, diagnostic, and naming polish remain; promotion candidate for the next minor. |
+| `GA` | Public API; SemVer applies to behavior and to generated symbol shape. |
+
+### Active experimental surfaces
+
+| Surface | RFC | Phase | Target version | GA criteria |
+|---|---|---|---|---|
+| `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | 5.0 | All five criteria below must hold simultaneously. |
+| Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
+
+### GA criteria for experimental macros
+
+A macro can be promoted from `stage-2` to `GA` only when **all** of the
+following hold on `main`:
+
+1. **RFC open questions resolved.** The RFC's `## Open questions` section is
+   empty or every remaining bullet is explicitly marked `Out-of-scope for GA`.
+2. **Snapshot coverage.** Every supported variant (sync, async, throws,
+   actor-isolated, generic, overloaded, associated-type-bound where the RFC
+   says it is in scope) is covered by a macro snapshot test, and snapshot
+   diffs from the previous minor are reviewed and intentional.
+3. **Strict-concurrency clean.** The macro's generated code compiles under
+   `-Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` in the
+   PR gate without emitting warnings.
+4. **Adopter signal.** At least two real-world adopters (internal or
+   external) have reported usage on the `stage-2` drop without naming-shape
+   blockers, captured as references in the RFC.
+5. **Promotion PR.** A maintainer opens a PR that flips the docstring from
+   "Experimental" to the stable description, removes the experimental marker
+   from the ROADMAP table, and bumps the relevant minor in `RELEASING.md`.
+   The PR sits open for a 7-day cooldown before merge so existing adopters
+   can object.
+
+If a criterion is contested for a specific surface, the maintainer documents
+the deviation in the RFC's `## Implementation Status` section rather than
+silently skipping the gate.
+
+### Stability guarantees
+
+- Experimental surfaces are not covered by SemVer for **generated symbol
+  shape** (mock helper names, storage suffixes, override slot names). The
+  *attribute* name is stable once the RFC is accepted.
+- Promoting a surface to GA is itself a minor-version event; demoting a GA
+  surface back to experimental is forbidden — once promoted, only deprecation
+  with a written upgrade path is allowed.
+- Out-of-scope-for-GA RFC bullets are tracked separately and may ship as
+  follow-up surfaces with their own RFCs.

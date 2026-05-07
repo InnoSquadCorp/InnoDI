@@ -179,3 +179,55 @@ RFC 0001 is the maintainers' initial sketch; public comments are welcome
 via GitHub discussions. We will tag the RFC `Accepted` only after the
 open questions above receive written answers and at least one example
 project compiles against the generated code end-to-end.
+
+## Implementation Status
+
+Phase: **stage-2** (see [ROADMAP.md](../../ROADMAP.md#pipeline-phases) for
+phase definitions). This section is updated in the same PR that lands a
+status-changing piece of work, so it can serve as the rolling truth between
+RFC revisions.
+
+- [x] RFC accepted (experimental, opt-in)
+- [x] Macro skeleton (`@GenerateMock` attribute + diagnostic for non-protocol
+      attachment)
+- [x] Top-level protocol synthesis with overload-qualified helper names
+- [x] Generic method requirements via erased handler closures
+- [x] Snapshot tests for the supported call shapes
+- [ ] Async / `throws` method shapes covered by snapshots end-to-end
+- [ ] Associated-type protocols (per RFC `Initial answers to open questions`,
+      with `@GenerateMock(associatedTypes: ...)` syntax)
+- [ ] Actor-isolated protocols — currently *Out-of-scope for GA* and tracked
+      separately
+- [ ] `bundleWithOverrides:` integration with the `Overrides` builder
+- [ ] At least two adopter reports captured (see GA criteria #4)
+- [ ] Strict-concurrency-clean snapshots across the supported shape matrix
+- [ ] Promotion PR opened with a 7-day cooldown
+
+When a checkbox flips, link the PR or issue that flipped it inline with the
+item.
+
+## GA Criteria
+
+`@GenerateMock` graduates to GA only when **all** of the following hold on
+`main`. These mirror the macro promotion gates documented in
+[ROADMAP.md](../../ROADMAP.md#ga-criteria-for-experimental-macros) and exist
+in the RFC so that a single commit reviewer can verify them without
+context-hopping.
+
+1. **RFC open questions resolved** — the `## Open questions` section is
+   empty, or every remaining bullet is explicitly marked
+   `Out-of-scope for GA` with a follow-up RFC reference.
+2. **Snapshot coverage** — every in-scope variant (sync, async, throws,
+   generic, overloaded, associated-type-bound) is covered by an
+   `assertMacroExpansion*` snapshot test. Snapshot diffs from the previous
+   minor are reviewed and intentional.
+3. **Strict-concurrency clean** — generated mocks compile under
+   `-Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` in
+   the PR gate without warnings.
+4. **Adopter signal** — at least two real-world adopters (internal or
+   external) have reported usage on the `stage-2` drop without naming-shape
+   blockers. References are captured in this section.
+5. **Promotion PR** — a maintainer opens a PR that flips the docstring from
+   "Experimental" to the stable description, removes the experimental marker
+   from the ROADMAP table, and bumps the relevant minor in `RELEASING.md`.
+   The PR sits open for a 7-day cooldown so existing adopters can object.
