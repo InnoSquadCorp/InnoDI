@@ -38,6 +38,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideBoolLiteralRequired = "provide.bool-literal-required"
     case provideInvalidWithDependencies = "provide.invalid-with-dependencies"
     case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
+    case provideLazyEagerCall = "provide.lazy-eager-call"
     case provideProviderNonTransientTarget = "provide.provider-non-transient-target"
     case provideProviderUnsupportedTarget = "provide.provider-unsupported-target"
     case provideProviderEagerCall = "provide.provider-eager-call"
@@ -98,8 +99,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
                 .provideFactoryMustBeSync, .provideFactoryMustNotThrow,
                 .provideBoolLiteralRequired, .provideInvalidWithDependencies,
-                .provideLazyUnsupportedTarget, .provideProviderNonTransientTarget, .provideProviderUnsupportedTarget,
-                .provideProviderEagerCall,
+                .provideLazyUnsupportedTarget, .provideLazyEagerCall,
+                .provideProviderNonTransientTarget, .provideProviderUnsupportedTarget, .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerBoolLiteralRequired,
@@ -284,6 +285,13 @@ extension SimpleDiagnostic {
         Self(
             "Factory parameter '\(dependencyName)' for '\(memberName)' cannot use Lazy<T> because '\(dependencyName)' is provided by asyncFactory and Lazy resolvers are synchronous.",
             code: .provideLazyUnsupportedTarget
+        )
+    }
+
+    static func provideLazyEagerCall(memberName: String, dependencyName: String) -> Self {
+        Self(
+            "Factory parameter '\(dependencyName)' for '\(memberName)' cannot call Lazy<T> during .shared construction. Store or forward the lazy handle and invoke it only after the container has finished initializing.",
+            code: .provideLazyEagerCall
         )
     }
 

@@ -71,6 +71,8 @@ Most frequently-hit codes:
   a container member.
 - `provide.lazy-unsupported-target` — `Lazy<T>` parameter pointing at a type
   not declared as a container member.
+- `provide.lazy-eager-call` — `Lazy<T>` invoked during `.shared`
+  construction, which turns the soft edge back into an eager edge.
 - `provide.provider-non-transient-target` — `Provider<T>` resolved to a
   `.shared` or `.input`; providers require `.transient` targets.
 - `provide.provider-unsupported-target` — `Provider<T>` parameter with no

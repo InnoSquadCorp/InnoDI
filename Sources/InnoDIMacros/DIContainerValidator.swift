@@ -103,17 +103,35 @@ struct DIContainerValidator {
             let providerClosureReferences = Dictionary(uniqueKeysWithValues: member.providerClosureParameterReferences.map { ($0.name, $0) })
 
             if member.scope == .shared {
+                let sharedClosures = [member.factory, member.asyncFactory].compactMap { $0?.as(ClosureExprSyntax.self) }
+                let lazyNames = Set(softClosureReferences.keys)
+                if !lazyNames.isEmpty {
+                    for closure in sharedClosures {
+                        for callSite in collectDirectDeferredEagerCalls(in: closure, dependencyNames: lazyNames) {
+                            context.diagnose(
+                                Diagnostic(
+                                    node: callSite.node,
+                                    message: SimpleDiagnostic.provideLazyEagerCall(
+                                        memberName: member.name,
+                                        dependencyName: callSite.dependencyName
+                                    )
+                                )
+                            )
+                            hadErrors = true
+                        }
+                    }
+                }
+
                 let providerNames = Set(providerClosureReferences.keys)
                 if !providerNames.isEmpty {
-                    let sharedClosures = [member.factory, member.asyncFactory].compactMap { $0?.as(ClosureExprSyntax.self) }
                     for closure in sharedClosures {
-                        for callSite in collectDirectProviderEagerCalls(in: closure, providerNames: providerNames) {
+                        for callSite in collectDirectDeferredEagerCalls(in: closure, dependencyNames: providerNames) {
                             context.diagnose(
                                 Diagnostic(
                                     node: callSite.node,
                                     message: SimpleDiagnostic.provideProviderEagerCall(
                                         memberName: member.name,
-                                        dependencyName: callSite.providerName
+                                        dependencyName: callSite.dependencyName
                                     )
                                 )
                             )

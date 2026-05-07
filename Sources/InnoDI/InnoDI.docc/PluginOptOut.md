@@ -1,11 +1,12 @@
 # Build Plugin Opt-Out
 
-`InnoDIDAGValidationPlugin` attaches automatically to every target that
-declares an InnoDI container, runs the validation coordinator, and serializes
-graph artifacts under SwiftPM's plugin work directory. The coordinator is
-incremental and cached, but the plugin still adds a per-target build step
-and a swift-syntax invocation. Two narrow situations make opting out
-defensible.
+When a target attaches `InnoDIDAGValidationPlugin`, the plugin runs the
+validation coordinator for that target and serializes graph artifacts under
+SwiftPM's plugin work directory. SwiftPM does not automatically attach the
+plugin just because a target declares an InnoDI container; consumers opt in by
+listing the plugin in the target manifest. The coordinator is incremental and
+cached, but the plugin still adds a per-target build step and a swift-syntax
+invocation. Two narrow situations make opting out defensible.
 
 ## When Opt-Out Is Reasonable
 

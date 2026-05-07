@@ -707,6 +707,136 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Lazy<T> cannot be called directly inside a shared factory body")
+    func lazyDirectCallInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: { (service: Lazy<Service>) in
+                    ServiceHolder(service: service())
+                }, concrete: true)
+                var holder: ServiceHolder
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.lazy-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Lazy<T>.callAsFunction() is also rejected inside a shared factory body")
+    func lazyCallAsFunctionInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: { (service: Lazy<Service>) in
+                    ServiceHolder(service: service.callAsFunction())
+                }, concrete: true)
+                var holder: ServiceHolder
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.lazy-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Parenthesized Lazy<T> calls are rejected inside a shared factory body")
+    func lazyParenthesizedCallInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: { (service: Lazy<Service>) in
+                    ServiceHolder(service: (service)())
+                }, concrete: true)
+                var holder: ServiceHolder
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.lazy-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Resolver-style Lazy<T> calls are rejected inside a shared factory body")
+    func lazyResolverCallInsideSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+
+                @Provide(.shared, factory: { (service: Lazy<Service>) in
+                    ServiceHolder(service: service.resolver())
+                }, concrete: true)
+                var holder: ServiceHolder
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.lazy-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Lazy<T> cannot be called directly inside an async shared factory body")
+    func lazyDirectCallInsideAsyncSharedFactoryFails() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+
+                @Provide(.shared, asyncFactory: { (service: Lazy<Service>) async in
+                    AsyncHolder(service: service())
+                }, concrete: true)
+                var holder: AsyncHolder
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "provide.lazy-eager-call")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Lazy<T> direct calls remain allowed in transient factories")
+    func lazyDirectCallInsideTransientFactoryRemainsAllowed() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), concrete: true)
+                var service: Service
+
+                @Provide(.transient, factory: { (service: Lazy<Service>) in
+                    ServiceHolder(service: service())
+                }, concrete: true)
+                var holder: ServiceHolder
+            }
+            """,
+            expectedCodes: [],
+            macros: Self.macros
+        )
+    }
+
     @Test("Provider<T> cannot be called directly inside a shared factory body")
     func providerDirectCallInsideSharedFactoryFails() {
         assertMacroExpansionDiagnosticCodes(

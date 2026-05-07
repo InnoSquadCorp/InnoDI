@@ -55,11 +55,84 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 
 - `Lazy<T>` and `Provider<T>` defer container-member access after init-time
   wiring, so those edges are rendered but excluded from hard cycle detection.
-- The deferral is only effective when the factory receives and stores/calls the
-  wrapper itself. If a factory immediately calls the wrapper while constructing
-  the dependency, the dependency is effectively eager again.
+- The deferral is only effective when the factory receives the wrapper and
+  stores or forwards it. If a factory immediately calls the wrapper while constructing
+  the dependency, the dependency is effectively eager again. InnoDI diagnoses
+  direct `lazy()` / `provider()` calls and their direct `callAsFunction()` /
+  `resolver()` spellings inside `.shared` construction.
 - Indirect eager calls through helper functions are not type-checked by InnoDI;
   review those factories manually when breaking cycles with deferred wrappers.
+
+<!-- innodi:compile -->
+```swift
+import InnoDI
+
+struct Config {}
+struct Service { init(config: Config) {} }
+struct Request { init(config: Config) {} }
+struct Consumer {
+    let service: Lazy<Service>
+    let requests: Provider<Request>
+}
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var config: Config
+
+    @Provide(.shared, factory: { (config: Config) in
+        Service(config: config)
+    }, concrete: true)
+    var service: Service
+
+    @Provide(.transient, factory: { (config: Config) in
+        Request(config: config)
+    }, concrete: true)
+    var request: Request
+
+    @Provide(.shared, factory: { (service: Lazy<Service>, request: Provider<Request>) in
+        Consumer(service: service, requests: request)
+    }, concrete: true)
+    var consumer: Consumer
+}
+
+let container = AppContainer(config: Config())
+_ = container.consumer
+```
+
+<!-- innodi:compile -->
+```swift
+import InnoDI
+
+struct Config {}
+struct FeatureService { init(config: Config) {} }
+
+@DIContainer
+struct FeatureContainer {
+    @Provide(.input)
+    var featureConfig: Config
+
+    @Provide(.shared, factory: { (featureConfig: Config) in
+        FeatureService(config: featureConfig)
+    }, concrete: true)
+    var service: FeatureService
+}
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var config: Config
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [(child: \FeatureContainer.featureConfig, parent: \AppContainer.config)]
+    )
+    var feature: FeatureContainer
+}
+
+let container = AppContainer(config: Config())
+_ = container.feature
+```
 
 ## Concrete Opt-In
 
