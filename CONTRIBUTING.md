@@ -101,6 +101,21 @@ When a Swift toolchain bump moves the absolute number, refresh
 `Tools/measure-macro-performance.sh --update-baseline` and let the trend
 gate's same-toolchain filter fall through naturally.
 
+## Governance
+
+`/.github/CODEOWNERS` is the single source of truth for review routing.
+Every path is currently owned by the maintainer (`@ethan-is`); the
+per-area sections of CODEOWNERS exist so a future owner taking on one
+subsystem (macros, build support, SwiftUI integration, workspace
+analysis, examples, docs, CI) is a one-line change rather than a
+restructure. The most-specific path match wins.
+
+GitHub auto-assigns the matching code owner as a reviewer when a PR
+touches a path. Branch protection should enforce the CODEOWNERS review
+requirement on `main` so the routing translates to a hard gate; this
+repository's protection rules are configured externally and are not
+part of this file.
+
 ## PR Expectations
 
 - Keep changes scoped and explain user-facing behavior changes.
