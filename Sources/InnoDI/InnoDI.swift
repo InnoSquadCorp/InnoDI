@@ -378,5 +378,13 @@ public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "D
 /// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
 /// rollout schedule. Adoption is opt-in until the macro reaches GA in
 /// 5.0; expect the generated shape to evolve before then.
+///
+/// > Important: this surface is experimental. The attribute name is
+/// > stable, but generated symbol shape (mock helper names, storage
+/// > suffixes, override slot names) is **not** SemVer-frozen until GA.
+/// > See [ROADMAP — Experimental Features &
+/// > Promotion Criteria](https://github.com/InnoSquadCorp/InnoDI/blob/main/ROADMAP.md#experimental-features--promotion-criteria)
+/// > for the registry of experimental surfaces, the pipeline phases, and
+/// > the gates a feature must clear before promotion.
 @attached(peer, names: suffixed(Mock))
 public macro GenerateMock() = #externalMacro(module: "InnoDIMacros", type: "GenerateMockMacro")
