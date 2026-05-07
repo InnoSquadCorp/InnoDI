@@ -42,6 +42,13 @@ into localized README and DocC files.
 The generated DocC archive currently builds from the English base catalog, so
 localized DocC files are maintained as source mirrors in the repository.
 
+`Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and
+release: a swift fence count or H2 header count drift between the English
+canonical and any localized README fails the build. When you add or remove an
+H2 in `README.md`, mirror the change into all six localized files in the same
+PR. The script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit
+soft-rollout window for canonical restructures.
+
 ## PR Expectations
 
 - Keep changes scoped and explain user-facing behavior changes.
