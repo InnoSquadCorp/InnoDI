@@ -67,6 +67,40 @@ gating merges on a threshold. Tests, examples, swift-syntax, and the
 `.build` cache are excluded so the report tracks the library surface, not
 fixtures or third-party code.
 
+## Macro Performance Trend
+
+`Tools/measure-macro-performance.sh --enforce` continues to compare each
+PR against the pinned baseline JSON in
+`Tools/macro-performance-baseline.json`. Alongside that, the PR pipeline
+also runs `Tools/check-performance-trend.sh`, which compares the current
+measurement against the rolling median of the last entries on the
+`perf-history` branch. The dual gate is intentional: the pinned baseline
+catches single-PR regressions, while the trend gate catches gradual
+creep that under-threshold PRs accumulate over time.
+
+The `Perf History` workflow runs on every push to `main` and uses
+`Tools/append-performance-history.sh` to append one
+`history/macro-performance/<UTC date>-<short sha>.json` entry to the
+`perf-history` branch, then rebuilds `history/index.json`. The trend
+script reads only that index — locally you do not need to checkout
+`perf-history` yourself; the script fetches it and is a no-op when the
+branch is empty or unreachable.
+
+Tunables for the trend gate (set as environment variables):
+
+- `INNODI_TREND_WINDOW` (default 7) — trailing entries used for the
+  median.
+- `INNODI_TREND_THRESHOLD_PCT` (default 10) — fail above this delta.
+- `INNODI_TREND_MIN_SAMPLES` (default 5) — below this the gate just
+  reports.
+- `INNODI_TREND_REQUIRE_SAME_TOOLCHAIN` (default 1) — drop history
+  entries that used a different `swift_version` than the current run.
+
+When a Swift toolchain bump moves the absolute number, refresh
+`Tools/macro-performance-baseline.json` with
+`Tools/measure-macro-performance.sh --update-baseline` and let the trend
+gate's same-toolchain filter fall through naturally.
+
 ## PR Expectations
 
 - Keep changes scoped and explain user-facing behavior changes.
