@@ -101,13 +101,15 @@ public macro Provide(
 /// module also defines `Lazy<T>`, prefer spelling the wrapper as
 /// `InnoDI.Lazy<T>` so the generated code preserves that qualification.
 ///
-/// > Warning: Detection is by canonical identifier only. The macro emits a
-/// > warning when a typealias to `Lazy<T>` lives in the same file as the
-/// > factory parameter, but cross-file aliases stay invisible until the
-/// > planned workspace-analysis check ships. A renamed cross-file alias
-/// > silently behaves as a hard edge and disables cycle escape, so prefer
-/// > the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at every factory
-/// > parameter site.
+/// > Warning: Detection inside the macro plugin is by canonical
+/// > identifier only. A typealias to `Lazy<T>` in the same file emits a
+/// > warning; cross-file aliases the macro itself cannot see. Run
+/// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
+/// > this on every build and uploads the JSON report) to enumerate
+/// > cross-file aliases workspace-wide. A renamed alias the scanner
+/// > flags silently behaves as a hard edge and disables cycle escape —
+/// > prefer the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at
+/// > every factory parameter site.
 public struct Lazy<T> {
     @usableFromInline
     let resolver: () -> T
@@ -187,13 +189,15 @@ public struct Lazy<T> {
 /// spelling the wrapper as `InnoDI.Provider<T>` so the generated code
 /// preserves that qualification.
 ///
-/// > Warning: Detection is by canonical identifier only. The macro emits a
-/// > warning when a typealias to `Provider<T>` lives in the same file as
-/// > the factory parameter, but cross-file aliases stay invisible until the
-/// > planned workspace-analysis check ships. A renamed cross-file alias
-/// > silently behaves as a hard edge with re-entry semantics lost, so
-/// > prefer the canonical `Provider<T>` or `InnoDI.Provider<T>` spelling at
-/// > every factory parameter site.
+/// > Warning: Detection inside the macro plugin is by canonical
+/// > identifier only. A typealias to `Provider<T>` in the same file emits
+/// > a warning; cross-file aliases the macro itself cannot see. Run
+/// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
+/// > this on every build and uploads the JSON report) to enumerate
+/// > cross-file aliases workspace-wide. A renamed alias the scanner
+/// > flags silently behaves as a hard edge with re-entry semantics lost
+/// > — prefer the canonical `Provider<T>` or `InnoDI.Provider<T>`
+/// > spelling at every factory parameter site.
 public struct Provider<T> {
     @usableFromInline
     let resolver: () -> T

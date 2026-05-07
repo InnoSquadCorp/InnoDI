@@ -79,6 +79,21 @@ jobs:
           name: escape-hatch-report
           path: build/escape-hatch-report.json
           if-no-files-found: error
+      - name: Report Deferred-Wrapper Alias Findings
+        # Surfaces cross-file `typealias L = Lazy<T>` / `typealias P = Provider<T>`
+        # that the macro's same-file canonical-identifier check cannot see.
+        # Cross-file aliases silently behave as hard edges, breaking cycle escape.
+        # Informational; reviewers decide whether each finding is intentional.
+        run: |
+          {
+            swift run --quiet InnoDI-DeferredAliasScan --root . --json build/deferred-aliases.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Deferred-Wrapper Alias Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deferred-aliases-report
+          path: build/deferred-aliases.json
+          if-no-files-found: error
       - name: Build Extended Examples
         run: |
           (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)

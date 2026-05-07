@@ -154,6 +154,15 @@ standalone release assets.
   step summary, separating production opt-outs from test/example fixtures.
   Set `INNODI_ESCAPE_HATCH_FAIL=1` in CI to escalate the report into a
   merge blocker.
+- **Cross-file deferred-wrapper alias scanner.** New executable target
+  `InnoDI-DeferredAliasScan` walks the workspace and lists every
+  `typealias` that renames `Lazy<T>` or `Provider<T>`. The macro plugin
+  only detects same-file aliases — cross-file ones silently behave as
+  hard edges and disable cycle escape. The scanner closes that gap
+  workspace-wide and is wired into the PR pipeline as a step-summary
+  report plus `deferred-aliases-report` artifact. The `Lazy<T>` and
+  `Provider<T>` docstrings now reference the scanner instead of the
+  prior "planned workspace-analysis check" caveat.
 
 ### Breaking or Behavior Changes
 

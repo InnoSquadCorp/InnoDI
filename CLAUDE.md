@@ -125,6 +125,12 @@ blockers.
 - `Lazy<T>` creates a soft edge and stays non-`Sendable`.
 - `Provider<T>` re-enters `.transient` access and stays non-`Sendable`.
 - `@SubContainer` adds ownership edges plus child override forwarding.
+- `swift run InnoDI-DeferredAliasScan --root .` lists every
+  `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
+  The macro plugin only detects same-file aliases; cross-file aliases
+  silently behave as hard edges and disable cycle escape. The PR
+  pipeline runs the scanner and posts findings to the workflow's step
+  summary plus a `deferred-aliases-report` artifact.
 
 ## Documentation Contract
 
