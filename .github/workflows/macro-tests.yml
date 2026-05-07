@@ -61,6 +61,24 @@ jobs:
         run: Tools/check-localized-readme-sync.sh
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
+      - name: Report Build-Validation Escape Hatches
+        # Surfaces every `@DIContainer(...validateDAG: false...)` site and
+        # any active `INNODI_DISABLE_BUILD_VALIDATION` environment override
+        # in the workflow's step summary. Informational; merges are not
+        # gated. `INNODI_ESCAPE_HATCH_FAIL=1` would flip the script into a
+        # blocker if an org wants to treat new opt-outs as release blockers.
+        env:
+          INNODI_ESCAPE_HATCH_JSON: build/escape-hatch-report.json
+        run: |
+          {
+            Tools/report-validate-dag-escape-hatches.sh
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Escape Hatch Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-hatch-report
+          path: build/escape-hatch-report.json
+          if-no-files-found: error
       - name: Build Extended Examples
         run: |
           (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)

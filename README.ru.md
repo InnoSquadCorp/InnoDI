@@ -110,6 +110,15 @@ state.
 полная таблица файловых систем описаны в
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
+Валидатор времени сборки предоставляет два escape hatch для быстрой итерации
+или ограниченных окружений: `@DIContainer(validateDAG: false)` на уровне
+отдельного контейнера и `INNODI_DISABLE_BUILD_VALIDATION=1` для отключения
+всего build plugin. Каждый PR запускает
+`Tools/report-validate-dag-escape-hatches.sh`, который перечисляет все места
+использования этих escape hatch в step summary workflow, так что разрастание
+escape hatch остаётся видимым без отдельного CI gate. Production CI должен
+оставлять обе переменные unset.
+
 ## Конфиденциальность
 
 InnoDI поставляется с Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) в двух

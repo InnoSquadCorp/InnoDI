@@ -142,6 +142,18 @@ standalone release assets.
   declaration in the aggregated privacy report. Build-time tools
   (`InnoDIBuildSupport`, dependency-graph CLI, macro plugin) are unaffected
   because they are not embedded in consumer apps.
+- **Per-module test coverage on every PR.** The PR workflow now runs
+  `swift test --enable-code-coverage` and `Tools/collect-coverage.sh` to
+  produce a per-module rollup (lcov + JSON + Markdown). The Markdown table
+  appears in the workflow's step summary; the four artifacts upload as
+  `coverage`. Informational — merges are not gated on a coverage threshold.
+- **Build-validation escape hatch report on every PR.**
+  `Tools/report-validate-dag-escape-hatches.sh` lists every
+  `@DIContainer(...validateDAG: false...)` site plus any active
+  `INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
+  step summary, separating production opt-outs from test/example fixtures.
+  Set `INNODI_ESCAPE_HATCH_FAIL=1` in CI to escalate the report into a
+  merge blocker.
 
 ### Breaking or Behavior Changes
 

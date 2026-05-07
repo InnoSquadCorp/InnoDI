@@ -112,6 +112,15 @@ auditable y el riesgo queda en ese build environment. Para diagnosticos,
 pasos de recuperacion y la tabla completa de filesystems, consulta
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
+El validador en tiempo de compilacion expone dos escapes de opt-out para
+iteracion rapida o entornos con restricciones: `@DIContainer(validateDAG: false)`
+por contenedor y `INNODI_DISABLE_BUILD_VALIDATION=1` para cortocircuitar todo
+el plugin de build. Cada PR ejecuta
+`Tools/report-validate-dag-escape-hatches.sh`, que lista cada sitio que usa
+estos escapes en el step summary del workflow, de modo que el crecimiento de
+los escapes queda visible sin una puerta de CI separada. El CI de produccion
+debe dejar ambos sin definir.
+
 ## Privacidad
 
 InnoDI incluye un Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) con sus dos
