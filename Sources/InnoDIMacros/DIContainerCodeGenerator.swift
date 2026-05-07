@@ -32,8 +32,14 @@ struct DIContainerCodeGenerator {
     /// user-defined nested `Overrides` type suppresses generation. Input-only
     /// containers now receive an empty builder so parents can always forward
     /// `@SubContainer` override closures into child containers.
+    ///
+    /// Each generated declaration is prefixed with a `// MARK:` comment so
+    /// that consumers expanding the macro in Xcode (or reading recorded
+    /// snapshots in code review) can scan the four logical sections —
+    /// initialization, overrides builder, convenience init, withOverrides
+    /// effect overloads — without parsing the whole expansion.
     static func generateAll(for model: DIContainerExpansionModel) throws -> [DeclSyntax] {
-        var decls: [DeclSyntax] = [try generateInit(for: model)]
+        var decls: [DeclSyntax] = []
 
         // `.transient` sub-containers are backed by a stored
         // builder closure that `@SubContainer.PeerMacro` emits; the init
@@ -42,10 +48,51 @@ struct DIContainerCodeGenerator {
         // generated inline by `makeSubContainerInitStatements` — no extra
         // member-level decls are needed here.
 
-        decls.append(makeOverridesStructDecl(model: model))
-        decls.append(makeConvenienceInitDecl(model: model))
-        decls.append(contentsOf: makeWithOverridesMethods(model: model))
+        let initDecl = try generateInit(for: model)
+        decls.append(initDecl.prependingMARK("// MARK: - Initialization"))
+
+        decls.append(
+            makeOverridesStructDecl(model: model)
+                .prependingMARK("// MARK: - Overrides Builder")
+        )
+        decls.append(
+            makeConvenienceInitDecl(model: model)
+                .prependingMARK("// MARK: - Convenience Init with Overrides")
+        )
+
+        // The four withOverrides effect overloads form one logical group.
+        // The first overload carries the group's `// MARK: -` header; each
+        // subsequent overload carries a sub-MARK that names its effect
+        // shape so reviewers can see which variant they are looking at.
+        let withOverridesMethods = makeWithOverridesMethods(model: model)
+        let withOverridesLabels = [
+            "// MARK: - withOverrides",
+            "// MARK: withOverrides (throws)",
+            "// MARK: withOverrides (async)",
+            "// MARK: withOverrides (async throws)",
+        ]
+        for (index, method) in withOverridesMethods.enumerated() {
+            let label = index < withOverridesLabels.count
+                ? withOverridesLabels[index]
+                : "// MARK: withOverrides"
+            decls.append(method.prependingMARK(label))
+        }
+
         return decls
+    }
+}
+
+extension DeclSyntax {
+    /// Prepends a `// MARK: ...` line comment to this declaration's leading
+    /// trivia so that macro expansions render with section dividers in the
+    /// generated source.
+    fileprivate func prependingMARK(_ comment: String) -> DeclSyntax {
+        let markTrivia: Trivia = [
+            .newlines(1),
+            .lineComment(comment),
+            .newlines(1),
+        ]
+        return self.with(\.leadingTrivia, markTrivia + self.leadingTrivia)
     }
 }
 
