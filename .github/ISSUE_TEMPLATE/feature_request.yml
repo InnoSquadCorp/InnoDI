@@ -1,0 +1,68 @@
+name: Feature request
+description: Propose a new macro, runtime helper, validation rule, or workflow improvement.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Feature requests for InnoDI usually weigh
+        *explicitness vs. ergonomics*. Please describe the problem first; we
+        will discuss design options together. If your request is large enough
+        to need an RFC (new public macro, new escape hatch, new validation
+        edge), we will likely ask you to draft one in `docs/rfcs/`.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is the user-visible pain today? Show the workaround you currently use, if any.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: |
+        Sketch of the API or behavior. If you have a code-shape in mind,
+        include a `@DIContainer`-like example.
+      render: swift
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        How does Factory, Swinject, swift-dependencies, or SafeDI handle this?
+        Is there an existing InnoDI mechanism (Lazy/Provider, sub-container,
+        overrides) that already addresses it?
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Trade-offs
+      description: |
+        What does this make worse? Compile time, generated-code readability,
+        Sendable story, escape-hatch surface, learning curve.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      multiple: true
+      options:
+        - "@DIContainer / @Provide"
+        - "@SubContainer / hierarchy"
+        - "Lazy<T> / Provider<T>"
+        - "Overrides / withOverrides"
+        - "@DIComponent / @DIHierarchyRoot"
+        - "@GenerateMock"
+        - "InnoDISwiftUI (@DIEnvironmentBridge / @DIFeatureRoot / #PreviewWithContainer)"
+        - "Build plugin / DAG validator"
+        - "Dependency-graph CLI"
+        - "Documentation / examples"
+    validations:
+      required: true
