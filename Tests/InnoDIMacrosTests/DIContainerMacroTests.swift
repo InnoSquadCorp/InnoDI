@@ -250,35 +250,42 @@ struct DIContainerMacroTests {
 
                     private let _storage_apiClient: APIClient
 
+                    // MARK: - Initialization
                     package init(apiClient: APIClient? = nil) {
                         self._storage_apiClient = apiClient ?? APIClient()
                     }
 
+                    // MARK: - Overrides Builder
                     package struct Overrides {
                         package var apiClient: APIClient? = nil
                     }
 
+                    // MARK: - Convenience Init with Overrides
                     package init(_ applyOverrides: (inout Overrides) -> Void) {
                         var overrides = Overrides()
                         applyOverrides(&overrides)
                         self.init(apiClient: overrides.apiClient)
                     }
 
+                    // MARK: - withOverrides
                     package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
                         let container = Self(applyOverrides)
                         return operation(container)
                     }
 
+                    // MARK: withOverrides (throws)
                     package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
                         let container = Self(applyOverrides)
                         return try operation(container)
                     }
 
+                    // MARK: withOverrides (async)
                     package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
                         let container = Self(applyOverrides)
                         return await operation(container)
                     }
 
+                    // MARK: withOverrides (async throws)
                     package static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
                         let container = Self(applyOverrides)
                         return try await operation(container)

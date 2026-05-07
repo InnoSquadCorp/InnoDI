@@ -15,6 +15,7 @@ struct AppContainer {
 
     private let _storage_b: CoordinatorB
 
+    // MARK: - Initialization
     init(a: CoordinatorA? = nil, b: CoordinatorB? = nil) {
         final class _InnoDIDeferredCell<T>: @unchecked Sendable {
             private var value: T?
@@ -50,32 +51,38 @@ struct AppContainer {
         _lazyCell_b.storeValue(self._storage_b)
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var a: CoordinatorA? = nil
         var b: CoordinatorB? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(_ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(a: overrides.a, b: overrides.b)
     }
 
+    // MARK: - withOverrides
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
         let container = Self(applyOverrides)
         return operation(container)
     }
 
+    // MARK: withOverrides (throws)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
         let container = Self(applyOverrides)
         return try operation(container)
     }
 
+    // MARK: withOverrides (async)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
+    // MARK: withOverrides (async throws)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
         let container = Self(applyOverrides)
         return try await operation(container)

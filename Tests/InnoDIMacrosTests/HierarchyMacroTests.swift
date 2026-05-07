@@ -52,37 +52,44 @@ struct HierarchyMacroTests {
                     ) {
                         self.init(config: dependencies.config, applyOverrides)
                     }
-                
+
+                    // MARK: - Initialization
                     public init(config: FeatureConfig, service: (any FeatureServiceProtocol)? = nil) {
                         self._storage_config = config
                         self._storage_service = service ?? FeatureService()
                     }
 
+                    // MARK: - Overrides Builder
                     public struct Overrides {
                         public var service: (any FeatureServiceProtocol)? = nil
                     }
-                
+
+                    // MARK: - Convenience Init with Overrides
                     public init(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void) {
                         var overrides = Overrides()
                         applyOverrides(&overrides)
                         self.init(config: config, service: overrides.service)
                     }
-                
+
+                    // MARK: - withOverrides
                     public static func withOverrides<T>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
                         let container = Self(config: config, applyOverrides)
                         return operation(container)
                     }
-                
+
+                    // MARK: withOverrides (throws)
                     public static func withOverrides<T>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
                         let container = Self(config: config, applyOverrides)
                         return try operation(container)
                     }
-                
+
+                    // MARK: withOverrides (async)
                     public static func withOverrides<T>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
                         let container = Self(config: config, applyOverrides)
                         return await operation(container)
                     }
-                
+
+                    // MARK: withOverrides (async throws)
                     public static func withOverrides<T>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
                         let container = Self(config: config, applyOverrides)
                         return try await operation(container)

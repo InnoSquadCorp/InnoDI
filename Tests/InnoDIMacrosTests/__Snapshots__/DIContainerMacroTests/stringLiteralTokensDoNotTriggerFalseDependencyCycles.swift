@@ -15,37 +15,44 @@ struct AppContainer {
 
     private let _storage_b: ServiceB
 
+    // MARK: - Initialization
     init(a: ServiceA? = nil, b: ServiceB? = nil) {
         self._storage_a = a ?? ServiceA(name: "b")
         self._storage_b = b ?? ServiceB(name: "a")
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var a: ServiceA? = nil
         var b: ServiceB? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(_ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(a: overrides.a, b: overrides.b)
     }
 
+    // MARK: - withOverrides
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
         let container = Self(applyOverrides)
         return operation(container)
     }
 
+    // MARK: withOverrides (throws)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
         let container = Self(applyOverrides)
         return try operation(container)
     }
 
+    // MARK: withOverrides (async)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
+    // MARK: withOverrides (async throws)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
         let container = Self(applyOverrides)
         return try await operation(container)

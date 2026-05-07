@@ -13,35 +13,42 @@ struct AppContainer {
 
     private let _override_viewModel: ViewModel?
 
+    // MARK: - Initialization
     init(viewModel: ViewModel? = nil) {
         self._override_viewModel = viewModel
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var viewModel: ViewModel? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(_ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(viewModel: overrides.viewModel)
     }
 
+    // MARK: - withOverrides
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
         let container = Self(applyOverrides)
         return operation(container)
     }
 
+    // MARK: withOverrides (throws)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
         let container = Self(applyOverrides)
         return try operation(container)
     }
 
+    // MARK: withOverrides (async)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
+    // MARK: withOverrides (async throws)
     static func withOverrides<T>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
         let container = Self(applyOverrides)
         return try await operation(container)

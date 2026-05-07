@@ -26,6 +26,7 @@ struct AppContainer {
 
     private let _override_sub_apply_feature: ((inout EmptyFeatureContainer.Overrides) -> Void)?
 
+    // MARK: - Initialization
     init(config: AppConfig, logger: Logger? = nil, feature: EmptyFeatureContainer? = nil, featureOverrides: ((inout EmptyFeatureContainer.Overrides) -> Void)? = nil) {
         self._storage_config = config
         self._storage_logger = logger ?? Logger()
@@ -40,33 +41,39 @@ struct AppContainer {
         self._override_sub_apply_feature = featureOverrides
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var logger: Logger? = nil
         var feature: EmptyFeatureContainer? = nil
         var featureOverrides: ((inout EmptyFeatureContainer.Overrides) -> Void)? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(config: config, logger: overrides.logger, feature: overrides.feature, featureOverrides: overrides.featureOverrides)
     }
 
+    // MARK: - withOverrides
     static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
         let container = Self(config: config, applyOverrides)
         return operation(container)
     }
 
+    // MARK: withOverrides (throws)
     static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
         let container = Self(config: config, applyOverrides)
         return try operation(container)
     }
 
+    // MARK: withOverrides (async)
     static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
         let container = Self(config: config, applyOverrides)
         return await operation(container)
     }
 
+    // MARK: withOverrides (async throws)
     static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
         let container = Self(config: config, applyOverrides)
         return try await operation(container)
