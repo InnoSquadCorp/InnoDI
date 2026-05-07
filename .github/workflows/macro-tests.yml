@@ -100,6 +100,20 @@ jobs:
           (cd Examples/PreviewInjectionExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
       - name: Macro Performance Check
         run: Tools/measure-macro-performance.sh --enforce
+      - name: Macro Performance Trend
+        # Compares the current measurement against the rolling median of
+        # the last entries on `perf-history`. Catches gradual creep that a
+        # single-baseline `--enforce` gate misses. The script exits 0
+        # silently when perf-history is empty or unreachable, so this
+        # step is safe to land before the first append happens.
+        run: Tools/check-performance-trend.sh
+      - name: Upload Performance Trend Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-trend-report
+          path: build/perf-trend-report.json
+          if-no-files-found: ignore
 
   path-identity:
     runs-on: macos-26

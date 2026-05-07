@@ -163,6 +163,18 @@ standalone release assets.
   report plus `deferred-aliases-report` artifact. The `Lazy<T>` and
   `Provider<T>` docstrings now reference the scanner instead of the
   prior "planned workspace-analysis check" caveat.
+- **Macro performance trend gate.** A new `perf-history` orphan branch
+  records one macro-performance entry per push to `main` via the
+  `Perf History` workflow + `Tools/append-performance-history.sh`. The
+  PR workflow runs `Tools/check-performance-trend.sh`, which compares
+  the current measurement against the rolling median of the last
+  entries (default window 7, threshold 10%, same-toolchain filter on)
+  and uploads `perf-trend-report.json` as an artifact. The pinned
+  `Tools/macro-performance-baseline.json` gate stays in place; the
+  trend gate runs alongside it to catch gradual creep under-threshold
+  PRs accumulate. The `perf-history` branch bootstraps itself on the
+  first `main` push after this release ships — no manual setup
+  required.
 
 ### Breaking or Behavior Changes
 

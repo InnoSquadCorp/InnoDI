@@ -113,6 +113,15 @@ step summary. The script is informational — set `INNODI_ESCAPE_HATCH_FAIL=1`
 to flip it into a blocker for orgs that treat new opt-outs as release
 blockers.
 
+`Tools/measure-macro-performance.sh --enforce` keeps the single-PR
+regression gate against the pinned `macro-performance-baseline.json`, and
+`Tools/check-performance-trend.sh` runs alongside it on every PR to
+compare against the rolling median of the `perf-history` branch (last 7
+entries, 10% threshold, same-toolchain filter on by default). The
+`Perf History` workflow appends one entry per push to `main`. The trend
+script is a no-op when `perf-history` is empty or unreachable — fresh
+forks pass without setup.
+
 ### `@Provide`
 
 - `.input`: external dependency, no factory
