@@ -168,6 +168,12 @@ InnoDI 컨테이너를 선언하는 타깃에는 build-time DAG validator 플러
 )
 ```
 
+소스 도구 컴파일이 도입 비용의 대부분이라고 측정한 팀은 동반
+`InnoDIValidationTools` 패키지의 선택적 prebuilt macOS validation plugin을
+사용할 수 있습니다. 위의 source plugin 또는 prebuilt plugin 중 하나만
+연결하고, 둘 다 연결하지 마세요. unsupported hosts와 local package
+development에서는 source plugin을 계속 사용해야 합니다.
+
 ## 빠른 시작
 
 <!-- innodi:compile -->

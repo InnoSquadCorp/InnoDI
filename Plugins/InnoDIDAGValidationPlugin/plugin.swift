@@ -13,14 +13,15 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
         // shared volume that already runs validation in a separate CI job).
         // Production CI must leave the variable unset so the gate runs.
         if let optOut = ProcessInfo.processInfo.environment["INNODI_DISABLE_BUILD_VALIDATION"],
-           ["1", "true", "TRUE", "yes", "YES"].contains(optOut) {
+           ["1", "true", "yes"].contains(
+               optOut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+           ) {
             return []
         }
 
         let coordinator = try context.tool(named: "InnoDI-DAGValidationCoordinator")
         let outputDirectory = context.pluginWorkDirectoryURL
-        let rootPath = context.package.directoryURL.path
-        let sharedStateDirectory = sharedValidationStateDirectory(for: outputDirectory)
+        let rootPath = context.package.directoryURL.path(percentEncoded: false)
 
         return [
             .buildCommand(
@@ -28,8 +29,7 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
                 executable: coordinator.url,
                 arguments: [
                     "--root", rootPath,
-                    "--state-dir", sharedStateDirectory.path,
-                    "--output-dir", outputDirectory.path,
+                    "--output-dir", outputDirectory.path(percentEncoded: false),
                 ],
                 inputFiles: validationInputFiles(packageRoot: context.package.directoryURL),
                 outputFiles: [
@@ -43,6 +43,7 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
 
     private func validationInputFiles(packageRoot: URL) -> [URL] {
         let fileManager = FileManager.default
+        // Explicit safety-net for validationInputFiles; FileManager hidden-file skipping is the primary filter.
         let excludedDirectories: Set<String> = [
             ".build",
             ".git",
@@ -82,25 +83,9 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
             }
         }
 
-        return Array(Set(inputs)).sorted { $0.path < $1.path }
-    }
-
-    private func sharedValidationStateDirectory(for outputDirectory: URL) -> URL {
-        let components = outputDirectory.pathComponents
-        if let outputsIndex = components.lastIndex(of: "outputs"),
-           outputsIndex + 1 < components.count {
-            return URL(
-                fileURLWithPath: NSString.path(
-                    withComponents: Array(components.prefix(outputsIndex + 2))
-                ),
-                isDirectory: true
-            )
-            .appending(path: "innodi-dag-validation-state", directoryHint: .isDirectory)
-        }
-
-        return outputDirectory
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appending(path: "innodi-dag-validation-state", directoryHint: .isDirectory)
+        var seenInputPaths = Set<String>()
+        return inputs
+            .filter { seenInputPaths.insert($0.path(percentEncoded: false)).inserted }
+            .sorted { $0.path(percentEncoded: false) < $1.path(percentEncoded: false) }
     }
 }

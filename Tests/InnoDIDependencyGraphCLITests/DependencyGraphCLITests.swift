@@ -195,7 +195,7 @@ struct DependencyGraphCLITests {
         ])
 
         #expect(result.exitCode == 1)
-        #expect(result.stderr.contains("Error: Unknown option --unknown"))
+        #expect(result.stderr.contains("Error: Unknown option '--unknown'"))
         #expect(result.stdout.contains("Usage: InnoDI-DependencyGraph"))
         #expect(!result.stdout.contains("InnoDI Dependency Graph"))
     }

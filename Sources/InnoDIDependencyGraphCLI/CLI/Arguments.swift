@@ -58,7 +58,6 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
     var validateDAG = false
     var diagnoseLockPath: String?
     var cacheStatsPath: String?
-    let warnings: [String] = []
 
     let args = rawArguments
     var index = 0
@@ -152,8 +151,7 @@ func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropF
             validateDAG: validateDAG,
             diagnoseLockPath: diagnoseLockPath,
             cacheStatsPath: cacheStatsPath
-        ),
-        warnings: warnings
+        )
     )
 }
 
@@ -192,7 +190,7 @@ extension ArgumentsError {
         case .invalidFormat(let value):
             return "Error: Invalid --format value '\(value)'"
         case .unknownOption(let option):
-            return "Error: Unknown option \(option)"
+            return "Error: Unknown option '\(option)'"
         }
     }
 }
