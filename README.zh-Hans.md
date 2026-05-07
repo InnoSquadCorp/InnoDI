@@ -100,6 +100,13 @@ fail-fast，但 InnoDI 仍会输出可审计的警告，风险仍由该 build en
 承担。诊断、恢复步骤和完整文件系统表见
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)。
 
+构建时验证器为快速迭代或受限环境提供两种 opt-out 逃生门：
+`@DIContainer(validateDAG: false)` 按容器粒度生效，
+`INNODI_DISABLE_BUILD_VALIDATION=1` 则使整个构建插件短路。每个 PR 都会运行
+`Tools/report-validate-dag-escape-hatches.sh`，将所有使用这些逃生门的站点
+列入工作流的 step summary，因此即使没有额外的 CI 门禁，逃生门的蔓延也保持
+可见。生产 CI 必须让两者都保持 unset。
+
 ## 隐私
 
 InnoDI 在两个运行时产品 `InnoDI` 和 `InnoDISwiftUI` 中附带 Apple Privacy

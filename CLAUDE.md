@@ -106,6 +106,13 @@ validation plus the macro's local cycle and closure/`with:` graph-derived
 checks, while raw-expression `factory:` and initializer references plus
 structural diagnostics still remain active.
 
+`Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
+every `@DIContainer(...validateDAG: false...)` site plus any active
+`INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
+step summary. The script is informational — set `INNODI_ESCAPE_HATCH_FAIL=1`
+to flip it into a blocker for orgs that treat new opt-outs as release
+blockers.
+
 ### `@Provide`
 
 - `.input`: external dependency, no factory

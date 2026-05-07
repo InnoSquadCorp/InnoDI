@@ -26,6 +26,11 @@ public enum DIScope {
 /// > DAG and local cycle gates. Treat it as a temporary fixture rather than
 /// > a release-quality flag — production builds should keep the default. See
 /// > <doc:DAGValidation> for the configuration-aware enforcement pattern.
+/// > Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
+/// > lists every `@DIContainer(...validateDAG: false...)` site and any
+/// > active `INNODI_DISABLE_BUILD_VALIDATION` environment override in the
+/// > workflow's step summary so reviewers can audit escape-hatch creep
+/// > without a separate gate.
 public macro DIContainer(
     root: Bool = false,
     validateDAG: Bool = true,

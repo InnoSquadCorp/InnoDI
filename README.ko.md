@@ -102,6 +102,14 @@ swift build --scratch-path /tmp/innodi-cache
 environment에 남습니다. 자세한 진단과 복구 절차, 전체 파일시스템 표는
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)를 참고하세요.
 
+빌드 시점 검증기는 빠른 반복 또는 제약된 환경을 위한 두 개의 opt-out escape
+hatch 를 제공합니다. `@DIContainer(validateDAG: false)` 는 컨테이너 단위로,
+`INNODI_DISABLE_BUILD_VALIDATION=1` 은 빌드 플러그인 전체를 단락시킵니다. 모든
+PR 은 `Tools/report-validate-dag-escape-hatches.sh` 를 실행해 이러한 escape
+hatch 사용처를 워크플로 step summary 에 노출시키므로, 별도 CI 게이트 없이도
+escape hatch 누적이 가시화됩니다. 프로덕션 CI 는 두 옵션 모두 unset 으로 유지
+해야 합니다.
+
 ## 개인정보 보호
 
 InnoDI는 두 런타임 제품 `InnoDI`와 `InnoDISwiftUI`에 Apple Privacy Manifest
