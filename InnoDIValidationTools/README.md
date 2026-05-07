@@ -53,5 +53,9 @@ automation can build and verify the package before publishing:
 Tools/prepare-release-artifact.sh --tag <tag> --source-path ../ --output-dir Artifacts
 ```
 
+Run the example from inside `InnoDIValidationTools` so `--source-path ../`
+points at the repository root; adjust `--source-path` when using a different
+working directory.
+
 For a public release, pass `--release-url` and `--update-package` so the
-manifest is rewritten to a remote binary target with a computed checksum.
+manifest's binary target is updated to use a remote URL with a computed checksum.

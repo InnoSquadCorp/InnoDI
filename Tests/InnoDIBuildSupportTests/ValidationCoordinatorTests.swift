@@ -10,6 +10,35 @@ import Dispatch
 
 @Suite("ValidationCoordinator")
 struct ValidationCoordinatorTests {
+    @Test("Shared validation state directory anchors at the SwiftPM plugin package output")
+    func sharedValidationStateDirectoryAnchorsAtPluginPackageOutput() {
+        let sourcePluginOutput = URL(
+            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIDAGValidationPlugin",
+            isDirectory: true
+        )
+        let prebuiltPluginOutput = URL(
+            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIPrebuiltDAGValidationPlugin",
+            isDirectory: true
+        )
+        let outputsNamedTargetOutput = URL(
+            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/outputs/InnoDIDAGValidationPlugin",
+            isDirectory: true
+        )
+        let nestedPluginOutput = URL(
+            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIDAGValidationPlugin/work",
+            isDirectory: true
+        )
+        let expected = URL(
+            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/innodi-dag-validation-state",
+            isDirectory: true
+        )
+
+        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: sourcePluginOutput).path == expected.path)
+        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: prebuiltPluginOutput).path == expected.path)
+        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: outputsNamedTargetOutput).path == expected.path)
+        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: nestedPluginOutput).path == expected.path)
+    }
+
     @Test("Whitespace and comments do not change the AST signature")
     func whitespaceAndCommentsDoNotChangeASTSignature() throws {
         let fixture = try makeFixture()

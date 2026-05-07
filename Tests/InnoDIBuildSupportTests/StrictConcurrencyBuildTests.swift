@@ -564,20 +564,9 @@ private func makeStrictConcurrencyFixture(
 
     try FileManager.default.createDirectory(at: sourcesURL, withIntermediateDirectories: true)
 
-    let escapedRepoPath = packageRootURL()
-        .path(percentEncoded: false)
-        .replacingOccurrences(of: "\\", with: "\\\\")
-    // Mirror SwiftPM's package-identity normalization (`.git` suffix stripped +
-    // lowercased) used by `normalizePackageIdentity` in InnoDIBuildSupport so
-    // path-identity CI passes when the checkout directory is `InnoDI.git` or
-    // any other case-mixed name.
-    let dependencyPackageIdentity: String = {
-        var identity = packageRootURL().lastPathComponent.lowercased()
-        if identity.hasSuffix(".git") {
-            identity.removeLast(".git".count)
-        }
-        return identity
-    }()
+    let packageIdentity = packageIdentityInfo(packageRootURL: packageRootURL())
+    let escapedRepoPath = packageIdentity.escapedRepoPath
+    let dependencyPackageIdentity = packageIdentity.dependencyPackageIdentity
 
     let dependencyList = dependencies
         .map { ".product(name: \"\($0)\", package: \"\(dependencyPackageIdentity)\")" }
@@ -632,16 +621,9 @@ private func makeMultiTargetPluginFixture() throws -> URL {
     try FileManager.default.createDirectory(at: featureAURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: featureBURL, withIntermediateDirectories: true)
 
-    let escapedRepoPath = packageRootURL()
-        .path(percentEncoded: false)
-        .replacingOccurrences(of: "\\", with: "\\\\")
-    let dependencyPackageIdentity: String = {
-        var identity = packageRootURL().lastPathComponent.lowercased()
-        if identity.hasSuffix(".git") {
-            identity.removeLast(".git".count)
-        }
-        return identity
-    }()
+    let packageIdentity = packageIdentityInfo(packageRootURL: packageRootURL())
+    let escapedRepoPath = packageIdentity.escapedRepoPath
+    let dependencyPackageIdentity = packageIdentity.dependencyPackageIdentity
 
     let manifest = """
     // swift-tools-version: 6.2
@@ -733,6 +715,21 @@ private func packageRootURL() -> URL {
     }
 
     fatalError("Unable to locate Package.swift from \(#filePath).")
+}
+
+private func packageIdentityInfo(packageRootURL: URL) -> (escapedRepoPath: String, dependencyPackageIdentity: String) {
+    let escapedRepoPath = packageRootURL
+        .path(percentEncoded: false)
+        .replacingOccurrences(of: "\\", with: "\\\\")
+    // Mirror SwiftPM's package-identity normalization (`.git` suffix stripped +
+    // lowercased) used by `normalizePackageIdentity` in InnoDIBuildSupport so
+    // path-identity CI passes when the checkout directory is `InnoDI.git` or
+    // any other case-mixed name.
+    var identity = packageRootURL.lastPathComponent.lowercased()
+    if identity.hasSuffix(".git") {
+        identity.removeLast(".git".count)
+    }
+    return (escapedRepoPath, identity)
 }
 
 private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 180

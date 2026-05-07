@@ -163,6 +163,11 @@ dependencies: [
 )
 ```
 
+如果团队已经确认 source-tool 编译是主要采用成本，配套的
+`InnoDIValidationTools` package 提供可选的 prebuilt macOS validation
+plugin。只挂载上面的 source plugin 或 prebuilt plugin 之一，不能同时挂载；
+unsupported hosts 和 local package development 应继续使用 source plugin。
+
 ## 快速开始
 
 <!-- innodi:compile -->

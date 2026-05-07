@@ -40,11 +40,11 @@ Set the environment variable at build invocation:
 INNODI_DISABLE_BUILD_VALIDATION=1 swift build
 ```
 
-Accepted values are `1`, `true`, `TRUE`, `yes`, `YES`. Anything else (or
-the variable being unset) leaves the plugin enabled. The variable is read
-once per invocation when the plugin schedules its commands; it does not
-persist across builds, and Xcode's Build Settings sheet resets it when the
-process restarts.
+Accepted values are `1`, `true`, and `yes`, compared after trimming whitespace
+and lowercasing. Anything else (or the variable being unset) leaves the plugin
+enabled. The variable is read once per invocation when the plugin schedules its
+commands; it does not persist across builds, and Xcode's Build Settings sheet
+resets it when the process restarts.
 
 `INNODI_DISABLE_BUILD_VALIDATION=1` is independent from
 `INNODI_ALLOW_UNSAFE_LOCK=1`. The latter still runs the validator but on

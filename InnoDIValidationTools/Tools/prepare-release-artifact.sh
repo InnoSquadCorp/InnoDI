@@ -19,7 +19,7 @@ Options:
   --repo <url>             InnoDI git repository (default: $INNODI_REPO).
   --output-dir <path>      Artifact output directory (default: Artifacts).
   --release-url <url>      Remote zip URL to write into Package.swift.
-  --update-package         Rewrite Package.swift to use --release-url/checksum.
+  --update-package         Update Package.swift binary target to use --release-url/checksum.
   --help                   Show this help.
 USAGE
 }
@@ -159,39 +159,72 @@ rm -f "$ZIP_PATH"
 
 CHECKSUM="$(swift package compute-checksum "$ZIP_PATH")"
 
+update_package_manifest() {
+  local package_path="$ROOT_DIR/Package.swift"
+  local updated_path="$TMP_DIR/Package.swift.updated"
+
+  set +e
+  awk -v release_url="$RELEASE_URL" -v checksum="$CHECKSUM" '
+    function emitReplacement(indent) {
+      print indent ".binaryTarget("
+      print indent "    name: \"InnoDIPrebuiltDAGValidationCoordinator\","
+      print indent "    url: \"" release_url "\","
+      print indent "    checksum: \"" checksum "\""
+      print indent "),"
+    }
+
+    /^[[:space:]]*\.binaryTarget\([[:space:]]*$/ {
+      capture = 1
+      matched = 0
+      block = $0 ORS
+      indent = substr($0, 1, match($0, /\./) - 1)
+      next
+    }
+
+    capture {
+      block = block $0 ORS
+      if ($0 ~ /name:[[:space:]]*"InnoDIPrebuiltDAGValidationCoordinator"/) {
+        matched = 1
+      }
+      if ($0 ~ /^[[:space:]]*\),[[:space:]]*$/) {
+        if (matched) {
+          emitReplacement(indent)
+          found = 1
+        } else {
+          printf "%s", block
+        }
+        capture = 0
+        matched = 0
+        block = ""
+      }
+      next
+    }
+
+    { print }
+
+    END {
+      if (capture) {
+        printf "%s", block
+      }
+      if (!found) {
+        exit 42
+      }
+    }
+  ' "$package_path" > "$updated_path"
+  local awk_status=$?
+  set -e
+
+  if [[ "$awk_status" -ne 0 ]]; then
+    rm -f "$updated_path"
+    echo "Error: unable to find InnoDIPrebuiltDAGValidationCoordinator binary target in $package_path." >&2
+    exit 1
+  fi
+
+  mv "$updated_path" "$package_path"
+}
+
 if [[ "$UPDATE_PACKAGE" -eq 1 ]]; then
-  cat > "$ROOT_DIR/Package.swift" <<SWIFT
-// swift-tools-version: 6.2
-
-import PackageDescription
-
-let package = Package(
-    name: "InnoDIValidationTools",
-    platforms: [
-        .macOS(.v13),
-    ],
-    products: [
-        .plugin(
-            name: "InnoDIPrebuiltDAGValidationPlugin",
-            targets: ["InnoDIPrebuiltDAGValidationPlugin"]
-        ),
-    ],
-    targets: [
-        .binaryTarget(
-            name: "InnoDIPrebuiltDAGValidationCoordinator",
-            url: "$RELEASE_URL",
-            checksum: "$CHECKSUM"
-        ),
-        .plugin(
-            name: "InnoDIPrebuiltDAGValidationPlugin",
-            capability: .buildTool(),
-            dependencies: [
-                "InnoDIPrebuiltDAGValidationCoordinator",
-            ]
-        ),
-    ]
-)
-SWIFT
+  update_package_manifest
 fi
 
 cat <<SUMMARY
