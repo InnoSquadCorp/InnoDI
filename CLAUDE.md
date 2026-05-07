@@ -123,5 +123,6 @@ structural diagnostics still remain active.
 
 - `README.md` is the English canonical README.
 - Localized README files and localized DocC mirrors must match the English structure and meaning.
+- `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the release gate; H2 or swift-fence drift fails the build.
 - `RELEASING.md` is the single source for release notes and upgrade notes.
 - If behavior changes, update docs in the same change.
