@@ -105,12 +105,71 @@ struct GenerateMockMacroTests {
         // Storage and method shape — just substring assertions because the
         // exact whitespace is defined by the generator.
         #expect(peer.contains("final class GreeterMock"))
+        #expect(!peer.contains("@unchecked Sendable"))
         #expect(peer.contains("private var __innodi_prefix_hba8821b572531e29StubValue: String?"))
         #expect(peer.contains("var prefix: String {"))
         #expect(peer.contains("__innodi_prefix_hba8821b572531e29StubValue = newValue"))
         #expect(peer.contains("private(set) var greetCalls"))
         #expect(peer.contains("var greetReturnValue: String?"))
         #expect(peer.contains("func greet(name: String) -> String"))
+    }
+
+    @Test("GenerateMock refuses Sendable-inherited protocols")
+    func generateMockRefusesSendableInheritedProtocols() throws {
+        let source = """
+        @GenerateMock
+        protocol SharedAPI: Sendable {
+            func load() -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(parsed.statements.first?.item.as(ProtocolDeclSyntax.self))
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
+                    && $0.message.contains("Sendable inheritance")
+            }
+        )
+    }
+
+    @Test("GenerateMock refuses qualified Sendable-inherited protocols")
+    func generateMockRefusesQualifiedSendableInheritedProtocols() throws {
+        let source = """
+        @GenerateMock
+        protocol SharedAPI: Swift.Sendable {
+            func load() -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(parsed.statements.first?.item.as(ProtocolDeclSyntax.self))
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
+                    && $0.message.contains("Sendable inheritance")
+            }
+        )
     }
 
     @Test("GenerateMock keeps property backing storage names unique after normalization")

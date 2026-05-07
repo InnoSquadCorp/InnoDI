@@ -53,6 +53,7 @@ package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
 
 package struct ValidationCoordinatorLockPolicy: Sendable {
     package static let `default` = Self()
+    private static let maximumEnvironmentTimeIntervalSeconds: TimeInterval = 24 * 60 * 60
 
     /// Environment variable names honored by ``init(environment:warningHandler:)``.
     ///
@@ -95,10 +96,11 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
     /// operator-relevant knobs.
     ///
     /// `INNODI_LOCK_TIMEOUT` and `INNODI_STALE_LOCK_AGE` accept a positive
-    /// floating-point number of seconds. Unparseable or non-positive values
-    /// fall back to the default and invoke `warningHandler` with a message
-    /// explaining the fallback (default implementation writes to stderr) so
-    /// the misconfiguration surfaces at the first build.
+    /// finite floating-point number of seconds up to 24 hours. Unparseable,
+    /// non-positive, non-finite, or excessively large values fall back to the
+    /// default and invoke `warningHandler` with a message explaining the
+    /// fallback (default implementation writes to stderr) so the
+    /// misconfiguration surfaces at the first build.
     package init(
         environment: [String: String],
         warningHandler: (String) -> Void = { message in
@@ -162,7 +164,10 @@ package struct ValidationCoordinatorLockPolicy: Sendable {
         guard let raw = environment[key], !raw.isEmpty else {
             return fallback
         }
-        guard let parsed = Double(raw), parsed > 0 else {
+        guard let parsed = Double(raw),
+              parsed.isFinite,
+              parsed > 0,
+              parsed <= maximumEnvironmentTimeIntervalSeconds else {
             warningHandler(
                 "InnoDI: ignoring invalid \(key)=\(raw); falling back to \(fallback) seconds."
             )
@@ -277,7 +282,8 @@ package func sharedRunCacheKey(for signature: String) -> String {
 }
 
 package func validationSleep(_ interval: TimeInterval) async throws {
-    guard interval > 0 else {
+    let maximumNanosecondInterval = TimeInterval(UInt64.max) / 1_000_000_000
+    guard interval.isFinite, interval > 0, interval <= maximumNanosecondInterval else {
         return
     }
 
@@ -564,6 +570,7 @@ package enum ValidationCoordinator {
             let result: ValidationCommandResult
             let customInitStartTime = validationNow()
             let workspaceSnapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath)
+            let aliasReport = DeferredWrapperAliasBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitValidation = try CustomInitBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitFailure = customInitValidation.asCommandResult()
             let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
@@ -634,7 +641,7 @@ package enum ValidationCoordinator {
                     dagValidationMilliseconds: dagValidationMilliseconds
                 ),
                 reasonCodes: liveRunReasonCodes,
-                issues: issues
+                issues: issues + aliasReport.issues
             )
             try persistSharedRunRecord(sharedRunRecord, to: sharedRunRecordURL)
             try persistResult(result, to: resultURL)
@@ -650,7 +657,7 @@ package enum ValidationCoordinator {
                     totalCoordinatorMilliseconds: validationElapsedMilliseconds(since: coordinatorStartTime)
                 ),
                 liveRunMetrics: sharedRunRecord.liveRunMetrics,
-                issues: issues,
+                issues: issues + aliasReport.issues,
                 humanSummarySource: "validation-summary.md"
             )
             try persistSummaryReport(

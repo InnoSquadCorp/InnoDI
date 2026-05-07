@@ -69,6 +69,28 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            if let factory = member.factory {
+                if isAsyncClosureExpression(factory) || factoryExpressionContainsAwait(factory) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(factory),
+                            message: SimpleDiagnostic.provideFactoryMustBeSync(memberName: member.name)
+                        )
+                    )
+                    hadErrors = true
+                }
+
+                if isThrowingClosureExpression(factory) || factoryExpressionContainsPlainTry(factory) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(factory),
+                            message: SimpleDiagnostic.provideFactoryMustNotThrow(memberName: member.name)
+                        )
+                    )
+                    hadErrors = true
+                }
+            }
+
             if member.scope != .input && !member.concreteOptIn && requiresConcreteOptIn(type: member.type) {
                 context.diagnose(
                     makeConcreteOptInDiagnostic(member: member)
@@ -357,7 +379,7 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            let hasBindingWiringConflict = sub.hasWithDependencies && !sub.explicitBindings.isEmpty
+            let hasBindingWiringConflict = sub.hasWithDependencies && sub.hasBindingsArgument
             if hasBindingWiringConflict {
                 context.diagnose(
                     Diagnostic(
@@ -366,6 +388,17 @@ struct DIContainerValidator {
                     )
                 )
                 hadErrors = true
+            }
+
+            if !hasBindingWiringConflict, sub.hasInvalidBindings {
+                context.diagnose(
+                    Diagnostic(
+                        node: sub.invalidBindingAnchorExpression.map(Syntax.init) ?? Syntax(sub.attribute),
+                        message: SimpleDiagnostic.subInvalidBindings(memberName: sub.name)
+                    )
+                )
+                hadErrors = true
+                continue
             }
 
             var seenChildInputs: Set<String> = []
@@ -457,7 +490,7 @@ struct DIContainerValidator {
             }
 
             let usesImplicitSubContainerParentNames = sub.sameNameWiring == .omitted
-                && sub.explicitBindings.isEmpty
+                && !sub.hasBindingsArgument
 
             if usesImplicitSubContainerParentNames,
                !canResolveImplicitSubContainerParentNames(
@@ -485,7 +518,7 @@ struct DIContainerValidator {
             // the ambiguity diagnostic above requires explicit wiring.
             guard sub.scope == .shared else { continue }
             let wiredParents: [String]
-            if !sub.explicitBindings.isEmpty {
+            if sub.hasBindingsArgument {
                 wiredParents = sub.explicitBindings.map(\.parentMemberName)
             } else if sub.hasExplicitSameNameWiring {
                 wiredParents = sub.parentDependencies

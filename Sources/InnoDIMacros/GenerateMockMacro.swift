@@ -38,6 +38,9 @@ public struct GenerateMockMacro: PeerMacro {
         var bodyLines: [String] = []
         var unsupportedMembers: [String] = []
         var usesNotStubbedError = false
+        if inheritsSendable(protocolDecl) {
+            unsupportedMembers.append("Sendable inheritance")
+        }
         if protocolDecl.memberBlock.members.isEmpty {
             // Empty protocol — emit the skeleton note so consumers can still
             // confirm the macro plugin sees the attribute.
@@ -119,7 +122,7 @@ public struct GenerateMockMacro: PeerMacro {
 
         let mockDecl: DeclSyntax = """
         /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
-        final class \(raw: mockTypeName): \(raw: protocolDecl.name.text), @unchecked Sendable {
+        final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
             init() {}
 
         \(raw: renderedBody)
@@ -132,6 +135,29 @@ public struct GenerateMockMacro: PeerMacro {
 private struct RenderedFunctionMock {
     let snippet: String
     let usesNotStubbedError: Bool
+}
+
+private func inheritsSendable(_ protocolDecl: ProtocolDeclSyntax) -> Bool {
+    guard let inheritanceClause = protocolDecl.inheritanceClause else {
+        return false
+    }
+    return inheritanceClause.inheritedTypes.contains { inherited in
+        inheritedTypeBaseName(inherited.type) == "Sendable"
+    }
+}
+
+private func inheritedTypeBaseName(_ type: TypeSyntax) -> String? {
+    let trimmed = type.trimmed
+    if let attributed = trimmed.as(AttributedTypeSyntax.self) {
+        return inheritedTypeBaseName(attributed.baseType)
+    }
+    if let identifier = trimmed.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text
+    }
+    if let member = trimmed.as(MemberTypeSyntax.self) {
+        return member.name.text
+    }
+    return trimmed.trimmedDescription.split(separator: ".").last.map(String.init)
 }
 
 private struct MockFunctionNames {

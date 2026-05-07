@@ -55,12 +55,12 @@ struct SnapshotSmokeTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
                             line: 3,
                             column: 5
                         ),
@@ -93,12 +93,12 @@ struct SnapshotSmokeTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true. Prefer protocol types when possible.",
+                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true.",
                     line: 3,
                     column: 5,
                     notes: [
                         NoteSpec(
-                            message: "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
                             line: 3,
                             column: 5
                         ),

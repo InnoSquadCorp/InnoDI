@@ -11,6 +11,9 @@ func validateResolvedEdges(
 
     for edge in edges {
         guard let child = containersByID[edge.childContainerID] else {
+            issues.append(
+                makeChildContainerOutOfWorkspaceIssue(edge: edge)
+            )
             continue
         }
 
@@ -85,6 +88,64 @@ func validateResolvedEdges(
     }
 
     return issues
+}
+
+/// Build the diagnostic emitted when a `@SubContainer` resolves to a
+/// child container ID the workspace snapshot did not collect a record for.
+///
+/// This previously fell through with a silent `continue`, masking child
+/// containers that live in modules outside the snapshot scope or
+/// references that the resolver accepted but the workspace collector did
+/// not finish loading. The diagnostic now states which child reference
+/// could not be located and points at the concrete remediation steps.
+///
+/// Distinct from `hierarchy.unresolved-child-reference`, which fires
+/// earlier when the resolver itself rejected the type reference; this
+/// code path runs only after a successful resolution that the workspace
+/// snapshot still cannot map to a container record.
+func makeChildContainerOutOfWorkspaceIssue(edge: ResolvedHierarchyEdge) -> ValidationIssue {
+    let parentModuleName = edge.parentModule?.displayName ?? "<unknown>"
+    let childModuleName = edge.childModule?.displayName ?? "<unknown-or-not-loaded>"
+
+    var notes: [ValidationIssueNote] = [
+        ValidationIssueNote(
+            message: "child reference '\(edge.childPath)' resolved to a container ID '\(edge.childContainerID)' that is absent from the workspace snapshot.",
+            location: edge.childLocation
+        )
+    ]
+    if let childModule = edge.childModule {
+        notes.append(
+            ValidationIssueNote(
+                message: "child module '\(childModule.displayName)' was identified at '\(childModule.manifestPath)' but its container declarations were not visible to this validation pass.",
+                location: edge.childLocation
+            )
+        )
+    }
+    notes.append(contentsOf: hierarchyModuleDisambiguationNotes(for: edge))
+
+    var metadata: [String: String] = [
+        "parentContainerPath": edge.parentPath,
+        "childContainerPath": edge.childPath,
+        "childContainerID": edge.childContainerID,
+        "parentModule": parentModuleName,
+        "childModule": childModuleName
+    ]
+    if let parentModule = edge.parentModule {
+        metadata["parentModuleID"] = parentModule.moduleID
+    }
+    if let childModule = edge.childModule {
+        metadata["childModuleID"] = childModule.moduleID
+    }
+
+    return ValidationIssue(
+        code: "hierarchy.child-not-in-workspace",
+        severity: .warning,
+        message: "@SubContainer '\(edge.subContainer.memberName)' on '\(edge.parentPath)' (module '\(parentModuleName)') references child container '\(edge.childPath)', but the workspace validator could not find a container record for it. Cross-module checks (component marker, module dependency edge, dependency satisfaction) are skipped for this edge.",
+        location: edge.subContainer.location,
+        notes: notes,
+        remediation: "Confirm the child target ships @DIComponent and that the parent module's manifest depends on the child module, then re-run validation. If the child intentionally lives outside the validated workspace, treat this warning as the contract you are accepting.",
+        metadata: metadata
+    )
 }
 
 func hierarchyModuleDisambiguationNotes(for edge: ResolvedHierarchyEdge) -> [ValidationIssueNote] {

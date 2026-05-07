@@ -301,7 +301,7 @@ internal func makeConcreteOptInDiagnostic(member: ProvideMemberModel) -> Diagnos
         Note(
             node: Syntax(member.attribute),
             message: SimpleNote(
-                "If this dependency must remain a concrete type, opt in explicitly with concrete: true.",
+                "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named '\(SimpleFixIt.addConcreteTrueTitle)' to insert the argument.",
                 code: .provideConcreteOptInRequired,
                 suffix: "opt-in"
             )
@@ -452,7 +452,7 @@ private func makeConcreteOptInFixIts(attribute: AttributeSyntax) -> [FixIt] {
 
     return [
         FixIt(
-            message: SimpleFixIt("Add concrete: true", code: .provideConcreteOptInRequired, suffix: "insert-concrete"),
+            message: SimpleFixIt(SimpleFixIt.addConcreteTrueTitle, code: .provideConcreteOptInRequired, suffix: "insert-concrete"),
             changes: [
                 .replaceText(
                     range: insertionPosition..<insertionPosition,

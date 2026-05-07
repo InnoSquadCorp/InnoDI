@@ -58,6 +58,17 @@ InnoDI kann in der Praxis mit Runtime-Tools koexistieren: nutze InnoDI fur den
 validierten Application Graph und `swift-dependencies` oder kleine Factories
 fur lokale Runtime-Werte innerhalb von Features.
 
+Das Layering-Muster, das sich bewahrt, trennt *Konstruktion* (InnoDI) von
+*kurzlebigen, aufrufgebundenen Overrides* (`swift-dependencies`). Der
+Composition Root lost einen `DependencyKey` auf (z. B. `@Dependency(\.date)`)
+und reicht den Wert als `.input` Slot an den Container weiter; Tests ersetzen
+ihn pro Aufruf-Baum mit
+`withDependencies { $0.date = .constant(...) } operation:`, ohne den Container
+oder seinen validierten Graph neu zu erzeugen. Der container-weite
+`Overrides`-Builder bleibt das richtige Werkzeug fur app-weite Swaps wie einen
+gefakten `APIClient`; `swift-dependencies` greift man nur, wenn der Override
+fur die Dauer einer einzigen Operation gelten soll.
+
 ## Anforderungen
 
 - Swift tools version `6.2`

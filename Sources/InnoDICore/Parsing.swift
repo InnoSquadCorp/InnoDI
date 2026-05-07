@@ -15,6 +15,63 @@ public enum ProvideScope: String {
     case transient
 }
 
+/// Parse state for macro arguments that must be literal Bool expressions.
+public enum BoolArgumentParseState: Equatable, Sendable {
+    /// The labeled argument did not appear in source.
+    case omitted
+    /// A literal `true` or `false` was parsed.
+    case parsed(Bool)
+    /// The argument appeared but was not a literal Bool the macro can evaluate.
+    case invalid
+
+    public var value: Bool? {
+        if case let .parsed(value) = self {
+            return value
+        }
+        return nil
+    }
+
+    public var isInvalid: Bool {
+        if case .invalid = self {
+            return true
+        }
+        return false
+    }
+
+    public var hasArgument: Bool {
+        switch self {
+        case .omitted:
+            return false
+        case .parsed, .invalid:
+            return true
+        }
+    }
+}
+
+/// Parse state for `with:` key-path array arguments.
+public enum KeyPathArrayArgumentParseState: Equatable, Sendable {
+    /// The labeled argument did not appear in source.
+    case omitted
+    /// A literal array was fully parsed. The list may be empty.
+    case parsed([String])
+    /// The argument appeared but was not a fully parseable literal key-path array.
+    case invalid
+
+    public var dependencies: [String] {
+        if case let .parsed(dependencies) = self {
+            return dependencies
+        }
+        return []
+    }
+
+    public var isInvalid: Bool {
+        if case .invalid = self {
+            return true
+        }
+        return false
+    }
+}
+
 /// Parsed arguments extracted from a single `@Provide` attribute.
 public struct ProvideArguments {
     /// Parsed scope value (`.shared`, `.input`, `.transient`) when available.
@@ -29,10 +86,14 @@ public struct ProvideArguments {
     public let asyncFactoryIsThrowing: Bool
     /// Whether concrete opt-in (`concrete: true`) was explicitly requested.
     public let concrete: Bool
+    /// Literal parse state for `concrete:`.
+    public let concreteParseState: BoolArgumentParseState
     /// Explicit type expression passed as positional `Type.self`.
     public let typeExpr: ExprSyntax?
     /// Dependency key-path names passed via `with:`.
     public let dependencies: [String]
+    /// Literal parse state for `with:`.
+    public let dependenciesParseState: KeyPathArrayArgumentParseState
 
     /// Creates a parsed `@Provide` argument model.
     ///
@@ -52,8 +113,10 @@ public struct ProvideArguments {
         asyncFactoryExpr: ExprSyntax? = nil,
         asyncFactoryIsThrowing: Bool = false,
         concrete: Bool = false,
+        concreteParseState: BoolArgumentParseState? = nil,
         typeExpr: ExprSyntax? = nil,
-        dependencies: [String] = []
+        dependencies: [String] = [],
+        dependenciesParseState: KeyPathArrayArgumentParseState? = nil
     ) {
         self.scope = scope
         self.scopeName = scopeName
@@ -61,8 +124,10 @@ public struct ProvideArguments {
         self.asyncFactoryExpr = asyncFactoryExpr
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
         self.concrete = concrete
+        self.concreteParseState = concreteParseState ?? (concrete ? .parsed(true) : .omitted)
         self.typeExpr = typeExpr
         self.dependencies = dependencies
+        self.dependenciesParseState = dependenciesParseState ?? (dependencies.isEmpty ? .omitted : .parsed(dependencies))
     }
 }
 
@@ -123,6 +188,8 @@ public struct SubContainerAttributeInfo {
     /// Explicit child-input -> parent-member bindings passed via `bindings:`.
     /// Used when the child `.input` label differs from the parent member name.
     public let bindings: [SubContainerBindingArgument]
+    /// Literal parse state for `bindings:`.
+    public let bindingsParseState: SubContainerBindingsParseState
 
     /// Creates a parsed `@SubContainer` argument model.
     ///
@@ -138,7 +205,8 @@ public struct SubContainerAttributeInfo {
         dependencies: [String],
         hasWithDependencies: Bool = false,
         sameNameWiring: SubContainerSameNameWiringParseState = .omitted,
-        bindings: [SubContainerBindingArgument]
+        bindings: [SubContainerBindingArgument],
+        bindingsParseState: SubContainerBindingsParseState? = nil
     ) {
         self.scope = scope
         self.scopeName = scopeName
@@ -146,6 +214,7 @@ public struct SubContainerAttributeInfo {
         self.hasWithDependencies = hasWithDependencies
         self.sameNameWiring = sameNameWiring
         self.bindings = bindings
+        self.bindingsParseState = bindingsParseState ?? (bindings.isEmpty ? .omitted : .parsed(bindings))
     }
 }
 
@@ -163,14 +232,53 @@ public struct SubContainerBindingArgument: Equatable, Sendable {
     }
 }
 
+/// Parse state for `@SubContainer(bindings:)`.
+public enum SubContainerBindingsParseState: Equatable, Sendable {
+    /// `bindings:` did not appear in source.
+    case omitted
+    /// A literal bindings array was fully parsed. The list may be empty.
+    case parsed([SubContainerBindingArgument])
+    /// `bindings:` appeared but was not a fully parseable literal tuple array.
+    case invalid
+
+    public var bindings: [SubContainerBindingArgument] {
+        if case let .parsed(bindings) = self {
+            return bindings
+        }
+        return []
+    }
+
+    public var isInvalid: Bool {
+        if case .invalid = self {
+            return true
+        }
+        return false
+    }
+
+    public var hasArgument: Bool {
+        switch self {
+        case .omitted:
+            return false
+        case .parsed, .invalid:
+            return true
+        }
+    }
+}
+
 /// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
     /// Whether the container should be marked as graph root.
     public let root: Bool
+    /// Literal parse state for `root:`.
+    public let rootParseState: BoolArgumentParseState
     /// Whether DAG validation is enabled for this container.
     public let validateDAG: Bool
+    /// Literal parse state for `validateDAG:`.
+    public let validateDAGParseState: BoolArgumentParseState
     /// Whether generated API is isolated to the main actor.
     public let mainActor: Bool
+    /// Literal parse state for `mainActor:`.
+    public let mainActorParseState: BoolArgumentParseState
 
     /// Creates a parsed `@DIContainer` attribute model.
     ///
@@ -178,10 +286,20 @@ public struct DIContainerAttributeInfo {
     ///   - root: Root flag.
     ///   - validateDAG: DAG validation flag.
     ///   - mainActor: Main actor isolation flag.
-    public init(root: Bool, validateDAG: Bool, mainActor: Bool) {
+    public init(
+        root: Bool,
+        validateDAG: Bool,
+        mainActor: Bool,
+        rootParseState: BoolArgumentParseState = .omitted,
+        validateDAGParseState: BoolArgumentParseState = .omitted,
+        mainActorParseState: BoolArgumentParseState = .omitted
+    ) {
         self.root = root
+        self.rootParseState = rootParseState
         self.validateDAG = validateDAG
+        self.validateDAGParseState = validateDAGParseState
         self.mainActor = mainActor
+        self.mainActorParseState = mainActorParseState
     }
 }
 
@@ -270,8 +388,10 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var asyncFactoryExpr: ExprSyntax?
     var asyncFactoryIsThrowing = false
     var concrete: Bool = false
+    var concreteParseState: BoolArgumentParseState = .omitted
     var typeExpr: ExprSyntax?
     var dependencies: [String] = []
+    var dependenciesParseState: KeyPathArrayArgumentParseState = .omitted
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -288,13 +408,15 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     continue
                 }
                 if label == "concrete" {
-                    if let value = parseBoolLiteral(argument.expression) {
+                    concreteParseState = parseBoolArgument(argument.expression)
+                    if let value = concreteParseState.value {
                         concrete = value
                     }
                     continue
                 }
                 if label == "with" {
-                    dependencies = parseKeyPathArrayArgument(argument.expression)
+                    dependenciesParseState = parseKeyPathArrayArgumentState(argument.expression)
+                    dependencies = dependenciesParseState.dependencies
                     continue
                 }
             } else {
@@ -329,78 +451,107 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         asyncFactoryExpr: asyncFactoryExpr,
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,
         concrete: concrete,
+        concreteParseState: concreteParseState,
         typeExpr: typeExpr,
-        dependencies: dependencies
+        dependencies: dependencies,
+        dependenciesParseState: dependenciesParseState
     )
 }
 
 /// Extracts the final component names from a `with: [\.foo, \.bar]` style
-/// array expression. Silently skips elements that are not `KeyPathExprSyntax`
-/// or whose final component is not a property — macros intentionally ignore
-/// exotic keypath shapes instead of failing to expand.
+/// array expression. Returns `[]` when the expression is invalid; callers that
+/// need to distinguish invalid from explicit empty arrays should use
+/// `parseKeyPathArrayArgumentState(_:)`.
 public func parseKeyPathArrayArgument(_ expression: ExprSyntax) -> [String] {
-    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
+    parseKeyPathArrayArgumentState(expression).dependencies
+}
+
+/// Strictly parses a key-path literal array and preserves invalid state.
+public func parseKeyPathArrayArgumentState(_ expression: ExprSyntax) -> KeyPathArrayArgumentParseState {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return .invalid }
     var names: [String] = []
     for element in arrayExpr.elements {
         guard let property = finalKeyPathComponentName(from: element.expression) else {
-            continue
+            return .invalid
         }
         names.append(property)
     }
-    return names
+    return .parsed(names)
 }
 
 /// Strictly parses a `with: [\.foo, \.bar]` array for `@SubContainer`.
 /// Returns `nil` when the expression is not a literal array or any element is
 /// not a simple key path whose final component is a property.
 public func parseStrictKeyPathArrayArgument(_ expression: ExprSyntax) -> [String]? {
-    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return nil }
-    var names: [String] = []
-    for element in arrayExpr.elements {
-        guard let property = finalKeyPathComponentName(from: element.expression) else {
-            return nil
-        }
-        names.append(property)
+    switch parseKeyPathArrayArgumentState(expression) {
+    case let .parsed(dependencies):
+        return dependencies
+    case .omitted, .invalid:
+        return nil
     }
-    return names
 }
 
 /// Parses `bindings: [(child: \.foo, parent: \.bar)]` into semantic names.
 public func parseSubContainerBindingsArgument(_ expression: ExprSyntax) -> [SubContainerBindingArgument] {
-    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return [] }
+    parseSubContainerBindingsArgumentState(expression).bindings
+}
+
+/// Strictly parses `bindings:` and preserves invalid state.
+public func parseSubContainerBindingsArgumentState(_ expression: ExprSyntax) -> SubContainerBindingsParseState {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return .invalid }
     var bindings: [SubContainerBindingArgument] = []
 
     for element in arrayExpr.elements {
         guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
-            continue
+            return .invalid
         }
 
         var childName: String?
         var parentName: String?
 
+        guard tupleExpr.elements.count == 2 else {
+            return .invalid
+        }
+
         for tupleElement in tupleExpr.elements {
-            guard let label = tupleElement.label?.text else { continue }
+            guard let label = tupleElement.label?.text else {
+                return .invalid
+            }
             switch label {
             case "child":
-                childName = finalKeyPathComponentName(from: tupleElement.expression)
+                guard childName == nil else {
+                    return .invalid
+                }
+                guard let parsed = finalKeyPathComponentName(from: tupleElement.expression) else {
+                    return .invalid
+                }
+                childName = parsed
             case "parent":
-                parentName = finalKeyPathComponentName(from: tupleElement.expression)
+                guard parentName == nil else {
+                    return .invalid
+                }
+                guard let parsed = finalKeyPathComponentName(from: tupleElement.expression) else {
+                    return .invalid
+                }
+                parentName = parsed
             default:
-                continue
+                return .invalid
             }
         }
 
-        if let childName, let parentName {
-            bindings.append(
-                SubContainerBindingArgument(
-                    childName: childName,
-                    parentName: parentName
-                )
-            )
+        guard let childName, let parentName else {
+            return .invalid
         }
+
+        bindings.append(
+            SubContainerBindingArgument(
+                childName: childName,
+                parentName: parentName
+            )
+        )
     }
 
-    return bindings
+    return .parsed(bindings)
 }
 
 /// Parses the full argument list of a single `@SubContainer` attribute.
@@ -414,6 +565,7 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
     var hasWithDependencies = false
     var sameNameWiring: SubContainerSameNameWiringParseState = .omitted
     var bindings: [SubContainerBindingArgument] = []
+    var bindingsParseState: SubContainerBindingsParseState = .omitted
 
     if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -435,7 +587,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
                     sameNameWiring = .invalid(label: .with)
                 }
             case "bindings":
-                bindings = parseSubContainerBindingsArgument(argument.expression)
+                bindingsParseState = parseSubContainerBindingsArgumentState(argument.expression)
+                bindings = bindingsParseState.bindings
             default:
                 continue
             }
@@ -448,7 +601,8 @@ public func parseSubContainerArguments(_ attribute: AttributeSyntax) -> SubConta
         dependencies: dependencies,
         hasWithDependencies: hasWithDependencies,
         sameNameWiring: sameNameWiring,
-        bindings: bindings
+        bindings: bindings,
+        bindingsParseState: bindingsParseState
     )
 }
 
@@ -472,14 +626,19 @@ public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> Provide
 }
 
 public func parseBoolLiteral(_ expr: ExprSyntax) -> Bool? {
+    parseBoolArgument(expr).value
+}
+
+/// Parses a macro Bool option and preserves whether a non-literal was supplied.
+public func parseBoolArgument(_ expr: ExprSyntax) -> BoolArgumentParseState {
     if let literal = expr.as(BooleanLiteralExprSyntax.self) {
-        return literal.literal.text == "true"
+        return .parsed(literal.literal.text == "true")
     }
     if let reference = expr.as(DeclReferenceExprSyntax.self) {
-        if reference.baseName.text == "true" { return true }
-        if reference.baseName.text == "false" { return false }
+        if reference.baseName.text == "true" { return .parsed(true) }
+        if reference.baseName.text == "false" { return .parsed(false) }
     }
-    return nil
+    return .invalid
 }
 
 private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {
@@ -497,21 +656,40 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
     var root = false
     var validateDAG = true
     var mainActor = false
+    var rootParseState: BoolArgumentParseState = .omitted
+    var validateDAGParseState: BoolArgumentParseState = .omitted
+    var mainActorParseState: BoolArgumentParseState = .omitted
 
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
             guard let label = argument.label?.text else { continue }
-            if label == "root", let value = parseBoolLiteral(argument.expression) {
-                root = value
+            if label == "root" {
+                rootParseState = parseBoolArgument(argument.expression)
+                if let value = rootParseState.value {
+                    root = value
+                }
             }
-            if label == "validateDAG", let value = parseBoolLiteral(argument.expression) {
-                validateDAG = value
+            if label == "validateDAG" {
+                validateDAGParseState = parseBoolArgument(argument.expression)
+                if let value = validateDAGParseState.value {
+                    validateDAG = value
+                }
             }
-            if label == "mainActor", let value = parseBoolLiteral(argument.expression) {
-                mainActor = value
+            if label == "mainActor" {
+                mainActorParseState = parseBoolArgument(argument.expression)
+                if let value = mainActorParseState.value {
+                    mainActor = value
+                }
             }
         }
     }
 
-    return DIContainerAttributeInfo(root: root, validateDAG: validateDAG, mainActor: mainActor)
+    return DIContainerAttributeInfo(
+        root: root,
+        validateDAG: validateDAG,
+        mainActor: mainActor,
+        rootParseState: rootParseState,
+        validateDAGParseState: validateDAGParseState,
+        mainActorParseState: mainActorParseState
+    )
 }

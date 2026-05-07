@@ -21,10 +21,13 @@
 
 Attach a new `@GenerateMock` macro to a Swift protocol (and optionally to
 a `@DIContainer` type) to have InnoDI synthesize a compile-time mock
-implementation. The generated type is `Sendable` where possible, captures
-every call for assertion, and plugs into the existing `Overrides`
-builder so tests can replace a production binding with its mock in a
-single line.
+implementation. The generated type captures every call for assertion and plugs
+into the existing `Overrides` builder so tests can replace a production binding
+with its mock in a single line.
+
+In the 4.x experimental implementation, generated mocks are intentionally not
+`Sendable` by default because call arrays, result slots, and handlers are plain
+mutable state. Lock-backed strict-sendable mocks remain a follow-up option.
 
 Not in scope for this RFC: runtime mocking (swizzling, proxy objects),
 partial mocks that fall back to the real implementation, or anything that
@@ -63,7 +66,7 @@ protocol UserService {
 
 // Macro expansion produces:
 
-final class UserServiceMock: UserService, @unchecked Sendable {
+final class UserServiceMock: UserService {
     struct FetchCall: Equatable { let id: String }
     struct SaveCall: Equatable { let user: User }
 
@@ -93,9 +96,9 @@ struct MockNotStubbed: Error { let selector: String }
   mock into the container's `Overrides` builder automatically so
   `withOverrides { $0.userService = UserServiceMock() }` works without
   the user writing anything further.
-- `@GenerateMock(sendable: .strict)` — drop `@unchecked Sendable` in
-  favor of a fully-`Sendable` implementation (requires all arguments and
-  return types to be `Sendable`).
+- `@GenerateMock(sendable: .strict)` — emit a fully-`Sendable` implementation
+  backed by synchronized state (requires all arguments and return types to be
+  `Sendable`).
 
 ### Relationship with Overrides
 

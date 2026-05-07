@@ -70,3 +70,99 @@ internal func isAsyncClosureExpression(_ expr: ExprSyntax) -> Bool {
     }
     return closure.signature?.effectSpecifiers?.asyncSpecifier != nil
 }
+
+internal func isThrowingClosureExpression(_ expr: ExprSyntax) -> Bool {
+    guard let closure = expr.as(ClosureExprSyntax.self) else {
+        return false
+    }
+    return closure.signature?.effectSpecifiers?.throwsClause != nil
+}
+
+internal func factoryExpressionContainsAwait(_ expr: ExprSyntax) -> Bool {
+    let visitor = FactoryEffectVisitor(rootClosure: expr.as(ClosureExprSyntax.self))
+    visitor.walk(Syntax(expr))
+    return visitor.containsAwait
+}
+
+internal func factoryExpressionContainsPlainTry(_ expr: ExprSyntax) -> Bool {
+    let visitor = FactoryEffectVisitor(rootClosure: expr.as(ClosureExprSyntax.self))
+    visitor.walk(Syntax(expr))
+    return visitor.containsPlainTry
+}
+
+private final class FactoryEffectVisitor: SyntaxVisitor {
+    let rootClosurePosition: AbsolutePosition?
+    var containsAwait = false
+    var containsPlainTry = false
+    private var handledThrowDepth = 0
+    private var catchClauseHandledAdjustments: [Bool] = []
+
+    init(rootClosure: ClosureExprSyntax?) {
+        self.rootClosurePosition = rootClosure?.position
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: AwaitExprSyntax) -> SyntaxVisitorContinueKind {
+        containsAwait = true
+        return .skipChildren
+    }
+
+    override func visit(_ node: TryExprSyntax) -> SyntaxVisitorContinueKind {
+        if node.questionOrExclamationMark == nil && handledThrowDepth == 0 {
+            containsPlainTry = true
+        }
+        return .visitChildren
+    }
+
+    override func visit(_ node: DoStmtSyntax) -> SyntaxVisitorContinueKind {
+        if hasCatchAll(node.catchClauses) {
+            handledThrowDepth += 1
+        }
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: DoStmtSyntax) {
+        if hasCatchAll(node.catchClauses) {
+            handledThrowDepth -= 1
+        }
+    }
+
+    override func visit(_ node: CatchClauseSyntax) -> SyntaxVisitorContinueKind {
+        let adjusted = handledThrowDepth > 0
+        if adjusted {
+            handledThrowDepth -= 1
+        }
+        catchClauseHandledAdjustments.append(adjusted)
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: CatchClauseSyntax) {
+        let adjusted = catchClauseHandledAdjustments.removeLast()
+        if adjusted {
+            handledThrowDepth += 1
+        }
+    }
+
+    override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
+        if let rootClosurePosition, node.position == rootClosurePosition {
+            return .visitChildren
+        }
+        return .skipChildren
+    }
+
+    override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
+        .skipChildren
+    }
+
+    override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+        .skipChildren
+    }
+
+    override func visit(_ node: SubscriptDeclSyntax) -> SyntaxVisitorContinueKind {
+        .skipChildren
+    }
+}
+
+private func hasCatchAll(_ catchClauses: CatchClauseListSyntax) -> Bool {
+    catchClauses.contains { $0.catchItems.isEmpty }
+}

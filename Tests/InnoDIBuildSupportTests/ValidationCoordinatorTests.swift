@@ -856,9 +856,19 @@ struct ValidationCoordinatorTests {
         #expect(outcome.result.exitCode == 1)
         #expect(outcome.result.stderr.contains("provide.deferred-wrapper-alias-unsupported"))
         #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
-        #expect(outcome.metricsArtifact.issues.count == 2)
+        #expect(outcome.metricsArtifact.issues.filter { $0.severity == .error }.count == 2)
         #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredLazy" })
         #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredProvider" })
+        // Alias warnings must surface in the markdown-summary artifact alongside
+        // the JSON metrics; the sharedArtifact path previously dropped them.
+        #expect(outcome.metricsArtifact.issues.contains {
+            $0.code == "deferred-alias.workspace-finding" && $0.severity == .warning
+        })
+        let summary = try String(
+            contentsOf: fixture.outputAURL.appendingPathComponent("dag-validation-summary.md"),
+            encoding: .utf8
+        )
+        #expect(summary.contains("deferred-alias.workspace-finding"))
         #expect(runner.invocationCount == 0)
     }
 
@@ -946,7 +956,7 @@ struct ValidationCoordinatorTests {
         #expect(outcome.result.exitCode == 1)
         #expect(outcome.result.stderr.contains("provide.deferred-wrapper-alias-unsupported"))
         #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
-        #expect(outcome.metricsArtifact.issues.count == 2)
+        #expect(outcome.metricsArtifact.issues.filter { $0.severity == .error }.count == 2)
         #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredLazy" })
         #expect(outcome.metricsArtifact.issues.contains { $0.metadata["writtenHead"] == "DeferredProvider" })
         #expect(runner.invocationCount == 0)
@@ -1002,6 +1012,110 @@ struct ValidationCoordinatorTests {
         #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
         #expect(outcome.metricsArtifact.issues.count == 1)
         #expect(outcome.metricsArtifact.issues.first?.metadata["childContainerPath"] == "FeatureContainer")
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Semantic validation preserves malformed bindings as an error")
+    func semanticValidationRejectsMalformedBindings() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        let explicitBindings = [(child: \\FeatureContainer.config, parent: \\AppContainer.appConfig)]
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var config: AppConfig
+        }
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var appConfig: AppConfig
+
+            @SubContainer(scope: .shared, bindings: explicitBindings)
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("MalformedBindings.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.invalid-bindings"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(outcome.metricsArtifact.issues.first?.metadata["subContainerMemberName"] == "feature")
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Semantic validation rejects duplicate binding tuple labels before DAG runner executes")
+    func semanticValidationRejectsDuplicateBindingTupleLabels() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AppConfig {}
+
+        @DIContainer
+        struct FeatureContainer {
+            @Provide(.input)
+            var config: AppConfig
+        }
+
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var appConfig: AppConfig
+
+            @SubContainer(
+                scope: .shared,
+                bindings: [(child: \\.config, child: \\.appConfig)]
+            )
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("DuplicateBindingLabels.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.result.stderr.contains("sub.invalid-bindings"))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(outcome.metricsArtifact.issues.count == 1)
         #expect(runner.invocationCount == 0)
     }
 
