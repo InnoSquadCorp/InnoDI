@@ -129,6 +129,13 @@ let package = Package(
             ],
             swiftSettings: innoDISharedSwiftSettings
         ),
+        .executableTarget(
+            name: "InnoDI-DeferredAliasScan",
+            dependencies: [
+                "InnoDIWorkspaceAnalysis"
+            ],
+            swiftSettings: innoDISharedSwiftSettings
+        ),
         .plugin(
             name: "InnoDIDAGValidationPlugin",
             capability: .buildTool(),
