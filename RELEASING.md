@@ -2,7 +2,7 @@
 
 This document is the single release source of truth for InnoDI.
 
-Current stable public release target: `4.2.0`
+Current stable public release target: `4.2.1`
 
 ## Release Checklist
 
@@ -115,7 +115,7 @@ standalone release assets.
 
 ### Highlights
 
-_No changes have landed on `main` since 4.2.0._
+_No changes have landed on `main` since 4.2.1._
 
 ### Breaking or Behavior Changes
 
@@ -124,6 +124,73 @@ _None._
 ### Upgrade Actions
 
 _None._
+
+## 4.2.1
+
+### Highlights
+
+- **swift-syntax pinned to `exact: "603.0.1"`.** The package dependency on
+  `swiftlang/swift-syntax` is bumped from `from: "602.0.0"` (the prior
+  next-major range) to `exact: "603.0.1"`. swift-syntax 603 tracks the
+  Swift 6.3 toolchain that the project's CI matrix and macro-performance
+  baseline already exercise; pinning explicitly removes the resolver
+  ambiguity that surfaced during the 4.2.0 publish window when downstream
+  consumers and the local resolver could land on different 602.x patch
+  versions.
+- **Maintainer-operations note for multi-account `gh auth`.** RELEASING.md
+  now documents the `git` credential-helper / `gh auth switch` skew that
+  surfaced during the 4.2.0 publish, so future releases of this package
+  do not re-discover it.
+- No user-facing API, runtime, or build-plugin behavior changes. The
+  swift-syntax bump is a build-time dependency and does not alter the
+  generated container surface.
+
+### Breaking or Behavior Changes
+
+- The package now pins swift-syntax exactly to `603.0.1`. Consumers whose
+  own `Package.swift` declares an incompatible swift-syntax range (for
+  example pinning to 602.x) will see an SPM resolver failure and must
+  align their range with `603.x` or remove the constraint.
+
+### Upgrade Actions
+
+- If your `Package.swift` directly depends on `swiftlang/swift-syntax`
+  with a 602.x constraint, update it to allow `603.x` (or remove the
+  direct dependency if it was only there for InnoDI's transitive resolve).
+- No source-code changes are required in your container or `@Provide`
+  declarations.
+
+### Internal Notes (Maintainer Operations)
+
+- **Multi-account `gh` setups: `gh auth switch` does not, by itself, change
+  which account `git push` uses.** When two GitHub accounts are configured
+  (`gh auth status` shows both), the gh CLI's active account is independent
+  from git's credential helper chain. On macOS, `osxkeychain` is consulted
+  first and may return a token for the wrong account, producing a
+  `403 Permission denied to <wrong-account>` even though `gh auth switch`
+  reports the correct active account.
+- **Permanent fix.** Run `gh auth setup-git` once on the maintainer's
+  machine. That registers `!gh auth git-credential` as a credential helper
+  alongside `osxkeychain`, so subsequent `gh auth switch -u <account>`
+  calls deterministically change which account `git push` uses.
+- **One-shot bypass without setup-git.** When pushing a single ref under a
+  specific account without modifying the global helper chain, force the
+  helper inline:
+  ```sh
+  git -c credential.helper='!gh auth git-credential' push origin <ref>
+  ```
+  This is the right escape hatch for shared release-runner machines where
+  the global git config should not be mutated.
+- **Symptom log from 4.2.0 publish.** A `git push origin main` succeeded,
+  but the immediately following `git push origin 4.2.0` (the same shell,
+  the same active gh account) returned 403 because keychain returned a
+  different cached token for the second connection. After running
+  `gh auth setup-git`, retrying with the inline `!gh auth git-credential`
+  helper succeeded; subsequent operations followed `gh auth switch`
+  deterministically.
+- **Always restore the default account when done.** After publishing,
+  switch the gh CLI back to the maintainer's primary account so unrelated
+  shells do not push under the publishing identity.
 
 ## 4.2.0
 
