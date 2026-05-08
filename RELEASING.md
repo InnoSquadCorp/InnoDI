@@ -2,7 +2,7 @@
 
 This document is the single release source of truth for InnoDI.
 
-Current stable public release target: `4.1.0`
+Current stable public release target: `4.2.0`
 
 ## Release Checklist
 
@@ -112,6 +112,20 @@ they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
 
 ## Unreleased
+
+### Highlights
+
+_No changes have landed on `main` since 4.2.0._
+
+### Breaking or Behavior Changes
+
+_None._
+
+### Upgrade Actions
+
+_None._
+
+## 4.2.0
 
 ### Highlights
 
@@ -265,15 +279,14 @@ standalone release assets.
   4.0 → 4.1, 4.1 → 4.2 (planned), and 4.x → 5.0 (planned).
 - **Historical `@SubContainer` `withNames:` deferral.** 4.1.0 kept
   `withNames:` supported while the stacked peer-macro limitation was being
-  evaluated. That deferral is superseded by the Unreleased wiring
-  simplification above: current consumers should migrate to `with:` or
-  `bindings:` only.
+  evaluated. That deferral is superseded by the 4.2.0 wiring simplification
+  above: current consumers should migrate to `with:` or `bindings:` only.
 
   **RFC 0002 status update**:
   [RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md)
   was `Deferred` in 4.1.0 while the stacked peer-macro escape hatch was still
-  public. The current branch applies the removal before 5.0 and documents the
-  replacement path in the Unreleased upgrade actions.
+  public. 4.2.0 applies the removal and documents the replacement path in
+  the 4.2.0 upgrade actions; the RFC moves to `Implemented` in the index.
 
 ### Breaking or Behavior Changes
 
@@ -299,7 +312,7 @@ standalone release assets.
 
 - `@SubContainer(... withNames: [...])` consumers on 4.1.0 had no
   release-blocking migration at that time. Consumers upgrading beyond this
-  release should follow the Unreleased migration path and replace every
+  release should follow the 4.2.0 migration path and replace every
   `withNames:` site with `with:` or `bindings:`.
 - CI runners that mount the SPM scratch directory on NFS or SMB —
   redirect with `swift build --scratch-path /tmp/innodi-cache`, or

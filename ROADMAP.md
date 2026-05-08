@@ -1,7 +1,8 @@
 # InnoDI Roadmap
 
-This document tracks the live roadmap after the 4.0.0 baseline and the
-4.1.0 release-hardening pass.
+This document tracks the live roadmap after the 4.0.0 baseline, the 4.1.0
+release-hardening pass, and the 4.2.0 wiring/observability simplification
+release.
 
 ## Shipped in 4.0.0
 
@@ -40,11 +41,17 @@ surface:
 - `@SubContainer(... withNames:)` remained supported in 4.1.0 while RFC 0002
   was evaluated for stacked peer-macro cases.
 
-## Shipped After 4.1.0
+## Shipped in 4.2.0
+
+InnoDI 4.2.0 closes the RFC 0002 wiring-simplification window opened in
+4.1.0 and lands the observability work that hardens the build plugin for
+multi-target SwiftPM integrations:
 
 - `@SubContainer(withNames:)` has been removed from the public macro
   signature, parser, diagnostics, build-support hierarchy validation, examples,
   and runtime tests. Supported explicit wiring is now `with:` or `bindings:`.
+  ([RFC 0002](docs/rfcs/0002-subcontainer-wiring-simplification.md) is now
+  `Implemented`.)
 - Direct `Lazy<T>` calls during `.shared` construction now produce
   `provide.lazy-eager-call`, matching the Provider eager-call guard and keeping
   soft edges from silently becoming eager runtime traps.
@@ -61,8 +68,56 @@ surface:
 - `InnoDIValidationTools` scaffolds the optional prebuilt macOS validation
   plugin package and release artifact tooling for consumers that have measured
   source-tool compilation as their main build-cost bottleneck.
+- Apple Privacy Manifests ship with both runtime products
+  (`Sources/InnoDI/PrivacyInfo.xcprivacy` and
+  `Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy`) declaring no user tracking,
+  no tracking domains, no collected data types, and no Required Reason API
+  usage.
+- A new `InnoDI-DeferredAliasScan` executable target enumerates workspace
+  `typealias` declarations that rename `Lazy<T>` or `Provider<T>`. PR pipelines
+  attach the scan output to the workflow step summary and upload a
+  `deferred-aliases-report` artifact.
+- A `perf-history` orphan branch records one macro-performance entry per push
+  to `main`. `Tools/check-performance-trend.sh` runs alongside the pinned
+  baseline gate to catch gradual under-threshold creep across PRs.
+- Build-validation escape-hatch reporting (`@DIContainer(... validateDAG: false)`
+  sites and `INNODI_DISABLE_BUILD_VALIDATION=1` overrides) appears in every PR's
+  workflow step summary. Set `INNODI_ESCAPE_HATCH_FAIL=1` to escalate the
+  report into a merge blocker.
+- Per-module test coverage runs on every PR via `Tools/collect-coverage.sh`,
+  producing lcov + JSON + Markdown rollups uploaded as a `coverage` artifact.
+- Custom SwiftLint rules under `Tools/InnoDILintRules/` add a fourth
+  validation layer that catches `@DIContainer(... validateDAG: false)` and
+  `typealias = Lazy/Provider` patterns the macro plugin cannot see from a
+  single declaration site.
+- The Korean README and DocC mirror the English structure, the migration
+  guide adds internal v1–v3 adopter sequencing, and DocC includes
+  anti-pattern guidance plus an interactive getting-started tutorial.
 
-## Post-4.1.0 Priorities
+## Post-4.2.0 Priorities
+
+### Top of backlog: API surface simplification
+
+InnoDI's largest remaining onboarding obstacle is API surface complexity —
+the `@Provide(... concrete: true)` flag and the macro-count itself.
+[RFC 0004](docs/rfcs/0004-api-surface-simplification.md) plans the
+breaking-change track that lands in **5.0**:
+
+1. **`concrete:` parameter removal.** Macro infers concrete vs. existential
+   storage from property type and factory return type when both agree.
+   Residual opt-in moves from `concrete: true` (boolean) to a
+   `@Provide(.shared, .concrete)` token form.
+2. **Macro consolidation candidates.** Each evaluated independently during
+   the 4.3 prototyping cycle: fold `@DIComponent` into
+   `@DIContainer(mountable:)`, fold `@DIFeatureRoot` into
+   `@SubContainer(rootViews:)`, make `@DIHierarchyRoot` activation
+   implicit, and consider replacing `@DIEnvironmentBridge` with a static
+   protocol conformance.
+
+The 4.x deprecation runway lands in 4.3 (opt-in inference) and 4.4
+(deprecation warning + `Tools/codemod-drop-concrete-flag.swift`); 5.0
+removes `concrete:` outright. See the RFC for failure modes, migration
+plan, and open questions.
 
 ### Review-Driven Improvement Backlog
 
