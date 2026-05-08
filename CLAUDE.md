@@ -106,6 +106,22 @@ validation plus the macro's local cycle and closure/`with:` graph-derived
 checks, while raw-expression `factory:` and initializer references plus
 structural diagnostics still remain active.
 
+`Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
+every `@DIContainer(...validateDAG: false...)` site plus any active
+`INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
+step summary. The script is informational — set `INNODI_ESCAPE_HATCH_FAIL=1`
+to flip it into a blocker for orgs that treat new opt-outs as release
+blockers.
+
+`Tools/measure-macro-performance.sh --enforce` keeps the single-PR
+regression gate against the pinned `macro-performance-baseline.json`, and
+`Tools/check-performance-trend.sh` runs alongside it on every PR to
+compare against the rolling median of the `perf-history` branch (last 7
+entries, 10% threshold, same-toolchain filter on by default). The
+`Perf History` workflow appends one entry per push to `main`. The trend
+script is a no-op when `perf-history` is empty or unreachable — fresh
+forks pass without setup.
+
 ### `@Provide`
 
 - `.input`: external dependency, no factory
@@ -118,10 +134,17 @@ structural diagnostics still remain active.
 - `Lazy<T>` creates a soft edge and stays non-`Sendable`.
 - `Provider<T>` re-enters `.transient` access and stays non-`Sendable`.
 - `@SubContainer` adds ownership edges plus child override forwarding.
+- `swift run InnoDI-DeferredAliasScan --root .` lists every
+  `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
+  The macro plugin only detects same-file aliases; cross-file aliases
+  silently behave as hard edges and disable cycle escape. The PR
+  pipeline runs the scanner and posts findings to the workflow's step
+  summary plus a `deferred-aliases-report` artifact.
 
 ## Documentation Contract
 
 - `README.md` is the English canonical README.
 - Localized README files and localized DocC mirrors must match the English structure and meaning.
+- `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the release gate; H2 or swift-fence drift fails the build.
 - `RELEASING.md` is the single source for release notes and upgrade notes.
 - If behavior changes, update docs in the same change.

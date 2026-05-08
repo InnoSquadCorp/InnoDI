@@ -11,6 +11,7 @@ struct AppContainer {
 
     private let _storage_userID: String
 
+    // MARK: - Initialization
     init(userID: String) {
         self._storage_userID = userID
     }

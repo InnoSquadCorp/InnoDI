@@ -102,6 +102,24 @@ swift build --scratch-path /tmp/innodi-cache
 environment에 남습니다. 자세한 진단과 복구 절차, 전체 파일시스템 표는
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)를 참고하세요.
 
+빌드 시점 검증기는 빠른 반복 또는 제약된 환경을 위한 두 개의 opt-out escape
+hatch 를 제공합니다. `@DIContainer(validateDAG: false)` 는 컨테이너 단위로,
+`INNODI_DISABLE_BUILD_VALIDATION=1` 은 빌드 플러그인 전체를 단락시킵니다. 모든
+PR 은 `Tools/report-validate-dag-escape-hatches.sh` 를 실행해 이러한 escape
+hatch 사용처를 워크플로 step summary 에 노출시키므로, 별도 CI 게이트 없이도
+escape hatch 누적이 가시화됩니다. 프로덕션 CI 는 두 옵션 모두 unset 으로 유지
+해야 합니다.
+
+## 개인정보 보호
+
+InnoDI는 두 런타임 제품 `InnoDI`와 `InnoDISwiftUI`에 Apple Privacy Manifest
+(`PrivacyInfo.xcprivacy`)를 동봉합니다. 매니페스트는 사용자 추적 없음, 추적
+도메인 없음, 수집 데이터 유형 없음, Required Reason API 사용 없음을 선언합니다.
+빌드 시점 도구(InnoDIBuildSupport, dependency-graph CLI, 매크로 플러그인)는
+사용자 앱에 임베드되지 않으므로 매니페스트에 영향을 주지 않습니다. iOS, watchOS,
+tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 자동으로
+번들링하고 앱의 집계 개인정보 보고서에 표시됩니다.
+
 ## 설치
 
 `Package.swift`에 InnoDI를 추가합니다.

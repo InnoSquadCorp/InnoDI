@@ -15,37 +15,44 @@ public struct AppContainer {
 
     private let _storage_apiClient: APIClient
 
+    // MARK: - Initialization
     public init(userID: String, apiClient: APIClient? = nil) {
         self._storage_userID = userID
         self._storage_apiClient = apiClient ?? APIClient()
     }
 
+    // MARK: - Overrides Builder
     public struct Overrides {
         public var apiClient: APIClient? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     public init(userID: String, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(userID: userID, apiClient: overrides.apiClient)
     }
 
-    public static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+    // MARK: - withOverrides
+    public static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return operation(container)
     }
 
-    public static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+    // MARK: - withOverrides (throws)
+    public static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try operation(container)
     }
 
-    public static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+    // MARK: - withOverrides (async)
+    public static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return await operation(container)
     }
 
-    public static func withOverrides<T>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+    // MARK: - withOverrides (async throws)
+    public static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try await operation(container)
     }

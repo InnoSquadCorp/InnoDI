@@ -19,6 +19,7 @@ struct AppContainer {
 
     private let _innoDISubBuild_feature: @Sendable () -> FeatureBindingsContainer
 
+    // MARK: - Initialization
     init(config: AppConfig, feature: FeatureBindingsContainer? = nil, featureOverrides: ((inout FeatureBindingsContainer.Overrides) -> Void)? = nil) {
         final class _InnoDIDeferredCell<T>: @unchecked Sendable {
             private var value: T?
@@ -61,33 +62,39 @@ struct AppContainer {
         }
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var feature: FeatureBindingsContainer? = nil
         var featureOverrides: ((inout FeatureBindingsContainer.Overrides) -> Void)? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(config: config, feature: overrides.feature, featureOverrides: overrides.featureOverrides)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+    // MARK: - withOverrides
+    static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+    // MARK: - withOverrides (throws)
+    static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return try operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+    // MARK: - withOverrides (async)
+    static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return await operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+    // MARK: - withOverrides (async throws)
+    static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return try await operation(container)
     }

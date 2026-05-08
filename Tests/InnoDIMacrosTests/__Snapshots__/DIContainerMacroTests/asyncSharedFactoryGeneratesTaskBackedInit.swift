@@ -15,6 +15,7 @@ struct AppContainer {
 
     private let _storage_task_service: Task<Service, Never>
 
+    // MARK: - Initialization
     init(config: Config, service: Service? = nil) {
         self._storage_config = config
         let _resolved_config = config
@@ -29,32 +30,38 @@ struct AppContainer {
         self._storage_task_service = _task_service
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var service: Service? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(config: Config, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(config: config, service: overrides.service)
     }
 
-    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+    // MARK: - withOverrides
+    static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return operation(container)
     }
 
-    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+    // MARK: - withOverrides (throws)
+    static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return try operation(container)
     }
 
-    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+    // MARK: - withOverrides (async)
+    static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return await operation(container)
     }
 
-    static func withOverrides<T>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+    // MARK: - withOverrides (async throws)
+    static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return try await operation(container)
     }

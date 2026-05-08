@@ -15,8 +15,31 @@ jobs:
         # -warnings-as-errors catches any regression that would slip through
         # `swiftSettings`'s warning-only StrictConcurrency gate. Paired with
         # the main `release.yml` strict-concurrency check so every PR fails
-        # on the same rules that block a tag.
-        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+        # on the same rules that block a tag. `--enable-code-coverage`
+        # makes the next step's per-module rollup possible without a second
+        # build run.
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage
+      - name: Collect Code Coverage
+        # Coverage is informational — surfaced in the workflow step summary
+        # and uploaded as an artifact, but not a merge gate. The PR template
+        # asks reviewers to scan the per-module table for unexpected drops.
+        run: |
+          Tools/collect-coverage.sh
+          {
+            echo "## Code coverage"
+            echo
+            cat coverage/summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Coverage Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage/lcov.info
+            coverage/report.txt
+            coverage/summary.json
+            coverage/summary.md
+          if-no-files-found: error
       - name: No fatalError in synthesized code
         # Macro-synthesized accessors must never embed a `fatalError(...)`
         # trap into user code. The two allow-listed sites are explicit
@@ -30,20 +53,67 @@ jobs:
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
       - name: Validate localized README structural sync
-        # Advisory until the localized READMEs catch up to the English
-        # canonical structure. Flip the strict mode on once the localized
-        # files are re-aligned (drop the env var to enforce).
-        env:
-          INNODI_README_SYNC_STRICT: "0"
+        # Strict mode: localized READMEs must match the English canonical
+        # structure (swift fence count + H2 header count). Set
+        # `INNODI_README_SYNC_STRICT=0` only as a temporary soft-rollout
+        # window when the next major version restructures the canonical
+        # README. The release gate is already strict.
         run: Tools/check-localized-readme-sync.sh
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
+      - name: Report Build-Validation Escape Hatches
+        # Surfaces every `@DIContainer(...validateDAG: false...)` site and
+        # any active `INNODI_DISABLE_BUILD_VALIDATION` environment override
+        # in the workflow's step summary. Informational; merges are not
+        # gated. `INNODI_ESCAPE_HATCH_FAIL=1` would flip the script into a
+        # blocker if an org wants to treat new opt-outs as release blockers.
+        env:
+          INNODI_ESCAPE_HATCH_JSON: build/escape-hatch-report.json
+        run: |
+          {
+            Tools/report-validate-dag-escape-hatches.sh
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Escape Hatch Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-hatch-report
+          path: build/escape-hatch-report.json
+          if-no-files-found: error
+      - name: Report Deferred-Wrapper Alias Findings
+        # Surfaces cross-file `typealias L = Lazy<T>` / `typealias P = Provider<T>`
+        # that the macro's same-file canonical-identifier check cannot see.
+        # Cross-file aliases silently behave as hard edges, breaking cycle escape.
+        # Informational; reviewers decide whether each finding is intentional.
+        run: |
+          {
+            swift run --quiet InnoDI-DeferredAliasScan --root . --json build/deferred-aliases.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Deferred-Wrapper Alias Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deferred-aliases-report
+          path: build/deferred-aliases.json
+          if-no-files-found: error
       - name: Build Extended Examples
         run: |
           (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
           (cd Examples/PreviewInjectionExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
       - name: Macro Performance Check
         run: Tools/measure-macro-performance.sh --enforce
+      - name: Macro Performance Trend
+        # Compares the current measurement against the rolling median of
+        # the last entries on `perf-history`. Catches gradual creep that a
+        # single-baseline `--enforce` gate misses. The script exits 0
+        # silently when perf-history is empty or unreachable, so this
+        # step is safe to land before the first append happens.
+        run: Tools/check-performance-trend.sh
+      - name: Upload Performance Trend Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-trend-report
+          path: build/perf-trend-report.json
+          if-no-files-found: ignore
 
   path-identity:
     runs-on: macos-26

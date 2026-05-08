@@ -21,11 +21,19 @@ Before tagging a release:
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
 7. Verify the macro-source `fatalError` allow-list is intact:
    - `Tools/check-no-fatalerror-in-macros.sh`
-8. Generate DocC:
+8. Validate the Apple Privacy Manifests bundled with the embedded products:
+   - `plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy`
+   - `plutil -lint Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy`
+   - When the manifest is touched in this release, double-check that
+     `NSPrivacyTracking`, `NSPrivacyTrackingDomains`,
+     `NSPrivacyCollectedDataTypes`, and `NSPrivacyAccessedAPITypes` still
+     match the actual SDK behavior — adding any Required Reason API to the
+     runtime targets requires a corresponding manifest entry.
+9. Generate DocC:
    - `Tools/generate-docc.sh`
-9. Decide whether any artifact or schema contract changed and update the contract notes below.
-10. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
-11. For public-discovery releases, confirm Swift Package Index readiness:
+10. Decide whether any artifact or schema contract changed and update the contract notes below.
+11. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
+12. For public-discovery releases, confirm Swift Package Index readiness:
     - repository is public
     - `Package.swift` is at the root
     - a semantic-version tag exists
@@ -33,7 +41,7 @@ Before tagging a release:
     - package URL submitted to SPI includes `https://` and `.git`
     - after the package appears on SPI, use the maintainer badge markdown from
       the package page and add it to `README.md`
-12. After tagging, evaluate external discovery PRs:
+13. After tagging, evaluate external discovery PRs:
     - `matteocrippa/awesome-swift` for the compile-time DI category
     - the current leading SwiftUI awesome list only if the submitted entry
       focuses on `InnoDISwiftUI` helpers rather than core DI
@@ -126,6 +134,47 @@ standalone release assets.
   structure, migration guidance now includes internal v1-v3 adopter sequencing,
   and DocC includes anti-pattern guidance plus an interactive getting-started
   tutorial.
+- **Apple Privacy Manifest bundled.** Both runtime products (`InnoDI` and
+  `InnoDISwiftUI`) now ship a `PrivacyInfo.xcprivacy` resource declaring no
+  user tracking, no tracking domains, no collected data types, and no Required
+  Reason API usage. SwiftPM auto-bundles the manifest into apps that embed
+  these libraries, so iOS / watchOS / tvOS / visionOS submissions surface the
+  declaration in the aggregated privacy report. Build-time tools
+  (`InnoDIBuildSupport`, dependency-graph CLI, macro plugin) are unaffected
+  because they are not embedded in consumer apps.
+- **Per-module test coverage on every PR.** The PR workflow now runs
+  `swift test --enable-code-coverage` and `Tools/collect-coverage.sh` to
+  produce a per-module rollup (lcov + JSON + Markdown). The Markdown table
+  appears in the workflow's step summary; the four artifacts upload as
+  `coverage`. Informational — merges are not gated on a coverage threshold.
+- **Build-validation escape hatch report on every PR.**
+  `Tools/report-validate-dag-escape-hatches.sh` lists every
+  `@DIContainer(...validateDAG: false...)` site plus any active
+  `INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
+  step summary, separating production opt-outs from test/example fixtures.
+  Set `INNODI_ESCAPE_HATCH_FAIL=1` in CI to escalate the report into a
+  merge blocker.
+- **Cross-file deferred-wrapper alias scanner.** New executable target
+  `InnoDI-DeferredAliasScan` walks the workspace and lists every
+  `typealias` that renames `Lazy<T>` or `Provider<T>`. The macro plugin
+  only detects same-file aliases — cross-file ones silently behave as
+  hard edges and disable cycle escape. The scanner closes that gap
+  workspace-wide and is wired into the PR pipeline as a step-summary
+  report plus `deferred-aliases-report` artifact. The `Lazy<T>` and
+  `Provider<T>` docstrings now reference the scanner instead of the
+  prior "planned workspace-analysis check" caveat.
+- **Macro performance trend gate.** A new `perf-history` orphan branch
+  records one macro-performance entry per push to `main` via the
+  `Perf History` workflow + `Tools/append-performance-history.sh`. The
+  PR workflow runs `Tools/check-performance-trend.sh`, which compares
+  the current measurement against the rolling median of the last
+  entries (default window 7, threshold 10%, same-toolchain filter on)
+  and uploads `perf-trend-report.json` as an artifact. The pinned
+  `Tools/macro-performance-baseline.json` gate stays in place; the
+  trend gate runs alongside it to catch gradual creep under-threshold
+  PRs accumulate. The `perf-history` branch bootstraps itself on the
+  first `main` push after this release ships — no manual setup
+  required.
 
 ### Breaking or Behavior Changes
 

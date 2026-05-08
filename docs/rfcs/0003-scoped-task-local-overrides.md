@@ -232,6 +232,42 @@ explicitly keeps `withOverrides` as the canonical app-wide swap.
 3. **Phase 3** — extend to `@SubContainer` members, gated by a separate
    RFC if the open questions need their own deliberation.
 
+## GA Criteria
+
+This RFC is currently **Draft**. The maintainers do not consider scoped
+TaskLocal overrides eligible for a `skeleton` implementation phase until the
+RFC moves to `Accepted` with the open questions above answered. Once a
+skeleton lands, the same five gates documented in
+[ROADMAP — GA criteria for experimental macros](../../ROADMAP.md#ga-criteria-for-experimental-macros)
+apply, with the following surface-specific specializations:
+
+1. **Open questions resolved.** Every bullet in `## Open questions` either
+   has a written answer in this RFC or is explicitly marked
+   `Out-of-scope for GA` with a follow-up RFC reference.
+2. **Snapshot coverage.** The merge-semantics matrix from `## Merge
+   semantics` is covered by macro snapshot tests, including the cases that
+   currently lack runtime tests.
+3. **Strict-concurrency clean.** TaskLocal-backed overrides compile and
+   resolve under
+   `-Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`,
+   including across the actor boundaries that this RFC documents as
+   supported.
+4. **Adopter signal.** At least two real-world adopters (internal or
+   external) have reported usage of scoped overrides without merge-semantic
+   surprises, and the layered swift-dependencies pattern documented in the
+   README still works for the cases this surface intentionally does not
+   cover.
+5. **Promotion PR.** Same promotion pattern as the macro surfaces: after all
+   gates above are true on `main`, a maintainer opens a dedicated promotion PR
+   and waits 7 calendar days before merge so adopters can object to the symbol
+   shape. That PR flips the public docstring from experimental to stable,
+   moves this surface's [ROADMAP](../../ROADMAP.md) entry to GA, and updates
+   `RELEASING.md` for the minor-version bump plus any upgrade notes.
+
+If the macro/runtime work for this surface ever ships behind a feature flag
+or package trait, document the flag/trait and its removal plan inline above
+this section before the next minor release.
+
 ## See Also
 
 - [README — Layered InnoDI + swift-dependencies pattern](../../README.md)

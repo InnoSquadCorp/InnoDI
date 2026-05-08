@@ -108,6 +108,26 @@ plugin は package root の `.build/innodi-dag-validation` には lock/cache sta
 environment に残ります。診断、復旧手順、完全な filesystem 表は
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md) を参照してください。
 
+ビルドタイムバリデータは、高速イテレーションや制約された環境向けに 2 つの
+opt-out エスケープハッチを提供します。`@DIContainer(validateDAG: false)` は
+コンテナ単位、`INNODI_DISABLE_BUILD_VALIDATION=1` はビルドプラグイン全体を
+ショートサーキットします。すべての PR は
+`Tools/report-validate-dag-escape-hatches.sh` を実行し、これらのエスケープ
+ハッチを使用しているサイトをワークフローのステップサマリーに列挙するため、
+別途 CI ゲートを設けることなくエスケープハッチの増殖が可視化されます。
+プロダクション CI は両方とも unset のままにする必要があります。
+
+## プライバシー
+
+InnoDI は、2 つのランタイムプロダクト `InnoDI` と `InnoDISwiftUI` に Apple
+Privacy Manifest (`PrivacyInfo.xcprivacy`) を同梱します。このマニフェストは
+ユーザートラッキングなし、トラッキングドメインなし、収集データタイプなし、
+Required Reason API 使用なしを宣言します。ビルドタイムツール
+(InnoDIBuildSupport、dependency-graph CLI、マクロプラグイン) は利用者のアプリ
+に埋め込まれないため、マニフェストには影響しません。iOS、watchOS、tvOS、
+visionOS アプリに InnoDI を埋め込む場合、SwiftPM が自動的にマニフェストを
+バンドルし、集約プライバシーレポートに表示されます。
+
 ## インストール
 
 `Package.swift` に追加します。

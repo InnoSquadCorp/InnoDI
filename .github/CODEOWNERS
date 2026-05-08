@@ -1,0 +1,55 @@
+# InnoDI CODEOWNERS
+#
+# Single maintainer for now; the per-area sections below exist so that adding
+# a new owner for one subsystem (macros, build support, SwiftUI, etc.) is a
+# one-line change rather than a refactor. The most-specific path match wins,
+# so when an area gets a dedicated owner, just replace the handle on that
+# line — the default catch-all keeps everything else routed correctly.
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default — every path not explicitly claimed below.
+*                                                @ethan-is
+
+# Macros & codegen (Swift macro plugin + shared AST utilities).
+/Sources/InnoDIMacros/                           @ethan-is
+/Sources/InnoDICore/                             @ethan-is
+/Tests/InnoDIMacrosTests/                        @ethan-is
+/Tests/InnoDICoreTests/                          @ethan-is
+
+# Build support & DAG validation (build plugin, coordinator, graph collectors).
+/Sources/InnoDIBuildSupport/                     @ethan-is
+/Sources/InnoDI-DAGValidationCoordinator/        @ethan-is
+/Sources/InnoDIDependencyGraphCore/              @ethan-is
+/Sources/InnoDIDependencyGraphCLI/               @ethan-is
+/Sources/InnoDI-DependencyGraph/                 @ethan-is
+/Plugins/InnoDIDAGValidationPlugin/              @ethan-is
+/Tests/InnoDIBuildSupportTests/                  @ethan-is
+/Tests/InnoDIDependencyGraphCLITests/            @ethan-is
+
+# Workspace analysis (cross-file scanners, source-snapshot helpers).
+/Sources/InnoDIWorkspaceAnalysis/                @ethan-is
+/Sources/InnoDI-DeferredAliasScan/               @ethan-is
+
+# SwiftUI integration helpers.
+/Sources/InnoDISwiftUI/                          @ethan-is
+/Tests/InnoDISwiftUITests/                       @ethan-is
+
+# Runtime contract tests.
+/Tests/InnoDIRuntimeTests/                       @ethan-is
+
+# Examples (must keep compiling against the public API).
+/Examples/                                       @ethan-is
+
+# Documentation, RFCs, release notes.
+/docs/                                           @ethan-is
+README*.md                                       @ethan-is
+ROADMAP.md                                       @ethan-is
+RELEASING.md                                     @ethan-is
+CONTRIBUTING.md                                  @ethan-is
+
+# CI pipelines, workflow scripts, package manifest.
+/.github/workflows/                              @ethan-is
+/.github/actions/                                @ethan-is
+/Tools/                                          @ethan-is
+Package.swift                                    @ethan-is

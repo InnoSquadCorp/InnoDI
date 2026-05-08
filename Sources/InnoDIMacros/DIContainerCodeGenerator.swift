@@ -11,8 +11,11 @@ struct CodegenInvariantError: Error {
 }
 
 struct DIContainerCodeGenerator {
-    static func generateInit(for model: DIContainerExpansionModel) throws -> DeclSyntax {
-        try makeInitDecl(
+    static func generateInit(
+        for model: DIContainerExpansionModel,
+        prependingInitializationMARK: Bool = true
+    ) throws -> DeclSyntax {
+        let initDecl = try makeInitDecl(
             sharedMembers: model.sharedMembers,
             syncSharedMembers: model.syncSharedMembers,
             asyncSharedMembers: model.asyncSharedMembers,
@@ -23,6 +26,10 @@ struct DIContainerCodeGenerator {
             mainActorEnabled: model.options.mainActor,
             validateDAGEnabled: model.options.validateDAG
         )
+        if prependingInitializationMARK {
+            return initDecl.prependingMARK("// MARK: - Initialization")
+        }
+        return initDecl
     }
 
     /// Generates the full member set: primary init + (if applicable) `Overrides`
@@ -32,8 +39,17 @@ struct DIContainerCodeGenerator {
     /// user-defined nested `Overrides` type suppresses generation. Input-only
     /// containers now receive an empty builder so parents can always forward
     /// `@SubContainer` override closures into child containers.
-    static func generateAll(for model: DIContainerExpansionModel) throws -> [DeclSyntax] {
-        var decls: [DeclSyntax] = [try generateInit(for: model)]
+    ///
+    /// Each generated declaration is prefixed with a `// MARK:` comment so
+    /// that consumers expanding the macro in Xcode (or reading recorded
+    /// snapshots in code review) can scan the four logical sections —
+    /// initialization, overrides builder, convenience init, withOverrides
+    /// effect overloads — without parsing the whole expansion.
+    static func generateAll(
+        for model: DIContainerExpansionModel,
+        prependingInitializationMARK: Bool = true
+    ) throws -> [DeclSyntax] {
+        var decls: [DeclSyntax] = []
 
         // `.transient` sub-containers are backed by a stored
         // builder closure that `@SubContainer.PeerMacro` emits; the init
@@ -42,9 +58,42 @@ struct DIContainerCodeGenerator {
         // generated inline by `makeSubContainerInitStatements` — no extra
         // member-level decls are needed here.
 
-        decls.append(makeOverridesStructDecl(model: model))
-        decls.append(makeConvenienceInitDecl(model: model))
-        decls.append(contentsOf: makeWithOverridesMethods(model: model))
+        decls.append(
+            try generateInit(
+                for: model,
+                prependingInitializationMARK: prependingInitializationMARK
+            )
+        )
+
+        decls.append(
+            makeOverridesStructDecl(model: model)
+                .prependingMARK("// MARK: - Overrides Builder")
+        )
+        decls.append(
+            makeConvenienceInitDecl(model: model)
+                .prependingMARK("// MARK: - Convenience Init with Overrides")
+        )
+
+        // The four withOverrides effect overloads form one logical group.
+        // The first overload carries the group's `// MARK: -` header; each
+        // subsequent overload carries a sub-MARK that names its effect
+        // shape so reviewers can see which variant they are looking at.
+        let withOverridesMethods = makeWithOverridesMethods(model: model)
+        let withOverridesLabels = [
+            "// MARK: - withOverrides",
+            "// MARK: - withOverrides (throws)",
+            "// MARK: - withOverrides (async)",
+            "// MARK: - withOverrides (async throws)",
+        ]
+        guard withOverridesMethods.count == withOverridesLabels.count else {
+            throw CodegenInvariantError(
+                description: "makeWithOverridesMethods produced \(withOverridesMethods.count) overload(s), but DIContainerCodeGenerator has \(withOverridesLabels.count) withOverrides MARK label(s). Keep makeWithOverridesMethods, withOverridesLabels, and decl insertion in sync."
+            )
+        }
+        for (index, method) in withOverridesMethods.enumerated() {
+            decls.append(method.prependingMARK(withOverridesLabels[index]))
+        }
+
         return decls
     }
 }

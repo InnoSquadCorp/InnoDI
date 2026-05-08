@@ -109,6 +109,25 @@ the risk stays with that build environment. For diagnostics, recovery steps,
 and the full filesystem table, see
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
+The build-time validator exposes two opt-out escape hatches for fast iteration
+or constrained environments: `@DIContainer(validateDAG: false)` per container,
+and `INNODI_DISABLE_BUILD_VALIDATION=1` to short-circuit the entire build
+plugin. Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
+lists every site that uses these escape hatches in the workflow's step summary
+so escape-hatch creep stays visible without a separate CI gate. Production CI
+must leave both unset.
+
+## Privacy
+
+InnoDI ships an Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) with both
+runtime products, `InnoDI` and `InnoDISwiftUI`. The manifest declares no user
+tracking, no tracking domains, no collected data types, and no Required Reason
+API usage. Build-time tools — `InnoDIBuildSupport`, the dependency-graph CLI,
+and the macro plugin — are not embedded in consumer apps and therefore do not
+contribute to the manifest. If you embed InnoDI into an iOS, watchOS, tvOS, or
+visionOS app, the manifest is bundled automatically by SwiftPM and surfaces in
+your aggregated privacy report.
+
 ## Installation
 
 Add InnoDI to your `Package.swift`:

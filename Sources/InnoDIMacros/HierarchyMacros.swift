@@ -92,7 +92,7 @@ extension DIComponentMacro: MemberMacro {
             }
             """
 
-        return [initDecl]
+        return [initDecl.prependingMARK("// MARK: - Initialization")]
     }
 }
 
@@ -369,6 +369,6 @@ private func hierarchyAccessLevelModifiers(for modifiers: DeclModifierListSyntax
     ])
 }
 
-private func hasHierarchyAttribute(named name: String, in attributes: AttributeListSyntax?) -> Bool {
+internal func hasHierarchyAttribute(named name: String, in attributes: AttributeListSyntax?) -> Bool {
     findInnoDIAttribute(named: name, in: attributes) != nil
 }

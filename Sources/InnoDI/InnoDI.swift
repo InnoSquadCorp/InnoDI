@@ -26,6 +26,11 @@ public enum DIScope {
 /// > DAG and local cycle gates. Treat it as a temporary fixture rather than
 /// > a release-quality flag — production builds should keep the default. See
 /// > <doc:DAGValidation> for the configuration-aware enforcement pattern.
+/// > Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
+/// > lists every `@DIContainer(...validateDAG: false...)` site and any
+/// > active `INNODI_DISABLE_BUILD_VALIDATION` environment override in the
+/// > workflow's step summary so reviewers can audit escape-hatch creep
+/// > without a separate gate.
 public macro DIContainer(
     root: Bool = false,
     validateDAG: Bool = true,
@@ -96,13 +101,15 @@ public macro Provide(
 /// module also defines `Lazy<T>`, prefer spelling the wrapper as
 /// `InnoDI.Lazy<T>` so the generated code preserves that qualification.
 ///
-/// > Warning: Detection is by canonical identifier only. The macro emits a
-/// > warning when a typealias to `Lazy<T>` lives in the same file as the
-/// > factory parameter, but cross-file aliases stay invisible until the
-/// > planned workspace-analysis check ships. A renamed cross-file alias
-/// > silently behaves as a hard edge and disables cycle escape, so prefer
-/// > the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at every factory
-/// > parameter site.
+/// > Warning: Detection inside the macro plugin is by canonical
+/// > identifier only. A typealias to `Lazy<T>` in the same file emits a
+/// > warning; cross-file aliases the macro itself cannot see. Run
+/// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
+/// > this on every build and uploads the JSON report) to enumerate
+/// > cross-file aliases workspace-wide. A renamed alias the scanner
+/// > flags silently behaves as a hard edge and disables cycle escape —
+/// > prefer the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at
+/// > every factory parameter site.
 public struct Lazy<T> {
     @usableFromInline
     let resolver: () -> T
@@ -182,13 +189,15 @@ public struct Lazy<T> {
 /// spelling the wrapper as `InnoDI.Provider<T>` so the generated code
 /// preserves that qualification.
 ///
-/// > Warning: Detection is by canonical identifier only. The macro emits a
-/// > warning when a typealias to `Provider<T>` lives in the same file as
-/// > the factory parameter, but cross-file aliases stay invisible until the
-/// > planned workspace-analysis check ships. A renamed cross-file alias
-/// > silently behaves as a hard edge with re-entry semantics lost, so
-/// > prefer the canonical `Provider<T>` or `InnoDI.Provider<T>` spelling at
-/// > every factory parameter site.
+/// > Warning: Detection inside the macro plugin is by canonical
+/// > identifier only. A typealias to `Provider<T>` in the same file emits
+/// > a warning; cross-file aliases the macro itself cannot see. Run
+/// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
+/// > this on every build and uploads the JSON report) to enumerate
+/// > cross-file aliases workspace-wide. A renamed alias the scanner
+/// > flags silently behaves as a hard edge with re-entry semantics lost
+/// > — prefer the canonical `Provider<T>` or `InnoDI.Provider<T>`
+/// > spelling at every factory parameter site.
 public struct Provider<T> {
     @usableFromInline
     let resolver: () -> T
@@ -378,5 +387,13 @@ public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "D
 /// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
 /// rollout schedule. Adoption is opt-in until the macro reaches GA in
 /// 5.0; expect the generated shape to evolve before then.
+///
+/// > Important: this surface is experimental. The attribute name is
+/// > stable, but generated symbol shape (mock helper names, storage
+/// > suffixes, override slot names) is **not** SemVer-frozen until GA.
+/// > See [ROADMAP — Experimental Features &
+/// > Promotion Criteria](https://github.com/InnoSquadCorp/InnoDI/blob/main/ROADMAP.md#experimental-features--promotion-criteria)
+/// > for the registry of experimental surfaces, the pipeline phases, and
+/// > the gates a feature must clear before promotion.
 @attached(peer, names: suffixed(Mock))
 public macro GenerateMock() = #externalMacro(module: "InnoDIMacros", type: "GenerateMockMacro")

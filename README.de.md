@@ -113,6 +113,26 @@ auditierbare Warnung, und das Risiko bleibt bei dieser Build-Umgebung. Fur
 Diagnose, Wiederherstellungsschritte und die vollstandige Dateisystemtabelle
 siehe [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
 
+Der Build-Validator bietet zwei Opt-out-Escape-Hatches fuer schnelle
+Iteration oder eingeschraenkte Umgebungen: `@DIContainer(validateDAG: false)`
+pro Container und `INNODI_DISABLE_BUILD_VALIDATION=1` fuer einen Kurzschluss
+des gesamten Build-Plugins. Jeder PR fuehrt
+`Tools/report-validate-dag-escape-hatches.sh` aus und listet alle
+Verwendungsstellen dieser Escape-Hatches im Step Summary des Workflows auf,
+sodass das schleichende Wachstum der Escape-Hatches ohne separates CI-Gate
+sichtbar bleibt. Produktions-CI muss beide unset lassen.
+
+## Datenschutz
+
+InnoDI liefert ein Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) mit beiden
+Laufzeitprodukten `InnoDI` und `InnoDISwiftUI` aus. Das Manifest deklariert
+kein Benutzer-Tracking, keine Tracking-Domains, keine erfassten Datentypen und
+keine Required-Reason-API-Nutzung. Build-Zeit-Tools (InnoDIBuildSupport,
+dependency-graph CLI, Makro-Plugin) werden nicht in Endbenutzer-Apps
+eingebettet und tragen daher nicht zum Manifest bei. Wird InnoDI in eine iOS-,
+watchOS-, tvOS- oder visionOS-App eingebettet, bundelt SwiftPM das Manifest
+automatisch und es erscheint im aggregierten Datenschutzbericht der App.
+
 ## Installation
 
 Fuge InnoDI zu `Package.swift` hinzu:
