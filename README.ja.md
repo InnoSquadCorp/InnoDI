@@ -176,6 +176,12 @@ build-time DAG validator を有効にするには、InnoDI container を宣言�
 )
 ```
 
+source-tool のコンパイルが導入コストの大部分を占めると計測済みのチーム向けに、
+companion package の `InnoDIValidationTools` は任意の prebuilt macOS
+validation plugin を提供します。上記の source plugin か prebuilt plugin の
+どちらか一方だけを attach し、両方は attach しないでください。unsupported
+hosts と local package development では source plugin を使い続けてください。
+
 ## クイックスタート
 
 <!-- innodi:compile -->

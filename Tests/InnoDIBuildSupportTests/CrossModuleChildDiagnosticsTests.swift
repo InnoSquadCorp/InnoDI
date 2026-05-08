@@ -70,7 +70,7 @@ struct CrossModuleChildDiagnosticsTests {
         let childRecord = WorkspaceModuleRecord(
             moduleID: "Child",
             name: "FeatureModule",
-            manifestPath: "/tmp/Package.swift",
+            manifestPath: "/tmp/ChildPackage.swift",
             packageDisplayName: nil,
             packageIdentity: nil,
             sourcePatterns: [],
@@ -90,10 +90,14 @@ struct CrossModuleChildDiagnosticsTests {
         #expect(issue.severity == .warning)
         #expect(issue.metadata["parentModule"] == "AppFeature")
         #expect(issue.metadata["parentModuleID"] == "Parent")
+        #expect(issue.metadata["parentManifestPath"] == "/tmp/Package.swift")
         #expect(issue.metadata["childModule"] == "FeatureModule")
         #expect(issue.metadata["childModuleID"] == "Child")
+        #expect(issue.metadata["childManifestPath"] == "/tmp/ChildPackage.swift")
         // The note set must include the workspace-not-loaded explanation.
         #expect(issue.notes.contains { $0.message.contains("not visible to this validation pass") })
+        #expect(issue.notes.contains { $0.message.contains("declares a dependency on the child target/product") })
+        #expect(issue.remediation?.contains("child target/product") == true)
     }
 
     @Test("validateResolvedEdges surfaces the warning instead of skipping silently")

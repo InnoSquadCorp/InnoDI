@@ -2,16 +2,12 @@ import Foundation
 import PackagePlugin
 
 @main
-struct InnoDIDAGValidationPlugin: BuildToolPlugin {
+struct InnoDIPrebuiltDAGValidationPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
         guard target is SourceModuleTarget else {
             return []
         }
 
-        // Opt-out hook for consumers that intentionally skip the build-time
-        // DAG gate (PoCs, fast iteration loops, or builds running on a
-        // shared volume that already runs validation in a separate CI job).
-        // Production CI must leave the variable unset so the gate runs.
         if let optOut = ProcessInfo.processInfo.environment["INNODI_DISABLE_BUILD_VALIDATION"],
            ["1", "true", "yes"].contains(
                optOut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -19,13 +15,13 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
             return []
         }
 
-        let coordinator = try context.tool(named: "InnoDI-DAGValidationCoordinator")
+        let coordinator = try context.tool(named: "InnoDIPrebuiltDAGValidationCoordinator")
         let outputDirectory = context.pluginWorkDirectoryURL
         let rootPath = context.package.directoryURL.path(percentEncoded: false)
 
         return [
             .buildCommand(
-                displayName: "Validate InnoDI DAG for \(target.name)",
+                displayName: "Validate InnoDI DAG for \(target.name) (prebuilt)",
                 executable: coordinator.url,
                 arguments: [
                     "--root", rootPath,

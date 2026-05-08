@@ -176,6 +176,12 @@ declares InnoDI containers:
 )
 ```
 
+For teams that have measured source-tool compilation as the dominant adoption
+cost, the companion `InnoDIValidationTools` package provides an optional
+prebuilt macOS validation plugin. Attach either the source plugin above or the
+prebuilt plugin, never both; unsupported hosts and local package development
+should keep using the source plugin.
+
 ## Quick Start
 
 <!-- innodi:compile -->

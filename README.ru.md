@@ -179,6 +179,12 @@ dependencies: [
 )
 ```
 
+Для команд, которые измерили, что компиляция source tool является основной
+стоимостью внедрения, сопутствующий package `InnoDIValidationTools`
+предоставляет optional prebuilt macOS validation plugin. Подключайте либо
+source plugin выше, либо prebuilt plugin, но никогда оба; unsupported hosts и
+local package development должны продолжать использовать source plugin.
+
 ## Быстрый старт
 
 <!-- innodi:compile -->

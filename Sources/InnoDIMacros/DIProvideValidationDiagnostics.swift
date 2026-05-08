@@ -88,18 +88,18 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
     )
 }
 
-internal struct DirectProviderEagerCallSite {
-    let providerName: String
+internal struct DirectDeferredEagerCallSite {
+    let dependencyName: String
     let node: Syntax
 }
 
-internal func collectDirectProviderEagerCalls(
+internal func collectDirectDeferredEagerCalls(
     in closure: ClosureExprSyntax,
-    providerNames: Set<String>
-) -> [DirectProviderEagerCallSite] {
-    guard !providerNames.isEmpty else { return [] }
+    dependencyNames: Set<String>
+) -> [DirectDeferredEagerCallSite] {
+    guard !dependencyNames.isEmpty else { return [] }
 
-    var callSites: [DirectProviderEagerCallSite] = []
+    var callSites: [DirectDeferredEagerCallSite] = []
 
     func walk(node: Syntax) {
         if node.is(ClosureExprSyntax.self)
@@ -109,7 +109,7 @@ internal func collectDirectProviderEagerCalls(
         }
 
         if let functionCall = node.as(FunctionCallExprSyntax.self),
-           let callSite = directProviderEagerCallSite(in: functionCall, providerNames: providerNames) {
+           let callSite = directDeferredEagerCallSite(in: functionCall, dependencyNames: dependencyNames) {
             callSites.append(callSite)
         }
 
@@ -125,26 +125,26 @@ internal func collectDirectProviderEagerCalls(
     return callSites
 }
 
-private func directProviderEagerCallSite(
+private func directDeferredEagerCallSite(
     in functionCall: FunctionCallExprSyntax,
-    providerNames: Set<String>
-) -> DirectProviderEagerCallSite? {
-    let calledExpression = unwrapProviderCallExpression(functionCall.calledExpression)
+    dependencyNames: Set<String>
+) -> DirectDeferredEagerCallSite? {
+    let calledExpression = unwrapDeferredCallExpression(functionCall.calledExpression)
 
     if let reference = calledExpression.as(DeclReferenceExprSyntax.self),
-       providerNames.contains(reference.baseName.text) {
-        return DirectProviderEagerCallSite(
-            providerName: reference.baseName.text,
+       dependencyNames.contains(reference.baseName.text) {
+        return DirectDeferredEagerCallSite(
+            dependencyName: reference.baseName.text,
             node: Syntax(reference)
         )
     }
 
     if let memberAccess = calledExpression.as(MemberAccessExprSyntax.self),
-       let base = unwrapProviderCallBase(memberAccess.base),
-       providerNames.contains(base.baseName.text),
+       let base = unwrapDeferredCallBase(memberAccess.base),
+       dependencyNames.contains(base.baseName.text),
        ["callAsFunction", "resolver"].contains(memberAccess.declName.baseName.text) {
-        return DirectProviderEagerCallSite(
-            providerName: base.baseName.text,
+        return DirectDeferredEagerCallSite(
+            dependencyName: base.baseName.text,
             node: Syntax(memberAccess)
         )
     }
@@ -152,21 +152,21 @@ private func directProviderEagerCallSite(
     return nil
 }
 
-private func unwrapProviderCallExpression(_ expression: ExprSyntax) -> ExprSyntax {
+private func unwrapDeferredCallExpression(_ expression: ExprSyntax) -> ExprSyntax {
     if let tuple = expression.as(TupleExprSyntax.self),
        tuple.elements.count == 1,
        let first = tuple.elements.first,
        first.label == nil {
-        return unwrapProviderCallExpression(first.expression)
+        return unwrapDeferredCallExpression(first.expression)
     }
 
     return expression
 }
 
-private func unwrapProviderCallBase(_ expression: ExprSyntax?) -> DeclReferenceExprSyntax? {
+private func unwrapDeferredCallBase(_ expression: ExprSyntax?) -> DeclReferenceExprSyntax? {
     guard let expression else { return nil }
 
-    let unwrapped = unwrapProviderCallExpression(expression)
+    let unwrapped = unwrapDeferredCallExpression(expression)
     return unwrapped.as(DeclReferenceExprSyntax.self)
 }
 

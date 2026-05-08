@@ -181,6 +181,12 @@ declara contenedores InnoDI:
 )
 ```
 
+Para equipos que hayan medido que compilar la herramienta fuente es el costo
+dominante de adopcion, el paquete complementario `InnoDIValidationTools`
+proporciona un plugin de validacion macOS prebuilt opcional. Adjunta el source
+plugin anterior o el prebuilt plugin, nunca ambos; los hosts no soportados y el
+desarrollo local de paquetes deben seguir usando el source plugin.
+
 ## Inicio rapido
 
 <!-- innodi:compile -->

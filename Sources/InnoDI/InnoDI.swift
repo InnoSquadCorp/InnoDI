@@ -86,7 +86,10 @@ public macro Provide(
 /// the container's own `.shared` / `.transient` semantics continue to govern
 /// the target's lifecycle. Do not call the wrapper inside the factory body
 /// itself; only store it for later use, or the backing cell will not yet be
-/// populated. `Lazy<T>` remains synchronous, so it cannot target `.shared`
+/// populated. InnoDI diagnoses direct `lazy()` / `lazy.callAsFunction()` /
+/// `lazy.resolver()` calls inside `.shared` construction; indirect eager calls
+/// routed through helper APIs remain a policy boundary you should review
+/// manually. `Lazy<T>` remains synchronous, so it cannot target `.shared`
 /// members provided by `asyncFactory`.
 ///
 /// `Lazy<T>` is intentionally a non-`Sendable` deferred handle. The wrapper
