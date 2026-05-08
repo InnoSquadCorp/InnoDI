@@ -75,6 +75,8 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   멤버를 가리키지 않습니다.
 - `provide.lazy-unsupported-target` — `Lazy<T>` 파라미터가 컨테이너
   멤버로 선언되지 않은 타입을 가리킵니다.
+- `provide.lazy-eager-call` — `Lazy<T>`가 `.shared` construction 시점에
+  호출되어 soft edge가 다시 eager edge가 됐습니다.
 - `provide.provider-non-transient-target` — `Provider<T>`가 `.shared`
   또는 `.input`로 해소됐습니다. provider는 `.transient` target이 필요합니다.
 - `provide.provider-unsupported-target` — `Provider<T>` 파라미터에

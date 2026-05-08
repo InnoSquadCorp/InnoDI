@@ -181,6 +181,12 @@ hangst, das InnoDI-Container deklariert:
 )
 ```
 
+Wenn Teams gemessen haben, dass das Kompilieren des Source-Tools der dominante
+Einfuehrungsaufwand ist, stellt das Companion-Paket `InnoDIValidationTools` ein
+optionales prebuilt macOS validation plugin bereit. Haenge entweder das source
+plugin oben oder das prebuilt plugin an, niemals beide; unsupported hosts und
+lokale Paketentwicklung sollten weiter das source plugin verwenden.
+
 ## Schnellstart
 
 <!-- innodi:compile -->

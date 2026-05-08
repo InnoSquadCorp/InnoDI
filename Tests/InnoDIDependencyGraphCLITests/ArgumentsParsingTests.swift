@@ -62,14 +62,10 @@ struct ArgumentsParsingTests {
         #expect(warnings.isEmpty)
     }
 
-    @Test("Unknown options are returned as warnings")
-    func unknownOptionsAreWarnings() {
-        guard case let .parsed(args, warnings) = parseArguments(["--ignored", "value"]) else {
-            Issue.record("Expected parsed result")
-            return
-        }
-        #expect(args.format == nil)
-        #expect(warnings == ["Warning: unrecognized option '--ignored'"])
+    @Test("Unknown options fail parsing")
+    func unknownOptionsFailParsing() {
+        let result = parseArguments(["--ignored", "value"])
+        #expect(result == .failed(.unknownOption(option: "--ignored")))
     }
 
     @Test("--help short-circuits parsing")

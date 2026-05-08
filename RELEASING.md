@@ -33,7 +33,12 @@ Before tagging a release:
    - `Tools/generate-docc.sh`
 10. Decide whether any artifact or schema contract changed and update the contract notes below.
 11. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
-12. For public-discovery releases, confirm Swift Package Index readiness:
+12. If publishing the optional prebuilt validation plugin, prepare and verify
+    the companion package artifact:
+    - `(cd InnoDIValidationTools && Tools/prepare-release-artifact.sh --tag <tag> --source-path ../ --output-dir Artifacts)`
+    - verify a synthetic consumer can build with `InnoDIPrebuiltDAGValidationPlugin`
+    - publish `InnoDIValidationTools` with the same tag as this repository
+13. For public-discovery releases, confirm Swift Package Index readiness:
     - repository is public
     - `Package.swift` is at the root
     - a semantic-version tag exists
@@ -41,7 +46,7 @@ Before tagging a release:
     - package URL submitted to SPI includes `https://` and `.git`
     - after the package appears on SPI, use the maintainer badge markdown from
       the package page and add it to `README.md`
-13. After tagging, evaluate external discovery PRs:
+14. After tagging, evaluate external discovery PRs:
     - `matteocrippa/awesome-swift` for the compile-time DI category
     - the current leading SwiftUI awesome list only if the submitted entry
       focuses on `InnoDISwiftUI` helpers rather than core DI
@@ -126,6 +131,15 @@ standalone release assets.
 - **Documentation snippet compile gate.** `Tools/check-docs-code-blocks.sh`
   compiles Swift code fences marked with `<!-- innodi:compile -->`, and both PR
   and release gates run it.
+- **Lazy eager-call validation.** Direct `Lazy<T>` invocation inside `.shared`
+  factories now emits `provide.lazy-eager-call`, matching the Provider guard and
+  preventing soft edges from silently becoming eager initialization traps.
+- **CLI unknown options are hard errors.** `InnoDI-DependencyGraph` now fails
+  unknown flags instead of warning and continuing, so typoed validation flags
+  cannot silently skip release checks.
+- **Optional prebuilt validation tools scaffold.** `InnoDIValidationTools`
+  contains the companion prebuilt macOS validation plugin package and artifact
+  preparation script. The source plugin remains the default compatibility path.
 - **`@GenerateMock` consumer compile hardening.** The experimental mock macro
   now declares a deterministic `Mock` suffix, supports top-level protocols,
   qualifies helper names for overloaded methods, and handles generic method

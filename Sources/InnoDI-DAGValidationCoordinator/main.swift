@@ -4,7 +4,7 @@ import InnoDIBuildSupport
 struct CoordinatorArguments {
     let rootPath: String
     let toolPath: String?
-    let stateDirectoryPath: String
+    let stateDirectoryPath: String?
     let outputDirectoryPath: String
 }
 
@@ -17,10 +17,13 @@ do {
     let lockPolicy = ValidationCoordinatorLockPolicy(
         environment: ProcessInfo.processInfo.environment
     )
+    let stateDirectoryPath = arguments.stateDirectoryPath ?? sharedValidationStateDirectory(
+        forPluginOutputDirectory: URL(fileURLWithPath: arguments.outputDirectoryPath, isDirectory: true)
+    ).path(percentEncoded: false)
     let outcome = try await ValidationCoordinator.coordinate(
         rootPath: arguments.rootPath,
         toolPath: arguments.toolPath,
-        stateDirectoryPath: arguments.stateDirectoryPath,
+        stateDirectoryPath: stateDirectoryPath,
         outputDirectoryPath: arguments.outputDirectoryPath,
         lockPolicy: lockPolicy
     )
@@ -82,7 +85,7 @@ private func parseArguments() throws -> CoordinatorArguments {
         }
     }
 
-    guard let rootPath, let stateDirectoryPath, let outputDirectoryPath else {
+    guard let rootPath, let outputDirectoryPath else {
         throw CoordinatorArgumentError.missingRequiredArguments
     }
 
@@ -106,7 +109,7 @@ enum CoordinatorArgumentError: LocalizedError {
         case let .unknownOption(option):
             return "Unknown option \(option)."
         case .missingRequiredArguments:
-            return "Required options: --root, --state-dir, --output-dir. Optional compatibility input: --tool <path>."
+            return "Required options: --root, --output-dir. Optional compatibility inputs: --state-dir <path>, --tool <path>."
         }
     }
 }

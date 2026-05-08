@@ -183,8 +183,8 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.contains("DAG validation failed."))
     }
 
-    @Test("Unknown option emits warning but continues")
-    func unknownOptionWarnsAndContinues() throws {
+    @Test("Unknown option fails with usage and no graph output")
+    func unknownOptionFailsWithUsage() throws {
         let fixtureURL = try makeFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
 
@@ -194,9 +194,10 @@ struct DependencyGraphCLITests {
             "--format", "ascii"
         ])
 
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.contains("Warning: unrecognized option '--unknown'"))
-        #expect(result.stdout.contains("InnoDI Dependency Graph"))
+        #expect(result.exitCode == 1)
+        #expect(result.stderr.contains("Error: Unknown option '--unknown'"))
+        #expect(result.stdout.contains("Usage: InnoDI-DependencyGraph"))
+        #expect(!result.stdout.contains("InnoDI Dependency Graph"))
     }
 
     @Test("Missing value for --root fails with usage")

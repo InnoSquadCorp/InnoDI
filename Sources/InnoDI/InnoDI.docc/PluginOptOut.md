@@ -1,11 +1,12 @@
 # Build Plugin Opt-Out
 
-`InnoDIDAGValidationPlugin` attaches automatically to every target that
-declares an InnoDI container, runs the validation coordinator, and serializes
-graph artifacts under SwiftPM's plugin work directory. The coordinator is
-incremental and cached, but the plugin still adds a per-target build step
-and a swift-syntax invocation. Two narrow situations make opting out
-defensible.
+When a target attaches `InnoDIDAGValidationPlugin`, the plugin runs the
+validation coordinator for that target and serializes graph artifacts under
+SwiftPM's plugin work directory. SwiftPM does not automatically attach the
+plugin just because a target declares an InnoDI container; consumers opt in by
+listing the plugin in the target manifest. The coordinator is incremental and
+cached, but the plugin still adds a per-target build step and a swift-syntax
+invocation. Two narrow situations make opting out defensible.
 
 ## When Opt-Out Is Reasonable
 
@@ -39,11 +40,11 @@ Set the environment variable at build invocation:
 INNODI_DISABLE_BUILD_VALIDATION=1 swift build
 ```
 
-Accepted values are `1`, `true`, `TRUE`, `yes`, `YES`. Anything else (or
-the variable being unset) leaves the plugin enabled. The variable is read
-once per invocation when the plugin schedules its commands; it does not
-persist across builds, and Xcode's Build Settings sheet resets it when the
-process restarts.
+Accepted values are `1`, `true`, and `yes`, compared after trimming whitespace
+and lowercasing. Anything else (or the variable being unset) leaves the plugin
+enabled. The variable is read once per invocation when the plugin schedules its
+commands; it does not persist across builds, and Xcode's Build Settings sheet
+resets it when the process restarts.
 
 `INNODI_DISABLE_BUILD_VALIDATION=1` is independent from
 `INNODI_ALLOW_UNSAFE_LOCK=1`. The latter still runs the validator but on
