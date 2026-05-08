@@ -1,0 +1,41 @@
+name: Perf History
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  append-perf-history:
+    # Appends a single macro-performance entry to the `perf-history`
+    # branch on every push to `main`. The branch is the time series
+    # `Tools/check-performance-trend.sh` reads when computing the rolling
+    # median that PRs are compared against. Pinned `concurrency` keeps a
+    # busy main from interleaving appends.
+    runs-on: macos-26
+    concurrency:
+      group: perf-history
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so `git rev-parse --short=12` and
+          # `git show -s --format=%cI` resolve the commit metadata the
+          # append script writes into each entry.
+          fetch-depth: 0
+          # `permissions: contents: write` above provides the token; this
+          # checkout also persists credentials so the append script can
+          # `git push origin perf-history`.
+          persist-credentials: true
+      - name: Select Xcode 26.3
+        uses: ./.github/actions/select-xcode
+      - name: Append macro-perf entry
+        env:
+          GIT_USER_NAME: github-actions[bot]
+          GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: Tools/append-performance-history.sh

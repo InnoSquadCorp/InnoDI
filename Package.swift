@@ -65,11 +65,17 @@ let package = Package(
         .target(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"],
+            resources: [
+                .copy("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: innoDISharedSwiftSettings
         ),
         .target(
             name: "InnoDISwiftUI",
             dependencies: ["InnoDI", "InnoDIMacros"],
+            resources: [
+                .copy("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: innoDISharedSwiftSettings
         ),
         .target(
@@ -120,6 +126,13 @@ let package = Package(
             name: "InnoDI-DAGValidationCoordinator",
             dependencies: [
                 "InnoDIBuildSupport"
+            ],
+            swiftSettings: innoDISharedSwiftSettings
+        ),
+        .executableTarget(
+            name: "InnoDI-DeferredAliasScan",
+            dependencies: [
+                "InnoDIWorkspaceAnalysis"
             ],
             swiftSettings: innoDISharedSwiftSettings
         ),

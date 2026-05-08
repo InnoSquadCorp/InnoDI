@@ -42,6 +42,80 @@ into localized README and DocC files.
 The generated DocC archive currently builds from the English base catalog, so
 localized DocC files are maintained as source mirrors in the repository.
 
+`Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and
+release: a swift fence count or H2 header count drift between the English
+canonical and any localized README fails the build. When you add or remove an
+H2 in `README.md`, mirror the change into all six localized files in the same
+PR. The script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit
+soft-rollout window for canonical restructures.
+
+## Code Coverage
+
+The PR workflow runs `swift test --enable-code-coverage` once and feeds the
+profile data into `Tools/collect-coverage.sh`, which exports a per-module
+rollup. The rollup appears in the workflow run's step summary and is
+uploaded as an `actions/upload-artifact` artifact named `coverage`. Locally:
+
+```sh
+swift test --enable-code-coverage
+Tools/collect-coverage.sh
+# → coverage/lcov.info, coverage/report.txt, coverage/summary.json, coverage/summary.md
+```
+
+Coverage is informational: it surfaces unexpected per-module drops without
+gating merges on a threshold. Tests, examples, swift-syntax, and the
+`.build` cache are excluded so the report tracks the library surface, not
+fixtures or third-party code.
+
+## Macro Performance Trend
+
+`Tools/measure-macro-performance.sh --enforce` continues to compare each
+PR against the pinned baseline JSON in
+`Tools/macro-performance-baseline.json`. Alongside that, the PR pipeline
+also runs `Tools/check-performance-trend.sh`, which compares the current
+measurement against the rolling median of the last entries on the
+`perf-history` branch. The dual gate is intentional: the pinned baseline
+catches single-PR regressions, while the trend gate catches gradual
+creep that under-threshold PRs accumulate over time.
+
+The `Perf History` workflow runs on every push to `main` and uses
+`Tools/append-performance-history.sh` to append one
+`history/macro-performance/<UTC date>-<short sha>.json` entry to the
+`perf-history` branch, then rebuilds `history/index.json`. The trend
+script reads only that index — locally you do not need to checkout
+`perf-history` yourself; the script fetches it and is a no-op when the
+branch is empty or unreachable.
+
+Tunables for the trend gate (set as environment variables):
+
+- `INNODI_TREND_WINDOW` (default 7) — trailing entries used for the
+  median.
+- `INNODI_TREND_THRESHOLD_PCT` (default 10) — fail above this delta.
+- `INNODI_TREND_MIN_SAMPLES` (default 5) — below this the gate just
+  reports.
+- `INNODI_TREND_REQUIRE_SAME_TOOLCHAIN` (default 1) — drop history
+  entries that used a different `swift_version` than the current run.
+
+When a Swift toolchain bump moves the absolute number, refresh
+`Tools/macro-performance-baseline.json` with
+`Tools/measure-macro-performance.sh --update-baseline` and let the trend
+gate's same-toolchain filter fall through naturally.
+
+## Governance
+
+`/.github/CODEOWNERS` is the single source of truth for review routing.
+Every path is currently owned by the maintainer (`@ethan-is`); the
+per-area sections of CODEOWNERS exist so a future owner taking on one
+subsystem (macros, build support, SwiftUI integration, workspace
+analysis, examples, docs, CI) is a one-line change rather than a
+restructure. The most-specific path match wins.
+
+GitHub auto-assigns the matching code owner as a reviewer when a PR
+touches a path. Branch protection should enforce the CODEOWNERS review
+requirement on `main` so the routing translates to a hard gate; this
+repository's protection rules are configured externally and are not
+part of this file.
+
 ## PR Expectations
 
 - Keep changes scoped and explain user-facing behavior changes.

@@ -33,6 +33,7 @@ struct AppContainer {
 
     private let _override_sub_apply_feature: ((inout FeatureBindingsContainer.Overrides) -> Void)?
 
+    // MARK: - Initialization
     init(config: AppConfig, apiService: any APIClientProtocol, logger: Logger? = nil, feature: FeatureBindingsContainer? = nil, featureOverrides: ((inout FeatureBindingsContainer.Overrides) -> Void)? = nil) {
         self._storage_config = config
         self._storage_apiService = apiService
@@ -48,34 +49,40 @@ struct AppContainer {
         self._override_sub_apply_feature = featureOverrides
     }
 
+    // MARK: - Overrides Builder
     struct Overrides {
         var logger: Logger? = nil
         var feature: FeatureBindingsContainer? = nil
         var featureOverrides: ((inout FeatureBindingsContainer.Overrides) -> Void)? = nil
     }
 
+    // MARK: - Convenience Init with Overrides
     init(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(config: config, apiService: apiService, logger: overrides.logger, feature: overrides.feature, featureOverrides: overrides.featureOverrides)
     }
 
-    static func withOverrides<T>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> T) -> T {
+    // MARK: - withOverrides
+    static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
         let container = Self(config: config, apiService: apiService, applyOverrides)
         return operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> T) throws -> T {
+    // MARK: - withOverrides (throws)
+    static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
         let container = Self(config: config, apiService: apiService, applyOverrides)
         return try operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> T) async -> T {
+    // MARK: - withOverrides (async)
+    static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, apiService: apiService, applyOverrides)
         return await operation(container)
     }
 
-    static func withOverrides<T>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> T) async throws -> T {
+    // MARK: - withOverrides (async throws)
+    static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, apiService: apiService, applyOverrides)
         return try await operation(container)
     }

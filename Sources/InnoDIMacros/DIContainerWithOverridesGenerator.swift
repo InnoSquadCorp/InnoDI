@@ -2,7 +2,7 @@
 //  DIContainerWithOverridesGenerator.swift
 //  InnoDIMacros
 //
-//  Emits the four `static func withOverrides<T>(...)` effect overloads
+//  Emits the four `static func withOverrides<OperationResult>(...)` effect overloads
 //  (sync / throws / async / async throws) that wrap a scoped container
 //  construction + operation closure invocation. Keeping them in a dedicated
 //  file makes the sub-container overrides threading and Sendable handling
@@ -57,11 +57,11 @@ private func makeWithOverridesMethod(
     )
     params.append(applyOverridesParam)
 
-    // operation: (Self) [async] [throws] -> T
+    // operation: (Self) [async] [throws] -> OperationResult
     var operationTypeDescription = "(Self) "
     if isAsync { operationTypeDescription += "async " }
     if isThrowing { operationTypeDescription += "throws " }
-    operationTypeDescription += "-> T"
+    operationTypeDescription += "-> OperationResult"
     let operationParam = FunctionParameterSyntax(
         firstName: .identifier("operation"),
         secondName: nil,
@@ -73,11 +73,11 @@ private func makeWithOverridesMethod(
     )
     params.append(operationParam)
 
-    // <T>
+    // <OperationResult>
     let genericParameterClause = GenericParameterClauseSyntax(
         leftAngle: .leftAngleToken(),
         parameters: GenericParameterListSyntax([
-            GenericParameterSyntax(name: .identifier("T"))
+            GenericParameterSyntax(name: .identifier("OperationResult"))
         ]),
         rightAngle: .rightAngleToken()
     )
@@ -95,7 +95,7 @@ private func makeWithOverridesMethod(
 
     let returnClause = ReturnClauseSyntax(
         arrow: .arrowToken(),
-        type: TypeSyntax(stringLiteral: "T")
+        type: TypeSyntax(stringLiteral: "OperationResult")
     )
 
     let signature = FunctionSignatureSyntax(
