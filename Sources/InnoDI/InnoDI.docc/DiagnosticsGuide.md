@@ -145,11 +145,13 @@ Most frequently-hit codes:
 - `swiftui.feature-root-without-subcontainer` — `@DIFeatureRoot` must
   accompany a `@SubContainer` property.
 - `swiftui.feature-root-duplicate-default` — two `@DIFeatureRoot` defaults
-  on the same container.
+  or `@SubContainer` feature-root defaults on the same container.
 - `swiftui.feature-root-helper-name-conflict` — generated helper name
   collides with an existing member.
 - `swiftui.feature-root-invalid-alias` — the feature-root alias argument
   cannot be parsed as a valid Swift identifier.
+- `swiftui.feature-root-invalid-root` — a `featureRoot:` or `featureRoots:`
+  entry does not use a root view type expression such as `RootView.self`.
 - `swiftui.environment-bridge-unknown-member` — `@DIEnvironmentBridge`
   key path doesn't resolve to a container member.
 - `swiftui.environment-bridge-duplicate-member` — the same key path is

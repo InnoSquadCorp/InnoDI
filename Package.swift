@@ -54,7 +54,7 @@ let package = Package(
         ),
         .target(
             name: "InnoDISwiftUI",
-            dependencies: ["InnoDI", "InnoDIMacros"],
+            dependencies: ["InnoDI"],
             resources: [
                 .copy("PrivacyInfo.xcprivacy"),
             ]

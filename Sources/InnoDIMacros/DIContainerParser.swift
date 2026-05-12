@@ -130,9 +130,21 @@ struct DIContainerParser {
                 let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
                 let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
                 let invalidBindingReferences = extractInvalidSubContainerBindingReferences(from: subAttribute)
+                let memberName = validatedBinding.identifier.identifier.text
+                let featureRoots = extractFeatureRootReferences(
+                    from: subAttribute,
+                    propertyName: memberName,
+                    existingSubContainers: subContainerMembers,
+                    declaration: decl,
+                    context: context
+                )
+                if featureRoots.hadErrors {
+                    hadErrors = true
+                    continue
+                }
                 subContainerMembers.append(
                     SubContainerMemberModel(
-                        name: validatedBinding.identifier.identifier.text,
+                        name: memberName,
                         type: validatedBinding.typeAnnotation.type,
                         scope: subArgs.scope,
                         scopeName: subArgs.scopeName,
@@ -148,6 +160,7 @@ struct DIContainerParser {
                         invalidBindingReferences: invalidBindingReferences,
                         bindingsParseState: subArgs.bindingsParseState,
                         parentDependencyReferences: parentDependencyReferences,
+                        featureRoots: featureRoots.roots,
                         attribute: subAttribute,
                         bindingSyntax: validatedBinding.binding
                     )
@@ -595,6 +608,329 @@ private func extractInvalidSubContainerBindingReferences(from attribute: Attribu
     }
 
     return []
+}
+
+private struct FeatureRootParseResult {
+    let roots: [FeatureRootMemberModel]
+    let hadErrors: Bool
+}
+
+private struct ParsedFeatureRootArgument {
+    let root: FeatureRootMemberModel?
+    let invalidAliasText: String?
+    let aliasAnchor: Syntax?
+    let invalidRootAnchor: Syntax?
+}
+
+private func extractFeatureRootReferences(
+    from attribute: AttributeSyntax,
+    propertyName: String,
+    existingSubContainers: [SubContainerMemberModel],
+    declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext
+) -> FeatureRootParseResult {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return FeatureRootParseResult(roots: [], hadErrors: false)
+    }
+
+    var roots: [FeatureRootMemberModel] = []
+    var hadErrors = false
+
+    for argument in arguments {
+        guard let label = argument.label?.text else { continue }
+
+        switch label {
+        case "featureRoot":
+            if argument.expression.is(NilLiteralExprSyntax.self) {
+                continue
+            }
+            guard let rootViewTypeName = parseFeatureRootTypeName(from: argument.expression) else {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(argument.expression),
+                        message: SimpleDiagnostic.swiftUIFeatureRootInvalidRoot()
+                    )
+                )
+                hadErrors = true
+                continue
+            }
+            roots.append(
+                FeatureRootMemberModel(
+                    rootViewTypeName: rootViewTypeName,
+                    alias: nil,
+                    propertyName: propertyName,
+                    anchorSyntax: Syntax(argument.expression)
+                )
+            )
+
+        case "featureRoots":
+            guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(argument.expression),
+                        message: SimpleDiagnostic.swiftUIFeatureRootInvalidRoot()
+                    )
+                )
+                hadErrors = true
+                continue
+            }
+
+            for element in arrayExpr.elements {
+                let parsed = parseFeatureRootInitializer(element.expression, propertyName: propertyName)
+                if let invalidRootAnchor = parsed.invalidRootAnchor {
+                    context.diagnose(
+                        Diagnostic(
+                            node: invalidRootAnchor,
+                            message: SimpleDiagnostic.swiftUIFeatureRootInvalidRoot()
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+                if let invalidAliasText = parsed.invalidAliasText {
+                    context.diagnose(
+                        Diagnostic(
+                            node: parsed.aliasAnchor ?? Syntax(element.expression),
+                            message: SimpleDiagnostic.swiftUIFeatureRootInvalidAlias(alias: invalidAliasText)
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+                if let root = parsed.root {
+                    roots.append(root)
+                }
+            }
+
+        default:
+            continue
+        }
+    }
+
+    let defaultRoots = roots.filter { $0.alias == nil }
+    if defaultRoots.count > 1 {
+        for root in defaultRoots.dropFirst() {
+            context.diagnose(
+                Diagnostic(
+                    node: root.anchorSyntax,
+                    message: SimpleDiagnostic.swiftUIFeatureRootDuplicateDefault(propertyName: propertyName)
+                )
+            )
+        }
+        hadErrors = true
+    }
+    if hadErrors {
+        return FeatureRootParseResult(roots: roots, hadErrors: true)
+    }
+
+    var seenHelpers: Set<String> = []
+    for root in roots {
+        if !seenHelpers.insert(root.helperName).inserted {
+            context.diagnose(
+                Diagnostic(
+                    node: root.anchorSyntax,
+                    message: SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(helperName: root.helperName)
+                )
+            )
+            hadErrors = true
+        }
+        if featureRootHelperConflicts(
+            helperName: root.helperName,
+            currentPropertyName: propertyName,
+            existingSubContainers: existingSubContainers,
+            in: declaration
+        ) {
+            context.diagnose(
+                Diagnostic(
+                    node: root.anchorSyntax,
+                    message: SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(helperName: root.helperName)
+                )
+            )
+            hadErrors = true
+        }
+    }
+
+    return FeatureRootParseResult(roots: roots, hadErrors: hadErrors)
+}
+
+private func parseFeatureRootInitializer(
+    _ expression: ExprSyntax,
+    propertyName: String
+) -> ParsedFeatureRootArgument {
+    guard let call = expression.as(FunctionCallExprSyntax.self),
+          isFeatureRootInitializerCallee(call.calledExpression) else {
+        return ParsedFeatureRootArgument(
+            root: nil,
+            invalidAliasText: nil,
+            aliasAnchor: nil,
+            invalidRootAnchor: Syntax(expression)
+        )
+    }
+
+    var rootViewTypeName: String?
+    var alias: String?
+    var invalidAliasText: String?
+    var aliasAnchor: Syntax?
+
+    for argument in call.arguments {
+        if let label = argument.label?.text {
+            if label == "as" {
+                aliasAnchor = Syntax(argument.expression)
+                if let value = stringLiteralValue(argument.expression), isValidFeatureRootAlias(value) {
+                    alias = value
+                } else {
+                    invalidAliasText = stringLiteralValue(argument.expression) ?? argument.expression.trimmedDescription
+                }
+            }
+            continue
+        }
+
+        if rootViewTypeName == nil {
+            rootViewTypeName = parseFeatureRootTypeName(from: argument.expression)
+        }
+    }
+
+    guard let rootViewTypeName else {
+        return ParsedFeatureRootArgument(
+            root: nil,
+            invalidAliasText: nil,
+            aliasAnchor: nil,
+            invalidRootAnchor: Syntax(expression)
+        )
+    }
+
+    if let invalidAliasText {
+        return ParsedFeatureRootArgument(
+            root: nil,
+            invalidAliasText: invalidAliasText,
+            aliasAnchor: aliasAnchor,
+            invalidRootAnchor: nil
+        )
+    }
+
+    return ParsedFeatureRootArgument(
+        root: FeatureRootMemberModel(
+            rootViewTypeName: rootViewTypeName,
+            alias: alias,
+            propertyName: propertyName,
+            anchorSyntax: Syntax(expression)
+        ),
+        invalidAliasText: nil,
+        aliasAnchor: nil,
+        invalidRootAnchor: nil
+    )
+}
+
+private func parseFeatureRootTypeName(from expression: ExprSyntax) -> String? {
+    if let memberAccess = expression.as(MemberAccessExprSyntax.self),
+       memberAccess.declName.baseName.text == "self",
+       let base = memberAccess.base {
+        return base.trimmedDescription
+    }
+
+    let description = expression.trimmedDescription
+    guard description.hasSuffix(".self") else {
+        return nil
+    }
+    return String(description.dropLast(5))
+}
+
+private func isFeatureRootInitializerCallee(_ expression: ExprSyntax) -> Bool {
+    let description = expression.trimmedDescription
+    return description == "FeatureRoot" || description.hasSuffix(".FeatureRoot")
+}
+
+private func featureRootHelperConflicts(
+    helperName: String,
+    currentPropertyName: String,
+    existingSubContainers: [SubContainerMemberModel],
+    in declaration: some DeclGroupSyntax
+) -> Bool {
+    if existingSubContainers.contains(where: { member in
+        member.featureRoots.contains(where: { $0.helperName == helperName })
+    }) {
+        return true
+    }
+
+    for member in declaration.memberBlock.members {
+        let decl = member.decl
+
+        if let functionDecl = decl.as(FunctionDeclSyntax.self),
+           functionDecl.name.text == helperName {
+            return true
+        }
+
+        guard let variableDecl = decl.as(VariableDeclSyntax.self) else {
+            continue
+        }
+
+        if variableDecl.bindings.contains(where: {
+            $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == helperName
+        }) {
+            return true
+        }
+
+        guard variableDecl.bindings.first?
+            .pattern.as(IdentifierPatternSyntax.self)?
+            .identifier.text != currentPropertyName else {
+            continue
+        }
+
+        for attribute in featureRootAttributes(in: variableDecl.attributes) {
+            guard let info = parseDeprecatedFeatureRootAttribute(attribute) else {
+                continue
+            }
+            if let alias = info.alias, !isValidFeatureRootAlias(alias) {
+                continue
+            }
+            let propertyName = variableDecl.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?
+                .identifier.text
+            guard let propertyName else {
+                continue
+            }
+            let candidate = featureRootHelperName(propertyName: propertyName, alias: info.alias)
+            if candidate == helperName {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+private struct DeprecatedFeatureRootInfo {
+    let alias: String?
+}
+
+private func parseDeprecatedFeatureRootAttribute(_ attribute: AttributeSyntax) -> DeprecatedFeatureRootInfo? {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return nil
+    }
+    var rootViewTypeName: String?
+    var alias: String?
+
+    for argument in arguments {
+        if argument.label?.text == "as" {
+            alias = stringLiteralValue(argument.expression)
+            continue
+        }
+        if argument.label == nil {
+            rootViewTypeName = parseFeatureRootTypeName(from: argument.expression)
+        }
+    }
+
+    guard rootViewTypeName != nil else {
+        return nil
+    }
+    return DeprecatedFeatureRootInfo(alias: alias)
+}
+
+private func featureRootHelperName(propertyName: String, alias: String?) -> String {
+    if let alias, !alias.isEmpty {
+        return "\(alias)RootView"
+    }
+    return "\(propertyName)RootView"
 }
 
 private func finalKeyPathExpression(_ expression: ExprSyntax) -> KeyPathExprSyntax? {

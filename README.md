@@ -134,7 +134,7 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.2.2")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.3.0")
 ]
 ```
 
@@ -371,7 +371,11 @@ original isolation domain.
 `@SubContainer` models parent-owned child containers:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(
+    scope: .shared,
+    with: [\.config, \.apiClient],
+    featureRoot: FeatureRootScene.self
+)
 var feature: FeatureContainer
 ```
 
@@ -386,6 +390,8 @@ Key rules:
   computed array elements are unsupported.
 - `with: []` is an explicit empty subset and calls `Child()`.
 - `bindings:` remaps child input labels to different parent member names.
+- `featureRoot:` / `featureRoots:` generate SwiftUI root helpers on the parent
+  container without stacking another peer macro on the same property.
 - Choose exactly one wiring form: `with:` or `bindings:`.
 - Parent `Overrides` gain both a full replacement slot (`feature`) and a child
   override closure (`featureOverrides`).
@@ -402,8 +408,11 @@ contract:
 
 - `.innodi(container)` applies a generated environment bridge to a view tree.
 - `@DIEnvironmentBridge` maps container members into SwiftUI environment keys.
-- `@DIFeatureRoot` generates default or named feature-root helpers for child
-  containers.
+- `@SubContainer(..., featureRoot:)` and `featureRoots:` generate default or
+  named feature-root helpers for child containers.
+- `@DIFeatureRoot` remains as a deprecated compatibility macro; new code
+  should use the `@SubContainer` arguments so helper generation stays in the
+  container macro pipeline.
 
 Use `@DIContainer(mainActor: true)` for UI-root containers when you want the
 generated container API isolated to the main actor.

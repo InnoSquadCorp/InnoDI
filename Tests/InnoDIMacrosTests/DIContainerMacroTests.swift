@@ -2499,6 +2499,47 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@SubContainer(featureRoot:) generates the default SwiftUI root helper")
+    func subContainerFeatureRootGeneratesDefaultHelper() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            public struct AppContainer {
+                @Provide(.input) public var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.config], featureRoot: FeatureRootScene.self)
+                public var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerFeatureRootGeneratesDefaultHelper",
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer(featureRoots:) generates default and aliased SwiftUI root helpers")
+    func subContainerFeatureRootsGenerateDefaultAndAliasHelpers() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            public struct AppContainer {
+                @Provide(.input) public var config: AppConfig
+
+                @SubContainer(
+                    scope: .transient,
+                    with: [\\.config],
+                    featureRoots: [
+                        FeatureRoot(FeatureRootScene.self),
+                        FeatureRoot(FeatureShellScene.self, as: "featureShell")
+                    ]
+                )
+                public var feature: FeatureContainer
+            }
+            """,
+            matches: "subContainerFeatureRootsGenerateDefaultAndAliasHelpers",
+            macros: Self.macros
+        )
+    }
+
     @Test("`.transient` sub-container binds a build closure captured from a self snapshot")
     func subContainerTransientBuildsFreshChild() {
         assertMacroExpansionSnapshot(
@@ -2512,6 +2553,78 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "subContainerTransientBuildsFreshChild",
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer featureRoots rejects duplicate default roots")
+    func subContainerFeatureRootsRejectDuplicateDefaults() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.config],
+                    featureRoot: FeatureRootScene.self,
+                    featureRoots: [
+                        FeatureRoot(FeatureShellScene.self)
+                    ]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-duplicate-default")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer featureRoots rejects invalid aliases")
+    func subContainerFeatureRootsRejectInvalidAliases() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\.config],
+                    featureRoots: [
+                        FeatureRoot(FeatureRootScene.self, as: "for")
+                    ]
+                )
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("@SubContainer feature roots reject helper name conflicts")
+    func subContainerFeatureRootRejectsHelperNameConflict() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                func featureRootView() -> ExistingRoot { fatalError() }
+
+                @SubContainer(scope: .shared, with: [\\.config], featureRoot: FeatureRootScene.self)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-helper-name-conflict")
+            ],
             macros: Self.macros
         )
     }

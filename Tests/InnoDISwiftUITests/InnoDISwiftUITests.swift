@@ -123,29 +123,20 @@ struct ParentContainer {
 
     @SubContainer(
         scope: .shared,
-        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService]
+        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService],
+        featureRoots: [
+            FeatureRoot(SharedFeatureRootView.self),
+            FeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")
+        ]
     )
     var sharedFeature: SharedFeatureContainer
 
     @SubContainer(
         scope: .transient,
-        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService]
+        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService],
+        featureRoot: TransientFeatureRootView.self
     )
     var transientFeature: TransientFeatureContainer
-}
-
-extension ParentContainer {
-    func sharedFeatureRootView() -> SharedFeatureRootView {
-        SharedFeatureRootView(container: sharedFeature)
-    }
-
-    func sharedFeatureShellRootView() -> SharedFeatureShellView {
-        SharedFeatureShellView(container: sharedFeature)
-    }
-
-    func transientFeatureRootView() -> TransientFeatureRootView {
-        TransientFeatureRootView(container: transientFeature)
-    }
 }
 
 @Suite("InnoDISwiftUI integration")

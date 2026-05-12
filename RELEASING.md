@@ -2,7 +2,7 @@
 
 This document is the single release source of truth for InnoDI.
 
-Current stable public release target: `4.2.2`
+Current stable public release target: `4.3.0`
 
 ## Release Checklist
 
@@ -115,7 +115,7 @@ standalone release assets.
 
 ### Highlights
 
-_No changes have landed on `main` since 4.2.2._
+_No changes have landed on `main` since 4.3.0._
 
 ### Breaking or Behavior Changes
 
@@ -124,6 +124,39 @@ _None._
 ### Upgrade Actions
 
 _None._
+
+## 4.3.0
+
+### Highlights
+
+- **Feature-root helper generation is now integrated into `@SubContainer`.**
+  New code should declare SwiftUI roots with `featureRoot:` for a single root
+  or `featureRoots: [FeatureRoot(...)]` for multiple/default+aliased roots.
+- `DIContainerMacro` now generates `<propertyName>RootView()` and
+  `<alias>RootView()` helpers from sub-container metadata, avoiding stacked
+  peer-macro expansion between `@SubContainer` and `@DIFeatureRoot`.
+- `InnoDISwiftUI` no longer depends directly on `InnoDIMacros`; it continues
+  to provide the SwiftUI facade API through its dependency on `InnoDI`.
+
+### Breaking or Behavior Changes
+
+- `@SubContainer` gained additive `featureRoot:` and `featureRoots:`
+  parameters.
+- `@DIFeatureRoot` remains available but is deprecated with the migration
+  message: `Use @SubContainer(..., featureRoot:) or featureRoots: instead.`
+- Feature-root alias, duplicate-default, and helper-name conflict diagnostics
+  now also apply to the new `@SubContainer` feature-root metadata.
+
+### Upgrade Actions
+
+- Replace stacked feature-root declarations:
+  `@SubContainer(...) @DIFeatureRoot(Root.self)` with
+  `@SubContainer(..., featureRoot: Root.self)`.
+- For multiple roots, replace repeated `@DIFeatureRoot` attributes with
+  `featureRoots: [FeatureRoot(DefaultRoot.self), FeatureRoot(Shell.self, as: "shell")]`.
+- Consumers that previously had duplicate `InnoDIMacros` copy phases through
+  `InnoDI + InnoDISwiftUI` should update to `4.3.0` and depend on the
+  `InnoDISwiftUI` product at SwiftUI root targets.
 
 ## 4.2.2
 
