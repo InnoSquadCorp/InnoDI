@@ -2,7 +2,7 @@
 
 This document is the single release source of truth for InnoDI.
 
-Current stable public release target: `4.2.1`
+Current stable public release target: `4.2.2`
 
 ## Release Checklist
 
@@ -115,7 +115,7 @@ standalone release assets.
 
 ### Highlights
 
-_No changes have landed on `main` since 4.2.1._
+_No changes have landed on `main` since 4.2.2._
 
 ### Breaking or Behavior Changes
 
@@ -124,6 +124,31 @@ _None._
 ### Upgrade Actions
 
 _None._
+
+## 4.2.2
+
+### Highlights
+
+- **Tuist external-consumer compatibility for the package manifest.**
+  The package no longer emits package-wide `SwiftSetting` entries from
+  `Package.swift`. Current SwiftPM still accepts those settings, but Tuist's
+  external package conversion can fail while decoding the Swift 6.3 manifest
+  JSON when InnoDI is linked as an external dependency.
+- `InnoDIBuildSupport` now declares its source path explicitly so Tuist does
+  not mis-resolve the build-support target while constructing external package
+  projects.
+- Strict-concurrency validation remains enforced by the existing CI and release
+  commands (`-strict-concurrency=complete -warnings-as-errors`) instead of
+  being imposed through consumer-facing manifest settings.
+
+### Breaking or Behavior Changes
+
+- No runtime, macro, plugin, or public API behavior changes.
+
+### Upgrade Actions
+
+- Tuist-based consumers that could not generate projects with `4.2.1` should
+  update to `4.2.2`.
 
 ## 4.2.1
 

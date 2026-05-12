@@ -3,20 +3,6 @@
 import CompilerPluginSupport
 import PackageDescription
 
-// Package-wide swiftSettings. We opt the package into the Swift 6
-// upcoming-feature set so consumer builds see the same concurrency /
-// sendable rules the CI matrix enforces. Using `.enableUpcomingFeature`
-// (rather than `.swiftLanguageMode(.v6)`) keeps the package importable
-// from Swift 5 consumers while still surfacing warnings in this codebase.
-//
-// `InferSendableFromCaptures` and `GlobalActorIsolatedTypesUsability` are
-// intentionally not listed — Swift 6.2's implicit language mode already
-// enables them, and the compiler emits a noise warning when you re-assert
-// a feature that's already active.
-let innoDISharedSwiftSettings: [SwiftSetting] = [
-    .enableUpcomingFeature("StrictConcurrency"),
-]
-
 let package = Package(
     name: "InnoDI",
     platforms: [
@@ -39,16 +25,14 @@ let package = Package(
             name: "InnoDICore",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax")
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .target(
             name: "InnoDIWorkspaceAnalysis",
             dependencies: [
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .target(
             name: "InnoDITestSupport",
@@ -59,24 +43,21 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacroExpansion", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
             ],
-            path: "Tests/TestSupport",
-            swiftSettings: innoDISharedSwiftSettings
+            path: "Tests/TestSupport"
         ),
         .target(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"],
             resources: [
                 .copy("PrivacyInfo.xcprivacy"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .target(
             name: "InnoDISwiftUI",
             dependencies: ["InnoDI", "InnoDIMacros"],
             resources: [
                 .copy("PrivacyInfo.xcprivacy"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .target(
             name: "InnoDIBuildSupport",
@@ -87,7 +68,7 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ],
-            swiftSettings: innoDISharedSwiftSettings
+            path: "Sources/InnoDIBuildSupport"
         ),
         .target(
             name: "InnoDIDependencyGraphCore",
@@ -95,8 +76,7 @@ let package = Package(
                 "InnoDICore",
                 "InnoDIWorkspaceAnalysis",
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .target(
             name: "InnoDIDependencyGraphCLI",
@@ -112,29 +92,25 @@ let package = Package(
                 "InnoDIBuildSupport",
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .executableTarget(
             name: "InnoDI-DependencyGraph",
             dependencies: [
                 "InnoDIDependencyGraphCLI"
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .executableTarget(
             name: "InnoDI-DAGValidationCoordinator",
             dependencies: [
                 "InnoDIBuildSupport"
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .executableTarget(
             name: "InnoDI-DeferredAliasScan",
             dependencies: [
                 "InnoDIWorkspaceAnalysis"
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .plugin(
             name: "InnoDIDAGValidationPlugin",
@@ -152,8 +128,7 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
                 .product(name: "SwiftDiagnostics", package: "swift-syntax"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .testTarget(
             name: "InnoDICoreTests",
@@ -161,8 +136,7 @@ let package = Package(
                 "InnoDICore",
                 "InnoDITestSupport",
                 .product(name: "SwiftParser", package: "swift-syntax"),
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .testTarget(
             name: "InnoDIMacrosTests",
@@ -172,8 +146,7 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
             ],
-            exclude: ["__Snapshots__"],
-            swiftSettings: innoDISharedSwiftSettings
+            exclude: ["__Snapshots__"]
         ),
         .testTarget(
             name: "InnoDIDependencyGraphCLITests",
@@ -184,8 +157,7 @@ let package = Package(
                 "InnoDIBuildSupport",
                 "InnoDITestSupport",
             ],
-            exclude: ["__Snapshots__"],
-            swiftSettings: innoDISharedSwiftSettings
+            exclude: ["__Snapshots__"]
         ),
         .testTarget(
             name: "InnoDIBuildSupportTests",
@@ -194,22 +166,19 @@ let package = Package(
                 "InnoDICore",
                 "InnoDIWorkspaceAnalysis",
                 "InnoDITestSupport"
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .testTarget(
             name: "InnoDIRuntimeTests",
             dependencies: [
                 "InnoDI"
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
         .testTarget(
             name: "InnoDISwiftUITests",
             dependencies: [
                 "InnoDISwiftUI"
-            ],
-            swiftSettings: innoDISharedSwiftSettings
+            ]
         ),
     ]
 )
