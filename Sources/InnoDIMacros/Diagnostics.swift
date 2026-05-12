@@ -73,6 +73,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
     case swiftUIFeatureRootHelperNameConflict = "swiftui.feature-root-helper-name-conflict"
     case swiftUIFeatureRootInvalidAlias = "swiftui.feature-root-invalid-alias"
+    case swiftUIFeatureRootInvalidRoot = "swiftui.feature-root-invalid-root"
     case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
     case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
     case swiftUIEnvironmentBridgeAsyncMember = "swiftui.environment-bridge-async-member"
@@ -114,7 +115,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
-                .swiftUIFeatureRootInvalidAlias,
+                .swiftUIFeatureRootInvalidAlias, .swiftUIFeatureRootInvalidRoot,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeAsyncMember,
                 .swiftUIEnvironmentBridgeInvalidKeyPath,
@@ -341,6 +342,13 @@ extension SimpleDiagnostic {
         Self(
             "Alias '\(alias)' for @DIFeatureRoot must be a non-empty Swift identifier.",
             code: .swiftUIFeatureRootInvalidAlias
+        )
+    }
+
+    static func swiftUIFeatureRootInvalidRoot() -> Self {
+        Self(
+            "Feature root declarations must use a root view type expression such as `FeatureRootView.self` or `FeatureRoot(FeatureRootView.self)`.",
+            code: .swiftUIFeatureRootInvalidRoot
         )
     }
 

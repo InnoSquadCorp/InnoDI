@@ -15,12 +15,55 @@ changes a consumer must make**.
 | 3.x → 4.0 | Public-contract consolidation | Adopt the new `withNames:`/`with:`/`bindings:` matrix on `@SubContainer`. Stop importing `_LazyCell`. Rename any container member starting with one of the reserved `_storage_` / `_override_sub_` / `_innoDISubBuild_` prefixes. |
 | 4.0 → 4.1 | DX hardening | No `@SubContainer(... withNames:)` migration is required. Continue using `withNames:` in stacked peer-macro contexts and prefer `with:` for new single-macro sites where Swift's type-checker accepts key paths. Update parsers of the lock-timeout stderr block to read structured fields. |
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
+| 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
 | 4.x → 5.0 (planned) | `@GenerateMock` GA | RFC 0001 promotes to stable; the generated names freeze as part of the 5.0 release contract. RFC 0002 has already been applied by the 4.2 wiring simplification. |
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 → 4.1 operational hardening, then the upcoming 5.0 surface and older hops.
+
+---
+
+## 4.2 → 4.3
+
+### Feature-root helpers move into `@SubContainer`
+
+```swift
+// Before
+@SubContainer(scope: .shared, with: [\.config])
+@DIFeatureRoot(DashboardRootView.self)
+@DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
+var dashboard: DashboardContainer
+
+// After
+@SubContainer(
+    scope: .shared,
+    with: [\.config],
+    featureRoots: [
+        FeatureRoot(DashboardRootView.self),
+        FeatureRoot(DashboardShellView.self, as: "dashboardShell")
+    ]
+)
+var dashboard: DashboardContainer
+```
+
+For the common single-root case, prefer the shorter form:
+
+```swift
+@SubContainer(scope: .shared, with: [\.config], featureRoot: DashboardRootView.self)
+var dashboard: DashboardContainer
+```
+
+The generated helper names are unchanged: the default root still emits
+`dashboardRootView()`, and an alias such as `"dashboardShell"` emits
+`dashboardShellRootView()`. The difference is ownership: helper generation now
+belongs to the `@DIContainer` member expansion, so `@SubContainer` no longer
+needs to be stacked with another peer macro on the same property.
+
+`@DIFeatureRoot` remains available as a deprecated compatibility macro. Keep it
+only while migrating existing call sites; new code should use
+`featureRoot:` / `featureRoots:`.
 
 ---
 

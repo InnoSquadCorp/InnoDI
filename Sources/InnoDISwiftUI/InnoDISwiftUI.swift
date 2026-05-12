@@ -61,6 +61,7 @@ public macro DIEnvironmentBridge(
     _ mappings: [(member: String, environment: AnyKeyPath)]
 ) = #externalMacro(module: "InnoDIMacros", type: "DIEnvironmentBridgeMacro")
 
+@available(*, deprecated, message: "Use @SubContainer(..., featureRoot:) or featureRoots: instead.")
 @attached(peer, names: arbitrary)
 /// Declares one SwiftUI feature-root helper for a `@SubContainer` property.
 ///

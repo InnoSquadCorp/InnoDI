@@ -15,11 +15,54 @@ breaking change 표는
 | 3.x → 4.0 | 공개 계약 정리 | `@SubContainer`의 새로운 `withNames:`/`with:`/`bindings:` 매트릭스를 채택하세요. `_LazyCell` import를 중단하고, `_storage_` / `_override_sub_` / `_innoDISubBuild_` 예약 prefix로 시작하는 컨테이너 멤버의 이름을 변경하세요. |
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
+| 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
 | 4.x → 5.0 (예정) | `@GenerateMock` 한정 | RFC 0001이 계획대로 GA로 들어옵니다. RFC 0002는 4.2의 wiring 단순화로 이미 적용됐습니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
 단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0의 예정 surface와
 이전 버전 hop — 으로 펼쳐집니다.
+
+---
+
+## 4.2 → 4.3
+
+### Feature-root 헬퍼를 `@SubContainer`로 이동
+
+```swift
+// Before
+@SubContainer(scope: .shared, with: [\.config])
+@DIFeatureRoot(DashboardRootView.self)
+@DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
+var dashboard: DashboardContainer
+
+// After
+@SubContainer(
+    scope: .shared,
+    with: [\.config],
+    featureRoots: [
+        FeatureRoot(DashboardRootView.self),
+        FeatureRoot(DashboardShellView.self, as: "dashboardShell")
+    ]
+)
+var dashboard: DashboardContainer
+```
+
+단일 root view만 필요한 일반 케이스는 더 짧은 형태를 권장합니다.
+
+```swift
+@SubContainer(scope: .shared, with: [\.config], featureRoot: DashboardRootView.self)
+var dashboard: DashboardContainer
+```
+
+생성되는 헬퍼 이름은 그대로입니다. default root는 여전히
+`dashboardRootView()`를 만들고, `"dashboardShell"` alias는
+`dashboardShellRootView()`를 만듭니다. 차이는 소유권입니다. 헬퍼 생성이
+이제 `@DIContainer` member expansion에 속하므로 같은 프로퍼티에
+`@SubContainer`와 다른 peer macro를 스택할 필요가 없습니다.
+
+`@DIFeatureRoot`는 deprecated compatibility macro로 계속 제공됩니다. 기존
+call site를 옮기는 동안에만 유지하고, 새 코드는 `featureRoot:` /
+`featureRoots:`를 사용하세요.
 
 ---
 

@@ -13,7 +13,7 @@ public enum DIScope {
     case transient
 }
 
-@attached(member, names: named(init), named(Overrides), named(withOverrides))
+@attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary)
 /// Marks a type as an InnoDI container and synthesizes initialization,
 /// overrides, and validation behavior.
 ///
@@ -246,6 +246,35 @@ public enum SubContainerScope {
     case transient
 }
 
+/// Declares a SwiftUI feature root view that should be exposed through a
+/// parent container's `@SubContainer` member.
+///
+/// Use this value with `@SubContainer(featureRoots:)` when a child container
+/// needs multiple root helpers or an explicit helper alias.
+///
+/// ```swift
+/// @SubContainer(
+///     scope: .shared,
+///     featureRoots: [
+///         FeatureRoot(DashboardRootView.self),
+///         FeatureRoot(DashboardShellView.self, as: "dashboardShell")
+///     ]
+/// )
+/// var dashboard: DashboardContainer
+/// ```
+///
+/// The generated helpers instantiate each root view through
+/// `RootView(container: <subContainer>)`.
+public struct FeatureRoot {
+    public let rootView: Any.Type
+    public let alias: String?
+
+    public init(_ rootView: Any.Type, as alias: String? = nil) {
+        self.rootView = rootView
+        self.alias = alias
+    }
+}
+
 /// Declares that a property owns a child `@DIContainer` whose `.input` members
 /// are wired from the parent container's members.
 ///
@@ -274,6 +303,12 @@ public enum SubContainerScope {
 /// - `bindings`: Optional explicit remapping tuples used when child `.input`
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
+/// - `featureRoot`: Optional SwiftUI root view type. When provided, the
+///   parent container receives `<propertyName>RootView()`, which calls
+///   `RootView(container: <propertyName>)`.
+/// - `featureRoots`: Optional list of SwiftUI root view declarations. Use
+///   `FeatureRoot(View.self)` for the default helper or
+///   `FeatureRoot(View.self, as: "alias")` for `aliasRootView()`.
 ///
 /// `with` and `bindings` are mutually exclusive wiring forms: choose `with`
 /// for same-name subset/reorder shorthand, or use `bindings` for rename-aware
@@ -320,7 +355,9 @@ public enum SubContainerScope {
 public macro SubContainer(
     scope: SubContainerScope,
     with dependencies: [AnyKeyPath] = [],
-    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = []
+    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = [],
+    featureRoot: Any.Type? = nil,
+    featureRoots: [FeatureRoot] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")
 
 /// Marker protocol synthesized by `@DIComponent`.

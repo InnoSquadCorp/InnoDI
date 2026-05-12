@@ -66,6 +66,20 @@ struct InvalidSubContainerBindingReference {
     let anchorExpression: ExprSyntax
 }
 
+struct FeatureRootMemberModel {
+    let rootViewTypeName: String
+    let alias: String?
+    let propertyName: String
+    let anchorSyntax: Syntax
+
+    var helperName: String {
+        if let alias, !alias.isEmpty {
+            return "\(alias)RootView"
+        }
+        return "\(propertyName)RootView"
+    }
+}
+
 /// A member inside a `@DIContainer` annotated with `@SubContainer`. Parallel
 /// to `ProvideMemberModel` but carries sub-container-specific metadata: a
 /// scope that must be explicit (no default), and the ordered parent names the
@@ -107,6 +121,9 @@ struct SubContainerMemberModel {
     /// point at the exact unknown parent member rather than the whole
     /// attribute.
     let parentDependencyReferences: [WithDependencyReference]
+    /// SwiftUI feature root helpers requested through
+    /// `@SubContainer(featureRoot:)` / `featureRoots:`.
+    let featureRoots: [FeatureRootMemberModel]
     let attribute: AttributeSyntax
     let bindingSyntax: PatternBindingSyntax
 

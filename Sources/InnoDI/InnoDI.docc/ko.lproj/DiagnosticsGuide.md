@@ -154,11 +154,14 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `swiftui.feature-root-without-subcontainer` — `@DIFeatureRoot`는
   `@SubContainer` 프로퍼티에 함께 붙어야 합니다.
 - `swiftui.feature-root-duplicate-default` — 같은 컨테이너에
-  `@DIFeatureRoot` default가 두 개 있습니다.
+  `@DIFeatureRoot` 또는 `@SubContainer` feature-root default가 두 개
+  있습니다.
 - `swiftui.feature-root-helper-name-conflict` — 생성된 헬퍼 이름이
   기존 멤버와 충돌합니다.
 - `swiftui.feature-root-invalid-alias` — feature-root alias 인자가
   유효한 Swift identifier로 파싱되지 않습니다.
+- `swiftui.feature-root-invalid-root` — `featureRoot:` 또는 `featureRoots:`
+  항목이 `RootView.self` 같은 root view 타입 표현식을 사용하지 않았습니다.
 - `swiftui.environment-bridge-unknown-member` — `@DIEnvironmentBridge`
   key path가 컨테이너 멤버로 해소되지 않습니다.
 - `swiftui.environment-bridge-duplicate-member` — 같은 key path가

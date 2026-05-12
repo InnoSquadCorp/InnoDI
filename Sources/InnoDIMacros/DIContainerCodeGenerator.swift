@@ -65,6 +65,18 @@ struct DIContainerCodeGenerator {
             )
         )
 
+        let featureRootHelpers = makeFeatureRootHelperDecls(
+            subContainerMembers: model.subContainerMembers,
+            accessLevel: model.accessLevel
+        )
+        for (index, helper) in featureRootHelpers.enumerated() {
+            if index == 0 {
+                decls.append(helper.prependingMARK("// MARK: - SwiftUI Feature Roots"))
+            } else {
+                decls.append(helper)
+            }
+        }
+
         decls.append(
             makeOverridesStructDecl(model: model)
                 .prependingMARK("// MARK: - Overrides Builder")
