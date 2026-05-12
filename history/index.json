@@ -51,6 +51,19 @@
       "min_ms": 41.138,
       "max_ms": 53.877,
       "stdev_ms": 2.42
+    },
+    {
+      "path": "history/macro-performance/2026-05-12-46010554087a.json",
+      "commit": "46010554087a9856c7c37770b743111f993c8887",
+      "commit_at": "2026-05-12T20:22:51+09:00",
+      "swift_version": "Apple Swift version 6.2.4 (swiftlang-6.2.4.1.4 clang-1700.6.4.2)",
+      "mode": "in-process",
+      "filter": "MacroPerformanceBenchmark",
+      "iterations": 30,
+      "mean_ms": 74.367,
+      "min_ms": 60.771,
+      "max_ms": 101.491,
+      "stdev_ms": 9.234
     }
   ]
 }
