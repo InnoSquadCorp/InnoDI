@@ -242,9 +242,10 @@ struct DIContainerParser {
                 continue
             }
             guard let scope = parseResult.scope else {
-                if let name = parseResult.scopeName {
-                    context.diagnose(Diagnostic(node: Syntax(attribute), message: SimpleDiagnostic.provideUnknownScope(name)))
-                }
+                // `ProvideMacro` owns the terminal unknown-scope diagnostic so
+                // standalone uses and container members share one path without
+                // duplicate errors. The container parser still fails closed
+                // and omits the invalid member from generated scaffolding.
                 hadErrors = true
                 continue
             }

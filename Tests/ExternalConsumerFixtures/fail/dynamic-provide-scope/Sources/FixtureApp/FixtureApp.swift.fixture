@@ -1,0 +1,19 @@
+import InnoDI
+
+private struct Service: Sendable {}
+
+private enum ScopeChooser {
+    static var shared: DIScope { .shared }
+}
+
+@DIContainer
+private struct AppContainer {
+    @Provide(ScopeChooser.shared, factory: Service(), concrete: true)
+    var service: Service
+}
+
+@main
+private struct FixtureApp {
+    static func main() {
+    }
+}

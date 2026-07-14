@@ -273,11 +273,24 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return [getter]
 
         case .none:
-            // Site #5. The validator emits `provide.unknown-scope` when
-            // it parses this attribute. Returning `[]` removes the
-            // synthesized accessor; the user-visible compile error
-            // points at the InnoDI diagnostic, never at a runtime trap.
-            return []
+            // Site #5. This accessor expansion owns the terminal diagnostic
+            // so standalone uses and members inside `@DIContainer` behave the
+            // same without duplicate errors. Accessor macros must still emit
+            // a getter, or Swift adds a secondary structural macro error. The
+            // primary diagnostic makes this recovery body unreachable.
+            if let name = parseResult.scopeName {
+                context.diagnose(
+                    Diagnostic(
+                        node: parseResult.scopeExpr.map(Syntax.init) ?? Syntax(attribute),
+                        message: SimpleDiagnostic.provideUnknownScope(name)
+                    )
+                )
+            }
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid @Provide scope"
+                )
+            ]
         }
     }
 }

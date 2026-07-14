@@ -16,8 +16,10 @@ This document is **internal**. Public-facing diagnostic IDs remain in
 ## Current policy
 
 Macro expansion paths that reject malformed user input must emit diagnostics
-and return an empty expansion. They must not synthesize a runtime
-`fatalError(...)` accessor into user code.
+and must not synthesize a runtime `fatalError(...)` accessor into user code.
+Accessor macros may emit an unreachable non-observing recovery getter when an
+empty accessor expansion would make Swift add a secondary structural error;
+the primary InnoDI diagnostic must still make the declaration unbuildable.
 
 Two runtime invariant sites remain allow-listed:
 
@@ -42,7 +44,7 @@ The 4.1.0 macro hardening pass migrated the previously synthesized
 | Async transient factory with wildcard parameter | `@Provide(.transient, asyncFactory: { (_: T) in ... })`. | Emits `transient-factory.unnamed-parameters` and returns `[]`. |
 | Sync transient factory with wildcard parameter | `@Provide(.transient, factory: { (_: T) in ... })`. | Emits `transient-factory.unnamed-parameters` and returns `[]`. |
 | Transient missing construction source | `.transient` without a factory, type expression, or inline initializer. | Emits `provide.transient-factory-required` and returns `[]`. |
-| Unknown scope | Malformed `@Provide(...)` scope that cannot resolve to a supported `DIScope`. | Emits `provide.unknown-scope` and returns `[]`. |
+| Unknown scope | Malformed `@Provide(...)` scope that cannot resolve to a supported `DIScope`. | Emits `provide.unknown-scope` and an unreachable recovery getter so Swift does not add a secondary accessor-macro error. |
 | Internal codegen invariant | Contributor bug path in expression lowering. | Emits `internal.codegen-invariant` and returns `[]`; no runtime trap is synthesized. |
 
 `Sources/InnoDIMacros/SyntaxBuilders.swift` no longer exposes

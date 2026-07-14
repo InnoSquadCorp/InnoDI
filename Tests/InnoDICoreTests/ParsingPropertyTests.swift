@@ -28,6 +28,7 @@ struct ParsingPropertyTests {
 
         #expect(parsed.scope == .shared)
         #expect(parsed.scopeName == "shared")
+        #expect(parsed.scopeExpr == nil)
     }
 
     @Test("parseProvideArguments keeps semantic result across shuffled arguments", arguments: Array(0..<200))
@@ -100,6 +101,7 @@ struct ParsingPropertyTests {
             let parsed = parseProvideArguments(attr)
             #expect(parsed.scope == scope)
             #expect(parsed.scopeName == scope.rawValue)
+            #expect(parsed.scopeExpr?.trimmedDescription == ".\(scope.rawValue)")
         }
     }
 }

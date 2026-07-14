@@ -55,12 +55,11 @@ extension DIContainerDeclarationSupport {
     }
 }
 
-/// Accessor macros must always emit a non-observing accessor. When the owning
-/// container has already failed the 5.0 declaration-shape check, this recovery
-/// getter keeps the compiler from adding a second structural macro error. The
-/// primary `@DIContainer` diagnostic makes the expansion unbuildable, so the
-/// body cannot reach runtime.
-func unsupportedDIContainerRecoveryAccessor() -> AccessorDeclSyntax {
+/// Accessor macros must always emit a non-observing accessor. When InnoDI has
+/// already rejected the declaration, this recovery getter keeps the compiler
+/// from adding a second structural macro error. The primary diagnostic makes
+/// the expansion unbuildable, so the body cannot reach runtime.
+func failedDIValidationRecoveryAccessor(message: String) -> AccessorDeclSyntax {
     let failure = FunctionCallExprSyntax(
         calledExpression: MemberAccessExprSyntax(
             base: DeclReferenceExprSyntax(baseName: .identifier("Swift")),
@@ -74,7 +73,7 @@ func unsupportedDIContainerRecoveryAccessor() -> AccessorDeclSyntax {
             LabeledExprSyntax(
                 expression: ExprSyntax(
                     StringLiteralExprSyntax(
-                        content: "Unsupported @DIContainer declaration"
+                        content: message
                     )
                 )
             )
@@ -88,6 +87,12 @@ func unsupportedDIContainerRecoveryAccessor() -> AccessorDeclSyntax {
                 CodeBlockItemSyntax(item: .expr(ExprSyntax(failure)))
             ])
         )
+    )
+}
+
+func unsupportedDIContainerRecoveryAccessor() -> AccessorDeclSyntax {
+    failedDIValidationRecoveryAccessor(
+        message: "Unsupported @DIContainer declaration"
     )
 }
 
