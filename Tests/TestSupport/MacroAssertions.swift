@@ -62,6 +62,11 @@ public func assertMacroExpansionInline(
 ///
 /// Snapshot path: `<test file dir>/__Snapshots__/<test file base>/<snapshot>.swift`
 ///
+/// `SwiftSyntaxMacroExpansion` performs one source-expansion pass. An attached
+/// macro emitted by a member-attribute role remains visible in the snapshot and
+/// its own peer/accessor roles are not recursively rendered. Test those hidden
+/// compiler-support roles directly and with an external compiler fixture.
+///
 /// When `INNODI_RECORD_SNAPSHOTS=1` is set, or no snapshot file exists yet, the
 /// helper writes the current expansion to disk and reports an Issue so the run
 /// does not silently pass on first record.

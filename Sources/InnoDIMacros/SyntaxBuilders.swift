@@ -77,7 +77,7 @@ internal func storagePeerDecl(
     return DeclSyntax(decl)
 }
 
-/// Provider-owned storage is default-initialized so a terminal macro
+/// Container-owned provider storage is default-initialized so a terminal macro
 /// diagnostic cannot create a second Swift definite-initialization or private
 /// memberwise-init error. Valid generated container initializers always replace
 /// `nil` before any public accessor can run.

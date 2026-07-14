@@ -3,8 +3,6 @@ struct AppContainer {
     @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var service: Service
 
-    private var _override_service: Service? = nil
-
     // MARK: - Initialization
     @MainActor init(service: Service? = nil) {
         self._override_service = service

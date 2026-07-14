@@ -222,11 +222,11 @@ release.
 | `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
 | `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
 | Declaration kinds | Use file-scope or nominally nested non-generic structs for 5.0 containers/components; unsupported kinds and local scopes receive dedicated diagnostics. |
-| `@Provide` declaration | Keep exactly one `@Provide` on a direct, plain, stored instance `var` in its supported `@DIContainer`. Remove duplicate provider attributes, `let`, computed/observed accessors, storage modifiers, property wrappers, conditional/unknown attributes, setter access controls, all source-written property-level actor attributes (including `@MainActor`), standalone, and indirectly nested uses. Request isolation with `@DIContainer(mainActor: true)` and never attach `_InnoDIProvideAccessor` manually. |
+| `@Provide` declaration | Keep exactly one `@Provide` on a uniquely named, unescaped, direct, plain, stored instance `var` in its supported `@DIContainer`. Remove duplicate provider attributes or property names, backtick-escaped names, `let`, computed/observed accessors, storage modifiers, property wrappers, conditional/unknown attributes, setter access controls, all source-written property-level actor attributes (including `@MainActor`), standalone, and indirectly nested uses. Request isolation with `@DIContainer(mainActor: true)` and never attach `_InnoDIProvideAccessor` manually. |
 | Provider type | Replace opaque `some Protocol` with existential `any Protocol`. Replace implicitly unwrapped `T!` with explicit `T` or `T?`. |
 | Function-valued `.input` | Generated initializer parameters remain eager `T` values, so `try` / `await` argument evaluation is unchanged. Direct non-optional function types are detected automatically. Add literal `escaping: true` when a non-optional function type is hidden behind a typealias; the option is invalid outside `.input`. |
 | Construction source | A `.shared`/`.transient` member must have exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer. An `.input` member must have none and cannot use `with:`. |
-| Sibling wiring | Use named parameters on the root `factory:`/`asyncFactory:` closure literal, or `Type.self` with a literal array containing only canonical direct-member key paths such as `[\Self.config]` (or `[]`). Named/module/typealias roots, nested components, optional chaining, subscripts, and computed elements are rejected. `with:` supports synchronous providers only. Non-closure factories and property initializers are zero-edge sources and cannot read sibling members. |
+| Sibling wiring | Use uniquely named, unescaped parameters on the root `factory:`/`asyncFactory:` closure literal, or `Type.self` with a literal array containing only canonical direct-member key paths such as `[\Self.config]` (or `[]`). Duplicate effective names across ordinary, `Lazy<T>`, and `Provider<T>` parameters and all backtick-escaped dependency parameter names are rejected. Named/module/typealias roots, nested components, optional chaining, subscripts, and computed elements are rejected. `with:` supports synchronous providers only. Non-closure factories and property initializers are zero-edge sources and cannot read sibling members. |
 | Factory effects | Declare async and throwing effects explicitly. Effect compatibility remains enforced with `validateDAG: false`; `Type.self`/`with:` remains synchronous-only. |
 | MainActor | Put dependency conformers, construction, and use of non-`Sendable` generated values for `mainActor: true` components on `@MainActor`. From off actor, construct and consume them inside `MainActor.run`; use direct `await` only when the isolated operation returns a `Sendable` result. Override-application closures for convenience initializers, `withOverrides`, child overrides, and component mounting are now `@MainActor`. |
 | Non-main-actor async `withOverrides` | Generated `async` / `async throws` methods and operation closure types are `nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary non-`Sendable` containers and closures stay within the caller's isolation. Sync overloads are unchanged. |
@@ -284,7 +284,10 @@ var service: Service
 
 Do not attach `_InnoDIProvideAccessor` yourself. It is internal accessor
 support synthesized by the container macro for valid provider members.
-Keep only one `@Provide` attribute per property. A deliberately forged
+Keep only one `@Provide` attribute per property, and give every direct provider
+property and root factory dependency parameter a unique, unescaped effective
+name. `@SubContainer` property names must also be unescaped. A
+deliberately forged
 combination of the compiler-support accessor with another property wrapper can
 also receive Swift structural diagnostics in addition to the stable InnoDI
 misuse diagnostic.

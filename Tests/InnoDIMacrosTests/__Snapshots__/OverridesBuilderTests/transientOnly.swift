@@ -3,8 +3,6 @@ struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var viewModel: ViewModel
 
-    private var _override_viewModel: ViewModel? = nil
-
     // MARK: - Initialization
     init(viewModel: ViewModel? = nil) {
         self._override_viewModel = viewModel

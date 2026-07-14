@@ -20,6 +20,21 @@ func findInnoDIAttributes(
     }
 }
 
+/// InnoDI-managed identifiers become part of generated Swift symbol names and
+/// graph lookup keys. Backtick spellings are valid Swift source, but preserving
+/// the raw token would embed the backticks in synthesized names while stripping
+/// them selectively would make expansion semantics depend on normalization.
+/// InnoDI 5.0 therefore rejects these spellings at the declaration boundary.
+func isEscapedInnoDIIdentifier(_ token: TokenSyntax) -> Bool {
+    let text = token.text
+    return text.count >= 2 && text.first == "`" && text.last == "`"
+}
+
+func unescapedInnoDIIdentifierName(_ token: TokenSyntax) -> String {
+    guard isEscapedInnoDIIdentifier(token) else { return token.text }
+    return String(token.text.dropFirst().dropLast())
+}
+
 extension DIContainerDeclarationSupport {
     func diagnose(
         at attribute: AttributeSyntax,
@@ -251,7 +266,8 @@ func isLocallyValidProvideConfiguration(
           !arguments.dependenciesParseState.isInvalid,
           declaration.bindings.count == 1,
           let binding = declaration.bindings.first,
-          binding.pattern.is(IdentifierPatternSyntax.self),
+          let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+          !isEscapedInnoDIIdentifier(identifier.identifier),
           let type = binding.typeAnnotation?.type,
           !isOpaqueSomeType(type),
           !isImplicitlyUnwrappedOptionalType(type) else {
@@ -301,8 +317,13 @@ func isLocallyValidProvideConfiguration(
 
     let closure = arguments.factoryExpr?.as(ClosureExprSyntax.self)
         ?? arguments.asyncFactoryExpr?.as(ClosureExprSyntax.self)
-    if let closure, parseClosureParameterNames(closure).hasWildcard {
-        return false
+    if let closure {
+        let parameters = parseClosureParameterNames(closure)
+        if parameters.hasWildcard
+            || parameters.hasDuplicateNames
+            || parameters.hasEscapedNames {
+            return false
+        }
     }
 
     if scope != .input,
@@ -498,6 +519,82 @@ func isDirectMemberOfSupportedDIContainer(
         return true
     }
     return false
+}
+
+/// Uses the same direct-provider eligibility boundary as `DIContainerParser`
+/// before deciding that two declarations compete for one generated identity.
+/// The container member-attribute role calls this before attaching the hidden
+/// storage/accessor owner, so its single recovery bit suppresses both roles.
+func hasDuplicateProvideMemberName(
+    _ member: VariableDeclSyntax,
+    in declaration: some DeclGroupSyntax,
+    options: DIContainerAttributeInfo
+) -> Bool {
+    guard isEligibleProvideMemberForDuplicateIdentity(
+        member,
+        options: options
+    ), let memberName = member.bindings.first?
+        .pattern.as(IdentifierPatternSyntax.self)?.identifier.text else {
+        return false
+    }
+
+    var matchingCount = 0
+    for sibling in declaration.memberBlock.members {
+        guard let variable = sibling.decl.as(VariableDeclSyntax.self),
+              isEligibleProvideMemberForDuplicateIdentity(
+                  variable,
+                  options: options
+              ),
+              variable.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                == memberName else {
+            continue
+        }
+        matchingCount += 1
+        if matchingCount > 1 {
+            return true
+        }
+    }
+    return false
+}
+
+private func isEligibleProvideMemberForDuplicateIdentity(
+    _ variable: VariableDeclSyntax,
+    options: DIContainerAttributeInfo
+) -> Bool {
+    guard let identifier = variable.bindings.first?
+        .pattern.as(IdentifierPatternSyntax.self),
+        !isEscapedInnoDIIdentifier(identifier.identifier) else {
+        return false
+    }
+
+    return findInnoDIAttributes(
+        named: "Provide",
+        in: variable.attributes
+    ).count == 1
+        && !variable.modifiers.contains(where: {
+            $0.name.text == "static" || $0.name.text == "class"
+        })
+        && (
+            !options.mainActor
+                || (
+                    detectConflictingGlobalActor(in: variable.attributes) == nil
+                        && !variable.modifiers.contains(where: {
+                            $0.name.text == "nonisolated"
+                        })
+                )
+        )
+        && findInnoDIAttribute(
+            named: "SubContainer",
+            in: variable.attributes
+        ) == nil
+        && findInnoDIAttribute(
+            named: "_InnoDIProvideAccessor",
+            in: variable.attributes
+        ) == nil
+        && isSupportedProvideStoredProperty(variable)
+        && variable.bindings.first?.typeAnnotation != nil
+        && variable.bindings.first?.pattern.is(IdentifierPatternSyntax.self) == true
 }
 
 private func directEnclosingDeclGroup(

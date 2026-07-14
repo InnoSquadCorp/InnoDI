@@ -47,6 +47,12 @@ extension DIFeatureRootMacro: PeerMacro {
             return []
         }
 
+        // The stacked @SubContainer accessor owns the escaped-identifier
+        // diagnostic. Do not synthesize a helper whose name embeds backticks.
+        guard !isEscapedInnoDIIdentifier(identifier.identifier) else {
+            return []
+        }
+
         let propertyName = identifier.identifier.text
         if let invalidAlias = info.invalidAliasText {
             context.diagnose(

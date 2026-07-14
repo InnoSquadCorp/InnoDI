@@ -314,7 +314,14 @@ complete `@Provide` member declaration inside `#if` is also rejected with
 `provide.conditional-declaration-unsupported`; keep the declaration
 unconditional and branch inside its factory or injected implementation.
 Attach exactly one `@Provide` per property. Duplicate attributes are rejected
-with `provide.duplicate-attribute`. The explicit property type must not be an
+with `provide.duplicate-attribute`. Direct provider properties and root factory
+closure dependency parameters must each have unique effective names; duplicate
+identities are rejected before generated lookup or storage code is emitted.
+Both declaration kinds must use unescaped identifiers; backtick-escaped
+property and factory-parameter names are rejected in 5.0. `@SubContainer`
+property names must also be unescaped because generated child storage,
+overrides, and root-helper identities derive from them.
+The explicit property type must not be an
 opaque `some Protocol` or an implicitly unwrapped optional `T!`; expose an
 existential `any Protocol`, or use explicit `T` / `T?`, respectively. A
 deliberately forged combination of the compiler-support accessor with another

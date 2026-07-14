@@ -34,11 +34,7 @@ struct HierarchyMacroTests {
             expandedSource: """
                 public struct FeatureContainer {
                     @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: FeatureConfig
-                
-                    private var _storage_config: FeatureConfig? = nil
                     @InnoDI._InnoDIProvideAccessor(recovery: false) public var service: any FeatureServiceProtocol
-
-                    private var _storage_service: (any FeatureServiceProtocol)? = nil
 
                     // MARK: - Initialization
                     public init(

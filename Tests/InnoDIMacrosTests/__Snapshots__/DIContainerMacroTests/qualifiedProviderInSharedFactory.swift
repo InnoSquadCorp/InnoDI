@@ -2,16 +2,10 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var config: Config
-
-    private var _storage_config: Config? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var request: Request
-
-    private var _override_request: Request? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var logger: RequestLogger
-
-    private var _storage_logger: RequestLogger? = nil
 
     // MARK: - Initialization
     init(config: Config, logger: RequestLogger? = nil, request: Request? = nil) {

@@ -22,9 +22,11 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideSingleBinding = "provide.single-binding"
     case provideNamedPropertyRequired = "provide.named-property-required"
     case provideExplicitTypeRequired = "provide.explicit-type-required"
+    case provideEscapedIdentifierUnsupported = "provide.escaped-identifier-unsupported"
     case subSingleBinding = "sub.single-binding"
     case subNamedPropertyRequired = "sub.named-property-required"
     case subExplicitTypeRequired = "sub.explicit-type-required"
+    case subEscapedIdentifierUnsupported = "sub.escaped-identifier-unsupported"
     case provideUnknownScope = "provide.unknown-scope"
     case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
     case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
@@ -55,6 +57,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideAsyncDependencyRequiresAsyncConsumer = "provide.async-dependency-requires-async-consumer"
     case provideThrowingDependencyRequiresThrowingConsumer = "provide.throwing-dependency-requires-throwing-consumer"
     case provideWithDependencyRequiresSynchronousProvider = "provide.with-dependency-requires-synchronous-provider"
+    case provideDuplicateFactoryParameter = "provide.duplicate-factory-parameter"
     case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
     case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
     case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
@@ -67,6 +70,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
+    case containerDuplicateMemberName = "container.duplicate-member-name"
     case containerUnsupportedDeclarationKind = "container.unsupported-declaration-kind"
     case containerGenericUnsupported = "container.generic-unsupported"
     case containerUnverifiableEnclosingContext = "container.unverifiable-enclosing-context"
@@ -111,7 +115,9 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     var category: InnoDIDiagnosticCategory {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
+                .provideEscapedIdentifierUnsupported,
                 .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
+                .subEscapedIdentifierUnsupported,
                 .provideUnknownScope, .provideRequiresDirectContainerMember,
                 .provideConditionalDeclarationUnsupported,
                 .provideDuplicateAttribute,
@@ -135,12 +141,14 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideAsyncDependencyRequiresAsyncConsumer,
                 .provideThrowingDependencyRequiresThrowingConsumer,
                 .provideWithDependencyRequiresSynchronousProvider,
+                .provideDuplicateFactoryParameter,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerMainActorNonisolatedMember,
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
-                .containerReservedNamePrefix, .graphDependencyCycle,
+                .containerReservedNamePrefix, .containerDuplicateMemberName,
+                .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith,
@@ -233,6 +241,30 @@ extension SimpleDiagnostic {
 
     static func subExplicitTypeRequired() -> Self {
         Self("@SubContainer requires an explicit type.", code: .subExplicitTypeRequired)
+    }
+
+    static func provideEscapedPropertyIdentifier(memberName: String) -> Self {
+        Self(
+            "@Provide property '\(memberName)' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so generated storage and graph identities remain canonical.",
+            code: .provideEscapedIdentifierUnsupported
+        )
+    }
+
+    static func provideEscapedFactoryParameter(
+        memberName: String,
+        parameterName: String
+    ) -> Self {
+        Self(
+            "Factory for @Provide member '\(memberName)' cannot use backtick-escaped parameter '\(parameterName)'. Rename the parameter to an unescaped Swift identifier so dependency lookup remains canonical.",
+            code: .provideEscapedIdentifierUnsupported
+        )
+    }
+
+    static func subEscapedPropertyIdentifier(memberName: String) -> Self {
+        Self(
+            "@SubContainer property '\(memberName)' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so generated child storage and override identities remain canonical.",
+            code: .subEscapedIdentifierUnsupported
+        )
     }
 
     static func provideUnknownScope(_ name: String) -> Self {
@@ -780,6 +812,23 @@ extension SimpleDiagnostic {
         Self(
             "Container member '\(memberName)' uses the reserved prefix '\(reservedPrefix)'. InnoDI synthesizes private storage with this prefix and a user-declared member would collide with the generated symbols. Rename '\(memberName)' so it does not start with '\(reservedPrefix)'.",
             code: .containerReservedNamePrefix
+        )
+    }
+
+    static func containerDuplicateMemberName(memberName: String) -> Self {
+        Self(
+            "@DIContainer declares more than one @Provide member named '\(memberName)'. Give every provider property a unique name so storage, overrides, and graph identities remain unambiguous.",
+            code: .containerDuplicateMemberName
+        )
+    }
+
+    static func provideDuplicateFactoryParameter(
+        memberName: String,
+        parameterName: String
+    ) -> Self {
+        Self(
+            "Factory for @Provide member '\(memberName)' declares parameter '\(parameterName)' more than once. Give every factory parameter a unique dependency name.",
+            code: .provideDuplicateFactoryParameter
         )
     }
 

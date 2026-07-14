@@ -3,8 +3,6 @@ struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var apiClient: APIClientProtocol & LoggerProtocol
 
-    private var _storage_apiClient: (APIClientProtocol & LoggerProtocol)? = nil
-
     // MARK: - Initialization
     init(apiClient: (APIClientProtocol & LoggerProtocol)? = nil) {
         self._storage_apiClient = apiClient ?? APIClient()

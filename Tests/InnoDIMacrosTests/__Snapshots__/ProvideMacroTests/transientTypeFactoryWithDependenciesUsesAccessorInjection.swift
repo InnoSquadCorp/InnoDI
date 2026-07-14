@@ -2,12 +2,8 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var config: Config
-
-    private var _storage_config: Config? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var viewModel: ViewModel
-
-    private var _override_viewModel: ViewModel? = nil
 
     // MARK: - Initialization
     init(config: Config, viewModel: ViewModel? = nil) {

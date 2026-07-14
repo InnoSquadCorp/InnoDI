@@ -66,6 +66,7 @@ struct DIContainerParser {
         let accessLevel = containerAccessLevel(for: decl)
         var members: [ProvideMemberModel] = []
         var subContainerMembers: [SubContainerMemberModel] = []
+        var firstProvideIdentifierByName: [String: TokenSyntax] = [:]
         var hadErrors = false
 
         if diagnoseInvalidContainerBoolArguments(
@@ -187,6 +188,14 @@ struct DIContainerParser {
                     hadErrors = true
                     continue
                 }
+                if isEscapedInnoDIIdentifier(
+                    validatedBinding.identifier.identifier
+                ) {
+                    // The public @SubContainer accessor owns the single
+                    // diagnostic and recovery getter, including standalone use.
+                    hadErrors = true
+                    continue
+                }
                 let subArgs = InnoDICore.parseSubContainerArguments(subAttribute)
                 let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
                 let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
@@ -264,6 +273,40 @@ struct DIContainerParser {
                 continue
             }
 
+            if isEscapedInnoDIIdentifier(
+                validatedBinding.identifier.identifier
+            ) {
+                // The public @Provide peer owns the single diagnostic while
+                // the member-attribute recovery bit suppresses hidden storage.
+                hadErrors = true
+                continue
+            }
+
+            let memberName = validatedBinding.identifier.identifier.text
+            if let firstIdentifier = firstProvideIdentifierByName[memberName] {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(validatedBinding.identifier.identifier),
+                        message: SimpleDiagnostic.containerDuplicateMemberName(
+                            memberName: memberName
+                        ),
+                        notes: [
+                            Note(
+                                node: Syntax(firstIdentifier),
+                                message: SimpleNote(
+                                    "The first @Provide member named '\(memberName)' is declared here.",
+                                    code: .containerDuplicateMemberName,
+                                    suffix: "first-declaration"
+                                )
+                            )
+                        ]
+                    )
+                )
+                hadErrors = true
+                continue
+            }
+            firstProvideIdentifierByName[memberName] = validatedBinding.identifier.identifier
+
             let parseResult = InnoDICore.parseProvideArguments(attribute)
             let withDependencyReferences = extractWithDependencyReferences(
                 from: attribute,
@@ -293,7 +336,7 @@ struct DIContainerParser {
                     Diagnostic(
                         node: extractArgumentExpression(label: "with", from: attribute).map(Syntax.init) ?? Syntax(attribute),
                         message: SimpleDiagnostic.provideInvalidWithDependencies(
-                            memberName: validatedBinding.identifier.identifier.text,
+                            memberName: memberName,
                             expectedRoot: "Self"
                         )
                     )
@@ -325,7 +368,7 @@ struct DIContainerParser {
             let initializerExpr = validatedBinding.binding.initializer?.value
             members.append(
                 ProvideMemberModel(
-                    name: validatedBinding.identifier.identifier.text,
+                    name: memberName,
                     type: validatedBinding.typeAnnotation.type,
                     scope: scope,
                     factory: parseResult.factoryExpr,

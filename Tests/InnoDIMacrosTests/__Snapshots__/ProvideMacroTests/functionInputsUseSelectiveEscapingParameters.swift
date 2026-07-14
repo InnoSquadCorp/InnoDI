@@ -2,12 +2,8 @@ typealias Handler = @Sendable () -> Void
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var aliasedHandler: Handler
-
-    private var _storage_aliasedHandler: Handler? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var directHandler: @Sendable () -> Void
-
-    private var _storage_directHandler: (@Sendable () -> Void)? = nil
 
     // MARK: - Initialization
     init(aliasedHandler: @escaping Handler, directHandler: @escaping @Sendable () -> Void) {

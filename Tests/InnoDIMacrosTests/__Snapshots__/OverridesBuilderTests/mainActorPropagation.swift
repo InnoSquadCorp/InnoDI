@@ -2,12 +2,8 @@
 struct AppContainer {
     @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var userID: String
-
-    private var _storage_userID: String? = nil
     @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var apiClient: APIClient
-
-    private var _storage_apiClient: APIClient? = nil
 
     // MARK: - Initialization
     @MainActor init(userID: String, apiClient: APIClient? = nil) {

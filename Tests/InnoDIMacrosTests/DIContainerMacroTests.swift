@@ -239,8 +239,6 @@ struct DIContainerMacroTests {
                     @InnoDI._InnoDIProvideAccessor(recovery: false)
                     var apiClient: APIClient
 
-                    private var _storage_apiClient: APIClient? = nil
-
                     // MARK: - Initialization
                     package init(apiClient: APIClient? = nil) {
                         self._storage_apiClient = apiClient ?? APIClient()
@@ -3335,6 +3333,62 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Escaped SubContainer property identifiers suppress every generated peer")
+    func escapedSubContainerPropertyIdentifierFailsClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                var `default`: FeatureContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.escaped-identifier-unsupported"
+                )
+            ]
+        )
+        for prefix in [
+            "_storage_sub_",
+            "_override_sub_",
+            "_override_sub_apply_",
+            "_innoDISubBuild_",
+        ] {
+            #expect(!result.expansion.contains(prefix))
+        }
+        #expect(result.expansion.contains("preconditionFailure"))
+    }
+
+    @Test("Standalone escaped SubContainer identifiers keep recovery unreachable")
+    func standaloneEscapedSubContainerIdentifierDiagnoses() {
+        let result = expandMacroSource(
+            """
+            struct StandaloneParent {
+                @SubContainer(scope: .shared)
+                var `default`: FeatureContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.escaped-identifier-unsupported"
+                )
+            ]
+        )
+        #expect(!result.expansion.contains("_storage_sub_"))
+        #expect(result.expansion.contains("preconditionFailure"))
+    }
+
     @Test("@SubContainer without scope: emits sub.scope-required")
     func subContainerMissingScopeDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
@@ -3618,52 +3672,6 @@ struct DIContainerMacroTests {
             }
             .joined(separator: " ")
         #expect(combinedChanges.contains("\\.config"))
-        #expect(combinedChanges.contains("\\.logger"))
-    }
-
-    @Test("Ambiguous sub-container auto-wiring fix-it escapes keyword parent members")
-    func subContainerAmbiguousAutoWiringFixItEscapesKeywordMembers() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input) var `repeat`: String
-            @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
-
-            @SubContainer(scope: .shared)
-            var feature: FeatureContainer
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse keyword auto-wiring fixture")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        guard let diagnostic = context.diagnostics.first(where: {
-            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")
-        }) else {
-            Issue.record("Expected sub.auto-wiring-ambiguous diagnostic")
-            return
-        }
-
-        let combinedChanges = diagnostic.fixIts
-            .flatMap(\.changes)
-            .compactMap { change -> String? in
-                if case let .replace(_, newNode) = change {
-                    return newNode.description
-                }
-                if case let .replaceText(_, replacementText, _) = change {
-                    return replacementText
-                }
-                return nil
-            }
-            .joined(separator: " ")
-        #expect(combinedChanges.contains("\\.`repeat`"))
         #expect(combinedChanges.contains("\\.logger"))
     }
 

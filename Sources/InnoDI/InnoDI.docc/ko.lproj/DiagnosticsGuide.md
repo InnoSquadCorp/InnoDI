@@ -45,6 +45,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.duplicate-attribute` — 한 프로퍼티에 `@Provide`가 둘 이상
   붙었습니다. 정확히 하나만 남기세요. InnoDI는 모호한 선언에 peer storage와
   accessor를 생성하지 않습니다.
+- `provide.escaped-identifier-unsupported` — direct provider property 또는
+  root factory dependency parameter가 backtick으로 감싼 escaped identifier를
+  사용합니다. Unescaped identifier로 이름을 바꾸세요. InnoDI 5.0은 unescaped
+  spelling만 storage와 lookup identity로 사용하며 peer 생성 전에 실패합니다.
 - `provide.named-property-required` — 바인딩에 이름이 있어야 합니다.
 - `provide.explicit-type-required` — 바인딩에 타입 어노테이션이 있어야
   합니다.
@@ -114,6 +118,11 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   다른 property wrapper와 의도적으로 위조해 조합한 경우 Swift 자체의 structural
   diagnostic도 함께 발생할 수 있으며, 이 compiler 진단은 안정적인 InnoDI 코드와
   함께 나타나는 것이 예상된 동작입니다.
+- `provide.duplicate-factory-parameter` — root factory closure에 같은
+  effective parameter 이름이 둘 이상 있습니다. 일반 파라미터와 `Lazy<T>`,
+  `Provider<T>` 사이의 중복도 포함됩니다. 모든 dependency parameter에 고유한
+  이름을 부여하세요. InnoDI는 dependency lookup table이나 peer storage를 만들기
+  전에 해당 provider를 거부합니다.
 - `provide.unresolved-factory-parameter` — root factory 클로저의 이름 있는
   파라미터가 컨테이너 멤버나 `with:` key path와 매칭되지 않습니다.
 - `provide.unavailable-dependency-reference` — factory가 더 늦게
@@ -188,6 +197,11 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.bool-literal-required` — `root:`, `validateDAG:`,
   `mainActor:`가 literal `true` 또는 `false`가 아닙니다. build
   configuration별 attribute 분기는 conditional compilation을 쓰세요.
+- `container.duplicate-member-name` — 직접 선언된 instance `@Provide`
+  멤버 둘이 같은 property 이름을 사용합니다. 한 provider의 이름을 바꾸세요.
+  InnoDI는 뒤쪽 선언을 진단하고 첫 선언 위치를 note로 표시하며, 모호한 두
+  provider 모두의 peer storage를 억제하고 정상 accessor를 recovery getter로
+  대체합니다.
 - `container.reserved-name-prefix` — `@Provide` 또는 `@SubContainer`
   멤버 이름이 매크로가 generated storage용으로 예약한 prefix
   (예: `_storage_`, `_override_sub_`, `_innoDISubBuild_`,
@@ -200,6 +214,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   `sub.explicit-type-required` — `@Provide`와 같은 구조적 규칙.
 - `sub.scope-required` — `@SubContainer`는 명시적
   `scope: .shared` 또는 `.transient`가 필요합니다.
+- `sub.escaped-identifier-unsupported` — `@SubContainer` property가
+  backtick으로 감싼 escaped identifier를 사용합니다. Child storage, override,
+  SwiftUI helper identity가 canonical하도록 unescaped identifier로 바꾸세요.
 - `sub.unknown-scope` — `scope:` 값이 `.shared`나 `.transient`가
   아닙니다.
 - `sub.conflicts-with-provide` — 한 프로퍼티에 두 attribute를 동시에

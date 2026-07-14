@@ -2,12 +2,8 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var serviceA: ServiceA
-
-    private var _override_serviceA: ServiceA? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var serviceB: ServiceB
-
-    private var _override_serviceB: ServiceB? = nil
 
     // MARK: - Initialization
     init(serviceA: ServiceA? = nil, serviceB: ServiceB? = nil) {

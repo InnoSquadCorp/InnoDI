@@ -2,12 +2,8 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var service: Service
-
-    private var _storage_service: Service? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var laterService: LaterService
-
-    private var _storage_laterService: LaterService? = nil
 
     // MARK: - Initialization
     init(service: Service? = nil, laterService: LaterService? = nil) {

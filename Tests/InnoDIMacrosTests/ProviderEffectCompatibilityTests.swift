@@ -30,6 +30,18 @@ struct ProviderEffectCompatibilityTests {
         domain: "InnoDI.validation",
         id: "provide.with-dependency-requires-synchronous-provider"
     )
+    private static let duplicateFactoryParameter = MessageID(
+        domain: "InnoDI.validation",
+        id: "provide.duplicate-factory-parameter"
+    )
+    private static let duplicateMemberName = MessageID(
+        domain: "InnoDI.validation",
+        id: "container.duplicate-member-name"
+    )
+    private static let escapedIdentifierUnsupported = MessageID(
+        domain: "InnoDI.usage",
+        id: "provide.escaped-identifier-unsupported"
+    )
 
     @Test("A synchronous closure consumer rejects an async provider")
     func syncClosureConsumerRejectsAsyncProvider() {
@@ -595,6 +607,215 @@ struct ProviderEffectCompatibilityTests {
         )
         #expect(!result.expansion.contains("_storage_value"))
         #expect(!result.expansion.contains("_InnoDIProvideAccessor"))
+    }
+
+    @Test("Duplicate provider names diagnose once and suppress generated peers")
+    func duplicateProviderNamesFailClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var duplicatedValue: Int
+
+                @Provide(.input)
+                var duplicatedValue: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.map(\.diagnosticID) == [Self.duplicateMemberName])
+        #expect(!result.expansion.contains("_storage_duplicatedValue"))
+        #expect(
+            result.expansion.components(
+                separatedBy: "@InnoDI._InnoDIProvideAccessor(recovery: true)"
+            ).count - 1 == 2
+        )
+    }
+
+    @Test("MainActor duplicate provider names suppress generated peers")
+    func mainActorDuplicateProviderNamesFailClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.input)
+                var duplicatedMainActorValue: Int
+
+                @Provide(.input)
+                var duplicatedMainActorValue: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.map(\.diagnosticID) == [Self.duplicateMemberName])
+        #expect(!result.expansion.contains("_storage_duplicatedMainActorValue"))
+        #expect(
+            result.expansion.components(
+                separatedBy: "@InnoDI._InnoDIProvideAccessor(recovery: true)"
+            ).count - 1 == 2
+        )
+    }
+
+    @Test("A static provider with the same spelling does not suppress an instance peer")
+    func staticProviderDoesNotCreateFalseDuplicateRecovery() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                static var value: Int = 0
+
+                @Provide(.input)
+                var value: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "provide.requires-direct-container-member"
+                )
+            ]
+        )
+        #expect(
+            result.expansion.components(
+                separatedBy: "@InnoDI._InnoDIProvideAccessor(recovery: false)"
+            ).count - 1 == 1
+        )
+    }
+
+    @Test("An invalid static peer keeps its own diagnostic beside instance duplicates")
+    func staticProviderKeepsDiagnosticBesideInstanceDuplicates() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                static var duplicatedValue: Int = 0
+
+                @Provide(.input)
+                var duplicatedValue: Int
+
+                @Provide(.input)
+                var duplicatedValue: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            Set(result.diagnostics.map(\.diagnosticID)) == [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "provide.requires-direct-container-member"
+                ),
+                Self.duplicateMemberName,
+            ]
+        )
+        #expect(result.diagnostics.count == 2)
+        #expect(!result.expansion.contains("_storage_duplicatedValue"))
+        #expect(
+            result.expansion.components(
+                separatedBy: "@InnoDI._InnoDIProvideAccessor(recovery: true)"
+            ).count - 1 == 2
+        )
+    }
+
+    @Test("Duplicate factory parameter names fail closed for every dependency kind")
+    func duplicateFactoryParameterNamesFailClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: { (hardValue: Int, hardValue: Int) in 0 }, concrete: true)
+                var hardConsumer: Int
+
+                @Provide(.shared, factory: { (lazyValue: Lazy<Int>, lazyValue: Lazy<Int>) in 0 }, concrete: true)
+                var lazyConsumer: Int
+
+                @Provide(.shared, factory: { (providerValue: Provider<Int>, providerValue: Provider<Int>) in 0 }, concrete: true)
+                var providerConsumer: Int
+
+                @Provide(.shared, factory: { (mixedValue: Int, mixedValue: Lazy<Int>) in 0 }, concrete: true)
+                var mixedConsumer: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == Array(
+                repeating: Self.duplicateFactoryParameter,
+                count: 4
+            )
+        )
+        for memberName in [
+            "hardConsumer",
+            "lazyConsumer",
+            "providerConsumer",
+            "mixedConsumer",
+        ] {
+            #expect(!result.expansion.contains("_storage_\(memberName)"))
+        }
+        #expect(
+            result.expansion.components(
+                separatedBy: "@InnoDI._InnoDIProvideAccessor(recovery: true)"
+            ).count - 1 == 4
+        )
+    }
+
+    @Test("Escaped provider property identifiers fail closed")
+    func escapedProviderPropertyIdentifierFailsClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var `default`: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                Self.escapedIdentifierUnsupported
+            ]
+        )
+        #expect(!result.expansion.contains("_storage_"))
+        #expect(result.expansion.contains("@InnoDI._InnoDIProvideAccessor(recovery: true)"))
+    }
+
+    @Test("Escaped/plain factory parameter spellings fail closed before lookup")
+    func escapedFactoryParameterIdentifierFailsClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .shared,
+                    factory: { (dependency: Int, `dependency`: Int) in 0 },
+                    concrete: true
+                )
+                var consumer: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                Self.escapedIdentifierUnsupported
+            ]
+        )
+        #expect(!result.expansion.contains("_storage_consumer"))
+        #expect(result.expansion.contains("@InnoDI._InnoDIProvideAccessor(recovery: true)"))
     }
 
     @Test("Duplicate Provide attributes fail closed outside containers")

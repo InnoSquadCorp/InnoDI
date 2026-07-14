@@ -76,7 +76,10 @@ public macro DIContainer(
 /// also unsupported; keep it unconditional and branch inside the factory or
 /// injected implementation.
 /// Attach exactly one `@Provide` to each property; duplicate provider
-/// attributes are rejected. The explicit property type must not be opaque
+/// attributes are rejected. Provider properties and root factory dependency
+/// parameters must use unescaped identifiers and unique effective names;
+/// backtick-escaped spellings are rejected before generated storage or lookup
+/// tables are emitted. The explicit property type must not be opaque
 /// (`some Protocol`) or implicitly unwrapped (`T!`). Use an existential
 /// `any Protocol`, or explicit `T` / `T?`, respectively. A deliberately forged
 /// property-wrapper combination involving the compiler-support accessor can
@@ -142,10 +145,11 @@ public macro Provide(
     escaping: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 
-/// Internal accessor owner synthesized for direct provider members by
-/// `@DIContainer`. Application code must not attach this macro manually.
+/// Internal accessor and storage owner synthesized for direct provider members
+/// by `@DIContainer`. Application code must not attach this macro manually.
 @_documentation(visibility: internal)
 @attached(accessor)
+@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
 public macro _InnoDIProvideAccessor(
     recovery: Bool
 ) = #externalMacro(module: "InnoDIMacros", type: "InnoDIProvideAccessorMacro")
@@ -423,6 +427,9 @@ public struct FeatureRoot {
 /// When `bindings:` is provided, each tuple rewrites the child label explicitly
 /// while reading from the selected parent member. Child-input verification is
 /// handled conservatively by the build-support validator across the module.
+/// The property name must be an unescaped Swift identifier. Backtick-escaped
+/// names are rejected because child storage, override slots, and SwiftUI helper
+/// identities are derived from that spelling.
 ///
 /// ### Overrides
 /// `@DIContainer` extends its nested `Overrides` struct with two optional
