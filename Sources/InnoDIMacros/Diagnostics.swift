@@ -49,6 +49,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerUnknownDependency = "container.unknown-dependency"
     case containerDependencyCycle = "container.dependency-cycle"
     case containerMainActorConflict = "container.mainactor-conflict"
+    case containerMainActorNonisolatedMember = "container.mainactor-nonisolated-member"
     case containerBoolLiteralRequired = "container.bool-literal-required"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
@@ -110,6 +111,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideProviderNonTransientTarget, .provideProviderUnsupportedTarget, .provideProviderEagerCall,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
+                .containerMainActorNonisolatedMember,
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerReservedNamePrefix, .graphDependencyCycle,
@@ -513,6 +515,13 @@ extension SimpleDiagnostic {
         Self(
             "mainActor: true conflicts with existing global actor '@\(actorName)'.",
             code: .containerMainActorConflict
+        )
+    }
+
+    static func containerMainActorNonisolatedMember(memberName: String) -> Self {
+        Self(
+            "mainActor: true requires dependency member '\(memberName)' to be main actor-isolated, but it is declared 'nonisolated'.",
+            code: .containerMainActorNonisolatedMember
         )
     }
 

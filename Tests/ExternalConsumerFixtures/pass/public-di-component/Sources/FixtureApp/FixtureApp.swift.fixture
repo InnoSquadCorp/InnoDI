@@ -9,14 +9,141 @@ private struct NestedDependencies:
     let config = FeatureConfig()
 }
 
+private enum ProbeError: Error {
+    case failed
+}
+
+private func asyncThrowingProbe() async throws {
+    await Task.yield()
+    if Bool.random() {
+        throw ProbeError.failed
+    }
+}
+
+@MainActor
+private final class MainActorDependencies: MainActorFeatureContainerDependencies {
+    var config = FeatureConfig()
+}
+
+@MainActor
+private final class NestedMainActorDependencies:
+    MainActorFeatureNamespace.Detail.NestedFeatureContainerDependencies {
+    var config = FeatureConfig()
+}
+
+private func exerciseMainActorAPIsFromOffActor() async {
+    await MainActor.run {
+        let dependencies = MainActorDependencies()
+
+        _ = MainActorFeatureContainer(
+            dependencies: dependencies
+        ) {
+            $0.service = FeatureService()
+        }
+
+        _ = mountMainActorComponent(
+            MainActorFeatureContainer.self,
+            dependencies: dependencies
+        ) {
+            $0.service = FeatureService()
+        }
+    }
+
+    let _: FeatureConfig = await MainActorFeatureContainer.withOverrides(
+        config: FeatureConfig(),
+        { $0.service = FeatureService() },
+        operation: { $0.config }
+    )
+    let _: FeatureConfig? = try? await MainActorFeatureContainer.withOverrides(
+        config: FeatureConfig(),
+        { $0.service = FeatureService() },
+        operation: { container throws -> FeatureConfig in
+            if Bool.random() {
+                throw ProbeError.failed
+            }
+            return container.config
+        }
+    )
+    let _: FeatureConfig = await MainActorFeatureContainer.withOverrides(
+        config: FeatureConfig(),
+        { $0.service = FeatureService() },
+        operation: { container async -> FeatureConfig in
+            await Task.yield()
+            return container.config
+        }
+    )
+    let _: FeatureConfig? = try? await MainActorFeatureContainer.withOverrides(
+        config: FeatureConfig(),
+        { $0.service = FeatureService() },
+        operation: { container async throws -> FeatureConfig in
+            try await asyncThrowingProbe()
+            return container.config
+        }
+    )
+}
+
 @main
 struct FixtureApp {
-    static func main() {
-        let container = FeatureContainer(dependencies: AppDependencies())
+    @MainActor
+    static func main() async throws {
+        let defaultContainer = FeatureContainer(dependencies: AppDependencies())
+        let container = mountComponent(
+            FeatureContainer.self,
+            dependencies: AppDependencies()
+        ) {
+            $0.service = FeatureService()
+        }
+        let _: any FeatureServiceProtocol = defaultContainer.service
         let _: any FeatureServiceProtocol = container.service
         let nested = FeatureNamespace.Detail.NestedFeatureContainer(
             dependencies: NestedDependencies()
         )
         let _: FeatureConfig = nested.config
+
+        let dependencies = MainActorDependencies()
+        dependencies.config = FeatureConfig()
+        let mainActorContainer: MainActorFeatureContainer = mountMainActorComponent(
+            MainActorFeatureContainer.self,
+            dependencies: dependencies
+        ) {
+            $0.service = FeatureService()
+        }
+        let _: any FeatureServiceProtocol = mainActorContainer.service
+
+        let asyncConfig = await MainActorFeatureContainer.withOverrides(
+            config: FeatureConfig(),
+            { $0.service = FeatureService() },
+            operation: { container in
+                await Task.yield()
+                return container.config
+            }
+        )
+        let throwingConfig = try await MainActorFeatureContainer.withOverrides(
+            config: FeatureConfig(),
+            { $0.service = FeatureService() },
+            operation: { container in
+                try await asyncThrowingProbe()
+                return container.config
+            }
+        )
+
+        let nestedDependencies = NestedMainActorDependencies()
+        nestedDependencies.config = FeatureConfig()
+        let nestedMainActorContainer: MainActorFeatureNamespace.Detail.NestedFeatureContainer
+            = mountMainActorComponent(
+                MainActorFeatureNamespace.Detail.NestedFeatureContainer.self,
+                dependencies: nestedDependencies
+            ) { _ in }
+
+        let appContainer = MainActorAppContainer(config: FeatureConfig())
+        let scene = appContainer.featureRootView()
+        let _: MainActorFeatureContainer = scene.container
+        let mixedContainer = MainActorParentWithNonisolatedChild(
+            config: FeatureConfig()
+        ) {
+            $0.featureOverrides = { $0.service = FeatureService() }
+        }
+        let _: any FeatureServiceProtocol = mixedContainer.feature.service
+        _ = (asyncConfig, throwingConfig, nestedMainActorContainer.config)
     }
 }

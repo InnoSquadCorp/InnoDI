@@ -67,7 +67,8 @@ struct DIContainerCodeGenerator {
 
         let featureRootHelpers = makeFeatureRootHelperDecls(
             subContainerMembers: model.subContainerMembers,
-            accessLevel: model.accessLevel
+            accessLevel: model.accessLevel,
+            isMainActor: model.options.mainActor
         )
         for (index, helper) in featureRootHelpers.enumerated() {
             if index == 0 {
@@ -209,7 +210,11 @@ private func makeInitDecl(
         let isLastMember = index == subContainerMembers.count - 1
         let directType = optionalParameterType(for: member.type)
         let childTypeDescription = member.type.trimmedDescription
-        let applyTypeSyntax = TypeSyntax(stringLiteral: "((inout \(childTypeDescription).Overrides) -> Void)?")
+        let applyTypeSyntax = overrideApplyClosureType(
+            overridesTypeDescription: "\(childTypeDescription).Overrides",
+            isMainActor: mainActorEnabled,
+            isOptional: true
+        )
 
         let directParam = FunctionParameterSyntax(
             firstName: .identifier(member.name),

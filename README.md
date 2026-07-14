@@ -258,7 +258,18 @@ declares a nested `Overrides` type, which suppresses generation.
 |---|---|---|
 | `root` | `false` | Graph-render entry flag only. If any roots exist, Mermaid, DOT, and ASCII output is pruned to the union of root-reachable nodes and edges. |
 | `validateDAG` | `true` | Enables global DAG validation plus the macro's local cycle and closure/`with:` graph-derived checks. `false` skips those checks, but raw-expression `factory:` and initializer references still diagnose at compile time and structural validation still runs. |
-| `mainActor` | `false` | Applies `@MainActor` isolation to generated container APIs. Recommended for UI-root containers. |
+| `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIComponent`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
+
+In 5.0, generic component-mounting helpers must distinguish the two marker
+protocols. Keep `_InnoDIComponentMountable` for ordinary components and add an
+`@MainActor` overload constrained to `_InnoDIMainActorComponentMountable`, with
+an `@MainActor` override closure, for `mainActor: true` components.
+
+Keep non-`Sendable` container/component values on the main actor by using an
+`@MainActor` caller or constructing and consuming them inside `MainActor.run`.
+A direct `await` is appropriate for an isolated operation that returns a
+`Sendable` result, such as a `withOverrides` operation result; it does not make
+the container itself safe to carry off actor.
 
 `@DIContainer` does not support user-defined `init` declarations in the
 annotated type or matching extensions. Use the synthesized initializer or wire
@@ -437,7 +448,13 @@ contract:
   container macro pipeline.
 
 Use `@DIContainer(mainActor: true)` for UI-root containers when you want the
-generated container API isolated to the main actor.
+generated container API isolated to the main actor. A paired `@DIComponent`
+also isolates its `<Container>Dependencies` protocol, `init(dependencies:_:)`,
+and override-application closure types, and conforms to the dedicated
+`_InnoDIMainActorComponentMountable` protocol. Ordinary components continue to
+use `_InnoDIComponentMountable`. Keep non-`Sendable` construction and use on
+the main actor; use direct `await` only when the isolated operation returns a
+`Sendable` result.
 
 ## CLI and Release Surface
 

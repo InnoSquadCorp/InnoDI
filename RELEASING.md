@@ -145,6 +145,15 @@ standalone release assets.
   `@DIComponent`.
 - The shared build-validation cache salt is now v4 so workspaces cannot reuse
   a green result produced before the declaration-matrix preflight existed.
+- `mainActor: true` now covers the whole generated surface: dependency
+  accessors, every generated initializer, `Overrides`, the `applyOverrides`
+  function types used by convenience initializers, `withOverrides`, child
+  overrides, and component mounting, all four `withOverrides` operation
+  closures, and current plus deprecated feature-root helpers.
+- Main-actor components now conform to the dedicated
+  `_InnoDIMainActorComponentMountable` protocol; ordinary components continue
+  to use `_InnoDIComponentMountable`. This split preserves the actor type on
+  generic mounting override closures.
 - 5.0 release notes will keep contract-restoring behavior corrections separate
   from intentional breaking API changes.
 
@@ -153,6 +162,15 @@ standalone release assets.
 - Before adopting 5.0, move unsupported containers and components to file scope
   or a non-generic nominal `struct`; inject runtime or type-specific state
   through `@Provide(.input)` or protocol dependencies.
+- Move dependency conformers plus construction and use of non-`Sendable`
+  generated values for `mainActor: true` components onto `@MainActor`. From an
+  off-actor caller, construct and consume those values inside `MainActor.run`;
+  use direct `await` only when the isolated operation returns a `Sendable`
+  result.
+- Update generic component-mounting helpers with a separate
+  `@MainActor` `_InnoDIMainActorComponentMountable` overload whose override
+  parameter is an `@MainActor` function type. Helpers constrained only to
+  `_InnoDIComponentMountable` no longer accept main-actor components.
 - Do not update package requirements to 5.0 before the release tag exists.
 
 ## 4.3.0

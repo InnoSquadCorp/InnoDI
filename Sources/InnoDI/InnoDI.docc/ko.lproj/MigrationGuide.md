@@ -215,10 +215,20 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 | `concrete:` | 인자를 삭제하세요. 선언된 property type이 concrete storage와 existential storage를 결정합니다. |
 | `@DIFeatureRoot` | `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 교체하세요. |
 | 선언 종류 | 5.0 container/component는 file scope 또는 비제네릭 nominal 안의 비제네릭 struct를 사용하세요. 지원하지 않는 선언 종류와 local scope에는 전용 진단이 발생합니다. |
-| MainActor | 누락됐던 `mainActor: true` 격리에 의존한 코드에는 명시적인 actor hop을 추가하세요. |
+| MainActor | `mainActor: true` component의 dependency conformer와 non-`Sendable` 생성 값의 생성·사용을 `@MainActor`에 두세요. actor 밖에서는 `MainActor.run` 안에서 생성하고 소비하고, direct `await`는 격리된 작업이 `Sendable` 결과를 반환할 때만 사용하세요. convenience initializer, `withOverrides`, child override, component mount의 override 적용 closure도 이제 `@MainActor`입니다. |
 | Validation | 동적 scope expression과 conditional DI 선언을 지원되는 정적 형태로 바꾸세요. |
 | Graph JSON | module-qualified ID와 명시적 target/root-pruning scope를 갖는 schema v2로 consumer를 옮기세요. |
 | `@GenerateMock` | experimental 상태를 유지하며, 5.0이 migration 또는 GA freeze를 뜻하지 않습니다. |
+
+5.0에서는 component mounting marker를 isolation에 따라 분리합니다. 일반
+component는 `_InnoDIComponentMountable`에 계속 conform하고, container가
+`mainActor: true`인 component는 대신 `_InnoDIMainActorComponentMountable`에
+conform합니다. generic mounting helper에는 `@MainActor` actor marker용 overload를 별도로
+추가하고 override parameter를
+`@MainActor (inout Component._InnoDIComponentOverrides) -> Void`로 선언하세요.
+`_InnoDIComponentMountable`만 constraint로 사용하는 helper는 더 이상 main-actor
+component를 받지 않습니다. non-`Sendable` mount 결과는 actor 밖으로 반환하지 말고
+`@MainActor` caller나 `MainActor.run` block 안에서 계속 사용하세요.
 
 5.0 채택 전에 class, actor, enum, protocol, extension 또는 generic
 `@DIContainer` 선언과 함께 붙은 `@DIComponent`를 실질적으로 비제네릭인

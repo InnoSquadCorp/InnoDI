@@ -44,7 +44,20 @@ usuario ya haya declarado un tipo `Overrides` anidado.
 - `validateDAG`: activa la validación global del DAG y los checks locales de
   cycle y closure/`with:`; con `false` esos checks se omiten, pero las
   referencias raw-expression y la validación estructural siguen activas.
-- `mainActor`: aplica `@MainActor` a la API generada del contenedor.
+- `mainActor`: aísla con `@MainActor` los accessors de dependencias, todos los
+  inicializadores generados, `Overrides`, los tipos de closure `applyOverrides`
+  usados por los inicializadores de conveniencia, `withOverrides`, los
+  overrides de child containers y el mounting de componentes, las closures de
+  operación de los cuatro overloads `withOverrides` y los helpers de feature
+  root. Con `@DIComponent`, el protocolo `<Container>Dependencies` y
+  `init(dependencies:_:)` generados reciben el mismo aislamiento, y el
+  componente usa la conformidad dedicada `_InnoDIMainActorComponentMountable`.
+  Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`.
+  Mantén los valores generados que no son `Sendable` en el actor principal con
+  un caller `@MainActor` o construyéndolos y consumiéndolos dentro del mismo
+  bloque `MainActor.run`. Un `await` directo es adecuado para una operación
+  aislada que devuelve un resultado `Sendable`, no para transportar el
+  contenedor fuera del actor.
 
 ## See Also
 

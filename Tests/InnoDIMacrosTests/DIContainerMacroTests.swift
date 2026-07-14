@@ -1229,6 +1229,114 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("mainActor option rejects a custom qualified actor named MainActor")
+    func mainActorConflictWithCustomQualifiedMainActorProducesDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @FeatureKit.MainActor
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("mainActor option rejects a custom actor on a dependency member")
+    func mainActorConflictOnDependencyMemberProducesDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @FeatureKit.MainActor
+                @Provide(.input)
+                var config: Config
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("mainActor option rejects a custom actor on a sub-container member")
+    func mainActorConflictOnSubContainerMemberProducesDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @FeatureKit.MainActor
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.mainactor-conflict")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("mainActor option rejects nonisolated dependency members")
+    func mainActorConflictWithNonisolatedDependencyMemberProducesDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.input)
+                nonisolated var config: Config
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.mainactor-nonisolated-member"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("standard qualified MainActor attributes are not duplicated on dependency members")
+    func standardQualifiedMainActorAttributesAreNotDuplicated() throws {
+        for actorName in ["MainActor", "Swift.MainActor", "_Concurrency.MainActor"] {
+            let source = Parser.parse(
+                source: """
+                    @DIContainer(mainActor: true)
+                    struct AppContainer {
+                        @\(actorName)
+                        @Provide(.input)
+                        var config: Config
+                    }
+                    """
+            )
+            let container = try #require(
+                source.statements.first?.item.as(StructDeclSyntax.self)
+            )
+            let attribute = try #require(
+                container.attributes.first?.as(AttributeSyntax.self)
+            )
+            let member = try #require(container.memberBlock.members.first?.decl)
+            let context = TestMacroExpansionContext()
+
+            let generated = try DIContainerMacro.expansion(
+                of: attribute,
+                attachedTo: container,
+                providingAttributesFor: member,
+                in: context
+            )
+
+            #expect(generated.isEmpty, "unexpected duplicate for @\(actorName)")
+            #expect(context.diagnostics.isEmpty)
+        }
+    }
+
     @Test("mainActor option conflicts with existing qualified custom global actor on qualified DIContainer")
     func mainActorConflictWithQualifiedActorAndQualifiedContainerProducesDiagnostic() throws {
         let source = """
@@ -2631,6 +2739,23 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "subContainerFeatureRootGeneratesDefaultHelper",
+            macros: Self.macros
+        )
+    }
+
+    @Test("mainActor: true propagates to generated SwiftUI root helpers")
+    func mainActorSubContainerFeatureRootPropagatesIsolation() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer(mainActor: true)
+            public struct AppContainer {
+                @Provide(.input) public var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.config], featureRoot: FeatureRootScene.self)
+                public var feature: FeatureContainer
+            }
+            """,
+            matches: "mainActorSubContainerFeatureRootPropagatesIsolation",
             macros: Self.macros
         )
     }

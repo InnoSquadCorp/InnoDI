@@ -279,7 +279,19 @@ que declare contenedores.
 |---|---|---|
 | `root` | `false` | Solo marca la entrada de render del grafo. Si existe al menos una raiz, la salida Mermaid, DOT y ASCII se reduce a la union de nodos y aristas alcanzables desde esas raices. |
 | `validateDAG` | `true` | Activa la validacion global del DAG mas los checks graph-derived de ciclo local y closure/`with:`. Con `false` se omiten esos checks, pero las referencias raw-expression en `factory:` e inicializadores siguen diagnosticandose y la validacion estructural continua. |
-| `mainActor` | `false` | Aplica aislamiento `@MainActor` a la API generada del contenedor. Recomendado para contenedores raiz de UI. |
+| `mainActor` | `false` | Aplica `@MainActor` a los accessors de dependencias, todos los inicializadores generados, `Overrides`, los tipos de closure `applyOverrides` usados por los inicializadores de conveniencia, `withOverrides`, los overrides de child containers y el mounting de componentes, las closures de operación de los cuatro overloads `withOverrides` y los helpers de feature root. Con `@DIComponent`, también aísla el protocolo `<Container>Dependencies` y `init(dependencies:_:)` generados, y usa la conformidad dedicada `_InnoDIMainActorComponentMountable`. Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`. El uso fuera del actor principal requiere un salto explícito. Recomendado para contenedores raíz de UI. |
+
+En 5.0, los helpers genéricos de mounting deben distinguir ambos protocolos
+marcadores. Conserva `_InnoDIComponentMountable` para componentes normales y,
+para componentes con `mainActor: true`, añade un overload `@MainActor` con el
+constraint `_InnoDIMainActorComponentMountable` y una closure de override
+`@MainActor`.
+
+Mantén los valores de container/component que no son `Sendable` en el actor
+principal mediante un caller `@MainActor` o construyéndolos y consumiéndolos en
+el mismo bloque `MainActor.run`. Un `await` directo es adecuado para una
+operación aislada que devuelve un resultado `Sendable`, como una operación
+`withOverrides`, no para transportar el contenedor fuera del actor.
 
 `@DIContainer` no permite declaraciones `init` definidas por el usuario en el
 tipo anotado ni en extensiones equivalentes.

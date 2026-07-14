@@ -13,6 +13,7 @@ public enum DIScope {
     case transient
 }
 
+@attached(memberAttribute)
 @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary)
 /// Marks a supported non-generic struct as an InnoDI container and synthesizes
 /// initialization, overrides, and validation behavior.
@@ -20,7 +21,7 @@ public enum DIScope {
 /// - Parameters:
 ///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.
 ///   - validateDAG: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and the macro's local cycle plus closure/`with:` diagnostics are skipped, but raw-expression `factory:` / initializer references and structural diagnostics still apply.
-///   - mainActor: Isolates generated container API on the main actor.
+///   - mainActor: Isolates every generated container API on the main actor, including dependency accessors, initializers, override-application closure types, `Overrides`, `withOverrides` operation closures, child-override closures, and feature-root helpers. When combined with `@DIComponent`, this also isolates the generated dependency protocol and dependency initializer and selects the main-actor mounting protocol.
 ///
 /// > Important: `validateDAG: false` is a narrow opt-out from the global
 /// > DAG and local cycle gates. Treat it as a temporary fixture rather than
@@ -380,6 +381,11 @@ public macro SubContainer(
 /// builder shape that other modules can mount through `@SubContainer` while
 /// build validation enforces rooted hierarchy rules.
 ///
+/// The protocol itself remains nonisolated so ordinary components do not
+/// acquire actor requirements. A component whose `@DIContainer` opts into
+/// `mainActor: true` conforms to ``_InnoDIMainActorComponentMountable``
+/// instead.
+///
 /// > Important: This protocol is an InnoDI implementation detail synthesized
 /// > by `@DIComponent`. The leading underscore marks it as SPI-in-spirit;
 /// > application code should not conform to it manually.
@@ -394,6 +400,29 @@ public protocol _InnoDIComponentMountable {
     )
 }
 
+/// Main-actor-isolated mounting marker synthesized by `@DIComponent` when its
+/// paired `@DIContainer` declares `mainActor: true`.
+///
+/// This protocol intentionally remains separate from
+/// ``_InnoDIComponentMountable`` because actor isolation is part of a
+/// function type. A plain override closure requirement cannot be witnessed by
+/// an initializer whose closure is `@MainActor` without weakening the
+/// generated API's concurrency contract.
+///
+/// > Important: This is an InnoDI implementation detail. Application code
+/// > should not conform to it manually.
+@_documentation(visibility: internal)
+@MainActor
+public protocol _InnoDIMainActorComponentMountable {
+    associatedtype _InnoDIComponentDependencies
+    associatedtype _InnoDIComponentOverrides
+
+    init(
+        dependencies: _InnoDIComponentDependencies,
+        _ applyOverrides: @MainActor (inout _InnoDIComponentOverrides) -> Void
+    )
+}
+
 /// Marker protocol synthesized by `@DIHierarchyRoot`.
 ///
 /// The build-support hierarchy validator only enforces rooted component rules
@@ -404,7 +433,7 @@ public protocol DIHierarchyRootMarker {}
 @attached(member, names: named(init))
 @attached(
     extension,
-    conformances: _InnoDIComponentMountable,
+    conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable,
     names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)
 )
 /// Marks a supported `@DIContainer` struct as a cross-module mountable
@@ -422,6 +451,15 @@ public protocol DIHierarchyRootMarker {}
 /// dependency contract named `<ContainerName>Dependencies` and synthesizes
 /// `init(dependencies:_:)` so parent modules can treat the child as an
 /// explicit component boundary.
+///
+/// When the paired container declares `mainActor: true`, the dependency
+/// contract and initializer are `@MainActor`, the override closure type is
+/// also `@MainActor`, and the macro emits an
+/// `_InnoDIMainActorComponentMountable` conformance. Construct and use that
+/// component from an `@MainActor` caller or inside `MainActor.run`. A
+/// non-`Sendable` component value cannot be returned across the actor boundary;
+/// `await` can directly return only a `Sendable` result, such as a scoped
+/// `withOverrides` operation result.
 ///
 /// ```swift
 /// @DIComponent

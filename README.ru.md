@@ -273,7 +273,18 @@ dependency-graph CLI сканируют полное дерево исходно
 |---|---|---|
 | `root` | `false` | Флаг точки входа только для рендера графа. Если есть хотя бы один root, вывод Mermaid, DOT и ASCII сужается до узлов и ребер, достижимых от root. |
 | `validateDAG` | `true` | Включает global DAG validation и локальные graph-derived проверки macro для cycle и closure/`with:`. При `false` отключается только этот объем; raw-expression ссылки в `factory:` и initializer по-прежнему диагностируются, а структурная валидация остается активной. |
-| `mainActor` | `false` | Добавляет `@MainActor` к сгенерированному API контейнера. Рекомендуется для UI-root контейнеров. |
+| `mainActor` | `false` | Изолирует с помощью `@MainActor` аксессоры зависимостей, все сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides` для convenience initializer, `withOverrides`, overrides дочерних контейнеров и mounting компонентов, операционные замыкания всех четырёх overload `withOverrides` и feature-root helpers. При совместном использовании с `@DIComponent` также изолируются сгенерированные protocol `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без этой опции продолжают использовать `_InnoDIComponentMountable`. Для использования вне главного актора требуется явный actor hop. Рекомендуется для корневых UI-контейнеров. |
+
+В 5.0 generic helpers для mounting компонентов должны различать два marker
+protocol. Сохраните `_InnoDIComponentMountable` для обычных компонентов, а для
+компонентов с `mainActor: true` добавьте `@MainActor` overload с constraint
+`_InnoDIMainActorComponentMountable` и `@MainActor` override closure.
+
+Значения container/component, не реализующие `Sendable`, должны оставаться на
+главном акторе: используйте caller с `@MainActor` либо создавайте и используйте
+их в одном блоке `MainActor.run`. Прямой `await` подходит для изолированной
+операции с `Sendable`-результатом, например операции `withOverrides`, но не для
+переноса самого container за пределы актора.
 
 ### `@Provide` и области действия
 

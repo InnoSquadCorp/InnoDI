@@ -115,8 +115,12 @@ Most frequently-hit codes:
   an initializer; remove the user-written one.
 - `container.overrides-name-conflict` — the user's nested `Overrides` type
   collides with the synthesized builder.
-- `container.mainactor-conflict` — `@DIContainer(mainActor: true)` combined
-  with an asynchronous factory that can't run on the main actor.
+- `container.mainactor-conflict` — `@DIContainer(mainActor: true)` is combined
+  with another global actor on the container or a dependency member. Remove
+  the custom actor or disable `mainActor` generation.
+- `container.mainactor-nonisolated-member` — a `@Provide` or `@SubContainer`
+  member opts out with `nonisolated`, which contradicts the container's
+  `mainActor: true` contract.
 - `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
   was not literal `true` or `false`; use conditional compilation to choose
   different attribute spellings.

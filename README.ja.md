@@ -268,7 +268,18 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 |---|---|---|
 | `root` | `false` | グラフ描画の入口フラグです。root が存在する場合、Mermaid、DOT、ASCII 出力は root から到達可能なノードとエッジに限定されます。 |
 | `validateDAG` | `true` | global DAG validation と、マクロの local cycle および closure/`with:` graph-derived チェックを有効にします。`false` はその範囲のみ無効化し、`factory:` や initializer の raw-expression 参照診断と構造検証は継続します。 |
-| `mainActor` | `false` | 生成されるコンテナ API に `@MainActor` を適用します。UI ルート向けです。 |
+| `mainActor` | `false` | 依存関係 accessor、生成されるすべての initializer、`Overrides`、convenience initializer・`withOverrides`・child override・component mount で使う `applyOverrides` 関数型、4 つの `withOverrides` operation closure、feature-root helper を `@MainActor` に隔離します。`@DIComponent` を併用すると、生成される `<Container>Dependencies` protocol と `init(dependencies:_:)` も隔離され、専用の `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。メインアクター外から利用するには明示的な actor hop が必要です。UI ルートコンテナ向けです。 |
+
+5.0 の generic component mounting helper は 2 つの marker protocol を区別する
+必要があります。通常の component には `_InnoDIComponentMountable` を維持し、
+`mainActor: true` component には `_InnoDIMainActorComponentMountable` constraint
+と `@MainActor` override closure を持つ `@MainActor` overload を追加してください。
+
+non-`Sendable` な container/component 値は `@MainActor` caller を使うか、同じ
+`MainActor.run` block 内で生成して利用し、main actor に保持してください。
+direct `await` は `withOverrides` operation result のように、隔離された処理が
+`Sendable` な結果を返す場合に適しています。container 自体を actor 外へ安全に
+運べるようにするものではありません。
 
 ### `@Provide` とスコープ
 

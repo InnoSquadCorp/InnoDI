@@ -251,7 +251,17 @@ dependency-graph CLI 会扫描完整 source tree，并拒绝这个边界情况�
 |---|---|---|
 | `root` | `false` | 只影响图渲染入口。如果存在 root，Mermaid、DOT、ASCII 输出会裁剪为从 root 可达的节点与边。 |
 | `validateDAG` | `true` | 开启全局 DAG 校验，以及宏的本地 cycle 与 closure/`with:` graph-derived 校验。设为 `false` 只跳过这部分；`factory:` 和 initializer 的 raw-expression 引用仍会在编译期诊断，结构性校验也仍然执行。 |
-| `mainActor` | `false` | 给生成的容器 API 加上 `@MainActor` 隔离，适合 UI 根容器。 |
+| `mainActor` | `false` | 为依赖访问器、所有生成的初始化器、`Overrides`、convenience initializer、`withOverrides`、子容器 override 与 component mounting 所使用的 `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及 feature-root helper 应用 `@MainActor` 隔离。与 `@DIComponent` 搭配时，生成的 `<Container>Dependencies` 协议和 `init(dependencies:_:)` 也会被隔离，并改为遵循专用协议 `_InnoDIMainActorComponentMountable`。未使用该选项的普通组件继续遵循 `_InnoDIComponentMountable`。主执行器之外的使用者需要显式 hop。推荐用于 UI 根容器。 |
+
+在 5.0 中，generic component mounting helper 必须区分这两个 marker protocol。
+普通组件继续使用 `_InnoDIComponentMountable`；对于 `mainActor: true` 组件，
+请增加一个使用 `_InnoDIMainActorComponentMountable` constraint 并接收
+`@MainActor` override closure 的 `@MainActor` overload。
+
+非 `Sendable` 的 container/component 值应保留在主执行器内：使用
+`@MainActor` caller，或在同一个 `MainActor.run` block 中完成构造和使用。只有当
+隔离操作返回 `Sendable` 结果时，direct `await` 才合适，例如 `withOverrides`
+operation result；它不会让 container 本身可以安全地带到执行器之外。
 
 ### `@Provide` 与作用域
 

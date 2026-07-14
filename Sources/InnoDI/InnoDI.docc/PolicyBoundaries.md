@@ -32,8 +32,24 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 
 - Containers keep their generated storage inside the container value. InnoDI
   does not install dependencies into a global registry.
-- `mainActor: true` applies `@MainActor` to generated container APIs and is the
-  preferred shape for UI-root containers.
+- `mainActor: true` isolates dependency accessors, every generated initializer,
+  `Overrides`, the `applyOverrides` function types used by convenience
+  initializers, `withOverrides`, child overrides, and component mounting, all
+  four `withOverrides` operation closures, and generated feature-root helpers.
+  It is the preferred shape for UI-root containers.
+- When paired with `@DIComponent`, the generated dependency protocol and
+  `init(dependencies:_:)` are `@MainActor`, including the override-application
+  closure type, and the component conforms to the dedicated
+  `_InnoDIMainActorComponentMountable` protocol. Ordinary components continue
+  to use the nonisolated `_InnoDIComponentMountable` protocol. In 5.0, generic
+  mounting helpers must provide separate constraints and closure types for
+  these two markers.
+- Keep generated container/component values and non-`Sendable` dependencies on
+  the main actor. Prefer an `@MainActor` caller or a `MainActor.run` block that
+  both constructs and consumes those values. A direct `await` is appropriate
+  when the isolated operation returns a `Sendable` result, such as a
+  `withOverrides` operation result; it does not make a non-`Sendable` container
+  safe to carry back off actor.
 - `Lazy<T>` and `Provider<T>` wrappers are not a cross-actor transport
   mechanism. Treat them as staying inside the container's isolation domain
   unless `T` and the surrounding call path are already safe to move.

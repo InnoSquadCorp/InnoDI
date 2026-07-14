@@ -47,7 +47,13 @@ extension SubContainerMacro: PeerMacro {
         }
 
         decls.append(storagePeerDecl(name: "_override_sub_\(info.name)", type: info.type, optional: true))
-        decls.append(subContainerApplyOverridePeerDecl(name: info.name, childType: info.type))
+        decls.append(
+            subContainerApplyOverridePeerDecl(
+                name: info.name,
+                childType: info.type,
+                isMainActor: info.isMainActor
+            )
+        )
 
         // `.transient` scope needs a lazily-reinvoked builder closure. We
         // emit the storage slot here (peer role covers `_innoDISubBuild_`
@@ -107,7 +113,7 @@ extension SubContainerMacro: AccessorMacro {
             ))
         }
 
-        var getter = AccessorDeclSyntax(
+        let getter = AccessorDeclSyntax(
             accessorSpecifier: .keyword(.get),
             body: CodeBlockSyntax(
                 statements: CodeBlockItemListSyntax([
@@ -115,9 +121,6 @@ extension SubContainerMacro: AccessorMacro {
                 ])
             )
         )
-        if info.isMainActor {
-            getter = getter.with(\.attributes, mainActorAccessorAttributes())
-        }
         return [getter]
     }
 }
@@ -169,7 +172,7 @@ private func extractPeerInfo(
     )
 }
 
-/// `private let _override_sub_apply_<name>: ((inout <ChildType>.Overrides) -> Void)?`
+/// `private let _override_sub_apply_<name>: ([@MainActor] (inout <ChildType>.Overrides) -> Void)?`
 ///
 /// Optional wedge used by the parent `Overrides.<name>Overrides` slot to
 /// forward a trailing-closure override block to the child's own convenience
@@ -178,10 +181,15 @@ private func extractPeerInfo(
 /// until the child grows `.shared`, `.transient`, or nested child slots.
 private func subContainerApplyOverridePeerDecl(
     name: String,
-    childType: TypeSyntax
+    childType: TypeSyntax,
+    isMainActor: Bool
 ) -> DeclSyntax {
     let trimmed = childType.trimmedDescription
-    let applyType = TypeSyntax(stringLiteral: "((inout \(trimmed).Overrides) -> Void)?")
+    let applyType = overrideApplyClosureType(
+        overridesTypeDescription: "\(trimmed).Overrides",
+        isMainActor: isMainActor,
+        isOptional: true
+    )
     let decl = VariableDeclSyntax(
         modifiers: DeclModifierListSyntax([
             DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
@@ -198,16 +206,6 @@ private func subContainerApplyOverridePeerDecl(
         ])
     )
     return DeclSyntax(decl)
-}
-
-private func mainActorAccessorAttributes() -> AttributeListSyntax {
-    AttributeListSyntax([
-        AttributeListSyntax.Element(
-            AttributeSyntax(
-                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
-            )
-        )
-    ])
 }
 
 private func enclosingDIContainerInfo(startingAt syntax: Syntax) -> DIContainerAttributeInfo? {

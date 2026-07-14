@@ -4,7 +4,7 @@ public struct FeatureConfig: Sendable {
     public init() {}
 }
 
-public protocol FeatureServiceProtocol: Sendable {}
+public protocol FeatureServiceProtocol {}
 
 public struct FeatureService: FeatureServiceProtocol {
     public init() {}
@@ -25,4 +25,75 @@ public enum FeatureNamespace {
             @Provide(.input) public var config: FeatureConfig
         }
     }
+}
+
+@DIHierarchyRoot
+@DIComponent
+@DIContainer(mainActor: true)
+public struct MainActorFeatureContainer {
+    @Provide(.input) public var config: FeatureConfig
+    @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
+}
+
+public enum MainActorFeatureNamespace {
+    public enum Detail {
+        @DIComponent
+        @DIContainer(mainActor: true)
+        public struct NestedFeatureContainer {
+            @Provide(.input) public var config: FeatureConfig
+        }
+    }
+}
+
+public struct MainActorFeatureScene {
+    public let container: MainActorFeatureContainer
+
+    @MainActor
+    public init(container: MainActorFeatureContainer) {
+        self.container = container
+    }
+}
+
+@DIContainer(mainActor: true)
+public struct MainActorAppContainer {
+    @Provide(.input) public var config: FeatureConfig
+
+    @SubContainer(
+        scope: .shared,
+        with: [\MainActorAppContainer.config],
+        featureRoot: MainActorFeatureScene.self
+    )
+    public var feature: MainActorFeatureContainer
+}
+
+@DIContainer(mainActor: true)
+public struct MainActorParentWithNonisolatedChild {
+    @Provide(.input) public var config: FeatureConfig
+
+    @SubContainer(
+        scope: .shared,
+        with: [\MainActorParentWithNonisolatedChild.config]
+    )
+    public var feature: FeatureContainer
+}
+
+public func mountComponent<Component: _InnoDIComponentMountable>(
+    _ component: Component.Type,
+    dependencies: Component._InnoDIComponentDependencies,
+    _ applyOverrides: (inout Component._InnoDIComponentOverrides) -> Void
+) -> Component {
+    Component(dependencies: dependencies, applyOverrides)
+}
+
+@MainActor
+public func mountMainActorComponent<
+    Component: _InnoDIMainActorComponentMountable
+>(
+    _ component: Component.Type,
+    dependencies: Component._InnoDIComponentDependencies,
+    _ applyOverrides: @MainActor (
+        inout Component._InnoDIComponentOverrides
+    ) -> Void
+) -> Component {
+    Component(dependencies: dependencies, applyOverrides)
 }

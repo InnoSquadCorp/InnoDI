@@ -275,7 +275,19 @@ jedes Target an, das Container deklariert.
 |---|---|---|
 | `root` | `false` | Nur Render-Einstieg fur den Graphen. Wenn mindestens eine Root existiert, wird Mermaid-, DOT- und ASCII-Ausgabe auf die von den Roots erreichbaren Knoten und Kanten reduziert. |
 | `validateDAG` | `true` | Aktiviert globale DAG-Validierung plus die lokalen cycle- und closure/`with:`-Checks der Makros. `false` uberspringt nur diese Checks; raw-expression-Referenzen in `factory:` und Initializern sowie strukturelle Validierung bleiben aktiv. |
-| `mainActor` | `false` | Wendet `@MainActor` auf die generierte Container-API an. Fur UI-Roots empfohlen. |
+| `mainActor` | `false` | Isoliert Dependency-Accessors, alle generierten Initialisierer, `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die Operations-Closures aller vier `withOverrides`-Overloads sowie Feature-Root-Helper mit `@MainActor`. Zusammen mit `@DIComponent` werden auch das generierte `<Container>Dependencies`-Protokoll und `init(dependencies:_:)` isoliert; die Component konformiert dem dedizierten Protokoll `_InnoDIMainActorComponentMountable`. Components ohne diese Option verwenden weiterhin `_InnoDIComponentMountable`. Zugriffe außerhalb des Main Actors erfordern einen expliziten Actor-Wechsel. Für UI-Root-Container empfohlen. |
+
+Generische Component-Mounting-Helper müssen in 5.0 zwischen beiden
+Markerprotokollen unterscheiden. Behalten Sie `_InnoDIComponentMountable` für
+gewöhnliche Components bei und ergänzen Sie für `mainActor: true` eine
+`@MainActor`-Überladung mit `_InnoDIMainActorComponentMountable`-Constraint und
+einer `@MainActor`-Override-Closure.
+
+Nicht-`Sendable` Container-/Component-Werte müssen über einen
+`@MainActor`-Aufrufer oder durch Erzeugung und Verwendung im selben
+`MainActor.run`-Block auf dem Main Actor bleiben. Ein direktes `await` passt für
+eine isolierte Operation mit `Sendable`-Ergebnis, etwa ein `withOverrides`-
+Ergebnis, nicht zum Transport des Containers aus dem Actor heraus.
 
 ### `@Provide` und Scopes
 

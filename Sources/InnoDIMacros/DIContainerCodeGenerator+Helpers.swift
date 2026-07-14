@@ -53,14 +53,34 @@ internal func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
     return description
 }
 
-/// Builds a `@MainActor` attribute list used to annotate the synthesized
-/// init when the container opts into main-actor isolation.
+/// Builds a `@MainActor` attribute list for generated declarations that belong
+/// to a container's opted-in main-actor isolation domain.
+internal func mainActorAttribute() -> AttributeSyntax {
+    AttributeSyntax(
+        attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
+    )
+}
+
+/// Builds the override-application closure type shared by container,
+/// component, and sub-container code generation. Main-actor containers must
+/// carry isolation on the function type itself; isolating only the receiving
+/// initializer is not enough for closure bodies that mutate `Overrides`.
+internal func overrideApplyClosureType(
+    overridesTypeDescription: String = "Overrides",
+    isMainActor: Bool,
+    isOptional: Bool = false
+) -> TypeSyntax {
+    let actorPrefix = isMainActor ? "@MainActor " : ""
+    let closure = "\(actorPrefix)(inout \(overridesTypeDescription)) -> Void"
+    return TypeSyntax(
+        stringLiteral: isOptional ? "(\(closure))?" : closure
+    )
+}
+
 internal func mainActorAttributeList() -> AttributeListSyntax {
     AttributeListSyntax([
         AttributeListSyntax.Element(
-            AttributeSyntax(
-                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
-            )
+            mainActorAttribute()
         )
     ])
 }

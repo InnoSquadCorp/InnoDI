@@ -89,7 +89,8 @@ extension DIFeatureRootMacro: PeerMacro {
             }
         }
 
-        if let enclosingDecl = enclosingDeclGroup(in: context),
+        let enclosingDeclaration = enclosingDeclGroup(in: context)
+        if let enclosingDecl = enclosingDeclaration,
            featureRootHelperConflicts(
                 helperName: helperName,
                 currentAttribute: node,
@@ -104,7 +105,8 @@ extension DIFeatureRootMacro: PeerMacro {
             return []
         }
 
-        let accessLevel = accessLevelModifiers(for: enclosingDeclGroup(in: context)?.modifiers)
+        let accessLevel = accessLevelModifiers(for: enclosingDeclaration?.modifiers)
+        let isMainActor = parseDIContainerAttribute(enclosingDeclaration?.attributes)?.mainActor == true
         let rootViewTypeName = info.rootViewTypeName
 
         let rootViewCall = FunctionCallExprSyntax(
@@ -120,6 +122,7 @@ extension DIFeatureRootMacro: PeerMacro {
             rightParen: .rightParenToken()
         )
         let helperDecl = FunctionDeclSyntax(
+            attributes: isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
             modifiers: accessLevel,
             name: .identifier(helperName),
             signature: FunctionSignatureSyntax(

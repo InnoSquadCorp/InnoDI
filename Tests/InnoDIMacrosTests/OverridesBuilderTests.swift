@@ -88,7 +88,7 @@ struct OverridesBuilderTests {
         )
     }
 
-    @Test("mainActor: true propagates @MainActor to convenience init and withOverrides")
+    @Test("mainActor: true isolates Overrides, convenience init, and withOverrides")
     func mainActorPropagation() {
         assertMacroExpansionSnapshot(
             """

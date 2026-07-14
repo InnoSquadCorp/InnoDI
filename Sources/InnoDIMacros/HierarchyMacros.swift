@@ -42,7 +42,8 @@ extension DIComponentMacro: PeerMacro {
         let protocolDecl = makeComponentDependenciesProtocolDecl(
             accessLevel: hierarchyAccessLevelModifiers(for: declGroup.modifiers),
             protocolName: protocolName,
-            inputMembers: inputMembers
+            inputMembers: inputMembers,
+            isMainActor: parseDIContainerAttribute(declGroup.attributes)?.mainActor == true
         )
 
         return [DeclSyntax(protocolDecl)]
@@ -96,15 +97,27 @@ extension DIComponentMacro: MemberMacro {
             "\($0.name): dependencies.\($0.name)"
         } + ["applyOverrides"]
         let joinedArguments = callArguments.joined(separator: ", ")
+        let isMainActor = parseDIContainerAttribute(
+            declaration.attributes
+        )?.mainActor == true
+        let applyOverridesType = overrideApplyClosureType(
+            isMainActor: isMainActor
+        ).trimmedDescription
 
-        let initDecl: DeclSyntax = """
+        var initDecl: DeclSyntax = """
             \(raw: accessLevel)init(
                 dependencies: any \(raw: protocolName),
-                _ applyOverrides: (inout Overrides) -> Void = { _ in }
+                _ applyOverrides: \(raw: applyOverridesType) = { _ in }
             ) {
                 self.init(\(raw: joinedArguments))
             }
             """
+
+        if isMainActor, let initializer = initDecl.as(InitializerDeclSyntax.self) {
+            initDecl = DeclSyntax(
+                initializer.with(\.attributes, mainActorAttributeList())
+            )
+        }
 
         return [initDecl.prependingMARK("// MARK: - Initialization")]
     }
@@ -148,7 +161,8 @@ extension DIComponentMacro: ExtensionMacro {
             makeComponentMountableExtensionDecl(
                 type: type,
                 dependenciesType: dependenciesType,
-                accessLevel: accessLevel
+                accessLevel: accessLevel,
+                isMainActor: parseDIContainerAttribute(declaration.attributes)?.mainActor == true
             )
         ]
     }
@@ -253,7 +267,8 @@ private func hierarchyInputMembers(in declaration: some DeclGroupSyntax) -> [Hie
 private func makeComponentDependenciesProtocolDecl(
     accessLevel: DeclModifierListSyntax,
     protocolName: String,
-    inputMembers: [HierarchyInputMember]
+    inputMembers: [HierarchyInputMember],
+    isMainActor: Bool
 ) -> ProtocolDeclSyntax {
     let requirements = inputMembers.map { member in
         MemberBlockItemSyntax(
@@ -279,6 +294,7 @@ private func makeComponentDependenciesProtocolDecl(
     }
 
     return ProtocolDeclSyntax(
+        attributes: isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: accessLevel,
         name: .identifier(protocolName),
         memberBlock: MemberBlockSyntax(
@@ -290,14 +306,23 @@ private func makeComponentDependenciesProtocolDecl(
 private func makeComponentMountableExtensionDecl(
     type: some TypeSyntaxProtocol,
     dependenciesType: TypeSyntax,
-    accessLevel: DeclModifierListSyntax
+    accessLevel: DeclModifierListSyntax,
+    isMainActor: Bool
 ) -> ExtensionDeclSyntax {
     ExtensionDeclSyntax(
         extendedType: TypeSyntax(type),
         inheritanceClause: InheritanceClauseSyntax(
             inheritedTypes: InheritedTypeListSyntax([
                 InheritedTypeSyntax(
-                    type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("_InnoDIComponentMountable")))
+                    type: TypeSyntax(
+                        IdentifierTypeSyntax(
+                            name: .identifier(
+                                isMainActor
+                                    ? "_InnoDIMainActorComponentMountable"
+                                    : "_InnoDIComponentMountable"
+                            )
+                        )
+                    )
                 )
             ])
         ),

@@ -102,6 +102,40 @@ struct DIContainerParser {
             // codegen pathway for each attribute is mutually exclusive.
             let provideAttribute = InnoDICore.findInnoDIAttribute(named: "Provide", in: varDecl.attributes)
             let subContainerAttribute = InnoDICore.findInnoDIAttribute(named: "SubContainer", in: varDecl.attributes)
+            let isDependencyMember = provideAttribute != nil || subContainerAttribute != nil
+
+            if options.mainActor, isDependencyMember {
+                if let conflictingActor = detectConflictingGlobalActor(
+                    in: varDecl.attributes
+                ) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(varDecl),
+                            message: SimpleDiagnostic.containerMainActorConflict(
+                                actorName: conflictingActor
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+
+                if varDecl.modifiers.contains(where: { $0.name.text == "nonisolated" }) {
+                    let memberName = varDecl.bindings.first?
+                        .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                        ?? "<unknown>"
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(varDecl),
+                            message: SimpleDiagnostic.containerMainActorNonisolatedMember(
+                                memberName: memberName
+                            )
+                        )
+                    )
+                    hadErrors = true
+                    continue
+                }
+            }
 
             if let subAttribute = subContainerAttribute, provideAttribute != nil {
                 let memberName = varDecl.bindings.first?
@@ -963,12 +997,13 @@ private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {
     return nil
 }
 
-private func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) -> String? {
+internal func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) -> String? {
     guard let attributes else { return nil }
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
         guard let attributeName = globalActorAttributeName(from: attr.attributeName) else { continue }
-        if attributeName.terminalName == "DIContainer" || attributeName.terminalName == "MainActor" {
+        if attributeName.terminalName == "DIContainer"
+            || isStandardMainActorAttributeName(attr.attributeName) {
             continue
         }
         if attributeName.terminalName.hasSuffix("Actor") {
@@ -976,6 +1011,24 @@ private func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) -
         }
     }
     return nil
+}
+
+internal func findStandardMainActorAttribute(
+    in attributes: AttributeListSyntax?
+) -> AttributeSyntax? {
+    guard let attributes else { return nil }
+    return attributes.compactMap { $0.as(AttributeSyntax.self) }.first {
+        isStandardMainActorAttributeName($0.attributeName)
+    }
+}
+
+private func isStandardMainActorAttributeName(_ attributeName: TypeSyntax) -> Bool {
+    switch attributeName.trimmedDescription {
+    case "MainActor", "Swift.MainActor", "_Concurrency.MainActor":
+        return true
+    default:
+        return false
+    }
 }
 
 private func globalActorAttributeName(
