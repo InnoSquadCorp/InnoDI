@@ -4,9 +4,12 @@ Makrogetriebenes Swift-DI mit Validierung in mehreren Schichten.
 
 ## Overview
 
-InnoDI macht aus normalen Swift-Typen mit `@DIContainer` und `@Provide`
-vollwertige DI-Container. Im Mittelpunkt stehen explizites Wiring,
-deterministische Validierung und Graph-Tooling.
+InnoDI macht aus unterstutzten, effektiv nicht-generischen Swift-Structs auf
+Dateiebene oder mit nominaler Verschachtelung mit `@DIContainer` und `@Provide`
+vollwertige DI-Container. Deklarationen in ausfuhrbaren oder lokalen Scopes,
+einschliesslich Funktionen, Closures, Accessors und `switch`-Fallen, werden
+nicht unterstutzt. Im Mittelpunkt stehen explizites Wiring, deterministische
+Validierung und Graph-Tooling.
 
 Die stabile 4.0.0-Baseline umfasst:
 

@@ -92,6 +92,27 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 ## 컨테이너 단위 진단
 
+- `container.unsupported-declaration-kind` — `@DIContainer`가 class, actor,
+  enum, protocol, extension 등 struct가 아닌 선언에 직접 붙었습니다.
+  경계를 비제네릭 struct로 옮기고 런타임 상태는 `.input` 멤버로
+  주입하세요.
+- `container.generic-unsupported` — 컨테이너가 generic parameter를
+  선언했거나 generic nominal 선언 안에 중첩됐습니다. 타입별 동작은
+  주입되는 의존성 뒤로 옮기세요.
+- `container.unverifiable-enclosing-context` — 컨테이너가 extension 안에
+  선언되어 syntax-only 매크로가 확장 대상 타입의 generic 여부를 증명할
+  수 없습니다. 선언을 file scope 또는 비제네릭 nominal 안으로 옮기세요.
+- `container.local-declaration-unsupported` — 컨테이너가 함수, closure,
+  initializer, accessor, switch case, local block 같은 실행 스코프 안에
+  선언됐습니다. file scope 또는 비제네릭 nominal 선언 안으로 옮기세요.
+  generic 함수 안에 타입을 중첩하거나 local container에 `@DIComponent` 같은
+  attached-extension macro를 함께 적용하는 등 Swift 언어 자체가 허용하지
+  않는 위치에서는 Swift compiler 진단이 함께 나올 수 있습니다.
+  현재 Swift toolchain은 computed-property body 안 타입의 attached macro
+  context에서 accessor ancestry를 누락합니다. 이 형태는 build-validation
+  plugin과 graph CLI의 full-source preflight가 같은 진단으로 차단합니다.
+  full-source preflight가 없으면 accessor-local component에서 Swift 또는
+  함께 적용한 companion macro의 추가 진단이 발생할 수 있습니다.
 - `container.unknown-dependency` — 참조된 이름이 어떤 컨테이너
   멤버에도 매핑되지 않습니다.
 - `container.dependency-cycle` — hard cycle이 감지됐습니다. `Lazy<T>`

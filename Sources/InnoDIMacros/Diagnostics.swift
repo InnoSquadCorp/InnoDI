@@ -53,6 +53,10 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
+    case containerUnsupportedDeclarationKind = "container.unsupported-declaration-kind"
+    case containerGenericUnsupported = "container.generic-unsupported"
+    case containerUnverifiableEnclosingContext = "container.unverifiable-enclosing-context"
+    case containerLocalDeclarationUnsupported = "container.local-declaration-unsupported"
     case graphDependencyCycle = "graph.dependency-cycle"
     case graphAmbiguousContainerReference = "graph.ambiguous-container-reference"
     case subScopeRequired = "sub.scope-required"
@@ -94,7 +98,9 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
                 .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
-                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters:
+                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
+                .containerUnsupportedDeclarationKind, .containerGenericUnsupported,
+                .containerUnverifiableEnclosingContext, .containerLocalDeclarationUnsupported:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
@@ -223,6 +229,56 @@ extension SimpleDiagnostic {
         Self(
             "@Provide(.input) should not include a factory, type, or initializer.",
             code: .provideInputInvalidConfiguration
+        )
+    }
+
+    static func containerUnsupportedDeclarationKind(name: String, kind: String) -> Self {
+        let support = DIContainerDeclarationSupport.unsupportedKind(
+            name: name,
+            kind: kind
+        )
+        return Self(
+            support.diagnosticMessage ?? "Unsupported @DIContainer declaration.",
+            code: .containerUnsupportedDeclarationKind
+        )
+    }
+
+    static func containerGenericUnsupported(name: String, contextName: String?) -> Self {
+        let support = DIContainerDeclarationSupport.generic(
+            name: name,
+            contextName: contextName
+        )
+        return Self(
+            support.diagnosticMessage ?? "Unsupported generic @DIContainer declaration.",
+            code: .containerGenericUnsupported
+        )
+    }
+
+    static func containerUnverifiableEnclosingContext(
+        name: String,
+        extendedType: String
+    ) -> Self {
+        let support = DIContainerDeclarationSupport.unverifiableEnclosingContext(
+            name: name,
+            extendedType: extendedType
+        )
+        return Self(
+            support.diagnosticMessage ?? "Unverifiable @DIContainer declaration context.",
+            code: .containerUnverifiableEnclosingContext
+        )
+    }
+
+    static func containerLocalDeclarationUnsupported(
+        name: String,
+        context: String
+    ) -> Self {
+        let support = DIContainerDeclarationSupport.localDeclaration(
+            name: name,
+            context: context
+        )
+        return Self(
+            support.diagnosticMessage ?? "Unsupported local @DIContainer declaration.",
+            code: .containerLocalDeclarationUnsupported
         )
     }
 

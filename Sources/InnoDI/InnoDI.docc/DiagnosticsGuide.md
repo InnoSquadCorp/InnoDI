@@ -86,6 +86,27 @@ Most frequently-hit codes:
 
 ## Container-level diagnostics
 
+- `container.unsupported-declaration-kind` — `@DIContainer` is attached to a
+  class, actor, enum, protocol, extension, or another non-struct declaration.
+  Move the boundary to a non-generic struct and inject runtime state through
+  `.input` members.
+- `container.generic-unsupported` — the container declares generic parameters
+  or is nested in an enclosing generic nominal declaration. Move type-specific
+  behavior behind an injected dependency.
+- `container.unverifiable-enclosing-context` — the container is declared inside
+  an extension, where a syntax-only macro cannot prove whether the extended
+  type is generic. Move the declaration to file scope or a non-generic nominal.
+- `container.local-declaration-unsupported` — the container is declared in an
+  executable scope such as a function, closure, initializer, accessor, switch
+  case, or local block. Move it to file scope or a non-generic nominal
+  declaration. Swift can also emit its own language diagnostic for inherently
+  invalid placements such as a type nested in a generic function or a local
+  container stacked with an attached-extension macro such as `@DIComponent`.
+  Current Swift toolchains omit accessor ancestry from the attached-macro
+  context for a type inside a computed-property body; the build-validation
+  plugin and graph CLI full-source preflight emit this diagnostic for that
+  shape. Without full-source preflight, Swift or stacked companion macros can
+  emit additional diagnostics for an accessor-local component.
 - `container.unknown-dependency` — a referenced name doesn't map to any
   container member.
 - `container.dependency-cycle` — hard cycle detected; break with `Lazy<T>`

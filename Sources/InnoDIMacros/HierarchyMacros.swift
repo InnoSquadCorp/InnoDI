@@ -26,6 +26,13 @@ extension DIComponentMacro: PeerMacro {
             return []
         }
 
+        guard classifyDIContainerDeclaration(
+            declGroup,
+            lexicalContext: context.lexicalContext
+        ).isSupported else {
+            return []
+        }
+
         guard let nominalInfo = hierarchyNominalTypeInfo(for: declGroup) else {
             return []
         }
@@ -58,6 +65,13 @@ extension DIComponentMacro: MemberMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
+            return []
+        }
+
+        guard classifyDIContainerDeclaration(
+            declaration,
+            lexicalContext: context.lexicalContext
+        ).isSupported else {
             return []
         }
 
@@ -108,6 +122,13 @@ extension DIComponentMacro: ExtensionMacro {
             return []
         }
 
+        guard classifyDIContainerDeclaration(
+            declaration,
+            lexicalContext: context.lexicalContext
+        ).isSupported else {
+            return []
+        }
+
         if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
             return []
         }
@@ -118,11 +139,15 @@ extension DIComponentMacro: ExtensionMacro {
 
         let protocolName = "\(nominalInfo.baseName)Dependencies"
         let accessLevel = hierarchyAccessLevelModifiers(for: declaration.modifiers)
+        let dependenciesType = qualifiedComponentDependenciesType(
+            for: type,
+            protocolName: protocolName
+        )
 
         return [
             makeComponentMountableExtensionDecl(
                 type: type,
-                protocolName: protocolName,
+                dependenciesType: dependenciesType,
                 accessLevel: accessLevel
             )
         ]
@@ -146,6 +171,13 @@ extension DIHierarchyRootMacro: ExtensionMacro {
                     message: SimpleDiagnostic.hierarchyRootRequiresContainer()
                 )
             )
+            return []
+        }
+
+        guard classifyDIContainerDeclaration(
+            declaration,
+            lexicalContext: context.lexicalContext
+        ).isSupported else {
             return []
         }
 
@@ -257,7 +289,7 @@ private func makeComponentDependenciesProtocolDecl(
 
 private func makeComponentMountableExtensionDecl(
     type: some TypeSyntaxProtocol,
-    protocolName: String,
+    dependenciesType: TypeSyntax,
     accessLevel: DeclModifierListSyntax
 ) -> ExtensionDeclSyntax {
     ExtensionDeclSyntax(
@@ -282,9 +314,7 @@ private func makeComponentMountableExtensionDecl(
                                 value: TypeSyntax(
                                     SomeOrAnyTypeSyntax(
                                         someOrAnySpecifier: .keyword(.any, trailingTrivia: .space),
-                                        constraint: TypeSyntax(
-                                            IdentifierTypeSyntax(name: .identifier(protocolName))
-                                        )
+                                        constraint: dependenciesType
                                     )
                                 )
                             )
@@ -307,6 +337,24 @@ private func makeComponentMountableExtensionDecl(
             ])
         )
     )
+}
+
+/// A component dependency protocol is emitted as a peer of the container. For
+/// a nested container that makes it a sibling in the enclosing nominal, while
+/// the mountable conformance is emitted in a file-scope extension. Preserve the
+/// enclosing path from the compiler-provided type so that extension can resolve
+/// the peer protocol from any supported nesting depth.
+private func qualifiedComponentDependenciesType(
+    for type: some TypeSyntaxProtocol,
+    protocolName: String
+) -> TypeSyntax {
+    guard var memberType = TypeSyntax(type).as(MemberTypeSyntax.self) else {
+        return TypeSyntax(IdentifierTypeSyntax(name: .identifier(protocolName)))
+    }
+
+    memberType = memberType.with(\.name, .identifier(protocolName))
+    memberType = memberType.with(\.genericArgumentClause, nil)
+    return TypeSyntax(memberType)
 }
 
 private func makeHierarchyRootMarkerExtensionDecl(

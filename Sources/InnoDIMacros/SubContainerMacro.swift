@@ -75,6 +75,10 @@ extension SubContainerMacro: AccessorMacro {
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
+        guard !isEnclosedByUnsupportedDIContainer(declaration, in: context) else {
+            return [unsupportedDIContainerRecoveryAccessor()]
+        }
+
         guard let info = extractPeerInfo(from: node, declaration: declaration, in: context) else {
             return []
         }
@@ -132,6 +136,10 @@ private func extractPeerInfo(
     declaration: some DeclSyntaxProtocol,
     in context: some MacroExpansionContext
 ) -> SubContainerPeerInfo? {
+    guard !isEnclosedByUnsupportedDIContainer(declaration, in: context) else {
+        return nil
+    }
+
     guard let varDecl = declaration.as(VariableDeclSyntax.self) else { return nil }
     guard let binding = varDecl.bindings.first,
           let identifier = binding.pattern.as(IdentifierPatternSyntax.self),

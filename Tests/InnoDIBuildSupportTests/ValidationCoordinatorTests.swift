@@ -1968,6 +1968,106 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Unsupported container declarations fail once before downstream validation")
+    func unsupportedContainerDeclarationFailsBeforeRunnerExecutes() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        @DIComponent
+        @DIContainer
+        final class UnsupportedContainer {
+            @Provide(.input)
+            var config: String = ""
+
+            @SubContainer(scope: .shared)
+            var child: ChildContainer = ChildContainer()
+
+            init() {}
+        }
+
+        @DIContainer
+        struct ChildContainer {}
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("UnsupportedContainer.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(
+            outcome.metricsArtifact.issues.first?.code
+                == "container.unsupported-declaration-kind"
+        )
+        #expect(!outcome.result.stderr.contains("container.custom-init-unsupported"))
+        #expect(!outcome.result.stderr.contains("sub."))
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Full-source preflight rejects containers inside computed-property accessors")
+    func accessorLocalContainerFailsBeforeRunnerExecutes() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct AccessorHost {
+            var value: Int {
+                @DIContainer
+                struct AccessorContainer {}
+                return 0
+            }
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("AccessorContainer.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(
+            outcome.metricsArtifact.issues.first?.code
+                == "container.local-declaration-unsupported"
+        )
+        #expect(
+            outcome.metricsArtifact.issues.first?.message.contains(
+                "'AccessorContainer' is declared in an executable code scope"
+            ) == true
+        )
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Same-file custom init conflicts remain outside build-stage validation")
     func sameFileCustomInitConflictsDoNotShortCircuitBuildValidator() async throws {
         let fixture = try makeFixture()
@@ -2023,6 +2123,8 @@ struct ValidationCoordinatorTests {
             }
         }
 
+        // Syntax-only validator boundary fixture. InnoDI 5.0 rejects this
+        // declaration during macro expansion; it is not a supported example.
         @DIContainer
         struct GenericContainer<T> {
             @Provide(.input)

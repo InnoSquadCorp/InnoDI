@@ -16,7 +16,7 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
-| 4.x → 5.0 (예정) | `@GenerateMock` 한정 | RFC 0001이 계획대로 GA로 들어옵니다. RFC 0002는 4.2의 wiring 단순화로 이미 적용됐습니다. |
+| 4.x → 5.0 (예정) | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
 단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0의 예정 surface와
@@ -206,16 +206,36 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ## 4.x → 5.0 (예정)
 
-5.0은 추가형 RFC들이 GA로 들어오는 첫 번째 메이저 릴리스입니다. 원래
-짝지어 있던 wiring 단순화는 이미 5.0 이전에 적용됐습니다.
+5.0은 매크로 surface를 더 늘리기 전에 compiler와 graph의 공개 계약을
+복구합니다. 원래 함께 계획했던 wiring 단순화는 이미 적용됐으며, major
+release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않습니다.
 
-| RFC | 내용 | 컨슈머 영향 |
-|---|---|---|
-| [0001 — `@GenerateMock`](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0001-macro-mock-generation.md) | 새 매크로 | 추가형. 마이그레이션 불필요, 도입 선택. |
-| [0002 — SubContainer wiring 단순화](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | `withNames:` 제거 | 5.0 이전에 이미 적용. 컨슈머는 `with:` 또는 `bindings:`만 사용해야 합니다. |
+| 영역 | 예정된 컨슈머 영향 |
+|---|---|
+| `concrete:` | 인자를 삭제하세요. 선언된 property type이 concrete storage와 existential storage를 결정합니다. |
+| `@DIFeatureRoot` | `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 교체하세요. |
+| 선언 종류 | 5.0 container/component는 file scope 또는 비제네릭 nominal 안의 비제네릭 struct를 사용하세요. 지원하지 않는 선언 종류와 local scope에는 전용 진단이 발생합니다. |
+| MainActor | 누락됐던 `mainActor: true` 격리에 의존한 코드에는 명시적인 actor hop을 추가하세요. |
+| Validation | 동적 scope expression과 conditional DI 선언을 지원되는 정적 형태로 바꾸세요. |
+| Graph JSON | module-qualified ID와 명시적 target/root-pruning scope를 갖는 schema v2로 consumer를 옮기세요. |
+| `@GenerateMock` | experimental 상태를 유지하며, 5.0이 migration 또는 GA freeze를 뜻하지 않습니다. |
 
-프로젝트가 이미 `withNames:` 없이 빌드된다면, 5.0은 SubContainer wiring
-관점에서 no-op입니다.
+5.0 채택 전에 class, actor, enum, protocol, extension 또는 generic
+`@DIContainer` 선언과 함께 붙은 `@DIComponent`를 실질적으로 비제네릭인
+struct 경계로 바꾸세요. 컨테이너 자체나 이를 감싸는 generic nominal 선언에
+generic parameter나 generic `where` clause가 있으면 지원하지 않습니다.
+런타임·타입별 상태는 명시적 protocol dependency나 `.input` 값으로 옮기세요.
+extension 안에 중첩된 struct도 syntax-only macro가 대상의 generic 여부를
+증명할 수 없으므로 file scope나 비제네릭 nominal로 이동해야 합니다. 함수,
+closure, initializer, accessor, switch case, local block 같은 실행 스코프의
+컨테이너는 해당 스코프의 generic 여부와 관계없이 file scope나 비제네릭
+nominal 선언으로 옮기세요. generic 함수 안의 nested type이나
+`@DIComponent` 같은 attached-extension macro를 함께 적용한 local container처럼
+Swift 언어 자체가 허용하지 않는 위치에서는 Swift compiler 진단이 함께 나올
+수 있습니다.
+
+이 섹션은 구현이 진행되는 동안의 migration 개요입니다. 남은 진단,
+codemod 명령, before/after 예제는 5.0.0 tag 전 release blocker입니다.
 
 ---
 

@@ -14,6 +14,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         providingPeersOf decl: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        guard !isEnclosedByUnsupportedDIContainer(decl, in: context) else {
+            return []
+        }
+
         guard let varDecl = decl.as(VariableDeclSyntax.self),
               let binding = varDecl.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
@@ -54,6 +58,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
+        guard !isEnclosedByUnsupportedDIContainer(declaration, in: context) else {
+            return [unsupportedDIContainerRecoveryAccessor()]
+        }
+
         let parseResult = parseProvideArguments(attribute)
         
         guard let varDecl = declaration.as(VariableDeclSyntax.self),

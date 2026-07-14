@@ -13,6 +13,8 @@ struct DIContainerMacroTests {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
         "InnoDI.DIContainer": DIContainerMacro.self,
+        "DIComponent": DIComponentMacro.self,
+        "DIHierarchyRoot": DIHierarchyRootMacro.self,
         "Provide": ProvideMacro.self,
         "SubContainer": SubContainerMacro.self,
     ]
@@ -1924,44 +1926,161 @@ struct DIContainerMacroTests {
         })
     }
 
-    @Test("Generic argument same-file extensions are excluded from custom init detection")
-    func genericArgumentExtensionsAreExcluded() {
-        assertMacroExpansionSnapshot(
-            """
-            @DIContainer
-            struct AppContainer<T> {
-                @Provide(.input)
-                var config: Config
-            }
+    @Test("Class, actor, and enum containers emit the declaration-kind diagnostic")
+    func unsupportedNominalKindsEmitDedicatedDiagnostic() throws {
+        let classDecl = try #require(
+            Parser.parse(source: "@DIContainer\nclass ClassContainer {}").statements.first?
+                .item.as(ClassDeclSyntax.self)
+        )
+        try assertUnsupportedContainerDeclaration(
+            classDecl,
+            expectedID: "container.unsupported-declaration-kind",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ClassContainer' is declared as a class. Convert it to a struct and inject runtime state through @Provide(.input)."
+        )
 
-            extension AppContainer<String> {
-                init(config: Config, debug: Bool) {
-                    self.init(config: config)
-                }
-            }
-            """,
-            matches: "genericArgumentExtensionsAreExcluded",
-            macros: Self.macros
+        let actorDecl = try #require(
+            Parser.parse(source: "@DIContainer\nactor ActorContainer {}").statements.first?
+                .item.as(ActorDeclSyntax.self)
+        )
+        try assertUnsupportedContainerDeclaration(
+            actorDecl,
+            expectedID: "container.unsupported-declaration-kind",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ActorContainer' is declared as an actor. Convert it to a struct and inject runtime state through @Provide(.input)."
+        )
+
+        let enumDecl = try #require(
+            Parser.parse(source: "@DIContainer\nenum EnumContainer {}").statements.first?
+                .item.as(EnumDeclSyntax.self)
+        )
+        try assertUnsupportedContainerDeclaration(
+            enumDecl,
+            expectedID: "container.unsupported-declaration-kind",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'EnumContainer' is declared as an enum. Convert it to a struct and inject runtime state through @Provide(.input)."
+        )
+
+        let protocolDecl = try #require(
+            Parser.parse(source: "@DIContainer\nprotocol ProtocolContainer {}").statements.first?
+                .item.as(ProtocolDeclSyntax.self)
+        )
+        try assertUnsupportedContainerDeclaration(
+            protocolDecl,
+            expectedID: "container.unsupported-declaration-kind",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ProtocolContainer' is declared as a protocol. Convert it to a struct and inject runtime state through @Provide(.input)."
+        )
+
+        let extensionDecl = try #require(
+            Parser.parse(source: "@DIContainer\nextension ExtendedContainer {}").statements.first?
+                .item.as(ExtensionDeclSyntax.self)
+        )
+        try assertUnsupportedContainerDeclaration(
+            extensionDecl,
+            expectedID: "container.unsupported-declaration-kind",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ExtendedContainer' is declared as an extension. Convert it to a struct and inject runtime state through @Provide(.input)."
         )
     }
 
-    @Test("Constrained same-file extensions are excluded from custom init detection")
-    func constrainedExtensionsAreExcluded() {
-        assertMacroExpansionSnapshot(
-            """
-            @DIContainer
-            struct AppContainer<T> {
-                @Provide(.input)
-                var config: Config
-            }
+    @Test("Direct generic containers emit the generic diagnostic")
+    func directGenericContainerEmitsDedicatedDiagnostic() throws {
+        let declaration = try #require(
+            Parser.parse(source: "@DIContainer\nstruct GenericContainer<Value> {}").statements.first?
+                .item.as(StructDeclSyntax.self)
+        )
 
-            extension AppContainer where T: Sendable {
-                init(config: Config, debug: Bool) {
-                    self.init(config: config)
-                }
+        try assertUnsupportedContainerDeclaration(
+            declaration,
+            expectedID: "container.generic-unsupported",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'GenericContainer' declares generic parameters. Move type-specific behavior behind an injected dependency."
+        )
+    }
+
+    @Test("Containers nested in generic nominals emit the generic diagnostic")
+    func genericOuterContainerEmitsDedicatedDiagnostic() throws {
+        let outer = try #require(
+            Parser.parse(
+                source: "struct GenericOuter<Value> { @DIContainer struct NestedContainer {} }"
+            ).statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let declaration = try #require(
+            outer.memberBlock.members.first?.decl.as(StructDeclSyntax.self)
+        )
+
+        try assertUnsupportedContainerDeclaration(
+            declaration,
+            expectedID: "container.generic-unsupported",
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'NestedContainer' is nested in generic context 'GenericOuter<Value>'. Move type-specific behavior behind an injected dependency."
+        )
+
+        let function = try #require(
+            Parser.parse(
+                source: "func make() { @DIContainer struct LocalContainer {} }"
+            ).statements.first?.item.as(FunctionDeclSyntax.self)
+        )
+        let localDeclaration = try #require(
+            function.body?.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        try assertUnsupportedContainerDeclaration(
+            localDeclaration,
+            expectedID: "container.local-declaration-unsupported",
+            expectedMessage: "@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'LocalContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration."
+        )
+    }
+
+    @Test("Containers nested in extensions fail closed")
+    func extensionNestedContainerEmitsUnverifiableContextDiagnostic() throws {
+        let source = Parser.parse(
+            source: "struct ExtensionOuter {}\nextension ExtensionOuter { @DIContainer struct NestedContainer {} }"
+        )
+        let extensionDecl = try #require(
+            source.statements.last?.item.as(ExtensionDeclSyntax.self)
+        )
+        let declaration = try #require(
+            extensionDecl.memberBlock.members.first?.decl.as(StructDeclSyntax.self)
+        )
+
+        try assertUnsupportedContainerDeclaration(
+            declaration,
+            expectedID: "container.unverifiable-enclosing-context",
+            expectedMessage: "@DIContainer cannot prove that 'NestedContainer' has a non-generic context because it is declared inside extension 'ExtensionOuter'. Move the container to file scope or a non-generic nominal declaration."
+        )
+    }
+
+    @Test("Unsupported stacked container macros emit one diagnostic with recovery accessors")
+    func unsupportedStackedContainerSuppressesCompanionExpansions() {
+        assertMacroExpansionInline(
+            """
+            @DIComponent
+            @DIHierarchyRoot
+            @DIContainer
+            final class UnsupportedContainer {
+                @Provide(.input) var config: Config
+                @SubContainer(scope: .shared) var child: ChildContainer
             }
             """,
-            matches: "constrainedExtensionsAreExcluded",
+            expandedSource: """
+                final class UnsupportedContainer {
+                    var config: Config {
+                        get {
+                            Swift.preconditionFailure("Unsupported @DIContainer declaration")
+                        }
+                    }
+                    var child: ChildContainer {
+                        get {
+                            Swift.preconditionFailure("Unsupported @DIContainer declaration")
+                        }
+                    }
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(
+                        domain: "InnoDI.usage",
+                        id: "container.unsupported-declaration-kind"
+                    ),
+                    message: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'UnsupportedContainer' is declared as a class. Convert it to a struct and inject runtime state through @Provide(.input).",
+                    line: 3,
+                    column: 1
+                )
+            ],
             macros: Self.macros
         )
     }
@@ -3639,6 +3758,33 @@ struct DIContainerMacroTests {
         #expect(context.diagnostics.isEmpty)
     }
 
+}
+
+private func assertUnsupportedContainerDeclaration(
+    _ declaration: some DeclGroupSyntax,
+    expectedID: String,
+    expectedMessage: String
+) throws {
+    let attribute = try #require(
+        declaration.attributes.first?.as(AttributeSyntax.self)
+    )
+    let context = TestMacroExpansionContext()
+
+    let generated = try DIContainerMacro.expansion(
+        of: attribute,
+        providingMembersOf: declaration,
+        in: context
+    )
+
+    #expect(generated.isEmpty)
+    #expect(context.diagnostics.count == 1)
+    #expect(
+        context.diagnostics.first?.diagnosticID == MessageID(
+            domain: "InnoDI.usage",
+            id: expectedID
+        )
+    )
+    #expect(context.diagnostics.first?.message == expectedMessage)
 }
 
 private func assertExpandedSourceTypechecks(

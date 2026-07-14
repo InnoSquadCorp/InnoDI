@@ -33,6 +33,10 @@ extension DIEnvironmentBridgeMacro: MemberMacro {
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        guard isSupportedDIContainerDeclarationIfPresent(declaration, in: context) else {
+            return []
+        }
+
         guard let nominalType = nominalTypeSyntax(for: declaration) else {
             return []
         }
@@ -67,6 +71,10 @@ extension DIEnvironmentBridgeMacro: ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
+        guard isSupportedDIContainerDeclarationIfPresent(declaration, in: context) else {
+            return []
+        }
+
         let validation = validateEnvironmentBridge(
             attribute: node,
             declaration: declaration,

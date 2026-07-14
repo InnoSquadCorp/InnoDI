@@ -14,8 +14,8 @@ public enum DIScope {
 }
 
 @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary)
-/// Marks a type as an InnoDI container and synthesizes initialization,
-/// overrides, and validation behavior.
+/// Marks a supported non-generic struct as an InnoDI container and synthesizes
+/// initialization, overrides, and validation behavior.
 ///
 /// - Parameters:
 ///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.
@@ -31,6 +31,20 @@ public enum DIScope {
 /// > active `INNODI_DISABLE_BUILD_VALIDATION` environment override in the
 /// > workflow's step summary so reviewers can audit escape-hatch creep
 /// > without a separate gate.
+///
+/// > Important: InnoDI 5.0 supports only effectively non-generic structs at
+/// > file scope or nested in non-generic nominal declarations. Neither the
+/// > struct nor an enclosing nominal declaration may introduce generic
+/// > parameters or a generic `where` clause. Classes, actors, enums, protocols,
+/// > extension declarations, structs inside extensions, and structs in
+/// > executable scopes such as functions, closures, accessors, or switch cases
+/// > are rejected. Move runtime or type-specific state behind injected protocol
+/// > dependencies or `@Provide(.input)` values.
+/// > Current Swift toolchains omit accessor ancestry from attached-macro
+/// > context for a type inside a computed-property body. Attach the
+/// > build-validation plugin to every container target so its full-source
+/// > preflight enforces this edge case. Without it, companion macros stacked on
+/// > an accessor-local container can emit secondary compiler or macro errors.
 public macro DIContainer(
     root: Bool = false,
     validateDAG: Bool = true,
@@ -393,7 +407,16 @@ public protocol DIHierarchyRootMarker {}
     conformances: _InnoDIComponentMountable,
     names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)
 )
-/// Marks a `@DIContainer` as a cross-module mountable component.
+/// Marks a supported `@DIContainer` struct as a cross-module mountable
+/// component. The same file-or-nominal-scope, effectively non-generic
+/// declaration boundary applies when `@DIComponent` is stacked on the
+/// container.
+///
+/// Attach the build-validation plugin to every component target. Current Swift
+/// toolchains omit computed-property accessor ancestry from attached-macro
+/// context, and the plugin's full-source preflight prevents secondary compiler
+/// or companion-macro errors for a component declared in that unsupported
+/// local scope.
 ///
 /// `@DIComponent` lifts the container's `.input` members into a generated
 /// dependency contract named `<ContainerName>Dependencies` and synthesizes

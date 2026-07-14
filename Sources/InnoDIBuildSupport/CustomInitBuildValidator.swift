@@ -144,7 +144,7 @@ private final class CustomInitFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: StructDeclSyntax) {
@@ -152,7 +152,7 @@ private final class CustomInitFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
@@ -160,7 +160,7 @@ private final class CustomInitFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ActorDeclSyntax) {
@@ -168,7 +168,7 @@ private final class CustomInitFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: EnumDeclSyntax) {
@@ -223,7 +223,10 @@ private final class CustomInitFileCollector: SyntaxVisitor {
         return .skipChildren
     }
 
-    private func visitNominal(node: Syntax, name: String, attributes: AttributeListSyntax?) -> SyntaxVisitorContinueKind {
+    private func visitNominal(
+        _ node: some DeclGroupSyntax,
+        name: String
+    ) -> SyntaxVisitorContinueKind {
         declarationStack.append(name)
         let declarationPath = declarationStack.joined(separator: ".")
         nominalTypes.append(
@@ -233,8 +236,11 @@ private final class CustomInitFileCollector: SyntaxVisitor {
             )
         )
 
-        if containsDIContainerAttribute(attributes) {
-            let location = locationConverter.location(for: node.positionAfterSkippingLeadingTrivia)
+        if containsDIContainerAttribute(node.attributes),
+           classifyDIContainerDeclaration(node).isSupported {
+            let location = locationConverter.location(
+                for: node.positionAfterSkippingLeadingTrivia
+            )
             containerDeclarations.append(
                 ContainerDeclarationRecord(
                     declarationPath: declarationPath,

@@ -1,16 +1,17 @@
 import InnoDI
 
-struct Service: Sendable {}
+protocol ServiceProtocol: Sendable {}
+
+struct Service: ServiceProtocol {}
 
 @DIContainer
 struct AppContainer {
     @Provide(.shared)
-    var service: Service
+    var service: any ServiceProtocol
 }
 
 @main
 struct FixtureApp {
     static func main() {
-        _ = AppContainer()
     }
 }

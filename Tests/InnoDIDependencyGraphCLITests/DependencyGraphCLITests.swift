@@ -1,8 +1,64 @@
 import Foundation
+import InnoDIDependencyGraphCore
+import InnoDIWorkspaceAnalysis
 import Testing
 
 @Suite("DependencyGraph CLI Integration")
 struct DependencyGraphCLITests {
+    @Test("Unsupported nested containers block outer graph usage collection")
+    func unsupportedNestedContainerIsAGraphUsageBarrier() throws {
+        let fixtureURL = try makeUnsupportedNestedContainerFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let snapshot = try loadWorkspaceSourceSnapshot(
+            rootPath: fixtureURL.path(percentEncoded: false)
+        )
+
+        let analysis = collectDependencyGraph(snapshot: snapshot, validateDAG: false)
+
+        #expect(analysis.nodes.map(\.displayName).sorted() == ["Child", "Parent"])
+        #expect(analysis.edges.isEmpty)
+    }
+
+    @Test("Unsupported container declarations fail render and validation preflight")
+    func unsupportedDeclarationsFailEveryGraphMode() throws {
+        let fixtureURL = try makeUnsupportedDeclarationFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let rootPath = fixtureURL.path(percentEncoded: false)
+
+        for arguments in [
+            ["--root", rootPath, "--format", "json"],
+            ["--root", rootPath, "--validate-dag"],
+        ] {
+            let result = try runCLI(arguments)
+
+            #expect(result.exitCode == 1)
+            #expect(result.stdout.isEmpty)
+            #expect(
+                result.stderr.components(
+                    separatedBy: "[container.unsupported-declaration-kind]"
+                ).count - 1 == 1
+            )
+            #expect(
+                result.stderr.components(
+                    separatedBy: "[container.generic-unsupported]"
+                ).count - 1 == 1
+            )
+            #expect(
+                result.stderr.components(
+                    separatedBy: "[container.unverifiable-enclosing-context]"
+                ).count - 1 == 1
+            )
+            #expect(
+                result.stderr.components(
+                    separatedBy: "[container.local-declaration-unsupported]"
+                ).count - 1 == 2
+            )
+            #expect(!result.stderr.contains("container.custom-init-unsupported"))
+            #expect(!result.stdout.contains("schemaVersion"))
+            #expect(!result.stdout.contains("DAG validation passed"))
+        }
+    }
+
     @Test("Renders mermaid, dot, and ascii formats")
     func rendersSupportedFormats() throws {
         let fixtureURL = try makeFixtureProject()
@@ -669,6 +725,127 @@ private func makeFixtureProject() throws -> URL {
         encoding: .utf8
     )
 
+    return fixtureURL
+}
+
+private func makeUnsupportedDeclarationFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "InnoDI-CLI-Unsupported-Declarations-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    try FileManager.default.createDirectory(
+        at: fixtureURL,
+        withIntermediateDirectories: true
+    )
+
+    let source = """
+    import InnoDI
+
+    @DIContainer
+    final class ClassContainer {
+        init() {}
+    }
+
+    @DIContainer
+    struct GenericContainer<Value> {}
+
+    struct ExtensionOuter {}
+    extension ExtensionOuter {
+        @DIContainer
+        struct ExtensionNestedContainer {}
+    }
+
+    func declareLocalContainer() {
+        @DIContainer
+        struct LocalContainer {}
+    }
+
+    struct AccessorHost {
+        var value: Int {
+            @DIContainer
+            struct AccessorContainer {}
+            return 0
+        }
+    }
+
+    @DIContainer(root: true)
+    struct ValidContainer {}
+    """
+    try source.write(
+        to: fixtureURL.appendingPathComponent("Containers.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+    return fixtureURL
+}
+
+private func makeUnsupportedNestedContainerFixtureProject() throws -> URL {
+    let fixtureURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "InnoDI-CLI-Unsupported-Nested-Usage-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    try FileManager.default.createDirectory(
+        at: fixtureURL,
+        withIntermediateDirectories: true
+    )
+
+    let source = """
+    @DIContainer
+    struct Parent {
+        @DIContainer
+        struct Unsupported<Value> {
+            @Provide(.shared, factory: Child())
+            var child: Child
+        }
+
+        @DIContainer
+        protocol UnsupportedProtocol {
+            @Provide(.shared, factory: Child())
+            var child: Child { get }
+        }
+    }
+
+    @DIContainer
+    struct Child {}
+
+    func first() {
+        @DIContainer
+        struct LocalContainer {
+            @Provide(.input) var config: String
+        }
+    }
+
+    func second() {
+        @DIContainer
+        struct LocalContainer {
+            @Provide(.input) var count: Int
+        }
+    }
+
+    let closure = {
+        @DIContainer
+        struct ClosureContainer {
+            @Provide(.input) var flag: Bool
+        }
+    }
+
+    struct AccessorHost {
+        var value: Int {
+            @DIContainer
+            struct AccessorContainer {
+                @Provide(.input) var token: String
+            }
+            return 0
+        }
+    }
+    """
+    try source.write(
+        to: fixtureURL.appendingPathComponent("Containers.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
     return fixtureURL
 }
 

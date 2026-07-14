@@ -29,7 +29,7 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 InnoDI esta pensado para equipos que quieren mantener el wiring de DI
 explicito y revisable, detectando fallos lo antes posible.
 
-- `@DIContainer` y `@Provide` generan APIs de contenedor desde tipos Swift normales.
+- `@DIContainer` y `@Provide` generan APIs de contenedor desde structs Swift compatibles y efectivamente no genericos.
 - La validacion de macros detecta errores locales durante la expansion.
 - La validacion de build y el CLI del grafo detectan problemas cross-file,
   cross-module y de grafo global.
@@ -251,8 +251,25 @@ Empieza por estos documentos en este orden:
 4. Cuatro overloads de `withOverrides` para operaciones `sync`, `throws`,
    `async` y `async throws`.
 
-Todos los contenedores sintetizan la estructura de overrides salvo que el
+Cada contenedor compatible sintetiza la estructura de overrides salvo que el
 usuario ya declare un tipo `Overrides` anidado, lo cual suprime la generacion.
+
+`@DIContainer` solo admite declaraciones `struct` efectivamente no genericas
+en el alcance de archivo o anidadas nominalmente. Ni la propia declaracion ni
+ninguna declaracion envolvente puede tener parametros genericos o una clausula
+`where`. Se rechazan `class`, `actor`, `enum`, `protocol`, las `extension`
+anotadas directamente y los structs anidados en extensiones. Tambien se
+rechaza cualquier declaracion en un alcance ejecutable o local, incluidas
+funciones, closures, accessors y casos de `switch`. El mismo limite se aplica
+al combinar `@DIComponent`.
+Mueve el estado de runtime o especifico del tipo detras de dependencias de
+protocolo o `@Provide(.input)`.
+
+El compilador Swift actual omite el contexto del accessor al expandir un
+attached macro sobre un tipo dentro del body de una computed property. El
+plugin de build validation y el CLI del dependency graph escanean el source
+completo y rechazan tambien este caso limite. Conecta el plugin a cada target
+que declare contenedores.
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)

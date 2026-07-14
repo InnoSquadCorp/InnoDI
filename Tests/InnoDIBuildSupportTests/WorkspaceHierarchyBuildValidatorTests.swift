@@ -6,6 +6,99 @@ import InnoDITestSupport
 
 @Suite("WorkspaceHierarchyBuildValidator", .tags(.hierarchyValidation))
 struct WorkspaceHierarchyBuildValidatorTests {
+    @Test("Unsupported container declarations do not activate hierarchy validation")
+    func unsupportedRootIsExcludedFromHierarchyCollection() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [.target(name: "AppFeature")]
+            )
+            """,
+            to: rootURL
+        )
+        try writeSource(
+            """
+            @DIHierarchyRoot
+            @DIContainer
+            final class UnsupportedRoot {}
+
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {}
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/Containers.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("Unsupported nested protocols do not leak inputs into the parent container")
+    func unsupportedNestedProtocolIsAHierarchyContextBarrier() throws {
+        let rootURL = try makeTemporaryWorkspaceRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try writeSwiftPMManifest(
+            """
+            // swift-tools-version: 6.2
+            import PackageDescription
+
+            let package = Package(
+                name: "Workspace",
+                targets: [
+                    .target(name: "AppFeature", dependencies: ["FeatureModule"]),
+                    .target(name: "FeatureModule"),
+                ]
+            )
+            """,
+            to: rootURL
+        )
+        try writeSource(
+            """
+            @DIHierarchyRoot
+            @DIContainer
+            struct AppContainer {
+                @DIContainer
+                protocol UnsupportedProtocol {
+                    @Provide(.input) var config: Config { get }
+                }
+
+                @SubContainer(scope: .shared)
+                var feature: FeatureContainer
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/AppFeature/AppContainer.swift")
+        )
+        try writeSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+            }
+            """,
+            to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")
+        )
+
+        let report = try WorkspaceHierarchyBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(
+            report.issues.contains { $0.code == "hierarchy.unsatisfied-dependency" }
+        )
+    }
+
     @Test("SwiftPM multi-target rooted hierarchy passes when parent satisfies component inputs")
     func swiftPMValidHierarchyPasses() throws {
         let rootURL = try makeTemporaryWorkspaceRoot()

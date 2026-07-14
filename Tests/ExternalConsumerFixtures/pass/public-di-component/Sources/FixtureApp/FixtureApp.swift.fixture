@@ -4,10 +4,19 @@ private struct AppDependencies: FeatureContainerDependencies {
     let config = FeatureConfig()
 }
 
+private struct NestedDependencies:
+    FeatureNamespace.Detail.NestedFeatureContainerDependencies {
+    let config = FeatureConfig()
+}
+
 @main
 struct FixtureApp {
     static func main() {
         let container = FeatureContainer(dependencies: AppDependencies())
         let _: any FeatureServiceProtocol = container.service
+        let nested = FeatureNamespace.Detail.NestedFeatureContainer(
+            dependencies: NestedDependencies()
+        )
+        let _: FeatureConfig = nested.config
     }
 }

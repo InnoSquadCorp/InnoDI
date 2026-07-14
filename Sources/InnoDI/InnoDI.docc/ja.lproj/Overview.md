@@ -4,9 +4,12 @@
 
 ## Overview
 
-InnoDI は `@DIContainer` と `@Provide` を使って通常の Swift 型を DI
-コンテナに変換します。重点は明示的な wiring、決定的な検証、グラフ
-ツールにあります。
+InnoDI は `@DIContainer` と `@Provide` を使って、ファイルスコープまたは
+nominal type 内にネストされた、サポート対象の実質的に非ジェネリックな
+Swift struct を DI コンテナに変換します。関数、クロージャ、アクセサ、
+`switch` case を含む、実行可能またはローカルなコードスコープ内の宣言は
+サポートしません。重点は明示的な wiring、決定的な検証、グラフツールに
+あります。
 
 4.0.0 の stable baseline:
 

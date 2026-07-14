@@ -16,3 +16,13 @@ public struct FeatureContainer {
     @Provide(.input) public var config: FeatureConfig
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
 }
+
+public enum FeatureNamespace {
+    public enum Detail {
+        @DIComponent
+        @DIContainer
+        public struct NestedFeatureContainer {
+            @Provide(.input) public var config: FeatureConfig
+        }
+    }
+}

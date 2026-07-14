@@ -32,7 +32,11 @@ struct DiagnosticsTests {
             .subExplicitTypeRequired,
             .provideUnknownScope,
             .provideInputInvalidConfiguration,
-            .transientFactoryUnnamedParameters
+            .transientFactoryUnnamedParameters,
+            .containerUnsupportedDeclarationKind,
+            .containerGenericUnsupported,
+            .containerUnverifiableEnclosingContext,
+            .containerLocalDeclarationUnsupported
         ]
 
         let validationCodes: [InnoDIDiagnosticCode] = [
@@ -98,6 +102,10 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideUnknownScope("foo"), MessageID(domain: "InnoDI.usage", id: "provide.unknown-scope")),
             (SimpleDiagnostic.provideInputInvalidConfiguration(), MessageID(domain: "InnoDI.usage", id: "provide.input-invalid-configuration")),
             (SimpleDiagnostic.transientFactoryUnnamedParameters(), MessageID(domain: "InnoDI.usage", id: "transient-factory.unnamed-parameters")),
+            (SimpleDiagnostic.containerUnsupportedDeclarationKind(name: "AppContainer", kind: "class"), MessageID(domain: "InnoDI.usage", id: "container.unsupported-declaration-kind")),
+            (SimpleDiagnostic.containerGenericUnsupported(name: "AppContainer", contextName: nil), MessageID(domain: "InnoDI.usage", id: "container.generic-unsupported")),
+            (SimpleDiagnostic.containerUnverifiableEnclosingContext(name: "AppContainer", extendedType: "Feature"), MessageID(domain: "InnoDI.usage", id: "container.unverifiable-enclosing-context")),
+            (SimpleDiagnostic.containerLocalDeclarationUnsupported(name: "AppContainer", context: "function 'build'"), MessageID(domain: "InnoDI.usage", id: "container.local-declaration-unsupported")),
             (SimpleDiagnostic.provideSharedFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.shared-factory-required")),
             (SimpleDiagnostic.provideTransientFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.transient-factory-required")),
             (SimpleDiagnostic.provideConcreteOptInRequired(name: "service", typeDescription: "Service"), MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")),

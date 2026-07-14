@@ -1,4 +1,5 @@
 import Foundation
+import InnoDIBuildSupport
 import InnoDIDependencyGraphCore
 import InnoDIWorkspaceAnalysis
 
@@ -57,6 +58,20 @@ package func runDependencyGraphCLI() -> Int32 {
     } catch {
         fputs("Error loading Swift sources: \(error)\n", stderr)
         return ExitCode.failure
+    }
+
+    let declarationMatrix = ContainerSemanticBuildValidator.validateDeclarationMatrix(
+        snapshot: snapshot
+    )
+    if let failure = declarationMatrix.asCommandResult() {
+        return writeValidationResult(
+            DependencyGraphCommandResult(
+                exitCode: failure.exitCode,
+                stdout: failure.stdout,
+                stderr: failure.stderr
+            ),
+            outputPath: outputPath
+        )
     }
 
     if parsed.validateDAG {
