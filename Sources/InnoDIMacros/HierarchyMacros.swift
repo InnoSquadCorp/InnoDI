@@ -117,9 +117,14 @@ extension DIComponentMacro: ExtensionMacro {
         }
 
         let protocolName = "\(nominalInfo.baseName)Dependencies"
+        let accessLevel = hierarchyAccessLevelModifiers(for: declaration.modifiers)
 
         return [
-            makeComponentMountableExtensionDecl(type: type, protocolName: protocolName)
+            makeComponentMountableExtensionDecl(
+                type: type,
+                protocolName: protocolName,
+                accessLevel: accessLevel
+            )
         ]
     }
 }
@@ -252,7 +257,8 @@ private func makeComponentDependenciesProtocolDecl(
 
 private func makeComponentMountableExtensionDecl(
     type: some TypeSyntaxProtocol,
-    protocolName: String
+    protocolName: String,
+    accessLevel: DeclModifierListSyntax
 ) -> ExtensionDeclSyntax {
     ExtensionDeclSyntax(
         extendedType: TypeSyntax(type),
@@ -268,6 +274,7 @@ private func makeComponentMountableExtensionDecl(
                 MemberBlockItemSyntax(
                     decl: DeclSyntax(
                         TypeAliasDeclSyntax(
+                            modifiers: accessLevel,
                             typealiasKeyword: .keyword(.typealias, trailingTrivia: .space),
                             name: .identifier("_InnoDIComponentDependencies"),
                             initializer: TypeInitializerClauseSyntax(
@@ -287,6 +294,7 @@ private func makeComponentMountableExtensionDecl(
                 MemberBlockItemSyntax(
                     decl: DeclSyntax(
                         TypeAliasDeclSyntax(
+                            modifiers: accessLevel,
                             typealiasKeyword: .keyword(.typealias, trailingTrivia: .space),
                             name: .identifier("_InnoDIComponentOverrides"),
                             initializer: TypeInitializerClauseSyntax(

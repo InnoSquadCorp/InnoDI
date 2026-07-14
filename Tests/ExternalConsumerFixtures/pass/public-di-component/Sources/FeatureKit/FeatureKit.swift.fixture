@@ -1,0 +1,18 @@
+import InnoDI
+
+public struct FeatureConfig: Sendable {
+    public init() {}
+}
+
+public protocol FeatureServiceProtocol: Sendable {}
+
+public struct FeatureService: FeatureServiceProtocol {
+    public init() {}
+}
+
+@DIComponent
+@DIContainer
+public struct FeatureContainer {
+    @Provide(.input) public var config: FeatureConfig
+    @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
+}
