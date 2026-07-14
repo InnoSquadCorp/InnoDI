@@ -4,7 +4,8 @@
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
 - **Last updated**: 2026-05-06
-- **Target release**: 4.x experimental, GA in 5.0
+- **Target release**: 4.x experimental; GA only after the published criteria
+  pass (not a 5.0 blocker)
 
 ## Initial answers to open questions
 
@@ -158,7 +159,7 @@ mixed real/mock graphs.
 1. Ship `@GenerateMock` as an experimental library feature for one minor
    release so we can evolve the generated shape without breaking users.
    The public attribute ships without a trait gate, but generated helper names
-   stay explicitly non-frozen until the 5.0 GA contract.
+   stay explicitly non-frozen until a dedicated GA promotion.
 2. Collect feedback from Examples and a handful of adopter repos on
    the open questions above.
 3. Promote to stable with a dedicated RFC revision that documents the

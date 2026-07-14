@@ -11,10 +11,11 @@ before a PR lands.
 
 | ID   | Title                                 | Status |
 |------|---------------------------------------|--------|
-| 0001 | [Macro-driven mock generation](0001-macro-mock-generation.md) | Draft |
+| 0001 | [Macro-driven mock generation](0001-macro-mock-generation.md) | Accepted (experimental) |
 | 0002 | [SubContainer wiring simplification](0002-subcontainer-wiring-simplification.md) | Implemented |
 | 0003 | [Scoped TaskLocal overrides](0003-scoped-task-local-overrides.md) | Draft |
-| 0004 | [API surface simplification](0004-api-surface-simplification.md) | Draft |
+| 0004 | [API surface simplification](0004-api-surface-simplification.md) | Draft (partially superseded) |
+| 0005 | [5.0 contract hardening](0005-5.0-contract-hardening.md) | Accepted |
 
 ## Conventions
 

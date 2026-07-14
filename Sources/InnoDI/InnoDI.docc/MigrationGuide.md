@@ -17,7 +17,7 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 4.x → 5.0 (planned) | `@GenerateMock` GA | RFC 0001 promotes to stable; the generated names freeze as part of the 5.0 release contract. RFC 0002 has already been applied by the 4.2 wiring simplification. |
+| 4.x → 5.0 (planned) | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
@@ -212,17 +212,24 @@ Two additions that you don't have to use, but might want to:
 
 ## 4.x → 5.0 (planned)
 
-5.0 is the first major release that takes additive RFCs through
-to GA. The originally-paired wiring simplification has already
-landed before 5.0.
+5.0 restores the compiler and graph contracts before adding more macro
+surface. The originally paired wiring simplification has already landed, and
+experimental features do not automatically become GA because this is a major
+release.
 
-| RFC | What | Effect on consumers |
-|---|---|---|
-| [0001 — `@GenerateMock`](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0001-macro-mock-generation.md) | New macro | Additive. No migration required. Adoption optional. |
-| [0002 — SubContainer wiring simplification](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0002-subcontainer-wiring-simplification.md) | Remove `withNames:` | Already applied before 5.0. Consumers should be on `with:` or `bindings:` only. |
+| Area | Planned consumer effect |
+|---|---|
+| `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
+| `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
+| Declaration kinds | Use non-generic structs for 5.0 containers/components; unsupported kinds receive dedicated diagnostics. |
+| MainActor | Add explicit actor hops where code relied on missing `mainActor: true` isolation. |
+| Validation | Replace dynamic scope expressions and conditional DI declarations with supported, statically analyzable forms. |
+| Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
+| `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
 
-If your project already builds without `withNames:`, 5.0 is otherwise a
-no-op for SubContainer wiring.
+This section is the migration outline while implementation proceeds. Exact
+diagnostics, codemod commands, and before/after examples are release blockers
+and will be added before the 5.0.0 tag.
 
 ---
 
