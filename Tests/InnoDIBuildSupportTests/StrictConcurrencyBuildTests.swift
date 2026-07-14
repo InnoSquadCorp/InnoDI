@@ -427,7 +427,7 @@ struct StrictConcurrencyBuildTests {
     }
 }
 
-private struct StrictConcurrencyBuildResult {
+struct StrictConcurrencyBuildResult {
     let exitCode: Int32
     let stdout: String
     let stderr: String
@@ -451,7 +451,7 @@ private final class StrictConcurrencyDataSink: @unchecked Sendable {
     }
 }
 
-private func runStrictConcurrencyBuild(
+func runStrictConcurrencyBuild(
     packageURL: URL,
     scratchPath: URL? = nil
 ) throws -> StrictConcurrencyBuildResult {
@@ -697,7 +697,7 @@ private func multiTargetFeatureSource(containerName: String) -> String {
     """
 }
 
-private func packageRootURL() -> URL {
+func packageRootURL() -> URL {
     if let override = ProcessInfo.processInfo.environment["PACKAGE_ROOT"],
        !override.isEmpty {
         return URL(fileURLWithPath: override, isDirectory: true)

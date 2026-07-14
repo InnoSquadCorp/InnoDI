@@ -126,6 +126,8 @@ standalone release assets.
   release blockers.
 - Declared `main` as the 5.0 development line while keeping 4.3.0 as the
   latest stable installation version.
+- Added reusable external SwiftPM compile-pass and compile-fail fixtures, and
+  enabled the strict macro test workflow for pushes to `main`.
 
 ### Breaking or Behavior Changes
 

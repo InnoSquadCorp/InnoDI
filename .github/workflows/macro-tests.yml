@@ -2,6 +2,9 @@ name: Macro Tests
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   macro-tests:
@@ -126,7 +129,9 @@ jobs:
         uses: ./not-innodi/.github/actions/select-xcode
       - name: Run Strict Concurrency Fixture
         working-directory: not-innodi
-        run: swift test --filter StrictConcurrencyBuildTests
+        run: |
+          swift test --filter StrictConcurrencyBuildTests
+          swift test --filter ExternalConsumerContractTests
       - name: Build Examples
         working-directory: not-innodi
         run: |

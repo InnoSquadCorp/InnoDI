@@ -1,0 +1,16 @@
+import InnoDI
+
+struct Service: Sendable {}
+
+@DIContainer
+struct AppContainer {
+    @Provide(.shared)
+    var service: Service
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        _ = AppContainer()
+    }
+}
