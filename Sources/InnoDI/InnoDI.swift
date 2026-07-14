@@ -386,9 +386,13 @@ public protocol _InnoDIComponentMountable {
 /// for workspaces that declare at least one root container with this marker.
 public protocol DIHierarchyRootMarker {}
 
-@attached(peer, names: arbitrary)
+@attached(peer, names: suffixed(Dependencies))
 @attached(member, names: named(init))
-@attached(extension, conformances: _InnoDIComponentMountable)
+@attached(
+    extension,
+    conformances: _InnoDIComponentMountable,
+    names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)
+)
 /// Marks a `@DIContainer` as a cross-module mountable component.
 ///
 /// `@DIComponent` lifts the container's `.input` members into a generated

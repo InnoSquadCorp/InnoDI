@@ -128,6 +128,8 @@ standalone release assets.
   latest stable installation version.
 - Added reusable external SwiftPM compile-pass and compile-fail fixtures, and
   enabled the strict macro test workflow for pushes to `main`.
+- Restored public `@DIComponent` expansion across Swift module boundaries by
+  exporting its generated associated-type witnesses.
 
 ### Breaking or Behavior Changes
 

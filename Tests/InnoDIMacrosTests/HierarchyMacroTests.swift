@@ -103,8 +103,8 @@ struct HierarchyMacroTests {
                 }
 
                 extension FeatureContainer: _InnoDIComponentMountable {
-                    typealias _InnoDIComponentDependencies = any FeatureContainerDependencies
-                    typealias _InnoDIComponentOverrides = Overrides
+                    public typealias _InnoDIComponentDependencies = any FeatureContainerDependencies
+                    public typealias _InnoDIComponentOverrides = Overrides
                 }
                 """,
             macros: Self.macros

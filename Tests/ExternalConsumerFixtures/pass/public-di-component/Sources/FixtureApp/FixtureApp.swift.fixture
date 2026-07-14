@@ -1,0 +1,13 @@
+import FeatureKit
+
+private struct AppDependencies: FeatureContainerDependencies {
+    let config = FeatureConfig()
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        let container = FeatureContainer(dependencies: AppDependencies())
+        let _: any FeatureServiceProtocol = container.service
+    }
+}
