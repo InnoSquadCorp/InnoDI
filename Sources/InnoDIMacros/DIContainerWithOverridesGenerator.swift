@@ -50,7 +50,7 @@ private func makeWithOverridesMethod(
         firstName: .wildcardToken(),
         secondName: .identifier("applyOverrides"),
         colon: .colonToken(),
-        type: TypeSyntax(stringLiteral: "(inout Overrides) -> Void"),
+        type: overrideApplyClosureType(isMainActor: model.options.mainActor),
         ellipsis: nil,
         defaultValue: nil,
         trailingComma: .commaToken()
@@ -58,7 +58,7 @@ private func makeWithOverridesMethod(
     params.append(applyOverridesParam)
 
     // operation: (Self) [async] [throws] -> OperationResult
-    var operationTypeDescription = "(Self) "
+    var operationTypeDescription = model.options.mainActor ? "@MainActor (Self) " : "(Self) "
     if isAsync { operationTypeDescription += "async " }
     if isThrowing { operationTypeDescription += "throws " }
     operationTypeDescription += "-> OperationResult"

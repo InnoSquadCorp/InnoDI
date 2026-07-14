@@ -261,6 +261,32 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIFeatureRoot follows enclosing DIContainer MainActor isolation")
+    func featureRootFollowsEnclosingMainActorIsolation() {
+        assertMacroExpansionInline(
+            #"""
+            @DIContainer(mainActor: true)
+            struct ParentContainer {
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(DashboardRootView.self)
+                var dashboard: DashboardContainer
+            }
+            """#,
+            expandedSource: #"""
+                @DIContainer(mainActor: true)
+                struct ParentContainer {
+                    @SubContainer(scope: .shared)
+                    var dashboard: DashboardContainer
+
+                    @MainActor func dashboardRootView() -> DashboardRootView {
+                        DashboardRootView(container: dashboard)
+                    }
+                }
+                """#,
+            macros: Self.macros
+        )
+    }
+
     @Test("DIFeatureRoot maps open access to public generated helpers")
     func featureRootMapsOpenAccessToPublicHelpers() {
         assertMacroExpansionInline(

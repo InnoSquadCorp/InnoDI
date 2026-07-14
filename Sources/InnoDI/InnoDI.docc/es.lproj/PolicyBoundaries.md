@@ -22,6 +22,36 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
 - async `.shared` puede leer inputs, sync shared y async shared previos.
 - `.transient` puede leer cualquier miembro, pero la resolución de nombres sigue siendo estricta.
 
+## Aislamiento y Sendability
+
+- Los contenedores mantienen el almacenamiento generado dentro del valor del
+  contenedor. InnoDI no registra dependencias en un registro global.
+- `mainActor: true` aísla los accessors de dependencias, todos los
+  inicializadores generados, `Overrides`, los tipos de closure `applyOverrides`
+  usados por los inicializadores de conveniencia, `withOverrides`, los
+  overrides de child containers y el mounting de componentes, las closures de
+  operación de los cuatro overloads `withOverrides` y los helpers de feature
+  root generados. Es la forma recomendada para contenedores raíz de UI.
+- Al combinarlo con `@DIComponent`, el protocolo de dependencias generado,
+  `init(dependencies:_:)` y el tipo de closure de override quedan aislados con
+  `@MainActor`, y el componente usa la conformidad dedicada
+  `_InnoDIMainActorComponentMountable`. Los componentes normales siguen usando
+  `_InnoDIComponentMountable` sin aislamiento. En 5.0, los helpers genéricos de
+  mounting deben ofrecer constraints y tipos de closure separados para ambos
+  marcadores.
+- Mantén los valores de container/component generados y las dependencias que no
+  son `Sendable` en el actor principal. Prefiere un caller `@MainActor` o un
+  bloque `MainActor.run` que construya y consuma esos valores. Un `await`
+  directo es adecuado cuando la operación aislada devuelve un resultado
+  `Sendable`, como el resultado de una operación `withOverrides`; no permite
+  transportar de forma segura un contenedor no `Sendable` fuera del actor.
+- Los wrappers `Lazy<T>` y `Provider<T>` no transportan valores entre actors.
+  Deben permanecer dentro del dominio de aislamiento del contenedor, salvo que
+  `T` y la ruta de llamada ya sean seguros para transferirse.
+- Las dependencias que no son `Sendable` deben pasar por límites explícitos del
+  contenedor y quedar aisladas en la capa de la app, no ocultarse tras un
+  lookup global.
+
 ## Concrete Opt-In
 
 - Se prefiere diseño protocol-first.

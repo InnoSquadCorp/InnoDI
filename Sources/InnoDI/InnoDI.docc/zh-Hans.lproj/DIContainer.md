@@ -36,4 +36,13 @@ overrides scaffolding。
 
 - `root`：只影响图渲染入口
 - `validateDAG`：控制全局 DAG 校验与本地 cycle / closure-`with:` 校验
-- `mainActor`：把生成的容器 API 隔离到 `@MainActor`
+- `mainActor`：为依赖访问器、所有生成的初始化器、`Overrides`、convenience
+  initializer、`withOverrides`、子容器 override 与 component mounting 所使用的
+  `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及
+  feature-root helper 应用 `@MainActor` 隔离。与 `@DIComponent` 搭配时，生成的
+  `<Container>Dependencies` 协议和 `init(dependencies:_:)` 也会获得相同隔离，
+  component 会改为遵循专用协议 `_InnoDIMainActorComponentMountable`。未使用该
+  选项的普通 component 继续遵循 `_InnoDIComponentMountable`。对于非
+  `Sendable` 的生成值，请使用 `@MainActor` caller，或在同一个
+  `MainActor.run` block 中完成构造和使用，使其留在主执行器内。direct `await`
+  适用于返回 `Sendable` 结果的隔离操作，而不是把 container 本身带到执行器之外。

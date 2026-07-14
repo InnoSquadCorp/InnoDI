@@ -41,4 +41,16 @@ benutzerdefinierter verschachtelter `Overrides`-Typ existiert.
 - `root`: Einstiegspunkt nur fur das Graph-Rendering
 - `validateDAG`: aktiviert globale DAG-Validierung und lokale cycle-/
   closure-`with:`-Checks; `false` uberspringt nur diesen Bereich
-- `mainActor`: wendet `@MainActor` auf die generierte API an
+- `mainActor`: isoliert Dependency-Accessors, alle generierten Initialisierer,
+  `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-
+  Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die
+  Operations-Closures aller vier `withOverrides`-Overloads sowie Feature-Root-
+  Helper mit `@MainActor`. Zusammen mit `@DIComponent` erhalten das generierte
+  `<Container>Dependencies`-Protokoll und `init(dependencies:_:)` dieselbe
+  Isolation; die Component konformiert dem dedizierten Protokoll
+  `_InnoDIMainActorComponentMountable`. Components ohne diese Option verwenden
+  weiterhin `_InnoDIComponentMountable`. Nicht-`Sendable` generierte Werte
+  müssen über einen `@MainActor`-Aufrufer oder durch Erzeugung und Verwendung im
+  selben `MainActor.run`-Block auf dem Main Actor bleiben. Ein direktes `await`
+  passt für eine isolierte Operation mit `Sendable`-Ergebnis, nicht zum
+  Transport des Containers aus dem Actor heraus.

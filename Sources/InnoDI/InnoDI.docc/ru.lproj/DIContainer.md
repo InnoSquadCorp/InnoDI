@@ -40,7 +40,20 @@ dependency-graph CLI сканируют полное дерево исходно
 
 - `root`: влияет только на вход рендера графа
 - `validateDAG`: управляет global DAG validation и local cycle / closure-`with:`
-- `mainActor`: добавляет `@MainActor` к сгенерированному API
+- `mainActor`: изолирует с помощью `@MainActor` аксессоры зависимостей, все
+  сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides`
+  для convenience initializer, `withOverrides`, overrides дочерних контейнеров
+  и mounting компонентов, операционные замыкания всех четырёх overload
+  `withOverrides` и feature-root helpers. При совместном использовании с
+  `@DIComponent` ту же изоляцию получают сгенерированные protocol
+  `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает
+  отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без
+  этой опции продолжают использовать `_InnoDIComponentMountable`.
+  Сгенерированные значения, не реализующие `Sendable`, должны оставаться на
+  главном акторе: используйте caller с `@MainActor` либо создавайте и
+  используйте их в одном блоке `MainActor.run`. Прямой `await` подходит для
+  изолированной операции с `Sendable`-результатом, но не для переноса самого
+  container за пределы актора.
 
 ## See Also
 

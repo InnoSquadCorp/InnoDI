@@ -222,10 +222,20 @@ release.
 | `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
 | `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
 | Declaration kinds | Use file-scope or nominally nested non-generic structs for 5.0 containers/components; unsupported kinds and local scopes receive dedicated diagnostics. |
-| MainActor | Add explicit actor hops where code relied on missing `mainActor: true` isolation. |
+| MainActor | Put dependency conformers, construction, and use of non-`Sendable` generated values for `mainActor: true` components on `@MainActor`. From off actor, construct and consume them inside `MainActor.run`; use direct `await` only when the isolated operation returns a `Sendable` result. Override-application closures for convenience initializers, `withOverrides`, child overrides, and component mounting are now `@MainActor`. |
 | Validation | Replace dynamic scope expressions and conditional DI declarations with supported, statically analyzable forms. |
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
+
+5.0 splits the component mounting marker by isolation. Ordinary components
+continue to conform to `_InnoDIComponentMountable`; components whose container
+uses `mainActor: true` instead conform to
+`_InnoDIMainActorComponentMountable`. Update generic mounting helpers with a
+separate `@MainActor` actor-marker overload and type its override parameter as
+`@MainActor (inout Component._InnoDIComponentOverrides) -> Void`. A helper that
+only constrains `_InnoDIComponentMountable` no longer accepts a main-actor
+component. Keep a non-`Sendable` mounted result inside the `@MainActor` caller
+or the `MainActor.run` block instead of returning it to an off-actor context.
 
 Convert class, actor, enum, protocol, extension, and generic container
 declarations to non-generic struct boundaries before adopting 5.0. The same

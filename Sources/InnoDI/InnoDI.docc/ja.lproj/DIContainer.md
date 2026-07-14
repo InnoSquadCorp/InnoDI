@@ -38,4 +38,15 @@ overrides scaffolding を生成します。
 
 - `root`: グラフ描画エントリだけを制御
 - `validateDAG`: global DAG validation と local cycle / closure-`with:` を制御
-- `mainActor`: 生成 API に `@MainActor` を適用
+- `mainActor`: 依存関係 accessor、生成されるすべての initializer、
+  `Overrides`、convenience initializer・`withOverrides`・child override・
+  component mount で使う `applyOverrides` 関数型、4 つの `withOverrides`
+  operation closure、feature-root helper を `@MainActor` に隔離します。
+  `@DIComponent` を併用すると、生成される `<Container>Dependencies` protocol
+  と `init(dependencies:_:)` も同じ隔離を受け、component は専用の
+  `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを
+  使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。
+  non-`Sendable` な生成値は `@MainActor` caller を使うか、同じ
+  `MainActor.run` block 内で生成して利用し、main actor に保持してください。
+  direct `await` は隔離された処理が `Sendable` な結果を返す場合に適しており、
+  container 自体を actor 外へ運ぶためのものではありません。

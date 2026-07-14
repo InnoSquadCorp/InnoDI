@@ -57,36 +57,10 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         )
         memberDecls.append(MemberBlockItemSyntax(decl: directSlot))
 
-        let childOverridesType = TypeSyntax(
-            MemberTypeSyntax(
-                baseType: member.type.trimmed,
-                period: .periodToken(),
-                name: .identifier("Overrides")
-            )
-        )
-        let applyClosureType = TypeSyntax(
-            FunctionTypeSyntax(
-                parameters: TupleTypeElementListSyntax([
-                    TupleTypeElementSyntax(
-                        inoutKeyword: .keyword(.inout, trailingTrivia: .space),
-                        type: childOverridesType
-                    )
-                ]),
-                returnClause: ReturnClauseSyntax(
-                    type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Void")))
-                )
-            )
-        )
-        let applyType = TypeSyntax(
-            OptionalTypeSyntax(
-                wrappedType: TypeSyntax(
-                    TupleTypeSyntax(
-                        elements: TupleTypeElementListSyntax([
-                            TupleTypeElementSyntax(type: applyClosureType)
-                        ])
-                    )
-                )
-            )
+        let applyType = overrideApplyClosureType(
+            overridesTypeDescription: "\(member.type.trimmedDescription).Overrides",
+            isMainActor: model.options.mainActor,
+            isOptional: true
         )
         let applySlot = VariableDeclSyntax(
             modifiers: modifiers,
@@ -103,6 +77,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
     }
 
     let structDecl = StructDeclSyntax(
+        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         name: .identifier("Overrides"),
         memberBlock: MemberBlockSyntax(
@@ -133,9 +108,12 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
         params.append(param)
     }
 
-    // Final unnamed trailing closure parameter:
-    //   _ applyOverrides: (inout Overrides) -> Void
-    let overridesClosureType = TypeSyntax(stringLiteral: "(inout Overrides) -> Void")
+    // Final unnamed trailing closure parameter. Main-actor containers carry
+    // isolation on the closure type as well as on the initializer:
+    //   _ applyOverrides: [@MainActor] (inout Overrides) -> Void
+    let overridesClosureType = overrideApplyClosureType(
+        isMainActor: model.options.mainActor
+    )
     let closureParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
         secondName: .identifier("applyOverrides"),

@@ -100,3 +100,34 @@ public struct DIContainerMacro: MemberMacro {
         }
     }
 }
+
+extension DIContainerMacro: MemberAttributeMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingAttributesFor member: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AttributeSyntax] {
+        guard parseDIContainerAttribute(declaration.attributes)?.mainActor == true,
+              classifyDIContainerDeclaration(
+                declaration,
+                lexicalContext: context.lexicalContext
+              ).isSupported,
+              let variable = member.as(VariableDeclSyntax.self),
+              !variable.modifiers.contains(where: { $0.name.text == "static" }),
+              findStandardMainActorAttribute(in: variable.attributes) == nil,
+              detectConflictingGlobalActor(in: variable.attributes) == nil,
+              !variable.modifiers.contains(where: { $0.name.text == "nonisolated" }),
+              (
+                InnoDICore.findInnoDIAttribute(named: "Provide", in: variable.attributes) != nil
+                    || InnoDICore.findInnoDIAttribute(
+                        named: "SubContainer",
+                        in: variable.attributes
+                    ) != nil
+              ) else {
+            return []
+        }
+
+        return [mainActorAttribute()]
+    }
+}

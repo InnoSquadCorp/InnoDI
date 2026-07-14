@@ -44,7 +44,18 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
   closure/`with:` graph-derived 진단을 켭니다. `false`면 그 범위만
   건너뛰고 raw-expression `factory:`와 initializer reference, 구조
   진단은 계속 남습니다.
-- `mainActor`: 생성된 컨테이너 API에 `@MainActor` 격리를 적용합니다.
+- `mainActor`: 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience
+  initializer·`withOverrides`·child override·component mount에 쓰이는
+  `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure,
+  feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIComponent`와 함께
+  사용하면 생성된 `<Container>Dependencies` protocol과
+  `init(dependencies:_:)`도 같은 격리를 받고, component는 전용
+  `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 쓰지
+  않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다.
+  non-`Sendable` 생성 값은 `@MainActor` caller를 사용하거나 `MainActor.run` 안에서
+  생성하고 소비해 main actor에 유지하세요. direct `await`는 격리된 작업이
+  `Sendable` 결과를 반환할 때 적합하며, container 자체를 actor 밖으로 옮기는
+  용도가 아닙니다.
 
 ## See Also
 

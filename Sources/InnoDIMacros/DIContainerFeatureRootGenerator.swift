@@ -3,7 +3,8 @@ import SwiftSyntaxBuilder
 
 func makeFeatureRootHelperDecls(
     subContainerMembers: [SubContainerMemberModel],
-    accessLevel: String?
+    accessLevel: String?,
+    isMainActor: Bool
 ) -> [DeclSyntax] {
     let modifiers = accessModifiers(accessLevel)
 
@@ -12,7 +13,8 @@ func makeFeatureRootHelperDecls(
             makeFeatureRootHelperDecl(
                 root: root,
                 subContainerName: member.name,
-                modifiers: modifiers
+                modifiers: modifiers,
+                isMainActor: isMainActor
             )
         }
     }
@@ -21,7 +23,8 @@ func makeFeatureRootHelperDecls(
 private func makeFeatureRootHelperDecl(
     root: FeatureRootMemberModel,
     subContainerName: String,
-    modifiers: DeclModifierListSyntax
+    modifiers: DeclModifierListSyntax,
+    isMainActor: Bool
 ) -> DeclSyntax {
     let rootViewCall = FunctionCallExprSyntax(
         calledExpression: ExprSyntax("\(raw: root.rootViewTypeName)"),
@@ -38,6 +41,7 @@ private func makeFeatureRootHelperDecl(
 
     return DeclSyntax(
         FunctionDeclSyntax(
+            attributes: isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
             modifiers: modifiers,
             name: .identifier(root.helperName),
             signature: FunctionSignatureSyntax(

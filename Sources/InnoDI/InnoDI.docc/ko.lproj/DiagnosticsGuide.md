@@ -121,8 +121,12 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   initializer를 합성합니다. 사용자가 작성한 것을 제거하세요.
 - `container.overrides-name-conflict` — 사용자의 nested `Overrides`
   타입이 합성된 빌더와 충돌합니다.
-- `container.mainactor-conflict` — `@DIContainer(mainActor: true)`가
-  main actor에서 실행될 수 없는 asynchronous factory와 결합됐습니다.
+- `container.mainactor-conflict` — `@DIContainer(mainActor: true)`가 container
+  또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
+  제거하거나 `mainActor` 생성을 비활성화하세요.
+- `container.mainactor-nonisolated-member` — `@Provide` 또는 `@SubContainer`
+  member가 `nonisolated`로 격리를 해제해 container의 `mainActor: true`
+  계약과 충돌합니다.
 - `container.bool-literal-required` — `root:`, `validateDAG:`,
   `mainActor:`가 literal `true` 또는 `false`가 아닙니다. build
   configuration별 attribute 분기는 conditional compilation을 쓰세요.

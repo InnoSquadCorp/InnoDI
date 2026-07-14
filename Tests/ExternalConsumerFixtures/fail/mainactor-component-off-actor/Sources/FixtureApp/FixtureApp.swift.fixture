@@ -1,0 +1,39 @@
+import InnoDI
+
+@DIComponent
+@DIContainer(mainActor: true)
+struct MainActorContainer {
+    @Provide(.input) var config: String
+}
+
+@DIContainer(mainActor: true)
+struct MainActorRootContainer {
+    @Provide(.input) var config: String
+
+    @SubContainer(
+        scope: .shared,
+        with: [\MainActorRootContainer.config]
+    )
+    var child: MainActorContainer
+}
+
+func buildOffActor(
+    dependencies: any MainActorContainerDependencies
+) {
+    _ = MainActorContainer(dependencies: dependencies)
+}
+
+func readOffActor(_ container: MainActorContainer) -> String {
+    container.config
+}
+
+func readChildOffActor(
+    _ container: MainActorRootContainer
+) -> MainActorContainer {
+    container.child
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

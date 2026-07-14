@@ -518,7 +518,7 @@ struct ProvideMacroTests {
         )
     }
 
-    @Test("Container mainActor option applies MainActor to generated accessor")
+    @Test("Container mainActor option applies MainActor to dependency property")
     func mainActorContainerAppliesMainActorToAccessor() {
         assertMacroExpansionSnapshot(
             """

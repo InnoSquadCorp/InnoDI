@@ -39,7 +39,19 @@ user already declares a nested `Overrides` type.
   closure/`with:` graph-derived checks. When set to `false`, those checks are
   skipped, but raw-expression `factory:` and initializer references plus
   structural diagnostics still remain active.
-- `mainActor`: Applies `@MainActor` isolation to generated container APIs.
+- `mainActor`: Applies `@MainActor` isolation to dependency accessors, every
+  generated initializer, `Overrides`, the `applyOverrides` function types used
+  by convenience initializers, `withOverrides`, child overrides, and component
+  mounting, all four `withOverrides` operation closures, and feature-root
+  helpers. With `@DIComponent`, the generated `<Container>Dependencies`
+  protocol and `init(dependencies:_:)` receive the same isolation, and the
+  component conforms to the dedicated
+  `_InnoDIMainActorComponentMountable` protocol. Components without the option
+  continue to use `_InnoDIComponentMountable`. Keep non-`Sendable` generated
+  values on the main actor by using an `@MainActor` caller or constructing and
+  consuming them inside `MainActor.run`. A direct `await` is appropriate for an
+  isolated operation that returns a `Sendable` result, not for carrying the
+  container itself off actor.
 
 ## See Also
 

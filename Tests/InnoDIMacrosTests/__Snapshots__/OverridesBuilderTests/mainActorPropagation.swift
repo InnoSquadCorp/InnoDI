@@ -1,5 +1,6 @@
 
 struct AppContainer {
+    @MainActor
     var userID: String {
         get {
             return _storage_userID
@@ -7,6 +8,7 @@ struct AppContainer {
     }
 
     private let _storage_userID: String
+    @MainActor
     var apiClient: APIClient {
         get {
             return _storage_apiClient
@@ -22,37 +24,37 @@ struct AppContainer {
     }
 
     // MARK: - Overrides Builder
-    struct Overrides {
+    @MainActor struct Overrides {
         var apiClient: APIClient? = nil
     }
 
     // MARK: - Convenience Init with Overrides
-    @MainActor init(userID: String, _ applyOverrides: (inout Overrides) -> Void) {
+    @MainActor init(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void) {
         var overrides = Overrides()
         applyOverrides(&overrides)
         self.init(userID: userID, apiClient: overrides.apiClient)
     }
 
     // MARK: - withOverrides
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) -> OperationResult) -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return operation(container)
     }
 
     // MARK: - withOverrides (throws)
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) throws -> OperationResult) throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try operation(container)
     }
 
     // MARK: - withOverrides (async)
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try await operation(container)
     }

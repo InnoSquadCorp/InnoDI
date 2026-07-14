@@ -114,14 +114,14 @@ struct HierarchyMacroTests {
         )
     }
 
-    @Test("DIComponent qualifies a multi-level nested dependency contract")
+    @Test("DIComponent qualifies a multi-level nested actor-isolated dependency contract")
     func diComponentQualifiesNestedDependencyContract() throws {
         let source = Parser.parse(
             source: """
                 struct Outer {
                     struct Middle {
                         @DIComponent
-                        @DIContainer
+                        @DIContainer(mainActor: true)
                         struct FeatureContainer {
                             @Provide(.input) var config: String
                         }
@@ -162,6 +162,73 @@ struct HierarchyMacroTests {
             generated.contains(
                 "typealias _InnoDIComponentDependencies = any Outer.Middle.FeatureContainerDependencies"
             )
+        )
+        #expect(
+            extensionDecl.inheritanceClause?.inheritedTypes.first?.type.trimmedDescription
+                == "_InnoDIMainActorComponentMountable"
+        )
+    }
+
+    @Test("DIComponent propagates MainActor isolation across its generated contract")
+    func diComponentPropagatesMainActorIsolation() throws {
+        let source = Parser.parse(
+            source: """
+                @DIComponent
+                @DIContainer(mainActor: true)
+                public struct FeatureContainer {
+                    @Provide(.input) public var config: String
+                }
+                """
+        )
+        let component = try #require(
+            source.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let attribute = try #require(
+            component.attributes.first?.as(AttributeSyntax.self)
+        )
+        let context = TestMacroExpansionContext()
+
+        let peers = try DIComponentMacro.expansion(
+            of: attribute,
+            providingPeersOf: component,
+            in: context
+        )
+        let members = try DIComponentMacro.expansion(
+            of: attribute,
+            providingMembersOf: component,
+            in: context
+        )
+        let extensions = try DIComponentMacro.expansion(
+            of: attribute,
+            attachedTo: component,
+            providingExtensionsOf: TypeSyntax(stringLiteral: "FeatureContainer"),
+            conformingTo: [],
+            in: context
+        )
+
+        #expect(context.diagnostics.isEmpty)
+        let dependencies = try #require(
+            peers.first?.as(ProtocolDeclSyntax.self)
+        )
+        let initializer = try #require(
+            members.first?.as(InitializerDeclSyntax.self)
+        )
+        let mountableConformance = try #require(
+            extensions.first?.inheritanceClause?.inheritedTypes.first
+        )
+
+        #expect(peers.count == 1)
+        #expect(members.count == 1)
+        #expect(extensions.count == 1)
+        #expect(dependencies.attributes.trimmedDescription == "@MainActor")
+        #expect(initializer.attributes.trimmedDescription == "@MainActor")
+        #expect(
+            initializer.signature.parameterClause.parameters.last?.type.trimmedDescription
+                == "@MainActor (inout Overrides) -> Void"
+        )
+        #expect(
+            mountableConformance.type.trimmedDescription
+                == "_InnoDIMainActorComponentMountable"
         )
     }
 

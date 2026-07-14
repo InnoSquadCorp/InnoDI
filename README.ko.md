@@ -262,7 +262,17 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 |---|---|---|
 | `root` | `false` | 그래프 렌더 엔트리 플래그입니다. 하나라도 root가 있으면 Mermaid, DOT, ASCII 출력은 root에서 도달 가능한 노드와 엣지 union만 남깁니다. |
 | `validateDAG` | `true` | global DAG validation과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 검증을 켭니다. `false`면 그 범위만 건너뛰고, raw-expression `factory:`와 initializer reference 진단 및 구조 검증은 계속 유지됩니다. |
-| `mainActor` | `false` | 생성되는 컨테이너 API에 `@MainActor` 격리를 적용합니다. UI 루트 컨테이너에 권장됩니다. |
+| `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIComponent`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
+
+5.0의 generic component mounting helper는 두 marker protocol을 구분해야
+합니다. 일반 component에는 `_InnoDIComponentMountable`을 유지하고,
+`mainActor: true` component에는 `_InnoDIMainActorComponentMountable` constraint와
+`@MainActor` override closure를 쓰는 `@MainActor` overload를 추가하세요.
+
+non-`Sendable` container/component 값은 `@MainActor` caller를 사용하거나
+`MainActor.run` 안에서 생성하고 소비해 main actor에 유지하세요. direct `await`는
+`withOverrides` operation result처럼 격리된 작업이 `Sendable` 결과를 반환할 때
+적합하며, container 자체를 actor 밖으로 옮겨도 안전하게 만들지는 않습니다.
 
 `@DIContainer`는 annotated type이나 매칭되는 extension에 사용자 정의 `init`
 선언을 허용하지 않습니다. 생성된 initializer를 사용하거나, 매크로 없이
@@ -401,7 +411,13 @@ cross-module ownership에는 다음을 사용합니다.
 - `@DIEnvironmentBridge`는 container member를 SwiftUI environment key에 매핑합니다.
 - `@DIFeatureRoot`는 child container의 default 또는 named feature-root helper를 생성합니다.
 
-UI 루트 컨테이너에는 `@DIContainer(mainActor: true)`를 권장합니다.
+생성되는 컨테이너 API를 main actor에 격리하려면 UI 루트 컨테이너에
+`@DIContainer(mainActor: true)`를 사용하세요. `@DIComponent`를 함께 적용하면
+`<Container>Dependencies` protocol, `init(dependencies:_:)`, override 적용 closure
+타입도 격리되고 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다.
+일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. non-`Sendable`
+값의 생성과 사용은 main actor 안에 유지하고, direct `await`는 격리된 작업이
+`Sendable` 결과를 반환할 때만 사용하세요.
 
 ## CLI와 릴리즈 표면
 

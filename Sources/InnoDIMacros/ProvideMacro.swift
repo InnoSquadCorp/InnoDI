@@ -70,8 +70,10 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
             return []
         }
 
-        let enclosingContainerInfo = enclosingDIContainerInfo(for: declaration)
-        let enclosingContainerMainActor = enclosingContainerInfo?.mainActor == true
+        let enclosingContainerInfo = enclosingDIContainerInfo(
+            for: declaration,
+            in: context
+        )
         let name = identifier.identifier.text
         
         switch parseResult.scope {
@@ -90,8 +92,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                         )
                     ],
                     isAsync: true,
-                    isThrowing: parseResult.asyncFactoryIsThrowing,
-                    isMainActor: enclosingContainerMainActor
+                    isThrowing: parseResult.asyncFactoryIsThrowing
                 )
                 return [getter]
             }
@@ -104,8 +105,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                     ))
                 ],
                 isAsync: false,
-                isThrowing: false,
-                isMainActor: enclosingContainerMainActor
+                isThrowing: false
             )
             return [getter]
 
@@ -118,8 +118,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                     ))
                 ],
                 isAsync: false,
-                isThrowing: false,
-                isMainActor: enclosingContainerMainActor
+                isThrowing: false
             )
             return [getter]
             
@@ -194,8 +193,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                         )
                     ],
                     isAsync: true,
-                    isThrowing: parseResult.asyncFactoryIsThrowing,
-                    isMainActor: enclosingContainerMainActor
+                    isThrowing: parseResult.asyncFactoryIsThrowing
                 )
                 return [getter]
             }
@@ -269,8 +267,7 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                     returnStmt(expr: createExpr)
                 ],
                 isAsync: false,
-                isThrowing: false,
-                isMainActor: enclosingContainerMainActor
+                isThrowing: false
             )
 
             return [getter]
@@ -307,18 +304,13 @@ private func handleCodegenInvariant(
 private func makeGetter(
     statements: [CodeBlockItemSyntax],
     isAsync: Bool,
-    isThrowing: Bool,
-    isMainActor: Bool
+    isThrowing: Bool
 ) -> AccessorDeclSyntax {
-    var getter = AccessorDeclSyntax(
+    AccessorDeclSyntax(
         accessorSpecifier: .keyword(.get),
         effectSpecifiers: makeAccessorEffectSpecifiers(isAsync: isAsync, isThrowing: isThrowing),
         body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
     )
-    if isMainActor {
-        getter = getter.with(\.attributes, mainActorAccessorAttributes())
-    }
-    return getter
 }
 
 private func makeAccessorEffectSpecifiers(
@@ -335,17 +327,25 @@ private func makeAccessorEffectSpecifiers(
     )
 }
 
-private func mainActorAccessorAttributes() -> AttributeListSyntax {
-    AttributeListSyntax([
-        AttributeListSyntax.Element(
-            AttributeSyntax(
-                attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
-            )
-        )
-    ])
-}
+private func enclosingDIContainerInfo(
+    for declaration: some DeclSyntaxProtocol,
+    in context: some MacroExpansionContext
+) -> DIContainerAttributeInfo? {
+    for node in context.lexicalContext.reversed() {
+        if let structDecl = node.as(StructDeclSyntax.self),
+           let info = parseDIContainerAttribute(structDecl.attributes) {
+            return info
+        }
+        if let classDecl = node.as(ClassDeclSyntax.self),
+           let info = parseDIContainerAttribute(classDecl.attributes) {
+            return info
+        }
+        if let actorDecl = node.as(ActorDeclSyntax.self),
+           let info = parseDIContainerAttribute(actorDecl.attributes) {
+            return info
+        }
+    }
 
-private func enclosingDIContainerInfo(for declaration: some DeclSyntaxProtocol) -> DIContainerAttributeInfo? {
     var current: Syntax? = Syntax(declaration).parent
 
     while let node = current {
