@@ -76,8 +76,12 @@ public enum KeyPathArrayArgumentParseState: Equatable, Sendable {
 public struct ProvideArguments {
     /// Parsed scope value (`.shared`, `.input`, `.transient`) when available.
     public let scope: ProvideScope?
-    /// Raw textual scope name.
+    /// Raw textual scope name. Invalid explicit expressions are preserved so
+    /// callers can distinguish them from an omitted scope.
     public let scopeName: String?
+    /// Explicit scope expression, or `nil` when the default `.shared` scope
+    /// was omitted at the call site.
+    public let scopeExpr: ExprSyntax?
     /// Factory expression passed via `factory:`.
     public let factoryExpr: ExprSyntax?
     /// Asynchronous factory expression passed via `asyncFactory:`.
@@ -100,6 +104,7 @@ public struct ProvideArguments {
     /// - Parameters:
     ///   - scope: Parsed scope value.
     ///   - scopeName: Raw scope name text.
+    ///   - scopeExpr: Explicit scope expression, when supplied.
     ///   - factoryExpr: Parsed factory expression.
     ///   - asyncFactoryExpr: Parsed async factory expression.
     ///   - asyncFactoryIsThrowing: Whether the async factory closure throws.
@@ -109,6 +114,7 @@ public struct ProvideArguments {
     public init(
         scope: ProvideScope?,
         scopeName: String?,
+        scopeExpr: ExprSyntax? = nil,
         factoryExpr: ExprSyntax?,
         asyncFactoryExpr: ExprSyntax? = nil,
         asyncFactoryIsThrowing: Bool = false,
@@ -120,6 +126,7 @@ public struct ProvideArguments {
     ) {
         self.scope = scope
         self.scopeName = scopeName
+        self.scopeExpr = scopeExpr
         self.factoryExpr = factoryExpr
         self.asyncFactoryExpr = asyncFactoryExpr
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
@@ -381,9 +388,23 @@ private func attributeBaseName(_ type: TypeSyntax) -> String? {
     return nil
 }
 
+private func isSupportedProvideScopeReference(_ expression: MemberAccessExprSyntax) -> Bool {
+    guard let base = expression.base else {
+        return true
+    }
+
+    switch base.trimmedDescription {
+    case "DIScope", "InnoDI.DIScope":
+        return true
+    default:
+        return false
+    }
+}
+
 public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
     var scopeName: String?
     var scope: ProvideScope?
+    var scopeExpr: ExprSyntax?
     var factoryExpr: ExprSyntax?
     var asyncFactoryExpr: ExprSyntax?
     var asyncFactoryIsThrowing = false
@@ -427,19 +448,27 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     typeExpr = memberAccess.base
                     continue
                 }
-                
-                if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
-                     let name = memberAccess.declName.baseName.text
-                     if let s = ProvideScope(rawValue: name) {
-                         scopeName = name
-                         scope = s
-                     }
+
+                // The first non-Type.self positional expression is the scope.
+                // Preserve unsupported or dynamic spellings instead of
+                // confusing an explicit value with an omitted `.shared`.
+                if scopeExpr == nil {
+                    scopeExpr = argument.expression
+                    scopeName = argument.expression.trimmedDescription
+
+                    if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
+                        let name = memberAccess.declName.baseName.text
+                        if isSupportedProvideScopeReference(memberAccess) {
+                            scopeName = name
+                            scope = ProvideScope(rawValue: name)
+                        }
+                    }
                 }
             }
         }
     }
 
-    if scopeName == nil {
+    if scopeExpr == nil {
         scopeName = ProvideScope.shared.rawValue
         scope = .shared
     }
@@ -447,6 +476,7 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     return ProvideArguments(
         scope: scope,
         scopeName: scopeName,
+        scopeExpr: scopeExpr,
         factoryExpr: factoryExpr,
         asyncFactoryExpr: asyncFactoryExpr,
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,

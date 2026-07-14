@@ -3344,6 +3344,35 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("@Provide dynamic scope anchors provide.unknown-scope to the expression")
+    func provideDynamicScopeAnchorsToExpression() {
+        assertMacroExpansionSnapshot(
+            """
+            let requestedScope: DIScope = .shared
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    requestedScope,
+                    factory: Service(),
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            matches: "provideDynamicScopeAnchorsToExpression",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.usage", id: "provide.unknown-scope"),
+                    message: "Unknown @Provide scope: requestedScope.",
+                    line: 6,
+                    column: 9
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
     @Test("@SubContainer unknown scope anchors the diagnostic to the scope expression")
     func subContainerUnknownScopeAnchorsToScopeExpression() {
         assertMacroExpansionSnapshot(

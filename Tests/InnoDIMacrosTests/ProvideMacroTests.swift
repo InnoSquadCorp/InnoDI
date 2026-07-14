@@ -1,5 +1,6 @@
 import Foundation
 import InnoDITestSupport
+import SwiftDiagnostics
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -184,6 +185,28 @@ struct ProvideMacroTests {
     }
 
     // MARK: - Accessor/peer expansion tests (migrated to snapshot/inline)
+
+    @Test("Standalone @Provide rejects a dynamic scope exactly once")
+    func standaloneProvideRejectsDynamicScope() {
+        assertMacroExpansionSnapshot(
+            """
+            struct PlainContainer {
+                @Provide(ScopeChooser.shared, factory: Service(), concrete: true)
+                var service: Service
+            }
+            """,
+            matches: "standaloneProvideRejectsDynamicScope",
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.usage", id: "provide.unknown-scope"),
+                    message: "Unknown @Provide scope: ScopeChooser.shared.",
+                    line: 2,
+                    column: 14
+                )
+            ],
+            macros: Self.macros
+        )
+    }
 
     @Test("Transient factory closure injects dependencies by parameter name")
     func transientFactoryClosureInjectsDependenciesByParameterName() {

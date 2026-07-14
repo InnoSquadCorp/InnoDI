@@ -101,6 +101,76 @@ struct ParsingTests {
         #expect(info.scopeName == "input")
         #expect(info.factoryExpr == nil)
     }
+
+    @Test
+    func parseProvideAttributePreservesUnknownExplicitScope() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(.request, factory: Service())
+            var service: Service
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.scope == nil)
+        #expect(info.scopeName == "request")
+        #expect(info.scopeExpr?.trimmedDescription == ".request")
+    }
+
+    @Test
+    func parseProvideAttributePreservesDynamicExplicitScope() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(useTransient ? .transient : .shared, factory: Service())
+            var service: Service
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.scope == nil)
+        #expect(info.scopeName == "useTransient ? .transient : .shared")
+        #expect(info.scopeExpr?.trimmedDescription == "useTransient ? .transient : .shared")
+    }
+
+    @Test
+    func parseProvideAttributeRejectsLookalikeQualifiedScope() throws {
+        let source = """
+        struct AppContainer {
+            @Provide(ScopeChooser.shared, factory: Service())
+            var service: Service
+        }
+        """
+        let decl = try #require(firstVarDecl(in: source))
+
+        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+        let info = try #require(parsed)
+        #expect(info.scope == nil)
+        #expect(info.scopeName == "ScopeChooser.shared")
+        #expect(info.scopeExpr?.trimmedDescription == "ScopeChooser.shared")
+    }
+
+    @Test
+    func parseProvideAttributeAcceptsQualifiedDIScopeLiteral() throws {
+        for spelling in ["DIScope.shared", "InnoDI.DIScope.shared"] {
+            let source = """
+            struct AppContainer {
+                @Provide(\(spelling), factory: Service())
+                var service: Service
+            }
+            """
+            let decl = try #require(firstVarDecl(in: source))
+
+            let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
+            let info = try #require(parsed)
+            #expect(info.scope == .shared)
+            #expect(info.scopeName == "shared")
+            #expect(info.scopeExpr?.trimmedDescription == spelling)
+        }
+    }
     
     @Test
     func parseProvideAttributeTransient() throws {
