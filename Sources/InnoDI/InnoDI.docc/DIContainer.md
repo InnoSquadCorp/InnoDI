@@ -1,7 +1,16 @@
 # DIContainer
 
-`@DIContainer` marks a type as an InnoDI container and synthesizes the
-container API surface.
+`@DIContainer` marks a supported, effectively non-generic struct at file scope
+or in a non-generic nominal declaration as an InnoDI container and synthesizes
+the container API surface.
+
+InnoDI 5.0 requires both the struct and every enclosing nominal declaration to
+omit generic parameters and generic `where` clauses. Classes, actors, enums,
+protocols, extension declarations, structs declared inside extensions, and
+structs in executable scopes such as functions, closures, accessors, or switch
+cases are rejected. The same boundary applies when `@DIComponent` is stacked
+on the container. Move runtime or type-specific state behind injected protocol
+dependencies or `@Provide(.input)` values.
 
 ## Declaration
 
@@ -18,8 +27,8 @@ container API surface.
 - a convenience `init(<inputs...>, _ applyOverrides: ...)`
 - four `withOverrides` effect overloads
 
-All containers synthesize the overrides scaffolding unless the user already
-declares a nested `Overrides` type.
+Every supported container synthesizes the overrides scaffolding unless the
+user already declares a nested `Overrides` type.
 
 ## Parameters
 

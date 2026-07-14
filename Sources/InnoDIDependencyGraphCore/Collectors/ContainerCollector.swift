@@ -68,8 +68,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        beginDeclarationContext(named: node.name.text)
-        return .visitChildren
+        visitContainerDeclaration(node, name: node.name.text)
     }
 
     override func visitPost(_ node: EnumDeclSyntax) {
@@ -108,6 +107,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
     private func collectIfContainer(_ node: some DeclGroupSyntax, displayName: String) {
         guard let containerAttr = parseDIContainerAttribute(node.attributes) else { return }
+        guard classifyDIContainerDeclaration(node).isSupported else { return }
         let semanticPath = declarationPath.joined(separator: ".")
         let parentID = GraphIdentity.makeContainerID(
             fileRelativePath: currentRelativeFilePath,

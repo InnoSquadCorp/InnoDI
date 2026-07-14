@@ -221,13 +221,29 @@ release.
 |---|---|
 | `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
 | `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
-| Declaration kinds | Use non-generic structs for 5.0 containers/components; unsupported kinds receive dedicated diagnostics. |
+| Declaration kinds | Use file-scope or nominally nested non-generic structs for 5.0 containers/components; unsupported kinds and local scopes receive dedicated diagnostics. |
 | MainActor | Add explicit actor hops where code relied on missing `mainActor: true` isolation. |
 | Validation | Replace dynamic scope expressions and conditional DI declarations with supported, statically analyzable forms. |
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
 
-This section is the migration outline while implementation proceeds. Exact
+Convert class, actor, enum, protocol, extension, and generic container
+declarations to non-generic struct boundaries before adopting 5.0. The same
+boundary applies to a stacked `@DIComponent`. Preserve runtime or type-specific
+state as an explicit protocol dependency or `.input` value instead of putting
+that state on the container declaration itself. A container nested inside a
+generic nominal declaration is generic for this policy even when the nested
+declaration does not spell its own type parameters. Declarations nested inside
+extensions must also move to file scope or a non-generic nominal declaration
+because an attached syntax macro cannot prove the genericity of an extension's
+target. Containers in executable scopes—including functions, closures,
+initializers, accessors, switch cases, and local blocks—must move to file scope
+or a non-generic nominal declaration regardless of whether that scope is
+generic. Swift may add its own language diagnostic for an inherently invalid
+placement such as a type nested in a generic function or a local container
+stacked with an attached-extension macro such as `@DIComponent`.
+
+This section is the migration outline while implementation proceeds. Remaining
 diagnostics, codemod commands, and before/after examples are release blockers
 and will be added before the 5.0.0 tag.
 

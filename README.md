@@ -28,7 +28,8 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 InnoDI is designed for teams that want DI wiring to stay explicit and
 reviewable while moving failure detection earlier.
 
-- `@DIContainer` and `@Provide` generate container APIs from plain Swift types.
+- `@DIContainer` and `@Provide` generate container APIs from supported,
+  effectively non-generic Swift structs.
 - Macro validation catches local mistakes at expansion time.
 - Build validation and the graph CLI catch cross-file, cross-module, and global graph issues.
 - `InnoDISwiftUI` removes repetitive root-boundary environment wiring.
@@ -263,6 +264,26 @@ declares a nested `Overrides` type, which suppresses generation.
 annotated type or matching extensions. Use the synthesized initializer or wire
 the type manually without the macro.
 
+InnoDI 5.0 supports `@DIContainer` only on an effectively non-generic `struct`
+declared at file scope or as a member of non-generic nominal declarations.
+Neither the struct nor an enclosing nominal declaration may introduce generic
+parameters or a generic `where` clause. Classes, actors, enums, protocols,
+extension declarations, structs declared inside extensions, and structs in
+executable scopes such as functions, closures, accessors, or switch cases are
+rejected. The same boundary applies when `@DIComponent` is stacked on the
+container. Move runtime or type-specific state behind injected protocol
+dependencies or `@Provide(.input)` values.
+
+The Swift compiler currently omits accessor ancestry when expanding an
+attached macro on a type declared inside a computed-property body. The InnoDI
+build-validation plugin and dependency-graph CLI scan the full source tree and
+enforce the same local-scope rejection for that compiler edge case. Attach the
+plugin to every target that declares containers when adopting the 5.0
+declaration contract. Without that full-source preflight, a local container
+stacked with companion macros such as `@DIComponent` can surface compiler or
+companion-macro errors in addition to, or instead of, the stable InnoDI
+diagnostic.
+
 ### `@Provide` and scopes
 
 ```swift
@@ -294,12 +315,13 @@ Additional rules:
 InnoDI validates containers in layers:
 
 1. Macro validation
-   - local scope rules
+   - compiler-exposed local scope rules
    - missing factories
    - declaration-order checks
    - local cycles
    - invalid `init` declarations
 2. Build validation
+   - full-source declaration-matrix preflight
    - cross-file `init` conflicts
    - semantic reference checks
    - hierarchy validation

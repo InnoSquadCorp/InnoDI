@@ -15,7 +15,69 @@ package enum ContainerSemanticBuildValidator {
         try validate(snapshot: loadWorkspaceSourceSnapshot(rootPath: rootPath))
     }
 
+    package static func validateDeclarationMatrix(
+        rootPath: String
+    ) throws -> ValidationIssueReport {
+        validateDeclarationMatrix(
+            snapshot: try loadWorkspaceSourceSnapshot(rootPath: rootPath)
+        )
+    }
+
+    package static func validateDeclarationMatrix(
+        snapshot: WorkspaceSourceSnapshot
+    ) -> ValidationIssueReport {
+        var issues: [ValidationIssue] = []
+
+        for sourceFile in snapshot.files {
+            let collector = DIContainerDeclarationSupportCollector()
+            collector.walk(sourceFile.syntax)
+            let converter = SourceLocationConverter(
+                fileName: sourceFile.filePath,
+                tree: sourceFile.syntax
+            )
+
+            for declarationIssue in collector.issues {
+                guard let code = declarationIssue.support.diagnosticCode,
+                      let message = declarationIssue.support.diagnosticMessage else {
+                    continue
+                }
+                let sourceLocation = converter.location(
+                    for: declarationIssue.attributePosition
+                )
+                issues.append(
+                    ValidationIssue(
+                        code: code,
+                        severity: .error,
+                        message: message,
+                        location: ValidationIssueLocation(
+                            filePath: sourceFile.filePath,
+                            line: sourceLocation.line,
+                            column: sourceLocation.column
+                        ),
+                        remediation: declarationIssue.support.remediation
+                    )
+                )
+            }
+        }
+
+        issues.sort {
+            if $0.location.filePath != $1.location.filePath {
+                return $0.location.filePath < $1.location.filePath
+            }
+            if $0.location.line != $1.location.line {
+                return $0.location.line < $1.location.line
+            }
+            return $0.location.column < $1.location.column
+        }
+        return ValidationIssueReport(issues: issues)
+    }
+
     package static func validate(snapshot: WorkspaceSourceSnapshot) throws -> ValidationIssueReport {
+        let declarationMatrix = validateDeclarationMatrix(snapshot: snapshot)
+        if declarationMatrix.hasFailures {
+            return declarationMatrix
+        }
+
         var collectorResults: [ContainerSemanticFileCollector] = []
         for sourceFile in snapshot.files {
             let collector = ContainerSemanticFileCollector(
@@ -236,7 +298,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: StructDeclSyntax) {
@@ -244,7 +306,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
@@ -252,7 +314,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ActorDeclSyntax) {
@@ -260,10 +322,18 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: EnumDeclSyntax) {
+        visitPostNominal()
+    }
+
+    override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitNominal(node, name: node.name.text)
+    }
+
+    override func visitPost(_ node: ProtocolDeclSyntax) {
         visitPostNominal()
     }
 
@@ -353,9 +423,8 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     }
 
     private func visitNominal(
-        node: Syntax,
-        name: String,
-        attributes: AttributeListSyntax?
+        _ node: some DeclGroupSyntax,
+        name: String
     ) -> SyntaxVisitorContinueKind {
         declarationStack.append(name)
         let declarationPath = declarationStack.joined(separator: ".")
@@ -377,7 +446,8 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
             )
         }
 
-        if containsDIContainerAttribute(attributes) {
+        if containsDIContainerAttribute(node.attributes),
+           classifyDIContainerDeclaration(node).isSupported {
             containerBuilders[declarationPath] = SemanticContainerBuilder(
                 path: declarationPath,
                 location: location

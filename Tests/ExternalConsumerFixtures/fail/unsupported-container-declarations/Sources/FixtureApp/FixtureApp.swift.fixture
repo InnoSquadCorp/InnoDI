@@ -1,0 +1,78 @@
+import InnoDI
+
+@DIContainer
+struct ChildContainer {}
+
+@DIComponent
+@DIContainer
+final class ClassContainer {
+    @Provide(.input) var config: String = ""
+    @SubContainer(scope: .shared) var child: ChildContainer = ChildContainer()
+}
+
+@DIHierarchyRoot
+@DIContainer
+actor ActorContainer {}
+
+@DIContainer
+enum EnumContainer {}
+
+@DIContainer
+protocol ProtocolContainer {
+    @Provide(.input) var config: String { get }
+    @SubContainer(scope: .shared) var child: ChildContainer { get }
+}
+
+struct ExtendedContainer {}
+
+@DIContainer
+extension ExtendedContainer {}
+
+@DIComponent
+@DIContainer
+struct GenericContainer<Value> {}
+
+struct GenericOuter<Value> {
+    @DIComponent
+    @DIContainer
+    struct NestedContainer {}
+}
+
+struct ExtensionOuter {}
+
+extension ExtensionOuter {
+    @DIComponent
+    @DIContainer
+    struct ExtensionNestedContainer {}
+}
+
+func declareLocalContainer() {
+    @DIContainer
+    struct LocalContainer {}
+}
+
+let declareClosureContainer: Void = {
+    @DIContainer
+    struct ClosureContainer {}
+}()
+
+func declareSwitchCaseContainer(_ value: Int) {
+    switch value {
+    case 0:
+        @DIContainer
+        struct CaseContainer {}
+    default:
+        break
+    }
+}
+
+func declareLocalComponent() {
+    @DIComponent
+    @DIContainer
+    struct LocalComponent {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

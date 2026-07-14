@@ -275,7 +275,10 @@ package enum BootIDProvider {
     }
 }
 
-package let sharedRunCacheVersion = 3
+// Version 4 adds the InnoDI 5.0 declaration-matrix preflight. Keep validator
+// behavior in the cache salt so an unchanged workspace cannot reuse a green
+// result produced before a newly fail-closed validation stage existed.
+package let sharedRunCacheVersion = 4
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"

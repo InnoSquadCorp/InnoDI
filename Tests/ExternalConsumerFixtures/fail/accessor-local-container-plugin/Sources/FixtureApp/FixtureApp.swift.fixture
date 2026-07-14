@@ -1,0 +1,15 @@
+import InnoDI
+
+struct AccessorHost {
+    var value: Int {
+        @DIComponent
+        @DIContainer
+        struct AccessorContainer {}
+        return 0
+    }
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

@@ -51,7 +51,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: StructDeclSyntax) {
@@ -59,7 +59,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ClassDeclSyntax) {
@@ -67,7 +67,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: ActorDeclSyntax) {
@@ -75,10 +75,18 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        visitNominal(node: Syntax(node), name: node.name.text, attributes: node.attributes)
+        visitNominal(node, name: node.name.text)
     }
 
     override func visitPost(_ node: EnumDeclSyntax) {
+        visitPostNominal()
+    }
+
+    override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitNominal(node, name: node.name.text)
+    }
+
+    override func visitPost(_ node: ProtocolDeclSyntax) {
         visitPostNominal()
     }
 
@@ -147,9 +155,8 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
     }
 
     private func visitNominal(
-        node: Syntax,
-        name: String,
-        attributes: AttributeListSyntax?
+        _ node: some DeclGroupSyntax,
+        name: String
     ) -> SyntaxVisitorContinueKind {
         declarationStack.append(name)
         let declarationPath = declarationStack.joined(separator: ".")
@@ -158,13 +165,14 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
         )
 
         let location = sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
-        if containsHierarchyAttribute("DIContainer", in: attributes) {
+        if containsHierarchyAttribute("DIContainer", in: node.attributes),
+           classifyDIContainerDeclaration(node).isSupported {
             containerBuilders[declarationPath] = WorkspaceHierarchyContainerBuilder(
                 path: declarationPath,
                 filePath: filePath,
                 location: location,
-                isComponent: containsHierarchyAttribute("DIComponent", in: attributes),
-                isHierarchyRoot: containsHierarchyAttribute("DIHierarchyRoot", in: attributes)
+                isComponent: containsHierarchyAttribute("DIComponent", in: node.attributes),
+                isHierarchyRoot: containsHierarchyAttribute("DIHierarchyRoot", in: node.attributes)
             )
             containerContextStack.append(declarationPath)
         } else {

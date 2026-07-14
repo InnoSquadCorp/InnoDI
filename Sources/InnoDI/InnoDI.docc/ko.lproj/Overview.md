@@ -4,9 +4,11 @@
 
 ## 개요
 
-InnoDI는 `@DIContainer`와 `@Provide`를 통해 일반 Swift 타입을 DI
-컨테이너로 바꿉니다. 런타임 변형보다 명시적 wiring, 결정적 검증, graph
-tooling에 초점을 둡니다.
+InnoDI는 `@DIContainer`와 `@Provide`를 통해 file scope 또는 nominal type 안에
+nested된, 지원되는 유효한 non-generic Swift struct를 DI 컨테이너로 바꿉니다.
+함수, closure, accessor, `switch` case를 포함한 executable/local code scope
+안의 선언은 지원하지 않습니다. 런타임 변형보다 명시적 wiring, 결정적 검증,
+graph tooling에 초점을 둡니다.
 
 4.0.0의 stable baseline:
 

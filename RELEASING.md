@@ -133,13 +133,26 @@ standalone release assets.
 
 ### Breaking or Behavior Changes
 
-- No runtime or macro behavior changes in the planning commit.
+- `@DIContainer` and `@DIComponent` now accept only effectively non-generic
+  `struct` declarations at file scope or inside non-generic nominal
+  declarations. Direct non-struct or generic declarations, declarations in an
+  enclosing generic nominal context, declarations nested inside extensions,
+  and declarations in executable scopes are rejected by stable InnoDI macro
+  diagnostics or the full-source build/CLI preflight. Current Swift toolchains
+  require the full-source layer for types inside computed-property bodies and
+  can add compiler-owned or companion-macro diagnostics without that preflight
+  when a local container is stacked with an attached-extension macro such as
+  `@DIComponent`.
+- The shared build-validation cache salt is now v4 so workspaces cannot reuse
+  a green result produced before the declaration-matrix preflight existed.
 - 5.0 release notes will keep contract-restoring behavior corrections separate
   from intentional breaking API changes.
 
 ### Upgrade Actions
 
-- No consumer action is required until a behavior-changing 5.0 commit lands.
+- Before adopting 5.0, move unsupported containers and components to file scope
+  or a non-generic nominal `struct`; inject runtime or type-specific state
+  through `@Provide(.input)` or protocol dependencies.
 - Do not update package requirements to 5.0 before the release tag exists.
 
 ## 4.3.0

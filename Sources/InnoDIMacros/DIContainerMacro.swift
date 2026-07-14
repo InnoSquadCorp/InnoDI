@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
@@ -17,6 +18,15 @@ public struct DIContainerMacro: MemberMacro {
         providingMembersOf decl: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        let declarationSupport = classifyDIContainerDeclaration(
+            decl,
+            lexicalContext: context.lexicalContext
+        )
+        guard declarationSupport.isSupported else {
+            declarationSupport.diagnose(at: attribute, in: context)
+            return []
+        }
+
         let userDefinedInitializers = DIContainerParser.userDefinedInitializers(in: decl)
         if !userDefinedInitializers.isEmpty {
             for initializer in userDefinedInitializers {

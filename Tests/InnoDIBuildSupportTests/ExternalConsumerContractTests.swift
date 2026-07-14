@@ -44,12 +44,25 @@ struct ExternalConsumerContractTests {
             }
             #expect(!result.timedOut, "Fixture '\(fixture.name)' timed out")
             #expect(result.exitCode != 0, "Fixture '\(fixture.name)' must fail compilation")
+            let compilerErrorLines = Set(
+                output.components(separatedBy: .newlines).filter {
+                    $0.contains(": error:")
+                        && ($0.contains(".swift:") || $0.contains("macro expansion "))
+                }
+            )
             for diagnostic in expectedDiagnostics {
+                let occurrenceCount = compilerErrorLines.filter {
+                    $0.contains(diagnostic)
+                }.count
                 #expect(
-                    output.contains(diagnostic),
-                    "Fixture '\(fixture.name)' did not emit expected diagnostic: \(diagnostic)"
+                    occurrenceCount == 1,
+                    "Fixture '\(fixture.name)' must emit one unique source diagnostic (found \(occurrenceCount)): \(diagnostic)"
                 )
             }
+            #expect(
+                compilerErrorLines.count == expectedDiagnostics.count,
+                "Fixture '\(fixture.name)' emitted unexpected compiler diagnostics:\n\(compilerErrorLines.sorted().joined(separator: "\n"))"
+            )
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
         }
     }

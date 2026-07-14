@@ -4,9 +4,11 @@ Inyección de dependencias basada en macros para Swift con validación en capas.
 
 ## Overview
 
-InnoDI convierte tipos Swift normales en contenedores DI mediante
-`@DIContainer` y `@Provide`. El paquete se centra en wiring explícito,
-validación determinista y graph tooling.
+InnoDI convierte structs Swift compatibles, efectivamente no genéricos y de
+alcance de archivo o anidados nominalmente en contenedores DI mediante
+`@DIContainer` y `@Provide`. No admite declaraciones en ámbitos ejecutables o
+locales, incluidas funciones, closures, accessors y casos de `switch`. El
+paquete se centra en wiring explícito, validación determinista y graph tooling.
 
 La baseline estable de 4.0.0 incluye:
 

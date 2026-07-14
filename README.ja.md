@@ -28,7 +28,7 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 DI の wiring を明示的かつレビューしやすい形で保ち、失敗をできるだけ早く
 見つけたいチーム向けです。
 
-- `@DIContainer` と `@Provide` が通常の Swift 型からコンテナ API を生成します。
+- `@DIContainer` と `@Provide` が、サポート対象の実質的に非ジェネリックな Swift struct からコンテナ API を生成します。
 - マクロ検証が展開時にローカルなミスを検出します。
 - build validation と graph CLI が、ファイル間、モジュール間、全体グラフの問題を見つけます。
 - `InnoDISwiftUI` が root 境界での繰り返し environment wiring を減らします。
@@ -242,8 +242,23 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: ...)`
 4. `sync` / `throws` / `async` / `async throws` の `withOverrides`
 
-ユーザー定義のネスト `Overrides` 型がない限り、すべてのコンテナが
+ユーザー定義のネスト `Overrides` 型がない限り、サポート対象の各コンテナが
 overrides scaffolding を生成します。
+
+`@DIContainer` がサポートするのは、ファイルスコープまたは nominal type 内に
+ネストされた、実質的に非ジェネリックな `struct` 宣言だけです。宣言自体にも、
+それを囲む宣言にも、ジェネリックパラメータや `where` 句を指定できません。
+`class`、`actor`、`enum`、`protocol`、直接アノテーションした `extension`、
+extension 内にネストされた struct は拒否されます。関数、クロージャ、
+アクセサ、`switch` case など、実行可能またはローカルなコードスコープ内の
+宣言も拒否されます。この境界は `@DIComponent` を併用した宣言にも適用されます。
+ランタイムまたは型固有の状態は、protocol dependency または
+`@Provide(.input)` の背後に移してください。
+
+現在の Swift compiler は、computed-property body 内の型に attached macro を
+展開するとき、accessor ancestry を macro context に含めません。この edge case
+は build-validation plugin と dependency-graph CLI が source 全体を scan して
+拒否します。container を宣言するすべての target に plugin を接続してください。
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)

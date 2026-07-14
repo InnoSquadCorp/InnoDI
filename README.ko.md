@@ -28,7 +28,7 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 InnoDI는 DI wiring을 명시적이고 리뷰 가능한 상태로 유지하면서, 실패를 더
 이른 단계에서 발견하고 싶은 팀을 위한 도구입니다.
 
-- `@DIContainer`와 `@Provide`가 일반 Swift 타입에서 컨테이너 API를 생성합니다.
+- `@DIContainer`와 `@Provide`가 지원되는 유효한 non-generic Swift struct에서 컨테이너 API를 생성합니다.
 - 매크로 검증이 로컬 실수를 확장 시점에 잡습니다.
 - build validation과 graph CLI가 cross-file, cross-module, global graph 문제를 잡습니다.
 - `InnoDISwiftUI`가 루트 경계의 반복적인 environment wiring을 줄여줍니다.
@@ -237,8 +237,22 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: (inout Overrides) -> Void)` 형태의 convenience init
 4. `sync`, `throws`, `async`, `async throws` 4종류의 `withOverrides` overload
 
-사용자가 직접 nested `Overrides` 타입을 선언하지 않는 한, 모든 컨테이너는
-overrides scaffolding을 생성합니다.
+사용자가 직접 nested `Overrides` 타입을 선언하지 않는 한, 지원되는 모든
+컨테이너는 overrides scaffolding을 생성합니다.
+
+`@DIContainer`가 지원하는 선언은 file scope 또는 nominal type 안에 nested된,
+유효하게 non-generic인 `struct`뿐입니다. 선언 자체와 모든 enclosing 선언에
+generic parameter나 `where` clause가 없어야 합니다. `class`, `actor`, `enum`,
+`protocol`, 직접 annotated된 `extension`, extension 안에 nested된 struct는
+거부됩니다. 함수, closure, accessor, `switch` case를 포함한 executable/local
+code scope 안의 선언도 거부됩니다. 이 경계는 `@DIComponent`를 함께 적용한
+선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
+`@Provide(.input)` 뒤로 옮기세요.
+
+현재 Swift compiler는 computed-property body 안 타입의 attached macro를
+확장할 때 accessor ancestry를 macro context에서 누락합니다. 이 edge case는
+build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
+거부합니다. 컨테이너를 선언하는 모든 target에 plugin을 연결하세요.
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)

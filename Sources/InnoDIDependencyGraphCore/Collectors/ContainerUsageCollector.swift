@@ -94,7 +94,7 @@ func resolveContainerReferenceID(
 
 final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     private struct DeclarationEntry {
-        let isContainer: Bool
+        let isContainerBoundary: Bool
         let containerID: String?
     }
 
@@ -159,10 +159,18 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        beginDeclaration(name: node.name.text, isContainer: false)
+        beginContainerCandidateDeclaration(node, name: node.name.text)
     }
 
     override func visitPost(_ node: EnumDeclSyntax) {
+        endDeclaration()
+    }
+
+    override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
+        beginContainerCandidateDeclaration(node, name: node.name.text)
+    }
+
+    override func visitPost(_ node: ProtocolDeclSyntax) {
         endDeclaration()
     }
 
@@ -198,8 +206,14 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     private func beginContainerCandidateDeclaration(_ node: some DeclGroupSyntax, name: String) -> SyntaxVisitorContinueKind {
-        let isContainer = parseDIContainerAttribute(node.attributes) != nil
-        let continueKind = beginDeclaration(name: name, isContainer: isContainer)
+        let isContainerBoundary = parseDIContainerAttribute(node.attributes) != nil
+        let isContainer = isContainerBoundary
+            && classifyDIContainerDeclaration(node).isSupported
+        let continueKind = beginDeclaration(
+            name: name,
+            isContainerBoundary: isContainerBoundary,
+            isContainer: isContainer
+        )
 
         if isContainer, let sourceID = activeContainerID {
             collectDeferredEdges(in: node, sourceID: sourceID)
@@ -208,12 +222,21 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         return continueKind
     }
 
-    private func beginDeclaration(name: String, isContainer: Bool) -> SyntaxVisitorContinueKind {
+    private func beginDeclaration(
+        name: String,
+        isContainerBoundary: Bool,
+        isContainer: Bool
+    ) -> SyntaxVisitorContinueKind {
         beginDeclarationContext(named: name)
         let containerID = isContainer
             ? GraphIdentity.makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
             : nil
-        activeDeclarations.append(DeclarationEntry(isContainer: isContainer, containerID: containerID))
+        activeDeclarations.append(
+            DeclarationEntry(
+                isContainerBoundary: isContainerBoundary,
+                containerID: containerID
+            )
+        )
 
         return .visitChildren
     }
@@ -224,9 +247,9 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     }
 
     private var activeContainerID: String? {
-        for entry in activeDeclarations.reversed() where entry.isContainer {
-            if let containerID = entry.containerID {
-                return containerID
+        for entry in activeDeclarations.reversed() {
+            if entry.isContainerBoundary {
+                return entry.containerID
             }
         }
         return nil

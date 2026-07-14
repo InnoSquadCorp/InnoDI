@@ -155,6 +155,7 @@ let package = Package(
                 "InnoDIDependencyGraphCLI",
                 "InnoDIDependencyGraphCore",
                 "InnoDIBuildSupport",
+                "InnoDIWorkspaceAnalysis",
                 "InnoDITestSupport",
             ],
             exclude: ["__Snapshots__"]

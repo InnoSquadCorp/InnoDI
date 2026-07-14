@@ -4,8 +4,10 @@
 
 ## Overview
 
-InnoDI 通过 `@DIContainer` 与 `@Provide` 把普通 Swift 类型转换为 DI
-容器。它强调显式 wiring、确定性校验与图工具，而不是运行时可变容器。
+InnoDI 通过 `@DIContainer` 与 `@Provide` 把文件作用域或名义类型内嵌套的、
+受支持的实际非泛型 Swift struct 转换为 DI 容器。函数、闭包、访问器和
+`switch` case 等可执行或局部代码作用域内的声明不受支持。它强调显式
+wiring、确定性校验与图工具，而不是运行时可变容器。
 
 4.0.0 的稳定基线包括：
 

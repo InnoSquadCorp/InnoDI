@@ -29,7 +29,7 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 InnoDI ist fur Teams gedacht, die DI-Wiring explizit und reviewbar halten
 wollen und Fehler fruher erkennen mochten.
 
-- `@DIContainer` und `@Provide` erzeugen Container-APIs aus normalen Swift-Typen.
+- `@DIContainer` und `@Provide` erzeugen Container-APIs aus unterstutzten, effektiv nicht-generischen Swift-Structs.
 - Makrovalidierung erkennt lokale Fehler schon wahrend der Expansion.
 - Build-Validierung und Graph-CLI erkennen cross-file-, cross-module- und globale Graphprobleme.
 - `InnoDISwiftUI` reduziert wiederholtes Environment-Wiring an der Root-Grenze.
@@ -247,8 +247,25 @@ var apiClient: any APIClientProtocol
 3. ein Convenience-`init(<inputs...>, _ applyOverrides: ...)`
 4. vier `withOverrides`-Overloads fur `sync`, `throws`, `async` und `async throws`
 
-Alle Container erzeugen die Overrides-Oberflache, sofern nicht bereits ein
-verschachtelter Typ `Overrides` vom Benutzer definiert wird.
+Jeder unterstutzte Container erzeugt die Overrides-Oberflache, sofern nicht
+bereits ein verschachtelter Typ `Overrides` vom Benutzer definiert wird.
+
+`@DIContainer` unterstutzt ausschliesslich effektiv nicht-generische
+`struct`-Deklarationen auf Dateiebene oder mit nominaler Verschachtelung. Weder
+die Deklaration selbst noch eine umschliessende Deklaration darf generische
+Parameter oder eine `where`-Klausel besitzen. `class`, `actor`, `enum`,
+`protocol`, direkt annotierte `extension`-Deklarationen und in Extensions
+verschachtelte Structs werden abgelehnt. Das gilt auch fur Deklarationen in
+ausfuhrbaren oder lokalen Scopes, darunter Funktionen, Closures, Accessors und
+`switch`-Falle. Diese Grenze gilt ebenso bei kombiniertem `@DIComponent`.
+Verschieben Sie Laufzeit- oder
+typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Provide(.input)`.
+
+Der aktuelle Swift-Compiler lasst beim Erweitern eines attached macro auf einem
+Typ in einem computed-property-Body den Accessor-Kontext weg. Das
+Build-Validation-Plugin und die Dependency-Graph-CLI scannen den vollstandigen
+Quellbaum und erzwingen die Ablehnung dieses Randfalls. Binden Sie das Plugin an
+jedes Target an, das Container deklariert.
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)

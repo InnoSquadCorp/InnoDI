@@ -4,9 +4,11 @@ Macro-driven dependency injection for Swift with layered validation.
 
 ## Overview
 
-InnoDI turns plain Swift types into DI containers through `@DIContainer` and
-`@Provide`. The package focuses on explicit wiring, deterministic validation,
-and graph tooling rather than runtime container mutation.
+InnoDI turns supported, effectively non-generic Swift structs declared at file
+scope or inside non-generic nominal declarations into DI containers through
+`@DIContainer` and `@Provide`. Declarations in executable scopes are rejected.
+The package focuses on explicit wiring, deterministic validation, and graph
+tooling rather than runtime container mutation.
 
 The generated API is intentionally initializer-centered. InnoDI does not ship
 an `@Injected` property wrapper or a dynamic registration container; those

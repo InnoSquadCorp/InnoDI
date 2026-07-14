@@ -24,6 +24,10 @@ extension DIFeatureRootMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        guard !isEnclosedByUnsupportedDIContainer(declaration, in: context) else {
+            return []
+        }
+
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
               varDecl.bindings.count == 1,
               let binding = varDecl.bindings.first,

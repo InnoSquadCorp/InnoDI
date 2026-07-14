@@ -1,0 +1,1 @@
+@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'AccessorContainer' is declared in an executable code scope.

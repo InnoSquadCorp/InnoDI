@@ -1,5 +1,8 @@
 import InnoDITestSupport
 import SwiftDiagnostics
+import SwiftParser
+import SwiftSyntax
+import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import Testing
 
@@ -108,6 +111,57 @@ struct HierarchyMacroTests {
                 }
                 """,
             macros: Self.macros
+        )
+    }
+
+    @Test("DIComponent qualifies a multi-level nested dependency contract")
+    func diComponentQualifiesNestedDependencyContract() throws {
+        let source = Parser.parse(
+            source: """
+                struct Outer {
+                    struct Middle {
+                        @DIComponent
+                        @DIContainer
+                        struct FeatureContainer {
+                            @Provide(.input) var config: String
+                        }
+                    }
+                }
+                """
+        )
+        let outer = try #require(
+            source.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let middle = try #require(
+            outer.memberBlock.members.first?.decl.as(StructDeclSyntax.self)
+        )
+        let component = try #require(
+            middle.memberBlock.members.first?.decl.as(StructDeclSyntax.self)
+        )
+        let attribute = try #require(
+            component.attributes.first?.as(AttributeSyntax.self)
+        )
+        let context = TestMacroExpansionContext()
+
+        let extensions = try DIComponentMacro.expansion(
+            of: attribute,
+            attachedTo: component,
+            providingExtensionsOf: TypeSyntax(stringLiteral: "Outer.Middle.FeatureContainer"),
+            conformingTo: [],
+            in: context
+        )
+
+        #expect(context.diagnostics.isEmpty)
+        let extensionDecl = try #require(extensions.first)
+        let generated = extensionDecl.trimmedDescription
+        #expect(extensions.count == 1)
+        #expect(
+            extensionDecl.extendedType.trimmedDescription == "Outer.Middle.FeatureContainer"
+        )
+        #expect(
+            generated.contains(
+                "typealias _InnoDIComponentDependencies = any Outer.Middle.FeatureContainerDependencies"
+            )
         )
     }
 

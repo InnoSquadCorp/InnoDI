@@ -27,7 +27,7 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 
 InnoDI 适合希望让 DI wiring 保持显式、可审查，并尽可能提前发现错误的团队。
 
-- `@DIContainer` 和 `@Provide` 从普通 Swift 类型生成容器 API。
+- `@DIContainer` 和 `@Provide` 从受支持的实际非泛型 Swift struct 生成容器 API。
 - 宏校验会在展开阶段捕获局部错误。
 - build validation 与 graph CLI 会发现跨文件、跨模块以及全局依赖图问题。
 - `InnoDISwiftUI` 可以减少根边界处重复的 environment wiring。
@@ -227,8 +227,21 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: ...)` 便利初始化器
 4. 四个 `withOverrides` 重载：`sync`、`throws`、`async`、`async throws`
 
-除非用户已经声明了嵌套 `Overrides` 类型，否则所有容器都会生成 overrides
-scaffolding。
+除非用户已经声明了嵌套 `Overrides` 类型，否则每个受支持的容器都会生成
+overrides scaffolding。
+
+`@DIContainer` 仅支持文件作用域或名义类型内嵌套的实际非泛型 `struct` 声明。
+声明本身及其任何外层声明都不能包含泛型参数或 `where` 子句。`class`、
+`actor`、`enum`、`protocol`、直接标注的 `extension` 以及嵌套在 extension
+中的 struct 都会被拒绝。任何可执行或局部代码作用域内的声明也会被拒绝，
+包括函数、闭包、访问器和 `switch` case。
+与 `@DIComponent` 叠加使用时同样受此边界限制。请把运行时状态或特定类型的
+状态放到协议依赖或 `@Provide(.input)` 后面。
+
+当前 Swift 编译器在为 computed-property body 内的类型展开 attached macro
+时，不会把访问器祖先信息放进 macro context。build-validation plugin 和
+dependency-graph CLI 会扫描完整 source tree，并拒绝这个边界情况。请为每个
+声明容器的 target 挂载该 plugin。
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)

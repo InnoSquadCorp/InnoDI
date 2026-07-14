@@ -29,7 +29,7 @@ let client = AppContainer(baseURL: "https://api.example.com").apiClient
 InnoDI подходит командам, которые хотят сохранить wiring DI явным и удобным
 для ревью, обнаруживая ошибки как можно раньше.
 
-- `@DIContainer` и `@Provide` генерируют API контейнера из обычных Swift-типов.
+- `@DIContainer` и `@Provide` генерируют API контейнера из поддерживаемых, фактически необобщённых Swift-структур.
 - Макро-валидация ловит локальные ошибки во время expansion.
 - Build validation и graph CLI находят межфайловые, межмодульные и глобальные проблемы графа.
 - `InnoDISwiftUI` уменьшает повторяющееся environment wiring на границе root.
@@ -245,8 +245,25 @@ var apiClient: any APIClientProtocol
 3. convenience `init(<inputs...>, _ applyOverrides: ...)`
 4. четыре overload `withOverrides` для `sync`, `throws`, `async` и `async throws`
 
-Все контейнеры генерируют overrides scaffolding, если пользователь сам не
-объявил вложенный тип `Overrides`.
+Каждый поддерживаемый контейнер генерирует overrides scaffolding, если
+пользователь сам не объявил вложенный тип `Overrides`.
+
+`@DIContainer` поддерживает только фактически необобщённые объявления `struct`
+на уровне файла или с номинальной вложенностью. Ни само объявление, ни любое
+включающее его объявление не может иметь generic-параметров или условия
+`where`. Отклоняются `class`, `actor`, `enum`, `protocol`, непосредственно
+аннотированные `extension` и структуры, вложенные в extensions. Также
+отклоняются объявления в любом исполняемом или локальном контексте, включая
+функции, замыкания, аксессоры и ветви `switch`. То же ограничение действует при
+совместном использовании `@DIComponent`. Состояние времени выполнения и
+состояние, зависящее от конкретного типа, следует скрыть за protocol
+dependencies или `@Provide(.input)`.
+
+Текущий компилятор Swift не передаёт контекст аксессора при expansion attached
+macro для типа внутри body вычисляемого свойства. Build-validation plugin и
+dependency-graph CLI сканируют полное дерево исходного кода и отклоняют также
+этот граничный случай. Подключайте plugin к каждому target, где объявлены
+контейнеры.
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
