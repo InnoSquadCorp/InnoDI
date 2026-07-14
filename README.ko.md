@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -195,7 +195,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -261,7 +261,7 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 | 파라미터 | 기본값 | 의미 |
 |---|---|---|
 | `root` | `false` | 그래프 렌더 엔트리 플래그입니다. 하나라도 root가 있으면 Mermaid, DOT, ASCII 출력은 root에서 도달 가능한 노드와 엣지 union만 남깁니다. |
-| `validateDAG` | `true` | global DAG validation과 매크로의 local cycle 및 closure/`with:` 기반 graph-derived 검증을 켭니다. `false`면 그 범위만 건너뛰고, raw-expression `factory:`와 initializer reference 진단 및 구조 검증은 계속 유지됩니다. |
+| `validateDAG` | `true` | global DAG validation과 매크로의 local graph-derived 검증을 켭니다. `false`면 global DAG와 local cycle 검증은 건너뛰지만, 선언 검증과 명시적 sibling edge의 효과 호환성 검증은 계속 동작합니다. |
 | `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIComponent`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
 
 5.0의 generic component mounting helper는 두 marker protocol을 구분해야
@@ -280,6 +280,28 @@ non-`Sendable` container/component 값은 `@MainActor` caller를 사용하거나
 
 ### `@Provide`와 스코프
 
+InnoDI 5.0에서 `@Provide`는 `@DIContainer`가 붙은 동일한 지원 struct의 직접적이고
+평범한 stored instance `var`에만 붙일 수 있습니다. `let`, computed/observed
+property, `lazy`, `weak`, `unowned`, `static`/`class`, standalone, 간접 nested
+사용은 거부됩니다. 생성되는 provider accessor는 InnoDI가 소유하므로
+`_InnoDIProvideAccessor`를 직접 붙이면 안 됩니다.
+
+Provider 선언의 attribute와 access control도 닫힌 계약을 따릅니다. Property
+wrapper, conditional 또는 unknown attribute, `private(set)` 같은 setter access
+modifier, custom global-actor attribute는 거부됩니다. `@Provide` 외에 source에
+직접 쓰는 property-level attribute는 허용되지 않으며 `@MainActor`도 포함됩니다.
+Actor 격리는 `@DIContainer(mainActor: true)`로 요청하세요. Provider 선언과
+accessor에 InnoDI가 생성한 격리 attribute는 내부 compiler support입니다. 완전한
+`@Provide` 멤버 선언을 `#if` 안에 두는 형태도
+`provide.conditional-declaration-unsupported` 진단으로 거부됩니다.
+선언은 조건문 밖에 두고 factory 또는 주입 구현 안에서 분기하세요.
+프로퍼티마다 `@Provide`는 정확히 하나만 붙일 수 있으며, 중복 attribute는
+`provide.duplicate-attribute`로 거부됩니다. 명시적 property type에는 opaque
+`some Protocol`이나 implicitly unwrapped optional `T!`를 사용할 수 없습니다.
+각각 `any Protocol`, 명시적인 `T` 또는 `T?`로 바꾸세요. Compiler-support
+accessor와 다른 property wrapper를 의도적으로 위조해 함께 붙이면 InnoDI의
+misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니다.
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
@@ -287,22 +309,65 @@ non-`Sendable` container/component 값은 `@MainActor` caller를 사용하거나
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 )
 ```
 
 | 스코프 | 의미 | 생성 규칙 |
 |---|---|---|
-| `.input` | 컨테이너 생성 시 외부에서 주입하는 의존성 | `factory`, `asyncFactory` 불가 |
-| `.shared` | 컨테이너 인스턴스당 1회 생성 후 재사용 | `factory`, `asyncFactory`, 또는 `Type.self` + `with:` 필요 |
-| `.transient` | 접근할 때마다 새로 생성 | `factory`, `asyncFactory`, 또는 `Type.self` + `with:` 필요 |
+| `.input` | 컨테이너 생성 시 외부에서 주입하는 의존성 | `factory:`, `asyncFactory:`, `Type.self`, property initializer, `with:`를 모두 선언하지 않음 |
+| `.shared` | 컨테이너 인스턴스당 1회 생성 후 재사용 | `factory:`, `asyncFactory:`, `Type.self`, property initializer 중 정확히 하나 선언 |
+| `.transient` | 접근할 때마다 새로 생성 | `factory:`, `asyncFactory:`, `Type.self`, property initializer 중 정확히 하나 선언 |
 
 추가 규칙:
 
-- `factory`와 `asyncFactory`는 동시에 사용할 수 없습니다.
-- `asyncFactory`는 반드시 `async` 클로저여야 합니다.
+- `.shared`와 `.transient`에서 `factory:`, `asyncFactory:`, `Type.self`, property
+  initializer 네 생성 source는 서로 배타적입니다.
+- `.input`은 모든 생성 source와 `with:`를 거부합니다.
+- 생성되는 `.input` initializer 파라미터는 선언 타입 `T`의 eager 값입니다. Swift는
+  평소와 같이 initializer 호출 전에 `try` / `await` 인자 식을 평가합니다. 직접
+  표기한 non-optional function type은 자동 감지해 escaping 파라미터로 생성합니다.
+  Non-optional function type이 typealias 뒤에 숨었다면
+  `@Provide(.input, escaping: true)`를 사용하세요. `escaping:`은 literal Bool이고
+  `.input`에서만 유효합니다. 명백한 nonfunction/optional-function 형태는 거부되며,
+  보수적으로 허용된 identifier/member alias가 실제 non-optional function으로
+  해석되지 않으면 Swift 자체 진단이 발생할 수 있습니다.
+- `asyncFactory`는 `.shared`와 `.transient`에서 지원되며 반드시 `async`
+  클로저여야 합니다.
+- `with:`는 `Type.self` 생성 형태에서만 허용됩니다. Literal 배열의 각 항목은
+  `with: [\Self.config]`처럼 정확히 canonical direct-member 표기인
+  `\Self.member`여야 하며 `with: []`도 허용됩니다. 이름이 있는 container,
+  module-qualified, typealias root는 물론 nested component, optional chaining,
+  subscript, 계산된 배열 원소도 거부됩니다. 참조되는 provider는 모두 동기 생성
+  방식이어야 합니다.
 - concrete `.shared` / `.transient` 저장은 `concrete: true`가 필요합니다.
 - factory 파라미터와 `with:` wiring의 이름 해석은 멤버 이름 기준으로 엄격하게 이뤄집니다.
+
+Sibling DI edge는 다음처럼 닫힌 문법에서만 만들어집니다.
+
+- root `factory:` 또는 `asyncFactory:` 클로저 리터럴의 이름 있는 파라미터마다
+  edge 하나를 만듭니다. Nested 클로저나 임의 identifier는 edge를 추가하지 않습니다.
+- `Type.self` 생성은 literal canonical `\Self.member` key-path 배열에서 edge를
+  만들며 동기 provider만 target으로 삼을 수 있습니다.
+- 클로저가 아닌 `factory:` 표현식과 property initializer는 opaque한 zero-edge
+  생성 source입니다. 여기서는 sibling container member를 참조하면 안 됩니다.
+  DI wiring은 root 클로저 파라미터로 바꾸고, DI edge가 필요 없다면 qualified
+  global/static 생성 symbol을 사용하세요.
+
+Factory 효과는 명시적으로 선언하며 의존성에서 추론하지 않습니다. 비동기
+consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 소비한다면
+클로저에 `async throws`를 명시하세요. 효과 호환성은 `validateDAG: false`여도
+모든 명시적 edge에서 검증됩니다.
+
+| Provider | sync consumer | `async` consumer | `async throws` consumer |
+|---|---:|---:|---:|
+| sync | 허용 | 허용 | 허용 |
+| `async` | 거부 | 허용 | 허용 |
+| `async throws` | 거부 | 거부 | 허용 |
+
+`Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper입니다. Async target은
+거부됩니다.
 
 ## 검증 모델
 
@@ -323,9 +388,8 @@ InnoDI는 여러 단계에서 컨테이너를 검증합니다.
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
 
 `validateDAG: false`는 의도적으로 좁은 opt-out입니다. global DAG validation과
-매크로의 local cycle 및 closure/`with:` graph-derived 검증만 건너뜁니다.
-구조 검증은 꺼지지 않고, raw-expression `factory:`나 initializer reference
-진단도 계속 동작합니다.
+local cycle 같은 graph-derived 검증만 건너뜁니다. 선언 검증과 root 클로저 또는
+`with:`가 만든 명시적 sibling edge의 효과 호환성 검증은 꺼지지 않습니다.
 
 ## Overrides 빌더
 
@@ -377,7 +441,8 @@ var logger: RequestLogger
 ```
 
 두 wrapper 모두 의도적으로 non-`Sendable`이며, 컨테이너가 가진 원래 격리
-도메인 안에 머물러야 합니다.
+도메인 안에 머물러야 합니다. 또한 둘 다 동기 wrapper이므로
+`asyncFactory` 멤버를 target으로 삼을 수 없습니다.
 
 ## Nested Container와 Hierarchy
 

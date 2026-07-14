@@ -104,9 +104,8 @@ struct DependencyResolutionContext {
     /// would otherwise be rejected as cyclic can compile as long as each
     /// cycle has at least one deferred edge — either `Lazy<T>` for
     /// one-shot deferral or `Provider<T>` for repeated resolution of a
-    /// transient target. Non-closure-sourced dependencies (`with:` keypaths
-    /// and free-form expression references) remain hard — there is currently
-    /// no way to express them as lazy/provider.
+    /// transient target. `with:` key-path dependencies remain hard; only
+    /// closure parameters can express lazy/provider wiring.
     func hardGraphDependencies(forMemberAt index: Int) -> [String] {
         guard members.indices.contains(index) else { return [] }
         let member = members[index]

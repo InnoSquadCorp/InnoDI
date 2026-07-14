@@ -16,15 +16,23 @@ Recommended reading order:
 Macro validation checks:
 
 - scope rules
+- direct, plain, stored instance-`var` placement for `@Provide`
 - missing factories
 - declaration-order availability
 - local dependency cycles
 - strict name-based resolution
+- effect compatibility on explicit sibling edges
 - invalid user-defined `init` declarations
 - async factory validity
 
-`validateDAG: false` does not disable structural validation. It only skips the
-macro's local cycle and closure/`with:` graph-derived checks.
+The explicit sibling-edge sources are named parameters on the root
+`factory:`/`asyncFactory:` closure literal and literal `with:` key paths paired
+with `Type.self`. Non-closure factories and property initializers are opaque
+zero-edge sources and must not reference sibling members.
+
+`validateDAG: false` does not disable declaration validation or explicit-edge
+effect compatibility. It skips global DAG validation, local cycle validation,
+and other graph-derived checks only.
 
 ## Build Validation
 
@@ -45,8 +53,8 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
 `validateDAG: false` containers are excluded from global DAG validation, but
-raw-expression `factory:` and initializer references still diagnose at compile
-time.
+unsupported provider declarations and effect mismatches on explicit sibling
+edges still diagnose at compile time.
 
 ## Artifacts
 

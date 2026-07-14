@@ -157,6 +157,9 @@ internal func resolvedInitDependencyExpression(
     allowUnresolvedDependencyFallback: Bool
 ) throws -> ExprSyntax {
     if let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) {
+        if resolvedName.hasPrefix(storagePrefix) {
+            return makeProviderStorageReadExpr(name: resolvedName)
+        }
         return makeSelfMemberAccessExpr(name: resolvedName)
     }
 

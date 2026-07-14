@@ -1,19 +1,13 @@
 
 struct AppContainer {
-    var a: CoordinatorA {
-        get {
-            return _storage_a
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var a: CoordinatorA
 
-    private let _storage_a: CoordinatorA
-    var b: CoordinatorB {
-        get {
-            return _storage_b
-        }
-    }
+    private var _storage_a: CoordinatorA? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var b: CoordinatorB
 
-    private let _storage_b: CoordinatorB
+    private var _storage_b: CoordinatorB? = nil
 
     // MARK: - Initialization
     init(a: CoordinatorA? = nil, b: CoordinatorB? = nil) {
@@ -47,8 +41,8 @@ struct AppContainer {
             })
         self._storage_b = b ?? { (a: CoordinatorA) in
                 CoordinatorB(a: a)
-            }(self._storage_a)
-        _lazyCell_b.storeValue(self._storage_b)
+            }(self._storage_a!)
+        _lazyCell_b.storeValue(self._storage_b!)
     }
 
     // MARK: - Overrides Builder
@@ -77,13 +71,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(applyOverrides)
         return try await operation(container)
     }

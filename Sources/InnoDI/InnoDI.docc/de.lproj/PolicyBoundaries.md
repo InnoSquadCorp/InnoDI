@@ -9,6 +9,17 @@ InnoDI bleibt deterministisch, indem einige Grenzen explizit gesetzt werden.
 - Ausschluss von generischen Argument-Extensions und `where`-Extensions
 - Mehrdeutige Fälle bleiben außerhalb der semantischen Regel
 
+## Provider-Effekte
+
+- Ein synchroner Provider kann von synchronen, `async` und `async throws`
+  Factories konsumiert werden.
+- Ein `async` Provider benötigt einen `async` oder `async throws` Consumer.
+- Ein `async throws` Provider benötigt einen `async throws` Consumer.
+- Effekte werden nicht aus Abhängigkeiten abgeleitet. Der Consumer gibt
+  `asyncFactory:` und bei Bedarf eine `async throws` Closure explizit an.
+- `Lazy<T>` und `Provider<T>` sind synchrone Deferred-Wrapper und lehnen
+  asynchrone Targets ab.
+
 ## Isolation und Sendability
 
 - Container halten ihren generierten Speicher innerhalb des Containerwerts.

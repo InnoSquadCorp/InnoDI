@@ -33,14 +33,33 @@ jedes Target an, das Container deklariert.
 - Convenience-`init(<inputs...>, _ applyOverrides: ...)`
 - vier `withOverrides`-Overloads
 
+Für Container ohne `mainActor: true` sind die generierten `async`- und
+`async throws`-`withOverrides`-Methoden sowie ihre Operation-Closure-Typen
+`nonisolated(nonsending)`. Sie behalten den Actor-Executor des Aufrufers, sodass
+beliebige non-`Sendable` Container- und Closure-Werte keine Isolationsgrenze
+überschreiten. Synchrone Overloads bleiben unverändert. Mit `mainActor: true`
+bleiben alle `withOverrides`-Overloads und Operation-Closures `@MainActor`.
+
 Jeder unterstutzte Container erzeugt Overrides-Scaffolding, solange kein
 benutzerdefinierter verschachtelter `Overrides`-Typ existiert.
+
+Jedes `@Provide` muss eine direkte, einfache, gespeicherte Instanz-`var` dieses
+struct sein. Accessor-/Observer-Blöcke, `let`, `lazy`, `weak`, `unowned`,
+`static`/`class`, eigenständige und indirekt verschachtelte Provider werden
+abgelehnt; generierte Accessors dürfen nicht manuell angefügt werden.
+
+Sibling-Kanten stammen nur aus benannten Parametern von root
+`factory:`-/`asyncFactory:`-Closure-Literalen oder aus `Type.self` mit
+literalen `with:`-Key-Paths. Nicht-Closure-Factories und Property-Initializer
+sind opake Zero-Edge-Quellen und dürfen keine Sibling-Member referenzieren.
+Die Effektkompatibilität bleibt auch mit `validateDAG: false` verpflichtend.
 
 ## Parameters
 
 - `root`: Einstiegspunkt nur fur das Graph-Rendering
-- `validateDAG`: aktiviert globale DAG-Validierung und lokale cycle-/
-  closure-`with:`-Checks; `false` uberspringt nur diesen Bereich
+- `validateDAG`: aktiviert globale DAG- und lokale graph-derived Checks;
+  `false` uberspringt globalen DAG und lokale cycle-Checks, aber nicht
+  Deklarationsvalidierung oder Effektkompatibilität expliziter Sibling-Kanten
 - `mainActor`: isoliert Dependency-Accessors, alle generierten Initialisierer,
   `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-
   Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die

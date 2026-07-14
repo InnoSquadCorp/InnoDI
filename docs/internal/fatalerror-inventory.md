@@ -4,7 +4,7 @@
 > removed, runtime invariant traps allow-listed, PR and tag release gates both
 > run the guard.
 > **Created**: 2026-04-26
-> **Last updated**: 2026-04-26
+> **Last updated**: 2026-07-14
 > **Target**: Track every `fatalError(...)` call site in the macro package and
 > explain which sites are intentionally allowed.
 
@@ -40,11 +40,12 @@ The 4.1.0 macro hardening pass migrated the previously synthesized
 
 | Site | Trigger | 4.1.0 behavior |
 |---|---|---|
-| Transient unresolved factory / `with:` dependency | An unresolvable dependency or factory parameter would previously generate a trapping accessor. | Emits the existing terminal diagnostic and returns `[]`. |
-| Async transient factory with wildcard parameter | `@Provide(.transient, asyncFactory: { (_: T) in ... })`. | Emits `transient-factory.unnamed-parameters` and returns `[]`. |
-| Sync transient factory with wildcard parameter | `@Provide(.transient, factory: { (_: T) in ... })`. | Emits `transient-factory.unnamed-parameters` and returns `[]`. |
-| Transient missing construction source | `.transient` without a factory, type expression, or inline initializer. | Emits `provide.transient-factory-required` and returns `[]`. |
+| Transient unresolved factory / `with:` dependency | An unresolvable dependency or factory parameter would previously generate a trapping accessor. | The container emits the terminal diagnostic and the generated accessor owner emits an unreachable recovery getter. |
+| Async transient factory with wildcard parameter | `@Provide(.transient, asyncFactory: { (_: T) in ... })`. | The container emits `transient-factory.unnamed-parameters` once and the generated accessor owner emits an unreachable recovery getter. |
+| Sync transient factory with wildcard parameter | `@Provide(.transient, factory: { (_: T) in ... })`. | The container emits `transient-factory.unnamed-parameters` once and the generated accessor owner emits an unreachable recovery getter. |
+| Transient missing construction source | `.transient` without a factory, type expression, or inline initializer. | The container emits `provide.transient-factory-required` once and the generated accessor owner emits an unreachable recovery getter. |
 | Unknown scope | Malformed `@Provide(...)` scope that cannot resolve to a supported `DIScope`. | Emits `provide.unknown-scope` and an unreachable recovery getter so Swift does not add a secondary accessor-macro error. |
+| Transient dependency validation recovery | A transient factory has an effect-incompatible hard edge, a `Lazy<T>` async target, or an invalid `Provider<T>` target. | The container emits the terminal dependency diagnostic and attaches the internal transient-accessor owner with recovery enabled; its unreachable getter prevents secondary `await` / `try` errors. |
 | Internal codegen invariant | Contributor bug path in expression lowering. | Emits `internal.codegen-invariant` and returns `[]`; no runtime trap is synthesized. |
 
 `Sources/InnoDIMacros/SyntaxBuilders.swift` no longer exposes
@@ -74,7 +75,7 @@ allow-list in the same change.
 
 ## Verification
 
-Last local verification on 2026-04-26:
+Last local verification on 2026-07-14:
 
 ```sh
 Tools/check-no-fatalerror-in-macros.sh

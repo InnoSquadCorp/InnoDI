@@ -142,13 +142,19 @@ internal func subContainerInitializerExpr(
     var arguments: [LabeledExprSyntax] = argumentMappings.enumerated().map { index, mapping in
         let hasTrailingOverride = trailingOverrideExpression != nil
         let isLast = index == argumentMappings.count - 1 && !hasTrailingOverride
+        let parentExpression = parentMemberPrefix == "_storage_"
+            ? makeProviderStorageReadExpr(
+                name: "\(parentMemberPrefix)\(mapping.parentName)",
+                baseName: parentMemberBaseName
+            )
+            : makeSelfMemberAccessExpr(
+                name: "\(parentMemberPrefix)\(mapping.parentName)",
+                baseName: parentMemberBaseName
+            )
         return LabeledExprSyntax(
             label: .identifier(mapping.childLabel),
             colon: .colonToken(),
-            expression: makeSelfMemberAccessExpr(
-                name: "\(parentMemberPrefix)\(mapping.parentName)",
-                baseName: parentMemberBaseName
-            ),
+            expression: parentExpression,
             trailingComma: isLast || totalArgumentCount == 0 ? nil : .commaToken()
         )
     }

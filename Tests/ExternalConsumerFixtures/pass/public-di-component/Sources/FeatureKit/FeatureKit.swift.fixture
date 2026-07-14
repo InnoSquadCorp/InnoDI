@@ -10,11 +10,31 @@ public struct FeatureService: FeatureServiceProtocol {
     public init() {}
 }
 
+public struct FeatureRequest: Sendable {
+    public let config: FeatureConfig
+
+    public init(config: FeatureConfig) {
+        self.config = config
+    }
+}
+
+public struct AsyncFeatureService: Sendable {
+    public init() {}
+}
+
+public struct AsyncFeatureRequest: Sendable {
+    public init() {}
+}
+
 @DIComponent
 @DIContainer
 public struct FeatureContainer {
     @Provide(.input) public var config: FeatureConfig
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
+    @Provide(.transient, factory: { (config: FeatureConfig) in
+        FeatureRequest(config: config)
+    }, concrete: true)
+    public var request: FeatureRequest
 }
 
 public enum FeatureNamespace {
@@ -33,6 +53,14 @@ public enum FeatureNamespace {
 public struct MainActorFeatureContainer {
     @Provide(.input) public var config: FeatureConfig
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
+    @Provide(.transient, factory: { (config: FeatureConfig) in
+        FeatureRequest(config: config)
+    }, concrete: true)
+    public var request: FeatureRequest
+    @Provide(.shared, asyncFactory: { () async in AsyncFeatureService() }, concrete: true)
+    public var asyncService: AsyncFeatureService
+    @Provide(.transient, asyncFactory: { () async in AsyncFeatureRequest() }, concrete: true)
+    public var asyncRequest: AsyncFeatureRequest
 }
 
 public enum MainActorFeatureNamespace {

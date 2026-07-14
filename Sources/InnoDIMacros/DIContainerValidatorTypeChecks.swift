@@ -29,6 +29,112 @@ internal func requiresConcreteOptIn(type: TypeSyntax) -> Bool {
     return true
 }
 
+/// Opaque property types cannot be reproduced in InnoDI's optional backing
+/// slot or `Overrides` surface because `nil` provides no concrete underlying
+/// type for `some P`. InnoDI 5.0 rejects them and asks callers to expose an
+/// existential (`any P`) instead.
+internal func isOpaqueSomeType(_ type: TypeSyntax) -> Bool {
+    guard let someOrAny = normalizedConcreteCheckType(type).as(SomeOrAnyTypeSyntax.self) else {
+        return false
+    }
+    return someOrAny.someOrAnySpecifier.tokenKind == .keyword(.some)
+}
+
+internal func isImplicitlyUnwrappedOptionalType(_ type: TypeSyntax) -> Bool {
+    type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
+}
+
+/// Returns true only when the declaration spells a non-optional function type
+/// directly. Identifier/member types may be aliases and require the explicit
+/// `escaping: true` contract instead.
+internal func isDirectNonOptionalFunctionType(_ type: TypeSyntax) -> Bool {
+    if type.is(FunctionTypeSyntax.self) {
+        return true
+    }
+
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return isDirectNonOptionalFunctionType(attributed.baseType)
+    }
+
+    if let tuple = type.as(TupleTypeSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.firstName == nil,
+       first.secondName == nil {
+        return isDirectNonOptionalFunctionType(first.type)
+    }
+
+    return false
+}
+
+/// Returns true for optional spellings that are visible without resolving a
+/// typealias. `escaping: true` is applied as a parameter type attribute, so an
+/// explicit `Optional<Handler>` must be rejected just like `Handler?` instead
+/// of leaking Swift errors from every generated initializer and override API.
+internal func isExplicitOptionalType(_ type: TypeSyntax) -> Bool {
+    if type.is(OptionalTypeSyntax.self)
+        || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+        return true
+    }
+
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return isExplicitOptionalType(attributed.baseType)
+    }
+
+    if let tuple = type.as(TupleTypeSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.firstName == nil,
+       first.secondName == nil {
+        return isExplicitOptionalType(first.type)
+    }
+
+    if let identifier = type.as(IdentifierTypeSyntax.self) {
+        return identifier.name.text == "Optional"
+            && identifier.genericArgumentClause != nil
+    }
+
+    if let member = type.as(MemberTypeSyntax.self) {
+        return member.baseType.as(IdentifierTypeSyntax.self)?.name.text == "Swift"
+            && member.name.text == "Optional"
+            && member.genericArgumentClause != nil
+    }
+
+    return false
+}
+
+/// The macro can prove a direct function type and can conservatively accept
+/// identifier/member types that may resolve to a function typealias. Other
+/// top-level shapes (notably optionals and collections) cannot accept
+/// `@escaping` as a parameter type attribute.
+internal func supportsExplicitEscapingInput(_ type: TypeSyntax) -> Bool {
+    guard !isExplicitOptionalType(type) else {
+        return false
+    }
+
+    if isDirectNonOptionalFunctionType(type) {
+        return true
+    }
+
+    if type.is(IdentifierTypeSyntax.self) || type.is(MemberTypeSyntax.self) {
+        return true
+    }
+
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return supportsExplicitEscapingInput(attributed.baseType)
+    }
+
+    if let tuple = type.as(TupleTypeSyntax.self),
+       tuple.elements.count == 1,
+       let first = tuple.elements.first,
+       first.firstName == nil,
+       first.secondName == nil {
+        return supportsExplicitEscapingInput(first.type)
+    }
+
+    return false
+}
+
 private func normalizedConcreteCheckType(_ type: TypeSyntax) -> TypeSyntax {
     if let optional = type.as(OptionalTypeSyntax.self) {
         return normalizedConcreteCheckType(optional.wrappedType)

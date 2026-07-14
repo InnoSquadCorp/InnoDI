@@ -1256,7 +1256,9 @@ private func makeUnresolvedReferenceFixtureProject() throws -> URL {
         @Provide(.input)
         var config: String
         
-        @Provide(.shared, factory: MissingFeatureContainer(config: config), concrete: true)
+        @Provide(.shared, factory: { (config: String) in
+            MissingFeatureContainer(config: config)
+        }, concrete: true)
         var feature: MissingFeatureContainer
     }
     """.write(

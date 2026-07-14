@@ -15,6 +15,8 @@ struct ProvideMacroTests {
         "InnoDI.DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
         "InnoDI.Provide": ProvideMacro.self,
+        "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
+        "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
     ]
 
     // MARK: - Parsing tests (no expansion)
@@ -61,7 +63,7 @@ struct ProvideMacroTests {
     @Test
     func parseProvideWithTypeAndDependencies() throws {
         let source = """
-        @Provide(.shared, APIClient.self, with: [\\.config, \\.logger])
+        @Provide(.shared, APIClient.self, with: [\\Self.config, \\Self.logger])
         var apiClient: APIClientProtocol
         """
 
@@ -95,6 +97,36 @@ struct ProvideMacroTests {
         let args = parseProvideArguments(attr)
         #expect(args.concrete == false)
         #expect(args.concreteParseState == .invalid)
+    }
+
+    @Test("Provide parser preserves escaping input opt-in and invalid literals")
+    func parseProvideEscapingState() throws {
+        let source = """
+        @Provide(.input, escaping: true)
+        var handler: Handler
+
+        @Provide(.input, escaping: shouldEscape)
+        var invalid: Handler
+        """
+
+        let parsed = Parser.parse(source: source)
+        let declarations = parsed.statements.compactMap {
+            $0.item.as(VariableDeclSyntax.self)
+        }
+        let firstAttribute = try #require(
+            declarations.first?.attributes.first?.as(AttributeSyntax.self)
+        )
+        let secondAttribute = try #require(
+            declarations.last?.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let valid = parseProvideArguments(firstAttribute)
+        #expect(valid.escaping)
+        #expect(valid.escapingParseState == .parsed(true))
+
+        let invalid = parseProvideArguments(secondAttribute)
+        #expect(!invalid.escaping)
+        #expect(invalid.escapingParseState == .invalid)
     }
 
     @Test("Provide parser preserves invalid with: dependencies")
@@ -186,6 +218,91 @@ struct ProvideMacroTests {
 
     // MARK: - Accessor/peer expansion tests (migrated to snapshot/inline)
 
+    @Test("Function inputs keep eager parameters and support aliased escaping values")
+    func functionInputsUseSelectiveEscapingParameters() {
+        assertMacroExpansionSnapshot(
+            """
+            typealias Handler = @Sendable () -> Void
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input, escaping: true)
+                var aliasedHandler: Handler
+
+                @Provide(.input)
+                var directHandler: @Sendable () -> Void
+            }
+            """,
+            matches: "functionInputsUseSelectiveEscapingParameters",
+            macros: Self.macros
+        )
+    }
+
+    @Test("escaping input configuration fails closed outside its supported type and scope")
+    func escapingInputConfigurationFailsClosed() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: Service(), escaping: true)
+                var service: any ServiceProtocol
+
+                @Provide(.input, escaping: true)
+                var optionalHandler: (@Sendable () -> Void)?
+
+                @Provide(.input, escaping: true)
+                var genericOptionalHandler: Optional<@Sendable () -> Void>
+
+                @Provide(.input, escaping: true)
+                var qualifiedOptionalHandler: Swift.Optional<@Sendable () -> Void>
+            }
+            """,
+            expectedCodes: [
+                InnoDIDiagnosticCode.provideEscapingInvalidScope.messageID,
+                InnoDIDiagnosticCode.provideEscapingNonFunctionType.messageID,
+                InnoDIDiagnosticCode.provideEscapingNonFunctionType.messageID,
+                InnoDIDiagnosticCode.provideEscapingNonFunctionType.messageID,
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("escaping requires a literal Bool")
+    func escapingInputRequiresLiteralBool() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input, escaping: shouldEscape)
+                var handler: Handler
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.provideBoolLiteralRequired.messageID],
+            macros: Self.macros
+        )
+    }
+
+    @Test("User-qualified function aliases named Optional remain supported")
+    func userQualifiedOptionalFunctionAliasRemainsSupported() {
+        let result = expandMacroSource(
+            """
+            enum Namespace {
+                typealias Optional<T> = @Sendable (T) -> Void
+            }
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input, escaping: true)
+                var handler: Namespace.Optional<Int>
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("handler: @escaping Namespace.Optional<Int>"))
+    }
+
     @Test("Standalone @Provide rejects a dynamic scope exactly once")
     func standaloneProvideRejectsDynamicScope() {
         assertMacroExpansionSnapshot(
@@ -271,7 +388,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.transient, ViewModel.self, with: [\\.config], concrete: true)
+                @Provide(.transient, ViewModel.self, with: [\\Self.config], concrete: true)
                 var viewModel: ViewModel
             }
             """,
@@ -296,11 +413,6 @@ struct ProvideMacroTests {
         assertMacroExpansionDiagnosticCodes(
             source,
             expectedCodes: [
-                // Emitted by the container validator (DIContainer phase) and
-                // again by the accessor macro when it encounters the wildcard
-                // parameter — both are intentional and surface at different
-                // source locations.
-                InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
                 InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
             ],
             macros: Self.macros
@@ -381,8 +493,8 @@ struct ProvideMacroTests {
     // tests assert two things:
     //   1) The user-facing diagnostic is still emitted at error severity.
     //   2) The macro expansion no longer contains a `fatalError(` call —
-    //      malformed input fails to compile because the synthesized
-    //      property has no accessor, never because of a runtime trap.
+    //      malformed input fails to compile on the primary diagnostic while
+    //      an unreachable recovery accessor suppresses structural follow-ons.
 
     @Test("Async transient factory with underscore parameter emits diagnostic without trap")
     func asyncTransientFactoryClosureWithUnderscoreParameterEmitsDiagnostic() {
@@ -401,7 +513,6 @@ struct ProvideMacroTests {
             source,
             expectedCodes: [
                 InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
-                InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
             ],
             macros: Self.macros
         )
@@ -409,13 +520,6 @@ struct ProvideMacroTests {
             source,
             matches: "asyncTransientFactoryClosureWithUnderscoreParameterEmitsDiagnostic",
             diagnostics: [
-                DiagnosticSpec(
-                    id: InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
-                    message: "Factory closure parameters must be named for injection.",
-                    line: 3,
-                    column: 40,
-                    severity: .error
-                ),
                 DiagnosticSpec(
                     id: InnoDIDiagnosticCode.transientFactoryUnnamedParameters.messageID,
                     message: "Factory closure parameters must be named for injection.",
@@ -431,8 +535,9 @@ struct ProvideMacroTests {
     @Test("Transient with no factory, no typeExpr, no initializer emits diagnostic without trap")
     func transientMissingFactoryEmitsDiagnostic() {
         // No `factory:`, no `Type.self` typeExpr, no inline initializer.
-        // Site #4 in the inventory — accessor now re-emits the
-        // `provide.transient-factory-required` diagnostic defensively.
+        // Site #4 in the inventory. The container emits the terminal
+        // diagnostic and the generated accessor owner takes its recovery path
+        // without duplicating the error.
         let source = """
             @DIContainer
             struct AppContainer {
@@ -444,7 +549,6 @@ struct ProvideMacroTests {
         assertMacroExpansionDiagnosticCodes(
             source,
             expectedCodes: [
-                InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
                 InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
             ],
             macros: Self.macros
@@ -460,13 +564,6 @@ struct ProvideMacroTests {
                     column: 5,
                     severity: .error
                 ),
-                DiagnosticSpec(
-                    id: InnoDIDiagnosticCode.provideTransientFactoryRequired.messageID,
-                    message: "@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.",
-                    line: 3,
-                    column: 5,
-                    severity: .error
-                ),
             ],
             macros: Self.macros
         )
@@ -474,11 +571,10 @@ struct ProvideMacroTests {
 
     @Test("Transient with unresolved factory parameter emits diagnostic without trap (site #1)")
     func transientWithUnresolvedFactoryParameterEmitsDiagnostic() {
-        // Site #1 in the inventory. After Phase 2.B the
-        // `transientDependencyResolutionFailure` branch returns []
-        // instead of synthesizing a fatalError getter, so the
-        // expansion contains no trap regardless of which validator
-        // path produced the diagnostic.
+        // Site #1 in the inventory. The container owns the terminal
+        // diagnostic and the generated transient accessor takes the
+        // non-observing recovery path instead of synthesizing a fatalError
+        // getter.
         let source = """
             @DIContainer
             struct AppContainer {
@@ -556,24 +652,32 @@ struct ProvideMacroTests {
         )
     }
 
-    // MARK: - Peer + accessor dual-phase verification (kept as direct expansion)
+    // MARK: - Peer + generated-accessor dual-phase verification
     //
-    // This test intentionally calls both PeerMacro and AccessorMacro phases
-    // separately to verify the Task storage peer decl is generated alongside
-    // the async getter. Full-expansion assertions would drop the peer decl
-    // because SwiftSyntaxMacroExpansion inlines peers into the enclosing type.
+    // This test intentionally calls the public peer macro and compiler-owned
+    // accessor macro separately to verify the Task storage peer declaration is
+    // paired with the async getter.
 
     @Test("Async shared factory generates task storage peer and async getter")
     func asyncSharedFactoryGeneratesTaskStorageAndAsyncGetter() throws {
         let source = """
-        @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
-        var service: Service
+        @DIContainer
+        struct AppContainer {
+            @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+            var service: Service
+        }
         """
 
         let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide with async shared factory closure")
+        let generatedAttributeSource = Parser.parse(
+            source: "@InnoDI._InnoDIProvideAccessor(recovery: false) var value: Int"
+        )
+        guard let containerDecl = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let varDecl = containerDecl.memberBlock.members.first?.decl.as(VariableDeclSyntax.self),
+              let attr = varDecl.attributes.first?.as(AttributeSyntax.self),
+              let generatedVariable = generatedAttributeSource.statements.first?.item.as(VariableDeclSyntax.self),
+              let generatedAttribute = generatedVariable.attributes.first?.as(AttributeSyntax.self) else {
+            Issue.record("Should parse a direct @Provide member with async shared factory closure")
             return
         }
 
@@ -583,16 +687,16 @@ struct ProvideMacroTests {
             providingPeersOf: varDecl,
             in: context
         )
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
+        let accessors = try InnoDIProvideAccessorMacro.expansion(
+            of: generatedAttribute,
             providingAccessorsOf: varDecl,
             in: context
         )
 
         let peerGenerated = peerDecls.map(\.description).joined(separator: "\n")
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
-        #expect(peerGenerated == "private let _storage_task_service: Task<Service, Never>")
-        #expect(accessorGenerated == #"getasync{return await _storage_task_service.value}"#)
+        #expect(peerGenerated == "private var _storage_task_service: Task<Service, Never>? = nil")
+        #expect(accessorGenerated == #"getasync{return await _storage_task_service!.value}"#)
     }
 
     @Test("Qualified InnoDI provide members resolve transient dependencies by member name")
@@ -615,16 +719,20 @@ struct ProvideMacroTests {
         )
 
         let parsed = Parser.parse(source: source)
+        let generatedAttributeSource = Parser.parse(
+            source: "@InnoDI._InnoDIProvideAccessor(recovery: false) var value: Int"
+        )
         guard let containerDecl = parsed.statements.first?.item.as(StructDeclSyntax.self),
               let transientDecl = containerDecl.memberBlock.members.last?.decl.as(VariableDeclSyntax.self),
-              let attr = transientDecl.attributes.first?.as(AttributeSyntax.self) else {
+              let generatedVariable = generatedAttributeSource.statements.first?.item.as(VariableDeclSyntax.self),
+              let generatedAttribute = generatedVariable.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse qualified container with transient provide member")
             return
         }
 
         let context = TestMacroExpansionContext()
-        let accessors = try ProvideMacro.expansion(
-            of: attr,
+        let accessors = try InnoDIProvideAccessorMacro.expansion(
+            of: generatedAttribute,
             providingAccessorsOf: transientDecl,
             in: context
         )

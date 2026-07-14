@@ -31,13 +31,32 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 - convenience `init(<inputs...>, _ applyOverrides: ...)`
 - 4 つの `withOverrides`
 
+`mainActor: true` を使わないコンテナでは、生成される `async` / `async throws`
+`withOverrides` method と operation closure type は
+`nonisolated(nonsending)` です。caller の actor executor を保持するため、任意の
+non-`Sendable` container と closure value は isolation boundary を越えません。
+同期 overload は変更されません。`mainActor: true` では、すべての
+`withOverrides` overload と operation closure が引き続き `@MainActor` です。
+
 ユーザー定義のネスト `Overrides` がない限り、サポート対象の各コンテナが
 overrides scaffolding を生成します。
+
+各 `@Provide` は、この struct の direct かつ plain な stored instance `var`
+でなければなりません。Accessor/observer、`let`、`lazy`、`weak`、`unowned`、
+`static`/`class`、standalone、間接 nested provider は拒否され、生成 accessor
+を手動で付与することもできません。
+
+Sibling edge は root `factory:`/`asyncFactory:` closure literal の named
+parameter、または `Type.self` と literal `with:` key path だけから生成されます。
+非 closure factory と property initializer は opaque な zero-edge source で、
+sibling member を参照できません。Effect compatibility は
+`validateDAG: false` でも必須です。
 
 ## Parameters
 
 - `root`: グラフ描画エントリだけを制御
-- `validateDAG`: global DAG validation と local cycle / closure-`with:` を制御
+- `validateDAG`: global DAG と local graph-derived check を制御します。
+  `false` でも宣言検証と明示的 sibling edge の effect compatibility は継続します
 - `mainActor`: 依存関係 accessor、生成されるすべての initializer、
   `Overrides`、convenience initializer・`withOverrides`・child override・
   component mount で使う `applyOverrides` 関数型、4 つの `withOverrides`

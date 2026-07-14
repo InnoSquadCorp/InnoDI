@@ -28,6 +28,8 @@ struct MacroPerformanceBenchmark {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
+        "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
+        "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
         "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
         "DIFeatureRoot": DIFeatureRootMacro.self,
@@ -45,13 +47,15 @@ struct MacroPerformanceBenchmark {
     @DIContainer
     struct AppContainer {
         @Provide(.input) var config: AppConfig
-        @Provide(.shared, factory: APIClient(config: config))
+        @Provide(.shared, factory: { (config: AppConfig) in APIClient(config: config) })
         var apiClient: APIClient
-        @Provide(.shared, factory: UserService(api: apiClient))
+        @Provide(.shared, factory: { (apiClient: APIClient) in UserService(api: apiClient) })
         var userService: UserService
-        @Provide(.shared, factory: FeatureService(api: apiClient, users: userService))
+        @Provide(.shared, factory: { (apiClient: APIClient, userService: UserService) in
+            FeatureService(api: apiClient, users: userService)
+        })
         var featureService: FeatureService
-        @Provide(.transient, factory: RequestBuilder(api: apiClient))
+        @Provide(.transient, factory: { (apiClient: APIClient) in RequestBuilder(api: apiClient) })
         var requestBuilder: RequestBuilder
         @SubContainer(scope: .shared)
         @DIFeatureRoot(DashboardRootView.self)

@@ -7,13 +7,21 @@ InnoDI валидирует зависимости в несколько сло�
 Макро-валидация проверяет:
 
 - правила scope
+- размещение `@Provide` только на прямом обычном хранимом instance `var`
 - отсутствие factory
 - порядок объявления
 - локальные cycle
 - строгую резолюцию имен
+- совместимость эффектов явных sibling edges
 - недопустимые пользовательские `init`
 
-`validateDAG: false` не отключает структурную валидацию.
+Явные sibling edges создаются только именованными параметрами root literal
+closure `factory:`/`asyncFactory:` либо `Type.self` с literal key paths
+`with:`. Не-closure factory и property initializer — непрозрачные zero-edge
+источники и не могут ссылаться на sibling members.
+
+`validateDAG: false` не отключает проверку деклараций и совместимость эффектов;
+пропускаются только global DAG, local cycle и другие graph-derived проверки.
 
 ## Build Validation
 

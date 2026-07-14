@@ -1,12 +1,8 @@
 
 struct AppContainer {
-    var config: AppConfig {
-        get {
-            return _storage_config
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false) var config: AppConfig
 
-    private let _storage_config: AppConfig
+    private var _storage_config: AppConfig? = nil
     var feature: FeatureContainer {
         get {
             return _storage_sub_feature

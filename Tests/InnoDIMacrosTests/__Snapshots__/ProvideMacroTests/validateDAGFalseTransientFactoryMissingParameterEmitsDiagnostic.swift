@@ -1,22 +1,9 @@
 
 struct AppContainer {
-    var apiClient: APIClient {
-        get {
-            return _storage_apiClient
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var apiClient: APIClient
 
-    private let _storage_apiClient: APIClient
-    var viewModel: ViewModel {
-        get {
-            if let override = _override_viewModel {
-                return override
-            }
-            return { (missing: APIClient) in
-                ViewModel(apiClient: missing)
-            }(self.missing)
-        }
-    }
-
-    private let _override_viewModel: ViewModel?
+    private var _storage_apiClient: APIClient? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: true)
+    var viewModel: ViewModel
 }

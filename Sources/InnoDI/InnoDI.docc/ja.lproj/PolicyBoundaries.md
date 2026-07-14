@@ -9,6 +9,16 @@ InnoDI は明示的な境界を置くことで検証を決定的に保ちます�
 - generic argument extension と `where` extension は除外
 - 曖昧なケースは推測で一致させない
 
+## Provider effect
+
+- 同期 provider は sync、`async`、`async throws` factory から利用できます。
+- `async` provider には `async` または `async throws` consumer が必要です。
+- `async throws` provider には `async throws` consumer が必要です。
+- Effect は依存関係から推論しません。Consumer が `asyncFactory:` と、必要なら
+  `async throws` closure を明示します。
+- `Lazy<T>` と `Provider<T>` は同期 deferred wrapper であり、非同期 target を
+  拒否します。
+
 ## 隔離と Sendability
 
 - コンテナは生成された storage をコンテナ値の内部に保持します。InnoDI は

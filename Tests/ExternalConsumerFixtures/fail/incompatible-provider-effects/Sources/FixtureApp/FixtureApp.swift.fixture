@@ -1,0 +1,54 @@
+import InnoDI
+
+struct Token: Sendable {}
+
+struct Session: Sendable {
+    let token: Token
+}
+
+@DIContainer
+struct SyncSessionContainer {
+    @Provide(.shared, asyncFactory: { () async in
+        Token()
+    }, concrete: true)
+    var token: Token
+
+    @Provide(.shared, factory: { (token: Token) in
+        Session(token: token)
+    }, concrete: true)
+    var session: Session
+}
+
+@DIContainer
+struct NonthrowingAsyncSessionContainer {
+    @Provide(.shared, asyncFactory: { () async throws -> Token in
+        Token()
+    }, concrete: true)
+    var token: Token
+
+    @Provide(.shared, asyncFactory: { (token: Token) async in
+        Session(token: token)
+    }, concrete: true)
+    var session: Session
+}
+
+@DIContainer
+struct TypeWiredAsyncSessionContainer {
+    @Provide(.shared, asyncFactory: { () async in
+        Token()
+    }, concrete: true)
+    var token: Token
+
+    @Provide(
+        .shared,
+        Session.self,
+        with: [\Self.token],
+        concrete: true
+    )
+    var session: Session
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

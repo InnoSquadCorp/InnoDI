@@ -2,16 +2,140 @@ import InnoDI
 
 struct Service: Sendable {}
 
+struct LiteralValue: Sendable {
+    let value: Int
+}
+
+struct ServicePair: Sendable {
+    let service: Service
+    let literalValue: LiteralValue
+}
+
+struct LiteralConsumer: Sendable {
+    let literalValue: LiteralValue
+}
+
+struct AsyncService: Sendable {}
+
+final class ReferenceState {
+    let value: Int
+
+    init(value: Int) {
+        self.value = value
+    }
+}
+
+typealias Handler = @Sendable () -> Void
+
+enum Namespace {
+    typealias Optional<T> = @Sendable (T) -> Void
+}
+
+func makeThrowingValue() throws -> Int { 1 }
+
+func makeAsyncValue() async -> Int { 2 }
+
+@DIContainer
+struct FeatureContainer {
+    @Provide(.input)
+    var service: Service
+}
+
 @DIContainer
 struct AppContainer {
+    @Provide(.input, escaping: true)
+    var handler: Handler
+
+    @Provide(.input)
+    var directHandler: @Sendable () -> Void
+
+    @Provide(.input, escaping: true)
+    var namespacedHandler: Namespace.Optional<Int>
+
+    @Provide(.input)
+    var throwingValue: Int
+
+    @Provide(.input)
+    var asyncValue: Int
+
+    @Provide(.input)
+    var referenceState: ReferenceState
+
     @Provide(.shared, factory: Service(), concrete: true)
     var service: Service
+
+    @Provide(.shared, concrete: true)
+    var literalValue: LiteralValue = LiteralValue(value: 7)
+
+    @Provide(.shared, factory: { (service: Service, literalValue: LiteralValue) in
+        ServicePair(service: service, literalValue: literalValue)
+    }, concrete: true)
+    var servicePair: ServicePair
+
+    @Provide(
+        .shared,
+        LiteralConsumer.self,
+        with: [\Self.literalValue],
+        concrete: true
+    )
+    var literalConsumer: LiteralConsumer
+
+    @Provide(.shared, asyncFactory: { () async in AsyncService() }, concrete: true)
+    var asyncService: AsyncService
+
+    @SubContainer(scope: .shared, with: [\AppContainer.service])
+    var feature: FeatureContainer
 }
 
 @main
 struct FixtureApp {
-    static func main() {
-        let container = AppContainer()
+    static func main() async throws {
+        let container = AppContainer(
+            handler: {},
+            directHandler: {},
+            namespacedHandler: { _ in },
+            throwingValue: try makeThrowingValue(),
+            asyncValue: await makeAsyncValue(),
+            referenceState: ReferenceState(value: 7)
+        )
+        container.handler()
+        container.directHandler()
+        container.namespacedHandler(7)
+        precondition(container.throwingValue == 1)
+        precondition(container.asyncValue == 2)
+        precondition(container.referenceState.value == 7)
+        let asyncOverrideValue = await AppContainer.withOverrides(
+            handler: {},
+            directHandler: {},
+            namespacedHandler: { _ in },
+            throwingValue: 3,
+            asyncValue: 4,
+            referenceState: ReferenceState(value: 8),
+            { _ in },
+            operation: { container async -> Int in
+                await Task.yield()
+                return container.asyncValue
+            }
+        )
+        let throwingOverrideValue = try await AppContainer.withOverrides(
+            handler: {},
+            directHandler: {},
+            namespacedHandler: { _ in },
+            throwingValue: 5,
+            asyncValue: 6,
+            referenceState: ReferenceState(value: 9),
+            { _ in },
+            operation: { container async throws -> Int in
+                await Task.yield()
+                return container.throwingValue
+            }
+        )
+        precondition(asyncOverrideValue == 4)
+        precondition(throwingOverrideValue == 5)
         let _: Service = container.service
+        precondition(container.literalValue.value == 7)
+        precondition(container.servicePair.literalValue.value == 7)
+        precondition(container.literalConsumer.literalValue.value == 7)
+        let _: Service = container.feature.service
     }
 }

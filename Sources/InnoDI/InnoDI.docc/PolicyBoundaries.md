@@ -28,6 +28,17 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 - `.transient` members may reference any container member, but names still
   resolve strictly.
 
+## Provider Effects
+
+- A synchronous provider can be consumed by sync, `async`, and `async throws`
+  factories.
+- An `async` provider requires an `async` or `async throws` consumer.
+- An `async throws` provider requires an `async throws` consumer.
+- Effects are never inferred from dependencies. Consumers opt in explicitly
+  with `asyncFactory:` and, when needed, an `async throws` closure.
+- `Lazy<T>` and `Provider<T>` are synchronous deferred wrappers and reject
+  async targets.
+
 ## Isolation and Sendability
 
 - Containers keep their generated storage inside the container value. InnoDI

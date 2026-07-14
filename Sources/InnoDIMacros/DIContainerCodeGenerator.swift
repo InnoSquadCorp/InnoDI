@@ -161,7 +161,7 @@ private func makeInitDecl(
             firstName: .identifier(member.name),
             secondName: nil,
             colon: .colonToken(),
-            type: member.type,
+            type: inputParameterType(for: member),
             ellipsis: nil,
             defaultValue: nil,
             trailingComma: isLast ? nil : .commaToken()
@@ -246,7 +246,13 @@ private func makeInitDecl(
     var statements: [CodeBlockItemSyntax] = []
     var resolvedValueBindings: [String: String] = [:]
     var taskBindings: [String: AsyncTaskBinding] = [:]
-    let needsResolvedBindings = !asyncSharedMembers.isEmpty
+    let asyncResolvedTargetNames = Set(
+        asyncSharedMembers.flatMap { member in
+            member.closureParameterReferences
+                .filter { $0.kind == .hard }
+                .map(\.name)
+        }
+    )
 
     if allowUnresolvedDependencyFallback {
         statements.append(
@@ -276,9 +282,12 @@ private func makeInitDecl(
         let storageName = "_storage_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: member.name))))
 
-        if needsResolvedBindings {
+        if asyncResolvedTargetNames.contains(member.name) {
             let resolvedName = "_resolved_\(member.name)"
-            let resolvedDecl = letBinding(name: resolvedName, value: member.name)
+            let resolvedDecl = letBinding(
+                name: resolvedName,
+                value: makeProviderStorageReadExpr(name: storageName)
+            )
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }
@@ -313,9 +322,12 @@ private func makeInitDecl(
         let storageName = "_storage_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
 
-        if needsResolvedBindings {
+        if asyncResolvedTargetNames.contains(member.name) {
             let resolvedName = "_resolved_\(member.name)"
-            let resolvedDecl = letBinding(name: resolvedName, value: storageName)
+            let resolvedDecl = letBinding(
+                name: resolvedName,
+                value: makeProviderStorageReadExpr(name: storageName)
+            )
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }

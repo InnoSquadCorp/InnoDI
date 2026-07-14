@@ -1,26 +1,17 @@
 
 struct AppContainer {
-    var config: Config {
-        get {
-            return _storage_config
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var config: Config
 
-    private let _storage_config: Config
-    var logger: Logger {
-        get {
-            return _storage_logger
-        }
-    }
+    private var _storage_config: Config? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var logger: Logger
 
-    private let _storage_logger: Logger
-    var service: Service {
-        get {
-            return _storage_service
-        }
-    }
+    private var _storage_logger: Logger? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var service: Service
 
-    private let _storage_service: Service
+    private var _storage_service: Service? = nil
 
     // MARK: - Initialization
     init(config: Config, logger: Logger, service: Service? = nil) {
@@ -28,7 +19,7 @@ struct AppContainer {
         self._storage_logger = logger
         self._storage_service = service ?? { (logger: Logger, config: Config) in
                 Service(config: config, logger: logger)
-            }(self._storage_logger, self._storage_config)
+            }(self._storage_logger!, self._storage_config!)
     }
 
     // MARK: - Overrides Builder
@@ -56,13 +47,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(config: Config, logger: Logger, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(config: Config, logger: Logger, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, logger: logger, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(config: Config, logger: Logger, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(config: Config, logger: Logger, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, logger: logger, applyOverrides)
         return try await operation(container)
     }

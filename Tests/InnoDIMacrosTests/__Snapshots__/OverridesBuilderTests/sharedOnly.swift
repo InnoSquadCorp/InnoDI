@@ -1,12 +1,9 @@
 
 struct AppContainer {
-    var apiClient: APIClient {
-        get {
-            return _storage_apiClient
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var apiClient: APIClient
 
-    private let _storage_apiClient: APIClient
+    private var _storage_apiClient: APIClient? = nil
 
     // MARK: - Initialization
     init(apiClient: APIClient? = nil) {
@@ -38,13 +35,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(applyOverrides)
         return try await operation(container)
     }

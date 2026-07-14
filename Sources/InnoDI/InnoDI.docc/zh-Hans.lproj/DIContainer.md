@@ -29,13 +29,30 @@ dependency-graph CLI 会扫描完整 source tree，并拒绝这个边界情况�
 - convenience `init(<inputs...>, _ applyOverrides: ...)`
 - 四个 `withOverrides` 重载
 
+对于未使用 `mainActor: true` 的容器，生成的 `async` 与 `async throws`
+`withOverrides` 方法及其 operation closure 类型采用
+`nonisolated(nonsending)`。它们保留 caller 的 actor executor，因此任意非
+`Sendable` 的 container 与 closure 值不会跨越 isolation boundary。同步重载
+保持不变；使用 `mainActor: true` 时，所有 `withOverrides` 重载和 operation
+closure 仍为 `@MainActor`。
+
 只要用户没有自己声明嵌套 `Overrides` 类型，每个受支持的容器都会生成
 overrides scaffolding。
+
+每个 `@Provide` 都必须是此 struct 的直接、普通、存储型实例 `var`。
+Accessor/observer、`let`、`lazy`、`weak`、`unowned`、`static`/`class`、独立或
+间接嵌套的 provider 都会被拒绝；也不能手动附加生成 accessor。
+
+Sibling edge 只来自根 `factory:`/`asyncFactory:` closure literal 的具名参数，
+或 `Type.self` 与 literal `with:` key path。非 closure factory 和 property
+initializer 是不透明的 zero-edge 构造源，不能引用 sibling member。即使使用
+`validateDAG: false`，效果兼容性也必须满足。
 
 ## 参数
 
 - `root`：只影响图渲染入口
-- `validateDAG`：控制全局 DAG 校验与本地 cycle / closure-`with:` 校验
+- `validateDAG`：控制全局 DAG 与本地 graph-derived 校验；设为 `false` 也不会
+  关闭声明校验和显式 sibling edge 的效果兼容性校验
 - `mainActor`：为依赖访问器、所有生成的初始化器、`Overrides`、convenience
   initializer、`withOverrides`、子容器 override 与 component mounting 所使用的
   `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及

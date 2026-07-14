@@ -1,16 +1,9 @@
 
 struct AppContainer {
-    @MainActor
-    var service: Service {
-        get {
-            if let override = _override_service {
-                return override
-            }
-            return Service()
-        }
-    }
+    @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var service: Service
 
-    private let _override_service: Service?
+    private var _override_service: Service? = nil
 
     // MARK: - Initialization
     @MainActor init(service: Service? = nil) {

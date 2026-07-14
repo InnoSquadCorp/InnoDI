@@ -35,15 +35,35 @@ que declare contenedores.
 - un `init(<inputs...>, _ applyOverrides: ...)` de conveniencia
 - cuatro overloads `withOverrides`
 
+En un contenedor sin `mainActor: true`, los métodos `withOverrides` generados
+con `async` o `async throws` y los tipos de sus closures de operación son
+`nonisolated(nonsending)`. Conservan el executor del actor del caller, por lo
+que valores arbitrarios de contenedor y closure que no son `Sendable` no cruzan
+un límite de aislamiento. Los overloads síncronos no cambian. Con
+`mainActor: true`, todos los overloads `withOverrides` y sus closures de
+operación permanecen `@MainActor`.
+
 Cada contenedor compatible genera la estructura de overrides salvo que el
 usuario ya haya declarado un tipo `Overrides` anidado.
+
+Cada `@Provide` debe ser un `var` de instancia simple, almacenado y directo de
+este struct. Se rechazan accessors/observers, `let`, `lazy`, `weak`, `unowned`,
+`static`/`class`, providers independientes o indirectamente anidados; los
+accessors generados no se adjuntan manualmente.
+
+Los edges sibling solo vienen de parametros con nombre de closures literales
+raiz `factory:`/`asyncFactory:`, o de `Type.self` con key paths literales en
+`with:`. Factories que no son closures e initializers de property son fuentes
+opacas con cero edges y no pueden leer miembros sibling. La compatibilidad de
+efectos sigue siendo obligatoria con `validateDAG: false`.
 
 ## Parámetros
 
 - `root`: solo marca la entrada de render del grafo.
-- `validateDAG`: activa la validación global del DAG y los checks locales de
-  cycle y closure/`with:`; con `false` esos checks se omiten, pero las
-  referencias raw-expression y la validación estructural siguen activas.
+- `validateDAG`: activa el DAG global y los checks graph-derived locales; con
+  `false` se omiten el DAG global y los ciclos locales, pero siguen la
+  validación de declaraciones y la compatibilidad de efectos de edges sibling
+  explícitos.
 - `mainActor`: aísla con `@MainActor` los accessors de dependencias, todos los
   inicializadores generados, `Overrides`, los tipos de closure `applyOverrides`
   usados por los inicializadores de conveniencia, `withOverrides`, los

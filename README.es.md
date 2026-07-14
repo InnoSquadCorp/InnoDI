@@ -17,7 +17,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -208,7 +208,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -278,7 +278,7 @@ que declare contenedores.
 | Parametro | Default | Significado |
 |---|---|---|
 | `root` | `false` | Solo marca la entrada de render del grafo. Si existe al menos una raiz, la salida Mermaid, DOT y ASCII se reduce a la union de nodos y aristas alcanzables desde esas raices. |
-| `validateDAG` | `true` | Activa la validacion global del DAG mas los checks graph-derived de ciclo local y closure/`with:`. Con `false` se omiten esos checks, pero las referencias raw-expression en `factory:` e inicializadores siguen diagnosticandose y la validacion estructural continua. |
+| `validateDAG` | `true` | Activa la validacion global del DAG y los checks graph-derived locales. Con `false` se omiten el DAG global y los ciclos locales, pero siguen la validacion de declaraciones y la compatibilidad de efectos en edges sibling explicitos. |
 | `mainActor` | `false` | Aplica `@MainActor` a los accessors de dependencias, todos los inicializadores generados, `Overrides`, los tipos de closure `applyOverrides` usados por los inicializadores de conveniencia, `withOverrides`, los overrides de child containers y el mounting de componentes, las closures de operación de los cuatro overloads `withOverrides` y los helpers de feature root. Con `@DIComponent`, también aísla el protocolo `<Container>Dependencies` y `init(dependencies:_:)` generados, y usa la conformidad dedicada `_InnoDIMainActorComponentMountable`. Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`. El uso fuera del actor principal requiere un salto explícito. Recomendado para contenedores raíz de UI. |
 
 En 5.0, los helpers genéricos de mounting deben distinguir ambos protocolos
@@ -298,6 +298,34 @@ tipo anotado ni en extensiones equivalentes.
 
 ### `@Provide` y scopes
 
+InnoDI 5.0 admite `@Provide` solo en un `var` de instancia simple, almacenado y
+directo del mismo struct compatible que lleva `@DIContainer`. Se rechazan
+`let`, properties computed u observed, `lazy`, `weak`, `unowned`,
+`static`/`class`, usos independientes e indirectamente anidados. InnoDI es
+propietario del accessor generado; nunca adjuntes `_InnoDIProvideAccessor`
+manualmente.
+
+Los attributes y el access control de la declaracion del provider tambien
+forman un contrato cerrado. Se rechazan los property wrappers, los attributes
+condicionales o desconocidos, los modificadores de acceso del setter como
+`private(set)` y los attributes de global actor personalizados. No se admite
+ningún attribute de nivel de propiedad escrito en el código fuente aparte de
+`@Provide`, incluido `@MainActor`; solicita el aislamiento del actor con
+`@DIContainer(mainActor: true)`. Los attributes de aislamiento que InnoDI
+genera en la declaracion del provider y su accessor son soporte interno del
+compilador. Una declaracion completa de miembro `@Provide` dentro de `#if`
+tambien se rechaza con
+`provide.conditional-declaration-unsupported`; manten la declaracion fuera de
+la condicion y bifurca dentro de su factory o implementacion inyectada.
+
+Cada property admite exactamente un `@Provide`; los attributes duplicados se
+rechazan con `provide.duplicate-attribute`. El tipo explicito de la property no
+puede ser un `some Protocol` opaco ni un optional implicitamente desempaquetado
+`T!`; migra a `any Protocol` o a `T` / `T?`, respectivamente. Una combinacion
+deliberadamente falsificada del accessor de soporte del compilador con otro
+property wrapper tambien puede recibir diagnosticos estructurales de Swift,
+ademas del diagnostico de uso indebido de InnoDI.
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
@@ -305,22 +333,70 @@ tipo anotado ni en extensiones equivalentes.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 )
 ```
 
 | Scope | Significado | Reglas de construccion |
 |---|---|---|
-| `.input` | Dependencia externa suministrada al inicializar el contenedor | Sin `factory` ni `asyncFactory` |
-| `.shared` | Se crea una vez por instancia del contenedor y se reutiliza | Requiere `factory`, `asyncFactory` o `Type.self` mas `with:` |
-| `.transient` | Se recrea en cada acceso | Requiere `factory`, `asyncFactory` o `Type.self` mas `with:` |
+| `.input` | Dependencia externa suministrada al inicializar el contenedor | No declara `factory:`, `asyncFactory:`, `Type.self`, initializer de property ni `with:` |
+| `.shared` | Se crea una vez por instancia del contenedor y se reutiliza | Declara exactamente uno de `factory:`, `asyncFactory:`, `Type.self` o initializer de property |
+| `.transient` | Se recrea en cada acceso | Declara exactamente uno de `factory:`, `asyncFactory:`, `Type.self` o initializer de property |
 
 Reglas adicionales:
 
-- `factory` y `asyncFactory` son mutuamente excluyentes.
-- `asyncFactory` debe ser una closure `async`.
+- En `.shared` / `.transient`, `factory:`, `asyncFactory:`, `Type.self` y el
+  initializer de property son cuatro fuentes de construccion mutuamente
+  excluyentes.
+- `.input` rechaza todas las fuentes de construccion y `with:`.
+- Los parametros `.input` del initializer generado son valores eager del tipo
+  declarado `T`; Swift evalua expresiones de argumento `try` / `await` antes de
+  llamar al initializer, como siempre. Los tipos de funcion non-optional
+  escritos directamente se detectan y se generan como parametros escaping.
+  Si un tipo de funcion non-optional esta oculto tras un typealias, usa
+  `@Provide(.input, escaping: true)`. `escaping:` debe ser un Bool literal y
+  solo es valido para `.input`. Se rechazan formas obviamente no funcionales u
+  optional-function; si un alias identifier/member aceptado conservadoramente
+  no se resuelve realmente como funcion non-optional, Swift puede emitir su
+  propio diagnostico.
+- `asyncFactory` se admite para `.shared` y `.transient` y debe ser una closure
+  `async`.
+- `with:` solo se admite con la construccion `Type.self`. Cada elemento del
+  array literal debe usar exactamente la forma canonica de miembro directo
+  `\Self.member`, por ejemplo `with: [\Self.config]`; `with: []` tambien es
+  valido. Se rechazan roots de contenedor con nombre, de modulo o de typealias,
+  ademas de componentes anidados, optional chaining, subscripts y elementos
+  calculados. Todos los providers referenciados deben tener construccion sincrona.
 - El almacenamiento concrete `.shared` y `.transient` requiere `concrete: true`.
 - La resolucion de nombres para parametros de factory y wiring con `with:` es estricta por nombre de miembro.
+
+Los edges DI entre miembros sibling usan una sintaxis cerrada:
+
+- Una closure literal raiz de `factory:` o `asyncFactory:` declara un edge por
+  cada parametro con nombre. Las closures anidadas y los identificadores
+  arbitrarios no agregan edges.
+- La construccion `Type.self` declara edges desde su array literal de key paths
+  canonicos `\Self.member` y solo puede apuntar a providers sincronos.
+- Una expresion `factory:` que no sea closure o un initializer de property es
+  una fuente de construccion opaca con cero edges y no puede referenciar otros
+  miembros del contenedor. Usa parametros de la closure raiz para DI, o un
+  simbolo global/estatico calificado cuando no se pretenda un edge DI.
+
+Los efectos de factory son explicitos y no se infieren de las dependencias.
+Usa `asyncFactory:` para un consumer asincrono y declara la closure como
+`async throws` cuando consuma un provider asincrono que pueda lanzar errores.
+La compatibilidad se valida en cada edge explicito incluso con
+`validateDAG: false`.
+
+| Provider | consumer sync | consumer `async` | consumer `async throws` |
+|---|---:|---:|---:|
+| sync | permitido | permitido | permitido |
+| `async` | rechazado | permitido | permitido |
+| `async throws` | rechazado | rechazado | permitido |
+
+`Lazy<T>` y `Provider<T>` son wrappers deferred sincronos. Rechazan targets
+asincronos.
 
 ## Modelo de validacion
 
@@ -330,10 +406,10 @@ InnoDI valida contenedores en capas:
 2. Validacion de build
 3. Validacion global del DAG
 
-`validateDAG: false` es un opt-out intencionalmente estrecho. Excluye la
-validacion global del DAG y los checks graph-derived de ciclo local y
-closure/`with:` de la macro. No desactiva la validacion estructural ni suprime
-los diagnosticos de referencias raw-expression en `factory:` o inicializadores.
+`validateDAG: false` es un opt-out intencionalmente estrecho. Excluye el DAG
+global y los checks graph-derived de ciclo local, pero no la validacion de
+declaraciones ni la compatibilidad de efectos en edges sibling explicitos de
+closures raiz o `with:`.
 
 ## Overrides Builder
 
@@ -384,7 +460,8 @@ var consumer: Consumer
 var logger: RequestLogger
 ```
 
-Ambos wrappers son intencionalmente non-`Sendable`.
+Ambos wrappers son intencionalmente non-`Sendable`. Tambien permanecen
+sincronos y no pueden apuntar a un miembro `asyncFactory`.
 
 ## Nested Containers y jerarquia
 

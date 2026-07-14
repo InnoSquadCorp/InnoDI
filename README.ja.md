@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -203,7 +203,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -267,7 +267,7 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 | パラメータ | 既定値 | 意味 |
 |---|---|---|
 | `root` | `false` | グラフ描画の入口フラグです。root が存在する場合、Mermaid、DOT、ASCII 出力は root から到達可能なノードとエッジに限定されます。 |
-| `validateDAG` | `true` | global DAG validation と、マクロの local cycle および closure/`with:` graph-derived チェックを有効にします。`false` はその範囲のみ無効化し、`factory:` や initializer の raw-expression 参照診断と構造検証は継続します。 |
+| `validateDAG` | `true` | global DAG validation とマクロの local graph-derived チェックを有効にします。`false` は global DAG と local cycle を無効化しますが、宣言検証と明示的な sibling edge の effect compatibility は継続します。 |
 | `mainActor` | `false` | 依存関係 accessor、生成されるすべての initializer、`Overrides`、convenience initializer・`withOverrides`・child override・component mount で使う `applyOverrides` 関数型、4 つの `withOverrides` operation closure、feature-root helper を `@MainActor` に隔離します。`@DIComponent` を併用すると、生成される `<Container>Dependencies` protocol と `init(dependencies:_:)` も隔離され、専用の `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。メインアクター外から利用するには明示的な actor hop が必要です。UI ルートコンテナ向けです。 |
 
 5.0 の generic component mounting helper は 2 つの marker protocol を区別する
@@ -283,6 +283,30 @@ direct `await` は `withOverrides` operation result のように、隔離され�
 
 ### `@Provide` とスコープ
 
+InnoDI 5.0 では、`@Provide` は `@DIContainer` を付与した同じ supported struct
+の direct かつ plain な stored instance `var` にのみ指定できます。`let`、
+computed/observed property、`lazy`、`weak`、`unowned`、`static`/`class`、
+standalone、間接的な nested usage は拒否されます。生成される provider accessor
+は InnoDI が所有するため、`_InnoDIProvideAccessor` を手動で付与しないでください。
+
+Provider declaration の attribute と access control も closed contract です。
+Property wrapper、conditional/unknown attribute、`private(set)` などの setter
+access modifier、custom global-actor attribute は拒否されます。`@Provide` 以外の
+source-written property-level attribute は許可されず、`@MainActor` も含まれます。
+actor isolation は `@DIContainer(mainActor: true)` で指定してください。provider
+declaration と accessor に InnoDI が生成する isolation attribute は internal
+compiler support です。完全な `@Provide` member declaration を `#if` 内に置く形も
+`provide.conditional-declaration-unsupported` で拒否されます。宣言は条件の外に
+置き、factory または注入する実装の内部で分岐してください。
+
+各 property に付与できる `@Provide` は正確に 1 つです。重複 attribute は
+`provide.duplicate-attribute` で拒否されます。明示的な property type に opaque
+`some Protocol` または implicitly unwrapped optional `T!` は使用できません。
+それぞれ `any Protocol`、明示的な `T` または `T?` に移行してください。
+compiler-support accessor と別の property wrapper を意図的に偽装して併用した
+場合、InnoDI の misuse diagnostic に加えて Swift 自身の structural diagnostic
+が発生することがあります。
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
@@ -290,22 +314,67 @@ direct `await` は `withOverrides` operation result のように、隔離され�
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 )
 ```
 
 | Scope | 意味 | 構築ルール |
 |---|---|---|
-| `.input` | コンテナ初期化時に外部から渡す依存関係 | `factory` / `asyncFactory` は不可 |
-| `.shared` | コンテナ単位で 1 回生成して再利用 | `factory`、`asyncFactory`、または `Type.self` + `with:` が必要 |
-| `.transient` | アクセスのたびに再生成 | `factory`、`asyncFactory`、または `Type.self` + `with:` が必要 |
+| `.input` | コンテナ初期化時に外部から渡す依存関係 | `factory:`、`asyncFactory:`、`Type.self`、property initializer、`with:` をすべて宣言しない |
+| `.shared` | コンテナ単位で 1 回生成して再利用 | `factory:`、`asyncFactory:`、`Type.self`、property initializer のうち正確に 1 つを宣言 |
+| `.transient` | アクセスのたびに再生成 | `factory:`、`asyncFactory:`、`Type.self`、property initializer のうち正確に 1 つを宣言 |
 
 追加ルール:
 
-- `factory` と `asyncFactory` は相互排他です。
-- `asyncFactory` は `async` クロージャである必要があります。
+- `.shared` / `.transient` では `factory:`、`asyncFactory:`、`Type.self`、
+  property initializer の 4 つの construction source は相互排他です。
+- `.input` はすべての construction source と `with:` を拒否します。
+- 生成される `.input` initializer parameter は宣言型 `T` の eager value です。
+  Swift は通常どおり initializer call の前に `try` / `await` argument expression
+  を評価します。直接記述された non-optional function type は自動検出され、
+  escaping parameter として生成されます。non-optional function type が typealias
+  の背後にある場合は `@Provide(.input, escaping: true)` を使用してください。
+  `escaping:` は literal Bool で、`.input` でのみ有効です。明らかな nonfunction
+  / optional-function shape は拒否され、保守的に許可された identifier/member
+  alias が実際には non-optional function でない場合、Swift 自身の diagnostic
+  が発生することがあります。
+- `asyncFactory` は `.shared` と `.transient` で利用でき、`async` closure
+  でなければなりません。
+- `with:` は `Type.self` construction でのみ利用できます。literal array の
+  各要素は `with: [\Self.config]` のように canonical な
+  direct-member 表記 `\Self.member` を正確に使う必要があります。`with: []` も
+  有効です。named container、module-qualified、typealias root、nested component、
+  optional chaining、subscript、computed array element は拒否されます。参照先
+  provider はすべて同期 construction でなければなりません。
 - 具象型の `.shared` / `.transient` ストレージには `concrete: true` が必要です。
 - factory パラメータと `with:` wiring の name 解決は member name に対して厳密です。
+
+Sibling DI edge は次の閉じた構文だけから生成されます。
+
+- root `factory:` / `asyncFactory:` closure literal の named parameter ごとに
+  1 本の edge を生成します。nested closure や任意の identifier は edge を
+  追加しません。
+- `Type.self` は literal canonical `\Self.member` key-path array から edge を
+  生成し、同期 provider だけを target にできます。
+- closure ではない `factory:` expression と property initializer は opaque な
+  zero-edge construction source であり、sibling container member を参照できません。
+  DI wiring は root closure parameter へ書き換え、DI edge を意図しない場合は
+  qualified global/static construction symbol を使用してください。
+
+Factory effect は明示的に宣言し、依存関係から推論しません。非同期 consumer
+には `asyncFactory:` を使い、throwing な非同期 provider を消費する場合は
+closure に `async throws` を明記してください。Effect compatibility は
+`validateDAG: false` の場合もすべての明示的 edge で検証されます。
+
+| Provider | sync consumer | `async` consumer | `async throws` consumer |
+|---|---:|---:|---:|
+| sync | 許可 | 許可 | 許可 |
+| `async` | 拒否 | 許可 | 許可 |
+| `async throws` | 拒否 | 拒否 | 許可 |
+
+`Lazy<T>` と `Provider<T>` は同期 deferred wrapper です。非同期 target は
+拒否されます。
 
 ## 検証モデル
 
@@ -315,9 +384,9 @@ InnoDI は次の層で検証します。
 2. Build validation
 3. Global DAG validation
 
-`validateDAG: false` は限定的な opt-out です。global DAG validation と、
-マクロの local cycle / closure-`with:` graph-derived チェックのみを
-無効にします。構造検証や raw-expression 参照のコンパイル時診断は無効に
+`validateDAG: false` は限定的な opt-out です。global DAG validation と local
+cycle などの graph-derived チェックのみを無効にします。宣言検証や、root
+closure / `with:` が作る明示的 sibling edge の effect compatibility は無効に
 なりません。
 
 ## Overrides Builder
@@ -363,7 +432,8 @@ var consumer: Consumer
 var logger: RequestLogger
 ```
 
-どちらも意図的に non-`Sendable` です。
+どちらも意図的に non-`Sendable` です。また同期 wrapper のままであり、
+`asyncFactory` member を target にできません。
 
 ## ネストコンテナと階層
 

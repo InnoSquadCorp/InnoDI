@@ -27,18 +27,37 @@ dependencies or `@Provide(.input)` values.
 - a convenience `init(<inputs...>, _ applyOverrides: ...)`
 - four `withOverrides` effect overloads
 
+For a container without `mainActor: true`, the generated `async` and
+`async throws` `withOverrides` methods and their operation closure types are
+`nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary
+non-`Sendable` container and closure values do not cross an isolation boundary.
+The synchronous overloads are unchanged. With `mainActor: true`, every
+`withOverrides` overload and operation closure remains `@MainActor`.
+
 Every supported container synthesizes the overrides scaffolding unless the
 user already declares a nested `Overrides` type.
+
+Every `@Provide` member must be a direct, plain, stored instance `var` in this
+struct. InnoDI rejects `let`, computed/observed properties, storage modifiers
+such as `lazy`, `weak`, and `unowned`, type properties, standalone providers,
+and providers below an intervening declaration. Generated provider accessors
+are internal compiler support and must not be attached manually.
+
+The container graph reads sibling edges only from named parameters on root
+`factory:`/`asyncFactory:` closure literals and from `Type.self` with literal
+`with:` key paths. Non-closure factories and property initializers are opaque
+zero-edge sources; they must not reference sibling members. Effect
+compatibility on explicit edges is mandatory even with `validateDAG: false`.
 
 ## Parameters
 
 - `root`: Graph-render entry flag only. When at least one root exists, Mermaid,
   DOT, and ASCII output is pruned to the union of root-reachable nodes and
   edges.
-- `validateDAG`: Enables global DAG validation plus the macro's local cycle and
-  closure/`with:` graph-derived checks. When set to `false`, those checks are
-  skipped, but raw-expression `factory:` and initializer references plus
-  structural diagnostics still remain active.
+- `validateDAG`: Enables global DAG validation plus the macro's local
+  graph-derived checks. When set to `false`, global DAG and local cycle checks
+  are skipped, but declaration validation and effect compatibility on explicit
+  sibling edges still remain active.
 - `mainActor`: Applies `@MainActor` isolation to dependency accessors, every
   generated initializer, `Overrides`, the `applyOverrides` function types used
   by convenience initializers, `withOverrides`, child overrides, and component

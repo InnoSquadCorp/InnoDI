@@ -1,38 +1,17 @@
 
 struct AppContainer {
-    var input: PayloadInput {
-        get {
-            return _storage_input
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var input: PayloadInput
 
-    private let _storage_input: PayloadInput
-    var payload: Payload {
-        get {
-            if let override = _override_payload {
-                return override
-            }
-            return { (input: PayloadInput) in
-                    Payload(input: input)
-                }(self.input)
-        }
-    }
+    private var _storage_input: PayloadInput? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var payload: Payload
 
-    private let _override_payload: Payload?
-    var processor: PayloadProcessor {
-        get {
-            if let override = _override_processor {
-                return override
-            }
-            return { (payload: Provider<Payload>) in
-                    PayloadProcessor(payloads: payload)
-                }(Provider {
-                    self.payload
-                })
-        }
-    }
+    private var _override_payload: Payload? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var processor: PayloadProcessor
 
-    private let _override_processor: PayloadProcessor?
+    private var _override_processor: PayloadProcessor? = nil
 
     // MARK: - Initialization
     init(input: PayloadInput, payload: Payload? = nil, processor: PayloadProcessor? = nil) {
@@ -67,13 +46,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(input: PayloadInput, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(input: PayloadInput, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(input: input, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(input: PayloadInput, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(input: PayloadInput, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(input: input, applyOverrides)
         return try await operation(container)
     }

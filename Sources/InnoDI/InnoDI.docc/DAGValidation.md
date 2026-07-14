@@ -10,7 +10,7 @@ from leaking into a production release.
 
 `validateDAG: false` disables exactly two layers:
 
-1. The macro's local cycle plus closure and `with:` graph-derived diagnostics.
+1. The macro's local cycle and other graph-derived availability diagnostics.
 2. The container's contribution to global DAG validation
    (`swift run InnoDI-DependencyGraph --root . --validate-dag`).
 
@@ -18,14 +18,22 @@ It does **not** disable any of the following:
 
 - Structural macro diagnostics (scope rules, missing factories, declaration
   order availability, async factory validity).
-- Raw-expression `factory:` and initializer reference checks.
+- The direct, plain, stored instance-`var` declaration contract for
+  `@Provide`.
+- Effect compatibility on explicit sibling edges.
 - Build-time hierarchy validation for `@DIComponent` and `@DIHierarchyRoot`.
 - Cross-file custom `init` validation.
 - The artifact contract documented in <doc:Validation>.
 
-A consumer with `validateDAG: false` therefore still gets the same
-compile-time safety surface as a default container, but loses the part of the
-contract that prevents a real cycle from reaching production.
+Explicit sibling edges come only from named parameters on the root
+`factory:`/`asyncFactory:` closure literal or `Type.self` with literal `with:`
+key paths. Their sync/async/throwing compatibility remains mandatory with
+`validateDAG: false`. Non-closure factories and property initializers are
+opaque zero-edge sources and must not refer to sibling container members.
+
+A consumer with `validateDAG: false` therefore keeps declaration and effect
+safety, but loses the part of the contract that prevents a real cycle from
+reaching production.
 
 ## When Opting Out Is Acceptable
 

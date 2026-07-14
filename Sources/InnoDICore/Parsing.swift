@@ -70,6 +70,15 @@ public enum KeyPathArrayArgumentParseState: Equatable, Sendable {
         }
         return false
     }
+
+    public var hasArgument: Bool {
+        switch self {
+        case .omitted:
+            return false
+        case .parsed, .invalid:
+            return true
+        }
+    }
 }
 
 /// Parsed arguments extracted from a single `@Provide` attribute.
@@ -92,6 +101,11 @@ public struct ProvideArguments {
     public let concrete: Bool
     /// Literal parse state for `concrete:`.
     public let concreteParseState: BoolArgumentParseState
+    /// Whether a function-valued `.input` hidden behind a typealias must be
+    /// emitted as an escaping initializer parameter.
+    public let escaping: Bool
+    /// Literal parse state for `escaping:`.
+    public let escapingParseState: BoolArgumentParseState
     /// Explicit type expression passed as positional `Type.self`.
     public let typeExpr: ExprSyntax?
     /// Dependency key-path names passed via `with:`.
@@ -109,6 +123,7 @@ public struct ProvideArguments {
     ///   - asyncFactoryExpr: Parsed async factory expression.
     ///   - asyncFactoryIsThrowing: Whether the async factory closure throws.
     ///   - concrete: Explicit concrete opt-in value.
+    ///   - escaping: Explicit escaping-input opt-in value.
     ///   - typeExpr: Positional type expression.
     ///   - dependencies: Parsed dependency names from `with:`.
     public init(
@@ -120,6 +135,8 @@ public struct ProvideArguments {
         asyncFactoryIsThrowing: Bool = false,
         concrete: Bool = false,
         concreteParseState: BoolArgumentParseState? = nil,
+        escaping: Bool = false,
+        escapingParseState: BoolArgumentParseState? = nil,
         typeExpr: ExprSyntax? = nil,
         dependencies: [String] = [],
         dependenciesParseState: KeyPathArrayArgumentParseState? = nil
@@ -132,6 +149,8 @@ public struct ProvideArguments {
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
         self.concrete = concrete
         self.concreteParseState = concreteParseState ?? (concrete ? .parsed(true) : .omitted)
+        self.escaping = escaping
+        self.escapingParseState = escapingParseState ?? (escaping ? .parsed(true) : .omitted)
         self.typeExpr = typeExpr
         self.dependencies = dependencies
         self.dependenciesParseState = dependenciesParseState ?? (dependencies.isEmpty ? .omitted : .parsed(dependencies))
@@ -410,6 +429,8 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var asyncFactoryIsThrowing = false
     var concrete: Bool = false
     var concreteParseState: BoolArgumentParseState = .omitted
+    var escaping: Bool = false
+    var escapingParseState: BoolArgumentParseState = .omitted
     var typeExpr: ExprSyntax?
     var dependencies: [String] = []
     var dependenciesParseState: KeyPathArrayArgumentParseState = .omitted
@@ -435,8 +456,17 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     }
                     continue
                 }
+                if label == "escaping" {
+                    escapingParseState = parseBoolArgument(argument.expression)
+                    if let value = escapingParseState.value {
+                        escaping = value
+                    }
+                    continue
+                }
                 if label == "with" {
-                    dependenciesParseState = parseKeyPathArrayArgumentState(argument.expression)
+                    dependenciesParseState = parseQualifiedKeyPathArrayArgumentState(
+                        argument.expression
+                    )
                     dependencies = dependenciesParseState.dependencies
                     continue
                 }
@@ -482,10 +512,36 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,
         concrete: concrete,
         concreteParseState: concreteParseState,
+        escaping: escaping,
+        escapingParseState: escapingParseState,
         typeExpr: typeExpr,
         dependencies: dependencies,
         dependenciesParseState: dependenciesParseState
     )
+}
+
+/// `@Provide` is declared with `[AnyKeyPath]`, so Swift cannot infer the root of
+/// `\.member`. InnoDI 5.0 requires the canonical `\Self.member` spelling.
+/// Unlike a bare container identifier, `Self` cannot be shadowed by a nested
+/// typealias that silently changes the key path's semantic root while codegen
+/// still resolves the final member name against the enclosing container.
+private func parseQualifiedKeyPathArrayArgumentState(
+    _ expression: ExprSyntax
+) -> KeyPathArrayArgumentParseState {
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else {
+        return .invalid
+    }
+    var names: [String] = []
+    for element in arrayExpr.elements {
+        guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+              keyPath.root?.trimmedDescription == "Self",
+              keyPath.components.count == 1,
+              let property = finalKeyPathComponentName(from: element.expression) else {
+            return .invalid
+        }
+        names.append(property)
+    }
+    return .parsed(names)
 }
 
 /// Extracts the final component names from a `with: [\.foo, \.bar]` style

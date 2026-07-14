@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -189,7 +189,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -250,7 +250,7 @@ dependency-graph CLI 会扫描完整 source tree，并拒绝这个边界情况�
 | 参数 | 默认值 | 含义 |
 |---|---|---|
 | `root` | `false` | 只影响图渲染入口。如果存在 root，Mermaid、DOT、ASCII 输出会裁剪为从 root 可达的节点与边。 |
-| `validateDAG` | `true` | 开启全局 DAG 校验，以及宏的本地 cycle 与 closure/`with:` graph-derived 校验。设为 `false` 只跳过这部分；`factory:` 和 initializer 的 raw-expression 引用仍会在编译期诊断，结构性校验也仍然执行。 |
+| `validateDAG` | `true` | 开启全局 DAG 校验以及宏的本地 graph-derived 校验。设为 `false` 会跳过全局 DAG 和本地 cycle 校验，但声明校验与显式 sibling edge 的效果兼容性校验仍会执行。 |
 | `mainActor` | `false` | 为依赖访问器、所有生成的初始化器、`Overrides`、convenience initializer、`withOverrides`、子容器 override 与 component mounting 所使用的 `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及 feature-root helper 应用 `@MainActor` 隔离。与 `@DIComponent` 搭配时，生成的 `<Container>Dependencies` 协议和 `init(dependencies:_:)` 也会被隔离，并改为遵循专用协议 `_InnoDIMainActorComponentMountable`。未使用该选项的普通组件继续遵循 `_InnoDIComponentMountable`。主执行器之外的使用者需要显式 hop。推荐用于 UI 根容器。 |
 
 在 5.0 中，generic component mounting helper 必须区分这两个 marker protocol。
@@ -265,6 +265,29 @@ operation result；它不会让 container 本身可以安全地带到执行器�
 
 ### `@Provide` 与作用域
 
+InnoDI 5.0 只允许把 `@Provide` 标注在同一个受支持的 `@DIContainer` struct
+中的直接、普通、存储型实例 `var` 上。`let`、computed/observed property、
+`lazy`、`weak`、`unowned`、`static`/`class`、独立以及间接嵌套用法都会被拒绝。
+生成的 provider accessor 由 InnoDI 所有；不要手动附加
+`_InnoDIProvideAccessor`。
+
+Provider 声明的 attribute 与 access control 也采用封闭契约。Property wrapper、
+conditional 或 unknown attribute、`private(set)` 等 setter access modifier，以及
+custom global-actor attribute 都会被拒绝。除 `@Provide` 外，不允许任何
+source-written property-level attribute，其中也包括 `@MainActor`。请使用
+`@DIContainer(mainActor: true)` 请求 actor 隔离。InnoDI 在 provider declaration
+和 accessor 上生成的 isolation attribute 属于内部 compiler support。把完整的
+`@Provide` member declaration 放在 `#if` 内也会
+触发 `provide.conditional-declaration-unsupported`。请让声明保持无条件，并在
+factory 或注入实现内部进行分支。
+
+每个 property 只能附加一个 `@Provide`；重复 attribute 会以
+`provide.duplicate-attribute` 拒绝。显式 property type 不能使用 opaque
+`some Protocol` 或 implicitly unwrapped optional `T!`，请分别迁移到
+`any Protocol`，或显式的 `T` / `T?`。如果刻意伪造 compiler-support accessor
+并与另一个 property wrapper 组合，除了 InnoDI misuse diagnostic 外，Swift
+自身也可能发出 structural diagnostic。
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
@@ -272,15 +295,57 @@ operation result；它不会让 container 本身可以安全地带到执行器�
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 )
 ```
 
 | Scope | 含义 | 构造规则 |
 |---|---|---|
-| `.input` | 在初始化容器时由外部提供 | 不允许 `factory` 或 `asyncFactory` |
-| `.shared` | 每个容器实例创建一次并复用 | 需要 `factory`、`asyncFactory`，或 `Type.self` 加 `with:` |
-| `.transient` | 每次访问都重新创建 | 需要 `factory`、`asyncFactory`，或 `Type.self` 加 `with:` |
+| `.input` | 在初始化容器时由外部提供 | 不声明 `factory:`、`asyncFactory:`、`Type.self`、property initializer 或 `with:` |
+| `.shared` | 每个容器实例创建一次并复用 | 在 `factory:`、`asyncFactory:`、`Type.self`、property initializer 中恰好声明一个 |
+| `.transient` | 每次访问都重新创建 | 在 `factory:`、`asyncFactory:`、`Type.self`、property initializer 中恰好声明一个 |
+
+- 对 `.shared` / `.transient`，`factory:`、`asyncFactory:`、`Type.self` 和
+  property initializer 这四种构造源互斥。
+- `.input` 会拒绝所有构造源和 `with:`。
+- 生成的 `.input` initializer 参数是声明类型 `T` 的 eager value；Swift 会像往常
+  一样在调用 initializer 前求值 `try` / `await` 参数表达式。直接写出的
+  non-optional function type 会被自动识别并生成 escaping 参数。如果
+  non-optional function type 隐藏在 typealias 后，请使用
+  `@Provide(.input, escaping: true)`。`escaping:` 必须是 literal Bool，且只在
+  `.input` 有效。明显的 nonfunction / optional-function 形状会被拒绝；若保守接受的
+  identifier/member alias 实际并不解析为 non-optional function，Swift 可能再发出
+  自身的 diagnostic。
+- `asyncFactory` 支持 `.shared` 和 `.transient`，且必须是 `async` closure。
+- `with:` 只能与 `Type.self` 构造一起使用。Literal 数组的每个元素必须精确采用
+  canonical direct-member 写法 `\Self.member`，例如 `with: [\Self.config]`；
+  `with: []` 也有效。具名 container、module-qualified 或 typealias root，以及
+  nested component、optional chaining、subscript、计算得到的数组元素都会被拒绝。
+  所有引用的 provider 都必须使用同步构造。
+
+Sibling DI edge 只来自以下封闭语法：
+
+- 根 `factory:` 或 `asyncFactory:` closure literal 的每个具名参数声明一条
+  edge。嵌套 closure 和任意 identifier 不会增加 edge。
+- `Type.self` 构造从 literal canonical `\Self.member` key-path 数组声明 edge，
+  并且只能指向同步 provider。
+- 非 closure 的 `factory:` 表达式和 property initializer 是不透明的
+  zero-edge 构造源，不能引用 sibling container member。DI wiring 应改为根
+  closure 参数；若不需要 DI edge，请使用 qualified global/static 构造符号。
+
+Factory 效果必须显式声明，不会从依赖关系中推断。异步 consumer 应使用
+`asyncFactory:`；消费可能抛错的异步 provider 时，必须将 closure 显式声明为
+`async throws`。即使使用 `validateDAG: false`，每条显式 edge 仍会校验效果
+兼容性。
+
+| Provider | sync consumer | `async` consumer | `async throws` consumer |
+|---|---:|---:|---:|
+| sync | 允许 | 允许 | 允许 |
+| `async` | 拒绝 | 允许 | 允许 |
+| `async throws` | 拒绝 | 拒绝 | 允许 |
+
+`Lazy<T>` 和 `Provider<T>` 是同步 deferred wrapper，会拒绝异步 target。
 
 ## 校验模型
 
@@ -290,9 +355,9 @@ InnoDI 分层校验：
 2. Build validation
 3. Global DAG validation
 
-`validateDAG: false` 是刻意收窄的 opt-out。它只跳过全局 DAG 校验和宏的
-本地 cycle / closure-`with:` graph-derived 校验，不会关闭结构性校验，也不会
-屏蔽 raw-expression 引用的编译期诊断。
+`validateDAG: false` 是刻意收窄的 opt-out。它只跳过全局 DAG 以及本地 cycle
+等 graph-derived 校验，不会关闭声明校验，也不会跳过根 closure 或 `with:`
+产生的显式 sibling edge 的效果兼容性校验。
 
 ## Overrides Builder
 
@@ -336,7 +401,8 @@ var consumer: Consumer
 var logger: RequestLogger
 ```
 
-这两个 wrapper 都刻意保持为 non-`Sendable`。
+这两个 wrapper 都刻意保持为 non-`Sendable`。它们也保持同步，不能以
+`asyncFactory` member 为 target。
 
 ## 嵌套容器与层级
 

@@ -1,24 +1,13 @@
 
 struct AppContainer {
-    var apiClient: APIClient {
-        get {
-            return _storage_apiClient
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var apiClient: APIClient
 
-    private let _storage_apiClient: APIClient
-    var viewModel: ViewModel {
-        get async {
-            if let override = _override_viewModel {
-                return override
-            }
-            return await { (apiClient: APIClient) async in
-                await ViewModel.load(apiClient: apiClient)
-            }(self.apiClient)
-        }
-    }
+    private var _storage_apiClient: APIClient? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var viewModel: ViewModel
 
-    private let _override_viewModel: ViewModel?
+    private var _override_viewModel: ViewModel? = nil
 
     // MARK: - Initialization
     init(apiClient: APIClient, viewModel: ViewModel? = nil) {
@@ -51,13 +40,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(apiClient: APIClient, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(apiClient: APIClient, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(apiClient: apiClient, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(apiClient: APIClient, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(apiClient: APIClient, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(apiClient: apiClient, applyOverrides)
         return try await operation(container)
     }

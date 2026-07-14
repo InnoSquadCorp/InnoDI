@@ -1,24 +1,18 @@
 
 struct AppContainer {
-    var config: Config {
-        get {
-            return _storage_config
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var config: Config
 
-    private let _storage_config: Config
-    var service: Service {
-        get async {
-            return await _storage_task_service.value
-        }
-    }
+    private var _storage_config: Config? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var service: Service
 
-    private let _storage_task_service: Task<Service, Never>
+    private var _storage_task_service: Task<Service, Never>? = nil
 
     // MARK: - Initialization
     init(config: Config, service: Service? = nil) {
         self._storage_config = config
-        let _resolved_config = config
+        let _resolved_config = self._storage_config!
         let _task_service = Task<Service, Never> {
             if let override = service {
                 return override
@@ -55,13 +49,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(config: Config, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return try await operation(container)
     }

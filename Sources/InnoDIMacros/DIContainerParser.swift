@@ -86,8 +86,35 @@ struct DIContainerParser {
             hadErrors = true
         }
 
+        for conditionalMember in conditionallyCompiledProvideMembers(in: decl) {
+            let memberName = conditionalMember.declaration.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(conditionalMember.attribute),
+                    message: SimpleDiagnostic.provideConditionalDeclarationUnsupported(
+                        memberName: memberName
+                    )
+                )
+            )
+            hadErrors = true
+        }
+
         for member in decl.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else {
+                continue
+            }
+
+            let provideAttributes = findInnoDIAttributes(
+                named: "Provide",
+                in: varDecl.attributes
+            )
+            if provideAttributes.count > 1 {
+                // The second public @Provide peer owns the one global
+                // diagnostic, including outside a container. The parser only
+                // fails closed so code generation cannot see this member.
+                hadErrors = true
                 continue
             }
 
@@ -100,7 +127,7 @@ struct DIContainerParser {
             // are present on the same property we emit the dedicated
             // conflict diagnostic and skip the property entirely — the
             // codegen pathway for each attribute is mutually exclusive.
-            let provideAttribute = InnoDICore.findInnoDIAttribute(named: "Provide", in: varDecl.attributes)
+            let provideAttribute = provideAttributes.first
             let subContainerAttribute = InnoDICore.findInnoDIAttribute(named: "SubContainer", in: varDecl.attributes)
             let isDependencyMember = provideAttribute != nil || subContainerAttribute != nil
 
@@ -206,6 +233,19 @@ struct DIContainerParser {
                 continue
             }
 
+            if InnoDICore.findInnoDIAttribute(
+                named: "_InnoDIProvideAccessor",
+                in: varDecl.attributes
+            ) != nil {
+                // The member-attribute role owns the single user-facing
+                // manual-attachment diagnostic. Exclude the forged member
+                // from the container model as well: `recovery: true` asks the
+                // peer role to suppress storage, so codegen must not emit an
+                // init that still assigns the missing backing slot.
+                hadErrors = true
+                continue
+            }
+
             guard let validatedBinding = validateBindingForAttribute(
                 varDecl,
                 kind: .provide,
@@ -215,7 +255,20 @@ struct DIContainerParser {
                 continue
             }
 
+            // Public `@Provide` owns the single declaration-shape diagnostic.
+            // Validate binding arity/name/type first so those established,
+            // more-specific diagnostics remain reachable without attaching an
+            // accessor to an unsafe declaration.
+            guard isSupportedProvideStoredProperty(varDecl) else {
+                hadErrors = true
+                continue
+            }
+
             let parseResult = InnoDICore.parseProvideArguments(attribute)
+            let withDependencyReferences = extractWithDependencyReferences(
+                from: attribute,
+                requiringCanonicalProvidePath: true
+            )
             var memberHadErrors = false
             if parseResult.concreteParseState.isInvalid {
                 context.diagnose(
@@ -226,12 +279,22 @@ struct DIContainerParser {
                 )
                 memberHadErrors = true
             }
+            if parseResult.escapingParseState.isInvalid {
+                context.diagnose(
+                    Diagnostic(
+                        node: extractArgumentExpression(label: "escaping", from: attribute).map(Syntax.init) ?? Syntax(attribute),
+                        message: SimpleDiagnostic.provideBoolLiteralRequired(label: "escaping")
+                    )
+                )
+                memberHadErrors = true
+            }
             if parseResult.dependenciesParseState.isInvalid {
                 context.diagnose(
                     Diagnostic(
                         node: extractArgumentExpression(label: "with", from: attribute).map(Syntax.init) ?? Syntax(attribute),
                         message: SimpleDiagnostic.provideInvalidWithDependencies(
-                            memberName: validatedBinding.identifier.identifier.text
+                            memberName: validatedBinding.identifier.identifier.text,
+                            expectedRoot: "Self"
                         )
                     )
                 )
@@ -259,24 +322,7 @@ struct DIContainerParser {
                 closureParameterList = ClosureParameterList(names: [], references: [], hasWildcard: false)
             }
 
-            let factoryExpressionReferences: [String]
-            if let factoryExpr = parseResult.factoryExpr, factoryExpr.as(ClosureExprSyntax.self) == nil {
-                factoryExpressionReferences = extractExpressionDependencyReferences(from: factoryExpr)
-            } else {
-                factoryExpressionReferences = []
-            }
-
-            let asyncFactoryExpressionReferences: [String]
-            if let asyncFactoryExpr = parseResult.asyncFactoryExpr, asyncFactoryExpr.as(ClosureExprSyntax.self) == nil {
-                asyncFactoryExpressionReferences = extractExpressionDependencyReferences(from: asyncFactoryExpr)
-            } else {
-                asyncFactoryExpressionReferences = []
-            }
-
             let initializerExpr = validatedBinding.binding.initializer?.value
-            let initializerReferences = extractExpressionDependencyReferences(from: initializerExpr)
-            let withDependencyReferences = extractWithDependencyReferences(from: attribute)
-
             members.append(
                 ProvideMemberModel(
                     name: validatedBinding.identifier.identifier.text,
@@ -289,13 +335,14 @@ struct DIContainerParser {
                     initializer: initializerExpr,
                     concreteOptIn: parseResult.concrete,
                     concreteParseState: parseResult.concreteParseState,
+                    escapingInput: parseResult.escaping,
+                    escapingParseState: parseResult.escapingParseState,
                     withDependencies: parseResult.dependencies,
                     withDependenciesParseState: parseResult.dependenciesParseState,
                     withDependencyReferences: withDependencyReferences,
                     closureDependencies: closureParameterList.names,
                     closureParameterReferences: closureParameterList.references,
                     closureHasWildcard: closureParameterList.hasWildcard,
-                    expressionReferences: deduplicateStrings(factoryExpressionReferences + asyncFactoryExpressionReferences + initializerReferences),
                     attribute: attribute,
                     bindingSyntax: validatedBinding.binding
                 )
@@ -491,7 +538,10 @@ private func diagnoseInvalidContainerBoolArguments(
     return hadErrors
 }
 
-private func extractWithDependencyReferences(from attribute: AttributeSyntax) -> [WithDependencyReference] {
+func extractWithDependencyReferences(
+    from attribute: AttributeSyntax,
+    requiringCanonicalProvidePath: Bool = false
+) -> [WithDependencyReference] {
     guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
         return []
     }
@@ -503,6 +553,11 @@ private func extractWithDependencyReferences(from attribute: AttributeSyntax) ->
             guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else { continue }
             return arrayExpr.elements.compactMap { element in
                 guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                      !requiringCanonicalProvidePath
+                        || (
+                            keyPath.root?.trimmedDescription == "Self"
+                                && keyPath.components.count == 1
+                        ),
                       let property = keyPath.components.last?
                         .component.as(KeyPathPropertyComponentSyntax.self)?
                         .declName.baseName.text else {

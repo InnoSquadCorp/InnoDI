@@ -56,7 +56,7 @@ internal func storagePeerDecl(
     optional: Bool
 ) -> DeclSyntax {
     let storedType: TypeSyntax = optional
-        ? TypeSyntax(OptionalTypeSyntax(wrappedType: type.trimmed))
+        ? optionalParameterType(for: type)
         : type.trimmed
 
     let decl = VariableDeclSyntax(
@@ -70,6 +70,37 @@ internal func storagePeerDecl(
                 typeAnnotation: TypeAnnotationSyntax(
                     colon: .colonToken(trailingTrivia: .space),
                     type: storedType
+                )
+            )
+        ])
+    )
+    return DeclSyntax(decl)
+}
+
+/// Provider-owned storage is default-initialized so a terminal macro
+/// diagnostic cannot create a second Swift definite-initialization or private
+/// memberwise-init error. Valid generated container initializers always replace
+/// `nil` before any public accessor can run.
+internal func providerStoragePeerDecl(
+    name: String,
+    type: TypeSyntax
+) -> DeclSyntax {
+    let storedType = optionalParameterType(for: type)
+    let decl = VariableDeclSyntax(
+        modifiers: DeclModifierListSyntax([
+            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
+        ]),
+        bindingSpecifier: .keyword(.var, trailingTrivia: .space),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier(name)),
+                typeAnnotation: TypeAnnotationSyntax(
+                    colon: .colonToken(trailingTrivia: .space),
+                    type: storedType
+                ),
+                initializer: InitializerClauseSyntax(
+                    equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                    value: NilLiteralExprSyntax()
                 )
             )
         ])
@@ -111,6 +142,53 @@ internal func taskStoragePeerDecl(
                 typeAnnotation: TypeAnnotationSyntax(
                     colon: .colonToken(trailingTrivia: .space),
                     type: taskType
+                )
+            )
+        ])
+    )
+    return DeclSyntax(decl)
+}
+
+/// Async counterpart of `providerStoragePeerDecl`.
+internal func providerTaskStoragePeerDecl(
+    name: String,
+    successType: String,
+    failureType: String
+) -> DeclSyntax {
+    let genericClause = GenericArgumentClauseSyntax(
+        arguments: GenericArgumentListSyntax([
+            GenericArgumentSyntax(
+                argument: .type(TypeSyntax("\(raw: successType)")),
+                trailingComma: .commaToken(trailingTrivia: .space)
+            ),
+            GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
+        ])
+    )
+    let taskType = TypeSyntax(
+        OptionalTypeSyntax(
+            wrappedType: TypeSyntax(
+                IdentifierTypeSyntax(
+                    name: .identifier("Task"),
+                    genericArgumentClause: genericClause
+                )
+            )
+        )
+    )
+    let decl = VariableDeclSyntax(
+        modifiers: DeclModifierListSyntax([
+            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
+        ]),
+        bindingSpecifier: .keyword(.var, trailingTrivia: .space),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier(name)),
+                typeAnnotation: TypeAnnotationSyntax(
+                    colon: .colonToken(trailingTrivia: .space),
+                    type: taskType
+                ),
+                initializer: InitializerClauseSyntax(
+                    equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                    value: NilLiteralExprSyntax()
                 )
             )
         ])
@@ -349,7 +427,7 @@ internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSy
         calledExpression: ExprSyntax(cellMember),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(expression: makeSelfMemberAccessExpr(name: storageName))
+            LabeledExprSyntax(expression: makeProviderStorageReadExpr(name: storageName))
         ]),
         rightParen: .rightParenToken()
     )

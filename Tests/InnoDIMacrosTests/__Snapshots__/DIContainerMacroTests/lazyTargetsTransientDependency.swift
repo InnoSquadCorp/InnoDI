@@ -1,24 +1,13 @@
 
 struct AppContainer {
-    var holder: Holder {
-        get {
-            return _storage_holder
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var holder: Holder
 
-    private let _storage_holder: Holder
-    var service: Service {
-        get {
-            if let override = _override_service {
-                return override
-            }
-            return {
-                Service()
-            }()
-        }
-    }
+    private var _storage_holder: Holder? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var service: Service
 
-    private let _override_service: Service?
+    private var _override_service: Service? = nil
 
     // MARK: - Initialization
     init(holder: Holder? = nil, service: Service? = nil) {
@@ -83,13 +72,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(applyOverrides)
         return try await operation(container)
     }

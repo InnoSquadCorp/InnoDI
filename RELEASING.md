@@ -145,11 +145,55 @@ standalone release assets.
   `@DIComponent`.
 - The shared build-validation cache salt is now v4 so workspaces cannot reuse
   a green result produced before the declaration-matrix preflight existed.
+- Public `@Provide` now accepts only a direct, plain, stored instance `var` in
+  the same supported `@DIContainer` struct. `let`, computed or observed
+  properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone or
+  indirectly nested declarations, property wrappers, conditional/unknown
+  attributes, setter access controls, every source-written property-level
+  global-actor attribute (including `@MainActor`), and manual attachment of the
+  internal `_InnoDIProvideAccessor` macro are rejected. Request actor isolation
+  with `@DIContainer(mainActor: true)`; isolation attributes InnoDI generates
+  on provider declarations and accessors are internal compiler support. A
+  complete provider member inside `#if` receives the dedicated
+  `provide.conditional-declaration-unsupported` diagnostic.
+- A property accepts exactly one `@Provide`; duplicate attributes are rejected
+  with `provide.duplicate-attribute`. Opaque `some Protocol` provider types are
+  rejected with `provide.opaque-type-unsupported` and must become
+  `any Protocol`. Implicitly unwrapped `T!` provider types are rejected with
+  `provide.iuo-type-unsupported` and must become explicit `T` or `T?`.
+- `.shared` and `.transient` providers now require exactly one construction
+  source from `factory:`, `asyncFactory:`, `Type.self`, or a property
+  initializer. `.input` providers reject all four sources and `with:`.
+- `.input` initializer parameters remain eager `T` values, preserving normal
+  `try` / `await` argument evaluation. Direct non-optional function types are
+  detected and emitted as escaping parameters automatically. A non-optional
+  function type hidden behind a typealias uses the literal opt-in
+  `@Provide(.input, escaping: true)`. Other scopes and obvious
+  nonfunction/optional-function shapes receive stable diagnostics; Swift may
+  diagnose a conservatively accepted alias that does not resolve to a
+  non-optional function.
+- Sibling DI edges now have a closed syntax: named parameters on the root
+  `factory:`/`asyncFactory:` closure literal, or `Type.self` plus a literal
+  `with:` array containing only canonical direct-member key paths spelled
+  exactly `\Self.member`, such as `[\Self.config]`; `[]` is also valid. Named
+  container, module-qualified, and typealias roots are rejected, as are nested
+  components, optional chaining, subscripts, and computed elements. `with:` is
+  valid only with `Type.self` and can target synchronous providers only.
+  Non-closure factories and property initializers are opaque zero-edge sources
+  and may not read sibling container members.
+- Factory effects are explicit and checked on every explicit sibling edge.
+  `validateDAG: false` does not suppress async/throwing compatibility errors.
 - `mainActor: true` now covers the whole generated surface: dependency
   accessors, every generated initializer, `Overrides`, the `applyOverrides`
   function types used by convenience initializers, `withOverrides`, child
   overrides, and component mounting, all four `withOverrides` operation
   closures, and current plus deprecated feature-root helpers.
+- For containers without `mainActor: true`, generated `async` and
+  `async throws` `withOverrides` methods and their operation closure types are
+  `nonisolated(nonsending)`. They retain the caller's actor executor, so
+  arbitrary non-`Sendable` containers and closures do not cross isolation.
+  Synchronous overloads are unchanged; main-actor overloads remain
+  `@MainActor`.
 - Main-actor components now conform to the dedicated
   `_InnoDIMainActorComponentMountable` protocol; ordinary components continue
   to use `_InnoDIComponentMountable`. This split preserves the actor type on
@@ -162,11 +206,50 @@ standalone release assets.
 - Before adopting 5.0, move unsupported containers and components to file scope
   or a non-generic nominal `struct`; inject runtime or type-specific state
   through `@Provide(.input)` or protocol dependencies.
+- Move each `@Provide` onto a direct, plain, stored instance `var` in its
+  container. Remove accessor/observer blocks, unsupported storage modifiers,
+  property wrappers, conditional/unknown attributes, setter access controls,
+  and every source-written property-level actor attribute, including
+  `@MainActor`. Request isolation with `@DIContainer(mainActor: true)` and never
+  attach `_InnoDIProvideAccessor` directly. Isolation attributes InnoDI
+  generates on provider declarations and accessors are internal compiler
+  support. Move complete provider members out of `#if` and branch inside their
+  factories or injected implementations.
+- Keep exactly one `@Provide` per property. Replace `some Protocol` with
+  `any Protocol`, and replace `T!` with explicit `T` or `T?`. Deliberately
+  forging the compiler-support accessor together with another property wrapper
+  can also produce Swift structural diagnostics alongside InnoDI's misuse
+  diagnostic.
+- Keep `.input` call sites eager. `try` and `await` remain ordinary initializer
+  argument evaluation. Direct non-optional function types need no annotation;
+  add literal `escaping: true` only when such a type is hidden behind a
+  typealias. Remove the option from other scopes and optional/nonfunction
+  shapes, and expect Swift to diagnose an alias that is not actually a
+  non-optional function.
+- Give every `.shared`/`.transient` provider exactly one construction source:
+  `factory:`, `asyncFactory:`, `Type.self`, or a property initializer. Remove
+  all four and `with:` from `.input` providers.
+- Rewrite sibling-dependent non-closure factories and property initializers as
+  root closure literals whose named parameters match the sibling members. Use
+  `Type.self` with a literal canonical `with:` array such as `[\Self.config]`
+  (or `[]`) for synchronous autowiring. Named container, module-qualified, and
+  typealias roots, nested components, optional chaining, subscripts, and
+  computed elements are invalid. Use a qualified global/static construction
+  symbol when the source intentionally has no DI edge. Do not target an async
+  provider from `with:`.
+- Spell consumer effects explicitly with `asyncFactory:` and, when required,
+  an `async throws` closure. Audit containers using `validateDAG: false` because
+  effect validation still applies there.
 - Move dependency conformers plus construction and use of non-`Sendable`
   generated values for `mainActor: true` components onto `@MainActor`. From an
   off-actor caller, construct and consume those values inside `MainActor.run`;
   use direct `await` only when the isolated operation returns a `Sendable`
   result.
+- For a container without `mainActor: true`, keep asynchronous `withOverrides`
+  work on the caller's isolation. Its generated async methods and operation
+  closure types are `nonisolated(nonsending)`; do not add `Sendable` merely to
+  move container or closure values across an actor boundary. Sync overloads
+  remain unchanged.
 - Update generic component-mounting helpers with a separate
   `@MainActor` `_InnoDIMainActorComponentMountable` overload whose override
   parameter is an `@MainActor` function type. Helpers constrained only to

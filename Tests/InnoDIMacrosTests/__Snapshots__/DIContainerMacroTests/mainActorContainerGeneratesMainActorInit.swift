@@ -1,13 +1,9 @@
 
 struct AppContainer {
-    @MainActor
-    var config: Config {
-        get {
-            return _storage_config
-        }
-    }
+    @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var config: Config
 
-    private let _storage_config: Config
+    private var _storage_config: Config? = nil
 
     // MARK: - Initialization
     @MainActor init(config: Config) {

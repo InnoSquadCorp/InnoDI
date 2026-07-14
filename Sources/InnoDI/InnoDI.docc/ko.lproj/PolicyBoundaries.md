@@ -22,6 +22,16 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 - async `.shared`는 input, sync shared, 이전 async shared를 참조할 수 있습니다.
 - `.transient`는 어떤 멤버도 참조할 수 있지만 이름 해석은 여전히 엄격합니다.
 
+## Provider 효과
+
+- 동기 provider는 sync, `async`, `async throws` factory에서 소비할 수 있습니다.
+- `async` provider는 `async` 또는 `async throws` consumer가 필요합니다.
+- `async throws` provider는 `async throws` consumer가 필요합니다.
+- 효과는 의존성에서 추론하지 않습니다. Consumer가 `asyncFactory:`와, 필요한
+  경우 `async throws` 클로저를 명시해야 합니다.
+- `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper이며 async target을
+  거부합니다.
+
 ## 격리와 Sendability
 
 - 컨테이너는 생성된 storage를 컨테이너 값 내부에 유지합니다. InnoDI는

@@ -32,6 +32,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   edge 하나를 deferred로 만들면 구조 변경 없이 끊을 수 있습니다.
 - **"사용자 정의 `Overrides` 타입을 제거하세요."** — 컨테이너의 nested
   타입이 합성된 overrides 빌더와 충돌합니다.
+- **"root factory 클로저의 이름 있는 파라미터를 사용하세요."** — sibling DI
+  edge는 클로저가 아닌 표현식, property initializer, nested 클로저, 임의
+  identifier에서 추론하지 않습니다.
 
 ## Provide-scope 진단
 
@@ -39,21 +42,44 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 - `provide.single-binding` — `@Provide`는 선언당 하나의 변수만
   지원합니다.
+- `provide.duplicate-attribute` — 한 프로퍼티에 `@Provide`가 둘 이상
+  붙었습니다. 정확히 하나만 남기세요. InnoDI는 모호한 선언에 peer storage와
+  accessor를 생성하지 않습니다.
 - `provide.named-property-required` — 바인딩에 이름이 있어야 합니다.
 - `provide.explicit-type-required` — 바인딩에 타입 어노테이션이 있어야
   합니다.
+- `provide.opaque-type-unsupported` — 명시적 property type이
+  `some Protocol`입니다. 생성 storage와 override에는 안정적인 타입이 필요하므로
+  existential `any Protocol`로 노출하세요.
+- `provide.iuo-type-unsupported` — 명시적 property type이 implicitly
+  unwrapped optional `T!`입니다. Storage와 sibling wiring의 optionality 계약을
+  하나로 만들도록 명시적인 `T` 또는 `T?`로 바꾸세요.
 - `provide.unknown-scope` — `.shared` / `.transient` / `.input`만
   받습니다.
 - `provide.input-invalid-configuration` — `.input` 멤버는 factory,
   type, async factory, dependency wiring 설정을 가질 수 없습니다.
+- `provide.escaping-invalid-scope` — `.input`이 아닌 scope에서
+  `escaping: true`를 사용했습니다. `.shared` / `.transient`에서는 제거하세요.
+  Escaping input 저장만 지원되는 용도입니다.
+- `provide.escaping-nonfunction-type` — 명백한 nonfunction 또는 optional
+  function type 형태에 `@Provide(.input, escaping: true)`를 사용했습니다. Alias
+  뒤에 숨은 non-optional function type에만 사용하세요. 매크로는 alias를 해석할 수
+  없어 identifier/member type을 보수적으로 허용하므로, 실제 alias가 non-optional
+  function type이 아니면 Swift 자체 진단이 추가될 수 있습니다.
 - `provide.shared-factory-required` — `.shared`는 `factory:`, `type:`,
   또는 property initializer가 필요합니다.
-- `provide.transient-factory-required` — `.transient`는 `factory:`
-  또는 `type:`이 필요합니다.
+- `provide.transient-factory-required` — `.transient`는 `factory:`,
+  `asyncFactory:`, `Type.self`, 또는 property initializer가 필요합니다.
 - `provide.factory-conflict` — `factory:`와 `asyncFactory:`가 둘 다
   주어졌습니다.
-- `provide.async-factory-invalid-scope` — `asyncFactory:`는 `.shared`
-  에서만 유효합니다.
+- `provide.construction-source-conflict` — `factory:`, `asyncFactory:`,
+  `Type.self`, property initializer 중 둘 이상을 함께 사용했습니다. 생성
+  source는 정확히 하나만 남기세요.
+- `provide.with-requires-type-construction` — `with:`를 factory 또는
+  property initializer와 함께 사용했습니다. `with:`는 `Type.self` wiring에서만
+  사용하고 factory closure의 edge는 이름 있는 파라미터로 선언하세요.
+- `provide.async-factory-invalid-scope` — `asyncFactory:`는 `.shared`와
+  `.transient`에서 유효하지만 `.input`에서는 사용할 수 없습니다.
 - `provide.async-factory-must-be-async` — 주어진 closure가 `async`가
   아닙니다.
 - `provide.factory-must-be-sync` — `factory:`에 `async` closure가
@@ -61,26 +87,58 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.factory-must-not-throw` — `factory:`에 throwing closure가
   주어졌습니다. 에러를 factory 내부에서 처리하거나 asynchronous throwing
   작업은 `asyncFactory:`로 옮기세요.
-- `provide.bool-literal-required` — `concrete:` 같은 `@Provide` Bool
+- `provide.bool-literal-required` — `concrete:` 또는 `escaping:` 같은 `@Provide` Bool
   옵션은 literal `true` 또는 `false`여야 합니다.
-- `provide.invalid-with-dependencies` — `with:`가 매크로가 읽을 수 있는
-  literal key-path 배열이 아닙니다.
+- `provide.invalid-with-dependencies` — `with:`가 정확히 `\Self.member`로
+  표기한 canonical direct-member key path만 담은 literal 배열 또는 `[]`가
+  아닙니다. 이름이 있는 container, module-qualified, typealias root, nested
+  component, optional chaining, subscript, runtime 배열, 계산된 원소는 거부됩니다.
 - `provide.concrete-opt-in-required` — concrete 타입의
   `.shared`/`.transient`는 `concrete: true`가 필요합니다.
-- `provide.unresolved-factory-parameter` — factory 파라미터가 컨테이너
-  멤버나 `with:` key path와 매칭되지 않습니다.
+- `provide.requires-direct-container-member` — `@Provide`가 지원되는
+  `@DIContainer` struct의 직접적이고 평범한 stored instance `var`가 아닌 곳에
+  붙었거나 지원하지 않는 accessor/storage modifier를 사용했습니다. 의존성을
+  해당 컨테이너 안으로 옮기고 `let`, computed/observer accessor block, `lazy`,
+  `weak`, `unowned`, `static`/`class`, setter-access modifier, property wrapper,
+  conditional/unknown attribute를 제거하세요. `@Provide` 외에 source에 직접 쓰는
+  property-level attribute는 지원하지 않으며 `@MainActor`도 포함됩니다. Actor
+  격리는 `@DIContainer(mainActor: true)`로 요청하세요. Provider 선언과 accessor에
+  InnoDI가 생성한 격리 attribute는 내부 compiler support입니다.
+- `provide.conditional-declaration-unsupported` — `@Provide` 선언 전체가
+  `#if` 안에 있습니다. 선언은 conditional compilation 밖으로 옮기고 factory나
+  주입 구현 내부에서 분기하세요. 이렇게 해야 peer/accessor macro phase가 일부
+  provider만 생성하는 것을 막을 수 있습니다.
+- `provide.generated-accessor-manual-attachment` — InnoDI 내부 provider
+  accessor 매크로(`_InnoDIProvideAccessor`)를 수동으로 붙였습니다. 이를 제거하고
+  컨테이너의 직접 멤버에 `@Provide`를 사용하세요. Accessor는 compiler-owned입니다.
+  다른 property wrapper와 의도적으로 위조해 조합한 경우 Swift 자체의 structural
+  diagnostic도 함께 발생할 수 있으며, 이 compiler 진단은 안정적인 InnoDI 코드와
+  함께 나타나는 것이 예상된 동작입니다.
+- `provide.unresolved-factory-parameter` — root factory 클로저의 이름 있는
+  파라미터가 컨테이너 멤버나 `with:` key path와 매칭되지 않습니다.
 - `provide.unavailable-dependency-reference` — factory가 더 늦게
   선언되어 그 construction 시점에 사용할 수 없는 멤버를 참조합니다.
+- `provide.async-dependency-requires-async-consumer` — 동기 factory가 async
+  provider를 명시적 sibling edge로 소비합니다. Consumer를 `asyncFactory:`로
+  옮기세요. 이 검증은 `validateDAG: false`에서도 동작합니다.
+- `provide.throwing-dependency-requires-throwing-consumer` — nonthrowing
+  factory가 `async throws` provider를 소비합니다. Consumer의
+  `asyncFactory:` 클로저를 `async throws`로 만드세요. 이 검증은
+  `validateDAG: false`에서도 동작합니다.
+- `provide.with-dependency-requires-synchronous-provider` — `Type.self` +
+  `with:`가 async 또는 async-throwing provider를 가리킵니다. Swift key path는
+  동기 프로퍼티만 지원하므로 consumer를 이름 있는 파라미터를 가진
+  `asyncFactory:`로 다시 작성하세요.
 - `provide.unresolved-with-dependency` — `with:` key path가 컨테이너
   멤버를 가리키지 않습니다.
-- `provide.lazy-unsupported-target` — `Lazy<T>` 파라미터가 컨테이너
-  멤버로 선언되지 않은 타입을 가리킵니다.
+- `provide.lazy-unsupported-target` — `Lazy<T>`가 `asyncFactory:`로
+  생성되는 멤버를 가리킵니다. lazy resolver는 동기 방식입니다.
 - `provide.lazy-eager-call` — `Lazy<T>`가 `.shared` construction 시점에
   호출되어 soft edge가 다시 eager edge가 됐습니다.
 - `provide.provider-non-transient-target` — `Provider<T>`가 `.shared`
   또는 `.input`로 해소됐습니다. provider는 `.transient` target이 필요합니다.
-- `provide.provider-unsupported-target` — `Provider<T>` 파라미터에
-  매칭되는 컨테이너 멤버가 없습니다.
+- `provide.provider-unsupported-target` — `Provider<T>`가 async transient
+  멤버를 가리킵니다. provider handle은 동기 방식입니다.
 - `provide.provider-eager-call` — `Provider<T>`가 construction 시점에
   호출되어 그 의도가 무력화됐습니다.
 - `provide.lazy-aliased` / `provide.provider-aliased` — `Lazy<T>` /

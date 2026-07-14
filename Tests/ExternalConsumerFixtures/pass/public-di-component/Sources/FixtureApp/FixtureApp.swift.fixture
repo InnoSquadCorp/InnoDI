@@ -92,9 +92,12 @@ struct FixtureApp {
             dependencies: AppDependencies()
         ) {
             $0.service = FeatureService()
+            $0.request = FeatureRequest(config: FeatureConfig())
         }
         let _: any FeatureServiceProtocol = defaultContainer.service
         let _: any FeatureServiceProtocol = container.service
+        let _: FeatureRequest = defaultContainer.request
+        let _: FeatureRequest = container.request
         let nested = FeatureNamespace.Detail.NestedFeatureContainer(
             dependencies: NestedDependencies()
         )
@@ -107,8 +110,12 @@ struct FixtureApp {
             dependencies: dependencies
         ) {
             $0.service = FeatureService()
+            $0.request = FeatureRequest(config: FeatureConfig())
         }
         let _: any FeatureServiceProtocol = mainActorContainer.service
+        let _: FeatureRequest = mainActorContainer.request
+        let _: AsyncFeatureService = await mainActorContainer.asyncService
+        let _: AsyncFeatureRequest = await mainActorContainer.asyncRequest
 
         let asyncConfig = await MainActorFeatureContainer.withOverrides(
             config: FeatureConfig(),

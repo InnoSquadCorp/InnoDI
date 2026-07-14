@@ -9,6 +9,15 @@ InnoDI 通过显式边界来保持校验的确定性。
 - 排除带泛型参数的 extension 与带 `where` 的 extension
 - 模糊情况不会做推测性匹配
 
+## Provider 效果
+
+- 同步 provider 可由 sync、`async` 和 `async throws` factory 消费。
+- `async` provider 要求 consumer 为 `async` 或 `async throws`。
+- `async throws` provider 要求 consumer 为 `async throws`。
+- 效果不会从依赖关系中推断。Consumer 必须显式使用 `asyncFactory:`，并在需要时
+  声明 `async throws` closure。
+- `Lazy<T>` 和 `Provider<T>` 是同步 deferred wrapper，会拒绝异步 target。
+
 ## 隔离与 Sendability
 
 - 容器把生成的存储保留在容器值内部。InnoDI 不会把依赖放进全局注册表。
