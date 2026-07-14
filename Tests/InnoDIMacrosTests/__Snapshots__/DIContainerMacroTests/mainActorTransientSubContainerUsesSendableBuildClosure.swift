@@ -1,8 +1,6 @@
 
 struct AppContainer {
     @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false) var config: Config
-
-    private var _storage_config: Config? = nil
     @MainActor
     var feature: FeatureContainer {
         get {

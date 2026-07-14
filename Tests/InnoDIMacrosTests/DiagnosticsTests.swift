@@ -27,9 +27,11 @@ struct DiagnosticsTests {
             .provideSingleBinding,
             .provideNamedPropertyRequired,
             .provideExplicitTypeRequired,
+            .provideEscapedIdentifierUnsupported,
             .subSingleBinding,
             .subNamedPropertyRequired,
             .subExplicitTypeRequired,
+            .subEscapedIdentifierUnsupported,
             .provideUnknownScope,
             .provideRequiresDirectContainerMember,
             .provideConditionalDeclarationUnsupported,
@@ -67,6 +69,7 @@ struct DiagnosticsTests {
             .provideAsyncDependencyRequiresAsyncConsumer,
             .provideThrowingDependencyRequiresThrowingConsumer,
             .provideWithDependencyRequiresSynchronousProvider,
+            .provideDuplicateFactoryParameter,
             .provideUnresolvedFactoryParameter,
             .provideUnavailableDependencyReference,
             .provideUnresolvedWithDependency,
@@ -92,7 +95,8 @@ struct DiagnosticsTests {
             .subAutoWiringAmbiguous,
             .subSharedParentMustNotBeTransient,
             .swiftUIEnvironmentBridgeAsyncMember,
-            .containerReservedNamePrefix
+            .containerReservedNamePrefix,
+            .containerDuplicateMemberName
         ]
 
         for code in usageCodes {
@@ -110,9 +114,12 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideSingleBinding(), MessageID(domain: "InnoDI.usage", id: "provide.single-binding")),
             (SimpleDiagnostic.provideNamedPropertyRequired(), MessageID(domain: "InnoDI.usage", id: "provide.named-property-required")),
             (SimpleDiagnostic.provideExplicitTypeRequired(), MessageID(domain: "InnoDI.usage", id: "provide.explicit-type-required")),
+            (SimpleDiagnostic.provideEscapedPropertyIdentifier(memberName: "default"), MessageID(domain: "InnoDI.usage", id: "provide.escaped-identifier-unsupported")),
+            (SimpleDiagnostic.provideEscapedFactoryParameter(memberName: "service", parameterName: "default"), MessageID(domain: "InnoDI.usage", id: "provide.escaped-identifier-unsupported")),
             (SimpleDiagnostic.subSingleBinding(), MessageID(domain: "InnoDI.usage", id: "sub.single-binding")),
             (SimpleDiagnostic.subNamedPropertyRequired(), MessageID(domain: "InnoDI.usage", id: "sub.named-property-required")),
             (SimpleDiagnostic.subExplicitTypeRequired(), MessageID(domain: "InnoDI.usage", id: "sub.explicit-type-required")),
+            (SimpleDiagnostic.subEscapedPropertyIdentifier(memberName: "default"), MessageID(domain: "InnoDI.usage", id: "sub.escaped-identifier-unsupported")),
             (SimpleDiagnostic.provideUnknownScope("foo"), MessageID(domain: "InnoDI.usage", id: "provide.unknown-scope")),
             (SimpleDiagnostic.provideRequiresDirectContainerMember(memberName: "service"), MessageID(domain: "InnoDI.usage", id: "provide.requires-direct-container-member")),
             (SimpleDiagnostic.provideConditionalDeclarationUnsupported(memberName: "service"), MessageID(domain: "InnoDI.usage", id: "provide.conditional-declaration-unsupported")),
@@ -147,6 +154,7 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideAsyncDependencyRequiresAsyncConsumer(memberName: "session", dependencyName: "token", providerThrows: false), MessageID(domain: "InnoDI.validation", id: "provide.async-dependency-requires-async-consumer")),
             (SimpleDiagnostic.provideThrowingDependencyRequiresThrowingConsumer(memberName: "session", dependencyName: "token"), MessageID(domain: "InnoDI.validation", id: "provide.throwing-dependency-requires-throwing-consumer")),
             (SimpleDiagnostic.provideWithDependencyRequiresSynchronousProvider(memberName: "session", dependencyName: "token", providerThrows: false), MessageID(domain: "InnoDI.validation", id: "provide.with-dependency-requires-synchronous-provider")),
+            (SimpleDiagnostic.provideDuplicateFactoryParameter(memberName: "session", parameterName: "token"), MessageID(domain: "InnoDI.validation", id: "provide.duplicate-factory-parameter")),
             (SimpleDiagnostic.provideUnresolvedFactoryParameter(memberName: "service", parameterName: "missing"), MessageID(domain: "InnoDI.validation", id: "provide.unresolved-factory-parameter")),
             (SimpleDiagnostic.provideUnavailableDependencyReference(memberName: "service", dependencyName: "later"), MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")),
             (SimpleDiagnostic.provideUnresolvedWithDependency(memberName: "service", dependencyName: "missing"), MessageID(domain: "InnoDI.validation", id: "provide.unresolved-with-dependency")),
@@ -170,7 +178,8 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
             (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")),
             (SimpleDiagnostic.swiftUIEnvironmentBridgeAsyncMember(memberName: "service"), MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-async-member")),
-            (SimpleDiagnostic.containerReservedNamePrefix(memberName: "_storage_config", reservedPrefix: "_storage_"), MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"))
+            (SimpleDiagnostic.containerReservedNamePrefix(memberName: "_storage_config", reservedPrefix: "_storage_"), MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")),
+            (SimpleDiagnostic.containerDuplicateMemberName(memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.duplicate-member-name"))
         ]
 
         for item in cases {

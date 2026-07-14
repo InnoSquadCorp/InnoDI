@@ -2,16 +2,10 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var a: A
-
-    private var _storage_a: A? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var b: B
-
-    private var _storage_b: B? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var c: C
-
-    private var _storage_c: C? = nil
 
     // MARK: - Initialization
     init(a: A? = nil, b: B? = nil, c: C? = nil) {

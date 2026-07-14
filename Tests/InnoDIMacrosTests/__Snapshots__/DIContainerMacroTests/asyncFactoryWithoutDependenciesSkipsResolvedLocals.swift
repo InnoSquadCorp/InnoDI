@@ -2,16 +2,10 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var config: Config
-
-    private var _storage_config: Config? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var logger: Logger
-
-    private var _storage_logger: Logger? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var service: Service
-
-    private var _storage_task_service: Task<Service, Never>? = nil
 
     // MARK: - Initialization
     init(config: Config, logger: Logger? = nil, service: Service? = nil) {

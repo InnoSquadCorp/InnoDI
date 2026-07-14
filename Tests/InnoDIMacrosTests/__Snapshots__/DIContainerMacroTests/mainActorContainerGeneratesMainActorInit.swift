@@ -3,8 +3,6 @@ struct AppContainer {
     @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var config: Config
 
-    private var _storage_config: Config? = nil
-
     // MARK: - Initialization
     @MainActor init(config: Config) {
         self._storage_config = config

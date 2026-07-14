@@ -217,6 +217,14 @@ private func provideMemberValidationRecovery(
         return true
     }
 
+    if hasDuplicateProvideMemberName(
+        member,
+        in: declaration,
+        options: options
+    ) {
+        return true
+    }
+
     let arguments = parseProvideArguments(attribute)
     if !isLocallyValidProvideConfiguration(
         declaration: member,

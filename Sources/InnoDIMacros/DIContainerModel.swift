@@ -285,7 +285,9 @@ struct ProvideMemberModel {
     /// Derived diagnostics must not treat a provider whose own construction
     /// contract is already invalid as a usable effect source.
     var hasLocallyValidConstructionConfiguration: Bool {
-        guard !isOpaqueSomeType(type),
+        guard let identifier = bindingSyntax.pattern.as(IdentifierPatternSyntax.self),
+              !isEscapedInnoDIIdentifier(identifier.identifier),
+              !isOpaqueSomeType(type),
               !isImplicitlyUnwrappedOptionalType(type),
               !concreteParseState.isInvalid,
               !escapingParseState.isInvalid,
@@ -326,6 +328,16 @@ struct ProvideMemberModel {
             return false
         }
         if closureHasWildcard {
+            return false
+        }
+        if !duplicateClosureParameterReferences(
+            in: closureParameterReferences
+        ).isEmpty {
+            return false
+        }
+        if closureParameterReferences.contains(where: {
+            isEscapedInnoDIIdentifier($0.token)
+        }) {
             return false
         }
         if scope != .input,

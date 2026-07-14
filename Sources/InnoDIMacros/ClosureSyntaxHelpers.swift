@@ -5,6 +5,49 @@ struct ClosureParameterList {
     let names: [String]
     let references: [ClosureParameterReference]
     let hasWildcard: Bool
+
+    var duplicateReferences: [DuplicateClosureParameterReference] {
+        duplicateClosureParameterReferences(in: references)
+    }
+
+    var hasDuplicateNames: Bool {
+        !duplicateReferences.isEmpty
+    }
+
+    var escapedReferences: [ClosureParameterReference] {
+        references.filter { isEscapedInnoDIIdentifier($0.token) }
+    }
+
+    var hasEscapedNames: Bool {
+        !escapedReferences.isEmpty
+    }
+}
+
+struct DuplicateClosureParameterReference {
+    let first: ClosureParameterReference
+    let duplicate: ClosureParameterReference
+}
+
+func duplicateClosureParameterReferences(
+    in references: [ClosureParameterReference]
+) -> [DuplicateClosureParameterReference] {
+    var firstByName: [String: ClosureParameterReference] = [:]
+    var duplicates: [DuplicateClosureParameterReference] = []
+
+    for reference in references {
+        if let first = firstByName[reference.name] {
+            duplicates.append(
+                DuplicateClosureParameterReference(
+                    first: first,
+                    duplicate: reference
+                )
+            )
+        } else {
+            firstByName[reference.name] = reference
+        }
+    }
+
+    return duplicates
 }
 
 func parseClosureParameterNames(_ closure: ClosureExprSyntax) -> ClosureParameterList {

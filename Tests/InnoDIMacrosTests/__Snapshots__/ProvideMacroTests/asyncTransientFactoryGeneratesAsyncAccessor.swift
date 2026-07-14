@@ -2,12 +2,8 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var apiClient: APIClient
-
-    private var _storage_apiClient: APIClient? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var viewModel: ViewModel
-
-    private var _override_viewModel: ViewModel? = nil
 
     // MARK: - Initialization
     init(apiClient: APIClient, viewModel: ViewModel? = nil) {

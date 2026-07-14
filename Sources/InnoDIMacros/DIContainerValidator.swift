@@ -10,7 +10,10 @@ struct DIContainerValidator {
     ) -> Bool {
         var hadErrors = false
         let resolutionContext = DependencyResolutionContext(members: model.members)
-        let memberByName = Dictionary(uniqueKeysWithValues: model.members.map { ($0.name, $0) })
+        let memberByName = Dictionary(
+            model.members.map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let locallyValidMemberNames = Set(
             model.members
                 .filter(\.hasLocallyValidConstructionConfiguration)
@@ -19,6 +22,51 @@ struct DIContainerValidator {
         let dagValidationEnabled = model.options.validateDAG
 
         for (index, member) in model.members.enumerated() {
+            let escapedFactoryParameters = member.closureParameterReferences.filter {
+                isEscapedInnoDIIdentifier($0.token)
+            }
+            for reference in escapedFactoryParameters {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(reference.token),
+                        message: SimpleDiagnostic.provideEscapedFactoryParameter(
+                            memberName: member.name,
+                            parameterName: unescapedInnoDIIdentifierName(
+                                reference.token
+                            )
+                        )
+                    )
+                )
+                hadErrors = true
+            }
+
+            if escapedFactoryParameters.isEmpty {
+                for duplicate in duplicateClosureParameterReferences(
+                    in: member.closureParameterReferences
+                ) {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(duplicate.duplicate.token),
+                            message: SimpleDiagnostic.provideDuplicateFactoryParameter(
+                                memberName: member.name,
+                                parameterName: duplicate.duplicate.name
+                            ),
+                            notes: [
+                                Note(
+                                    node: Syntax(duplicate.first.token),
+                                    message: SimpleNote(
+                                        "The first factory parameter named '\(duplicate.first.name)' is declared here.",
+                                        code: .provideDuplicateFactoryParameter,
+                                        suffix: "first-declaration"
+                                    )
+                                )
+                            ]
+                        )
+                    )
+                    hadErrors = true
+                }
+            }
+
             let constructionSourceCount = [
                 member.factory != nil,
                 member.asyncFactory != nil,
@@ -193,8 +241,14 @@ struct DIContainerValidator {
             }
 
             let hardClosureNames = Set(member.hardClosureDependencies)
-            let softClosureReferences = Dictionary(uniqueKeysWithValues: member.softClosureParameterReferences.map { ($0.name, $0) })
-            let providerClosureReferences = Dictionary(uniqueKeysWithValues: member.providerClosureParameterReferences.map { ($0.name, $0) })
+            let softClosureReferences = Dictionary(
+                member.softClosureParameterReferences.map { ($0.name, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            let providerClosureReferences = Dictionary(
+                member.providerClosureParameterReferences.map { ($0.name, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
             let effectMismatchNames = diagnoseIncompatibleDependencyEffects(
                 member: member,
                 memberByName: memberByName,
@@ -485,9 +539,7 @@ struct DIContainerValidator {
         //   - `.shared` sub-containers do not auto-wire through a
         //     `.transient` parent member (would try to read a missing
         //     `_storage_<name>` inside init)
-        let memberScopeByName = Dictionary(
-            uniqueKeysWithValues: model.members.map { ($0.name, $0.scope) }
-        )
+        let memberScopeByName = memberByName.mapValues(\.scope)
         let knownParentMemberNames = Set(memberScopeByName.keys)
         let reservedMemberNames = Set(model.members.map(\.name) + model.subContainerMembers.map(\.name))
 

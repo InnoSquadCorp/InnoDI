@@ -2,16 +2,10 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var input: PayloadInput
-
-    private var _storage_input: PayloadInput? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var payload: Payload
-
-    private var _override_payload: Payload? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var processor: PayloadProcessor
-
-    private var _override_processor: PayloadProcessor? = nil
 
     // MARK: - Initialization
     init(input: PayloadInput, payload: Payload? = nil, processor: PayloadProcessor? = nil) {

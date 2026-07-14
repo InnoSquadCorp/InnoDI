@@ -1,8 +1,6 @@
 
 public struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: AppConfig
-
-    private var _storage_config: AppConfig? = nil
     public var feature: FeatureContainer {
         get {
             return _innoDISubBuild_feature()

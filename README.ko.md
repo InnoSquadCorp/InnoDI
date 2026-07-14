@@ -296,7 +296,13 @@ accessor에 InnoDI가 생성한 격리 attribute는 내부 compiler support입�
 `provide.conditional-declaration-unsupported` 진단으로 거부됩니다.
 선언은 조건문 밖에 두고 factory 또는 주입 구현 안에서 분기하세요.
 프로퍼티마다 `@Provide`는 정확히 하나만 붙일 수 있으며, 중복 attribute는
-`provide.duplicate-attribute`로 거부됩니다. 명시적 property type에는 opaque
+`provide.duplicate-attribute`로 거부됩니다. 직접 선언한 provider property와
+root factory closure의 dependency parameter는 각각 고유한 effective 이름을
+가져야 하며, 중복 identity는 generated lookup이나 storage code를 만들기 전에
+거부됩니다. 두 선언은 escaped identifier를 사용할 수 없으며 5.0에서는
+backtick으로 감싼 property와 factory parameter 이름을 거부합니다.
+`@SubContainer` property 이름도 generated child storage, override, root helper
+identity의 입력이므로 escaped identifier를 사용할 수 없습니다. 명시적 property type에는 opaque
 `some Protocol`이나 implicitly unwrapped optional `T!`를 사용할 수 없습니다.
 각각 `any Protocol`, 명시적인 `T` 또는 `T?`로 바꾸세요. Compiler-support
 accessor와 다른 property wrapper를 의도적으로 위조해 함께 붙이면 InnoDI의

@@ -1,0 +1,91 @@
+import InnoDI
+
+@DIContainer
+struct DuplicateProviderMemberContainer {
+    @Provide(.input)
+    var duplicatedMemberValue: Int
+
+    @Provide(.input)
+    var duplicatedMemberValue: Int
+}
+
+@DIContainer(mainActor: true)
+struct DuplicateMainActorProviderMemberContainer {
+    @Provide(.input)
+    var duplicatedMainActorMemberValue: Int
+
+    @Provide(.input)
+    var duplicatedMainActorMemberValue: Int
+}
+
+@DIContainer
+struct DuplicateFactoryParameterContainer {
+    @Provide(
+        .shared,
+        factory: { (
+            ordinaryDuplicateValue: Int,
+            ordinaryDuplicateValue: Int
+        ) in 0 },
+        concrete: true
+    )
+    var ordinaryConsumer: Int
+
+    @Provide(
+        .shared,
+        factory: { (
+            lazyDuplicateValue: Lazy<Int>,
+            lazyDuplicateValue: Lazy<Int>
+        ) in 0 },
+        concrete: true
+    )
+    var lazyConsumer: Int
+
+    @Provide(
+        .shared,
+        factory: { (
+            providerDuplicateValue: Provider<Int>,
+            providerDuplicateValue: Provider<Int>
+        ) in 0 },
+        concrete: true
+    )
+    var providerConsumer: Int
+
+    @Provide(
+        .shared,
+        factory: { (
+            crossKindDuplicateValue: Int,
+            crossKindDuplicateValue: Lazy<Int>
+        ) in 0 },
+        concrete: true
+    )
+    var crossKindConsumer: Int
+}
+
+@DIContainer
+struct EscapedProviderIdentifierContainer {
+    @Provide(.input)
+    var `default`: Int
+}
+
+@DIContainer
+struct EscapedFactoryParameterContainer {
+    @Provide(
+        .shared,
+        factory: { (`default`: Int) in 0 },
+        concrete: true
+    )
+    var escapedParameterConsumer: Int
+}
+
+struct EscapedFeatureContainer {}
+
+@DIContainer
+struct EscapedSubContainerIdentifierParent {
+    @SubContainer(scope: .shared)
+    var `default`: EscapedFeatureContainer
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

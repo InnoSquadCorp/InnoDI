@@ -20,6 +20,7 @@
 //
 
 import InnoDICore
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
@@ -85,6 +86,24 @@ extension SubContainerMacro: AccessorMacro {
             return [unsupportedDIContainerRecoveryAccessor()]
         }
 
+        if let identifier = declaration.as(VariableDeclSyntax.self)?
+            .bindings.first?.pattern.as(IdentifierPatternSyntax.self)?.identifier,
+            isEscapedInnoDIIdentifier(identifier) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(identifier),
+                    message: SimpleDiagnostic.subEscapedPropertyIdentifier(
+                        memberName: unescapedInnoDIIdentifierName(identifier)
+                    )
+                )
+            )
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid escaped @SubContainer identifier"
+                )
+            ]
+        }
+
         guard let info = extractPeerInfo(from: node, declaration: declaration, in: context) else {
             return []
         }
@@ -146,6 +165,7 @@ private func extractPeerInfo(
     guard let varDecl = declaration.as(VariableDeclSyntax.self) else { return nil }
     guard let binding = varDecl.bindings.first,
           let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+          !isEscapedInnoDIIdentifier(identifier.identifier),
           let typeAnnotation = binding.typeAnnotation else {
         return nil
     }

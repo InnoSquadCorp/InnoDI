@@ -521,6 +521,23 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIFeatureRoot suppresses helpers for escaped SubContainer identifiers")
+    func featureRootSuppressesEscapedSubContainerHelper() {
+        let result = expandMacroSource(
+            """
+            struct Parent {
+                @DIFeatureRoot(DashboardRootView.self)
+                @SubContainer(scope: .shared)
+                var `default`: DashboardContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(!result.expansion.contains("defaultRootView"))
+    }
+
     @Test("DIFeatureRoot generates a single named helper with `as:` alias")
     func featureRootGeneratesSingleAliasedHelper() {
         assertMacroExpansionInline(

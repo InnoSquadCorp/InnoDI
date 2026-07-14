@@ -3,8 +3,6 @@ struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var baseURL: String
 
-    private var _storage_baseURL: String? = nil
-
     // MARK: - Initialization
     init(baseURL: String) {
         self._storage_baseURL = baseURL

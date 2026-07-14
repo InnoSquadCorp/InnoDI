@@ -1,14 +1,8 @@
 
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false) var config: AppConfig
-
-    private var _storage_config: AppConfig? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false) var apiService: any APIClientProtocol
-
-    private var _storage_apiService: (any APIClientProtocol)? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false) var logger: Logger
-
-    private var _storage_logger: Logger? = nil
     var feature: FeatureBindingsContainer {
         get {
             return _storage_sub_feature

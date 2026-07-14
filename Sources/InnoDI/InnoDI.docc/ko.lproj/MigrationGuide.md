@@ -215,11 +215,11 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 | `concrete:` | 인자를 삭제하세요. 선언된 property type이 concrete storage와 existential storage를 결정합니다. |
 | `@DIFeatureRoot` | `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 교체하세요. |
 | 선언 종류 | 5.0 container/component는 file scope 또는 비제네릭 nominal 안의 비제네릭 struct를 사용하세요. 지원하지 않는 선언 종류와 local scope에는 전용 진단이 발생합니다. |
-| `@Provide` 선언 | 지원되는 `@DIContainer`의 직접적이고 평범한 stored instance `var`에 `@Provide`를 정확히 하나만 두세요. 중복 provider attribute, `let`, computed/observed accessor, storage modifier, property wrapper, conditional/unknown attribute, setter access control, source에 직접 쓴 모든 property-level actor attribute(`@MainActor` 포함), standalone, 간접 nested 사용을 제거하세요. Actor 격리는 `@DIContainer(mainActor: true)`로 요청하고 `_InnoDIProvideAccessor`를 직접 붙이면 안 됩니다. |
+| `@Provide` 선언 | 지원되는 `@DIContainer`의 고유한 unescaped 이름을 가진 직접적이고 평범한 stored instance `var`에 `@Provide`를 정확히 하나만 두세요. 중복 provider attribute나 property 이름, backtick-escaped 이름, `let`, computed/observed accessor, storage modifier, property wrapper, conditional/unknown attribute, setter access control, source에 직접 쓴 모든 property-level actor attribute(`@MainActor` 포함), standalone, 간접 nested 사용을 제거하세요. Actor 격리는 `@DIContainer(mainActor: true)`로 요청하고 `_InnoDIProvideAccessor`를 직접 붙이면 안 됩니다. |
 | Provider 타입 | Opaque `some Protocol`은 existential `any Protocol`로, implicitly unwrapped `T!`는 명시적인 `T` 또는 `T?`로 바꾸세요. |
 | 함수 값 `.input` | 생성 initializer 파라미터는 eager `T` 값을 유지하므로 `try` / `await` 인자 평가는 바뀌지 않습니다. 직접 표기한 non-optional function type은 자동 감지합니다. Typealias 뒤에 숨은 non-optional function type에는 literal `escaping: true`를 추가하세요. 이 옵션은 `.input` 밖에서 유효하지 않습니다. |
 | 생성 source | `.shared`/`.transient` 멤버는 `factory:`, `asyncFactory:`, `Type.self`, property initializer 중 정확히 하나를 가져야 합니다. `.input`은 모두 없어야 하고 `with:`도 사용할 수 없습니다. |
-| Sibling wiring | root `factory:`/`asyncFactory:` 클로저 리터럴의 이름 있는 파라미터 또는 `Type.self`와 `[\Self.config]`(또는 `[]`) 같은 canonical direct-member key path만 담은 literal 배열을 사용하세요. 이름이 있는 container/module/typealias root, nested component, optional chaining, subscript, 계산된 원소는 거부됩니다. `with:`는 동기 provider만 지원합니다. 클로저가 아닌 factory와 property initializer는 sibling member를 읽을 수 없는 zero-edge source입니다. |
+| Sibling wiring | root `factory:`/`asyncFactory:` 클로저 리터럴의 고유한 unescaped 이름을 가진 파라미터 또는 `Type.self`와 `[\Self.config]`(또는 `[]`) 같은 canonical direct-member key path만 담은 literal 배열을 사용하세요. 일반, `Lazy<T>`, `Provider<T>` 파라미터 사이의 중복 effective 이름과 backtick-escaped dependency parameter 이름은 거부됩니다. 이름이 있는 container/module/typealias root, nested component, optional chaining, subscript, 계산된 원소는 거부됩니다. `with:`는 동기 provider만 지원합니다. 클로저가 아닌 factory와 property initializer는 sibling member를 읽을 수 없는 zero-edge source입니다. |
 | Factory 효과 | async/throwing 효과를 명시하세요. `validateDAG: false`에서도 효과 호환성은 검증되며 `Type.self`/`with:`는 동기 전용입니다. |
 | MainActor | `mainActor: true` component의 dependency conformer와 non-`Sendable` 생성 값의 생성·사용을 `@MainActor`에 두세요. actor 밖에서는 `MainActor.run` 안에서 생성하고 소비하고, direct `await`는 격리된 작업이 `Sendable` 결과를 반환할 때만 사용하세요. convenience initializer, `withOverrides`, child override, component mount의 override 적용 closure도 이제 `@MainActor`입니다. |
 | Non-main-actor async `withOverrides` | 생성되는 `async` / `async throws` 메서드와 operation closure 타입은 `nonisolated(nonsending)`입니다. 호출자 actor executor를 유지하므로 임의의 non-`Sendable` container와 closure가 호출자 isolation 안에 머뭅니다. 동기 overload는 바뀌지 않습니다. |
@@ -274,7 +274,10 @@ var service: Service
 
 `_InnoDIProvideAccessor`를 직접 붙이지 마세요. 지원되는 provider member에 대해
 컨테이너 매크로가 합성하는 내부 accessor 지원입니다.
-프로퍼티마다 `@Provide` attribute는 하나만 남기세요. Compiler-support accessor와
+프로퍼티마다 `@Provide` attribute는 하나만 남기고 모든 direct provider property와
+root factory dependency parameter에 고유한 unescaped effective 이름을 사용하세요.
+`@SubContainer` property 이름도 unescaped여야 합니다.
+Compiler-support accessor와
 다른 property wrapper를 의도적으로 위조해 함께 붙이면 안정적인 InnoDI misuse
 진단과 함께 Swift 자체의 structural diagnostic도 발생할 수 있습니다.
 

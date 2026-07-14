@@ -652,14 +652,14 @@ struct ProvideMacroTests {
         )
     }
 
-    // MARK: - Peer + generated-accessor dual-phase verification
+    // MARK: - Generated storage + accessor dual-phase verification
     //
-    // This test intentionally calls the public peer macro and compiler-owned
-    // accessor macro separately to verify the Task storage peer declaration is
-    // paired with the async getter.
+    // This test intentionally calls the compiler-owned support macro's peer and
+    // accessor roles separately to verify the Task storage declaration is
+    // paired with the async getter and governed by one recovery bit.
 
-    @Test("Async shared factory generates task storage peer and async getter")
-    func asyncSharedFactoryGeneratesTaskStorageAndAsyncGetter() throws {
+    @Test("Compiler support generates task storage peer and async getter")
+    func compilerSupportGeneratesTaskStorageAndAsyncGetter() throws {
         let source = """
         @DIContainer
         struct AppContainer {
@@ -674,7 +674,6 @@ struct ProvideMacroTests {
         )
         guard let containerDecl = parsed.statements.first?.item.as(StructDeclSyntax.self),
               let varDecl = containerDecl.memberBlock.members.first?.decl.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self),
               let generatedVariable = generatedAttributeSource.statements.first?.item.as(VariableDeclSyntax.self),
               let generatedAttribute = generatedVariable.attributes.first?.as(AttributeSyntax.self) else {
             Issue.record("Should parse a direct @Provide member with async shared factory closure")
@@ -682,8 +681,8 @@ struct ProvideMacroTests {
         }
 
         let context = TestMacroExpansionContext()
-        let peerDecls = try ProvideMacro.expansion(
-            of: attr,
+        let peerDecls = try InnoDIProvideAccessorMacro.expansion(
+            of: generatedAttribute,
             providingPeersOf: varDecl,
             in: context
         )
@@ -697,6 +696,94 @@ struct ProvideMacroTests {
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
         #expect(peerGenerated == "private var _storage_task_service: Task<Service, Never>? = nil")
         #expect(accessorGenerated == #"getasync{return await _storage_task_service!.value}"#)
+    }
+
+    @Test("Compiler support storage peer covers every provider scope and recovery")
+    func compilerSupportStoragePeerMatrix() throws {
+        #expect(
+            try supportPeerStorage(
+                """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.input)
+                    var value: Int
+                }
+                """
+            ) == "private var _storage_value: Int? = nil"
+        )
+        #expect(
+            try supportPeerStorage(
+                """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: Service(), concrete: true)
+                    var service: Service
+                }
+                """
+            ) == "private var _storage_service: Service? = nil"
+        )
+        #expect(
+            try supportPeerStorage(
+                """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, asyncFactory: { () async throws -> Service in Service() }, concrete: true)
+                    var service: Service
+                }
+                """
+            ) == "private var _storage_task_service: Task<Service, Error>? = nil"
+        )
+        #expect(
+            try supportPeerStorage(
+                """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.transient, factory: Service(), concrete: true)
+                    var service: Service
+                }
+                """
+            ) == "private var _override_service: Service? = nil"
+        )
+        #expect(
+            try supportPeerStorage(
+                """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.input)
+                    var value: Int
+                }
+                """,
+                recovery: true
+            ).isEmpty
+        )
+    }
+
+    private func supportPeerStorage(
+        _ source: String,
+        recovery: Bool = false
+    ) throws -> String {
+        let parsed = Parser.parse(source: source)
+        let container = try #require(
+            parsed.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let variable = try #require(
+            container.memberBlock.members.first?.decl.as(VariableDeclSyntax.self)
+        )
+        let generatedAttributeSource = Parser.parse(
+            source: "@InnoDI._InnoDIProvideAccessor(recovery: \(recovery)) var value: Int"
+        )
+        let generatedVariable = try #require(
+            generatedAttributeSource.statements.first?.item.as(VariableDeclSyntax.self)
+        )
+        let generatedAttribute = try #require(
+            generatedVariable.attributes.first?.as(AttributeSyntax.self)
+        )
+        let peerDeclarations = try InnoDIProvideAccessorMacro.expansion(
+            of: generatedAttribute,
+            providingPeersOf: variable,
+            in: TestMacroExpansionContext()
+        )
+        return peerDeclarations.map(\.description).joined(separator: "\n")
     }
 
     @Test("Qualified InnoDI provide members resolve transient dependencies by member name")
@@ -745,8 +832,8 @@ struct ProvideMacroTests {
 
     // MARK: - Public API presence
 
-    @Test("Public Provide macro declaration allows async shared task storage peers")
-    func provideMacroDeclarationIncludesStorageTaskPrefix() throws {
+    @Test("Compiler support declaration owns provider storage peer names")
+    func compilerSupportDeclarationOwnsStoragePeerNames() throws {
         let fileURL = URL(fileURLWithPath: #filePath)
         let packageRoot = fileURL
             .deletingLastPathComponent() // InnoDIMacrosTests
@@ -757,7 +844,23 @@ struct ProvideMacroTests {
             contentsOf: packageRoot.appendingPathComponent("Sources/InnoDI/InnoDI.swift"),
             encoding: .utf8
         )
+        let sourceFile = Parser.parse(source: publicAPISource)
+        let supportDeclaration = try #require(
+            sourceFile.statements.compactMap { item in
+                item.item.as(MacroDeclSyntax.self)
+            }.first { declaration in
+                declaration.name.text == "_InnoDIProvideAccessor"
+            }
+        )
+        let attachedRoles = supportDeclaration.attributes.compactMap { element in
+            element.as(AttributeSyntax.self)?.trimmedDescription
+        }
 
-        #expect(publicAPISource.contains("prefixed(_storage_task_)"))
+        #expect(attachedRoles.contains("@attached(accessor)"))
+        #expect(
+            attachedRoles.contains(
+                "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))"
+            )
+        )
     }
 }

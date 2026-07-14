@@ -45,6 +45,10 @@ Most frequently-hit codes:
 - `provide.duplicate-attribute` — a property carries more than one `@Provide`.
   Keep exactly one provider attribute; InnoDI suppresses peer storage and
   accessor generation for the ambiguous declaration.
+- `provide.escaped-identifier-unsupported` — a direct provider property or a
+  root factory dependency parameter uses a backtick-escaped identifier. Rename
+  it to an unescaped identifier. InnoDI 5.0 derives storage and lookup identities
+  only from unescaped spellings and fails closed before peer generation.
 - `provide.named-property-required` — the binding must have a name.
 - `provide.explicit-type-required` — the binding must have a type annotation.
 - `provide.opaque-type-unsupported` — the explicit property type uses
@@ -113,6 +117,11 @@ Most frequently-hit codes:
   A deliberately forged combination with another property wrapper may also
   trigger Swift's own structural diagnostics; those compiler diagnostics are
   expected in addition to this stable InnoDI code.
+- `provide.duplicate-factory-parameter` — the root factory closure declares
+  the same effective parameter name more than once, including across ordinary,
+  `Lazy<T>`, and `Provider<T>` parameters. Give every dependency parameter a
+  unique name. InnoDI rejects the provider before constructing its dependency
+  lookup tables or generating peer storage.
 - `provide.unresolved-factory-parameter` — a named parameter on the root
   factory closure doesn't match any container member or `with:` key path.
 - `provide.unavailable-dependency-reference` — a factory references a member
@@ -185,6 +194,10 @@ Most frequently-hit codes:
 - `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
   was not literal `true` or `false`; use conditional compilation to choose
   different attribute spellings.
+- `container.duplicate-member-name` — two direct `@Provide` instance members
+  use the same property name. Rename one provider. InnoDI diagnoses the later
+  declaration, notes the first, suppresses peer storage, and replaces normal
+  accessors with recovery getters for both ambiguous providers.
 - `container.reserved-name-prefix` — a `@Provide` or `@SubContainer`
   member name starts with one of the prefixes the macro reserves for
   generated storage (for example `_storage_`, `_override_sub_`,
@@ -197,6 +210,9 @@ Most frequently-hit codes:
   `sub.explicit-type-required` — structural rules mirroring `@Provide`.
 - `sub.scope-required` — `@SubContainer` requires an explicit
   `scope: .shared` or `.transient`.
+- `sub.escaped-identifier-unsupported` — an `@SubContainer` property uses a
+  backtick-escaped identifier. Rename it to an unescaped identifier so child
+  storage, override, and SwiftUI helper identities remain canonical.
 - `sub.unknown-scope` — the `scope:` value is not `.shared` or `.transient`.
 - `sub.conflicts-with-provide` — a property can't carry both attributes.
 - `sub.overrides-name-conflict` — generated child override helper storage

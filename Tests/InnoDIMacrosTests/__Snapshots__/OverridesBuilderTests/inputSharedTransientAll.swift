@@ -2,16 +2,10 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var userID: String
-
-    private var _storage_userID: String? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var apiClient: APIClient
-
-    private var _storage_apiClient: APIClient? = nil
     @InnoDI._InnoDIProvideAccessor(recovery: false)
     var viewModel: ViewModel
-
-    private var _override_viewModel: ViewModel? = nil
 
     // MARK: - Initialization
     init(userID: String, apiClient: APIClient? = nil, viewModel: ViewModel? = nil) {

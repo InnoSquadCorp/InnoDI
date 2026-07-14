@@ -68,6 +68,21 @@ public struct ProvideMacro: PeerMacro {
             return []
         }
 
+        if varDecl.bindings.count == 1,
+           let identifier = varDecl.bindings.first?
+            .pattern.as(IdentifierPatternSyntax.self)?.identifier,
+           isEscapedInnoDIIdentifier(identifier) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(identifier),
+                    message: SimpleDiagnostic.provideEscapedPropertyIdentifier(
+                        memberName: unescapedInnoDIIdentifierName(identifier)
+                    )
+                )
+            )
+            return []
+        }
+
         let fallbackMemberName = varDecl.bindings.first?
             .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
             ?? "<unknown>"
@@ -98,7 +113,7 @@ public struct ProvideMacro: PeerMacro {
         guard varDecl.bindings.count == 1,
               let binding = varDecl.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-              let type = binding.typeAnnotation?.type else {
+              binding.typeAnnotation != nil else {
             return []
         }
 
@@ -139,8 +154,7 @@ public struct ProvideMacro: PeerMacro {
         }
 
         // The container validator owns configuration diagnostics. Suppress
-        // backing-storage peers when the declaration is already invalid so
-        // Swift cannot add missing-storage or initialization cascades.
+        // further peer work when the declaration is already invalid.
         guard isLocallyValidProvideConfiguration(
             declaration: varDecl,
             arguments: parseResult
@@ -148,31 +162,11 @@ public struct ProvideMacro: PeerMacro {
             return []
         }
 
-        let name = identifier.identifier.text
-
-        switch parseResult.scope {
-        case .transient:
-            let overrideName = "_override_\(name)"
-            return [providerStoragePeerDecl(name: overrideName, type: type)]
-        case .shared:
-            if parseResult.asyncFactoryExpr != nil {
-                let storageName = "_storage_task_\(name)"
-                let successType = taskSuccessTypeDescription(for: type)
-                let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
-                return [providerTaskStoragePeerDecl(
-                    name: storageName,
-                    successType: successType,
-                    failureType: failureType
-                )]
-            }
-            let storageName = "_storage_\(name)"
-            return [providerStoragePeerDecl(name: storageName, type: type)]
-        case .input:
-            let storageName = "_storage_\(name)"
-            return [providerStoragePeerDecl(name: storageName, type: type)]
-        case .none:
-            return []
-        }
+        // The compiler-owned support attribute attached by @DIContainer owns
+        // both storage and accessors. Its peer role receives the same recovery
+        // bit as its accessor role, so container-wide validation can suppress
+        // both outputs without relying on public-peer expansion order.
+        return []
     }
 }
 
@@ -191,13 +185,96 @@ private func hasSameSourceLocation(
         && lhsLocation.column.trimmedDescription == rhsLocation.column.trimmedDescription
 }
 
-/// Owns accessors for every validated direct `@Provide` member. Public
+/// Owns storage and accessors for every validated direct `@Provide` member. Public
 /// `@Provide` remains peer-only so unsupported `let` and computed declarations
 /// can fail with one InnoDI diagnostic instead of Swift accessor-role errors.
 /// The container member-attribute phase is the only phase that receives the
-/// full sibling model, so it attaches this compiler-owned accessor after
-/// declaration-shape validation.
-public struct InnoDIProvideAccessorMacro: AccessorMacro {
+/// full sibling model, so it attaches this compiler-owned support macro after
+/// declaration-shape validation and selects recovery once for both roles.
+public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
+    public static func expansion(
+        of attribute: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        guard parseProvideAccessorRecovery(attribute) == false,
+              let variable = declaration.as(VariableDeclSyntax.self),
+              let binding = variable.bindings.first,
+              let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+              let type = binding.typeAnnotation?.type,
+              let provideAttribute = findInnoDIAttribute(
+                  named: "Provide",
+                  in: variable.attributes
+              ) else {
+            return []
+        }
+
+        let isInstanceMember = !variable.modifiers.contains {
+            $0.name.text == "static" || $0.name.text == "class"
+        }
+        guard isInstanceMember,
+              directDIContainerMembership(declaration, in: context) == .supported else {
+            return []
+        }
+
+        let parseResult = parseProvideArguments(provideAttribute)
+        guard parseResult.scope != nil else { return [] }
+
+        let isMainActor = enclosingDIContainerInfo(
+            for: declaration,
+            in: context
+        )?.mainActor == true
+        let allowsGeneratedMainActor = isMainActor
+            && findStandardMainActorAttribute(in: variable.attributes) != nil
+        guard canAttachGeneratedProvideAccessor(
+            to: variable,
+            allowingGeneratedMainActor: allowsGeneratedMainActor
+        ), isLocallyValidProvideConfiguration(
+            declaration: variable,
+            arguments: parseResult
+        ) else {
+            return []
+        }
+
+        let memberName = identifier.identifier.text
+        switch parseResult.scope {
+        case .transient:
+            return [
+                providerStoragePeerDecl(
+                    name: "_override_\(memberName)",
+                    type: type
+                )
+            ]
+        case .shared:
+            if parseResult.asyncFactoryExpr != nil {
+                return [
+                    providerTaskStoragePeerDecl(
+                        name: "_storage_task_\(memberName)",
+                        successType: taskSuccessTypeDescription(for: type),
+                        failureType: parseResult.asyncFactoryIsThrowing
+                            ? "Error"
+                            : "Never"
+                    )
+                ]
+            }
+            return [
+                providerStoragePeerDecl(
+                    name: "_storage_\(memberName)",
+                    type: type
+                )
+            ]
+        case .input:
+            return [
+                providerStoragePeerDecl(
+                    name: "_storage_\(memberName)",
+                    type: type
+                )
+            ]
+        case .none:
+            return []
+        }
+    }
+
     public static func expansion(
         of attribute: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
