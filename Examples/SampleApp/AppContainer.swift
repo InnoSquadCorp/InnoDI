@@ -80,10 +80,10 @@ struct AppContainer {
     @Provide(.shared, factory: Cache(maxEntries: 500), concrete: true)
     var cache: Cache
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.config, \AppContainer.logger], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.config, \Self.logger], concrete: true)
     var apiClient: APIClient
 
-    @Provide(.shared, Analytics.self, with: [\AppContainer.apiClient, \AppContainer.logger], concrete: true)
+    @Provide(.shared, Analytics.self, with: [\Self.apiClient, \Self.logger], concrete: true)
     var analytics: Analytics
 
     @Provide(.shared, factory: { (config: AppConfig) in

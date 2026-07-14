@@ -17,7 +17,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -206,7 +206,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -272,7 +272,7 @@ dependency-graph CLI сканируют полное дерево исходно
 | Параметр | По умолчанию | Значение |
 |---|---|---|
 | `root` | `false` | Флаг точки входа только для рендера графа. Если есть хотя бы один root, вывод Mermaid, DOT и ASCII сужается до узлов и ребер, достижимых от root. |
-| `validateDAG` | `true` | Включает global DAG validation и локальные graph-derived проверки macro для cycle и closure/`with:`. При `false` отключается только этот объем; raw-expression ссылки в `factory:` и initializer по-прежнему диагностируются, а структурная валидация остается активной. |
+| `validateDAG` | `true` | Включает global DAG validation и локальные graph-derived проверки macro. При `false` отключаются global DAG и локальные cycle-проверки, но продолжаются проверка деклараций и совместимость эффектов явных sibling edges. |
 | `mainActor` | `false` | Изолирует с помощью `@MainActor` аксессоры зависимостей, все сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides` для convenience initializer, `withOverrides`, overrides дочерних контейнеров и mounting компонентов, операционные замыкания всех четырёх overload `withOverrides` и feature-root helpers. При совместном использовании с `@DIComponent` также изолируются сгенерированные protocol `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без этой опции продолжают использовать `_InnoDIComponentMountable`. Для использования вне главного актора требуется явный actor hop. Рекомендуется для корневых UI-контейнеров. |
 
 В 5.0 generic helpers для mounting компонентов должны различать два marker
@@ -288,6 +288,31 @@ protocol. Сохраните `_InnoDIComponentMountable` для обычных �
 
 ### `@Provide` и области действия
 
+InnoDI 5.0 поддерживает `@Provide` только для прямого обычного хранимого
+instance `var` в том же поддерживаемом `struct` с `@DIContainer`. `let`,
+computed/observed properties, `lazy`, `weak`, `unowned`, `static`/`class`,
+самостоятельные и косвенно вложенные варианты отклоняются. Сгенерированный
+provider accessor принадлежит InnoDI; не прикрепляйте `_InnoDIProvideAccessor`
+вручную.
+
+Attributes и access control объявления provider также образуют закрытый
+контракт. Отклоняются property wrappers, условные или неизвестные attributes,
+setter access modifiers вроде `private(set)` и пользовательские global-actor
+attributes. Помимо `@Provide`, не допускаются никакие source-written attributes
+уровня property, включая `@MainActor`. Запрашивайте actor isolation через
+`@DIContainer(mainActor: true)`. Isolation attributes, которые InnoDI генерирует
+на provider declaration и accessor, являются внутренней поддержкой компилятора.
+Полное объявление member `@Provide` внутри `#if` также отклоняется
+диагностикой `provide.conditional-declaration-unsupported`; оставьте объявление
+вне условия и выполняйте ветвление внутри factory или инжектируемой реализации.
+
+Для одного property разрешен ровно один `@Provide`; duplicate attributes
+отклоняются кодом `provide.duplicate-attribute`. Явный тип property не может
+быть opaque `some Protocol` или implicitly unwrapped optional `T!`; используйте
+соответственно `any Protocol` либо явный `T` / `T?`. Намеренно поддельная
+комбинация compiler-support accessor с другим property wrapper может получить
+структурные диагностики Swift в дополнение к диагностике misuse от InnoDI.
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
@@ -295,23 +320,69 @@ protocol. Сохраните `_InnoDIComponentMountable` для обычных �
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 )
 ```
 
 | Scope | Значение | Правила создания |
 |---|---|---|
-| `.input` | Внешняя зависимость, передаваемая при инициализации контейнера | Без `factory` и `asyncFactory` |
-| `.shared` | Создается один раз на экземпляр контейнера и переиспользуется | Нужны `factory`, `asyncFactory` или `Type.self` плюс `with:` |
-| `.transient` | Создается заново при каждом доступе | Нужны `factory`, `asyncFactory` или `Type.self` плюс `with:` |
+| `.input` | Внешняя зависимость, передаваемая при инициализации контейнера | Не объявляет `factory:`, `asyncFactory:`, `Type.self`, property initializer или `with:` |
+| `.shared` | Создается один раз на экземпляр контейнера и переиспользуется | Объявляет ровно один источник: `factory:`, `asyncFactory:`, `Type.self` или property initializer |
+| `.transient` | Создается заново при каждом доступе | Объявляет ровно один источник: `factory:`, `asyncFactory:`, `Type.self` или property initializer |
 
 Дополнительные правила:
 
-- `factory` и `asyncFactory` являются взаимоисключающими.
-- `asyncFactory` должен быть `async` closure.
+- Для `.shared` / `.transient` четыре construction source — `factory:`,
+  `asyncFactory:`, `Type.self` и property initializer — взаимоисключающие.
+- `.input` отклоняет все construction sources и `with:`.
+- Сгенерированные `.input` initializer parameters остаются eager values
+  объявленного типа `T`; Swift как обычно вычисляет `try` / `await` argument
+  expressions до вызова initializer. Прямо записанные non-optional function
+  types определяются автоматически и генерируются как escaping parameters.
+  Если non-optional function type скрыт за typealias, используйте
+  `@Provide(.input, escaping: true)`. `escaping:` должен быть literal Bool и
+  допустим только для `.input`. Очевидные nonfunction и optional-function
+  shapes отклоняются; если консервативно принятый identifier/member alias на
+  деле не является non-optional function, Swift может выдать собственную
+  диагностику.
+- `asyncFactory` поддерживается для `.shared` и `.transient` и должен быть
+  `async` closure.
+- `with:` разрешен только для construction через `Type.self`. Каждый элемент
+  literal массива должен точно использовать canonical direct-member форму
+  `\Self.member`, например `with: [\Self.config]`; `with: []` также допустим.
+  Named container, module-qualified и typealias roots, а также nested
+  components, optional chaining, subscripts и computed array elements
+  отклоняются. Все указанные providers должны использовать синхронное construction.
 - Для concrete `.shared` и `.transient` storage требуется `concrete: true`.
 - Разрешение имен для параметров factory и `with:` wiring строго выполняется
   по именам members.
+
+Sibling DI edges имеют закрытый синтаксис:
+
+- Root literal closure `factory:` или `asyncFactory:` объявляет edge для
+  каждого именованного параметра. Вложенные closures и произвольные identifiers
+  не добавляют edges.
+- Конструкция `Type.self` объявляет edges из literal массива canonical
+  `\Self.member` key paths и может ссылаться только на синхронные providers.
+- Выражение `factory:`, не являющееся closure, и property initializer — это
+  непрозрачные zero-edge источники создания. Они не должны ссылаться на sibling
+  members контейнера. Для DI используйте параметры root closure; если DI edge
+  не нужен, используйте qualified global/static construction symbol.
+
+Эффекты factory задаются явно и не выводятся из зависимостей. Для асинхронного
+consumer используйте `asyncFactory:`, а при потреблении асинхронного throwing
+provider явно укажите для closure `async throws`. Совместимость эффектов
+проверяется для каждого явного edge даже при `validateDAG: false`.
+
+| Provider | sync consumer | `async` consumer | `async throws` consumer |
+|---|---:|---:|---:|
+| sync | разрешено | разрешено | разрешено |
+| `async` | запрещено | разрешено | разрешено |
+| `async throws` | запрещено | запрещено | разрешено |
+
+`Lazy<T>` и `Provider<T>` — синхронные deferred wrappers, поэтому они
+отвергают асинхронные targets.
 
 ## Модель валидации
 
@@ -321,10 +392,9 @@ InnoDI валидирует в несколько слоев:
 2. Build validation
 3. Global DAG validation
 
-`validateDAG: false` — это намеренно узкий opt-out. Он отключает только global
-DAG validation и локальные cycle / closure-`with:` graph-derived проверки
-макроса. Структурная валидация и compile-time диагностика raw-expression
-ссылок продолжают работать.
+`validateDAG: false` — это намеренно узкий opt-out. Он отключает global DAG и
+локальные cycle/graph-derived проверки, но не проверку деклараций и не
+совместимость эффектов явных sibling edges из root closure или `with:`.
 
 ## Overrides Builder
 
@@ -370,7 +440,8 @@ var consumer: Consumer
 var logger: RequestLogger
 ```
 
-Оба wrapper намеренно non-`Sendable`.
+Оба wrapper намеренно non-`Sendable`. Они также остаются синхронными и не
+могут указывать на member с `asyncFactory`.
 
 ## Вложенные контейнеры и иерархия
 

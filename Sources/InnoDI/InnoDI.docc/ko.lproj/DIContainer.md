@@ -32,18 +32,33 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 - convenience `init(<inputs...>, _ applyOverrides: ...)`
 - 네 가지 `withOverrides` effect overload
 
+`mainActor: true`를 사용하지 않는 컨테이너에서는 생성되는 `async`와
+`async throws` `withOverrides` 메서드 및 operation closure 타입이
+`nonisolated(nonsending)`입니다. 호출자 actor executor를 유지하므로 임의의
+non-`Sendable` container와 closure 값이 isolation 경계를 넘지 않습니다. 동기
+overload는 바뀌지 않습니다. `mainActor: true`에서는 모든 `withOverrides` overload와
+operation closure가 계속 `@MainActor`입니다.
+
 사용자가 nested `Overrides` 타입을 이미 선언하지 않은 한, 지원되는 모든
 컨테이너가 overrides scaffolding을 생성합니다.
+
+각 `@Provide`는 이 struct의 직접적이고 평범한 stored instance `var`여야 합니다.
+Accessor/observer, `let`, `lazy`, `weak`, `unowned`, `static`/`class`, standalone,
+간접 nested provider는 거부되며 생성 accessor를 수동으로 붙일 수도 없습니다.
+
+Sibling edge는 root `factory:`/`asyncFactory:` 클로저 리터럴의 이름 있는 파라미터
+또는 `Type.self`와 literal `with:` key path에서만 만들어집니다. 클로저가 아닌
+factory와 property initializer는 opaque한 zero-edge source이며 sibling member를
+참조할 수 없습니다. 효과 호환성은 `validateDAG: false`에서도 필수입니다.
 
 ## 파라미터
 
 - `root`: 그래프 렌더 엔트리 플래그입니다. root가 하나라도 있으면
   Mermaid, DOT, ASCII 출력은 root에서 도달 가능한 노드와 엣지 union으로
   잘립니다.
-- `validateDAG`: global DAG validation과 매크로의 local cycle 및
-  closure/`with:` graph-derived 진단을 켭니다. `false`면 그 범위만
-  건너뛰고 raw-expression `factory:`와 initializer reference, 구조
-  진단은 계속 남습니다.
+- `validateDAG`: global DAG validation과 local graph-derived 진단을 켭니다.
+  `false`면 global DAG와 local cycle 진단은 건너뛰지만 선언 검증과 명시적
+  sibling edge의 효과 호환성 검증은 계속 동작합니다.
 - `mainActor`: 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience
   initializer·`withOverrides`·child override·component mount에 쓰이는
   `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure,

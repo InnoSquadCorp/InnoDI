@@ -11,15 +11,73 @@ struct DIContainerValidator {
         var hadErrors = false
         let resolutionContext = DependencyResolutionContext(members: model.members)
         let memberByName = Dictionary(uniqueKeysWithValues: model.members.map { ($0.name, $0) })
+        let locallyValidMemberNames = Set(
+            model.members
+                .filter(\.hasLocallyValidConstructionConfiguration)
+                .map(\.name)
+        )
         let dagValidationEnabled = model.options.validateDAG
 
         for (index, member) in model.members.enumerated() {
-            let hasFactory = member.factory != nil || member.asyncFactory != nil || member.typeExpr != nil || member.initializer != nil
-            let hasInputConfiguration = hasFactory || !member.withDependencies.isEmpty
+            let constructionSourceCount = [
+                member.factory != nil,
+                member.asyncFactory != nil,
+                member.typeExpr != nil,
+                member.initializer != nil,
+            ].filter { $0 }.count
+            let hasFactory = constructionSourceCount > 0
+            let hasInputConfiguration = hasFactory
+                || member.withDependenciesParseState.hasArgument
+            let hasConstructionSourceConflict = member.scope != .input
+                && constructionSourceCount > 1
 
-            if member.factory != nil, member.asyncFactory != nil {
+            if isOpaqueSomeType(member.type) {
                 context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideFactoryConflict())
+                    Diagnostic(
+                        node: Syntax(member.type),
+                        message: SimpleDiagnostic.provideOpaqueTypeUnsupported(
+                            memberName: member.name
+                        )
+                    )
+                )
+                hadErrors = true
+            }
+
+            if isImplicitlyUnwrappedOptionalType(member.type) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(member.type),
+                        message: SimpleDiagnostic.provideIUOTypeUnsupported(
+                            memberName: member.name
+                        )
+                    )
+                )
+                hadErrors = true
+            }
+
+            if hasConstructionSourceConflict {
+                let message: SimpleDiagnostic
+                if constructionSourceCount == 2,
+                   member.factory != nil,
+                   member.asyncFactory != nil {
+                    message = .provideFactoryConflict()
+                } else {
+                    message = .provideConstructionSourceConflict(
+                        memberName: member.name
+                    )
+                }
+                context.diagnose(Diagnostic(node: Syntax(member.attribute), message: message))
+                hadErrors = true
+            } else if member.scope != .input,
+                      member.withDependenciesParseState.hasArgument,
+                      member.typeExpr == nil {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(member.attribute),
+                        message: SimpleDiagnostic.provideWithRequiresTypeConstruction(
+                            memberName: member.name
+                        )
+                    )
                 )
                 hadErrors = true
             }
@@ -52,6 +110,32 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            if member.scope != .input && member.escapingInput {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(member.attribute),
+                        message: SimpleDiagnostic.provideEscapingInvalidScope(
+                            memberName: member.name
+                        )
+                    )
+                )
+                hadErrors = true
+            }
+
+            if member.scope == .input,
+               member.escapingInput,
+               !supportsExplicitEscapingInput(member.type) {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(member.type),
+                        message: SimpleDiagnostic.provideEscapingNonFunctionType(
+                            memberName: member.name
+                        )
+                    )
+                )
+                hadErrors = true
+            }
+
             if member.scope == .input && member.asyncFactory != nil
                 && member.factory == nil
                 && member.typeExpr == nil
@@ -62,14 +146,16 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
-            if let asyncFactory = member.asyncFactory, !isAsyncClosureExpression(asyncFactory) {
+            if !hasConstructionSourceConflict,
+               let asyncFactory = member.asyncFactory,
+               !isAsyncClosureExpression(asyncFactory) {
                 context.diagnose(
                     Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideAsyncFactoryMustBeAsync())
                 )
                 hadErrors = true
             }
 
-            if let factory = member.factory {
+            if !hasConstructionSourceConflict, let factory = member.factory {
                 if isAsyncClosureExpression(factory) || factoryExpressionContainsAwait(factory) {
                     context.diagnose(
                         Diagnostic(
@@ -98,9 +184,25 @@ struct DIContainerValidator {
                 hadErrors = true
             }
 
+            // Configuration diagnostics own the declaration until its local
+            // construction mode is coherent. Do not derive sibling lookup,
+            // graph, or effect errors from a provider that code generation has
+            // already excluded.
+            guard member.hasLocallyValidConstructionConfiguration else {
+                continue
+            }
+
             let hardClosureNames = Set(member.hardClosureDependencies)
             let softClosureReferences = Dictionary(uniqueKeysWithValues: member.softClosureParameterReferences.map { ($0.name, $0) })
             let providerClosureReferences = Dictionary(uniqueKeysWithValues: member.providerClosureParameterReferences.map { ($0.name, $0) })
+            let effectMismatchNames = diagnoseIncompatibleDependencyEffects(
+                member: member,
+                memberByName: memberByName,
+                context: context
+            )
+            if !effectMismatchNames.isEmpty {
+                hadErrors = true
+            }
 
             if member.scope == .shared {
                 let sharedClosures = [member.factory, member.asyncFactory].compactMap { $0?.as(ClosureExprSyntax.self) }
@@ -143,6 +245,10 @@ struct DIContainerValidator {
 
             for dependency in deduplicateStrings(member.closureDependencies) {
                 let referencedMember = memberByName[dependency]
+                if let referencedMember,
+                   !referencedMember.hasLocallyValidConstructionConfiguration {
+                    continue
+                }
                 if let softReference = softClosureReferences[dependency],
                    let referencedMember,
                    !referencedMember.supportsLazySoftTarget {
@@ -193,6 +299,10 @@ struct DIContainerValidator {
                     continue
                 }
 
+                if effectMismatchNames.contains(dependency) {
+                    continue
+                }
+
                 let status = resolutionContext.status(of: dependency, forMemberAt: index)
                 switch status {
                 case .available:
@@ -232,7 +342,14 @@ struct DIContainerValidator {
             }
 
             for dependency in deduplicateStrings(member.withDependencies) {
+                if effectMismatchNames.contains(dependency) {
+                    continue
+                }
                 let referencedMember = memberByName[dependency]
+                if let referencedMember,
+                   !referencedMember.hasLocallyValidConstructionConfiguration {
+                    continue
+                }
                 guard dagValidationEnabled || member.scope == .transient else { continue }
                 switch resolutionContext.status(of: dependency, forMemberAt: index) {
                 case .available:
@@ -260,31 +377,23 @@ struct DIContainerValidator {
                 }
             }
 
-            for dependency in deduplicateStrings(member.expressionReferences) where resolutionContext.knownNames.contains(dependency) {
-                let referencedMember = memberByName[dependency]
-                if resolutionContext.status(of: dependency, forMemberAt: index) == .unavailable {
-                    context.diagnose(
-                        makeUnavailableDependencyDiagnostic(
-                            member: member,
-                            dependencyName: dependency,
-                            referencedMember: referencedMember
-                        )
-                    )
-                    hadErrors = true
-                }
-            }
         }
 
         if dagValidationEnabled {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
                 let member = model.members[index]
+                guard member.hasLocallyValidConstructionConfiguration else {
+                    continue
+                }
                 // Exclude deferred edges (`Lazy<T>` / `Provider<T>`) from
                 // cycle detection so intentionally-broken graphs compile
                 // cleanly. The corresponding hard-only graph still
                 // participates in declaration-order availability checks via
                 // status(…).
-                let dependencies = resolutionContext.hardGraphDependencies(forMemberAt: index)
+                let dependencies = resolutionContext
+                    .hardGraphDependencies(forMemberAt: index)
+                    .filter { locallyValidMemberNames.contains($0) }
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }
 

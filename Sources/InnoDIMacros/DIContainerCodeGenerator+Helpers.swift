@@ -47,7 +47,10 @@ internal func assignExprWithValue(targetName: String, value: ExprSyntax) -> Expr
 /// parentheses so the emitted generic argument stays parseable.
 internal func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
     let description = type.trimmedDescription
-    if description.hasPrefix("any ") || description.hasPrefix("some ") || description.contains("&") {
+    if description.hasPrefix("any ")
+        || description.hasPrefix("some ")
+        || description.contains("&")
+        || description.contains("->") {
         return "(\(description))"
     }
     return description
@@ -90,11 +93,25 @@ internal func mainActorAttributeList() -> AttributeListSyntax {
 internal func optionalParameterType(for type: TypeSyntax) -> TypeSyntax {
     let trimmed = type.trimmedDescription
 
-    if trimmed.hasPrefix("any ") || trimmed.hasPrefix("some ") || trimmed.contains("&") {
+    if trimmed.hasPrefix("any ")
+        || trimmed.hasPrefix("some ")
+        || trimmed.contains("&")
+        || trimmed.contains("->") {
         return TypeSyntax(stringLiteral: "(\(trimmed))?")
     }
 
     return TypeSyntax(stringLiteral: "\(trimmed)?")
+}
+
+/// Function parameters are nonescaping by default, including when the
+/// function type is hidden behind a typealias. Direct function spellings are
+/// detectable from syntax; cross-file aliases use `escaping: true` because an
+/// attached macro has no type-resolution API.
+internal func inputParameterType(for member: ProvideMemberModel) -> TypeSyntax {
+    guard member.escapingInput || isDirectNonOptionalFunctionType(member.type) else {
+        return member.type
+    }
+    return TypeSyntax(stringLiteral: "@escaping \(member.type.trimmedDescription)")
 }
 
 /// Maps the container's declared access level to the modifier list applied

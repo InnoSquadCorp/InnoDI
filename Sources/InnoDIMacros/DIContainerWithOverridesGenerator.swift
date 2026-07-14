@@ -28,6 +28,16 @@ private func makeWithOverridesMethod(
 ) -> DeclSyntax {
     let modifiersFromAccessLevel = accessModifiers(model.accessLevel)
     var modifiers = modifiersFromAccessLevel
+    if isAsync && !model.options.mainActor {
+        modifiers.append(
+            DeclModifierSyntax(
+                name: .keyword(.nonisolated),
+                detail: DeclModifierDetailSyntax(
+                    detail: .identifier("nonsending")
+                )
+            )
+        )
+    }
     modifiers.append(DeclModifierSyntax(name: .keyword(.static)))
 
     let inputMembers = model.inputMembers
@@ -38,7 +48,7 @@ private func makeWithOverridesMethod(
             firstName: .identifier(member.name),
             secondName: nil,
             colon: .colonToken(),
-            type: member.type,
+            type: inputParameterType(for: member),
             ellipsis: nil,
             defaultValue: nil,
             trailingComma: .commaToken()
@@ -58,7 +68,14 @@ private func makeWithOverridesMethod(
     params.append(applyOverridesParam)
 
     // operation: (Self) [async] [throws] -> OperationResult
-    var operationTypeDescription = model.options.mainActor ? "@MainActor (Self) " : "(Self) "
+    var operationTypeDescription: String
+    if model.options.mainActor {
+        operationTypeDescription = "@MainActor (Self) "
+    } else if isAsync {
+        operationTypeDescription = "nonisolated(nonsending) (Self) "
+    } else {
+        operationTypeDescription = "(Self) "
+    }
     if isAsync { operationTypeDescription += "async " }
     if isThrowing { operationTypeDescription += "throws " }
     operationTypeDescription += "-> OperationResult"

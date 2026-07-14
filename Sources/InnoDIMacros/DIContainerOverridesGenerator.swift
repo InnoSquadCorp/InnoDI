@@ -100,7 +100,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
             firstName: .identifier(member.name),
             secondName: nil,
             colon: .colonToken(),
-            type: member.type,
+            type: inputParameterType(for: member),
             ellipsis: nil,
             defaultValue: nil,
             trailingComma: .commaToken()

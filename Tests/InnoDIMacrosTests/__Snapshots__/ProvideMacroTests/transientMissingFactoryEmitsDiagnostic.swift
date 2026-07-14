@@ -1,6 +1,5 @@
 
 struct AppContainer {
+    @InnoDI._InnoDIProvideAccessor(recovery: true)
     var viewModel: ViewModel
-
-    private let _override_viewModel: ViewModel?
 }

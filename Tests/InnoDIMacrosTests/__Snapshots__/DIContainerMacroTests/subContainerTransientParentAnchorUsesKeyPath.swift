@@ -1,22 +1,11 @@
 
 struct AppContainer {
-    var config: AppConfig {
-        get {
-            return _storage_config
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false) var config: AppConfig
 
-    private let _storage_config: AppConfig
-    var request: Request {
-        get {
-            if let override = _override_request {
-                return override
-            }
-            return Request()
-        }
-    }
+    private var _storage_config: AppConfig? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false) var request: Request
 
-    private let _override_request: Request?
+    private var _override_request: Request? = nil
     var feature: FeatureContainer {
         get {
             return _storage_sub_feature

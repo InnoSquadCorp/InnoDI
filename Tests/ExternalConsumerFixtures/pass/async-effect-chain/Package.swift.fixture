@@ -1,0 +1,24 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "AsyncEffectChainConsumer",
+    platforms: [
+        .macOS(.v14)
+    ],
+    dependencies: [
+        .package(path: "{{INNODI_PACKAGE_PATH}}")
+    ],
+    targets: [
+        .executableTarget(
+            name: "FixtureApp",
+            dependencies: [
+                .product(
+                    name: "InnoDI",
+                    package: "{{INNODI_PACKAGE_IDENTITY}}"
+                )
+            ]
+        )
+    ]
+)

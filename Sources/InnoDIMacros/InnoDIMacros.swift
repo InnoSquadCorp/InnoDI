@@ -13,6 +13,7 @@ struct InnoDIPlugin: CompilerPlugin {
         DIComponentMacro.self,
         DIHierarchyRootMacro.self,
         ProvideMacro.self,
+        InnoDIProvideAccessorMacro.self,
         SubContainerMacro.self,
         DIEnvironmentBridgeMacro.self,
         DIFeatureRootMacro.self,

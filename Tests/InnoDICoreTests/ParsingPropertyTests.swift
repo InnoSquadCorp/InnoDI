@@ -46,7 +46,7 @@ struct ParsingPropertyTests {
             arguments.append("APIClient.self")
         }
         if includeWith {
-            arguments.append("with: [\\.config, \\.logger]")
+            arguments.append("with: [\\Self.config, \\Self.logger]")
         }
         if includeFactory {
             arguments.append("factory: Foo()")

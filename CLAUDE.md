@@ -98,13 +98,20 @@ Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
 3. a convenience `init(<inputs...>, _ applyOverrides: ...)`
 4. four `withOverrides` effect overloads
 
+For a container without `mainActor: true`, the generated `async` and
+`async throws` `withOverrides` methods and their operation closure types must
+be `nonisolated(nonsending)`. This preserves the caller's actor executor and
+keeps arbitrary non-`Sendable` containers and closures from crossing isolation.
+Keep synchronous overloads unchanged. Every `mainActor: true` overload and
+operation closure remains `@MainActor`.
+
 All containers synthesize the overrides scaffolding unless the user already
 declares a nested `Overrides` type, which suppresses generation.
 
 `root` affects graph rendering only. `validateDAG: false` skips global DAG
-validation plus the macro's local cycle and closure/`with:` graph-derived
-checks, while raw-expression `factory:` and initializer references plus
-structural diagnostics still remain active.
+validation plus the macro's local cycle and other graph-derived checks. It
+never disables declaration validation or effect compatibility on explicit
+sibling edges.
 
 `Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
 every `@DIContainer(...validateDAG: false...)` site plus any active
@@ -124,10 +131,54 @@ forks pass without setup.
 
 ### `@Provide`
 
-- `.input`: external dependency, no factory
-- `.shared`: container-lifetime cached dependency
-- `.transient`: fresh dependency on every access
+- Public `@Provide` belongs only on a direct, plain, stored instance `var` in
+  the same supported `@DIContainer` struct. Reject `let`, computed/observed
+  properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone, and
+  indirectly nested declarations. `_InnoDIProvideAccessor` is compiler-owned
+  support and must never be attached by hand.
+- Reject property wrappers, conditional/unknown attributes, setter access
+  controls, and every source-written property-level global-actor attribute on
+  providers, including `@MainActor`. Actor isolation comes from
+  `@DIContainer(mainActor: true)`; isolation attributes generated on provider
+  declarations and accessors are internal support. Reject a complete provider
+  member inside `#if` with `provide.conditional-declaration-unsupported`.
+- Require exactly one `@Provide` per property. Reject opaque `some Protocol`
+  provider types in favor of `any Protocol`, and reject implicitly unwrapped
+  `T!` in favor of explicit `T` or `T?`. Deliberately forged combinations of
+  the compiler-support accessor with another property wrapper may also receive
+  Swift structural diagnostics alongside InnoDI's misuse diagnostic.
+- `.input`: external dependency; no `factory:`, `asyncFactory:`, `Type.self`,
+  property initializer, or `with:`
+- Generated `.input` initializer parameters are eager `T` values and preserve
+  ordinary `try` / `await` argument evaluation. Direct non-optional function
+  spellings are detected and emitted as escaping parameters automatically.
+  For a non-optional function type hidden behind a typealias, require literal
+  `@Provide(.input, escaping: true)`. Reject the option outside `.input` and for
+  obvious nonfunction/optional-function shapes. Alias resolution is
+  compiler-owned, so Swift may diagnose a conservatively accepted alias that
+  is not actually a non-optional function.
+- `.shared`: container-lifetime cached dependency; exactly one of `factory:`,
+  `asyncFactory:`, `Type.self`, or a property initializer
+- `.transient`: fresh dependency on every access; exactly one of `factory:`,
+  `asyncFactory:`, `Type.self`, or a property initializer
 - concrete `.shared` and `.transient` storage requires `concrete: true`
+
+Sibling DI edges are intentionally syntax-bounded. Read them only from named
+parameters on the root `factory:`/`asyncFactory:` closure literal, or from
+`Type.self` plus a literal `with:` array containing only canonical direct-member
+key paths spelled exactly `\Self.member`, such as `[\Self.config]`, or `[]`.
+Reject named container, module-qualified, and typealias roots, nested
+components, optional chaining, subscripts, and computed elements. `with:` is
+valid only with `Type.self` and may target synchronous providers only. Do not
+infer edges by
+scanning a non-closure factory expression, property initializer, nested
+closure, or arbitrary identifier. Non-closure factories and property
+initializers are opaque zero-edge sources and must not reference sibling
+container members; use a root closure parameter, or a qualified global/static
+construction symbol when no DI edge is intended.
+
+Factory effects are explicit. Validate effect compatibility on every explicit
+sibling edge even when the container uses `validateDAG: false`.
 
 ### Deferred wrappers and sub-containers
 

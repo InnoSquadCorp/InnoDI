@@ -1,26 +1,14 @@
 
 struct AppContainer {
-    var config: AppConfig {
-        get {
-            return _storage_config
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false) var config: AppConfig
 
-    private let _storage_config: AppConfig
-    var apiService: any APIClientProtocol {
-        get {
-            return _storage_apiService
-        }
-    }
+    private var _storage_config: AppConfig? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false) var apiService: any APIClientProtocol
 
-    private let _storage_apiService: any APIClientProtocol
-    var logger: Logger {
-        get {
-            return _storage_logger
-        }
-    }
+    private var _storage_apiService: (any APIClientProtocol)? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false) var logger: Logger
 
-    private let _storage_logger: Logger
+    private var _storage_logger: Logger? = nil
     var feature: FeatureBindingsContainer {
         get {
             return _storage_sub_feature
@@ -41,9 +29,9 @@ struct AppContainer {
         if let direct = feature {
             self._storage_sub_feature = direct
         } else if let apply = featureOverrides {
-            self._storage_sub_feature = FeatureBindingsContainer(featureConfig: self._storage_config, apiClient: self._storage_apiService, featureLogger: self._storage_logger, apply)
+            self._storage_sub_feature = FeatureBindingsContainer(featureConfig: self._storage_config!, apiClient: self._storage_apiService!, featureLogger: self._storage_logger!, apply)
         } else {
-            self._storage_sub_feature = FeatureBindingsContainer(featureConfig: self._storage_config, apiClient: self._storage_apiService, featureLogger: self._storage_logger)
+            self._storage_sub_feature = FeatureBindingsContainer(featureConfig: self._storage_config!, apiClient: self._storage_apiService!, featureLogger: self._storage_logger!)
         }
         self._override_sub_feature = feature
         self._override_sub_apply_feature = featureOverrides
@@ -76,13 +64,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, apiService: apiService, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(config: AppConfig, apiService: any APIClientProtocol, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, apiService: apiService, applyOverrides)
         return try await operation(container)
     }

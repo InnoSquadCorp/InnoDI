@@ -1,0 +1,261 @@
+import InnoDI
+
+struct Service: Sendable {}
+struct Request: Sendable {}
+struct OtherRoot {
+    var config: Int
+}
+struct Holder {
+    var config: Int
+}
+struct ConfigService {
+    let config: Int
+}
+protocol OpaqueService: Sendable {}
+struct OpaqueServiceImpl: OpaqueService {}
+final class ReferenceService {}
+
+@propertyWrapper
+struct Box<Value> {
+    var wrappedValue: Value
+}
+
+@propertyWrapper
+struct BoxActor<Value> {
+    var wrappedValue: Value
+}
+
+@propertyWrapper
+struct MainActor<Value> {
+    var wrappedValue: Value
+}
+
+enum Other {
+    @propertyWrapper
+    struct Provide {
+        var wrappedValue: Int = 0
+    }
+}
+
+typealias Handler = @Sendable () -> Void
+
+let manualRecovery = false
+
+struct PlainDependencies {
+    @Provide(.input)
+    var input: String
+
+    @Provide(.shared, factory: Service(), concrete: true)
+    var service: Service
+
+    @Provide(.transient, factory: Request(), concrete: true)
+    var request: Request
+}
+
+@DIContainer
+struct OuterContainer {
+    struct NestedDependencies {
+        @Provide(.shared, factory: Service(), concrete: true)
+        var nestedService: Service
+    }
+}
+
+@DIContainer
+struct StaticDependencyContainer {
+    @Provide(.input)
+    static var staticInput: String { "" }
+
+    @Provide(.transient, factory: { (staticInput: String) in
+        staticInput
+    }, concrete: true)
+    var staticEcho: String
+}
+
+@DIContainer
+struct ForgedAccessor {
+    @InnoDI._InnoDIProvideAccessor(recovery: true)
+    @Provide(.transient, factory: 42, concrete: true)
+    var value: Int
+
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    @Provide(.shared, factory: 42, concrete: true)
+    var sharedValue: Int
+
+    @InnoDI._InnoDIProvideAccessor(recovery: manualRecovery)
+    @Provide(.input)
+    var inputValue: Int
+}
+
+@DIContainer
+struct InvalidStorageContainer {
+    @Provide(.input)
+    let immutable: Int
+
+    @Provide(.shared, factory: 42, concrete: true)
+    var computed: Int { 42 }
+
+    @Provide(.shared, factory: 42, concrete: true)
+    lazy var lazyValue: Int = 42
+
+    @Provide(.input)
+    weak var weakValue: ReferenceService?
+
+    @Provide(.input)
+    unowned var unownedValue: ReferenceService
+
+    @Provide(.shared, factory: 42, concrete: true)
+    var observed: Int = 0 {
+        didSet {}
+    }
+
+    @Provide(.input)
+    private(set) var restrictedValue: Int
+
+    @Box
+    @Provide(.shared, factory: 42, concrete: true)
+    var wrappedValue: Int = 0
+
+    @BoxActor
+    @Provide(.shared, factory: 42, concrete: true)
+    var actorNamedWrapperValue: Int = 0
+
+    @MainActor
+    @Provide(.shared, factory: 42, concrete: true)
+    var shadowedMainActorValue: Int = 0
+
+    #if os(macOS)
+    @Box
+    #endif
+    @Provide(.shared, factory: 42, concrete: true)
+    var conditionalWrapperValue: Int = 0
+
+    @Provide(.shared, factory: 42, concrete: true)
+    var inferredValue = 42
+
+}
+
+@DIContainer
+struct ConditionalProviderContainer {
+    #if os(macOS)
+    @Provide(.shared, factory: Service(), concrete: true)
+    var service: Service
+    #endif
+}
+
+@DIContainer
+struct InvalidConstructionContainer {
+    @Provide(.input)
+    var config: Int
+
+    @Provide(
+        .shared,
+        Service.self,
+        factory: Service(),
+        concrete: true
+    )
+    var conflictingSource: Service
+
+    @Provide(
+        .shared,
+        with: [\Self.config],
+        factory: Service(),
+        concrete: true
+    )
+    var invalidWithSource: Service
+}
+
+@DIContainer
+struct InvalidProvidePathContainer {
+    @Provide(.input)
+    var config: Int
+
+    @Provide(
+        .shared,
+        Service.self,
+        with: [\OtherRoot.config],
+        concrete: true
+    )
+    var foreignRootSource: Service
+
+    @Provide(.input)
+    var holder: Holder
+
+    @Provide(
+        .shared,
+        ConfigService.self,
+        with: [\Self.holder.config],
+        concrete: true
+    )
+    var nestedPathSource: ConfigService
+}
+
+@DIContainer
+struct OpaqueProviderContainer {
+    @Provide(.shared)
+    var service: some OpaqueService = OpaqueServiceImpl()
+}
+
+@DIContainer
+struct DuplicateProviderContainer {
+    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42, concrete: true)
+    var value: Int = 0
+}
+
+struct StandaloneDuplicateProviders {
+    @Provide(.input)
+    @Provide(.input)
+    var standaloneValue: Int
+
+    struct Nested {
+        @Provide(.input)
+        @Provide(.input)
+        var nestedValue: Int
+    }
+}
+
+@DIContainer
+struct ForeignWrapperContainer {
+    @Other.Provide
+    @Provide(.input)
+    var foreignWrappedInput: Int
+}
+
+struct ForgedStandaloneRecovery {
+    @InnoDI._InnoDIProvideAccessor(recovery: true)
+    @Provide(.input)
+    var forgedRecoveryInput: Int
+}
+
+@DIContainer
+struct InvalidEscapingInputContainer {
+    @Provide(.input, escaping: true)
+    var handler: Optional<Handler>
+
+    @Provide(.input, escaping: true)
+    var qualifiedHandler: Swift.Optional<Handler>
+}
+
+@DIContainer
+struct IUOProviderContainer {
+    @Provide(.input)
+    var service: Service!
+}
+
+@DIContainer
+struct LocalDependencyContainer {
+    func makeService() {
+        @Provide(.shared, factory: Service(), concrete: true)
+        var localService: Service
+        localService = Service()
+        localService = Service()
+        _ = localService
+    }
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        _ = ConditionalProviderContainer()
+    }
+}

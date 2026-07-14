@@ -33,20 +33,12 @@ struct HierarchyMacroTests {
             """,
             expandedSource: """
                 public struct FeatureContainer {
-                    public var config: FeatureConfig {
-                        get {
-                            return _storage_config
-                        }
-                    }
+                    @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: FeatureConfig
                 
-                    private let _storage_config: FeatureConfig
-                    public var service: any FeatureServiceProtocol {
-                        get {
-                            return _storage_service
-                        }
-                    }
+                    private var _storage_config: FeatureConfig? = nil
+                    @InnoDI._InnoDIProvideAccessor(recovery: false) public var service: any FeatureServiceProtocol
 
-                    private let _storage_service: any FeatureServiceProtocol
+                    private var _storage_service: (any FeatureServiceProtocol)? = nil
 
                     // MARK: - Initialization
                     public init(
@@ -87,13 +79,13 @@ struct HierarchyMacroTests {
                     }
 
                     // MARK: - withOverrides (async)
-                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
                         let container = Self(config: config, applyOverrides)
                         return await operation(container)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
                         let container = Self(config: config, applyOverrides)
                         return try await operation(container)
                     }
@@ -308,6 +300,10 @@ struct HierarchyMacroTests {
             }
             """,
             expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "provide.requires-direct-container-member"
+                ),
                 MessageID(domain: "InnoDI.validation", id: "component.requires-container")
             ],
             macros: Self.macros

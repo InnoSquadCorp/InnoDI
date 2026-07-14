@@ -33,24 +33,51 @@ repeatedly:
   broken without restructuring by deferring one edge.
 - **"Remove the user-defined `Overrides` type."** — the container's nested
   type collides with the synthesized overrides builder.
+- **"Use named parameters on the root factory closure."** — sibling DI edges
+  are not inferred from non-closure expressions, property initializers, nested
+  closures, or arbitrary identifiers.
 
 ## Provide-scope diagnostics
 
 Most frequently-hit codes:
 
 - `provide.single-binding` — `@Provide` supports one variable per declaration.
+- `provide.duplicate-attribute` — a property carries more than one `@Provide`.
+  Keep exactly one provider attribute; InnoDI suppresses peer storage and
+  accessor generation for the ambiguous declaration.
 - `provide.named-property-required` — the binding must have a name.
 - `provide.explicit-type-required` — the binding must have a type annotation.
+- `provide.opaque-type-unsupported` — the explicit property type uses
+  `some Protocol`. Generated storage and overrides need a stable type; expose
+  the existential as `any Protocol` instead.
+- `provide.iuo-type-unsupported` — the explicit property type is an implicitly
+  unwrapped optional `T!`. Replace it with explicit `T` or `T?` so storage and
+  sibling wiring have one optionality contract.
 - `provide.unknown-scope` — `.shared` / `.transient` / `.input` only.
 - `provide.input-invalid-configuration` — `.input` members cannot carry
   factory, type, async factory, or dependency wiring configuration.
+- `provide.escaping-invalid-scope` — `escaping: true` was used outside
+  `.input`. Remove it from `.shared` / `.transient`; escaping input storage is
+  the only supported use.
+- `provide.escaping-nonfunction-type` — `@Provide(.input, escaping: true)` was
+  applied to an obvious nonfunction or optional-function type shape. Use it
+  only for a non-optional function type hidden behind an alias. Identifier and
+  member types are accepted conservatively because macros cannot resolve
+  aliases; Swift may add its own diagnostic if such an alias does not actually
+  resolve to a non-optional function type.
 - `provide.shared-factory-required` — `.shared` needs `factory:`, `type:`, or
   a property initializer.
-- `provide.transient-factory-required` — `.transient` needs `factory:` or
-  `type:`.
+- `provide.transient-factory-required` — `.transient` needs `factory:`,
+  `asyncFactory:`, `Type.self`, or a property initializer.
 - `provide.factory-conflict` — `factory:` and `asyncFactory:` both supplied.
-- `provide.async-factory-invalid-scope` — `asyncFactory:` is only valid for
-  `.shared`.
+- `provide.construction-source-conflict` — more than one of `factory:`,
+  `asyncFactory:`, `Type.self`, and a property initializer was supplied. Keep
+  exactly one construction source.
+- `provide.with-requires-type-construction` — `with:` was combined with a
+  factory or property initializer. `with:` belongs only to `Type.self` wiring;
+  factory closures declare edges with named parameters.
+- `provide.async-factory-invalid-scope` — `asyncFactory:` is valid for
+  `.shared` and `.transient`, but not `.input`.
 - `provide.async-factory-must-be-async` — the supplied closure is not `async`.
 - `provide.factory-must-be-sync` — `factory:` was given an `async` closure;
   move async construction to `asyncFactory:`.
@@ -58,25 +85,59 @@ Most frequently-hit codes:
   handle errors inside the factory or move asynchronous throwing work to
   `asyncFactory:`.
 - `provide.bool-literal-required` — a `@Provide` Boolean option, such as
-  `concrete:`, must be literal `true` or `false`.
-- `provide.invalid-with-dependencies` — `with:` is not a literal key-path
-  array the macro can read.
+  `concrete:` or `escaping:`, must be literal `true` or `false`.
+- `provide.invalid-with-dependencies` — `with:` is not a literal array made
+  only of canonical direct-member key paths spelled exactly `\Self.member`, or
+  `[]`. Named container, module-qualified, and typealias roots are rejected,
+  as are nested components, optional chaining, subscripts, runtime arrays, and
+  computed elements.
 - `provide.concrete-opt-in-required` — `.shared`/`.transient` with a concrete
   type needs `concrete: true`.
-- `provide.unresolved-factory-parameter` — a factory parameter doesn't match
-  any container member or `with:` key path.
+- `provide.requires-direct-container-member` — `@Provide` was attached outside
+  a direct, plain, stored instance `var` in a supported `@DIContainer` struct,
+  or used an unsupported accessor/storage modifier. Move the dependency into
+  that container and remove `let`, computed/observer accessor blocks, `lazy`,
+  `weak`, `unowned`, `static`/`class`, setter-access modifiers, property
+  wrappers, and conditional/unknown attributes. Besides `@Provide` itself, no
+  source-written property-level attribute is supported. This prohibition
+  includes `@MainActor`; request isolation with
+  `@DIContainer(mainActor: true)`. Isolation attributes InnoDI generates on
+  provider declarations and accessors are internal compiler support.
+- `provide.conditional-declaration-unsupported` — the complete `@Provide`
+  declaration appears inside `#if`. Move the declaration outside conditional
+  compilation and branch inside its factory or injected implementation; this
+  prevents peer and accessor macro phases from generating a partial provider.
+- `provide.generated-accessor-manual-attachment` — InnoDI's internal provider
+  accessor macro (`_InnoDIProvideAccessor`) was attached manually. Remove it
+  and use `@Provide` on a direct container member; accessors are compiler-owned.
+  A deliberately forged combination with another property wrapper may also
+  trigger Swift's own structural diagnostics; those compiler diagnostics are
+  expected in addition to this stable InnoDI code.
+- `provide.unresolved-factory-parameter` — a named parameter on the root
+  factory closure doesn't match any container member or `with:` key path.
 - `provide.unavailable-dependency-reference` — a factory references a member
   that is declared later and is unavailable at that construction point.
+- `provide.async-dependency-requires-async-consumer` — a synchronous factory
+  consumes an async provider through an explicit sibling edge. Move the
+  consumer to `asyncFactory:`. This check also runs with `validateDAG: false`.
+- `provide.throwing-dependency-requires-throwing-consumer` — a nonthrowing
+  factory consumes an `async throws` provider. Make the consumer's
+  `asyncFactory:` closure `async throws`. This check also runs with
+  `validateDAG: false`.
+- `provide.with-dependency-requires-synchronous-provider` — `Type.self` plus
+  `with:` targets an async or async-throwing provider. Swift key paths require
+  synchronous properties; rewrite the consumer as `asyncFactory:` with a named
+  closure parameter.
 - `provide.unresolved-with-dependency` — a `with:` key path doesn't refer to
   a container member.
-- `provide.lazy-unsupported-target` — `Lazy<T>` parameter pointing at a type
-  not declared as a container member.
+- `provide.lazy-unsupported-target` — `Lazy<T>` points at a member produced by
+  `asyncFactory:`; lazy resolvers are synchronous.
 - `provide.lazy-eager-call` — `Lazy<T>` invoked during `.shared`
   construction, which turns the soft edge back into an eager edge.
 - `provide.provider-non-transient-target` — `Provider<T>` resolved to a
   `.shared` or `.input`; providers require `.transient` targets.
-- `provide.provider-unsupported-target` — `Provider<T>` parameter with no
-  matching container member.
+- `provide.provider-unsupported-target` — `Provider<T>` points at an async
+  transient member; provider handles are synchronous.
 - `provide.provider-eager-call` — `Provider<T>` invoked at construction
   time, which defeats its purpose.
 - `provide.lazy-aliased` / `provide.provider-aliased` — a `typealias` for

@@ -1,0 +1,6 @@
+Dependency 'asyncToken' used by 'syncSession' is asynchronous. Declare 'syncSession' with asyncFactory: and an async closure.
+Dependency 'throwingToken' used by 'asyncSession' can throw, but 'asyncSession' uses a non-throwing asyncFactory. Mark its asyncFactory closure async throws.
+Factory parameter 'lazyToken' for 'lazySession' cannot use Lazy<T> because 'lazyToken' is provided by asyncFactory and Lazy resolvers are synchronous.
+Factory parameter 'providerToken' for 'providerSession' cannot use Provider<T> because 'providerToken' is produced by asyncFactory. Provider<T> only supports synchronous .transient targets; use an async-aware handle instead.
+@Provide(.transient) requires factory: <expr>, type: Type.self, or property initializer.
+Factory closure parameters must be named for injection.

@@ -9,6 +9,17 @@ InnoDI сохраняет детерминированность за счет �
 - исключение generic argument extension и `where` extension
 - неоднозначные случаи не приводят к спекулятивным совпадениям
 
+## Эффекты provider
+
+- Синхронный provider можно использовать в sync, `async` и `async throws`
+  factories.
+- Для `async` provider нужен consumer `async` или `async throws`.
+- Для `async throws` provider нужен consumer `async throws`.
+- Эффекты не выводятся из зависимостей. Consumer явно использует
+  `asyncFactory:` и при необходимости closure `async throws`.
+- `Lazy<T>` и `Provider<T>` — синхронные deferred wrappers, поэтому они
+  отвергают асинхронные targets.
+
 ## Изоляция и Sendability
 
 - Контейнеры хранят сгенерированное состояние внутри значения контейнера.

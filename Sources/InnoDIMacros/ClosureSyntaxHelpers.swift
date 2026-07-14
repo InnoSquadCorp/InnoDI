@@ -111,6 +111,18 @@ func makeSelfMemberAccessExpr(name: String, baseName: String = "self") -> ExprSy
     return ExprSyntax(memberAccess)
 }
 
+/// Reads one of `@Provide`'s default-initialized optional backing slots after
+/// the generated initializer has populated it. Keeping this force unwrap in a
+/// single builder prevents init-time wiring from accidentally passing `T?`
+/// into a factory, lazy cell, or child-container initializer that expects `T`.
+func makeProviderStorageReadExpr(name: String, baseName: String = "self") -> ExprSyntax {
+    ExprSyntax(
+        ForceUnwrapExprSyntax(
+            expression: makeSelfMemberAccessExpr(name: name, baseName: baseName)
+        )
+    )
+}
+
 func makeClosureCallExpr(closure: ClosureExprSyntax, argumentNames: [String], baseName: String = "self") -> ExprSyntax {
     let expressions = argumentNames.map { makeSelfMemberAccessExpr(name: $0, baseName: baseName) }
     return makeClosureCallExpr(closure: closure, argumentExpressions: expressions)

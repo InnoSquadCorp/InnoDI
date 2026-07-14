@@ -222,8 +222,15 @@ release.
 | `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
 | `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
 | Declaration kinds | Use file-scope or nominally nested non-generic structs for 5.0 containers/components; unsupported kinds and local scopes receive dedicated diagnostics. |
+| `@Provide` declaration | Keep exactly one `@Provide` on a direct, plain, stored instance `var` in its supported `@DIContainer`. Remove duplicate provider attributes, `let`, computed/observed accessors, storage modifiers, property wrappers, conditional/unknown attributes, setter access controls, all source-written property-level actor attributes (including `@MainActor`), standalone, and indirectly nested uses. Request isolation with `@DIContainer(mainActor: true)` and never attach `_InnoDIProvideAccessor` manually. |
+| Provider type | Replace opaque `some Protocol` with existential `any Protocol`. Replace implicitly unwrapped `T!` with explicit `T` or `T?`. |
+| Function-valued `.input` | Generated initializer parameters remain eager `T` values, so `try` / `await` argument evaluation is unchanged. Direct non-optional function types are detected automatically. Add literal `escaping: true` when a non-optional function type is hidden behind a typealias; the option is invalid outside `.input`. |
+| Construction source | A `.shared`/`.transient` member must have exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer. An `.input` member must have none and cannot use `with:`. |
+| Sibling wiring | Use named parameters on the root `factory:`/`asyncFactory:` closure literal, or `Type.self` with a literal array containing only canonical direct-member key paths such as `[\Self.config]` (or `[]`). Named/module/typealias roots, nested components, optional chaining, subscripts, and computed elements are rejected. `with:` supports synchronous providers only. Non-closure factories and property initializers are zero-edge sources and cannot read sibling members. |
+| Factory effects | Declare async and throwing effects explicitly. Effect compatibility remains enforced with `validateDAG: false`; `Type.self`/`with:` remains synchronous-only. |
 | MainActor | Put dependency conformers, construction, and use of non-`Sendable` generated values for `mainActor: true` components on `@MainActor`. From off actor, construct and consume them inside `MainActor.run`; use direct `await` only when the isolated operation returns a `Sendable` result. Override-application closures for convenience initializers, `withOverrides`, child overrides, and component mounting are now `@MainActor`. |
-| Validation | Replace dynamic scope expressions and conditional DI declarations with supported, statically analyzable forms. |
+| Non-main-actor async `withOverrides` | Generated `async` / `async throws` methods and operation closure types are `nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary non-`Sendable` containers and closures stay within the caller's isolation. Sync overloads are unchanged. |
+| Validation | Replace dynamic scope expressions, conditional provider attributes, and complete `@Provide` member declarations inside `#if` with supported, statically analyzable forms. |
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
 
@@ -236,6 +243,14 @@ separate `@MainActor` actor-marker overload and type its override parameter as
 only constrains `_InnoDIComponentMountable` no longer accepts a main-actor
 component. Keep a non-`Sendable` mounted result inside the `@MainActor` caller
 or the `MainActor.run` block instead of returning it to an off-actor context.
+
+For containers without `mainActor: true`, keep asynchronous `withOverrides`
+work on the caller's isolation. The generated `async` and `async throws`
+methods, including their operation closure types, use
+`nonisolated(nonsending)`: they retain the caller's actor executor instead of
+requiring the container or closure to cross an isolation boundary. Do not add
+`Sendable` merely to satisfy this call path. The synchronous overloads are
+unchanged, while every `mainActor: true` overload remains `@MainActor`.
 
 Convert class, actor, enum, protocol, extension, and generic container
 declarations to non-generic struct boundaries before adopting 5.0. The same
@@ -252,6 +267,112 @@ or a non-generic nominal declaration regardless of whether that scope is
 generic. Swift may add its own language diagnostic for an inherently invalid
 placement such as a type nested in a generic function or a local container
 stacked with an attached-extension macro such as `@DIComponent`.
+
+Move every provider to a plain stored instance variable:
+
+```swift
+// Before: observed/static/accessor-backed provider declarations are unsupported.
+@Provide(.shared, factory: Service(), concrete: true)
+static var service: Service {
+    didSet { audit(service) }
+}
+
+// After
+@Provide(.shared, factory: Service(), concrete: true)
+var service: Service
+```
+
+Do not attach `_InnoDIProvideAccessor` yourself. It is internal accessor
+support synthesized by the container macro for valid provider members.
+Keep only one `@Provide` attribute per property. A deliberately forged
+combination of the compiler-support accessor with another property wrapper can
+also receive Swift structural diagnostics in addition to the stable InnoDI
+misuse diagnostic.
+
+Remove property wrappers, conditional or unknown attributes, setter access
+modifiers such as `private(set)`, and every source-written property-level
+global-actor attribute from provider declarations. This includes `@MainActor`:
+request isolation with `@DIContainer(mainActor: true)` instead. An
+isolation attribute InnoDI generates on the provider declaration or accessor
+is internal compiler support. Move a complete provider member out of `#if`;
+branch inside its factory or injected implementation instead.
+
+Normalize provider property types before relying on generated storage:
+
+```swift
+// Before: opaque and implicitly unwrapped provider types are unsupported.
+@Provide(.shared, factory: LiveService())
+var service: some ServiceProtocol
+
+@Provide(.input)
+var delegate: ServiceDelegate!
+
+// After
+@Provide(.shared, factory: LiveService())
+var service: any ServiceProtocol
+
+@Provide(.input)
+var delegate: ServiceDelegate?
+
+typealias Handler = @Sendable () -> Void
+
+// A direct function spelling is automatic; an alias needs the explicit opt-in.
+@Provide(.input, escaping: true)
+var handler: Handler
+```
+
+Input initializer parameters are still eager values of the declared type.
+Callers can continue to pass `throwingValue: try makeValue()` and
+`asyncValue: await makeValue()`; Swift evaluates those expressions before the
+initializer call. `escaping:` must be a literal Boolean and applies only to a
+non-optional function-valued `.input`. Obvious nonfunction or optional-function
+shapes receive `provide.escaping-nonfunction-type`, while other scopes receive
+`provide.escaping-invalid-scope`. The macro accepts identifier/member aliases
+conservatively, so Swift may add its own diagnostic if an alias marked
+`escaping: true` does not resolve to a non-optional function type.
+
+Audit construction sources before rewriting edges. A `.shared` or `.transient`
+member must declare exactly one of `factory:`, `asyncFactory:`, `Type.self`, or
+a property initializer. An `.input` member declares none of those and cannot
+use `with:`. The four sources are alternatives, not additive configuration.
+
+Rewrite every sibling-dependent construction source into one of the two
+explicit edge forms:
+
+```swift
+@DIContainer
+struct FeatureContainer {
+    @Provide(.input)
+    var apiClient: APIClient
+
+    // Before: opaque zero-edge expression that illegally reads a sibling.
+    @Provide(.shared, factory: Repository(client: apiClient), concrete: true)
+    var repository: Repository
+
+    // After: the root closure's named parameter declares the sibling edge.
+    @Provide(.shared, factory: { (apiClient: APIClient) in
+        Repository(client: apiClient)
+    }, concrete: true)
+    var migratedRepository: Repository
+}
+```
+
+`Type.self` plus a literal `with:` key-path array remains the explicit
+autowiring form. Because the public parameter is `[AnyKeyPath]`, every entry
+must use exactly the canonical direct-member spelling `\Self.member`, such as
+`with: [\Self.apiClient]`; an empty `with: []` is valid. Named container,
+module-qualified, and typealias roots are rejected, as are nested components,
+optional chaining, subscripts, and computed elements. This form can reference
+only synchronously constructed providers. A non-closure `factory:` expression
+or property initializer is allowed only as an opaque zero-edge source; use a
+qualified global/static construction symbol so it cannot be mistaken for
+sibling wiring.
+
+Effects are not inferred from those edges. Use `asyncFactory:` when a named
+root parameter or `with:` key path targets an async provider, and make the
+closure `async throws` when the provider can throw. `validateDAG: false` does
+not bypass this compatibility matrix. `Type.self`/`with:` is intentionally
+stricter and cannot target either `async` or `async throws` providers.
 
 This section is the migration outline while implementation proceeds. Remaining
 diagnostics, codemod commands, and before/after examples are release blockers

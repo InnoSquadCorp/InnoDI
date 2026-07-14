@@ -82,7 +82,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 ### Symbols
 
 - ``DIContainer(root:validateDAG:mainActor:)``
-- ``Provide(_:_:with:factory:asyncFactory:concrete:)``
+- ``Provide(_:_:with:factory:asyncFactory:concrete:escaping:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``

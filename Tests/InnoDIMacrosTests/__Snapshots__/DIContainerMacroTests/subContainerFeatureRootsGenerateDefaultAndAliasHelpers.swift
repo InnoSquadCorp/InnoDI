@@ -1,12 +1,8 @@
 
 public struct AppContainer {
-    public var config: AppConfig {
-        get {
-            return _storage_config
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: AppConfig
 
-    private let _storage_config: AppConfig
+    private var _storage_config: AppConfig? = nil
     public var feature: FeatureContainer {
         get {
             return _innoDISubBuild_feature()
@@ -97,13 +93,13 @@ public struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    public static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    public static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: AppConfig, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(config: config, applyOverrides)
         return try await operation(container)
     }

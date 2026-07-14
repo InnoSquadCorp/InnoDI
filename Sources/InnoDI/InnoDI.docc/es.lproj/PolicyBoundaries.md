@@ -22,6 +22,17 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
 - async `.shared` puede leer inputs, sync shared y async shared previos.
 - `.transient` puede leer cualquier miembro, pero la resolución de nombres sigue siendo estricta.
 
+## Efectos del provider
+
+- Un provider sincrono puede consumirse desde factories sync, `async` y
+  `async throws`.
+- Un provider `async` requiere un consumer `async` o `async throws`.
+- Un provider `async throws` requiere un consumer `async throws`.
+- Los efectos no se infieren de las dependencias. El consumer debe usar
+  `asyncFactory:` y, cuando corresponda, una closure `async throws`.
+- `Lazy<T>` y `Provider<T>` son wrappers deferred sincronos y rechazan targets
+  asincronos.
+
 ## Aislamiento y Sendability
 
 - Los contenedores mantienen el almacenamiento generado dentro del valor del

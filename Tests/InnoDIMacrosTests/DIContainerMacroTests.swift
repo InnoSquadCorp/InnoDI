@@ -16,6 +16,8 @@ struct DIContainerMacroTests {
         "DIComponent": DIComponentMacro.self,
         "DIHierarchyRoot": DIHierarchyRootMacro.self,
         "Provide": ProvideMacro.self,
+        "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
+        "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
     ]
 
@@ -31,13 +33,8 @@ struct DIContainerMacroTests {
             """,
             expandedSource: """
                 struct AppContainer {
-                    var apiClient: APIClient {
-                        get {
-                            return _storage_apiClient
-                        }
-                    }
-
-                    private let _storage_apiClient: APIClient
+                    @InnoDI._InnoDIProvideAccessor(recovery: true)
+                    var apiClient: APIClient
                 }
                 """,
             diagnostics: [
@@ -77,13 +74,8 @@ struct DIContainerMacroTests {
             """,
             expandedSource: """
                 struct AppContainer {
-                    var apiClient: APIClientProtocol {
-                        get {
-                            return _storage_apiClient
-                        }
-                    }
-
-                    private let _storage_apiClient: APIClientProtocol
+                    @InnoDI._InnoDIProvideAccessor(recovery: true)
+                    var apiClient: APIClientProtocol
                 }
                 """,
             diagnostics: [
@@ -123,13 +115,8 @@ struct DIContainerMacroTests {
             """,
             expandedSource: """
                 struct AppContainer {
-                    var apiClient: APIClientProtocol? {
-                        get {
-                            return _storage_apiClient
-                        }
-                    }
-
-                    private let _storage_apiClient: APIClientProtocol?
+                    @InnoDI._InnoDIProvideAccessor(recovery: true)
+                    var apiClient: APIClientProtocol?
                 }
                 """,
             diagnostics: [
@@ -187,17 +174,22 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Opaque some protocol shared dependency does not require concrete opt-in")
-    func someProtocolSharedDependencyDoesNotRequireOptIn() {
-        assertMacroExpansionSnapshot(
+    @Test("Opaque some protocol provider types are rejected")
+    func someProtocolProviderTypeIsRejected() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: APIClient())
+                @Provide(.shared)
                 var apiClient: some APIClientProtocol = APIClient()
             }
             """,
-            matches: "someProtocolSharedDependency",
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "provide.opaque-type-unsupported"
+                )
+            ],
             macros: Self.macros
         )
     }
@@ -244,13 +236,10 @@ struct DIContainerMacroTests {
             """,
             expandedSource: """
                 package struct AppContainer {
-                    var apiClient: APIClient {
-                        get {
-                            return _storage_apiClient
-                        }
-                    }
+                    @InnoDI._InnoDIProvideAccessor(recovery: false)
+                    var apiClient: APIClient
 
-                    private let _storage_apiClient: APIClient
+                    private var _storage_apiClient: APIClient? = nil
 
                     // MARK: - Initialization
                     package init(apiClient: APIClient? = nil) {
@@ -282,13 +271,13 @@ struct DIContainerMacroTests {
                     }
 
                     // MARK: - withOverrides (async)
-                    package static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
                         let container = Self(applyOverrides)
                         return await operation(container)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    package static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
                         let container = Self(applyOverrides)
                         return try await operation(container)
                     }
@@ -358,13 +347,12 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.input, APIClient.self, with: [\\.config])
+                @Provide(.input, APIClient.self, with: [\\Self.config])
                 var apiClient: APIClient
             }
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.usage", id: "provide.input-invalid-configuration"),
-                MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference"),
             ],
             macros: Self.macros
         )
@@ -403,7 +391,7 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, APIClient.self, with: [\\.missing], concrete: true)
+                @Provide(.shared, APIClient.self, with: [\\Self.missing], concrete: true)
                 var apiClient: APIClient
             }
             """,
@@ -1066,7 +1054,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer(validateDAG: false)
             struct AppContainer {
-                @Provide(.shared, Service.self, with: [\\.laterService, \\.missingService], concrete: true)
+                @Provide(.shared, Service.self, with: [\\Self.laterService, \\Self.missingService], concrete: true)
                 var service: Service
 
                 @Provide(.shared, factory: LaterService(), concrete: true)
@@ -1074,54 +1062,6 @@ struct DIContainerMacroTests {
             }
             """,
             matches: "validateDAGFalseSkipsWithDependencyDiagnostics",
-            macros: Self.macros
-        )
-    }
-
-    @Test("validateDAG: false with: expansion still typechecks after fallback rewrites")
-    func validateDAGFalseWithDependencyFallbackExpansionTypechecks() throws {
-        try assertExpandedSourceTypechecks(
-            """
-            struct LaterService {}
-            struct MissingService {}
-            struct Service {
-                init(laterService: LaterService, missingService: MissingService) {}
-            }
-
-            @DIContainer(validateDAG: false)
-            struct AppContainer {
-                @Provide(.shared, Service.self, with: [\\.laterService, \\.missingService], concrete: true)
-                var service: Service
-
-                @Provide(.shared, factory: LaterService(), concrete: true)
-                var laterService: LaterService
-            }
-            """,
-            macros: Self.macros
-        )
-    }
-
-    @Test("validateDAG: false still diagnoses raw-expression declaration-order misses")
-    func validateDAGFalseStillDiagnosesRawExpressionReferences() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            struct LaterService {}
-            struct Service {
-                init(laterService: LaterService) {}
-            }
-
-            @DIContainer(validateDAG: false)
-            struct AppContainer {
-                @Provide(.shared, factory: Service(laterService: laterService), concrete: true)
-                var service: Service
-
-                @Provide(.shared, factory: LaterService(), concrete: true)
-                var laterService: LaterService
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "provide.unavailable-dependency-reference")
-            ],
             macros: Self.macros
         )
     }
@@ -1303,37 +1243,26 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("standard qualified MainActor attributes are not duplicated on dependency members")
-    func standardQualifiedMainActorAttributesAreNotDuplicated() throws {
+    @Test("source-written property MainActor attributes are rejected as wrapper-ambiguous")
+    func sourceWrittenPropertyMainActorAttributesAreRejected() {
         for actorName in ["MainActor", "Swift.MainActor", "_Concurrency.MainActor"] {
-            let source = Parser.parse(
-                source: """
-                    @DIContainer(mainActor: true)
-                    struct AppContainer {
-                        @\(actorName)
-                        @Provide(.input)
-                        var config: Config
-                    }
-                    """
+            assertMacroExpansionDiagnosticCodes(
+                """
+                @DIContainer(mainActor: true)
+                struct AppContainer {
+                    @\(actorName)
+                    @Provide(.input)
+                    var config: Config
+                }
+                """,
+                expectedCodes: [
+                    MessageID(
+                        domain: "InnoDI.usage",
+                        id: "provide.requires-direct-container-member"
+                    )
+                ],
+                macros: Self.macros
             )
-            let container = try #require(
-                source.statements.first?.item.as(StructDeclSyntax.self)
-            )
-            let attribute = try #require(
-                container.attributes.first?.as(AttributeSyntax.self)
-            )
-            let member = try #require(container.memberBlock.members.first?.decl)
-            let context = TestMacroExpansionContext()
-
-            let generated = try DIContainerMacro.expansion(
-                of: attribute,
-                attachedTo: container,
-                providingAttributesFor: member,
-                in: context
-            )
-
-            #expect(generated.isEmpty, "unexpected duplicate for @\(actorName)")
-            #expect(context.diagnostics.isEmpty)
         }
     }
 
@@ -1459,7 +1388,7 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.transient, Service.self, with: [\\.config, makeKeyPath()], concrete: true)
+                @Provide(.transient, Service.self, with: [\\Self.config, makeKeyPath()], concrete: true)
                 var service: Service
             }
             """,
@@ -1482,6 +1411,66 @@ struct DIContainerMacroTests {
             """,
             expectedCodes: [
                 MessageID(domain: "InnoDI.validation", id: "provide.factory-conflict")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Provider construction sources are mutually exclusive")
+    func providerConstructionSourcesAreMutuallyExclusive() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .shared,
+                    Service.self,
+                    factory: Service(),
+                    concrete: true
+                )
+                var service: Service
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "provide.construction-source-conflict"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("with wiring is exclusive to Type.self construction")
+    func withWiringRequiresTypeConstruction() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(
+                    .shared,
+                    with: [\\Self.config],
+                    factory: { (config: Config) in Service(config: config) },
+                    concrete: true
+                )
+                var factoryService: Service
+
+                @Provide(.shared, with: [\\Self.config], concrete: true)
+                var initializedService: Service = Service(config: Config())
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "provide.with-requires-type-construction"
+                ),
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "provide.with-requires-type-construction"
+                ),
             ],
             macros: Self.macros
         )
@@ -1722,6 +1711,27 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("async factories do not synthesize unused resolved input locals")
+    func asyncFactoryWithoutDependenciesSkipsResolvedLocals() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.shared, factory: Logger(), concrete: true)
+                var logger: Logger
+
+                @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+                var service: Service
+            }
+            """,
+            matches: "asyncFactoryWithoutDependenciesSkipsResolvedLocals",
+            macros: Self.macros
+        )
+    }
+
     @Test("Factory parameter names must resolve by name without positional fallback")
     func factoryParameterNamesMustResolveStrictly() {
         assertMacroExpansionDiagnosticCodes(
@@ -1784,7 +1794,9 @@ struct DIContainerMacroTests {
                 }, concrete: true)
                 var service: Service
 
-                @Provide(.shared, factory: LaterService(config: config), concrete: true)
+                @Provide(.shared, factory: { (config: Config) in
+                    LaterService(config: config)
+                }, concrete: true)
                 var laterService: LaterService
             }
             """,
@@ -1804,10 +1816,12 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, Service.self, with: [\\.laterService], concrete: true)
+                @Provide(.shared, Service.self, with: [\\Self.laterService], concrete: true)
                 var service: Service
 
-                @Provide(.shared, factory: LaterService(config: config), concrete: true)
+                @Provide(.shared, factory: { (config: Config) in
+                    LaterService(config: config)
+                }, concrete: true)
                 var laterService: LaterService
             }
             """,
@@ -2166,11 +2180,7 @@ struct DIContainerMacroTests {
             """,
             expandedSource: """
                 final class UnsupportedContainer {
-                    var config: Config {
-                        get {
-                            Swift.preconditionFailure("Unsupported @DIContainer declaration")
-                        }
-                    }
+                    var config: Config
                     var child: ChildContainer {
                         get {
                             Swift.preconditionFailure("Unsupported @DIContainer declaration")
@@ -2461,7 +2471,7 @@ struct DIContainerMacroTests {
             @Provide(.input)
             var baseURL: String
 
-            @Provide(.shared, Service.self, with: [\\.base_url], concrete: true)
+            @Provide(.shared, Service.self, with: [\\Self.base_url], concrete: true)
             var service: Service
         }
         """
@@ -2494,7 +2504,7 @@ struct DIContainerMacroTests {
         let source = """
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, Service.self, with: [\\.later_service], concrete: true)
+            @Provide(.shared, Service.self, with: [\\Self.later_service], concrete: true)
             var service: Service
 
             @Provide(.shared, factory: LaterService(), concrete: true)
@@ -2636,7 +2646,7 @@ struct DIContainerMacroTests {
             @Provide(.input)
             var config: Config
 
-            @Provide(.transient, APIClient.self, with: [\\AppContainer.config])
+            @Provide(.transient, APIClient.self, with: [\\Self.config])
             var apiClient: APIClient
         }
         """
@@ -3455,7 +3465,9 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
 
-                @Provide(.shared, factory: FeatureContainer(config: config), concrete: true)
+                @Provide(.shared, factory: { (config: AppConfig) in
+                    FeatureContainer(config: config)
+                }, concrete: true)
                 @SubContainer(scope: .shared)
                 var feature: FeatureContainer
             }

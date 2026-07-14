@@ -1,12 +1,8 @@
 
 public struct AppContainer {
-    @MainActor public var config: AppConfig {
-        get {
-            return _storage_config
-        }
-    }
+    @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: AppConfig
 
-    private let _storage_config: AppConfig
+    private var _storage_config: AppConfig? = nil
     @MainActor
     public var feature: FeatureContainer {
         get {
@@ -26,9 +22,9 @@ public struct AppContainer {
         if let direct = feature {
             self._storage_sub_feature = direct
         } else if let apply = featureOverrides {
-            self._storage_sub_feature = FeatureContainer(config: self._storage_config, apply)
+            self._storage_sub_feature = FeatureContainer(config: self._storage_config!, apply)
         } else {
-            self._storage_sub_feature = FeatureContainer(config: self._storage_config)
+            self._storage_sub_feature = FeatureContainer(config: self._storage_config!)
         }
         self._override_sub_feature = feature
         self._override_sub_apply_feature = featureOverrides

@@ -26,22 +26,35 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subNamedPropertyRequired = "sub.named-property-required"
     case subExplicitTypeRequired = "sub.explicit-type-required"
     case provideUnknownScope = "provide.unknown-scope"
+    case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
+    case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
+    case provideDuplicateAttribute = "provide.duplicate-attribute"
+    case provideGeneratedAccessorManualAttachment = "provide.generated-accessor-manual-attachment"
     case provideSharedFactoryRequired = "provide.shared-factory-required"
     case provideTransientFactoryRequired = "provide.transient-factory-required"
     case provideInputInvalidConfiguration = "provide.input-invalid-configuration"
+    case provideEscapingInvalidScope = "provide.escaping-invalid-scope"
+    case provideEscapingNonFunctionType = "provide.escaping-nonfunction-type"
     case provideConcreteOptInRequired = "provide.concrete-opt-in-required"
     case provideFactoryConflict = "provide.factory-conflict"
+    case provideConstructionSourceConflict = "provide.construction-source-conflict"
+    case provideWithRequiresTypeConstruction = "provide.with-requires-type-construction"
     case provideAsyncFactoryInvalidScope = "provide.async-factory-invalid-scope"
     case provideAsyncFactoryMustBeAsync = "provide.async-factory-must-be-async"
     case provideFactoryMustBeSync = "provide.factory-must-be-sync"
     case provideFactoryMustNotThrow = "provide.factory-must-not-throw"
     case provideBoolLiteralRequired = "provide.bool-literal-required"
     case provideInvalidWithDependencies = "provide.invalid-with-dependencies"
+    case provideOpaqueTypeUnsupported = "provide.opaque-type-unsupported"
+    case provideIUOTypeUnsupported = "provide.iuo-type-unsupported"
     case provideLazyUnsupportedTarget = "provide.lazy-unsupported-target"
     case provideLazyEagerCall = "provide.lazy-eager-call"
     case provideProviderNonTransientTarget = "provide.provider-non-transient-target"
     case provideProviderUnsupportedTarget = "provide.provider-unsupported-target"
     case provideProviderEagerCall = "provide.provider-eager-call"
+    case provideAsyncDependencyRequiresAsyncConsumer = "provide.async-dependency-requires-async-consumer"
+    case provideThrowingDependencyRequiresThrowingConsumer = "provide.throwing-dependency-requires-throwing-consumer"
+    case provideWithDependencyRequiresSynchronousProvider = "provide.with-dependency-requires-synchronous-provider"
     case provideUnresolvedFactoryParameter = "provide.unresolved-factory-parameter"
     case provideUnavailableDependencyReference = "provide.unavailable-dependency-reference"
     case provideUnresolvedWithDependency = "provide.unresolved-with-dependency"
@@ -99,16 +112,29 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
         switch self {
         case .provideSingleBinding, .provideNamedPropertyRequired, .provideExplicitTypeRequired,
                 .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
-                .provideUnknownScope, .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
+                .provideUnknownScope, .provideRequiresDirectContainerMember,
+                .provideConditionalDeclarationUnsupported,
+                .provideDuplicateAttribute,
+                .provideGeneratedAccessorManualAttachment,
+                .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
                 .containerUnsupportedDeclarationKind, .containerGenericUnsupported,
                 .containerUnverifiableEnclosingContext, .containerLocalDeclarationUnsupported:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
-                .provideFactoryConflict, .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
+                .provideFactoryConflict, .provideConstructionSourceConflict,
+                .provideWithRequiresTypeConstruction,
+                .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
                 .provideFactoryMustBeSync, .provideFactoryMustNotThrow,
+                .provideEscapingInvalidScope,
+                .provideEscapingNonFunctionType,
                 .provideBoolLiteralRequired, .provideInvalidWithDependencies,
+                .provideOpaqueTypeUnsupported,
+                .provideIUOTypeUnsupported,
                 .provideLazyUnsupportedTarget, .provideLazyEagerCall,
                 .provideProviderNonTransientTarget, .provideProviderUnsupportedTarget, .provideProviderEagerCall,
+                .provideAsyncDependencyRequiresAsyncConsumer,
+                .provideThrowingDependencyRequiresThrowingConsumer,
+                .provideWithDependencyRequiresSynchronousProvider,
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerMainActorNonisolatedMember,
@@ -234,6 +260,20 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func provideEscapingInvalidScope(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' may use escaping: true only with the .input scope.",
+            code: .provideEscapingInvalidScope
+        )
+    }
+
+    static func provideEscapingNonFunctionType(memberName: String) -> Self {
+        Self(
+            "@Provide(.input, escaping: true) member '\(memberName)' must use a non-optional function type or a typealias that resolves to one.",
+            code: .provideEscapingNonFunctionType
+        )
+    }
+
     static func containerUnsupportedDeclarationKind(name: String, kind: String) -> Self {
         let support = DIContainerDeclarationSupport.unsupportedKind(
             name: name,
@@ -298,6 +338,20 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func provideConstructionSourceConflict(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' must declare exactly one construction source: factory:, asyncFactory:, Type.self, or a property initializer. Remove the conflicting sources.",
+            code: .provideConstructionSourceConflict
+        )
+    }
+
+    static func provideWithRequiresTypeConstruction(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' may use with: only with the Type.self construction form. Move sibling wiring into named factory closure parameters or use Type.self.",
+            code: .provideWithRequiresTypeConstruction
+        )
+    }
+
     static func provideAsyncFactoryInvalidScope() -> Self {
         Self(
             "@Provide(.input) should not include asyncFactory.",
@@ -333,10 +387,34 @@ extension SimpleDiagnostic {
         )
     }
 
-    static func provideInvalidWithDependencies(memberName: String) -> Self {
+    static func provideInvalidWithDependencies(
+        memberName: String,
+        expectedRoot: String
+    ) -> Self {
         Self(
-            "@Provide for '\(memberName)' requires with: to be a literal key-path array such as [\\.config] or [].",
+            "@Provide for '\(memberName)' requires with: to be a literal array of canonical direct-member key paths such as [\\\(expectedRoot).config] or []. Use exactly one member component and the Self root.",
             code: .provideInvalidWithDependencies
+        )
+    }
+
+    static func provideOpaqueTypeUnsupported(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' cannot use an opaque 'some' property type because generated storage and Overrides require a stable optional type. Expose an existential 'any Protocol' instead.",
+            code: .provideOpaqueTypeUnsupported
+        )
+    }
+
+    static func provideIUOTypeUnsupported(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' cannot use an implicitly unwrapped optional type. Replace 'T!' with explicit 'T' or 'T?' so generated storage and sibling wiring have one unambiguous optionality contract.",
+            code: .provideIUOTypeUnsupported
+        )
+    }
+
+    static func provideDuplicateAttribute(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' declares @Provide more than once. Keep exactly one @Provide attribute on each dependency property.",
+            code: .provideDuplicateAttribute
         )
     }
 
@@ -372,6 +450,68 @@ extension SimpleDiagnostic {
         Self(
             "Factory parameter '\(dependencyName)' for '\(memberName)' cannot call Provider<T> during .shared construction. Store or forward the provider and invoke it only after the container has finished initializing.",
             code: .provideProviderEagerCall
+        )
+    }
+
+    static func provideAsyncDependencyRequiresAsyncConsumer(
+        memberName: String,
+        dependencyName: String,
+        providerThrows: Bool
+    ) -> Self {
+        let requiredClosure = providerThrows ? "an async throws closure" : "an async closure"
+        let providerEffect = providerThrows ? "asynchronous and throwing" : "asynchronous"
+        return Self(
+            "Dependency '\(dependencyName)' used by '\(memberName)' is \(providerEffect). Declare '\(memberName)' with asyncFactory: and \(requiredClosure).",
+            code: .provideAsyncDependencyRequiresAsyncConsumer
+        )
+    }
+
+    static func provideRequiresDirectContainerMember(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@Provide member '\(memberName)' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.",
+            code: .provideRequiresDirectContainerMember
+        )
+    }
+
+    static func provideConditionalDeclarationUnsupported(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@Provide member '\(memberName)' cannot be declared inside #if in InnoDI 5.0. Move the declaration outside conditional compilation and branch inside its factory or injected implementation instead.",
+            code: .provideConditionalDeclarationUnsupported
+        )
+    }
+
+    static func provideGeneratedAccessorManualAttachment(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@InnoDI._InnoDIProvideAccessor is compiler support for @DIContainer and cannot be attached manually to '\(memberName)'. Remove it and declare @Provide on a direct container member.",
+            code: .provideGeneratedAccessorManualAttachment
+        )
+    }
+
+    static func provideThrowingDependencyRequiresThrowingConsumer(
+        memberName: String,
+        dependencyName: String
+    ) -> Self {
+        Self(
+            "Dependency '\(dependencyName)' used by '\(memberName)' can throw, but '\(memberName)' uses a non-throwing asyncFactory. Mark its asyncFactory closure async throws.",
+            code: .provideThrowingDependencyRequiresThrowingConsumer
+        )
+    }
+
+    static func provideWithDependencyRequiresSynchronousProvider(
+        memberName: String,
+        dependencyName: String,
+        providerThrows: Bool
+    ) -> Self {
+        let providerEffect = providerThrows ? "asynchronous and throwing" : "asynchronous"
+        return Self(
+            "Dependency '\(dependencyName)' used by '\(memberName)' is \(providerEffect). Type.self with: wiring supports synchronous providers only; rewrite '\(memberName)' with asyncFactory: and a named '\(dependencyName)' parameter.",
+            code: .provideWithDependencyRequiresSynchronousProvider
         )
     }
 

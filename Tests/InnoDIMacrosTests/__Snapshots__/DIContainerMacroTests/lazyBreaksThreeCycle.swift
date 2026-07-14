@@ -1,26 +1,17 @@
 
 struct AppContainer {
-    var a: A {
-        get {
-            return _storage_a
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var a: A
 
-    private let _storage_a: A
-    var b: B {
-        get {
-            return _storage_b
-        }
-    }
+    private var _storage_a: A? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var b: B
 
-    private let _storage_b: B
-    var c: C {
-        get {
-            return _storage_c
-        }
-    }
+    private var _storage_b: B? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var c: C
 
-    private let _storage_c: C
+    private var _storage_c: C? = nil
 
     // MARK: - Initialization
     init(a: A? = nil, b: B? = nil, c: C? = nil) {
@@ -54,11 +45,11 @@ struct AppContainer {
             })
         self._storage_b = b ?? { (a: A) in
                 B(a: a)
-            }(self._storage_a)
+            }(self._storage_a!)
         self._storage_c = c ?? { (b: B) in
                 C(b: b)
-            }(self._storage_b)
-        _lazyCell_c.storeValue(self._storage_c)
+            }(self._storage_b!)
+        _lazyCell_c.storeValue(self._storage_c!)
     }
 
     // MARK: - Overrides Builder
@@ -88,13 +79,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(applyOverrides)
         return try await operation(container)
     }

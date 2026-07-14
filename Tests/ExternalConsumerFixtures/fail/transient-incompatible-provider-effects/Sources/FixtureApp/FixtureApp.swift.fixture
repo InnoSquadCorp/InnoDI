@@ -1,0 +1,82 @@
+import InnoDI
+
+struct Token: Sendable {}
+
+struct Session: Sendable {
+    let token: Token
+}
+
+struct ProviderSession {
+    let token: Provider<Token>
+}
+
+@DIContainer
+struct SyncTransientConsumerContainer {
+    @Provide(.transient, asyncFactory: { () async in
+        Token()
+    }, concrete: true)
+    var asyncToken: Token
+
+    @Provide(.transient, factory: { (asyncToken: Token) in
+        Session(token: asyncToken)
+    }, concrete: true)
+    var syncSession: Session
+}
+
+@DIContainer
+struct NonthrowingTransientConsumerContainer {
+    @Provide(.transient, asyncFactory: { () async throws -> Token in
+        Token()
+    }, concrete: true)
+    var throwingToken: Token
+
+    @Provide(.transient, asyncFactory: { (throwingToken: Token) async in
+        Session(token: throwingToken)
+    }, concrete: true)
+    var asyncSession: Session
+}
+
+@DIContainer
+struct LazyTransientConsumerContainer {
+    @Provide(.transient, asyncFactory: { () async in
+        Token()
+    }, concrete: true)
+    var lazyToken: Token
+
+    @Provide(.transient, factory: { (lazyToken: Lazy<Token>) in
+        Session(token: lazyToken())
+    }, concrete: true)
+    var lazySession: Session
+}
+
+@DIContainer
+struct ProviderTransientConsumerContainer {
+    @Provide(.transient, asyncFactory: { () async in
+        Token()
+    }, concrete: true)
+    var providerToken: Token
+
+    @Provide(.transient, factory: { (providerToken: Provider<Token>) in
+        ProviderSession(token: providerToken)
+    }, concrete: true)
+    var providerSession: ProviderSession
+}
+
+@DIContainer
+struct MissingTransientConstructionContainer {
+    @Provide(.transient, concrete: true)
+    var missingToken: Token
+}
+
+@DIContainer
+struct WildcardTransientFactoryContainer {
+    @Provide(.transient, factory: { (_: Token) in
+        Token()
+    }, concrete: true)
+    var wildcardToken: Token
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

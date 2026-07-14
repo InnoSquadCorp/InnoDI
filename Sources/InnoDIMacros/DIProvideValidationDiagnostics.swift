@@ -11,6 +11,93 @@
 import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
+import SwiftSyntaxMacros
+
+/// Diagnoses hard dependency edges whose provider requires more effects than
+/// the consumer explicitly declares. This validation is intentionally
+/// independent of DAG validation: disabling cycle/order checks must never let
+/// generated accessors or `Task` failure types become ill-formed Swift.
+///
+/// Deferred `Lazy<T>` and `Provider<T>` edges are excluded here. Their public
+/// contract is synchronous and the validator reports their dedicated target
+/// diagnostics instead.
+internal func diagnoseIncompatibleDependencyEffects(
+    member: ProvideMemberModel,
+    memberByName: [String: ProvideMemberModel],
+    context: some MacroExpansionContext
+) -> Set<String> {
+    guard member.scope != .input,
+          member.hasLocallyValidConstructionConfiguration,
+          member.factory == nil || member.asyncFactory == nil else {
+        return []
+    }
+
+    let closureReferences: [(name: String, node: Syntax)] = member.closureParameterReferences
+        .filter { $0.kind == .hard }
+        .map { (name: $0.name, node: Syntax($0.token)) }
+
+    var seenNames: Set<String> = []
+    var diagnosedNames: Set<String> = []
+    for reference in closureReferences where seenNames.insert(reference.name).inserted {
+        guard let provider = memberByName[reference.name],
+              provider.hasLocallyValidConstructionConfiguration,
+              let mismatch = dependencyEffectMismatch(
+                  consumer: member.constructionEffect,
+                  provider: provider.constructionEffect
+              ) else {
+            continue
+        }
+
+        diagnosedNames.insert(reference.name)
+
+        let message: SimpleDiagnostic
+        switch mismatch {
+        case let .requiresAsync(providerThrows):
+            message = .provideAsyncDependencyRequiresAsyncConsumer(
+                memberName: member.name,
+                dependencyName: reference.name,
+                providerThrows: providerThrows
+            )
+        case .requiresThrowing:
+            message = .provideThrowingDependencyRequiresThrowingConsumer(
+                memberName: member.name,
+                dependencyName: reference.name
+            )
+        }
+        context.diagnose(Diagnostic(node: reference.node, message: message))
+    }
+
+    for reference in member.withDependencyReferences
+        where seenNames.insert(reference.name).inserted {
+        guard let provider = memberByName[reference.name],
+              provider.hasLocallyValidConstructionConfiguration else {
+            continue
+        }
+        let providerThrows: Bool
+        switch provider.constructionEffect {
+        case .synchronous:
+            continue
+        case .asynchronous:
+            providerThrows = false
+        case .asynchronousThrowing:
+            providerThrows = true
+        }
+
+        diagnosedNames.insert(reference.name)
+        context.diagnose(
+            Diagnostic(
+                node: Syntax(reference.anchorExpression),
+                message: SimpleDiagnostic.provideWithDependencyRequiresSynchronousProvider(
+                    memberName: member.name,
+                    dependencyName: reference.name,
+                    providerThrows: providerThrows
+                )
+            )
+        )
+    }
+
+    return diagnosedNames
+}
 
 internal func makeUnresolvedFactoryParameterDiagnostic(
     member: ProvideMemberModel,

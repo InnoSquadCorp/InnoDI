@@ -8,276 +8,55 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-public struct ProvideMacro: PeerMacro, AccessorMacro {
+public struct ProvideMacro: PeerMacro {
     public static func expansion(
         of attribute: AttributeSyntax,
         providingPeersOf decl: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard !isEnclosedByUnsupportedDIContainer(decl, in: context) else {
+        guard let varDecl = decl.as(VariableDeclSyntax.self) else {
             return []
         }
 
-        guard let varDecl = decl.as(VariableDeclSyntax.self),
-              let binding = varDecl.bindings.first,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-              let type = binding.typeAnnotation?.type else {
-            return []
-        }
-        
-        let parseResult = parseProvideArguments(attribute)
-        let name = identifier.identifier.text
-        
-        switch parseResult.scope {
-        case .transient:
-            let overrideName = "_override_\(name)"
-            return [storagePeerDecl(name: overrideName, type: type, optional: true)]
-        case .shared:
-            if parseResult.asyncFactoryExpr != nil {
-                let storageName = "_storage_task_\(name)"
-                let successType = taskSuccessTypeDescription(for: type)
-                let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
-                return [taskStoragePeerDecl(
-                    name: storageName,
-                    successType: successType,
-                    failureType: failureType
-                )]
-            }
-            let storageName = "_storage_\(name)"
-            return [storagePeerDecl(name: storageName, type: type, optional: false)]
-        case .input:
-            let storageName = "_storage_\(name)"
-            return [storagePeerDecl(name: storageName, type: type, optional: false)]
-        case .none:
-            return []
-        }
-    }
-    
-    public static func expansion(
-        of attribute: AttributeSyntax,
-        providingAccessorsOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
-    ) throws -> [AccessorDeclSyntax] {
-        guard !isEnclosedByUnsupportedDIContainer(declaration, in: context) else {
-            return [unsupportedDIContainerRecoveryAccessor()]
-        }
-
-        let parseResult = parseProvideArguments(attribute)
-        
-        guard let varDecl = declaration.as(VariableDeclSyntax.self),
-              let binding = varDecl.bindings.first,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-            return []
-        }
-
-        let enclosingContainerInfo = enclosingDIContainerInfo(
-            for: declaration,
-            in: context
+        // Every public peer invocation sees the complete attribute list. Let
+        // only the second @Provide own the global duplicate diagnostic so the
+        // same contract also covers standalone and nested non-container uses.
+        // All peer roles still suppress storage output.
+        let provideAttributes = findInnoDIAttributes(
+            named: "Provide",
+            in: varDecl.attributes
         )
-        let name = identifier.identifier.text
-        
-        switch parseResult.scope {
-        case .shared:
-            if parseResult.asyncFactoryExpr != nil {
-                let storageName = "_storage_task_\(name)"
-                let valueExpr = ExprSyntax(MemberAccessExprSyntax(
-                    base: DeclReferenceExprSyntax(baseName: .identifier(storageName)),
-                    declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
-                ))
-                let getter = makeGetter(
-                    statements: [
-                        awaitedReturnStmt(
-                            expr: valueExpr,
-                            isThrowing: parseResult.asyncFactoryIsThrowing
-                        )
-                    ],
-                    isAsync: true,
-                    isThrowing: parseResult.asyncFactoryIsThrowing
-                )
-                return [getter]
-            }
-
-            let storageName = "_storage_\(name)"
-            let getter = makeGetter(
-                statements: [
-                    returnStmt(expr: ExprSyntax(
-                        DeclReferenceExprSyntax(baseName: .identifier(storageName))
-                    ))
-                ],
-                isAsync: false,
-                isThrowing: false
-            )
-            return [getter]
-
-        case .input:
-            let storageName = "_storage_\(name)"
-            let getter = makeGetter(
-                statements: [
-                    returnStmt(expr: ExprSyntax(
-                        DeclReferenceExprSyntax(baseName: .identifier(storageName))
-                    ))
-                ],
-                isAsync: false,
-                isThrowing: false
-            )
-            return [getter]
-            
-        case .transient:
-            let overrideName = "_override_\(name)"
-
-            // Site #1 in `docs/internal/fatalerror-inventory.md`. The
-            // validator phase emits a terminal diagnostic
-            // (`provide.unresolved-factory-parameter`,
-            // `provide.unresolved-with-dependency`, etc.) for every
-            // input that reaches this branch. Returning `[]` lets the
-            // Swift compiler reject the stored property naturally, so
-            // user code never embeds a `fatalError` trap.
-            if let resolutionFailure = transientDependencyResolutionFailure(
-                declaration: declaration,
-                parseResult: parseResult,
-                memberName: name
-            ) {
-                if enclosingContainerInfo?.validateDAG == false,
-                   let diagnostic = resolutionFailure.diagnostic(memberName: name) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(attribute),
-                            message: diagnostic
-                        )
-                    )
-                }
-                return []
-            }
-
-            let overrideCheck = overrideCheckStmt(overrideName: overrideName)
-
-            if let asyncFactory = parseResult.asyncFactoryExpr {
-                var createExpr: ExprSyntax
-
-                if let closure = asyncFactory.as(ClosureExprSyntax.self) {
-                    let parsedArguments = parseClosureParameterNames(closure)
-                    if parsedArguments.hasWildcard {
-                        // Site #2. Diagnostic stays terminal; returning
-                        // `[]` lets the compiler surface the missing
-                        // accessor instead of trapping at runtime.
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(closure),
-                                message: SimpleDiagnostic.transientFactoryUnnamedParameters()
-                            )
-                        )
-                        return []
-                    }
-                    do {
-                        createExpr = try makeTransientClosureCallExpr(
-                            closure: closure,
-                            parsed: parsedArguments
-                        )
-                    } catch let error as CodegenInvariantError {
-                        return handleCodegenInvariant(
-                            error,
-                            attribute: attribute,
-                            context: context
-                        )
-                    }
-                } else {
-                    createExpr = asyncFactory
-                }
-
-                let getter = makeGetter(
-                    statements: [
-                        overrideCheck,
-                        awaitedReturnStmt(
-                            expr: createExpr,
-                            isThrowing: parseResult.asyncFactoryIsThrowing
-                        )
-                    ],
-                    isAsync: true,
-                    isThrowing: parseResult.asyncFactoryIsThrowing
-                )
-                return [getter]
-            }
-
-            var createExpr: ExprSyntax
-
-            if let factory = parseResult.factoryExpr {
-                if let closure = factory.as(ClosureExprSyntax.self) {
-                    let parsedArguments = parseClosureParameterNames(closure)
-                    if parsedArguments.hasWildcard {
-                        // Site #3. Symmetric with site #2 above.
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(closure),
-                                message: SimpleDiagnostic.transientFactoryUnnamedParameters()
-                            )
-                        )
-                        return []
-                    }
-                    do {
-                        createExpr = try makeTransientClosureCallExpr(
-                            closure: closure,
-                            parsed: parsedArguments
-                        )
-                    } catch let error as CodegenInvariantError {
-                        return handleCodegenInvariant(
-                            error,
-                            attribute: attribute,
-                            context: context
-                        )
-                    }
-                } else {
-                    createExpr = factory
-                }
-            } else if let typeExpr = parseResult.typeExpr {
-                var args: [LabeledExprSyntax] = []
-                for dep in parseResult.dependencies {
-                    args.append(LabeledExprSyntax(
-                        label: .identifier(dep),
-                        colon: .colonToken(),
-                        expression: makeSelfMemberAccessExpr(name: dep)
-                    ))
-                }
-
-                createExpr = ExprSyntax(FunctionCallExprSyntax(
-                    calledExpression: typeExpr,
-                    leftParen: .leftParenToken(),
-                    arguments: LabeledExprListSyntax(args),
-                    rightParen: .rightParenToken()
-                ))
-            } else if let initializer = binding.initializer?.value {
-                createExpr = initializer
-            } else {
-                // Site #4. The validator emits
-                // `provide.transient-factory-required` for this input;
-                // we re-emit defensively so the message still surfaces
-                // even if the validator path is short-circuited (e.g.
-                // partial expansion in SwiftUI Previews).
+        guard provideAttributes.count == 1 else {
+            if let diagnosticOwner = provideAttributes.dropFirst().first,
+               hasSameSourceLocation(
+                attribute,
+                diagnosticOwner,
+                in: context
+               ) {
+                let memberName = varDecl.bindings.first?
+                    .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                    ?? "<unknown>"
                 context.diagnose(
                     Diagnostic(
-                        node: Syntax(attribute),
-                        message: SimpleDiagnostic.provideTransientFactoryRequired()
+                        node: Syntax(diagnosticOwner),
+                        message: SimpleDiagnostic.provideDuplicateAttribute(
+                            memberName: memberName
+                        )
                     )
                 )
-                return []
             }
-            
-            let getter = makeGetter(
-                statements: [
-                    overrideCheck,
-                    returnStmt(expr: createExpr)
-                ],
-                isAsync: false,
-                isThrowing: false
-            )
+            return []
+        }
 
-            return [getter]
+        let membership = directDIContainerMembership(decl, in: context)
+        if membership == .unsupported {
+            // The enclosing @DIContainer declaration owns the single terminal
+            // declaration-shape/context diagnostic.
+            return []
+        }
 
-        case .none:
-            // Site #5. This accessor expansion owns the terminal diagnostic
-            // so standalone uses and members inside `@DIContainer` behave the
-            // same without duplicate errors. Accessor macros must still emit
-            // a getter, or Swift adds a secondary structural macro error. The
-            // primary diagnostic makes this recovery body unreachable.
+        let parseResult = parseProvideArguments(attribute)
+        if parseResult.scope == nil {
             if let name = parseResult.scopeName {
                 context.diagnose(
                     Diagnostic(
@@ -286,13 +65,525 @@ public struct ProvideMacro: PeerMacro, AccessorMacro {
                     )
                 )
             }
+            return []
+        }
+
+        let fallbackMemberName = varDecl.bindings.first?
+            .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+            ?? "<unknown>"
+        if membership == .none {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: SimpleDiagnostic.provideRequiresDirectContainerMember(
+                        memberName: fallbackMemberName
+                    )
+                )
+            )
+            return []
+        }
+
+        if let generatedAccessor = findInnoDIAttribute(
+            named: "_InnoDIProvideAccessor",
+            in: varDecl.attributes
+        ), parseProvideAccessorRecovery(generatedAccessor) == true {
+            // Trust recovery only after proving direct membership in a
+            // supported container. A source-forged recovery accessor outside
+            // a container must not suppress @Provide's public usage error.
+            return []
+        }
+
+        // The container parser owns the more specific single-binding,
+        // named-property, and explicit-type diagnostics for direct members.
+        guard varDecl.bindings.count == 1,
+              let binding = varDecl.bindings.first,
+              let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+              let type = binding.typeAnnotation?.type else {
+            return []
+        }
+
+        if enclosingDIContainerInfo(for: decl, in: context)?.mainActor == true,
+           detectConflictingGlobalActor(in: varDecl.attributes) != nil {
+            // The container parser owns the dedicated actor-conflict
+            // diagnostic. Unknown actor-like attributes still never receive a
+            // generated accessor.
+            return []
+        }
+
+        let hasContainerOwnedAccessor = findInnoDIAttribute(
+            named: "_InnoDIProvideAccessor",
+            in: varDecl.attributes
+        ) != nil
+        let allowsGeneratedMainActor = membership == .supported
+            && hasContainerOwnedAccessor
+            && enclosingDIContainerInfo(for: decl, in: context)?.mainActor == true
+        guard isSupportedProvideStoredProperty(
+            varDecl,
+            allowingGeneratedMainActor: allowsGeneratedMainActor
+        ) else {
+            if hasContainerOwnedAccessor {
+                // A source-forged support accessor is diagnosed by the
+                // container member-attribute role. Do not add a second shape
+                // diagnostic or collide with a source property wrapper.
+                return []
+            }
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: SimpleDiagnostic.provideRequiresDirectContainerMember(
+                        memberName: identifier.identifier.text
+                    )
+                )
+            )
+            return []
+        }
+
+        // The container validator owns configuration diagnostics. Suppress
+        // backing-storage peers when the declaration is already invalid so
+        // Swift cannot add missing-storage or initialization cascades.
+        guard isLocallyValidProvideConfiguration(
+            declaration: varDecl,
+            arguments: parseResult
+        ) else {
+            return []
+        }
+
+        let name = identifier.identifier.text
+
+        switch parseResult.scope {
+        case .transient:
+            let overrideName = "_override_\(name)"
+            return [providerStoragePeerDecl(name: overrideName, type: type)]
+        case .shared:
+            if parseResult.asyncFactoryExpr != nil {
+                let storageName = "_storage_task_\(name)"
+                let successType = taskSuccessTypeDescription(for: type)
+                let failureType = parseResult.asyncFactoryIsThrowing ? "Error" : "Never"
+                return [providerTaskStoragePeerDecl(
+                    name: storageName,
+                    successType: successType,
+                    failureType: failureType
+                )]
+            }
+            let storageName = "_storage_\(name)"
+            return [providerStoragePeerDecl(name: storageName, type: type)]
+        case .input:
+            let storageName = "_storage_\(name)"
+            return [providerStoragePeerDecl(name: storageName, type: type)]
+        case .none:
+            return []
+        }
+    }
+}
+
+private func hasSameSourceLocation(
+    _ lhs: AttributeSyntax,
+    _ rhs: AttributeSyntax,
+    in context: some MacroExpansionContext
+) -> Bool {
+    guard let lhsLocation = context.location(of: lhs),
+          let rhsLocation = context.location(of: rhs) else {
+        return Syntax(lhs).id == Syntax(rhs).id
+    }
+
+    return lhsLocation.file.trimmedDescription == rhsLocation.file.trimmedDescription
+        && lhsLocation.line.trimmedDescription == rhsLocation.line.trimmedDescription
+        && lhsLocation.column.trimmedDescription == rhsLocation.column.trimmedDescription
+}
+
+/// Owns accessors for every validated direct `@Provide` member. Public
+/// `@Provide` remains peer-only so unsupported `let` and computed declarations
+/// can fail with one InnoDI diagnostic instead of Swift accessor-role errors.
+/// The container member-attribute phase is the only phase that receives the
+/// full sibling model, so it attaches this compiler-owned accessor after
+/// declaration-shape validation.
+public struct InnoDIProvideAccessorMacro: AccessorMacro {
+    public static func expansion(
+        of attribute: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        guard let variable = declaration.as(VariableDeclSyntax.self),
+              let binding = variable.bindings.first,
+              let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                        memberName: "<unknown>"
+                    )
+                )
+            )
             return [
                 failedDIValidationRecoveryAccessor(
-                    message: "Invalid @Provide scope"
+                    message: "Invalid generated @Provide accessor owner"
+                )
+            ]
+        }
+
+        guard let provideAttribute = findInnoDIAttribute(
+            named: "Provide",
+            in: variable.attributes
+        ) else {
+            if isDirectMemberOfSupportedDIContainer(declaration, in: context) {
+                // The enclosing member-attribute macro owns the single manual
+                // attachment diagnostic for container members.
+                return [
+                    failedDIValidationRecoveryAccessor(
+                        message: "Invalid generated @Provide accessor owner"
+                    )
+                ]
+            }
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                        memberName: identifier.identifier.text
+                    )
+                )
+            )
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid generated @Provide accessor owner"
+                )
+            ]
+        }
+
+        let isInstanceMember = !variable.modifiers.contains {
+            $0.name.text == "static" || $0.name.text == "class"
+        }
+        let membership = directDIContainerMembership(declaration, in: context)
+        guard isInstanceMember, membership == .supported else {
+            if membership == .none {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(attribute),
+                        message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                            memberName: identifier.identifier.text
+                        )
+                    )
+                )
+            }
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid generated @Provide accessor owner"
+                )
+            ]
+        }
+
+        let parseResult = parseProvideArguments(provideAttribute)
+
+        guard parseResult.scope != nil else {
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid generated @Provide accessor scope"
+                )
+            ]
+        }
+
+        // The container member-attribute phase owns the user-facing manual
+        // attachment diagnostic. A nonliteral argument can only come from
+        // source, because the generator below always emits a Bool literal.
+        // Recover silently here to avoid a second internal-invariant error.
+        guard let recovery = parseProvideAccessorRecovery(attribute) else {
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid generated @Provide accessor"
+                )
+            ]
+        }
+
+        if recovery {
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid @Provide dependency"
+                )
+            ]
+        }
+
+        let memberName = identifier.identifier.text
+        let isMainActor = enclosingDIContainerInfo(
+            for: declaration,
+            in: context
+        )?.mainActor == true
+        let allowsGeneratedMainActor = isMainActor
+            && findStandardMainActorAttribute(in: variable.attributes) != nil
+        guard canAttachGeneratedProvideAccessor(
+            to: variable,
+            allowingGeneratedMainActor: allowsGeneratedMainActor
+        ) else {
+            return []
+        }
+
+        guard isLocallyValidProvideConfiguration(
+            declaration: variable,
+            arguments: parseResult
+        ) else {
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid generated @Provide accessor configuration"
+                )
+            ]
+        }
+
+        switch parseResult.scope {
+        case .shared:
+            if parseResult.asyncFactoryExpr != nil {
+                let storageName = "_storage_task_\(memberName)"
+                let valueExpr = ExprSyntax(MemberAccessExprSyntax(
+                    base: ForceUnwrapExprSyntax(
+                        expression: DeclReferenceExprSyntax(
+                            baseName: .identifier(storageName)
+                        )
+                    ),
+                    declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+                ))
+                return isolateProvideAccessors([
+                    makeGetter(
+                        statements: [
+                            awaitedReturnStmt(
+                                expr: valueExpr,
+                                isThrowing: parseResult.asyncFactoryIsThrowing
+                            )
+                        ],
+                        isAsync: true,
+                        isThrowing: parseResult.asyncFactoryIsThrowing
+                    )
+                ], isMainActor: isMainActor)
+            }
+
+            return isolateProvideAccessors(
+                [storedProvideGetter(storageName: "_storage_\(memberName)")],
+                isMainActor: isMainActor
+            )
+
+        case .input:
+            return isolateProvideAccessors(
+                [storedProvideGetter(storageName: "_storage_\(memberName)")],
+                isMainActor: isMainActor
+            )
+
+        case .transient:
+            return isolateProvideAccessors(makeTransientProvideAccessors(
+                attribute: provideAttribute,
+                declaration: declaration,
+                binding: binding,
+                memberName: memberName,
+                parseResult: parseResult,
+                enclosingContainerInfo: enclosingDIContainerInfo(
+                    for: declaration,
+                    in: context
+                ),
+                context: context
+            ), isMainActor: isMainActor)
+
+        case .none:
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid generated @Provide accessor scope"
                 )
             ]
         }
     }
+}
+
+private func isolateProvideAccessors(
+    _ accessors: [AccessorDeclSyntax],
+    isMainActor: Bool
+) -> [AccessorDeclSyntax] {
+    guard isMainActor else { return accessors }
+    return accessors.map { accessor in
+        var isolated = accessor
+        isolated.attributes = mainActorAttributeList()
+        return isolated
+    }
+}
+
+private func parseProvideAccessorRecovery(_ attribute: AttributeSyntax) -> Bool? {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+          let recoveryArgument = arguments.first(where: { $0.label?.text == "recovery" }) else {
+        return nil
+    }
+    return InnoDICore.parseBoolArgument(recoveryArgument.expression).value
+}
+
+private func storedProvideGetter(storageName: String) -> AccessorDeclSyntax {
+    makeGetter(
+        statements: [
+            returnStmt(
+                expr: ExprSyntax(
+                    ForceUnwrapExprSyntax(
+                        expression: DeclReferenceExprSyntax(
+                            baseName: .identifier(storageName)
+                        )
+                    )
+                )
+            )
+        ],
+        isAsync: false,
+        isThrowing: false
+    )
+}
+
+private func makeTransientProvideAccessors(
+    attribute: AttributeSyntax,
+    declaration: some DeclSyntaxProtocol,
+    binding: PatternBindingSyntax,
+    memberName: String,
+    parseResult: ProvideArguments,
+    enclosingContainerInfo: DIContainerAttributeInfo?,
+    context: some MacroExpansionContext
+) -> [AccessorDeclSyntax] {
+    let overrideName = "_override_\(memberName)"
+
+    // Site #1 in `docs/internal/fatalerror-inventory.md`. The validator phase
+    // emits a terminal diagnostic for every input that reaches this branch.
+    if let resolutionFailure = transientDependencyResolutionFailure(
+        declaration: declaration,
+        parseResult: parseResult,
+        memberName: memberName
+    ) {
+        if enclosingContainerInfo?.validateDAG == false,
+           let diagnostic = resolutionFailure.diagnostic(memberName: memberName) {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(attribute),
+                    message: diagnostic
+                )
+            )
+        }
+        return []
+    }
+
+    let overrideCheck = overrideCheckStmt(overrideName: overrideName)
+
+    if let asyncFactory = parseResult.asyncFactoryExpr {
+        let createExpr: ExprSyntax
+
+        if let closure = asyncFactory.as(ClosureExprSyntax.self) {
+            let parsedArguments = parseClosureParameterNames(closure)
+            if parsedArguments.hasWildcard {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(closure),
+                        message: SimpleDiagnostic.transientFactoryUnnamedParameters()
+                    )
+                )
+                return []
+            }
+            do {
+                createExpr = try makeTransientClosureCallExpr(
+                    closure: closure,
+                    parsed: parsedArguments
+                )
+            } catch let error as CodegenInvariantError {
+                return handleCodegenInvariant(
+                    error,
+                    attribute: attribute,
+                    context: context
+                )
+            } catch {
+                return handleCodegenInvariant(
+                    CodegenInvariantError(
+                        description: "Unexpected transient async factory lowering error: \(error)"
+                    ),
+                    attribute: attribute,
+                    context: context
+                )
+            }
+        } else {
+            createExpr = asyncFactory
+        }
+
+        return [
+            makeGetter(
+                statements: [
+                    overrideCheck,
+                    awaitedReturnStmt(
+                        expr: createExpr,
+                        isThrowing: parseResult.asyncFactoryIsThrowing
+                    )
+                ],
+                isAsync: true,
+                isThrowing: parseResult.asyncFactoryIsThrowing
+            )
+        ]
+    }
+
+    let createExpr: ExprSyntax
+    if let factory = parseResult.factoryExpr {
+        if let closure = factory.as(ClosureExprSyntax.self) {
+            let parsedArguments = parseClosureParameterNames(closure)
+            if parsedArguments.hasWildcard {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(closure),
+                        message: SimpleDiagnostic.transientFactoryUnnamedParameters()
+                    )
+                )
+                return []
+            }
+            do {
+                createExpr = try makeTransientClosureCallExpr(
+                    closure: closure,
+                    parsed: parsedArguments
+                )
+            } catch let error as CodegenInvariantError {
+                return handleCodegenInvariant(
+                    error,
+                    attribute: attribute,
+                    context: context
+                )
+            } catch {
+                return handleCodegenInvariant(
+                    CodegenInvariantError(
+                        description: "Unexpected transient factory lowering error: \(error)"
+                    ),
+                    attribute: attribute,
+                    context: context
+                )
+            }
+        } else {
+            createExpr = factory
+        }
+    } else if let typeExpr = parseResult.typeExpr {
+        let arguments = parseResult.dependencies.map { dependency in
+            LabeledExprSyntax(
+                label: .identifier(dependency),
+                colon: .colonToken(),
+                expression: makeSelfMemberAccessExpr(name: dependency)
+            )
+        }
+        createExpr = ExprSyntax(
+            FunctionCallExprSyntax(
+                calledExpression: typeExpr,
+                leftParen: .leftParenToken(),
+                arguments: LabeledExprListSyntax(arguments),
+                rightParen: .rightParenToken()
+            )
+        )
+    } else if let initializer = binding.initializer?.value {
+        createExpr = initializer
+    } else {
+        context.diagnose(
+            Diagnostic(
+                node: Syntax(attribute),
+                message: SimpleDiagnostic.provideTransientFactoryRequired()
+            )
+        )
+        return []
+    }
+
+    return [
+        makeGetter(
+            statements: [
+                overrideCheck,
+                returnStmt(expr: createExpr)
+            ],
+            isAsync: false,
+            isThrowing: false
+        )
+    ]
 }
 
 /// Site #6 in `docs/internal/fatalerror-inventory.md`. Internal codegen
@@ -344,7 +635,7 @@ private func enclosingDIContainerInfo(
     for declaration: some DeclSyntaxProtocol,
     in context: some MacroExpansionContext
 ) -> DIContainerAttributeInfo? {
-    for node in context.lexicalContext.reversed() {
+    for node in context.lexicalContext {
         if let structDecl = node.as(StructDeclSyntax.self),
            let info = parseDIContainerAttribute(structDecl.attributes) {
             return info

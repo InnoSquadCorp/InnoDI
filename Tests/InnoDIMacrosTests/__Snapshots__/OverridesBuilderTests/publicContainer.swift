@@ -1,19 +1,13 @@
 
 public struct AppContainer {
-    var userID: String {
-        get {
-            return _storage_userID
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var userID: String
 
-    private let _storage_userID: String
-    var apiClient: APIClient {
-        get {
-            return _storage_apiClient
-        }
-    }
+    private var _storage_userID: String? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var apiClient: APIClient
 
-    private let _storage_apiClient: APIClient
+    private var _storage_apiClient: APIClient? = nil
 
     // MARK: - Initialization
     public init(userID: String, apiClient: APIClient? = nil) {
@@ -46,13 +40,13 @@ public struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    public static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    public nonisolated(nonsending) static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    public static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    public nonisolated(nonsending) static func withOverrides<OperationResult>(userID: String, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(userID: userID, applyOverrides)
         return try await operation(container)
     }

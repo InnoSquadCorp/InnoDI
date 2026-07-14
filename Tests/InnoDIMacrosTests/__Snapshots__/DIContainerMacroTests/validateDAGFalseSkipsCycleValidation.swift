@@ -1,29 +1,13 @@
 
 struct AppContainer {
-    var serviceA: ServiceA {
-        get {
-            if let override = _override_serviceA {
-                return override
-            }
-            return { (serviceB: ServiceB) in
-                    ServiceA(serviceB: serviceB)
-                }(self.serviceB)
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var serviceA: ServiceA
 
-    private let _override_serviceA: ServiceA?
-    var serviceB: ServiceB {
-        get {
-            if let override = _override_serviceB {
-                return override
-            }
-            return { (serviceA: ServiceA) in
-                    ServiceB(serviceA: serviceA)
-                }(self.serviceA)
-        }
-    }
+    private var _override_serviceA: ServiceA? = nil
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var serviceB: ServiceB
 
-    private let _override_serviceB: ServiceB?
+    private var _override_serviceB: ServiceB? = nil
 
     // MARK: - Initialization
     init(serviceA: ServiceA? = nil, serviceB: ServiceB? = nil) {
@@ -60,13 +44,13 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides (async)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
         let container = Self(applyOverrides)
         return await operation(container)
     }
 
     // MARK: - withOverrides (async throws)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
         let container = Self(applyOverrides)
         return try await operation(container)
     }

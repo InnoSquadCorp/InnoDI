@@ -21,6 +21,46 @@ enum DependencyKind {
     case provider
 }
 
+/// The construction effect explicitly declared by one `@Provide` member.
+///
+/// InnoDI intentionally does not infer or promote effects across dependency
+/// edges. A consumer must opt into every effect required by its providers so
+/// its generated accessor and `Task` failure type remain source-visible and
+/// predictable.
+enum ProvideConstructionEffect {
+    case synchronous
+    case asynchronous
+    case asynchronousThrowing
+}
+
+enum ProvideDependencyEffectMismatch {
+    /// A synchronous consumer references an async provider. `providerThrows`
+    /// lets the diagnostic recommend the complete `async throws` spelling in
+    /// one step when both effects are missing.
+    case requiresAsync(providerThrows: Bool)
+    /// An async non-throwing consumer references an async throwing provider.
+    case requiresThrowing
+}
+
+func dependencyEffectMismatch(
+    consumer: ProvideConstructionEffect,
+    provider: ProvideConstructionEffect
+) -> ProvideDependencyEffectMismatch? {
+    switch (consumer, provider) {
+    case (_, .synchronous),
+         (.asynchronous, .asynchronous),
+         (.asynchronousThrowing, .asynchronous),
+         (.asynchronousThrowing, .asynchronousThrowing):
+        return nil
+    case (.synchronous, .asynchronous):
+        return .requiresAsync(providerThrows: false)
+    case (.synchronous, .asynchronousThrowing):
+        return .requiresAsync(providerThrows: true)
+    case (.asynchronous, .asynchronousThrowing):
+        return .requiresThrowing
+    }
+}
+
 struct ClosureParameterReference {
     let name: String
     let token: TokenSyntax
@@ -213,13 +253,14 @@ struct ProvideMemberModel {
     let initializer: ExprSyntax?
     let concreteOptIn: Bool
     let concreteParseState: BoolArgumentParseState
+    let escapingInput: Bool
+    let escapingParseState: BoolArgumentParseState
     let withDependencies: [String]
     let withDependenciesParseState: KeyPathArrayArgumentParseState
     let withDependencyReferences: [WithDependencyReference]
     let closureDependencies: [String]
     let closureParameterReferences: [ClosureParameterReference]
     let closureHasWildcard: Bool
-    let expressionReferences: [String]
     let attribute: AttributeSyntax
     let bindingSyntax: PatternBindingSyntax
 
@@ -228,11 +269,71 @@ struct ProvideMemberModel {
     }
 
     var graphDependencyCandidates: [String] {
-        deduplicateStrings(explicitDependencies + expressionReferences)
+        explicitDependencies
     }
 
     var isAsyncFactory: Bool {
         asyncFactory != nil
+    }
+
+    var constructionEffect: ProvideConstructionEffect {
+        guard isAsyncFactory else { return .synchronous }
+        return asyncFactoryIsThrowing ? .asynchronousThrowing : .asynchronous
+    }
+
+    /// Local configuration validity excluding sibling lookup/effect rules.
+    /// Derived diagnostics must not treat a provider whose own construction
+    /// contract is already invalid as a usable effect source.
+    var hasLocallyValidConstructionConfiguration: Bool {
+        guard !isOpaqueSomeType(type),
+              !isImplicitlyUnwrappedOptionalType(type),
+              !concreteParseState.isInvalid,
+              !escapingParseState.isInvalid,
+              !withDependenciesParseState.isInvalid else {
+            return false
+        }
+
+        let constructionSourceCount = [
+            factory != nil,
+            asyncFactory != nil,
+            typeExpr != nil,
+            initializer != nil,
+        ].filter { $0 }.count
+
+        switch scope {
+        case .input:
+            guard constructionSourceCount == 0,
+                  (!escapingInput || supportsExplicitEscapingInput(type)),
+                  !withDependenciesParseState.hasArgument else {
+                return false
+            }
+        case .shared, .transient:
+            guard !escapingInput else { return false }
+            guard constructionSourceCount == 1 else { return false }
+            if withDependenciesParseState.hasArgument, typeExpr == nil {
+                return false
+            }
+        }
+
+        if let asyncFactory, !isAsyncClosureExpression(asyncFactory) {
+            return false
+        }
+        if let factory,
+           isAsyncClosureExpression(factory)
+            || factoryExpressionContainsAwait(factory)
+            || isThrowingClosureExpression(factory)
+            || factoryExpressionContainsPlainTry(factory) {
+            return false
+        }
+        if closureHasWildcard {
+            return false
+        }
+        if scope != .input,
+           !concreteOptIn,
+           requiresConcreteOptIn(type: type) {
+            return false
+        }
+        return true
     }
 
     /// Closure parameter names whose written type is `Lazy<T>` and therefore
@@ -280,11 +381,18 @@ struct ProvideMemberModel {
 
     var supportsLazySoftTarget: Bool {
         switch scope {
-        case .input, .transient:
+        case .input:
             return true
-        case .shared:
+        case .shared, .transient:
             return !isAsyncFactory
         }
+    }
+}
+
+extension ProvideArguments {
+    var constructionEffect: ProvideConstructionEffect {
+        guard asyncFactoryExpr != nil else { return .synchronous }
+        return asyncFactoryIsThrowing ? .asynchronousThrowing : .asynchronous
     }
 }
 

@@ -1,5 +1,6 @@
 import InnoDICore
 import SwiftSyntax
+import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
@@ -108,26 +109,262 @@ extension DIContainerMacro: MemberAttributeMacro {
         providingAttributesFor member: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AttributeSyntax] {
-        guard parseDIContainerAttribute(declaration.attributes)?.mainActor == true,
+        guard let options = parseDIContainerAttribute(declaration.attributes),
               classifyDIContainerDeclaration(
                 declaration,
                 lexicalContext: context.lexicalContext
               ).isSupported,
-              let variable = member.as(VariableDeclSyntax.self),
-              !variable.modifiers.contains(where: { $0.name.text == "static" }),
-              findStandardMainActorAttribute(in: variable.attributes) == nil,
-              detectConflictingGlobalActor(in: variable.attributes) == nil,
-              !variable.modifiers.contains(where: { $0.name.text == "nonisolated" }),
-              (
-                InnoDICore.findInnoDIAttribute(named: "Provide", in: variable.attributes) != nil
-                    || InnoDICore.findInnoDIAttribute(
-                        named: "SubContainer",
-                        in: variable.attributes
-                    ) != nil
-              ) else {
+              let variable = member.as(VariableDeclSyntax.self) else {
             return []
         }
 
-        return [mainActorAttribute()]
+        guard findInnoDIAttributes(named: "Provide", in: variable.attributes).count <= 1 else {
+            return []
+        }
+
+        if isConditionallyCompiledProvideMember(variable, in: declaration) {
+            // The container member expansion diagnoses this unsupported shape.
+            // Attach only a recovery accessor so the rejected stored property
+            // cannot create a synthesized-init or missing-storage cascade.
+            let isInstanceMember = !variable.modifiers.contains {
+                $0.name.text == "static" || $0.name.text == "class"
+            }
+            if isInstanceMember,
+               findInnoDIAttribute(named: "Provide", in: variable.attributes) != nil,
+               canAttachGeneratedProvideAccessor(to: variable) {
+                return [provideAccessorAttribute(recovery: true)]
+            }
+            return []
+        }
+
+        var attributes: [AttributeSyntax] = []
+        let isInstanceMember = !variable.modifiers.contains {
+            $0.name.text == "static" || $0.name.text == "class"
+        }
+        // Property-level isolation is required for call-site enforcement.
+        // Accessor-level `@MainActor` checks the generated getter body but does
+        // not prevent another actor from reading the property synchronously.
+        // This phase sees the source declaration before generated attributes,
+        // so source-written actor/property-wrapper attributes are still
+        // rejected by the closed declaration-shape validation below.
+        let isContainerManagedMember = ["Provide", "SubContainer"].contains { name in
+            InnoDICore.findInnoDIAttribute(
+                named: name,
+                in: variable.attributes
+            ) != nil
+        }
+
+        if options.mainActor,
+           isInstanceMember,
+           isContainerManagedMember,
+           findStandardMainActorAttribute(in: variable.attributes) == nil,
+           detectConflictingGlobalActor(in: variable.attributes) == nil,
+           !variable.modifiers.contains(where: { $0.name.text == "nonisolated" }) {
+            attributes.append(mainActorAttribute())
+        }
+
+        if let manuallyAttachedAccessor = findInnoDIAttribute(
+            named: "_InnoDIProvideAccessor",
+            in: variable.attributes
+        ) {
+            let memberName = variable.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(manuallyAttachedAccessor),
+                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                        memberName: memberName
+                    )
+                )
+            )
+            return attributes
+        }
+
+        if findInnoDIAttribute(
+            named: "Provide",
+            in: variable.attributes
+        ) != nil,
+           isInstanceMember,
+           canAttachGeneratedProvideAccessor(to: variable) {
+            let recovery = provideMemberValidationRecovery(
+                member: variable,
+                in: declaration,
+                options: options
+            )
+            attributes.append(provideAccessorAttribute(recovery: recovery))
+        }
+
+        return attributes
     }
+}
+
+private struct DIContainerMemberConstructionSummary {
+    let scope: ProvideScope
+    let effect: ProvideConstructionEffect
+}
+
+/// Member-attribute expansion is the one attached-macro phase guaranteed to
+/// receive both the direct member and its container's complete sibling list.
+/// Attach the accessor owner here so normal generation and invalid-edge
+/// recovery both use the same compiler-visible macro expansion path.
+private func provideMemberValidationRecovery(
+    member: VariableDeclSyntax,
+    in declaration: some DeclGroupSyntax,
+    options: DIContainerAttributeInfo
+) -> Bool {
+    guard let attribute = findInnoDIAttribute(named: "Provide", in: member.attributes) else {
+        return true
+    }
+
+    let arguments = parseProvideArguments(attribute)
+    if !isLocallyValidProvideConfiguration(
+        declaration: member,
+        arguments: arguments
+    ) || findInnoDIAttribute(named: "SubContainer", in: member.attributes) != nil {
+        return true
+    }
+
+    if options.mainActor,
+       detectConflictingGlobalActor(in: member.attributes) != nil
+        || member.modifiers.contains(where: { $0.name.text == "nonisolated" }) {
+        return true
+    }
+
+    switch arguments.constructionEffect {
+    case .synchronous:
+        break
+    case .asynchronous, .asynchronousThrowing:
+        if let memberName = member.bindings.first?
+            .pattern.as(IdentifierPatternSyntax.self)?.identifier.text,
+            hasIncomingProvideWithReference(
+                to: memberName,
+                in: declaration
+            ) {
+            // Swift rejects key paths to async/throwing properties before the
+            // consumer macro can recover. Make the invalid target accessor
+            // synchronous too; the dedicated InnoDI diagnostic remains terminal.
+            return true
+        }
+    }
+
+    guard arguments.scope == .transient else { return false }
+
+    var providers: [String: DIContainerMemberConstructionSummary] = [:]
+    for sibling in declaration.memberBlock.members {
+        guard let variable = sibling.decl.as(VariableDeclSyntax.self),
+              canAttachGeneratedProvideAccessor(to: variable),
+              let providerAttribute = findInnoDIAttribute(named: "Provide", in: variable.attributes),
+              findInnoDIAttribute(named: "SubContainer", in: variable.attributes) == nil,
+              !options.mainActor
+                || (
+                    detectConflictingGlobalActor(in: variable.attributes) == nil
+                    && !variable.modifiers.contains(where: { $0.name.text == "nonisolated" })
+                ),
+              let providerBinding = variable.bindings.first,
+              let identifier = providerBinding.pattern.as(IdentifierPatternSyntax.self) else {
+            continue
+        }
+        let providerArguments = parseProvideArguments(providerAttribute)
+        guard isLocallyValidProvideConfiguration(
+            declaration: variable,
+            arguments: providerArguments
+        ), let providerScope = providerArguments.scope else {
+            continue
+        }
+        providers[identifier.identifier.text] = DIContainerMemberConstructionSummary(
+            scope: providerScope,
+            effect: providerArguments.constructionEffect
+        )
+    }
+
+    let closure: ClosureExprSyntax?
+    if let factory = arguments.factoryExpr?.as(ClosureExprSyntax.self) {
+        closure = factory
+    } else {
+        closure = arguments.asyncFactoryExpr?.as(ClosureExprSyntax.self)
+    }
+
+    if let closure {
+        let parsedClosure = parseClosureParameterNames(closure)
+        if parsedClosure.hasWildcard {
+            return true
+        }
+        if transientClosureNeedsValidationRecovery(
+            references: parsedClosure.references,
+            consumerEffect: arguments.constructionEffect,
+            providers: providers
+        ) {
+            return true
+        }
+    }
+
+    if arguments.dependencies.contains(where: { providers[$0] == nil }) {
+        return true
+    }
+
+    if arguments.dependencies.contains(where: { dependencyName in
+        guard let provider = providers[dependencyName] else { return false }
+        return dependencyEffectMismatch(
+            consumer: arguments.constructionEffect,
+            provider: provider.effect
+        ) != nil
+    }) {
+        return true
+    }
+
+    return false
+}
+
+private func hasIncomingProvideWithReference(
+    to memberName: String,
+    in declaration: some DeclGroupSyntax
+) -> Bool {
+    declaration.memberBlock.members.contains { sibling in
+        guard let variable = sibling.decl.as(VariableDeclSyntax.self),
+              let attribute = findInnoDIAttribute(
+                named: "Provide",
+                in: variable.attributes
+              ) else {
+            return false
+        }
+        return extractWithDependencyReferences(
+            from: attribute,
+            requiringCanonicalProvidePath: true
+        ).contains {
+            $0.name == memberName
+        }
+    }
+}
+
+private func transientClosureNeedsValidationRecovery(
+    references: [ClosureParameterReference],
+    consumerEffect: ProvideConstructionEffect,
+    providers: [String: DIContainerMemberConstructionSummary]
+) -> Bool {
+    references.contains { reference in
+        guard let provider = providers[reference.name] else { return true }
+
+        switch reference.kind {
+        case .hard:
+            return dependencyEffectMismatch(
+                consumer: consumerEffect,
+                provider: provider.effect
+            ) != nil
+        case .soft:
+            if case .synchronous = provider.effect { return false }
+            return true
+        case .provider:
+            guard provider.scope == .transient else { return true }
+            if case .synchronous = provider.effect { return false }
+            return true
+        }
+    }
+}
+
+private func provideAccessorAttribute(recovery: Bool) -> AttributeSyntax {
+    let attribute: AttributeSyntax = recovery
+        ? "@InnoDI._InnoDIProvideAccessor(recovery: true)"
+        : "@InnoDI._InnoDIProvideAccessor(recovery: false)"
+    return attribute
 }

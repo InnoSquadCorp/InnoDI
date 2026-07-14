@@ -20,8 +20,15 @@ public enum DIScope {
 ///
 /// - Parameters:
 ///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.
-///   - validateDAG: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and the macro's local cycle plus closure/`with:` diagnostics are skipped, but raw-expression `factory:` / initializer references and structural diagnostics still apply.
+///   - validateDAG: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and local cycle checks are skipped, but declaration diagnostics and effect compatibility on explicit sibling edges still apply.
 ///   - mainActor: Isolates every generated container API on the main actor, including dependency accessors, initializers, override-application closure types, `Overrides`, `withOverrides` operation closures, child-override closures, and feature-root helpers. When combined with `@DIComponent`, this also isolates the generated dependency protocol and dependency initializer and selects the main-actor mounting protocol.
+///
+/// For a container without `mainActor: true`, the generated `async` and
+/// `async throws` `withOverrides` methods and their operation closure types use
+/// `nonisolated(nonsending)`. They retain the caller's actor executor, so an
+/// arbitrary non-`Sendable` container and closure do not cross an isolation
+/// boundary. Synchronous overloads are unchanged; `mainActor: true` overloads
+/// remain `@MainActor`.
 ///
 /// > Important: `validateDAG: false` is a narrow opt-out from the global
 /// > DAG and local cycle gates. Treat it as a temporary fixture rather than
@@ -53,24 +60,95 @@ public macro DIContainer(
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
 @attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
-@attached(accessor)
-/// Declares a dependency member inside a `@DIContainer`.
+/// Declares a dependency on a direct, plain, stored instance `var` in the same
+/// supported struct annotated with `@DIContainer`. `let`, computed or observed
+/// properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone, and
+/// indirectly nested uses are unsupported and fail closed at compile time.
+/// Provider accessors are synthesized and owned by InnoDI; application code
+/// must not attach ``_InnoDIProvideAccessor(recovery:)`` manually.
+/// Property wrappers, conditional or unknown attributes, setter access
+/// modifiers such as `private(set)`, and global-actor attributes are
+/// unsupported. Besides `@Provide` itself, no source-written property-level
+/// attribute is accepted. This prohibition includes `@MainActor`; use
+/// `@DIContainer(mainActor: true)` for actor isolation. Any isolation
+/// attributes InnoDI generates on provider declarations and accessors are
+/// internal compiler support. A complete provider declaration inside `#if` is
+/// also unsupported; keep it unconditional and branch inside the factory or
+/// injected implementation.
+/// Attach exactly one `@Provide` to each property; duplicate provider
+/// attributes are rejected. The explicit property type must not be opaque
+/// (`some Protocol`) or implicitly unwrapped (`T!`). Use an existential
+/// `any Protocol`, or explicit `T` / `T?`, respectively. A deliberately forged
+/// property-wrapper combination involving the compiler-support accessor can
+/// also receive Swift structural diagnostics in addition to InnoDI's misuse
+/// diagnostic.
+///
+/// Sibling DI edges use a closed syntax. They come only from named parameters
+/// on the root `factory:` or `asyncFactory:` closure literal, or from `type`
+/// construction paired with a literal `with:` key-path array. Every entry must
+/// use exactly the canonical direct-member spelling `\Self.member`, such as
+/// `[\Self.config]`; `[]` is also valid. Named container, module-qualified, and
+/// typealias roots are unsupported, as are nested components, optional
+/// chaining, subscripts, and computed elements. Every `with:` target must use
+/// synchronous construction. Non-closure `factory:` expressions and property
+/// initializers are opaque zero-edge construction sources and must not
+/// reference sibling container members. Use root closure parameters for DI
+/// wiring, or a qualified global/static construction symbol when no sibling
+/// edge is intended.
+///
+/// A `.shared` or `.transient` provider declares exactly one construction
+/// source: `factory:`, `asyncFactory:`, `Type.self`, or a property initializer.
+/// An `.input` provider declares none of those sources and does not use
+/// `with:`. The `with:` argument is valid only with `Type.self` construction.
+/// Generated `.input` initializer parameters remain eager values of the
+/// declared type `T`. Swift evaluates each argument before the initializer
+/// call, so callers can pass `try makeValue()` or `await makeValue()` normally.
+/// A directly spelled non-optional function type is detected automatically
+/// and emitted as an escaping initializer parameter. When that function type
+/// is hidden behind a typealias, use `escaping: true` to request the same
+/// parameter contract. The option accepts a literal Boolean, is valid only for
+/// `.input`, and applies only to non-optional function values. Because an
+/// attached macro cannot resolve arbitrary aliases, Swift may add its own
+/// diagnostic if an alias used with `escaping: true` does not resolve to a
+/// non-optional function type.
 ///
 /// - Parameters:
-///   - scope: Dependency lifecycle scope.
-///   - type: Optional concrete type expression used with `with` autowiring.
-///   - dependencies: Key-path dependencies for `type`-based construction.
-///   - factory: Synchronous factory expression.
-///   - asyncFactory: Asynchronous factory closure expression.
+///   - scope: Dependency lifecycle scope. `.shared` and `.transient` require
+///     exactly one construction source; `.input` rejects all of them.
+///   - type: Optional `Type.self` construction source. This is the only source
+///     that accepts `with` autowiring.
+///   - dependencies: A literal array containing only canonical direct-member
+///     `\Self.member` key paths for `type`-based construction, or an empty
+///     array. Every referenced provider must be synchronous.
+///   - factory: Synchronous factory expression. Only a root closure literal's
+///     named parameters declare sibling DI edges; other expressions are opaque.
+///   - asyncFactory: Explicit `async` or `async throws` factory closure for
+///     `.shared` and `.transient` dependencies. Consumers must declare every
+///     effect required by their providers; InnoDI does not infer effects, and
+///     validates them even when the container uses `validateDAG: false`.
 ///   - concrete: Explicit opt-in for concrete-type storage.
+///   - escaping: A literal Boolean opt-in for a non-optional function-valued
+///     `.input` whose function type is hidden behind a typealias. Direct
+///     function type spellings are detected automatically. Obvious nonfunction
+///     shapes and every non-input scope are rejected; alias resolution remains
+///     the Swift compiler's responsibility.
 public macro Provide(
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
+
+/// Internal accessor owner synthesized for direct provider members by
+/// `@DIContainer`. Application code must not attach this macro manually.
+@_documentation(visibility: internal)
+@attached(accessor)
+public macro _InnoDIProvideAccessor(
+    recovery: Bool
+) = #externalMacro(module: "InnoDIMacros", type: "InnoDIProvideAccessorMacro")
 
 /// A lazy reference to another container-managed dependency, used to break
 /// otherwise-valid dependency cycles without restructuring.
@@ -104,8 +182,8 @@ public macro Provide(
 /// populated. InnoDI diagnoses direct `lazy()` / `lazy.callAsFunction()` /
 /// `lazy.resolver()` calls inside `.shared` construction; indirect eager calls
 /// routed through helper APIs remain a policy boundary you should review
-/// manually. `Lazy<T>` remains synchronous, so it cannot target `.shared`
-/// members provided by `asyncFactory`.
+/// manually. `Lazy<T>` remains synchronous, so it cannot target `.shared` or
+/// `.transient` members provided by `asyncFactory`.
 ///
 /// `Lazy<T>` is intentionally a non-`Sendable` deferred handle. The wrapper
 /// keeps evaluation on the container's original isolation domain, so actor
@@ -157,6 +235,8 @@ public struct Lazy<T> {
 /// new instance on each call, but test overrides may still return a stored
 /// value. `.shared` and `.input` targets are rejected with
 /// `provide.provider-non-transient-target`.
+/// Async transient targets are also rejected because `Provider<T>` is a
+/// synchronous handle; use an explicitly async factory abstraction instead.
 ///
 /// ```swift
 /// @DIContainer

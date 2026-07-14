@@ -33,13 +33,33 @@ dependency-graph CLI сканируют полное дерево исходно
 - convenience `init(<inputs...>, _ applyOverrides: ...)`
 - четыре overload `withOverrides`
 
+Для контейнера без `mainActor: true` сгенерированные методы `withOverrides`
+с `async` и `async throws`, а также типы их operation closures имеют
+`nonisolated(nonsending)`. Они сохраняют actor executor вызывающей стороны,
+поэтому произвольные non-`Sendable` значения container и closure не пересекают
+границу изоляции. Синхронные overload не меняются. При `mainActor: true` все
+overload `withOverrides` и operation closures остаются `@MainActor`.
+
 Пока пользователь сам не объявил вложенный `Overrides`, scaffolding
 генерируется для каждого поддерживаемого контейнера.
+
+Каждый `@Provide` должен быть прямым обычным хранимым instance `var` этого
+struct. Accessor/observer, `let`, `lazy`, `weak`, `unowned`, `static`/`class`,
+самостоятельные и косвенно вложенные providers отклоняются; сгенерированный
+accessor нельзя прикреплять вручную.
+
+Sibling edges создаются только именованными параметрами root literal closures
+`factory:`/`asyncFactory:` либо `Type.self` с literal key paths `with:`.
+Не-closure factory и property initializer — непрозрачные zero-edge источники и
+не могут ссылаться на sibling members. Совместимость эффектов обязательна и
+при `validateDAG: false`.
 
 ## Parameters
 
 - `root`: влияет только на вход рендера графа
-- `validateDAG`: управляет global DAG validation и local cycle / closure-`with:`
+- `validateDAG`: управляет global DAG и local graph-derived проверками;
+  `false` не отключает проверку деклараций и совместимость эффектов явных
+  sibling edges
 - `mainActor`: изолирует с помощью `@MainActor` аксессоры зависимостей, все
   сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides`
   для convenience initializer, `withOverrides`, overrides дочерних контейнеров

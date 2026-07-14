@@ -3,13 +3,10 @@ struct AppContainer {
     struct Overrides {
         var custom: String
     }
-    var userID: String {
-        get {
-            return _storage_userID
-        }
-    }
+    @InnoDI._InnoDIProvideAccessor(recovery: false)
+    var userID: String
 
-    private let _storage_userID: String
+    private var _storage_userID: String? = nil
 
     // MARK: - Initialization
     init(userID: String) {

@@ -17,6 +17,8 @@ struct OverridesBuilderTests {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
+        "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
+        "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
     ]
 
     @Test("input + shared + transient mix generates full Overrides scaffolding")

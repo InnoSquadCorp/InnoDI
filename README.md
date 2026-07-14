@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
     var apiClient: APIClient
 }
 
@@ -204,7 +204,7 @@ struct AppContainer {
     @Provide(.input)
     var baseURL: String
 
-    @Provide(.shared, APIClient.self, with: [\AppContainer.baseURL])
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: any APIClientProtocol
 }
 
@@ -257,7 +257,7 @@ declares a nested `Overrides` type, which suppresses generation.
 | Parameter | Default | Meaning |
 |---|---|---|
 | `root` | `false` | Graph-render entry flag only. If any roots exist, Mermaid, DOT, and ASCII output is pruned to the union of root-reachable nodes and edges. |
-| `validateDAG` | `true` | Enables global DAG validation plus the macro's local cycle and closure/`with:` graph-derived checks. `false` skips those checks, but raw-expression `factory:` and initializer references still diagnose at compile time and structural validation still runs. |
+| `validateDAG` | `true` | Enables global DAG validation plus the macro's local graph-derived checks. `false` skips global DAG and local cycle checks, but declaration validation and effect compatibility on explicit sibling edges still run. |
 | `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIComponent`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
 
 In 5.0, generic component-mounting helpers must distinguish the two marker
@@ -297,6 +297,30 @@ diagnostic.
 
 ### `@Provide` and scopes
 
+InnoDI 5.0 supports `@Provide` only on a direct, plain, stored instance `var` in
+the same supported `struct` that carries `@DIContainer`. `let`, computed or
+observed properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone,
+and indirectly nested uses are rejected. InnoDI owns the generated provider
+accessor; never attach `_InnoDIProvideAccessor` manually.
+
+Provider declarations use a closed attribute and access-control surface.
+Property wrappers, conditional or unknown attributes, setter access modifiers
+such as `private(set)`, and global-actor attributes are rejected. Besides
+`@Provide` itself, no source-written property-level attribute is supported.
+This prohibition includes `@MainActor`; request actor isolation with
+`@DIContainer(mainActor: true)`. The isolation attributes InnoDI generates on
+the provider declaration and accessor remain internal compiler support. A
+complete `@Provide` member declaration inside `#if` is also rejected with
+`provide.conditional-declaration-unsupported`; keep the declaration
+unconditional and branch inside its factory or injected implementation.
+Attach exactly one `@Provide` per property. Duplicate attributes are rejected
+with `provide.duplicate-attribute`. The explicit property type must not be an
+opaque `some Protocol` or an implicitly unwrapped optional `T!`; expose an
+existential `any Protocol`, or use explicit `T` / `T?`, respectively. A
+deliberately forged combination of the compiler-support accessor with another
+property wrapper can also receive Swift's own structural diagnostics in
+addition to InnoDI's misuse diagnostic.
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
@@ -304,22 +328,68 @@ diagnostic.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false
+    concrete: Bool = false,
+    escaping: Bool = false
 )
 ```
 
 | Scope | Meaning | Construction rules |
 |---|---|---|
-| `.input` | External dependency supplied at container initialization | No `factory` or `asyncFactory` |
-| `.shared` | Created once per container instance and reused | Requires `factory`, `asyncFactory`, or `Type.self` plus `with:` |
-| `.transient` | Recreated on every access | Requires `factory`, `asyncFactory`, or `Type.self` plus `with:` |
+| `.input` | External dependency supplied at container initialization | Declares no `factory:`, `asyncFactory:`, `Type.self`, property initializer, or `with:` |
+| `.shared` | Created once per container instance and reused | Declares exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer |
+| `.transient` | Recreated on every access | Declares exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer |
 
 Additional rules:
 
-- `factory` and `asyncFactory` are mutually exclusive.
-- `asyncFactory` must be an `async` closure.
+- The four construction sources—`factory:`, `asyncFactory:`, `Type.self`, and
+  a property initializer—are mutually exclusive for `.shared` and `.transient`.
+- `.input` rejects every construction source and rejects `with:`.
+- Generated `.input` initializer parameters are eager values of the declared
+  type `T`; Swift evaluates `try` / `await` argument expressions before the
+  initializer call as usual. Directly spelled non-optional function types are
+  detected automatically and emitted as escaping parameters. For a
+  non-optional function type hidden behind a typealias, write
+  `@Provide(.input, escaping: true)`. `escaping:` must be a literal Boolean and
+  is valid only for `.input`. Obvious nonfunction and optional-function shapes
+  are rejected; if an accepted identifier/member alias does not actually
+  resolve to a non-optional function, Swift may emit its own diagnostic.
+- `asyncFactory` is supported for `.shared` and `.transient` and must be an
+  `async` closure.
+- `with:` is valid only with the `Type.self` construction form. It must be a
+  literal array whose entries use exactly the canonical direct-member spelling
+  `\Self.member`, such as `with: [\Self.config]`; `with: []` is also valid.
+  Named container, module-qualified, and typealias roots are rejected, as are
+  nested components, optional chaining, subscripts, and computed array
+  elements. Every referenced provider must use synchronous construction.
 - Concrete `.shared` and `.transient` storage requires `concrete: true`.
 - Name resolution for factory parameters and `with:` wiring is strict by member name.
+
+Sibling DI edges use a closed syntax:
+
+- A root `factory:` or `asyncFactory:` closure literal declares one edge for
+  each named parameter. Nested closures and arbitrary identifiers do not add
+  edges.
+- `Type.self` construction declares edges from its literal canonical
+  `\Self.member` key-path array and can target synchronous providers only.
+- A non-closure `factory:` expression or property initializer is an opaque,
+  zero-edge construction source. It must not reference sibling container
+  members. Rewrite sibling wiring as root closure parameters; when no DI edge
+  is intended, call a qualified global/static construction symbol instead.
+
+Factory effects are explicit and are not inferred from dependencies. Use
+`asyncFactory:` for an asynchronous consumer and spell `async throws` on that
+closure when it consumes a throwing asynchronous provider. Effect
+compatibility is validated on every explicit edge even with
+`validateDAG: false`.
+
+| Provider | sync consumer | `async` consumer | `async throws` consumer |
+|---|---:|---:|---:|
+| sync | allowed | allowed | allowed |
+| `async` | rejected | allowed | allowed |
+| `async throws` | rejected | rejected | allowed |
+
+`Lazy<T>` and `Provider<T>` are synchronous deferred wrappers. Their targets
+must use synchronous construction; an async target is rejected.
 
 ## Validation Model
 
@@ -341,9 +411,9 @@ InnoDI validates containers in layers:
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
 
 `validateDAG: false` is intentionally narrow. It opts a container out of global
-DAG validation plus the macro's local cycle and closure/`with:` graph-derived
-checks. It does not disable structural validation, and it does not suppress
-raw-expression `factory:` or initializer reference diagnostics.
+DAG validation plus local cycle and other graph-derived checks. It does not
+disable declaration validation or effect compatibility on explicit
+root-closure/`with:` sibling edges.
 
 ## Overrides Builder
 
@@ -397,7 +467,8 @@ var logger: RequestLogger
 ```
 
 Both wrappers are intentionally non-`Sendable` and must stay on the container's
-original isolation domain.
+original isolation domain. They also remain synchronous: neither wrapper can
+target an `asyncFactory` member.
 
 ## Nested Containers and Hierarchy
 

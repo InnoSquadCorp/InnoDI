@@ -1,0 +1,3 @@
+Dependency 'token' used by 'session' is asynchronous. Declare 'session' with asyncFactory: and an async closure.
+Dependency 'token' used by 'session' can throw, but 'session' uses a non-throwing asyncFactory. Mark its asyncFactory closure async throws.
+Dependency 'token' used by 'session' is asynchronous. Type.self with: wiring supports synchronous providers only; rewrite 'session' with asyncFactory: and a named 'token' parameter.

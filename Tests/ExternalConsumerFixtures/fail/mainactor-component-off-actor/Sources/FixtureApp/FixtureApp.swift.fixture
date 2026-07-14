@@ -1,9 +1,18 @@
 import InnoDI
 
+struct Service {}
+struct Request {}
+
 @DIComponent
 @DIContainer(mainActor: true)
 struct MainActorContainer {
     @Provide(.input) var config: String
+
+    @Provide(.shared, factory: Service(), concrete: true)
+    var service: Service
+
+    @Provide(.transient, factory: Request(), concrete: true)
+    var request: Request
 }
 
 @DIContainer(mainActor: true)
@@ -24,7 +33,9 @@ func buildOffActor(
 }
 
 func readOffActor(_ container: MainActorContainer) -> String {
-    container.config
+    _ = container.service
+    _ = container.request
+    return container.config
 }
 
 func readChildOffActor(
