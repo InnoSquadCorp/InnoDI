@@ -1,0 +1,1 @@
+@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.
