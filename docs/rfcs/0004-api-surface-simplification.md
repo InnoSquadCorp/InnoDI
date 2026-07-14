@@ -3,16 +3,25 @@
 - **Status**: Draft
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-05-08
-- **Last updated**: 2026-05-08
-- **Target release**: 5.0 (breaking train)
-- **Supersedes**: none
+- **Last updated**: 2026-07-14
+- **Target release**: Future major release; not part of the 5.0 hardening scope
+- **Superseded in part by**: RFC 0005 (`concrete:` implementation plan)
+
+> **July 2026 status correction:** the 4.3/4.4 inference runway described in
+> this RFC did not ship. InnoDI 4.3.0 shipped `@SubContainer` feature-root
+> helpers instead, which also completed candidate 2 below in a different API
+> shape. RFC 0005 now defines the accepted 5.0 contract-hardening train,
+> removes `concrete:` by using the declared property type as the single source
+> of truth, and defers the remaining macro-consolidation candidates. The text
+> below is retained as design history, not as the active 5.0 implementation
+> plan.
 
 ## Summary
 
-The 2026-05 whole-repository review flagged API surface complexity as the
-largest remaining onboarding obstacle for new adopters. This RFC plans the
-breaking-change track that lands in 5.0 to close that gap without giving up
-the validation guarantees that motivate InnoDI in the first place.
+The 2026-05 whole-repository review flagged API surface complexity as an
+onboarding obstacle for new adopters. This RFC recorded an exploratory
+breaking-change track. It is no longer the active 5.0 plan; RFC 0005 limits
+5.0 to contract hardening and a smaller set of proven surface removals.
 
 Two concrete simplifications are in scope:
 
@@ -30,10 +39,10 @@ Two concrete simplifications are in scope:
    declarations. The plan evaluates which combinations can fold into a single
    macro without losing diagnostic precision or generated-code clarity.
 
-Both changes are breaking and ship together as part of the 5.0 train. The
-4.x branch lands the deprecation runway: feature-flagged inference plus
-warnings at sites that would change, with codemods documented in
-`MigrationGuide.md`.
+Both changes were originally proposed for the same breaking train. They are no
+longer coupled: RFC 0005 supersedes the inference/token design and the
+remaining macro-consolidation candidates require separate acceptance before a
+future major release.
 
 ## Motivation
 
@@ -51,7 +60,7 @@ The current 4.x macro signature requires every adopter to internalise:
 - `@DIEnvironmentBridge` and `@DIFeatureRoot` as separate macros even though
   both annotate the same root container property in practice.
 - `@GenerateMock` as an experimental peer macro whose output shape is not
-  SemVer-frozen until 5.0.
+  SemVer-frozen until it independently passes the GA criteria.
 
 The 4.2 release ships the wiring-simplification work from RFC 0002 and the
 escape-hatch reporting that landed during the 4.1.x hardening pass; the
@@ -64,12 +73,12 @@ macro-count itself.
   and freezes `@SubContainer`'s wiring contract. With wiring stable, the
   next minor cycle can absorb a different shape change without compounding
   user migrations.
-- SwiftSyntax 602+ (the version pinned in `Package.swift`) exposes enough
-  property-type and attribute-argument syntax to drive a heuristic
-  `concrete:` inference without a full type-checker.
-- `@GenerateMock`'s GA target is 5.0, which is the same release window as
-  this surface simplification. Bundling the two reduces the number of major
-  bumps consumers absorb.
+- At proposal time, SwiftSyntax 602+ exposed enough property-type and
+  attribute-argument syntax to explore heuristic `concrete:` inference
+  without a full type-checker. The current package uses a newer SwiftSyntax
+  line and the accepted 5.0 design does not depend on factory-return inference.
+- `@GenerateMock` promotion is now independent of the 5.0 train and occurs
+  only after its published GA criteria pass.
 
 ### Non-goals
 
@@ -161,7 +170,7 @@ existential property type — a rare case — opt in with the new
 | Property type is concrete `P`, factory returns `any P` | Diagnostic `provide.concrete-inference-conflict` (the cast is silent today, which has caused production confusion). |
 | Property type spelled with module qualifier (`Foo.APIClient`) | Inference compares trimmed canonical text; module-qualified spellings match unqualified factory returns within the same module. |
 
-### Migration runway (4.x)
+### Historical migration runway (not shipped)
 
 - **4.3.0** (target): introduce inference behind `@DIContainer(inferConcrete: true)`
   opt-in. Existing `concrete: true` sites continue to compile unchanged. New
@@ -330,9 +339,9 @@ or is the surface-count concern overstated for the SwiftUI bridge case?
 The decision should be driven by adopter feedback collected during the
 4.2.x cycle.
 
-## Migration & deprecation runway
+## Historical migration & deprecation runway
 
-### 4.x window (4.3 / 4.4)
+### Proposed 4.x window (not shipped)
 
 - 4.3.0: `inferConcrete: true` opt-in on `@DIContainer`. Macro consolidation
   candidates remain in prototype branches; no public surface change.
@@ -343,7 +352,7 @@ The decision should be driven by adopter feedback collected during the
   reviewed against measurable adopter signal. Each candidate either
   promotes to a Draft RFC of its own or is rejected with a written reason.
 
-### 5.0.0
+### Originally proposed 5.0.0 shape (superseded)
 
 - `concrete:` parameter removed.
 - `@Provide(.shared, .concrete)` token form added for residual opt-in.
@@ -377,13 +386,14 @@ The decision should be driven by adopter feedback collected during the
 
 ## Implementation status
 
-Not started. This RFC is the planning document; implementation work begins
-after it moves from `Draft` to `Accepted`.
+Not started. The `concrete:` implementation plan was superseded by RFC 0005,
+candidate 2 shipped in 4.3.0 as `@SubContainer(featureRoot:)` and
+`featureRoots:`, and the other consolidation candidates remain unaccepted.
 
 ## Related work
 
-- [RFC 0001](0001-macro-mock-generation.md) — `@GenerateMock` GA in 5.0
-  shares the breaking-change train this RFC targets.
+- [RFC 0001](0001-macro-mock-generation.md) — `@GenerateMock` remains
+  experimental until its independent GA criteria pass.
 - [RFC 0002](0002-subcontainer-wiring-simplification.md) — `@SubContainer`
   wiring stabilised in 4.2.0; this RFC continues the simplification arc.
 - [RFC 0003](0003-scoped-task-local-overrides.md) — scoped task-local

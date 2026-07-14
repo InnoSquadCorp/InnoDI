@@ -94,30 +94,54 @@ multi-target SwiftPM integrations:
   guide adds internal v1–v3 adopter sequencing, and DocC includes
   anti-pattern guidance plus an interactive getting-started tutorial.
 
-## Post-4.2.0 Priorities
+## Shipped in 4.3.0
 
-### Top of backlog: API surface simplification
+InnoDI 4.3.0 integrated SwiftUI feature-root helper generation into
+`@SubContainer`:
 
-InnoDI's largest remaining onboarding obstacle is API surface complexity —
-the `@Provide(... concrete: true)` flag and the macro-count itself.
-[RFC 0004](docs/rfcs/0004-api-surface-simplification.md) plans the
-breaking-change track that lands in **5.0**:
+- `featureRoot:` covers the common single-root form.
+- `featureRoots:` covers default and aliased root helpers.
+- `InnoDISwiftUI` no longer depends directly on `InnoDIMacros`.
+- `@DIFeatureRoot` remains available only as a deprecated compatibility path.
 
-1. **`concrete:` parameter removal.** Macro infers concrete vs. existential
-   storage from property type and factory return type when both agree.
-   Residual opt-in moves from `concrete: true` (boolean) to a
-   `@Provide(.shared, .concrete)` token form.
-2. **Macro consolidation candidates.** Each evaluated independently during
-   the 4.3 prototyping cycle: fold `@DIComponent` into
-   `@DIContainer(mountable:)`, fold `@DIFeatureRoot` into
-   `@SubContainer(rootViews:)`, make `@DIHierarchyRoot` activation
-   implicit, and consider replacing `@DIEnvironmentBridge` with a static
-   protocol conformance.
+The concrete-inference and macro-consolidation runway previously planned for
+4.3 did not ship.
 
-The 4.x deprecation runway lands in 4.3 (opt-in inference) and 4.4
-(deprecation warning + `Tools/codemod-drop-concrete-flag.swift`); 5.0
-removes `concrete:` outright. See the RFC for failure modes, migration
-plan, and open questions.
+## 5.0 Contract-Hardening Train
+
+[RFC 0005](docs/rfcs/0005-5.0-contract-hardening.md) defines the accepted
+breaking train. The release priority is public-contract trust, in this order:
+
+1. External SwiftPM compiler fixtures for public pass/fail behavior.
+2. `@DIComponent`, MainActor, scope, effect, type, access-control, and empty
+   container correctness.
+3. Complete construction-edge collection and fail-closed conditional DI.
+4. Target/module-scoped plugin analysis with crash-free resolution.
+5. Module-qualified graph identity, JSON schema v2, and explicit CLI scope.
+6. Public-command, platform, performance, branch, and pre-tag release gates.
+7. Migration tooling and the accepted 5.0 surface removals.
+
+`main` is the 5.0 development line, while 4.3.0 remains the stable installation
+version until the release-candidate matrix passes and the 5.0.0 tag is created.
+Each implementation step lands as an independently green commit.
+
+### Feature freeze during hardening
+
+The following proposals do not block 5.0 and will not be added merely because
+the release is a major version:
+
+- `@DIComponent` / `@DIContainer` macro consolidation;
+- implicit `@DIHierarchyRoot` activation;
+- `@DIEnvironmentBridge` removal;
+- `@GenerateMock` GA promotion before its existing criteria pass;
+- scoped TaskLocal overrides;
+- prebuilt validator publication;
+- a full provider/member graph;
+- an unproven SwiftSyntax constraint relaxation.
+
+RFC 0004 remains as design history for the broader API-simplification work.
+RFC 0005 supersedes its `concrete:` inference/token implementation and defers
+the remaining macro-consolidation candidates to a future major release.
 
 ### Review-Driven Improvement Backlog
 
@@ -218,9 +242,9 @@ ordered by user-facing trust risk first.
    - Evaluate whether `Lazy<T>` needs a lighter-weight surface such as a property-wrapper form, and whether the three built-in scopes need finer-grained lifetime variants for server-side or multi-window workloads.
 3. CLI and validation polish
    - Add stronger `--help` coverage, more usage tests, and sharper diagnostics around graph collection, fix-its, and release artifacts.
-   - Promote the prebuilt validation-tools package from scaffold to published
-     companion release after the first tagged artifact is produced and measured
-     against the source plugin in a synthetic consumer.
+   - Keep the prebuilt validation-tools package as an unpublished scaffold.
+     Reconsider it only after source-build cost is measured and a companion
+     release can prove source/prebuilt parity in synthetic consumers.
 4. Toolchain compatibility hardening
    - Keep SwiftSyntax, DocC, and build-plugin behavior stable across new Swift
      and Xcode toolchains without weakening the documented validation contract.
@@ -251,7 +275,7 @@ true before the next minor release can promote them.
 
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
-| `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | 5.0 | All five criteria below must hold simultaneously. |
+| `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros

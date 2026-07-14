@@ -2,7 +2,13 @@
 
 This document is the single release source of truth for InnoDI.
 
-Current stable public release target: `4.3.0`
+Latest stable public release: `4.3.0`
+
+Current development train: `5.0.0` (unreleased)
+
+`main` accumulates the 5.0 contract-hardening work as independently green
+commits. Keep README installation snippets on 4.3.0 until the complete 5.0
+release-candidate gate passes and an immutable 5.0.0 tag is created.
 
 ## Release Checklist
 
@@ -115,15 +121,22 @@ standalone release assets.
 
 ### Highlights
 
-_No changes have landed on `main` since 4.3.0._
+- Accepted [RFC 0005](docs/rfcs/0005-5.0-contract-hardening.md), making
+  public-contract correctness and external consumer compilation the 5.0
+  release blockers.
+- Declared `main` as the 5.0 development line while keeping 4.3.0 as the
+  latest stable installation version.
 
 ### Breaking or Behavior Changes
 
-_None._
+- No runtime or macro behavior changes in the planning commit.
+- 5.0 release notes will keep contract-restoring behavior corrections separate
+  from intentional breaking API changes.
 
 ### Upgrade Actions
 
-_None._
+- No consumer action is required until a behavior-changing 5.0 commit lands.
+- Do not update package requirements to 5.0 before the release tag exists.
 
 ## 4.3.0
 
