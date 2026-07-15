@@ -94,6 +94,32 @@ struct ExternalConsumerContractTests {
         }
     }
 
+    @Test("The 5.0 signature rejects the removed concrete argument")
+    func staleConcreteArgumentFailsCompilation() throws {
+        let fixture = try externalConsumerFixture(
+            named: "stale-concrete-argument",
+            expectation: .signature
+        )
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+
+        let result = try runStrictConcurrencyBuild(packageURL: materializedURL)
+        let output = result.stdout + "\n" + result.stderr
+
+        if result.timedOut || result.exitCode == 0 {
+            Issue.record("Stale concrete argument did not fail as expected:\n\(output)")
+        }
+        #expect(!result.timedOut, "Stale concrete argument fixture timed out")
+        #expect(result.exitCode != 0, "The removed concrete argument must not compile")
+
+        let normalization = normalizeCompilerSourceErrors(in: output)
+        #expect(
+            normalization.messages.contains { $0.contains("concrete") },
+            "A compiler diagnostic must identify the removed concrete argument:\n\(output)"
+        )
+        assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+    }
+
     @Test("Structured plugin diagnostics preserve raw multiplicity")
     func compilerDiagnosticNormalizationPreservesStructuredPluginMultiplicity() {
         let output = """
@@ -165,6 +191,7 @@ struct ExternalConsumerContractTests {
 private enum ExternalConsumerExpectation: String {
     case pass
     case fail
+    case signature
 }
 
 private struct ExternalConsumerFixture {

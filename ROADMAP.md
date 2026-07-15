@@ -145,8 +145,10 @@ the release is a major version:
 - an unproven SwiftSyntax constraint relaxation.
 
 RFC 0004 remains as design history for the broader API-simplification work.
-RFC 0005 supersedes its `concrete:` inference/token implementation and defers
-the remaining macro-consolidation candidates to a future major release.
+RFC 0005 supersedes its `concrete:` inference/token implementation: 5.0 removes
+the public argument and uses the declared property type as the storage-shape
+contract. The remaining macro-consolidation candidates are deferred to a future
+major release.
 
 ### Review-Driven Improvement Backlog
 
@@ -154,18 +156,21 @@ The following backlog comes from the May 2026 whole-repository review and is
 ordered by user-facing trust risk first.
 
 1. Example and snippet compile fidelity
-   - Status: partially addressed.
+   - Status: addressed for current canonical snippets; continue expanding
+     machine-verified coverage.
    - Problem: the dependency-graph sample under `Examples/SampleApp` was useful
-     for CLI parsing, but it was not a standalone SwiftPM example and several
-     concrete `@Provide(.shared, ...)` snippets omitted `concrete: true`.
+     for CLI parsing, but it was not a standalone SwiftPM example. The sample
+     and several snippets also carried the pre-5.0 `concrete:` argument and
+     needed migration to the declared-type storage contract.
    - Completed work:
      - `Examples/SampleApp` is now a runnable SwiftPM executable package.
-     - The sample now uses explicit `concrete: true` where it demonstrates
-       concrete storage.
+     - The sample no longer uses `concrete:`. Concrete nominal property types
+       demonstrate concrete storage, while `any Protocol` demonstrates
+       existential storage.
      - The sample now demonstrates `@SubContainer(scope:with:)` for parent-owned
        child wiring instead of constructing the child as an ordinary dependency.
-     - README and public doc-comment snippets now keep the concrete-storage
-       examples aligned with the validation contract.
+     - README and public doc-comment snippets now keep declared storage shapes
+       aligned with the 5.0 validation and public-signature contract.
    - Completion criteria:
      - Add a CI/doc gate that compiles every fenced Swift example that is meant
        to be runnable.
@@ -196,8 +201,8 @@ ordered by user-facing trust risk first.
    - Status: addressed for marked snippets; continue expanding coverage.
    - Problem: repository docs are comprehensive, but Markdown snippets are not
      all machine-verified. The risk is documentation drifting from macro
-     diagnostics, especially around concrete storage, sub-container wiring, and
-     deferred wrappers.
+     diagnostics, especially around declared storage shape, sub-container
+     wiring, and deferred wrappers.
    - Completed work:
      - Added `Tools/check-docs-code-blocks.sh`.
      - Wired the script into PR and release gates.

@@ -408,15 +408,6 @@ struct DIContainerParser {
                 requiringCanonicalProvidePath: true
             )
             var memberHadErrors = false
-            if parseResult.concreteParseState.isInvalid {
-                context.diagnose(
-                    Diagnostic(
-                        node: extractArgumentExpression(label: "concrete", from: attribute).map(Syntax.init) ?? Syntax(attribute),
-                        message: SimpleDiagnostic.provideBoolLiteralRequired(label: "concrete")
-                    )
-                )
-                memberHadErrors = true
-            }
             if parseResult.escapingParseState.isInvalid {
                 context.diagnose(
                     Diagnostic(
@@ -472,8 +463,6 @@ struct DIContainerParser {
                     asyncFactoryIsThrowing: parseResult.asyncFactoryIsThrowing,
                     typeExpr: parseResult.typeExpr,
                     initializer: initializerExpr,
-                    concreteOptIn: parseResult.concrete,
-                    concreteParseState: parseResult.concreteParseState,
                     escapingInput: parseResult.escaping,
                     escapingParseState: parseResult.escapingParseState,
                     withDependencies: parseResult.dependencies,

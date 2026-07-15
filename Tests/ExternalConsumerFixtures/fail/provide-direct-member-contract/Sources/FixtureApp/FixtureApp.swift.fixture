@@ -45,17 +45,17 @@ struct PlainDependencies {
     @Provide(.input)
     var input: String
 
-    @Provide(.shared, factory: Service(), concrete: true)
+    @Provide(.shared, factory: Service())
     var service: Service
 
-    @Provide(.transient, factory: Request(), concrete: true)
+    @Provide(.transient, factory: Request())
     var request: Request
 }
 
 @DIContainer
 struct OuterContainer {
     struct NestedDependencies {
-        @Provide(.shared, factory: Service(), concrete: true)
+        @Provide(.shared, factory: Service())
         var nestedService: Service
     }
 }
@@ -67,18 +67,18 @@ struct StaticDependencyContainer {
 
     @Provide(.transient, factory: { (staticInput: String) in
         staticInput
-    }, concrete: true)
+    })
     var staticEcho: String
 }
 
 @DIContainer
 struct ForgedAccessor {
     @InnoDI._InnoDIProvideAccessor(recovery: true)
-    @Provide(.transient, factory: 42, concrete: true)
+    @Provide(.transient, factory: 42)
     var value: Int
 
     @InnoDI._InnoDIProvideAccessor(recovery: false)
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var sharedValue: Int
 
     @InnoDI._InnoDIProvideAccessor(recovery: manualRecovery)
@@ -91,10 +91,10 @@ struct InvalidStorageContainer {
     @Provide(.input)
     let immutable: Int
 
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var computed: Int { 42 }
 
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     lazy var lazyValue: Int = 42
 
     @Provide(.input)
@@ -103,7 +103,7 @@ struct InvalidStorageContainer {
     @Provide(.input)
     unowned var unownedValue: ReferenceService
 
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var observed: Int = 0 {
         didSet {}
     }
@@ -112,24 +112,24 @@ struct InvalidStorageContainer {
     private(set) var restrictedValue: Int
 
     @Box
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var wrappedValue: Int = 0
 
     @BoxActor
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var actorNamedWrapperValue: Int = 0
 
     @MainActor
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var shadowedMainActorValue: Int = 0
 
     #if os(macOS)
     @Box
     #endif
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var conditionalWrapperValue: Int = 0
 
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
     var inferredValue = 42
 
 }
@@ -137,7 +137,7 @@ struct InvalidStorageContainer {
 @DIContainer
 struct ConditionalProviderContainer {
     #if os(macOS)
-    @Provide(.shared, factory: Service(), concrete: true)
+    @Provide(.shared, factory: Service())
     var service: Service
     #endif
 }
@@ -151,7 +151,6 @@ struct InvalidConstructionContainer {
         .shared,
         Service.self,
         factory: Service(),
-        concrete: true
     )
     var conflictingSource: Service
 
@@ -159,7 +158,6 @@ struct InvalidConstructionContainer {
         .shared,
         with: [\Self.config],
         factory: Service(),
-        concrete: true
     )
     var invalidWithSource: Service
 }
@@ -173,7 +171,6 @@ struct InvalidProvidePathContainer {
         .shared,
         Service.self,
         with: [\OtherRoot.config],
-        concrete: true
     )
     var foreignRootSource: Service
 
@@ -184,7 +181,6 @@ struct InvalidProvidePathContainer {
         .shared,
         ConfigService.self,
         with: [\Self.holder.config],
-        concrete: true
     )
     var nestedPathSource: ConfigService
 }
@@ -197,8 +193,8 @@ struct OpaqueProviderContainer {
 
 @DIContainer
 struct DuplicateProviderContainer {
-    @Provide(.shared, factory: 42, concrete: true)
-    @Provide(.shared, factory: 42, concrete: true)
+    @Provide(.shared, factory: 42)
+    @Provide(.shared, factory: 42)
     var value: Int = 0
 }
 
@@ -245,7 +241,7 @@ struct IUOProviderContainer {
 @DIContainer
 struct LocalDependencyContainer {
     func makeService() {
-        @Provide(.shared, factory: Service(), concrete: true)
+        @Provide(.shared, factory: Service())
         var localService: Service
         localService = Service()
         localService = Service()

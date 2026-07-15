@@ -37,7 +37,6 @@ diagnostic.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -96,7 +95,8 @@ Sibling DI edges use a closed, reviewable syntax:
   providers.
 - `asyncFactory` is supported for `.shared` and `.transient` and must be an
   `async` closure.
-- Concrete `.shared` and `.transient` storage requires `concrete: true`.
+- The declared property type determines storage shape: a concrete nominal type
+  uses concrete storage, while `any Protocol` uses existential storage.
 - Name resolution for factory parameters and `with:` dependencies is strict by
   member name.
 
@@ -119,6 +119,6 @@ targets constructed by `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:factory:asyncFactory:concrete:escaping:)``
+- ``Provide(_:_:with:factory:asyncFactory:escaping:)``
 - ``DIScope``
 - <doc:Validation>

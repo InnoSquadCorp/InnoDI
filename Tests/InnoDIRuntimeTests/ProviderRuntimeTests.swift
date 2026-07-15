@@ -37,12 +37,12 @@ struct ProviderContainer {
 
     @Provide(.transient, factory: { (config: Config) in
         Request(config: config)
-    }, concrete: true)
+    })
     var request: Request
 
     @Provide(.shared, factory: { (request: InnoDI.Provider<Request>) in
         RequestLogger(requests: request)
-    }, concrete: true)
+    })
     var logger: RequestLogger
 }
 
@@ -72,12 +72,12 @@ struct TransientProviderContainer {
 
     @Provide(.transient, factory: { (input: PayloadInput) in
         Payload(input: input)
-    }, concrete: true)
+    })
     var payload: Payload
 
     @Provide(.transient, factory: { (payload: InnoDI.Provider<Payload>) in
         PayloadProcessor(payloads: payload)
-    }, concrete: true)
+    })
     var processor: PayloadProcessor
 }
 

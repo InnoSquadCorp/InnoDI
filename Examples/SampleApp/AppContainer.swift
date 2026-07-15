@@ -57,12 +57,12 @@ struct FeatureContainer {
 
     @Provide(.shared, factory: { (apiClient: APIClient, cache: Cache) in
         AuthService(apiClient: apiClient, cache: cache)
-    }, concrete: true)
+    })
     var authService: AuthService
 
     @Provide(.shared, factory: { (database: Database, authService: AuthService) in
         UserRepository(database: database, authService: authService)
-    }, concrete: true)
+    })
     var userRepository: UserRepository
 }
 
@@ -71,24 +71,24 @@ struct AppContainer {
     @Provide(.input)
     var config: AppConfig
 
-    @Provide(.shared, factory: Logger(subsystem: "InnoDI.SampleApp"), concrete: true)
+    @Provide(.shared, factory: Logger(subsystem: "InnoDI.SampleApp"))
     var logger: Logger
 
-    @Provide(.shared, factory: Database(path: "app.db"), concrete: true)
+    @Provide(.shared, factory: Database(path: "app.db"))
     var database: Database
 
-    @Provide(.shared, factory: Cache(maxEntries: 500), concrete: true)
+    @Provide(.shared, factory: Cache(maxEntries: 500))
     var cache: Cache
 
-    @Provide(.shared, APIClient.self, with: [\Self.config, \Self.logger], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.config, \Self.logger])
     var apiClient: APIClient
 
-    @Provide(.shared, Analytics.self, with: [\Self.apiClient, \Self.logger], concrete: true)
+    @Provide(.shared, Analytics.self, with: [\Self.apiClient, \Self.logger])
     var analytics: Analytics
 
     @Provide(.shared, factory: { (config: AppConfig) in
         FeatureFlags(environment: config.environment)
-    }, concrete: true)
+    })
     var featureFlags: FeatureFlags
 
     @SubContainer(

@@ -46,7 +46,7 @@ rather than living outside it.
 @DIContainer
 struct AppContainer {
     @Provide(.input) var clock: any Clock
-    @Provide(.shared, factory: { (clock: any Clock) in Logger(clock: clock) }, concrete: true)
+    @Provide(.shared, factory: { (clock: any Clock) in Logger(clock: clock) })
     var logger: Logger
 }
 

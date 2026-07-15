@@ -17,7 +17,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -336,7 +336,6 @@ attributes. Помимо `@Provide`, не допускаются никакие 
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -370,7 +369,8 @@ attributes. Помимо `@Provide`, не допускаются никакие 
   Named container, module-qualified и typealias roots, а также nested
   components, optional chaining, subscripts и computed array elements
   отклоняются. Все указанные providers должны использовать синхронное construction.
-- Для concrete `.shared` и `.transient` storage требуется `concrete: true`.
+- Форма хранения определяется объявленным типом property: конкретный nominal
+  type использует concrete storage, а `any Protocol` — existential storage.
 - Разрешение имен для параметров factory и `with:` wiring строго выполняется
   по именам members.
 
@@ -445,14 +445,14 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

@@ -33,7 +33,7 @@ public struct FeatureContainer {
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
     @Provide(.transient, factory: { (config: FeatureConfig) in
         FeatureRequest(config: config)
-    }, concrete: true)
+    })
     public var request: FeatureRequest
 }
 
@@ -62,11 +62,11 @@ public struct MainActorFeatureContainer {
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
     @Provide(.transient, factory: { (config: FeatureConfig) in
         FeatureRequest(config: config)
-    }, concrete: true)
+    })
     public var request: FeatureRequest
-    @Provide(.shared, asyncFactory: { () async in AsyncFeatureService() }, concrete: true)
+    @Provide(.shared, asyncFactory: { () async in AsyncFeatureService() })
     public var asyncService: AsyncFeatureService
-    @Provide(.transient, asyncFactory: { () async in AsyncFeatureRequest() }, concrete: true)
+    @Provide(.transient, asyncFactory: { () async in AsyncFeatureRequest() })
     public var asyncRequest: AsyncFeatureRequest
 }
 

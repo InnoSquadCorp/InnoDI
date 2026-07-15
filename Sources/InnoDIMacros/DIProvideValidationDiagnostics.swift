@@ -383,37 +383,6 @@ internal func makeUnavailableDependencyDiagnostic(
     )
 }
 
-internal func makeConcreteOptInDiagnostic(member: ProvideMemberModel) -> Diagnostic {
-    let notes = [
-        Note(
-            node: Syntax(member.attribute),
-            message: SimpleNote(
-                "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named '\(SimpleFixIt.addConcreteTrueTitle)' to insert the argument.",
-                code: .provideConcreteOptInRequired,
-                suffix: "opt-in"
-            )
-        ),
-        Note(
-            node: Syntax(member.bindingSyntax),
-            message: SimpleNote(
-                "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
-                code: .provideConcreteOptInRequired,
-                suffix: "protocol-first"
-            )
-        )
-    ]
-
-    return Diagnostic(
-        node: Syntax(member.attribute),
-        message: SimpleDiagnostic.provideConcreteOptInRequired(
-            name: member.name,
-            typeDescription: member.type.trimmedDescription
-        ),
-        notes: notes,
-        fixIts: makeConcreteOptInFixIts(attribute: member.attribute)
-    )
-}
-
 private func matchingDependencyCandidates(for dependencyName: String, in knownNames: Set<String>) -> [String] {
     let normalizedMatches = knownNames
         .filter { normalizedDependencyLookupKey($0) == normalizedDependencyLookupKey(dependencyName) }
@@ -515,36 +484,6 @@ private func makeRenameTokenFixIts(
                     range: token.positionAfterSkippingLeadingTrivia..<token.endPositionBeforeTrailingTrivia,
                     with: replacement,
                     in: Syntax(token.root)
-                )
-            ]
-        )
-    ]
-}
-
-private func makeConcreteOptInFixIts(attribute: AttributeSyntax) -> [FixIt] {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-        return []
-    }
-
-    let replacement: String
-    if arguments.isEmpty {
-        replacement = "concrete: true"
-    } else if arguments.contains(where: { $0.label?.text == "concrete" }) {
-        return []
-    } else {
-        replacement = ", concrete: true"
-    }
-
-    let insertionPosition = arguments.endPositionBeforeTrailingTrivia
-
-    return [
-        FixIt(
-            message: SimpleFixIt(SimpleFixIt.addConcreteTrueTitle, code: .provideConcreteOptInRequired, suffix: "insert-concrete"),
-            changes: [
-                .replaceText(
-                    range: insertionPosition..<insertionPosition,
-                    with: replacement,
-                    in: Syntax(attribute.root)
                 )
             ]
         )

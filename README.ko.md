@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -342,7 +342,6 @@ misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -374,7 +373,8 @@ misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니
   module-qualified, typealias root는 물론 nested component, optional chaining,
   subscript, 계산된 배열 원소도 거부됩니다. 참조되는 provider는 모두 동기 생성
   방식이어야 합니다.
-- concrete `.shared` / `.transient` 저장은 `concrete: true`가 필요합니다.
+- 선언된 property type이 storage shape을 결정합니다. Concrete nominal type은
+  concrete storage를, `any Protocol`은 existential storage를 사용합니다.
 - factory 파라미터와 `with:` wiring의 이름 해석은 멤버 이름 기준으로 엄격하게 이뤄집니다.
 
 Sibling DI edge는 다음처럼 닫힌 문법에서만 만들어집니다.
@@ -462,14 +462,14 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

@@ -30,7 +30,7 @@ struct AppContainer {
     @Provide(.input)
     var config: AppConfig
 
-    @Provide(.shared, Greeter.self, with: [\Self.config], concrete: true)
+    @Provide(.shared, Greeter.self, with: [\Self.config])
     var greeter: Greeter
 }
 
@@ -40,9 +40,10 @@ print(container.greeter.hello())
 
 ## What changed
 
-* The second positional argument to `@Provide` is the concrete storage
-  type. The macro looks up `Greeter.init` and chooses the overload whose
-  parameter labels match the wired members.
+* The second positional argument to `@Provide` is the construction type. The
+  macro looks up `Greeter.init` and chooses the overload whose parameter labels
+  match the wired members. The declared property type remains the source of
+  truth for generated storage.
 * `with: [\Self.config]` lists the direct sibling member key paths the macro
   should pass into the initializer. Provider wiring accepts only canonical
   `\Self.member` entries (or `[]`), uses that direct member name (`config`) as
@@ -66,8 +67,9 @@ declared member names. Use the closure form whenever:
 * Drop the `with:` argument. The macro now uses *implicit* same-name
   wiring: it scans the container for a member named `config` whose type
   matches `Greeter.init`'s parameter. The resulting code is the same.
-* Drop `concrete: true` and read the diagnostic. The opt-in is independent
-  of which wiring form you chose.
+* Replace `\Self.config` with `\AppContainer.config` and observe the
+  `provide.invalid-with-dependencies` diagnostic. Provider wiring accepts only
+  the canonical direct-member root `\Self`.
 
 ## Next
 

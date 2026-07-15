@@ -33,7 +33,6 @@ Swift 자체의 structural diagnostic도 발생할 수 있습니다.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -72,7 +71,8 @@ nonfunction 또는 optional-function type 형태는 안정적인 InnoDI 진단�
 - `with:`는 `Type.self`와 동기 provider에서만 사용할 수 있습니다.
 - `asyncFactory`는 `.shared`와 `.transient`에서 지원되며 `async`
   클로저여야 합니다.
-- concrete `.shared` / `.transient` 저장은 `concrete: true`가 필요합니다.
+- 선언된 property type이 storage shape을 결정합니다. Concrete nominal type은
+  concrete storage를, `any Protocol`은 existential storage를 사용합니다.
 - factory 파라미터와 `with:` 의존성은 멤버 이름 기준으로 엄격하게 해석됩니다.
 
 ## Sibling edge 계약
@@ -108,6 +108,6 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 
 ## See Also
 
-- ``Provide(_:_:with:factory:asyncFactory:concrete:escaping:)``
+- ``Provide(_:_:with:factory:asyncFactory:escaping:)``
 - ``DIScope``
 - <doc:Validation>

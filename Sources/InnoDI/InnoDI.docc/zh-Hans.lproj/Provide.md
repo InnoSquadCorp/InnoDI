@@ -32,7 +32,6 @@ declaration 和 accessor 上生成的 isolation attribute 属于内部 compiler 
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -58,7 +57,8 @@ non-optional function type，Swift 可能追加自身的 diagnostic。
 - `.shared` 与 `.transient` 必须恰好声明一个 construction source
 - `with:` 只能与 `Type.self` 和同步 provider 一起使用
 - `asyncFactory` 支持 `.shared` 和 `.transient`，且必须是 `async` closure
-- concrete `.shared` / `.transient` 需要 `concrete: true`
+- 声明的 property type 决定存储形态：具体 nominal type 使用具体存储，
+  `any Protocol` 使用 existential 存储
 
 ## Sibling edge 契约
 

@@ -17,7 +17,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -350,7 +350,6 @@ ademas del diagnostico de uso indebido de InnoDI.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -385,7 +384,9 @@ Reglas adicionales:
   valido. Se rechazan roots de contenedor con nombre, de modulo o de typealias,
   ademas de componentes anidados, optional chaining, subscripts y elementos
   calculados. Todos los providers referenciados deben tener construccion sincrona.
-- El almacenamiento concrete `.shared` y `.transient` requiere `concrete: true`.
+- El tipo declarado de la property determina la forma de almacenamiento: un
+  tipo nominal concreto usa almacenamiento concreto y `any Protocol` usa
+  almacenamiento existencial.
 - La resolucion de nombres para parametros de factory y wiring con `with:` es estricta por nombre de miembro.
 
 Los edges DI entre miembros sibling usan una sintaxis cerrada:
@@ -466,14 +467,14 @@ Usa `Provider<T>` cuando una factory necesita reingresar a una dependencia
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

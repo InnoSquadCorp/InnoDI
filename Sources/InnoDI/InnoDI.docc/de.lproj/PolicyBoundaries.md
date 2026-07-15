@@ -61,3 +61,11 @@ InnoDI bleibt deterministisch, indem einige Grenzen explizit gesetzt werden.
 - Nicht-`Sendable` Abhängigkeiten sollten über explizite Containergrenzen
   weitergegeben und von der App-Schicht isoliert werden, statt sie hinter
   globalem Lookup zu verbergen.
+
+## Deklarierte Speicherform
+
+- Protocol-first Dependency Design wird bevorzugt.
+- Der deklarierte Property-Typ ist die maßgebliche Quelle: Ein konkreter
+  Nominaltyp verwendet konkreten Speicher, `any Protocol` existenziellen Speicher.
+- Die Speicherform wird weder durch ein Attribut-Flag noch durch eine
+  Macro-Heuristik ausgewählt.

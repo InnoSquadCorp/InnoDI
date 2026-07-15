@@ -342,7 +342,7 @@ static var service: Service {
 }
 
 // After
-@Provide(.shared, factory: Service(), concrete: true)
+@Provide(.shared, factory: Service())
 var service: Service
 ```
 
@@ -424,7 +424,7 @@ struct FeatureContainer {
     // After: the root closure's named parameter declares the sibling edge.
     @Provide(.shared, factory: { (apiClient: APIClient) in
         Repository(client: apiClient)
-    }, concrete: true)
+    })
     var migratedRepository: Repository
 }
 ```

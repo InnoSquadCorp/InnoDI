@@ -40,12 +40,12 @@ struct LazyCycleContainer {
     // call time, by which point init has fully populated `_innoDILazyCell_b`.
     @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in
         CoordinatorA(b: b)
-    }, concrete: true)
+    })
     var a: CoordinatorA
 
     @Provide(.shared, factory: { (a: CoordinatorA) in
         CoordinatorB(a: a)
-    }, concrete: true)
+    })
     var b: CoordinatorB
 }
 
@@ -67,10 +67,10 @@ final class TransientHolder {
 struct LazyTransientContainer {
     @Provide(.shared, factory: { (service: InnoDI.Lazy<TransientService>) in
         TransientHolder(service: service)
-    }, concrete: true)
+    })
     var holder: TransientHolder
 
-    @Provide(.transient, factory: { TransientService() }, concrete: true)
+    @Provide(.transient, factory: { TransientService() })
     var service: TransientService
 }
 

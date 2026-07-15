@@ -2,39 +2,20 @@
 //  DIContainerValidatorTypeChecks.swift
 //  InnoDIMacros
 //
-//  Type-level helpers the validator leans on when deciding whether a
-//  `@Provide`d member needs `concrete: true`, when normalizing optional /
-//  tuple / attributed wrappers, and when detecting async closures. Pulling
+//  Type-level helpers the validator leans on when normalizing optional /
+//  tuple / attributed wrappers and when detecting async closures. Pulling
 //  these out keeps `DIContainerValidator.swift` focused on the per-member
 //  validation loop itself.
 //
 
 import SwiftSyntax
 
-internal func requiresConcreteOptIn(type: TypeSyntax) -> Bool {
-    let normalized = normalizedConcreteCheckType(type)
-
-    if normalized.is(SomeOrAnyTypeSyntax.self) || normalized.is(CompositionTypeSyntax.self) {
-        return false
-    }
-
-    if let identifier = normalized.as(IdentifierTypeSyntax.self) {
-        return !isExistentialIdentifier(identifier.name.text)
-    }
-
-    if let member = normalized.as(MemberTypeSyntax.self) {
-        return !isExistentialIdentifier(member.name.text)
-    }
-
-    return true
-}
-
 /// Opaque property types cannot be reproduced in InnoDI's optional backing
 /// slot or `Overrides` surface because `nil` provides no concrete underlying
 /// type for `some P`. InnoDI 5.0 rejects them and asks callers to expose an
 /// existential (`any P`) instead.
 internal func isOpaqueSomeType(_ type: TypeSyntax) -> Bool {
-    guard let someOrAny = normalizedConcreteCheckType(type).as(SomeOrAnyTypeSyntax.self) else {
+    guard let someOrAny = normalizedProviderType(type).as(SomeOrAnyTypeSyntax.self) else {
         return false
     }
     return someOrAny.someOrAnySpecifier.tokenKind == .keyword(.some)
@@ -135,17 +116,17 @@ internal func supportsExplicitEscapingInput(_ type: TypeSyntax) -> Bool {
     return false
 }
 
-private func normalizedConcreteCheckType(_ type: TypeSyntax) -> TypeSyntax {
+private func normalizedProviderType(_ type: TypeSyntax) -> TypeSyntax {
     if let optional = type.as(OptionalTypeSyntax.self) {
-        return normalizedConcreteCheckType(optional.wrappedType)
+        return normalizedProviderType(optional.wrappedType)
     }
 
     if let implicitlyUnwrapped = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
-        return normalizedConcreteCheckType(implicitlyUnwrapped.wrappedType)
+        return normalizedProviderType(implicitlyUnwrapped.wrappedType)
     }
 
     if let attributed = type.as(AttributedTypeSyntax.self) {
-        return normalizedConcreteCheckType(attributed.baseType)
+        return normalizedProviderType(attributed.baseType)
     }
 
     if let tuple = type.as(TupleTypeSyntax.self),
@@ -153,21 +134,17 @@ private func normalizedConcreteCheckType(_ type: TypeSyntax) -> TypeSyntax {
        let first = tuple.elements.first,
        first.firstName == nil,
        first.secondName == nil {
-        return normalizedConcreteCheckType(first.type)
+        return normalizedProviderType(first.type)
     }
 
     if let identifier = type.as(IdentifierTypeSyntax.self),
        identifier.name.text == "Optional",
        let wrapped = identifier.genericArgumentClause?.arguments.first?.argument,
        let wrappedType = wrapped.as(TypeSyntax.self) {
-        return normalizedConcreteCheckType(wrappedType)
+        return normalizedProviderType(wrappedType)
     }
 
     return type
-}
-
-private func isExistentialIdentifier(_ name: String) -> Bool {
-    name == "Any" || name == "AnyObject"
 }
 
 internal func isAsyncClosureExpression(_ expr: ExprSyntax) -> Bool {

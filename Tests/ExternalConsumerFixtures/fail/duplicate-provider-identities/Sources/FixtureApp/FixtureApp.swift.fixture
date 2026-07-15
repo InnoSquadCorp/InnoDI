@@ -47,7 +47,6 @@ struct DuplicateFactoryParameterContainer {
             ordinaryDuplicateValue: Int,
             ordinaryDuplicateValue: Int
         ) in 0 },
-        concrete: true
     )
     var ordinaryConsumer: Int
 
@@ -57,7 +56,6 @@ struct DuplicateFactoryParameterContainer {
             lazyDuplicateValue: Lazy<Int>,
             lazyDuplicateValue: Lazy<Int>
         ) in 0 },
-        concrete: true
     )
     var lazyConsumer: Int
 
@@ -67,7 +65,6 @@ struct DuplicateFactoryParameterContainer {
             providerDuplicateValue: Provider<Int>,
             providerDuplicateValue: Provider<Int>
         ) in 0 },
-        concrete: true
     )
     var providerConsumer: Int
 
@@ -77,7 +74,6 @@ struct DuplicateFactoryParameterContainer {
             crossKindDuplicateValue: Int,
             crossKindDuplicateValue: Lazy<Int>
         ) in 0 },
-        concrete: true
     )
     var crossKindConsumer: Int
 }
@@ -93,7 +89,6 @@ struct EscapedFactoryParameterContainer {
     @Provide(
         .shared,
         factory: { (`default`: Int) in 0 },
-        concrete: true
     )
     var escapedParameterConsumer: Int
 }

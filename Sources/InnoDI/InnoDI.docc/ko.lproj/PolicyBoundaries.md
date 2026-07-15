@@ -62,7 +62,9 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 - non-`Sendable` 의존성은 global lookup 뒤에 숨기지 말고 명시적인 컨테이너
   경계를 통해 전달하고 앱 레이어에서 격리하세요.
 
-## Concrete Opt-In
+## 선언 타입이 결정하는 Storage Shape
 
 - protocol-first dependency 설계를 권장합니다.
-- concrete `.shared` / `.transient` 저장은 `concrete: true`가 필요합니다.
+- 선언된 property type이 source of truth입니다. Concrete nominal type은
+  concrete storage를, `any Protocol`은 existential storage를 사용합니다.
+- Storage shape은 attribute flag나 macro heuristic으로 선택하지 않습니다.

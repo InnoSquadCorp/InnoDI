@@ -1232,7 +1232,7 @@ private func makeDeferredEdgeFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.transient, factory: buildFeatureContainer(), concrete: true)
+        @Provide(.transient, factory: buildFeatureContainer())
         var feature: FeatureContainer
 
         @Provide(.input)
@@ -1240,12 +1240,12 @@ private func makeDeferredEdgeFixtureProject() throws -> URL {
 
         @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
             ProviderConsumer(feature: feature)
-        }, concrete: true)
+        })
         var providerConsumer: ProviderConsumer
 
         @Provide(.shared, factory: { (admin: Lazy<AdminContainer>) in
             LazyConsumer(admin: admin)
-        }, concrete: true)
+        })
         var lazyConsumer: LazyConsumer
     }
 
@@ -1294,7 +1294,7 @@ private func makeQualifiedDeferredEdgeFixtureProject() throws -> URL {
 
     @InnoDI.DIContainer(root: true)
     struct AppContainer {
-        @InnoDI.Provide(.transient, factory: buildFeatureContainer(), concrete: true)
+        @InnoDI.Provide(.transient, factory: buildFeatureContainer())
         var feature: FeatureContainer
 
         @InnoDI.Provide(.input)
@@ -1302,12 +1302,12 @@ private func makeQualifiedDeferredEdgeFixtureProject() throws -> URL {
 
         @InnoDI.Provide(.shared, factory: { (feature: InnoDI.Provider<FeatureContainer>) in
             ProviderConsumer(feature: feature)
-        }, concrete: true)
+        })
         var providerConsumer: ProviderConsumer
 
         @InnoDI.Provide(.shared, factory: { (admin: InnoDI.Lazy<AdminContainer>) in
             LazyConsumer(admin: admin)
-        }, concrete: true)
+        })
         var lazyConsumer: LazyConsumer
     }
 
@@ -1348,7 +1348,7 @@ private func makeProvideConstructionFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: APIClient(), concrete: true)
+        @Provide(.shared, factory: APIClient())
         var apiClient: APIClient
 
         @Provide(.shared, factory: LiveGreetingService())
@@ -1590,7 +1590,7 @@ private func makeSubContainerTypeAliasCycleFixtureProject() throws -> URL {
 
     @DIContainer
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """.write(
@@ -1618,7 +1618,7 @@ private func makeUnresolvedReferenceFixtureProject() throws -> URL {
         
         @Provide(.shared, factory: { (config: String) in
             MissingFeatureContainer(config: config)
-        }, concrete: true)
+        })
         var feature: MissingFeatureContainer
     }
     """.write(
@@ -1648,18 +1648,18 @@ private func makeProviderDeferredCycleFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.transient, factory: buildFeatureContainer(), concrete: true)
+        @Provide(.transient, factory: buildFeatureContainer())
         var feature: FeatureContainer
 
         @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
             ProviderConsumer(feature: feature)
-        }, concrete: true)
+        })
         var providerConsumer: ProviderConsumer
     }
 
     @DIContainer
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """
@@ -1694,13 +1694,13 @@ private func makeLazyDeferredCycleFixtureProject() throws -> URL {
 
         @Provide(.shared, factory: { (feature: Lazy<FeatureContainer>) in
             LazyConsumer(feature: feature)
-        }, concrete: true)
+        })
         var lazyConsumer: LazyConsumer
     }
 
     @DIContainer
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """
@@ -1737,20 +1737,20 @@ private func makeDeferredServiceWrapperFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.transient, factory: { Request() }, concrete: true)
+        @Provide(.transient, factory: { Request() })
         var request: Request
 
         @Provide(.shared, factory: { (request: Provider<Request>) in
             RequestLogger(requests: request)
-        }, concrete: true)
+        })
         var logger: RequestLogger
 
-        @Provide(.transient, factory: { TransientService() }, concrete: true)
+        @Provide(.transient, factory: { TransientService() })
         var service: TransientService
 
         @Provide(.shared, factory: { (service: Lazy<TransientService>) in
             ServiceHolder(service: service)
-        }, concrete: true)
+        })
         var holder: ServiceHolder
     }
     """
@@ -1786,7 +1786,7 @@ private func makeAmbiguousDeferredReferenceFixtureProject() throws -> URL {
     struct AppContainer {
         @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
             ProviderConsumer(feature: feature)
-        }, concrete: true)
+        })
         var providerConsumer: ProviderConsumer
     }
     """
@@ -1852,7 +1852,7 @@ private func makeExcludedDeferredReferenceFixtureProject() throws -> URL {
     struct AppContainer {
         @Provide(.shared, factory: { (feature: Lazy<FeatureContainer>) in
             LazyConsumer(feature: feature)
-        }, concrete: true)
+        })
         var consumer: LazyConsumer
     }
 
@@ -1890,7 +1890,7 @@ private func makeDeferredUnresolvedReferenceFixtureProject() throws -> URL {
     struct AppContainer {
         @Provide(.shared, factory: { (feature: Lazy<MissingFeatureContainer>) in
             LazyConsumer(feature: feature)
-        }, concrete: true)
+        })
         var consumer: LazyConsumer
     }
     """
@@ -1941,18 +1941,18 @@ private func makeMixedHardAndProviderCycleFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.transient, factory: FeatureContainer(), concrete: true)
+        @Provide(.transient, factory: FeatureContainer())
         var feature: FeatureContainer
 
         @Provide(.shared, factory: { (feature: Provider<FeatureContainer>) in
             ProviderConsumer(feature: feature)
-        }, concrete: true)
+        })
         var providerConsumer: ProviderConsumer
     }
 
     @DIContainer
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """
@@ -1977,13 +1977,13 @@ private func makeCycleFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        @Provide(.shared, factory: FeatureContainer())
         var feature: FeatureContainer
     }
 
     @DIContainer
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """
@@ -2018,13 +2018,13 @@ private func makeRootSkippedDirectoryFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct SkippedA {
-        @Provide(.shared, factory: SkippedB(), concrete: true)
+        @Provide(.shared, factory: SkippedB())
         var b: SkippedB
     }
 
     @DIContainer
     struct SkippedB {
-        @Provide(.shared, factory: SkippedA(), concrete: true)
+        @Provide(.shared, factory: SkippedA())
         var a: SkippedA
     }
     """
@@ -2059,13 +2059,13 @@ private func makeValidateDAGOptOutFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        @Provide(.shared, factory: FeatureContainer())
         var feature: FeatureContainer
     }
 
     @DIContainer(validateDAG: false)
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """
@@ -2094,7 +2094,7 @@ private func makeAmbiguousReferenceFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        @Provide(.shared, factory: FeatureContainer())
         var feature: FeatureContainer
     }
     """
@@ -2214,7 +2214,7 @@ private func makeAmbiguousOptedOutReferenceFixtureProject() throws -> URL {
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        @Provide(.shared, factory: FeatureContainer())
         var feature: FeatureContainer
     }
     """
@@ -2277,7 +2277,7 @@ private func makeMixedEligibilityDuplicateNameCycleFixtureProject() throws -> UR
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: FeatureContainer(), concrete: true)
+        @Provide(.shared, factory: FeatureContainer())
         var feature: FeatureContainer
     }
     """
@@ -2287,7 +2287,7 @@ private func makeMixedEligibilityDuplicateNameCycleFixtureProject() throws -> UR
 
     @DIContainer
     struct FeatureContainer {
-        @Provide(.shared, factory: AppContainer(), concrete: true)
+        @Provide(.shared, factory: AppContainer())
         var app: AppContainer
     }
     """

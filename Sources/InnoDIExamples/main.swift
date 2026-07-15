@@ -17,10 +17,10 @@ struct AppContainer {
     @Provide(.input)
     var config: Config
 
-    @Provide(.shared, factory: { (config: Config) in APIClient(baseURL: config.baseURL) }, concrete: true)
+    @Provide(.shared, factory: { (config: Config) in APIClient(baseURL: config.baseURL) })
     var apiClient: APIClient
 
-    @Provide(.shared, factory: { (apiClient: APIClient) in UserService(client: apiClient) }, concrete: true)
+    @Provide(.shared, factory: { (apiClient: APIClient) in UserService(client: apiClient) })
     var userService: UserService
 }
 

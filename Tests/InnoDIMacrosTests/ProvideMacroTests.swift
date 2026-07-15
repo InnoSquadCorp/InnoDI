@@ -80,25 +80,6 @@ struct ProvideMacroTests {
         #expect(args.dependencies == ["config", "logger"])
     }
 
-    @Test("Provide parser preserves invalid concrete: Bool")
-    func parseProvideWithNonLiteralConcretePreservesInvalidState() throws {
-        let source = """
-        @Provide(.shared, factory: SomeType(), concrete: shouldUseConcrete)
-        var foo: SomeType
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attr = varDecl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse @Provide")
-            return
-        }
-
-        let args = parseProvideArguments(attr)
-        #expect(args.concrete == false)
-        #expect(args.concreteParseState == .invalid)
-    }
-
     @Test("Provide parser preserves escaping input opt-in and invalid literals")
     func parseProvideEscapingState() throws {
         let source = """
@@ -308,7 +289,7 @@ struct ProvideMacroTests {
         assertMacroExpansionSnapshot(
             """
             struct PlainContainer {
-                @Provide(ScopeChooser.shared, factory: Service(), concrete: true)
+                @Provide(ScopeChooser.shared, factory: Service())
                 var service: Service
             }
             """,
@@ -334,7 +315,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var apiClient: APIClient
 
-                @Provide(.transient, factory: { (apiClient: APIClient) in ViewModel(apiClient: apiClient) }, concrete: true)
+                @Provide(.transient, factory: { (apiClient: APIClient) in ViewModel(apiClient: apiClient) })
                 var viewModel: ViewModel
             }
             """,
@@ -349,7 +330,7 @@ struct ProvideMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { ViewModel() }, concrete: true)
+                @Provide(.transient, factory: { ViewModel() })
                 var viewModel: ViewModel
             }
             """,
@@ -370,7 +351,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var logger: Logger
 
-                @Provide(.transient, factory: { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) }, concrete: true)
+                @Provide(.transient, factory: { (apiClient: APIClient, logger: Logger) in ViewModel(apiClient: apiClient, logger: logger) })
                 var viewModel: ViewModel
             }
             """,
@@ -388,7 +369,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.transient, ViewModel.self, with: [\\Self.config], concrete: true)
+                @Provide(.transient, ViewModel.self, with: [\\Self.config])
                 var viewModel: ViewModel
             }
             """,
@@ -405,7 +386,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var logger: Logger
 
-                @Provide(.transient, factory: { (_: APIClient, logger: Logger) in ViewModel(logger: logger) }, concrete: true)
+                @Provide(.transient, factory: { (_: APIClient, logger: Logger) in ViewModel(logger: logger) })
                 var viewModel: ViewModel
             }
             """
@@ -427,7 +408,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var apiClient: APIClient
 
-                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) })
                 var viewModel: ViewModel
             }
             """
@@ -447,7 +428,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var apiClient: APIClient
 
-                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) })
                 var viewModel: ViewModel
             }
             """
@@ -504,7 +485,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var apiClient: APIClient
 
-                @Provide(.transient, asyncFactory: { (_: APIClient) async in await ViewModel.load() }, concrete: true)
+                @Provide(.transient, asyncFactory: { (_: APIClient) async in await ViewModel.load() })
                 var viewModel: ViewModel
             }
             """
@@ -541,7 +522,7 @@ struct ProvideMacroTests {
         let source = """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, concrete: true)
+                @Provide(.transient)
                 var viewModel: ViewModel
             }
             """
@@ -581,7 +562,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var apiClient: APIClient
 
-                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) }, concrete: true)
+                @Provide(.transient, factory: { (missing: APIClient) in ViewModel(apiClient: missing) })
                 var viewModel: ViewModel
             }
             """
@@ -628,7 +609,7 @@ struct ProvideMacroTests {
                 @Provide(.input)
                 var apiClient: APIClient
 
-                @Provide(.transient, asyncFactory: { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) }, concrete: true)
+                @Provide(.transient, asyncFactory: { (apiClient: APIClient) async in await ViewModel.load(apiClient: apiClient) })
                 var viewModel: ViewModel
             }
             """,
@@ -643,7 +624,7 @@ struct ProvideMacroTests {
             """
             @DIContainer(mainActor: true)
             struct AppContainer {
-                @Provide(.transient, factory: Service(), concrete: true)
+                @Provide(.transient, factory: Service())
                 var service: Service
             }
             """,
@@ -663,7 +644,7 @@ struct ProvideMacroTests {
         let source = """
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+            @Provide(.shared, asyncFactory: { () async in Service() })
             var service: Service
         }
         """
@@ -716,7 +697,7 @@ struct ProvideMacroTests {
                 """
                 @DIContainer
                 struct AppContainer {
-                    @Provide(.shared, factory: Service(), concrete: true)
+                    @Provide(.shared, factory: Service())
                     var service: Service
                 }
                 """
@@ -727,7 +708,7 @@ struct ProvideMacroTests {
                 """
                 @DIContainer
                 struct AppContainer {
-                    @Provide(.shared, asyncFactory: { () async throws -> Service in Service() }, concrete: true)
+                    @Provide(.shared, asyncFactory: { () async throws -> Service in Service() })
                     var service: Service
                 }
                 """
@@ -738,7 +719,7 @@ struct ProvideMacroTests {
                 """
                 @DIContainer
                 struct AppContainer {
-                    @Provide(.transient, factory: Service(), concrete: true)
+                    @Provide(.transient, factory: Service())
                     var service: Service
                 }
                 """
@@ -794,7 +775,7 @@ struct ProvideMacroTests {
             @InnoDI.Provide(.input)
             var logger: Logger
 
-            @InnoDI.Provide(.transient, factory: { (logger: Logger) in ViewModel(logger: logger) }, concrete: true)
+            @InnoDI.Provide(.transient, factory: { (logger: Logger) in ViewModel(logger: logger) })
             var viewModel: ViewModel
         }
         """

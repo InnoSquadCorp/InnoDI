@@ -91,14 +91,12 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.factory-must-not-throw` — `factory:`에 throwing closure가
   주어졌습니다. 에러를 factory 내부에서 처리하거나 asynchronous throwing
   작업은 `asyncFactory:`로 옮기세요.
-- `provide.bool-literal-required` — `concrete:` 또는 `escaping:` 같은 `@Provide` Bool
-  옵션은 literal `true` 또는 `false`여야 합니다.
+- `provide.bool-literal-required` — `@Provide` Bool 옵션 `escaping:`은 literal
+  `true` 또는 `false`여야 합니다.
 - `provide.invalid-with-dependencies` — `with:`가 정확히 `\Self.member`로
   표기한 canonical direct-member key path만 담은 literal 배열 또는 `[]`가
   아닙니다. 이름이 있는 container, module-qualified, typealias root, nested
   component, optional chaining, subscript, runtime 배열, 계산된 원소는 거부됩니다.
-- `provide.concrete-opt-in-required` — concrete 타입의
-  `.shared`/`.transient`는 `concrete: true`가 필요합니다.
 - `provide.requires-direct-container-member` — `@Provide`가 지원되는
   `@DIContainer` struct의 직접적이고 평범한 stored instance `var`가 아닌 곳에
   붙었거나 지원하지 않는 accessor/storage modifier를 사용했습니다. 의존성을

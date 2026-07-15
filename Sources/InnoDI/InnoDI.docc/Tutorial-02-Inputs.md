@@ -30,7 +30,7 @@ struct AppContainer {
 
     @Provide(.shared, factory: { (config: AppConfig) in
         Greeter(audience: config.audience)
-    }, concrete: true)
+    })
     var greeter: Greeter
 }
 

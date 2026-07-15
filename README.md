@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -363,7 +363,6 @@ addition to InnoDI's misuse diagnostic.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -396,7 +395,8 @@ Additional rules:
   Named container, module-qualified, and typealias roots are rejected, as are
   nested components, optional chaining, subscripts, and computed array
   elements. Every referenced provider must use synchronous construction.
-- Concrete `.shared` and `.transient` storage requires `concrete: true`.
+- The declared property type determines the storage shape: a concrete nominal
+  type uses concrete storage, while `any Protocol` uses existential storage.
 - Name resolution for factory parameters and `with:` wiring is strict by member name.
 
 Sibling DI edges use a closed syntax:
@@ -490,14 +490,14 @@ every call.
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

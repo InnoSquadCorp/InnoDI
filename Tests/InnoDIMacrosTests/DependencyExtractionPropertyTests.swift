@@ -16,7 +16,7 @@ struct DependencyExtractionPropertyTests {
         switch mode {
         case 0:
             provideLine = """
-            @Provide(.shared, factory: { (config: Config, logger: Logger) in Service(config: config, logger: logger) }, concrete: true)
+            @Provide(.shared, factory: { (config: Config, logger: Logger) in Service(config: config, logger: logger) })
             var service: Service
             """
         case 1:
@@ -24,7 +24,7 @@ struct DependencyExtractionPropertyTests {
                 ? "[\\Self.config, \\Self.logger]"
                 : "[\\Self.logger, \\Self.config]"
             provideLine = """
-            @Provide(.shared, Service.self, with: \(deps), concrete: true)
+            @Provide(.shared, Service.self, with: \(deps))
             var service: Service
             """
         default:
@@ -70,7 +70,7 @@ struct DependencyExtractionPropertyTests {
         let source = """
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, concrete: true)
+            @Provide(.shared)
             var service: Service = Service(text: "\(literalToken)")
         }
         """
@@ -106,7 +106,7 @@ struct DependencyExtractionPropertyTests {
         switch factoryStyle {
         case "closure":
             provideLine = """
-            @Provide(.shared,\(ws())factory:\(ws()){ (config:\(ws())Config,\(ws())logger:\(ws())Logger) in\(ws())Service(config:\(ws())config,\(ws())logger:\(ws())logger) },\(ws())concrete:\(ws())true)
+            @Provide(.shared,\(ws())factory:\(ws()){ (config:\(ws())Config,\(ws())logger:\(ws())Logger) in\(ws())Service(config:\(ws())config,\(ws())logger:\(ws())logger) })
             var service: Service
             """
         case "with":
@@ -115,7 +115,7 @@ struct DependencyExtractionPropertyTests {
                 "[\(ws())\\Self.logger,\(ws())\\Self.config\(ws())]"
             ])
             provideLine = """
-            @Provide(.shared,\(ws())Service.self,\(ws())with:\(ws())\(deps),\(ws())concrete:\(ws())true)
+            @Provide(.shared,\(ws())Service.self,\(ws())with:\(ws())\(deps))
             var service: Service
             """
         default:

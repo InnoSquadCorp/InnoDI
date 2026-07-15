@@ -88,15 +88,13 @@ Most frequently-hit codes:
 - `provide.factory-must-not-throw` — `factory:` was given a throwing closure;
   handle errors inside the factory or move asynchronous throwing work to
   `asyncFactory:`.
-- `provide.bool-literal-required` — a `@Provide` Boolean option, such as
-  `concrete:` or `escaping:`, must be literal `true` or `false`.
+- `provide.bool-literal-required` — the `@Provide` Boolean option `escaping:`
+  must be literal `true` or `false`.
 - `provide.invalid-with-dependencies` — `with:` is not a literal array made
   only of canonical direct-member key paths spelled exactly `\Self.member`, or
   `[]`. Named container, module-qualified, and typealias roots are rejected,
   as are nested components, optional chaining, subscripts, runtime arrays, and
   computed elements.
-- `provide.concrete-opt-in-required` — `.shared`/`.transient` with a concrete
-  type needs `concrete: true`.
 - `provide.requires-direct-container-member` — `@Provide` was attached outside
   a direct, plain, stored instance `var` in a supported `@DIContainer` struct,
   or used an unsupported accessor/storage modifier. Move the dependency into

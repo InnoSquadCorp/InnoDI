@@ -24,7 +24,7 @@ struct RuntimeInputlessChildMarker: Equatable {}
 struct RuntimeChildContainer {
     @Provide(.input) var config: RuntimeParentConfig
 
-    @Provide(.shared, factory: RuntimeChildStore(), concrete: true)
+    @Provide(.shared, factory: RuntimeChildStore())
     var store: RuntimeChildStore
 }
 
@@ -48,7 +48,7 @@ struct RuntimeParentTransientContainer {
 struct RuntimeSubsetChildContainer {
     @Provide(.input) var config: RuntimeParentConfig
 
-    @Provide(.shared, factory: RuntimeSubsetStore(), concrete: true)
+    @Provide(.shared, factory: RuntimeSubsetStore())
     var store: RuntimeSubsetStore
 }
 
@@ -63,7 +63,7 @@ struct RuntimeParentWithSubsetContainer {
 
 @DIContainer
 struct RuntimeInputlessChildContainer {
-    @Provide(.shared, factory: RuntimeInputlessChildMarker(), concrete: true)
+    @Provide(.shared, factory: RuntimeInputlessChildMarker())
     var marker: RuntimeInputlessChildMarker
 }
 
@@ -135,7 +135,7 @@ final class OverrideChildStore {
 struct OverrideCapableChild {
     @Provide(.input) var config: RuntimeParentConfig
 
-    @Provide(.shared, factory: OverrideChildStore(tag: "default"), concrete: true)
+    @Provide(.shared, factory: OverrideChildStore(tag: "default"))
     var store: OverrideChildStore
 }
 
@@ -151,7 +151,7 @@ struct OverrideParentContainer {
 struct OverrideTransientBindingsChild {
     @Provide(.input) var featureConfig: RuntimeParentConfig
 
-    @Provide(.shared, factory: OverrideChildStore(tag: "default"), concrete: true)
+    @Provide(.shared, factory: OverrideChildStore(tag: "default"))
     var store: OverrideChildStore
 }
 

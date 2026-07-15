@@ -202,7 +202,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: SharedContainer(), concrete: true)
+                @Provide(.shared, factory: SharedContainer())
                 var shared: SharedContainer
             }
 
@@ -366,7 +366,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: SharedContainer(), concrete: true)
+                @Provide(.shared, factory: SharedContainer())
                 var shared: SharedContainer
             }
             """,
@@ -415,7 +415,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: SharedContainer(), concrete: true)
+                @Provide(.shared, factory: SharedContainer())
                 var shared: SharedContainer
             }
             """,
@@ -464,7 +464,7 @@ struct WorkspaceTargetIdentityGraphTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (feature: Provider<FeatureKit.FeatureContainer>) in
                     Consumer()
-                }, concrete: true)
+                })
                 var consumer: Consumer
             }
             """,
@@ -499,12 +499,12 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: FeatureContainer(), concrete: true)
+                @Provide(.shared, factory: FeatureContainer())
                 var feature: FeatureContainer
 
                 @Provide(.shared, factory: { (feature: Provider<FeatureKit.FeatureContainer>) in
                     Consumer()
-                }, concrete: true)
+                })
                 var consumer: Consumer
             }
             """,
@@ -686,7 +686,7 @@ struct WorkspaceTargetIdentityGraphTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (feature: Provider<FeatureKit.FeatureContainer>) in
                     Consumer()
-                }, concrete: true)
+                })
                 var consumer: Consumer
             }
             """,
@@ -767,7 +767,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: SharedContainer(), concrete: true)
+                @Provide(.shared, factory: SharedContainer())
                 var shared: SharedContainer
             }
 
@@ -809,7 +809,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: SelectedContainer(), concrete: true)
+                @Provide(.shared, factory: SelectedContainer())
                 var feature: SelectedContainer
             }
             """,
@@ -851,7 +851,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @Provide(.shared, factory: SelectedContainer(), concrete: true)
+                @Provide(.shared, factory: SelectedContainer())
                 var feature: SelectedContainer
             }
             """,
@@ -1181,7 +1181,7 @@ private func factorySource(
 
     @DIContainer(root: true)
     struct AppContainer {
-        @Provide(.shared, factory: \(factoryType)(), concrete: true)
+        @Provide(.shared, factory: \(factoryType)())
         var dependency: \(factoryType)
     }
     """
@@ -1196,7 +1196,7 @@ private func rootedFactorySource(
 
     @DIContainer(root: true)
     struct \(rootName) {
-        @Provide(.shared, factory: \(childName)(), concrete: true)
+        @Provide(.shared, factory: \(childName)())
         var child: \(childName)
     }
 

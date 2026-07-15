@@ -34,7 +34,6 @@ compiler-support accessor с другим property wrapper может получ
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -63,7 +62,8 @@ macro не может разрешить произвольный alias; Swift �
 - `with:` разрешен только с `Type.self` и синхронными providers
 - `asyncFactory` поддерживается для `.shared` и `.transient` и должен быть
   `async` closure
-- concrete `.shared` / `.transient` требуют `concrete: true`
+- Форма хранения определяется объявленным типом property: конкретный nominal
+  type использует concrete storage, а `any Protocol` — existential storage
 
 ## Контракт sibling edges
 

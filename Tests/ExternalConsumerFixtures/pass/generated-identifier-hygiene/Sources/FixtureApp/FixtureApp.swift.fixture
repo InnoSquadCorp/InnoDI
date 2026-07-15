@@ -40,16 +40,16 @@ struct BridgeValueNames {
 
 @DIContainer
 struct EmptyChild {
-    @Provide(.shared, factory: 0, concrete: true)
+    @Provide(.shared, factory: 0)
     var value: Int
 }
 
 @DIContainer
 struct GeneratedPeerNearMissContainer {
-    @Provide(.shared, factory: 25, concrete: true)
+    @Provide(.shared, factory: 25)
     var task_cache: Int
 
-    @Provide(.shared, factory: 26, concrete: true)
+    @Provide(.shared, factory: 26)
     var cache: Int
 
     @Provide(.input)
@@ -58,7 +58,7 @@ struct GeneratedPeerNearMissContainer {
     @SubContainer(scope: .transient, with: [])
     var feature: EmptyChild
 
-    @Provide(.transient, factory: 28, concrete: true)
+    @Provide(.transient, factory: 28)
     var apply_other: Int
 
     @SubContainer(scope: .shared, with: [])
@@ -92,7 +92,6 @@ struct AsyncNamesContainer {
         asyncFactory: { (config: NameConfig) async in
             AsyncValue(value: config.value)
         },
-        concrete: true
     )
     var service: AsyncValue
 
@@ -101,7 +100,6 @@ struct AsyncNamesContainer {
         asyncFactory: { (config: NameConfig) async throws in
             AsyncValue(value: config.value + 1)
         },
-        concrete: true
     )
     var throwingService: AsyncValue
 }
@@ -127,21 +125,18 @@ struct DeferredNamesContainer {
                 requestProvider: providerRequest
             )
         },
-        concrete: true
     )
     var consumer: DeferredConsumer
 
     @Provide(
         .transient,
         factory: Request(value: 7),
-        concrete: true
     )
     var request: Request
 
     @Provide(
         .transient,
         factory: Request(value: 8),
-        concrete: true
     )
     var providerRequest: Request
 
@@ -187,7 +182,6 @@ struct TrapNamesContainer {
     @Provide(
         .shared,
         factory: { (missing: Int) in TrapService(value: missing) },
-        concrete: true
     )
     var service: TrapService
 }
@@ -243,7 +237,6 @@ struct TypeExpressionNamesContainer {
         .shared,
         FixtureTypes.Constructed.self,
         with: [\Self.config],
-        concrete: true
     )
     var optionalService: ConstructedService?
 }

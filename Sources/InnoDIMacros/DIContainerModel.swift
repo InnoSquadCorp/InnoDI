@@ -272,8 +272,6 @@ struct ProvideMemberModel {
     let asyncFactoryIsThrowing: Bool
     let typeExpr: ExprSyntax?
     let initializer: ExprSyntax?
-    let concreteOptIn: Bool
-    let concreteParseState: BoolArgumentParseState
     let escapingInput: Bool
     let escapingParseState: BoolArgumentParseState
     let withDependencies: [String]
@@ -310,7 +308,6 @@ struct ProvideMemberModel {
               !isEscapedInnoDIIdentifier(identifier.identifier),
               !isOpaqueSomeType(type),
               !isImplicitlyUnwrappedOptionalType(type),
-              !concreteParseState.isInvalid,
               !escapingParseState.isInvalid,
               !withDependenciesParseState.isInvalid else {
             return false
@@ -359,11 +356,6 @@ struct ProvideMemberModel {
         if closureParameterReferences.contains(where: {
             isEscapedInnoDIIdentifier($0.token)
         }) {
-            return false
-        }
-        if scope != .input,
-           !concreteOptIn,
-           requiresConcreteOptIn(type: type) {
             return false
         }
         return true

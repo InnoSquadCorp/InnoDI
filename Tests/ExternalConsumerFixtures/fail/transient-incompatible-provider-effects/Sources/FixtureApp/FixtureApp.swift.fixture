@@ -14,12 +14,12 @@ struct ProviderSession {
 struct SyncTransientConsumerContainer {
     @Provide(.transient, asyncFactory: { () async in
         Token()
-    }, concrete: true)
+    })
     var asyncToken: Token
 
     @Provide(.transient, factory: { (asyncToken: Token) in
         Session(token: asyncToken)
-    }, concrete: true)
+    })
     var syncSession: Session
 }
 
@@ -27,12 +27,12 @@ struct SyncTransientConsumerContainer {
 struct NonthrowingTransientConsumerContainer {
     @Provide(.transient, asyncFactory: { () async throws -> Token in
         Token()
-    }, concrete: true)
+    })
     var throwingToken: Token
 
     @Provide(.transient, asyncFactory: { (throwingToken: Token) async in
         Session(token: throwingToken)
-    }, concrete: true)
+    })
     var asyncSession: Session
 }
 
@@ -40,12 +40,12 @@ struct NonthrowingTransientConsumerContainer {
 struct LazyTransientConsumerContainer {
     @Provide(.transient, asyncFactory: { () async in
         Token()
-    }, concrete: true)
+    })
     var lazyToken: Token
 
     @Provide(.transient, factory: { (lazyToken: Lazy<Token>) in
         Session(token: lazyToken())
-    }, concrete: true)
+    })
     var lazySession: Session
 }
 
@@ -53,18 +53,18 @@ struct LazyTransientConsumerContainer {
 struct ProviderTransientConsumerContainer {
     @Provide(.transient, asyncFactory: { () async in
         Token()
-    }, concrete: true)
+    })
     var providerToken: Token
 
     @Provide(.transient, factory: { (providerToken: Provider<Token>) in
         ProviderSession(token: providerToken)
-    }, concrete: true)
+    })
     var providerSession: ProviderSession
 }
 
 @DIContainer
 struct MissingTransientConstructionContainer {
-    @Provide(.transient, concrete: true)
+    @Provide(.transient)
     var missingToken: Token
 }
 
@@ -72,7 +72,7 @@ struct MissingTransientConstructionContainer {
 struct WildcardTransientFactoryContainer {
     @Provide(.transient, factory: { (_: Token) in
         Token()
-    }, concrete: true)
+    })
     var wildcardToken: Token
 }
 

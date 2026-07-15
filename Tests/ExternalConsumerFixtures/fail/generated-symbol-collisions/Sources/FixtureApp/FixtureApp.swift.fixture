@@ -10,14 +10,12 @@ struct TaskStorageCollisionContainer {
     @Provide(
         .shared,
         factory: TaskStorageValue(),
-        concrete: true
     )
     var task_cache: TaskStorageValue
 
     @Provide(
         .shared,
         asyncFactory: { () async in TaskStorageValue() },
-        concrete: true
     )
     var cache: TaskStorageValue
 
@@ -45,7 +43,7 @@ struct OverrideSubChild {}
 
 @DIContainer
 struct OverrideSubCollisionContainer {
-    @Provide(.transient, factory: 1, concrete: true)
+    @Provide(.transient, factory: 1)
     var sub_feature: Int
 
     @SubContainer(scope: .transient, with: [])
@@ -57,7 +55,7 @@ struct OverrideSubApplyChild {}
 
 @DIContainer
 struct OverrideSubApplyCollisionContainer {
-    @Provide(.transient, factory: 2, concrete: true)
+    @Provide(.transient, factory: 2)
     var sub_apply_feature: Int
 
     @SubContainer(scope: .shared, with: [])

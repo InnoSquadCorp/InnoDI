@@ -24,9 +24,9 @@ struct DIContainerMacroTests {
         "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
     ]
 
-    @Test
-    func concreteSharedDependencyRequiresOptIn() {
-        assertMacroExpansionInline(
+    @Test("A flagless concrete shared dependency keeps its declared storage type")
+    func flaglessConcreteSharedDependencyGeneratesStorage() {
+        let result = expandMacroSource(
             """
             @DIContainer
             struct AppContainer {
@@ -34,121 +34,54 @@ struct DIContainerMacroTests {
                 var apiClient: APIClient
             }
             """,
-            expandedSource: """
-                struct AppContainer {
-                    @InnoDI._InnoDIProvideAccessor(recovery: true)
-                    var apiClient: APIClient
-                }
-                """,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true.",
-                    line: 3,
-                    column: 5,
-                    notes: [
-                        NoteSpec(
-                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
-                            line: 3,
-                            column: 5
-                        ),
-                        NoteSpec(
-                            message: "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
-                            line: 4,
-                            column: 9
-                        ),
-                    ],
-                    fixIts: [FixItSpec(message: "Add concrete: true")]
-                )
-            ],
             macros: Self.macros
         )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("var apiClient: APIClient"))
+        #expect(result.expansion.contains("init(apiClient: APIClient? = nil)"))
+        #expect(result.expansion.contains("self._storage_apiClient = apiClient ?? APIClient()"))
     }
 
-    @Test("Bare protocol type requires concrete opt-in for shared dependency")
-    func bareProtocolSharedDependencyRequiresOptIn() {
-        assertMacroExpansionInline(
+    @Test("A flagless concrete transient dependency keeps its declared override type")
+    func flaglessConcreteTransientDependencyGeneratesOverride() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, factory: APIClient())
+                var apiClient: APIClient
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("var apiClient: APIClient"))
+        #expect(result.expansion.contains("init(apiClient: APIClient? = nil)"))
+        #expect(result.expansion.contains("self._override_apiClient = apiClient"))
+    }
+
+    @Test("A flagless optional concrete dependency keeps its declared optional type")
+    func flaglessOptionalConcreteDependencyGeneratesStorage() {
+        let result = expandMacroSource(
             """
             @DIContainer
             struct AppContainer {
                 @Provide(.shared, factory: APIClient())
-                var apiClient: APIClientProtocol
+                var apiClient: APIClient?
             }
             """,
-            expandedSource: """
-                struct AppContainer {
-                    @InnoDI._InnoDIProvideAccessor(recovery: true)
-                    var apiClient: APIClientProtocol
-                }
-                """,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClientProtocol' requires concrete: true.",
-                    line: 3,
-                    column: 5,
-                    notes: [
-                        NoteSpec(
-                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
-                            line: 3,
-                            column: 5
-                        ),
-                        NoteSpec(
-                            message: "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
-                            line: 4,
-                            column: 9
-                        ),
-                    ],
-                    fixIts: [FixItSpec(message: "Add concrete: true")]
-                )
-            ],
             macros: Self.macros
         )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("var apiClient: APIClient?"))
+        #expect(result.expansion.contains("self._storage_apiClient = apiClient ?? APIClient()"))
     }
 
-    @Test("Bare optional protocol type requires concrete opt-in for shared dependency")
-    func bareOptionalProtocolSharedDependencyRequiresOptIn() {
-        assertMacroExpansionInline(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, factory: APIClient())
-                var apiClient: APIClientProtocol?
-            }
-            """,
-            expandedSource: """
-                struct AppContainer {
-                    @InnoDI._InnoDIProvideAccessor(recovery: true)
-                    var apiClient: APIClientProtocol?
-                }
-                """,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClientProtocol?' requires concrete: true.",
-                    line: 3,
-                    column: 5,
-                    notes: [
-                        NoteSpec(
-                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
-                            line: 3,
-                            column: 5
-                        ),
-                        NoteSpec(
-                            message: "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
-                            line: 4,
-                            column: 9
-                        ),
-                    ],
-                    fixIts: [FixItSpec(message: "Add concrete: true")]
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("Explicit any protocol shared dependency does not require concrete opt-in")
-    func anyProtocolSharedDependencyDoesNotRequireOptIn() {
+    @Test("Explicit any protocol shared dependency keeps existential storage")
+    func anyProtocolSharedDependencyKeepsExistentialStorage() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -162,8 +95,8 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Optional any protocol shared dependency does not require concrete opt-in")
-    func optionalAnyProtocolSharedDependencyDoesNotRequireOptIn() {
+    @Test("Optional any protocol shared dependency keeps optional existential storage")
+    func optionalAnyProtocolSharedDependencyKeepsOptionalExistentialStorage() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -197,8 +130,8 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Protocol composition shared dependency does not require concrete opt-in")
-    func compositionSharedDependencyDoesNotRequireOptIn() {
+    @Test("Protocol composition shared dependency keeps composition storage")
+    func compositionSharedDependencyKeepsCompositionStorage() {
         assertMacroExpansionSnapshot(
             """
             @DIContainer
@@ -212,28 +145,13 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test
-    func concreteSharedDependencyWithOptInGeneratesInit() {
-        assertMacroExpansionSnapshot(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, factory: APIClient(), concrete: true)
-                var apiClient: APIClient
-            }
-            """,
-            matches: "concreteSharedDependencyWithOptIn",
-            macros: Self.macros
-        )
-    }
-
     @Test("package containers propagate package access to generated APIs")
     func packageContainerGeneratesPackageAPIs() {
         assertMacroExpansionInline(
             """
             @DIContainer
             package struct AppContainer {
-                @Provide(.shared, factory: APIClient(), concrete: true)
+                @Provide(.shared, factory: APIClient())
                 var apiClient: APIClient
             }
             """,
@@ -308,23 +226,6 @@ struct DIContainerMacroTests {
     }
 
     @Test
-    func concreteSharedDependenciesStillRequireExplicitOptIn() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, factory: Service())
-                var service: Service
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test
     func inputMembersStillRejectFactoryConfiguration() {
         assertMacroExpansionDiagnosticCodes(
             """
@@ -369,12 +270,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.transient, factory: { (serviceB: ServiceB) in
                     ServiceA(serviceB: serviceB)
-                }, concrete: true)
+                })
                 var serviceA: ServiceA
 
                 @Provide(.transient, factory: { (serviceA: ServiceA) in
                     ServiceB(serviceA: serviceA)
-                }, concrete: true)
+                })
                 var serviceB: ServiceB
             }
             """,
@@ -394,7 +295,7 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, APIClient.self, with: [\\Self.missing], concrete: true)
+                @Provide(.shared, APIClient.self, with: [\\Self.missing])
                 var apiClient: APIClient
             }
             """,
@@ -413,12 +314,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in
                     CoordinatorA(b: b)
-                }, concrete: true)
+                })
                 var a: CoordinatorA
 
                 @Provide(.shared, factory: { (a: CoordinatorA) in
                     CoordinatorB(a: a)
-                }, concrete: true)
+                })
                 var b: CoordinatorB
             }
             """,
@@ -435,12 +336,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in
                     CoordinatorA(b: b)
-                }, concrete: true)
+                })
                 var a: CoordinatorA
 
                 @Provide(.shared, factory: { (a: CoordinatorA) in
                     CoordinatorB(a: a)
-                }, concrete: true)
+                })
                 var b: CoordinatorB
             }
             """,
@@ -461,17 +362,17 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (c: Lazy<C>) in
                     A(c: c)
-                }, concrete: true)
+                })
                 var a: A
 
                 @Provide(.shared, factory: { (a: A) in
                     B(a: a)
-                }, concrete: true)
+                })
                 var b: B
 
                 @Provide(.shared, factory: { (b: B) in
                     C(b: b)
-                }, concrete: true)
+                })
                 var c: C
             }
             """,
@@ -488,10 +389,10 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (service: Lazy<Service>) in
                     Holder(service: service)
-                }, concrete: true)
+                })
                 var holder: Holder
 
-                @Provide(.transient, factory: { Service() }, concrete: true)
+                @Provide(.transient, factory: { Service() })
                 var service: Service
             }
             """,
@@ -508,12 +409,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (serviceB: Lazy<ServiceB>) in
                     ServiceA(serviceB: serviceB)
-                }, concrete: true)
+                })
                 var serviceA: ServiceA
 
                 @Provide(.shared, asyncFactory: { () async in
                     ServiceB()
-                }, concrete: true)
+                })
                 var serviceB: ServiceB
             }
             """,
@@ -540,12 +441,12 @@ struct DIContainerMacroTests {
 
                 @Provide(.transient, factory: { (config: Config) in
                     Request(config: config)
-                }, concrete: true)
+                })
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(requests: request)
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -569,12 +470,12 @@ struct DIContainerMacroTests {
 
                 @Provide(.transient, factory: { (input: PayloadInput) in
                     Payload(input: input)
-                }, concrete: true)
+                })
                 var payload: Payload
 
                 @Provide(.transient, factory: { (payload: Provider<Payload>) in
                     PayloadProcessor(payloads: payload)
-                }, concrete: true)
+                })
                 var processor: PayloadProcessor
             }
             """,
@@ -589,12 +490,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.shared, factory: { (service: Provider<Service>) in
                     Consumer(service: service)
-                }, concrete: true)
+                })
                 var consumer: Consumer
             }
             """,
@@ -613,7 +514,7 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (service: Provider<Service>) in
                     Consumer(service: service)
-                }, concrete: true)
+                })
                 var consumer: Consumer
             }
             """,
@@ -632,12 +533,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async in
                     Request()
-                }, concrete: true)
+                })
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request)
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -656,12 +557,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async throws -> Request in
                     Request()
-                }, concrete: true)
+                })
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request)
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -686,12 +587,12 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(requests: request)
-                }, concrete: true)
+                })
                 var logger: RequestLogger
 
                 @Provide(.transient, factory: { (config: Config) in
                     Request(config: config)
-                }, concrete: true)
+                })
                 var request: Request
             }
             """,
@@ -706,12 +607,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.shared, factory: { (service: Lazy<Service>) in
                     ServiceHolder(service: service())
-                }, concrete: true)
+                })
                 var holder: ServiceHolder
             }
             """,
@@ -728,12 +629,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.shared, factory: { (service: Lazy<Service>) in
                     ServiceHolder(service: service.callAsFunction())
-                }, concrete: true)
+                })
                 var holder: ServiceHolder
             }
             """,
@@ -750,12 +651,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.shared, factory: { (service: Lazy<Service>) in
                     ServiceHolder(service: (service)())
-                }, concrete: true)
+                })
                 var holder: ServiceHolder
             }
             """,
@@ -772,12 +673,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.shared, factory: { (service: Lazy<Service>) in
                     ServiceHolder(service: service.resolver())
-                }, concrete: true)
+                })
                 var holder: ServiceHolder
             }
             """,
@@ -794,12 +695,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.shared, asyncFactory: { (service: Lazy<Service>) async in
                     AsyncHolder(service: service())
-                }, concrete: true)
+                })
                 var holder: AsyncHolder
             }
             """,
@@ -816,12 +717,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
                 @Provide(.transient, factory: { (service: Lazy<Service>) in
                     ServiceHolder(service: service())
-                }, concrete: true)
+                })
                 var holder: ServiceHolder
             }
             """,
@@ -836,12 +737,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request())
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -858,12 +759,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request.callAsFunction())
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -880,12 +781,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: (request)())
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -902,12 +803,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.shared, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request.resolver())
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -924,12 +825,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.shared, asyncFactory: { (request: Provider<Request>) async in
                     AsyncLogger(request: request())
-                }, concrete: true)
+                })
                 var logger: AsyncLogger
             }
             """,
@@ -946,12 +847,12 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.transient, factory: { (request: Provider<Request>) in
                     RequestLogger(request: request())
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -971,12 +872,12 @@ struct DIContainerMacroTests {
 
                 @Provide(.transient, factory: { (config: Config) in
                     Request(config: config)
-                }, concrete: true)
+                })
                 var request: Request
 
                 @Provide(.shared, factory: { (request: InnoDI.Provider<Request>) in
                     RequestLogger(requests: request)
-                }, concrete: true)
+                })
                 var logger: RequestLogger
             }
             """,
@@ -993,12 +894,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.transient, factory: { (serviceB: ServiceB) in
                     ServiceA(serviceB: serviceB)
-                }, concrete: true)
+                })
                 var serviceA: ServiceA
 
                 @Provide(.transient, factory: { (serviceA: ServiceA) in
                     ServiceB(serviceA: serviceA)
-                }, concrete: true)
+                })
                 var serviceB: ServiceB
             }
             """,
@@ -1017,12 +918,12 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.transient, factory: { (serviceB: ServiceB) in
                     ServiceA(serviceB: serviceB)
-                }, concrete: true)
+                })
                 var serviceA: ServiceA
 
                 @Provide(.transient, factory: { (serviceA: ServiceA) in
                     ServiceB(serviceA: serviceA)
-                }, concrete: true)
+                })
                 var serviceB: ServiceB
             }
             """,
@@ -1039,10 +940,10 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (laterService: LaterService, missing: MissingService) in
                     Service(laterService: laterService, missing: missing)
-                }, concrete: true)
+                })
                 var service: Service
 
-                @Provide(.shared, factory: LaterService(), concrete: true)
+                @Provide(.shared, factory: LaterService())
                 var laterService: LaterService
             }
             """,
@@ -1057,10 +958,10 @@ struct DIContainerMacroTests {
             """
             @DIContainer(validateDAG: false)
             struct AppContainer {
-                @Provide(.shared, Service.self, with: [\\Self.laterService, \\Self.missingService], concrete: true)
+                @Provide(.shared, Service.self, with: [\\Self.laterService, \\Self.missingService])
                 var service: Service
 
-                @Provide(.shared, factory: LaterService(), concrete: true)
+                @Provide(.shared, factory: LaterService())
                 var laterService: LaterService
             }
             """,
@@ -1092,10 +993,10 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, concrete: true)
+                @Provide(.shared)
                 var a: ServiceA = ServiceA(name: "b")
 
-                @Provide(.shared, concrete: true)
+                @Provide(.shared)
                 var b: ServiceB = ServiceB(name: "a")
             }
             """,
@@ -1341,23 +1242,6 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("@Provide concrete: requires a literal Bool")
-    func provideConcreteRequiresLiteralBool() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.transient, factory: { Service() }, concrete: FeatureFlags.useConcrete)
-                var service: Service
-            }
-            """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "provide.bool-literal-required")
-            ],
-            macros: Self.macros
-        )
-    }
-
     @Test("@Provide with: requires a literal key-path array")
     func provideWithRequiresLiteralKeyPathArray() {
         assertMacroExpansionDiagnosticCodes(
@@ -1369,7 +1253,7 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.transient, Service.self, with: dependencies, concrete: true)
+                @Provide(.transient, Service.self, with: dependencies)
                 var service: Service
             }
             """,
@@ -1391,7 +1275,7 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.transient, Service.self, with: [\\Self.config, makeKeyPath()], concrete: true)
+                @Provide(.transient, Service.self, with: [\\Self.config, makeKeyPath()])
                 var service: Service
             }
             """,
@@ -1408,7 +1292,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: Service(), asyncFactory: { () async in Service() }, concrete: true)
+                @Provide(.transient, factory: Service(), asyncFactory: { () async in Service() })
                 var service: Service
             }
             """,
@@ -1429,7 +1313,6 @@ struct DIContainerMacroTests {
                     .shared,
                     Service.self,
                     factory: Service(),
-                    concrete: true
                 )
                 var service: Service
             }
@@ -1457,11 +1340,10 @@ struct DIContainerMacroTests {
                     .shared,
                     with: [\\Self.config],
                     factory: { (config: Config) in Service(config: config) },
-                    concrete: true
                 )
                 var factoryService: Service
 
-                @Provide(.shared, with: [\\Self.config], concrete: true)
+                @Provide(.shared, with: [\\Self.config])
                 var initializedService: Service = Service(config: Config())
             }
             """,
@@ -1485,7 +1367,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.input, asyncFactory: { () async in Service() }, concrete: true)
+                @Provide(.input, asyncFactory: { () async in Service() })
                 var service: Service
             }
             """,
@@ -1503,7 +1385,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, asyncFactory: { Service() }, concrete: true)
+                @Provide(.transient, asyncFactory: { Service() })
                 var service: Service
             }
             """,
@@ -1520,7 +1402,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { () async in Service() }, concrete: true)
+                @Provide(.transient, factory: { () async in Service() })
                 var service: Service
             }
             """,
@@ -1537,7 +1419,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { () throws in Service() }, concrete: true)
+                @Provide(.transient, factory: { () throws in Service() })
                 var service: Service
             }
             """,
@@ -1554,7 +1436,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { try makeService() }, concrete: true)
+                @Provide(.transient, factory: { try makeService() })
                 var service: Service
             }
             """,
@@ -1571,7 +1453,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: try makeService(), concrete: true)
+                @Provide(.transient, factory: try makeService())
                 var service: Service
             }
             """,
@@ -1588,7 +1470,7 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { await makeService() }, concrete: true)
+                @Provide(.transient, factory: { await makeService() })
                 var service: Service
             }
             """,
@@ -1605,10 +1487,10 @@ struct DIContainerMacroTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { try? makeService() }, concrete: true)
+                @Provide(.transient, factory: { try? makeService() })
                 var optionalService: Service?
 
-                @Provide(.transient, factory: { try! makeRequiredService() }, concrete: true)
+                @Provide(.transient, factory: { try! makeRequiredService() })
                 var requiredService: Service
             }
             """,
@@ -1632,7 +1514,6 @@ struct DIContainerMacroTests {
                             return fallbackService()
                         }
                     },
-                    concrete: true
                 )
                 var service: Service
             }
@@ -1657,7 +1538,6 @@ struct DIContainerMacroTests {
                             return try fallbackService()
                         }
                     },
-                    concrete: true
                 )
                 var service: Service
             }
@@ -1684,7 +1564,6 @@ struct DIContainerMacroTests {
                             return fallbackService(error)
                         }
                     },
-                    concrete: true
                 )
                 var service: Service
             }
@@ -1705,7 +1584,7 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, asyncFactory: { (config: Config) async in Service(config: config) }, concrete: true)
+                @Provide(.shared, asyncFactory: { (config: Config) async in Service(config: config) })
                 var service: Service
             }
             """,
@@ -1723,10 +1602,10 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, factory: Logger(), concrete: true)
+                @Provide(.shared, factory: Logger())
                 var logger: Logger
 
-                @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+                @Provide(.shared, asyncFactory: { () async in Service() })
                 var service: Service
             }
             """,
@@ -1749,7 +1628,7 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (wrongName: Config, logger: Logger) in
                     Service(config: wrongName, logger: logger)
-                }, concrete: true)
+                })
                 var service: Service
             }
             """,
@@ -1774,7 +1653,7 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (logger: Logger, config: Config) in
                     Service(config: config, logger: logger)
-                }, concrete: true)
+                })
                 var service: Service
             }
             """,
@@ -1794,12 +1673,12 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (laterService: LaterService) in
                     Service(laterService: laterService)
-                }, concrete: true)
+                })
                 var service: Service
 
                 @Provide(.shared, factory: { (config: Config) in
                     LaterService(config: config)
-                }, concrete: true)
+                })
                 var laterService: LaterService
             }
             """,
@@ -1819,12 +1698,12 @@ struct DIContainerMacroTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, Service.self, with: [\\Self.laterService], concrete: true)
+                @Provide(.shared, Service.self, with: [\\Self.laterService])
                 var service: Service
 
                 @Provide(.shared, factory: { (config: Config) in
                     LaterService(config: config)
-                }, concrete: true)
+                })
                 var laterService: LaterService
             }
             """,
@@ -1846,12 +1725,12 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, asyncFactory: { (laterService: LaterService) async in
                     Service(laterService: laterService)
-                }, concrete: true)
+                })
                 var service: Service
 
                 @Provide(.shared, asyncFactory: { (config: Config) async in
                     LaterService(config: config)
-                }, concrete: true)
+                })
                 var laterService: LaterService
             }
             """,
@@ -2286,7 +2165,7 @@ struct DIContainerMacroTests {
 
             @Provide(.shared, factory: { (base_url: String) in
                 Service(baseURL: base_url)
-            }, concrete: true)
+            })
             var service: Service
         }
         """
@@ -2324,7 +2203,7 @@ struct DIContainerMacroTests {
 
             @Provide(.shared, factory: { (apiClent: APIClient) in
                 Service(client: apiClent)
-            }, concrete: true)
+            })
             var service: Service
         }
         """
@@ -2360,7 +2239,7 @@ struct DIContainerMacroTests {
 
             @Provide(.shared, factory: { (totallyDifferent: APIClient) in
                 Service(client: totallyDifferent)
-            }, concrete: true)
+            })
             var service: Service
         }
         """
@@ -2398,7 +2277,7 @@ struct DIContainerMacroTests {
 
             @Provide(.shared, factory: { (apiclient: APIClient) in
                 Service(client: apiclient)
-            }, concrete: true)
+            })
             var service: Service
         }
         """
@@ -2432,10 +2311,10 @@ struct DIContainerMacroTests {
         struct AppContainer {
             @Provide(.shared, factory: { (later_service: LaterService) in
                 Service(laterService: later_service)
-            }, concrete: true)
+            })
             var service: Service
 
-            @Provide(.shared, factory: LaterService(), concrete: true)
+            @Provide(.shared, factory: LaterService())
             var laterService: LaterService
         }
         """
@@ -2469,10 +2348,10 @@ struct DIContainerMacroTests {
         struct AppContainer {
             @Provide(.shared, asyncFactory: { (later_service: LaterService) async in
                 Service(laterService: later_service)
-            }, concrete: true)
+            })
             var service: Service
 
-            @Provide(.shared, factory: LaterService(), concrete: true)
+            @Provide(.shared, factory: LaterService())
             var laterService: LaterService
         }
         """
@@ -2506,10 +2385,10 @@ struct DIContainerMacroTests {
         struct AppContainer {
             @Provide(.transient, factory: { (later_service: LaterService) in
                 Service(laterService: later_service)
-            }, concrete: true)
+            })
             var service: Service
 
-            @Provide(.shared, factory: LaterService(), concrete: true)
+            @Provide(.shared, factory: LaterService())
             var laterService: LaterService
         }
         """
@@ -2544,7 +2423,7 @@ struct DIContainerMacroTests {
             @Provide(.input)
             var baseURL: String
 
-            @Provide(.shared, Service.self, with: [\\Self.base_url], concrete: true)
+            @Provide(.shared, Service.self, with: [\\Self.base_url])
             var service: Service
         }
         """
@@ -2577,10 +2456,10 @@ struct DIContainerMacroTests {
         let source = """
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, Service.self, with: [\\Self.later_service], concrete: true)
+            @Provide(.shared, Service.self, with: [\\Self.later_service])
             var service: Service
 
-            @Provide(.shared, factory: LaterService(), concrete: true)
+            @Provide(.shared, factory: LaterService())
             var laterService: LaterService
         }
         """
@@ -2614,10 +2493,10 @@ struct DIContainerMacroTests {
         struct AppContainer {
             @Provide(.shared, factory: { (laterService: LaterService) in
                 Service(laterService: laterService)
-            }, concrete: true)
+            })
             var service: Service
 
-            @Provide(.shared, factory: LaterService(), concrete: true)
+            @Provide(.shared, factory: LaterService())
             var laterService: LaterService
         }
         """
@@ -2677,117 +2556,6 @@ struct DIContainerMacroTests {
 
         #expect(diagnostic.notes.count == 2)
         #expect(diagnostic.fixIts.isEmpty)
-    }
-
-    @Test("Concrete opt-in diagnostics include guidance notes and a safe fix-it")
-    func concreteOptInDiagnosticsIncludeSafeFixIt() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.shared, factory: APIClient())
-            var apiClient: APIClient
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse concrete opt-in fixture")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        guard let diagnostic = context.diagnostics.first(where: {
-            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
-        }) else {
-            Issue.record("Expected concrete opt-in diagnostic")
-            return
-        }
-
-        #expect(diagnostic.notes.count == 2)
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
-    }
-
-    @Test("Concrete opt-in fix-it appends to existing arguments instead of replacing them")
-    func concreteOptInFixItPreservesExistingArgumentsForTransient() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.input)
-            var config: Config
-
-            @Provide(.transient, APIClient.self, with: [\\Self.config])
-            var apiClient: APIClient
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse transient concrete opt-in fixture")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        guard let diagnostic = context.diagnostics.first(where: {
-            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
-        }) else {
-            Issue.record("Expected concrete opt-in diagnostic for the transient member")
-            return
-        }
-
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(diagnostic.fixIts.first?.message.message.contains("concrete: true") == true)
-        let replacementTexts = diagnostic.fixIts
-            .flatMap(\.changes)
-            .compactMap { change -> String? in
-                if case let .replaceText(_, replacementText, _) = change {
-                    return replacementText
-                }
-                return nil
-            }
-        let replacementNodes = diagnostic.fixIts
-            .flatMap(\.changes)
-            .compactMap { change -> String? in
-                if case let .replace(_, newNode) = change {
-                    return newNode.description
-                }
-                return nil
-            }
-        #expect(replacementTexts == [", concrete: true"])
-        #expect(replacementNodes.isEmpty)
-    }
-
-    @Test("Concrete opt-in fix-it is suppressed when concrete is already declared")
-    func concreteOptInFixItIsSuppressedWhenAlreadyConcrete() throws {
-        let source = """
-        @DIContainer
-        struct AppContainer {
-            @Provide(.shared, factory: APIClient(), concrete: true)
-            var apiClient: APIClient
-        }
-        """
-
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attr = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Should parse already-concrete fixture")
-            return
-        }
-
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(of: attr, providingMembersOf: decl, in: context)
-
-        let optInDiagnostics = context.diagnostics.filter {
-            $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")
-        }
-
-        #expect(optInDiagnostics.isEmpty)
     }
 
     // MARK: - @SubContainer
@@ -2983,7 +2751,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(scope: .shared, with: [\\.config])
                 var feature: FeatureContainer
@@ -3001,7 +2769,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(scope: .shared, with: [])
                 var feature: EmptyFeatureContainer
@@ -3019,7 +2787,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(scope: .shared, bindings: [])
                 var feature: EmptyFeatureContainer
@@ -3038,7 +2806,7 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
                 @Provide(.input) var apiService: any APIClientProtocol
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(
                     scope: .shared,
@@ -3144,7 +2912,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(scope: .shared, with: [\\.config, makeKeyPath()])
                 var feature: FeatureContainer
@@ -3312,18 +3080,16 @@ struct DIContainerMacroTests {
                 @Provide(
                     .shared,
                     asyncFactory: { (config: AppConfig) async in Service(config: config) },
-                    concrete: true
                 )
                 var service: Service
 
                 @Provide(
                     .shared,
                     factory: { (request: Lazy<Request>) in Consumer(request: request) },
-                    concrete: true
                 )
                 var consumer: Consumer
 
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @SubContainer(scope: .transient, with: [])
@@ -3372,28 +3138,24 @@ struct DIContainerMacroTests {
                 @Provide(
                     .shared,
                     factory: { (missingLazy: Lazy<Int>) in Service() },
-                    concrete: true
                 )
                 var lazyService: Service
 
                 @Provide(
                     .shared,
                     factory: { (missingProvider: Provider<Int>) in Service() },
-                    concrete: true
                 )
                 var providerService: Service
 
                 @Provide(
                     .shared,
                     asyncFactory: { (missingAsyncLazy: Lazy<Int>) async in Service() },
-                    concrete: true
                 )
                 var asyncLazyService: Service
 
                 @Provide(
                     .shared,
                     asyncFactory: { (missingAsyncProvider: Provider<Int>) async in Service() },
-                    concrete: true
                 )
                 var asyncProviderService: Service
 
@@ -3583,7 +3345,6 @@ struct DIContainerMacroTests {
                 @Provide(
                     .shared,
                     asyncFactory: { () async in 1 },
-                    concrete: true
                 )
                 var asyncValue: Int
             }
@@ -4087,7 +3848,6 @@ struct DIContainerMacroTests {
                 @Provide(
                     requestedScope,
                     factory: Service(),
-                    concrete: true
                 )
                 var service: Service
             }
@@ -4189,7 +3949,7 @@ struct DIContainerMacroTests {
 
                 @Provide(.shared, factory: { (config: AppConfig) in
                     FeatureContainer(config: config)
-                }, concrete: true)
+                })
                 @SubContainer(scope: .shared)
                 var feature: FeatureContainer
             }
@@ -4208,7 +3968,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.transient, factory: Request(), concrete: true) var request: Request
+                @Provide(.transient, factory: Request()) var request: Request
 
                 @SubContainer(
                     scope: .shared,
@@ -4342,7 +4102,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(scope: .shared)
                 var feature: FeatureContainer
@@ -4361,7 +4121,7 @@ struct DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.input) var config: AppConfig
-            @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+            @Provide(.shared, factory: Logger()) var logger: Logger
 
             @SubContainer(scope: .shared)
             var feature: FeatureContainer
@@ -4417,7 +4177,7 @@ struct DIContainerMacroTests {
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
-                @Provide(.shared, factory: Logger(), concrete: true) var logger: Logger
+                @Provide(.shared, factory: Logger()) var logger: Logger
 
                 @SubContainer(scope: .shared, with: [])
                 var feature: EmptyFeatureContainer
@@ -4436,7 +4196,7 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
 
-                @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) }, concrete: true)
+                @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) })
                 var request: Request
 
                 @SubContainer(scope: .shared, with: [\\.request])
@@ -4458,7 +4218,7 @@ struct DIContainerMacroTests {
             struct AppContainer {
                 @Provide(.input) var config: AppConfig
 
-                @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) }, concrete: true)
+                @Provide(.transient, factory: { (config: AppConfig) in Request(config: config) })
                 var request: Request
 
                 @SubContainer(
@@ -4536,10 +4296,10 @@ struct DIContainerMacroTests {
 
         @DIContainer
         struct AppContainer {
-            @Provide(.shared, factory: Config(), concrete: true)
+            @Provide(.shared, factory: Config())
             var config: Config
 
-            @Provide(.shared, factory: { (config: SomeLazy<Config>) in Service(config: config) }, concrete: true)
+            @Provide(.shared, factory: { (config: SomeLazy<Config>) in Service(config: config) })
             var service: Service
         }
         """
@@ -4573,7 +4333,7 @@ struct DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.input) var foo: Foo
-            @Provide(.shared, factory: { (foo: FooLazy) in Service(fooProvider: foo) }, concrete: true)
+            @Provide(.shared, factory: { (foo: FooLazy) in Service(fooProvider: foo) })
             var service: Service
         }
         """
@@ -4610,12 +4370,12 @@ struct DIContainerMacroTests {
 
             @Provide(.transient, factory: { (config: Config) in
                 Request(config: config)
-            }, concrete: true)
+            })
             var request: Request
 
             @Provide(.transient, factory: { (request: SomeProvider<Request>) in
                 RequestLogger(provider: request)
-            }, concrete: true)
+            })
             var logger: RequestLogger
         }
         """
@@ -4648,7 +4408,7 @@ struct DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.input) var config: AppConfig
-            @Provide(.shared, factory: { (config: AppConfig) in Service(config: config) }, concrete: true)
+            @Provide(.shared, factory: { (config: AppConfig) in Service(config: config) })
             var service: Service
         }
         """

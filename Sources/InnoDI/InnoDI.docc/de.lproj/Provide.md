@@ -38,7 +38,6 @@ strukturelle Swift-Diagnosen auslösen.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -68,7 +67,8 @@ ist.
 - `with:` ist nur mit `Type.self` und synchronen Providern zulässig.
 - `asyncFactory` wird für `.shared` und `.transient` unterstützt und muss eine
   `async`-Closure sein.
-- Konkrete `.shared`- und `.transient`-Typen brauchen `concrete: true`.
+- Der deklarierte Property-Typ bestimmt die Speicherform: Ein konkreter
+  Nominaltyp verwendet konkreten Speicher, `any Protocol` existenziellen Speicher.
 
 ## Sibling-Edge-Vertrag
 

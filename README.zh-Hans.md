@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -308,7 +308,6 @@ factory 或注入实现内部进行分支。
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -331,6 +330,8 @@ factory 或注入实现内部进行分支。
   identifier/member alias 实际并不解析为 non-optional function，Swift 可能再发出
   自身的 diagnostic。
 - `asyncFactory` 支持 `.shared` 和 `.transient`，且必须是 `async` closure。
+- 声明的 property type 决定存储形态：具体 nominal type 使用具体存储，
+  `any Protocol` 使用 existential 存储。
 - `with:` 只能与 `Type.self` 构造一起使用。Literal 数组的每个元素必须精确采用
   canonical direct-member 写法 `\Self.member`，例如 `with: [\Self.config]`；
   `with: []` 也有效。具名 container、module-qualified 或 typealias root，以及
@@ -403,14 +404,14 @@ closure 依然可以编译，并作为 no-op 运行。
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

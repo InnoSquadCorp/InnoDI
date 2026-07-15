@@ -34,7 +34,6 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -63,7 +62,8 @@ attached macro は任意の alias を解決できないため identifier/member 
 - `with:` は `Type.self` と同期 provider でのみ利用できます
 - `asyncFactory` は `.shared` と `.transient` で利用でき、`async` closure
   でなければなりません
-- concrete `.shared` / `.transient` には `concrete: true` が必要です
+- 宣言した property type が storage shape を決定します。具象の nominal type は
+  具象 storage、`any Protocol` は existential storage になります
 
 ## Sibling edge contract
 

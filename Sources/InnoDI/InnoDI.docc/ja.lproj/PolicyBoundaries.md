@@ -54,3 +54,10 @@ InnoDI は明示的な境界を置くことで検証を決定的に保ちます�
   内にとどまるものとして扱ってください。
 - non-`Sendable` な依存関係は global lookup の背後に隠さず、明示的なコンテナ
   境界を通して渡し、アプリ層で隔離してください。
+
+## 宣言型が決める storage shape
+
+- Protocol-first の dependency design を推奨します。
+- 宣言した property type が source of truth です。具象の nominal type は具象
+  storage、`any Protocol` は existential storage になります。
+- Storage shape は attribute flag や macro heuristic では選択されません。

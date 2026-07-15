@@ -39,7 +39,6 @@ struct ParsingPropertyTests {
         let includeType = rng.nextBool()
         let includeWith = rng.nextBool()
         let includeFactory = rng.nextBool()
-        let includeConcrete = rng.nextBool()
 
         var arguments: [String] = [".\(selectedScope.rawValue)"]
         if includeType {
@@ -50,9 +49,6 @@ struct ParsingPropertyTests {
         }
         if includeFactory {
             arguments.append("factory: Foo()")
-        }
-        if includeConcrete {
-            arguments.append("concrete: true")
         }
 
         let shuffledArguments = rng.shuffled(arguments)
@@ -76,7 +72,6 @@ struct ParsingPropertyTests {
         #expect(parsed.scope == selectedScope)
         #expect((parsed.typeExpr != nil) == includeType)
         #expect((parsed.factoryExpr != nil) == includeFactory)
-        #expect(parsed.concrete == includeConcrete)
         #expect(parsed.dependencies == (includeWith ? ["config", "logger"] : []))
     }
 

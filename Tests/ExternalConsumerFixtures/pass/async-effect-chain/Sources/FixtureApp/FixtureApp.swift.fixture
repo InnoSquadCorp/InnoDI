@@ -22,47 +22,47 @@ struct Request: Sendable {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.shared, factory: Seed(value: 42), concrete: true)
+    @Provide(.shared, factory: Seed(value: 42))
     var seed: Seed
 
     @Provide(.shared, asyncFactory: { (seed: Seed) async in
         Endpoint(path: "/v\(seed.value)")
-    }, concrete: true)
+    })
     var endpoint: Endpoint
 
     @Provide(.shared, asyncFactory: { (endpoint: Endpoint) async throws -> Token in
         Token(value: endpoint.path)
-    }, concrete: true)
+    })
     var token: Token
 
     @Provide(.shared, asyncFactory: { (token: Token) async throws -> Session in
         Session(token: token)
-    }, concrete: true)
+    })
     var session: Session
 
     @Provide(.transient, asyncFactory: { (session: Session) async throws -> Request in
         Request(session: session)
-    }, concrete: true)
+    })
     var request: Request
 
     @Provide(.transient, asyncFactory: { (seed: Seed) async in
         Endpoint(path: "/transient/\(seed.value)")
-    }, concrete: true)
+    })
     var transientEndpoint: Endpoint
 
     @Provide(.transient, asyncFactory: { (transientEndpoint: Endpoint) async in
         Token(value: transientEndpoint.path)
-    }, concrete: true)
+    })
     var transientToken: Token
 
     @Provide(.transient, asyncFactory: { (transientToken: Token) async throws -> Session in
         Session(token: transientToken)
-    }, concrete: true)
+    })
     var transientSession: Session
 
     @Provide(.transient, asyncFactory: { (transientSession: Session) async throws -> Request in
         Request(session: transientSession)
-    }, concrete: true)
+    })
     var transientRequest: Request
 }
 
