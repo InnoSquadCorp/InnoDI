@@ -23,15 +23,35 @@ package struct WorkspaceSourceFile {
     package let relativePath: String
     package let fileURL: URL
     package let syntax: SourceFileSyntax
+    package let targetID: WorkspaceTargetID?
+    package let origin: WorkspaceAnalysisSourceOrigin?
 
     package var filePath: String {
         fileURL.path(percentEncoded: false)
     }
 
-    package init(relativePath: String, fileURL: URL, syntax: SourceFileSyntax) {
+    /// Stable target-qualified identity for manifest-backed analysis.
+    ///
+    /// Root-path callers retain their historical relative-path identity.
+    package var sourceIdentity: String {
+        guard let targetID else {
+            return relativePath
+        }
+        return "\(targetID.rawValue)::\(relativePath)"
+    }
+
+    package init(
+        relativePath: String,
+        fileURL: URL,
+        syntax: SourceFileSyntax,
+        targetID: WorkspaceTargetID? = nil,
+        origin: WorkspaceAnalysisSourceOrigin? = nil
+    ) {
         self.relativePath = relativePath
         self.fileURL = fileURL
         self.syntax = syntax
+        self.targetID = targetID
+        self.origin = origin
     }
 }
 
@@ -39,18 +59,46 @@ package struct WorkspaceSourceSnapshot {
     package let rootPath: String
     package let rootURL: URL
     package let files: [WorkspaceSourceFile]
+    package let primaryTargetID: WorkspaceTargetID?
 
+    private let filesBySourceIdentity: [String: WorkspaceSourceFile]
     private let filesByRelativePath: [String: WorkspaceSourceFile]
 
-    package init(rootPath: String, rootURL: URL, files: [WorkspaceSourceFile]) {
+    package init(
+        rootPath: String,
+        rootURL: URL,
+        files: [WorkspaceSourceFile],
+        primaryTargetID: WorkspaceTargetID? = nil
+    ) {
         self.rootPath = rootPath
         self.rootURL = rootURL
         self.files = files
-        self.filesByRelativePath = Dictionary(uniqueKeysWithValues: files.map { ($0.relativePath, $0) })
+        self.primaryTargetID = primaryTargetID
+        self.filesBySourceIdentity = Dictionary(
+            grouping: files,
+            by: \.sourceIdentity
+        ).compactMapValues { matches in
+            matches.count == 1 ? matches[0] : nil
+        }
+        self.filesByRelativePath = Dictionary(grouping: files, by: \.relativePath)
+            .compactMapValues { matches in
+                matches.count == 1 ? matches[0] : nil
+            }
     }
 
+    /// Returns a source only when its logical path is unambiguous.
+    ///
+    /// Manifest-backed snapshots can contain the same package-relative path
+    /// in multiple targets, so callers that need exact lookup should use
+    /// `sourceFile(sourceIdentity:)`.
     package func sourceFile(relativePath: String) -> WorkspaceSourceFile? {
         filesByRelativePath[relativePath]
+    }
+
+    package func sourceFile(
+        sourceIdentity: String
+    ) -> WorkspaceSourceFile? {
+        filesBySourceIdentity[sourceIdentity]
     }
 }
 
@@ -109,6 +157,43 @@ package func loadWorkspaceSourceSnapshot(
     }
 
     return WorkspaceSourceSnapshot(rootPath: rootPath, rootURL: rootURL, files: files)
+}
+
+/// Loads exactly the sources SwiftPM declared visible to one primary target.
+///
+/// Unlike root-path discovery, this mode never skips unreadable files and
+/// never broadens the scope when the manifest is incomplete or malformed.
+package func loadWorkspaceSourceSnapshot(
+    manifest: WorkspaceAnalysisManifest
+) throws -> WorkspaceSourceSnapshot {
+    let manifest = try manifest.validated()
+    let rootURL = URL(fileURLWithPath: manifest.rootPackageDirectory)
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+    var files: [WorkspaceSourceFile] = []
+
+    for target in manifest.targets {
+        for source in target.sources {
+            let fileURL = URL(fileURLWithPath: source.filePath)
+            let contents = try String(contentsOf: fileURL, encoding: .utf8)
+            files.append(
+                WorkspaceSourceFile(
+                    relativePath: source.logicalPath,
+                    fileURL: fileURL,
+                    syntax: Parser.parse(source: contents),
+                    targetID: target.id,
+                    origin: source.origin
+                )
+            )
+        }
+    }
+
+    return WorkspaceSourceSnapshot(
+        rootPath: manifest.rootPackageDirectory,
+        rootURL: rootURL,
+        files: files,
+        primaryTargetID: manifest.primaryTargetID
+    )
 }
 
 /// Discovers Swift source files that participate in workspace-wide validation.
