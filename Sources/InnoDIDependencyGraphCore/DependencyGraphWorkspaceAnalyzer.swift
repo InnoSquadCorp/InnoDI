@@ -76,6 +76,14 @@ private func collectDependencyGraphWithDiagnostics(
     snapshot: WorkspaceSourceSnapshot,
     validateDAG: Bool
 ) -> DependencyGraphDiagnosticCollection {
+    if let manifest = snapshot.analysisManifest {
+        return collectTargetScopedDependencyGraphWithDiagnostics(
+            snapshot: snapshot,
+            manifest: manifest,
+            validateDAG: validateDAG
+        )
+    }
+
     let collector = ContainerCollector()
     for sourceFile in snapshot.files {
         collector.walkFile(relativePath: sourceFile.relativePath, tree: sourceFile.syntax)
@@ -116,7 +124,12 @@ private func collectDependencyGraphWithDiagnostics(
     let ownershipEligibleContainerIDsBySemanticPath = validateDAG
         ? containerIDsBySemanticPathEligible
         : containerIDsBySemanticPathAll
-    let candidatePaths = Set(containerIDsBySemanticPathAll.keys)
+    let ownershipResolver = GraphContainerResolver.legacy(
+        allContainerIDsBySemanticPath: containerIDsBySemanticPathAll,
+        eligibleContainerIDsBySemanticPath:
+            ownershipEligibleContainerIDsBySemanticPath,
+        semanticResolver: semanticResolver
+    )
     for reference in collector.subContainerReferences {
         guard let childReference = reference.childReference else {
             ownershipSemanticIssues.append(
@@ -135,10 +148,7 @@ private func collectDependencyGraphWithDiagnostics(
         guard let resolvedID = resolveContainerReferenceID(
             reference: childReference,
             sourceID: reference.parentID,
-            candidatePaths: candidatePaths,
-            allContainerIDsBySemanticPath: containerIDsBySemanticPathAll,
-            eligibleContainerIDsBySemanticPath: ownershipEligibleContainerIDsBySemanticPath,
-            semanticResolver: semanticResolver,
+            resolver: ownershipResolver,
             semanticIssues: &ownershipSemanticIssues,
             fallbackMatchedReferences: &ownershipFallbackMatchedReferences
         ) else {
@@ -158,6 +168,147 @@ private func collectDependencyGraphWithDiagnostics(
         nodes: nodes,
         edges: deduplicateEdges(usageCollector.edges + ownershipEdges),
         semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues
+    )
+}
+
+private struct TargetScopedCollectedSource {
+    let sourceFile: WorkspaceSourceFile
+    let targetID: WorkspaceTargetID
+    let sourceImports: TargetAwareSourceImports
+    let subContainerReferences: [PendingSubContainerReference]
+}
+
+private func collectTargetScopedDependencyGraphWithDiagnostics(
+    snapshot: WorkspaceSourceSnapshot,
+    manifest: WorkspaceAnalysisManifest,
+    validateDAG: Bool
+) -> DependencyGraphDiagnosticCollection {
+    var collectedSources: [TargetScopedCollectedSource] = []
+    var rawNodesByTargetID: [
+        WorkspaceTargetID: [DependencyGraphNode]
+    ] = [:]
+    var aliasesByTargetID: [
+        WorkspaceTargetID: [TargetAwareContainerAlias]
+    ] = [:]
+    var exportedImportsByTargetID: [
+        WorkspaceTargetID: TargetAwareSourceImports
+    ] = [:]
+
+    for sourceFile in snapshot.files.sorted(by: {
+        $0.sourceIdentity < $1.sourceIdentity
+    }) {
+        guard let targetID = sourceFile.targetID else {
+            continue
+        }
+        let sourceImports = targetAwareSourceImports(in: sourceFile.syntax)
+        let collector = ContainerCollector()
+        collector.walkFile(
+            relativePath: sourceFile.sourceIdentity,
+            tree: sourceFile.syntax
+        )
+        let aliases = collector.typeAliases.map {
+            TargetAwareContainerAlias(
+                record: $0,
+                sourceIdentity: sourceFile.sourceIdentity,
+                sourceImports: sourceImports
+            )
+        }
+        rawNodesByTargetID[targetID, default: []].append(
+            contentsOf: collector.nodes
+        )
+        aliasesByTargetID[targetID, default: []].append(
+            contentsOf: aliases
+        )
+        exportedImportsByTargetID[targetID] =
+            (exportedImportsByTargetID[targetID] ?? .empty).merging(
+                sourceImports.exportedOnly
+            )
+        collectedSources.append(
+            TargetScopedCollectedSource(
+                sourceFile: sourceFile,
+                targetID: targetID,
+                sourceImports: sourceImports,
+                subContainerReferences: collector.subContainerReferences
+            )
+        )
+    }
+
+    let nodesByTargetID = rawNodesByTargetID.mapValues(normalizeNodes)
+    let nodes = normalizeNodes(nodesByTargetID.values.flatMap { $0 })
+    guard !nodes.isEmpty else {
+        return DependencyGraphDiagnosticCollection(
+            nodes: [],
+            edges: [],
+            semanticIssues: []
+        )
+    }
+
+    let resolutionIndex = TargetAwareContainerResolutionIndex(
+        manifest: manifest,
+        nodesByTargetID: nodesByTargetID,
+        aliasesByTargetID: aliasesByTargetID,
+        exportedImportsByTargetID: exportedImportsByTargetID,
+        validateDAG: validateDAG
+    )
+    var edges: [DependencyGraphEdge] = []
+    var semanticIssues: [SemanticContainerReferenceIssue] = []
+
+    for collectedSource in collectedSources {
+        let resolver = resolutionIndex.resolver(
+            from: collectedSource.targetID,
+            sourceImports: collectedSource.sourceImports
+        )
+        let usageCollector = ContainerUsageCollector(
+            referenceResolver: resolver
+        )
+        usageCollector.walkFile(
+            relativePath: collectedSource.sourceFile.sourceIdentity,
+            tree: collectedSource.sourceFile.syntax
+        )
+        edges.append(contentsOf: usageCollector.edges)
+        semanticIssues.append(contentsOf: usageCollector.semanticIssues)
+
+        var ownershipFallbackMatchedReferences: [String] = []
+        for reference in collectedSource.subContainerReferences {
+            guard let childReference = reference.childReference else {
+                semanticIssues.append(
+                    SemanticContainerReferenceIssue(
+                        sourceID: reference.parentID,
+                        destinationDisplayName: reference.childDisplayName,
+                        state: .excluded,
+                        destinationCandidates: [],
+                        excludedReason: nil,
+                        aliasExpansionTrace: [],
+                        usedSuffixFallback: false
+                    )
+                )
+                continue
+            }
+            guard let resolvedID = resolveContainerReferenceID(
+                reference: childReference,
+                sourceID: reference.parentID,
+                resolver: resolver,
+                semanticIssues: &semanticIssues,
+                fallbackMatchedReferences:
+                    &ownershipFallbackMatchedReferences
+            ) else {
+                continue
+            }
+            edges.append(
+                DependencyGraphEdge(
+                    fromID: reference.parentID,
+                    toID: resolvedID,
+                    label: reference.memberName,
+                    isOwnership: true
+                )
+            )
+        }
+    }
+
+    return DependencyGraphDiagnosticCollection(
+        nodes: nodes,
+        edges: deduplicateEdges(edges),
+        semanticIssues: semanticIssues
     )
 }
 
