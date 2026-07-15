@@ -32,6 +32,8 @@ struct PluginManifestParityTests {
 
         #expect(normalizedPrebuilt == source)
         #expect(source.contains("--analysis-manifest"))
+        #expect(source.contains("--state-dir"))
+        #expect(source.contains("innodi-dag-validation-state"))
         #expect(!source.contains("\"--root\""))
         #expect(source.contains("workspace-analysis.json"))
     }
