@@ -231,6 +231,28 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 | Graph JSON | module-qualified ID와 명시적 target/root-pruning scope를 갖는 schema v2로 consumer를 옮기세요. |
 | `@GenerateMock` | experimental 상태를 유지하며, 5.0이 migration 또는 GA freeze를 뜻하지 않습니다. |
 
+나머지 package를 compile하기 전에 공개 migration executable을 실행하세요.
+
+```bash
+swift run InnoDI-Migrate --root . --check
+swift run InnoDI-Migrate --root . --write
+swift run InnoDI-Migrate --root . --check
+```
+
+안전하게 자동 변경할 파일이 있으면 `--check`는 파일마다 `MIGRATE` record를
+출력하고 exit code `1`로 종료합니다. `--write`는 첫 atomic file replacement 전에
+전체 source tree를 parse하고 preflight하며 기존 UTF-8 BOM을 보존합니다. 소유권이
+모호한 attribute, 지원하지 않는 legacy argument, parse error, source symlink,
+동시에 변경된 source를 만나면 exit code `2`로 fail-closed합니다. Preflight
+실패는 아무 파일도 쓰지 않습니다. Write 도중 감지한 변경이 있으면 tool 출력과
+여전히 정확히 일치하는 파일만 rollback하므로 감지된 외부 편집은 덮어쓰지
+않습니다. 소유권이 모호하면 먼저 attribute의 실제 owning module을 확인하세요.
+InnoDI 소유 선언이라면 `@InnoDI.DIContainer`와 `@InnoDI.Provide`, 또는
+`@InnoDI.SubContainer`와 `@InnoDISwiftUI.DIFeatureRoot`처럼 짝이 되는 macro
+전체를 module-qualified 형태로 바꾼 뒤 다시 실행하세요. Scanner는 `.build`,
+`.git`, `.swiftpm`, nested Git repository를 건너뜁니다. Nested repository도
+바꿔야 한다면 해당 repository를 별도 `--root`로 지정하세요.
+
 공개된 underscored `DIEnvironmentBridging` witness는 5.0에서 breaking rename이
 적용됩니다. `_innodiEnvironmentBridgeModifier()`를
 `_innoDIEnvironmentBridgeModifier()`로 바꾸세요. 예전 이름을 사용한 manual

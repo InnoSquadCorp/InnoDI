@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "InnoDI", targets: ["InnoDI"]),
         .library(name: "InnoDISwiftUI", targets: ["InnoDISwiftUI"]),
         .executable(name: "InnoDI-DependencyGraph", targets: ["InnoDI-DependencyGraph"]),
+        .executable(name: "InnoDI-Migrate", targets: ["InnoDI-Migrate"]),
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
     dependencies: [
@@ -95,10 +96,23 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
         ),
+        .target(
+            name: "InnoDIMigrationCore",
+            dependencies: [
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+            ]
+        ),
         .executableTarget(
             name: "InnoDI-DependencyGraph",
             dependencies: [
                 "InnoDIDependencyGraphCLI"
+            ]
+        ),
+        .executableTarget(
+            name: "InnoDI-Migrate",
+            dependencies: [
+                "InnoDIMigrationCore"
             ]
         ),
         .executableTarget(
@@ -160,6 +174,13 @@ let package = Package(
                 "InnoDITestSupport",
             ],
             exclude: ["__Snapshots__"]
+        ),
+        .testTarget(
+            name: "InnoDIMigrationCoreTests",
+            dependencies: [
+                "InnoDI-Migrate",
+                "InnoDIMigrationCore",
+            ]
         ),
         .testTarget(
             name: "InnoDIBuildSupportTests",

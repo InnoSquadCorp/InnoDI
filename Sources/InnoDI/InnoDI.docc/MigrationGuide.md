@@ -237,6 +237,28 @@ release.
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
 
+Run the public migration executable before compiling the rest of the package:
+
+```bash
+swift run InnoDI-Migrate --root . --check
+swift run InnoDI-Migrate --root . --write
+swift run InnoDI-Migrate --root . --check
+```
+
+`--check` exits with `1` and prints one `MIGRATE` record per file when safe
+rewrites are pending. `--write` parses and preflights the complete source tree
+before its first atomic file replacement, then preserves an existing UTF-8
+byte-order mark. Ambiguous ownership, unsupported legacy arguments, parse
+errors, source symlinks, and concurrent source changes fail closed with exit
+code `2`. Preflight failures write nothing. A detected write-time change rolls
+back only files that still exactly match the tool's output, so the detected
+external edit is not overwritten. When ownership is ambiguous, first confirm
+the attribute's actual owning module. For InnoDI-owned declarations,
+module-qualify the complete macro pair: `@InnoDI.DIContainer` with `@InnoDI.Provide`, or
+`@InnoDI.SubContainer` with `@InnoDISwiftUI.DIFeatureRoot`, before rerunning.
+The scanner skips `.build`, `.git`, `.swiftpm`, and nested Git repositories;
+pass a nested repository as its own `--root` when it must be migrated too.
+
 The public underscored `DIEnvironmentBridging` witness is a breaking rename in
 5.0: `_innodiEnvironmentBridgeModifier()` becomes
 `_innoDIEnvironmentBridgeModifier()`. Rename any manual conformance or direct
