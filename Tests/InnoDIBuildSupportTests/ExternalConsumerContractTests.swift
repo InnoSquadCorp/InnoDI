@@ -36,6 +36,31 @@ struct ExternalConsumerContractTests {
         }
     }
 
+    @Test("Published dependency graph executable runs from a fresh consumer")
+    func dependencyGraphExecutableRunsFromFreshConsumer() throws {
+        let fixture = try externalConsumerFixture(
+            named: "basic-container",
+            expectation: .pass
+        )
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+
+        let result = try runExternalDependencyGraphExecutable(
+            packageURL: materializedURL
+        )
+        let output = result.stdout + "\n" + result.stderr
+
+        if result.timedOut || result.exitCode != 0 {
+            Issue.record("Dependency graph executable failed from a fresh consumer:\n\(output)")
+        }
+        #expect(!result.timedOut, "Dependency graph executable timed out")
+        #expect(result.exitCode == 0, "Dependency graph executable must run successfully")
+        #expect(result.stdout.contains("InnoDI Dependency Graph"))
+        #expect(result.stdout.contains("AppContainer"))
+        #expect(result.stdout.contains("FeatureContainer"))
+        assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+    }
+
     @Test("Compile-fail fixtures emit their expected diagnostics")
     func compileFailFixturesEmitExpectedDiagnostics() throws {
         let fixtures = try externalConsumerFixtures(expectation: .fail)
@@ -228,6 +253,30 @@ private func externalConsumerFixtures(
             expectation: expectation
         )
     }
+}
+
+private func externalConsumerFixture(
+    named name: String,
+    expectation: ExternalConsumerExpectation
+) throws -> ExternalConsumerFixture {
+    let sourceURL = packageRootURL()
+        .appendingPathComponent("Tests/ExternalConsumerFixtures", isDirectory: true)
+        .appendingPathComponent(expectation.rawValue, isDirectory: true)
+        .appendingPathComponent(name, isDirectory: true)
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(
+        atPath: sourceURL.path(percentEncoded: false),
+        isDirectory: &isDirectory
+    ), isDirectory.boolValue else {
+        throw ExternalConsumerFixtureError.missingDirectory(
+            sourceURL.path(percentEncoded: false)
+        )
+    }
+    return ExternalConsumerFixture(
+        name: name,
+        sourceURL: sourceURL,
+        expectation: expectation
+    )
 }
 
 private func materializeExternalConsumerFixture(
