@@ -36,10 +36,20 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     /// once every container has been visited.
     var subContainerReferences: [PendingSubContainerReference] = []
 
+    private let moduleIdentity: String?
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
 
     override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
+        moduleIdentity = nil
+        super.init(viewMode: viewMode)
+    }
+
+    init(
+        moduleIdentity: String,
+        viewMode: SyntaxTreeViewMode = .sourceAccurate
+    ) {
+        self.moduleIdentity = moduleIdentity
         super.init(viewMode: viewMode)
     }
 
@@ -111,7 +121,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         let semanticPath = declarationPath.joined(separator: ".")
         let parentID = GraphIdentity.makeContainerID(
             fileRelativePath: currentRelativeFilePath,
-            declarationPath: declarationPath
+            declarationPath: declarationPath,
+            moduleIdentity: moduleIdentity
         )
 
         var requiredInputs: [String] = []
