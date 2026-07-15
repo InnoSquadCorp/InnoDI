@@ -15,6 +15,7 @@ let package = Package(
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
         .library(name: "InnoDISwiftUI", targets: ["InnoDISwiftUI"]),
+        .executable(name: "InnoDI-DependencyGraph", targets: ["InnoDI-DependencyGraph"]),
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
     dependencies: [
