@@ -39,6 +39,12 @@ let package = Package(
             name: "SwiftUIExample",
             dependencies: [
                 .product(name: "InnoDISwiftUI", package: innoDIPackageIdentity)
+            ],
+            plugins: [
+                .plugin(
+                    name: "InnoDIDAGValidationPlugin",
+                    package: innoDIPackageIdentity
+                )
             ]
         ),
         .testTarget(

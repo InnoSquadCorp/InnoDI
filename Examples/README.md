@@ -1,7 +1,9 @@
 # InnoDI Examples
 
-This folder contains runnable examples that match the current 4.x feature set,
-including the 4.1.0 release-hardening validation and SwiftUI helpers.
+This folder contains runnable examples for the current 5.0 development train,
+including mandatory target-scoped DAG validation and SwiftUI helpers. Public
+installation snippets remain pinned to the latest stable 4.3.0 release until
+5.0.0 is published.
 
 ## Core Macro Usage
 
@@ -20,13 +22,14 @@ Commands:
 ```bash
 cd Examples/SampleApp
 swift build
+swift test
 swift run SampleApp
 ```
 
 Graph commands from the repository root:
 
 ```bash
-swift run InnoDI-DependencyGraph --root Examples/SampleApp
+swift run InnoDI-DependencyGraph --root Examples/SampleApp --root-pruning all
 swift run InnoDI-DependencyGraph --root Examples/SampleApp --validate-dag
 ```
 
@@ -73,8 +76,8 @@ Highlights:
 ## CLI Output Formats
 
 ```bash
-swift run InnoDI-DependencyGraph --root /path/to/your/project
-swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.dot
-swift run InnoDI-DependencyGraph --root /path/to/your/project --format ascii
-swift run InnoDI-DependencyGraph --root /path/to/your/project --format dot --output graph.png
+swift run InnoDI-DependencyGraph --root /path/to/your/project --root-pruning all
+swift run InnoDI-DependencyGraph --root /path/to/your/project --root-pruning all --format dot --output graph.dot
+swift run InnoDI-DependencyGraph --root /path/to/your/project --root-pruning all --format ascii
+swift run InnoDI-DependencyGraph --root /path/to/your/project --root-pruning all --format dot --output graph.png
 ```

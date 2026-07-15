@@ -1,7 +1,19 @@
 name: Examples
 
+permissions:
+  contents: read
+
 on:
   pull_request:
+    paths:
+      - 'Examples/**'
+      - 'Sources/**'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - '.github/workflows/examples.yml'
+  push:
+    branches:
+      - main
     paths:
       - 'Examples/**'
       - 'Sources/**'
@@ -19,25 +31,30 @@ jobs:
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
         with:
           version: "26.3"
-      - name: Build SampleApp
+      - name: Build and Test SampleApp
         run: |
           cd Examples/SampleApp
           swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
       - name: Run SampleApp
         run: |
           cd Examples/SampleApp
-          swift run SampleApp
+          swift run --skip-build SampleApp
 
   swiftui-example:
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
         with:
@@ -52,7 +69,9 @@ jobs:
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
         with:

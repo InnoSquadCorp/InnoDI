@@ -9,5 +9,5 @@ the preview should exercise the same generated accessor that production code
 uses. Keep the preview container local to the preview source file so override
 state does not leak across unrelated previews.
 
-See `Examples/PreviewInjectionExample/Sources/PreviewInjectionExample/main.swift`
+See `Examples/PreviewInjectionExample/Sources/PreviewInjectionExample/PreviewInjectionExampleApp.swift`
 for live, preview, and failure scenarios after migration.
