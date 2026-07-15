@@ -58,6 +58,10 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
     }
 
     func declaresDependencyEdge(from parent: WorkspaceModuleRecord, to child: WorkspaceModuleRecord) -> Bool? {
+        if let directDependencyModuleIDs = parent.directDependencyModuleIDs {
+            return directDependencyModuleIDs.contains(child.moduleID)
+        }
+
         var sawAmbiguousResolution = false
 
         for dependencyRef in parent.dependencyRefs {
@@ -241,6 +245,31 @@ struct WorkspaceModuleRecord: Equatable, Sendable {
     let dependencyRefs: [WorkspaceModuleDependencyRef]
     let swiftPMPackageDependencies: [WorkspaceSwiftPMPackageDependencyRecord]
     let buildSystem: String
+    let directDependencyModuleIDs: Set<String>?
+
+    init(
+        moduleID: String,
+        name: String,
+        manifestPath: String,
+        packageDisplayName: String?,
+        packageIdentity: String?,
+        sourcePatterns: [String],
+        dependencyRefs: [WorkspaceModuleDependencyRef],
+        swiftPMPackageDependencies: [WorkspaceSwiftPMPackageDependencyRecord],
+        buildSystem: String,
+        directDependencyModuleIDs: Set<String>? = nil
+    ) {
+        self.moduleID = moduleID
+        self.name = name
+        self.manifestPath = manifestPath
+        self.packageDisplayName = packageDisplayName
+        self.packageIdentity = packageIdentity
+        self.sourcePatterns = sourcePatterns
+        self.dependencyRefs = dependencyRefs
+        self.swiftPMPackageDependencies = swiftPMPackageDependencies
+        self.buildSystem = buildSystem
+        self.directDependencyModuleIDs = directDependencyModuleIDs
+    }
 
     fileprivate func matches(filePath: String) -> Bool {
         sourcePatterns.contains { glob in
@@ -290,6 +319,43 @@ struct WorkspaceModuleDependencyRef: Equatable, Sendable {
 }
 
 enum ModuleGraphProvider {
+    /// Builds an authoritative module graph from SwiftPM's resolved target
+    /// topology instead of re-parsing package manifests.
+    static func snapshot(
+        manifest: WorkspaceAnalysisManifest
+    ) throws -> WorkspaceModuleGraphSnapshot {
+        let manifest = try manifest.validated()
+        let modules = manifest.targets.map { target in
+            WorkspaceModuleRecord(
+                moduleID: target.id.rawValue,
+                name: target.targetName,
+                manifestPath: URL(
+                    fileURLWithPath: target.packageDirectory
+                )
+                .appendingPathComponent("Package.swift")
+                .path(percentEncoded: false),
+                packageDisplayName: target.packageDisplayName,
+                packageIdentity: target.packageIdentity,
+                sourcePatterns: target.sources.map(\.filePath),
+                dependencyRefs: [],
+                swiftPMPackageDependencies: [],
+                buildSystem: WorkspaceAnalysisManifest.swiftPMBuildSystem,
+                directDependencyModuleIDs: Set(
+                    target.directDependencyTargetIDs.map(\.rawValue)
+                )
+            )
+        }
+        .sorted { $0.moduleID < $1.moduleID }
+
+        return WorkspaceModuleGraphSnapshot(
+            modules: modules,
+            swiftPMProducts: [],
+            cachedFilePaths: manifest.targets.flatMap { target in
+                target.sources.map(\.filePath)
+            }
+        )
+    }
+
     static func snapshot(rootPath: String) throws -> WorkspaceModuleGraphSnapshot {
         let manifestURLs = discoverManifestURLs(rootPath: rootPath)
         var modules: [WorkspaceModuleRecord] = []

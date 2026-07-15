@@ -544,7 +544,7 @@ struct WorkspaceAnalysisManifestTests {
     }
 }
 
-private struct ManifestFixture {
+struct ManifestFixture {
     let rootURL: URL
     let featurePackageURL: URL
     let appSourceURL: URL
@@ -634,7 +634,7 @@ private struct ManifestFixture {
     }
 }
 
-private func makeValidManifest(
+func makeValidManifest(
     fixture: ManifestFixture,
     reverseInputOrder: Bool = false
 ) -> WorkspaceAnalysisManifest {
@@ -727,7 +727,7 @@ private func makeValidManifest(
     )
 }
 
-private func replacingManifest(
+func replacingManifest(
     _ manifest: WorkspaceAnalysisManifest,
     schemaVersion: Int? = nil,
     buildSystem: String? = nil,
@@ -750,7 +750,7 @@ private func replacingManifest(
     )
 }
 
-private func replacingTarget(
+func replacingTarget(
     _ target: WorkspaceAnalysisTarget,
     id: WorkspaceTargetID? = nil,
     packageIdentity: String? = nil,
