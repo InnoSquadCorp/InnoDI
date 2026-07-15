@@ -1,0 +1,57 @@
+import InnoDI
+
+protocol _InnoDIComponentMountable {}
+protocol _InnoDIMainActorComponentMountable {}
+protocol DIHierarchyRootMarker {}
+
+@DIComponent
+@DIContainer
+struct FeatureContainer {
+    @Provide(.input) var value: Int
+}
+
+@DIHierarchyRoot
+@DIComponent
+@DIContainer(mainActor: true)
+struct RootContainer {
+    @Provide(.input) var value: Int
+}
+
+struct FeatureDependencies: FeatureContainerDependencies {
+    let value: Int
+}
+
+@MainActor
+struct RootDependencies: RootContainerDependencies {
+    let value: Int
+}
+
+func requireComponent<Component: InnoDI._InnoDIComponentMountable>(
+    _: Component.Type
+) {}
+
+@MainActor
+func requireMainActorComponent<
+    Component: InnoDI._InnoDIMainActorComponentMountable
+>(_: Component.Type) {}
+
+func requireRoot<Root: InnoDI.DIHierarchyRootMarker>(_: Root.Type) {}
+
+@main
+struct FixtureApp {
+    @MainActor
+    static func main() {
+        requireComponent(FeatureContainer.self)
+        requireMainActorComponent(RootContainer.self)
+        requireRoot(RootContainer.self)
+
+        let feature = FeatureContainer(
+            dependencies: FeatureDependencies(value: 1)
+        )
+        let root = RootContainer(
+            dependencies: RootDependencies(value: 2)
+        )
+        precondition(feature.value == 1)
+        precondition(root.value == 2)
+    }
+}

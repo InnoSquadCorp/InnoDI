@@ -208,10 +208,15 @@ Most frequently-hit codes:
 - `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
   was not literal `true` or `false`; use conditional compilation to choose
   different attribute spellings.
-- `container.duplicate-member-name` — two direct `@Provide` instance members
-  use the same property name. Rename one provider. InnoDI diagnoses the later
-  declaration, notes the first, suppresses peer storage, and replaces normal
-  accessors with recovery getters for both ambiguous providers.
+- `container.duplicate-member-name` — two direct managed instance members use
+  the same property name, including `@Provide`/`@SubContainer` combinations.
+  Rename one property. InnoDI diagnoses the later declaration, notes the
+  first, and suppresses support for the ambiguous identity.
+- `container.generated-symbol-collision` — distinct managed property names
+  map to the same hidden storage, override, or child-builder symbol. Rename
+  one `@Provide` or `@SubContainer` property. InnoDI uses source-order
+  first-claim-wins diagnostics and puts every managed accessor in recovery so
+  no invalid-redeclaration or wrong-storage-type errors cascade from Swift.
 - `container.reserved-name-prefix` — a direct container declaration starts
   with one of the prefixes the macro reserves for generated storage and
   support declarations (`_storage_`, `_override_`, `_innoDI`, or `_InnoDI`).
@@ -337,6 +342,11 @@ Most frequently-hit codes:
 
 ## Component / Hierarchy diagnostics
 
+- `component.escaped-target-unsupported` — an `@DIComponent` target uses a
+  backtick-escaped identifier. Rename the type to an unescaped identifier so
+  its generated `<Container>Dependencies` peer has one canonical Swift name.
+  The peer macro owns this diagnostic; member and extension roles fail closed
+  without emitting copies or malformed support declarations.
 - `component.requires-container` — `@DIComponent` must be attached to a
   `@DIContainer`-marked type.
 - `component.overrides-builder-required` — `@DIComponent` requires the

@@ -32,6 +32,258 @@ let reservedGeneratedMemberPrefixes = [
     "_InnoDI",
 ]
 
+enum ManagedGeneratedSymbolShape {
+    case provide(scope: ProvideScope, isAsync: Bool)
+    case subContainer(scope: SubContainerScopeValue)
+
+    func symbolNames(for memberName: String) -> [String] {
+        switch self {
+        case .provide(.input, _):
+            return ["_storage_\(memberName)"]
+        case .provide(.shared, true):
+            return ["_storage_task_\(memberName)"]
+        case .provide(.shared, false):
+            return ["_storage_\(memberName)"]
+        case .provide(.transient, _):
+            return ["_override_\(memberName)"]
+        case .subContainer(.shared):
+            return [
+                "_storage_sub_\(memberName)",
+                "_override_sub_\(memberName)",
+                "_override_sub_apply_\(memberName)",
+            ]
+        case .subContainer(.transient):
+            return [
+                "_override_sub_\(memberName)",
+                "_override_sub_apply_\(memberName)",
+                "_innoDISubBuild_\(memberName)",
+            ]
+        }
+    }
+}
+
+struct DIContainerGeneratedSymbolCollision {
+    let generatedName: String
+    let firstMemberName: String
+    let firstAnchor: Syntax
+    let conflictingMemberName: String
+    let conflictingAnchor: Syntax
+}
+
+private struct ManagedGeneratedSymbolSource {
+    let memberName: String
+    let shape: ManagedGeneratedSymbolShape
+    let sourceOrder: Int
+    let anchor: Syntax
+}
+
+private struct ManagedGeneratedSymbolClaim {
+    let generatedName: String
+    let memberName: String
+    let sourceOrder: Int
+    let claimOrdinal: Int
+    let anchor: Syntax
+}
+
+func generatedPeerSymbolCollisions(
+    in model: DIContainerExpansionModel
+) -> [DIContainerGeneratedSymbolCollision] {
+    let provideSources = model.members
+        .filter(\.hasLocallyValidConstructionConfiguration)
+        .map { member in
+            ManagedGeneratedSymbolSource(
+                memberName: member.name,
+                shape: .provide(
+                    scope: member.scope,
+                    isAsync: member.isAsyncFactory
+                ),
+                sourceOrder: member.sourceOrder,
+                anchor: managedMemberNameAnchor(member.bindingSyntax)
+            )
+        }
+    let subContainerSources = model.subContainerMembers
+        .filter(\.hasLocallyValidGeneratedPeerConfiguration)
+        .compactMap { member -> ManagedGeneratedSymbolSource? in
+            guard let scope = member.scope else { return nil }
+            return ManagedGeneratedSymbolSource(
+                memberName: member.name,
+                shape: .subContainer(scope: scope),
+                sourceOrder: member.sourceOrder,
+                anchor: managedMemberNameAnchor(member.bindingSyntax)
+            )
+        }
+    return generatedPeerSymbolCollisions(
+        sources: provideSources + subContainerSources
+    )
+}
+
+func hasGeneratedPeerSymbolCollision(
+    in declaration: some DeclGroupSyntax
+) -> Bool {
+    hasGeneratedPeerSymbolCollision(
+        sources: rawManagedGeneratedSymbolSources(in: declaration)
+    )
+}
+
+private func hasGeneratedPeerSymbolCollision(
+    sources: [ManagedGeneratedSymbolSource]
+) -> Bool {
+    let memberNameCounts = Dictionary(
+        sources.map { ($0.memberName, 1) },
+        uniquingKeysWith: +
+    )
+    var claimedGeneratedNames = Set<String>()
+    for source in sources where memberNameCounts[source.memberName] == 1 {
+        for generatedName in source.shape.symbolNames(for: source.memberName) {
+            guard claimedGeneratedNames.insert(generatedName).inserted else {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+private func generatedPeerSymbolCollisions(
+    sources: [ManagedGeneratedSymbolSource]
+) -> [DIContainerGeneratedSymbolCollision] {
+    let duplicateMemberNames = Set(
+        Dictionary(grouping: sources, by: \.memberName)
+            .filter { $0.value.count > 1 }
+            .map(\.key)
+    )
+    let claims = sources
+        .filter { !duplicateMemberNames.contains($0.memberName) }
+        .flatMap { source in
+            source.shape.symbolNames(for: source.memberName)
+                .enumerated()
+                .map { ordinal, generatedName in
+                    ManagedGeneratedSymbolClaim(
+                        generatedName: generatedName,
+                        memberName: source.memberName,
+                        sourceOrder: source.sourceOrder,
+                        claimOrdinal: ordinal,
+                        anchor: source.anchor
+                    )
+                }
+        }
+        .sorted {
+            if $0.sourceOrder != $1.sourceOrder {
+                return $0.sourceOrder < $1.sourceOrder
+            }
+            return $0.claimOrdinal < $1.claimOrdinal
+        }
+
+    var firstClaimByGeneratedName: [String: ManagedGeneratedSymbolClaim] = [:]
+    var collisions: [DIContainerGeneratedSymbolCollision] = []
+    for claim in claims {
+        guard let first = firstClaimByGeneratedName[claim.generatedName] else {
+            firstClaimByGeneratedName[claim.generatedName] = claim
+            continue
+        }
+        collisions.append(
+            DIContainerGeneratedSymbolCollision(
+                generatedName: claim.generatedName,
+                firstMemberName: first.memberName,
+                firstAnchor: first.anchor,
+                conflictingMemberName: claim.memberName,
+                conflictingAnchor: claim.anchor
+            )
+        )
+    }
+    return collisions
+}
+
+private func rawManagedGeneratedSymbolSources(
+    in declaration: some DeclGroupSyntax
+) -> [ManagedGeneratedSymbolSource] {
+    declaration.memberBlock.members.enumerated().compactMap {
+        sourceOrder,
+        member -> ManagedGeneratedSymbolSource? in
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              variable.bindings.count == 1,
+              let binding = variable.bindings.first,
+              let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+              !isEscapedInnoDIIdentifier(identifier.identifier),
+              binding.typeAnnotation != nil else {
+            return nil
+        }
+
+        let provideAttributes = findInnoDIAttributes(
+            named: "Provide",
+            in: variable.attributes
+        )
+        let subContainerAttributes = findInnoDIAttributes(
+            named: "SubContainer",
+            in: variable.attributes
+        )
+        let memberName = unescapedInnoDIIdentifierName(identifier.identifier)
+        let anchor = Syntax(identifier.identifier)
+
+        if provideAttributes.count == 1,
+           subContainerAttributes.isEmpty,
+           isSupportedProvideStoredProperty(variable) {
+            let arguments = parseProvideArguments(provideAttributes[0])
+            guard let scope = arguments.scope,
+                  isLocallyValidProvideConfiguration(
+                    declaration: variable,
+                    arguments: arguments
+                  ) else {
+                return nil
+            }
+            return ManagedGeneratedSymbolSource(
+                memberName: memberName,
+                shape: .provide(
+                    scope: scope,
+                    isAsync: arguments.asyncFactoryExpr != nil
+                ),
+                sourceOrder: sourceOrder,
+                anchor: anchor
+            )
+        }
+
+        if subContainerAttributes.count == 1,
+           provideAttributes.isEmpty,
+           isSupportedSubContainerStoredProperty(variable) {
+            let arguments = parseSubContainerArguments(
+                subContainerAttributes[0]
+            )
+            guard let scope = arguments.scope,
+                  !arguments.bindingsParseState.isInvalid,
+                  !isInvalidSameNameWiring(arguments.sameNameWiring),
+                  !(arguments.hasWithDependencies
+                    && arguments.bindingsParseState.hasArgument) else {
+                return nil
+            }
+            return ManagedGeneratedSymbolSource(
+                memberName: memberName,
+                shape: .subContainer(scope: scope),
+                sourceOrder: sourceOrder,
+                anchor: anchor
+            )
+        }
+
+        return nil
+    }
+}
+
+private func isInvalidSameNameWiring(
+    _ state: SubContainerSameNameWiringParseState
+) -> Bool {
+    if case .invalid = state {
+        return true
+    }
+    return false
+}
+
+private func managedMemberNameAnchor(
+    _ binding: PatternBindingSyntax
+) -> Syntax {
+    if let identifier = binding.pattern.as(IdentifierPatternSyntax.self) {
+        return Syntax(identifier.identifier)
+    }
+    return Syntax(binding.pattern)
+}
+
 /// Collects names introduced directly into a container's member lookup scope.
 /// Top-level conditional-compilation branches are traversed, but nested
 /// declaration bodies stop at their own name so their members cannot be

@@ -1,0 +1,1 @@
+Generated SwiftUI helper 'featureRootView' would conflict with an existing member or another feature-root helper.

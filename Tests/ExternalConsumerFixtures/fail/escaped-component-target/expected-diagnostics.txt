@@ -1,0 +1,1 @@
+@DIComponent target 'default' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name.

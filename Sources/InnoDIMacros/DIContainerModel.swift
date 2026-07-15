@@ -125,6 +125,12 @@ struct FeatureRootMemberModel {
 /// scope that must be explicit (no default), and the ordered parent names the
 /// author wants mapped to the child's `.input` parameters.
 struct SubContainerMemberModel {
+    /// Position of the source declaration in the container member list.
+    ///
+    /// Provide and SubContainer models live in separate arrays, so generated
+    /// support validation uses this index to restore one deterministic
+    /// first-claim-wins order across both member kinds.
+    let sourceOrder: Int
     /// Field name on the parent (e.g. `feature`).
     let name: String
     /// Child container type as written (`FeatureContainer`, `FeatureContainer<T>`,
@@ -202,6 +208,16 @@ struct SubContainerMemberModel {
         invalidBindingReferences.first?.anchorExpression
     }
 
+    var hasLocallyValidGeneratedPeerConfiguration: Bool {
+        guard scope != nil,
+              !hasInvalidBindings,
+              invalidSameNameWiringLabel == nil,
+              !(hasWithDependencies && hasBindingsArgument) else {
+            return false
+        }
+        return true
+    }
+
     func parentReferenceSyntax(for parentName: String) -> ExprSyntax? {
         parentDependencyReferences.first(where: { $0.name == parentName })?.anchorExpression
     }
@@ -243,6 +259,11 @@ struct DIContainerExpansionModel {
 }
 
 struct ProvideMemberModel {
+    /// Position of the source declaration in the container member list.
+    ///
+    /// Used with the SubContainer source order when validating the shared
+    /// generated-support namespace.
+    let sourceOrder: Int
     let name: String
     let type: TypeSyntax
     let scope: ProvideScope

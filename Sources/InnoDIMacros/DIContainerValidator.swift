@@ -22,6 +22,30 @@ struct DIContainerValidator {
         )
         let dagValidationEnabled = model.options.validateDAG
 
+        for collision in generatedPeerSymbolCollisions(in: model) {
+            context.diagnose(
+                Diagnostic(
+                    node: collision.conflictingAnchor,
+                    message: SimpleDiagnostic.containerGeneratedSymbolCollision(
+                        conflictingMemberName: collision.conflictingMemberName,
+                        generatedName: collision.generatedName,
+                        firstMemberName: collision.firstMemberName
+                    ),
+                    notes: [
+                        Note(
+                            node: collision.firstAnchor,
+                            message: SimpleNote(
+                                "The first claim for generated support symbol '\(collision.generatedName)' comes from managed member '\(collision.firstMemberName)' here.",
+                                code: .containerGeneratedSymbolCollision,
+                                suffix: "first-claim"
+                            )
+                        )
+                    ]
+                )
+            )
+            hadErrors = true
+        }
+
         for (index, member) in model.members.enumerated() {
             let escapedFactoryParameters = member.closureParameterReferences.filter {
                 isEscapedInnoDIIdentifier($0.token)

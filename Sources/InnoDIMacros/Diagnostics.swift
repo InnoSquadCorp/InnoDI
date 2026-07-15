@@ -77,6 +77,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerReservedNamePrefix = "container.reserved-name-prefix"
     case containerReservedModuleName = "container.reserved-module-name"
     case containerDuplicateMemberName = "container.duplicate-member-name"
+    case containerGeneratedSymbolCollision = "container.generated-symbol-collision"
     case containerUnsupportedDeclarationKind = "container.unsupported-declaration-kind"
     case containerPrivateAccessUnsupported = "container.private-access-unsupported"
     case containerGenericUnsupported = "container.generic-unsupported"
@@ -114,6 +115,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case swiftUIEnvironmentBridgePrivateNestedTarget = "swiftui.environment-bridge-private-nested-target"
     case swiftUIEnvironmentBridgeParameterPackUnsupported = "swiftui.environment-bridge-parameter-pack-unsupported"
     case componentRequiresContainer = "component.requires-container"
+    case componentEscapedTargetUnsupported = "component.escaped-target-unsupported"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
     case previewWithContainerMissingContainerExpression = "swiftui.preview-with-container-missing-container"
@@ -146,7 +148,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIEnvironmentBridgeExtensionContextUnsupported,
                 .swiftUIEnvironmentBridgeUnsupportedDeclarationKind,
                 .swiftUIEnvironmentBridgePrivateNestedTarget,
-                .swiftUIEnvironmentBridgeParameterPackUnsupported:
+                .swiftUIEnvironmentBridgeParameterPackUnsupported,
+                .componentEscapedTargetUnsupported:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideConstructionSourceConflict,
@@ -171,6 +174,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,
                 .containerDuplicateMemberName,
+                .containerGeneratedSymbolCollision,
                 .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
@@ -694,6 +698,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func componentEscapedTargetUnsupported(name: String) -> Self {
+        Self(
+            "@DIComponent target '\(name)' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name.",
+            code: .componentEscapedTargetUnsupported
+        )
+    }
+
     static func componentOverridesBuilderRequired() -> Self {
         Self(
             "@DIComponent requires the synthesized Overrides builder from @DIContainer. Rename or remove the user-defined Overrides type; custom Overrides types are unsupported in InnoDI 5.0.",
@@ -957,8 +968,19 @@ extension SimpleDiagnostic {
 
     static func containerDuplicateMemberName(memberName: String) -> Self {
         Self(
-            "@DIContainer declares more than one @Provide member named '\(memberName)'. Give every provider property a unique name so storage, overrides, and graph identities remain unambiguous.",
+            "@DIContainer declares more than one managed member named '\(memberName)'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.",
             code: .containerDuplicateMemberName
+        )
+    }
+
+    static func containerGeneratedSymbolCollision(
+        conflictingMemberName: String,
+        generatedName: String,
+        firstMemberName: String
+    ) -> Self {
+        Self(
+            "@DIContainer member '\(conflictingMemberName)' would generate support symbol '\(generatedName)', but earlier managed member '\(firstMemberName)' already claims it. Rename one of the @Provide or @SubContainer properties.",
+            code: .containerGeneratedSymbolCollision
         )
     }
 

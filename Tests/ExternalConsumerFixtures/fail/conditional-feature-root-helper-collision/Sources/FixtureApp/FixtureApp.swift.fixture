@@ -1,0 +1,26 @@
+import InnoDI
+
+struct ExistingRoot {}
+struct FeatureRootScene {}
+
+@DIContainer
+struct FeatureContainer {}
+
+@DIContainer
+struct ParentContainer {
+    #if os(macOS)
+    func featureRootView() -> ExistingRoot { ExistingRoot() }
+    #endif
+
+    @SubContainer(
+        scope: .shared,
+        with: [],
+        featureRoot: FeatureRootScene.self
+    )
+    var feature: FeatureContainer
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}
