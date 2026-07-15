@@ -61,20 +61,9 @@ package func runDependencyGraphCLI() -> Int32 {
             primaryTargetID = manifest.primaryTargetID
         case .root(let rootPath):
             primaryTargetID = nil
-            if parsed.validateDAG {
-                snapshot = try loadWorkspaceSourceSnapshot(
-                    rootPath: rootPath
-                )
-            } else {
-                snapshot = try loadWorkspaceSourceSnapshot(
-                    rootPath: rootPath
-                ) { relativePath, fileURL, error in
-                    fputs(
-                        "Warning: failed to read '\(relativePath)' (\(fileURL.path(percentEncoded: false))): \(error)\n",
-                        stderr
-                    )
-                }
-            }
+            snapshot = try loadWorkspaceSourceSnapshot(
+                rootPath: rootPath
+            )
         }
     } catch {
         fputs(
@@ -88,6 +77,19 @@ package func runDependencyGraphCLI() -> Int32 {
         snapshot: snapshot
     )
     if let failure = declarationMatrix.asCommandResult() {
+        return writeValidationResult(
+            DependencyGraphCommandResult(
+                exitCode: failure.exitCode,
+                stdout: failure.stdout,
+                stderr: failure.stderr
+            ),
+            outputPath: outputPath
+        )
+    }
+
+    let generatedQualifierPreflight = GeneratedQualifierBuildValidator
+        .validate(snapshot: snapshot)
+    if let failure = generatedQualifierPreflight.asCommandResult() {
         return writeValidationResult(
             DependencyGraphCommandResult(
                 exitCode: failure.exitCode,

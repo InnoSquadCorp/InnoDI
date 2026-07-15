@@ -1,0 +1,21 @@
+import InnoDISwiftUI
+
+struct DirectBridgeHost {}
+
+@DIEnvironmentBridge([])
+extension DirectBridgeHost {}
+
+extension FeatureHost {
+    @DIEnvironmentBridge([])
+    struct ExtensionNestedBridge {}
+}
+
+func makeLocalBridge() {
+    @DIEnvironmentBridge([])
+    struct LocalBridge {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

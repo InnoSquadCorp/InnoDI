@@ -891,7 +891,10 @@ extension SimpleDiagnostic {
 
     static func containerReservedModuleName(memberName: String) -> Self {
         Self(
-            "Declaration '\(memberName)' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.",
+            GeneratedQualifierDiagnosticContract
+                .containerReservedModuleNameMessage(
+                    declarationName: memberName
+                ),
             code: .containerReservedModuleName
         )
     }
@@ -900,14 +903,18 @@ extension SimpleDiagnostic {
         declarationName: String
     ) -> Self {
         Self(
-            "Declaration '\(declarationName)' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.",
+            GeneratedQualifierDiagnosticContract
+                .environmentBridgeReservedModuleNameMessage(
+                    declarationName: declarationName
+                ),
             code: .swiftUIEnvironmentBridgeReservedModuleName
         )
     }
 
     static func swiftUIEnvironmentBridgeExtensionContextUnsupported() -> Self {
         Self(
-            "@DIEnvironmentBridge cannot be attached to an extension or to a declaration nested in an extension in InnoDI 5.0. Move the bridge target into file or nominal scope so generated Swift and SwiftUI qualifiers can be validated.",
+            GeneratedQualifierDiagnosticContract
+                .environmentBridgeExtensionContextUnsupportedMessage,
             code: .swiftUIEnvironmentBridgeExtensionContextUnsupported
         )
     }

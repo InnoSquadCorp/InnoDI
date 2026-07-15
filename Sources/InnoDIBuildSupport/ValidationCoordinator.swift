@@ -275,11 +275,11 @@ package enum BootIDProvider {
     }
 }
 
-// Version 6 isolates shared runs by SwiftPM's resolved target scope and salts
-// signatures with the authoritative source/dependency topology. Keep
-// validator behavior in the cache salt so an unchanged workspace cannot reuse
-// a result computed for a different target closure.
-package let sharedRunCacheVersion = 6
+// Version 7 adds target-scoped full-source qualifier and environment-bridge
+// context validation. Keep validator behavior in the cache salt so an
+// unchanged workspace cannot reuse a result produced before that fail-closed
+// preflight existed.
+package let sharedRunCacheVersion = 7
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
@@ -692,7 +692,19 @@ package enum ValidationCoordinator {
                 issues = customInitValidation.issues
             } else {
                 let semanticValidationStartTime = validationNow()
-                let semanticValidation = try ContainerSemanticBuildValidator.validate(snapshot: workspaceSnapshot)
+                let qualifierValidation = GeneratedQualifierBuildValidator
+                    .validate(snapshot: workspaceSnapshot)
+                let semanticValidation: ValidationIssueReport
+                if qualifierValidation.hasFailures {
+                    semanticValidation = qualifierValidation
+                } else {
+                    let containerValidation = try ContainerSemanticBuildValidator
+                        .validate(snapshot: workspaceSnapshot)
+                    semanticValidation = ValidationIssueReport(
+                        issues: qualifierValidation.issues
+                            + containerValidation.issues
+                    )
+                }
                 let semanticFailure = semanticValidation.asCommandResult()
                 semanticValidationMilliseconds = validationElapsedMilliseconds(since: semanticValidationStartTime)
 
