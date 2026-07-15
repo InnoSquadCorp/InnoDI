@@ -112,6 +112,8 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("private(set) var greetCalls"))
         #expect(peer.contains("var greetReturnValue: String?"))
         #expect(peer.contains("func greet(name: String) -> String"))
+        #expect(peer.contains("was not set on \\(Self.self)"))
+        #expect(!peer.contains("Swift.type(of: self)"))
     }
 
     @Test("GenerateMock refuses Sendable-inherited protocols")
