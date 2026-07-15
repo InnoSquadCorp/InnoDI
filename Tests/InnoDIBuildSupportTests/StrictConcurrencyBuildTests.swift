@@ -358,9 +358,14 @@ struct StrictConcurrencyBuildTests {
 
         #expect(stampURLs.count >= 2)
         #expect(metrics.count >= 2)
-        #expect(sharedStateDirectories.count == 1)
+        #expect(sharedStateDirectories.count == 2)
         #expect(Set(metrics.map(\.signature)).count >= 2)
-        if let sharedStateDirectory = sharedStateDirectories.first {
+        var targetStateDirectoryNames: Set<String> = []
+        for sharedStateDirectory in sharedStateDirectories {
+            #expect(
+                sharedStateDirectory.deletingLastPathComponent().lastPathComponent
+                    == "InnoDIDAGValidationPlugin"
+            )
             let targetStateRoot = sharedStateDirectory.appendingPathComponent(
                 "targets",
                 isDirectory: true
@@ -379,9 +384,13 @@ struct StrictConcurrencyBuildTests {
                 named: "result.json",
                 under: targetStateRoot
             )
-            #expect(targetStateDirectories.count >= 2)
-            #expect(sharedRunResults.count >= 2)
+            #expect(targetStateDirectories.count == 1)
+            #expect(sharedRunResults.count == 1)
+            targetStateDirectoryNames.formUnion(
+                targetStateDirectories.map(\.lastPathComponent)
+            )
         }
+        #expect(targetStateDirectoryNames.count == 2)
     }
 
     @Test("Deferred wrappers remain non-Sendable even when the payload is Sendable")

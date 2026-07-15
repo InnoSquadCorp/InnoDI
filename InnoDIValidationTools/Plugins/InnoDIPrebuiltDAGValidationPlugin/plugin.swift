@@ -21,6 +21,10 @@ struct InnoDIPrebuiltDAGValidationPlugin: BuildToolPlugin {
 
         let coordinator = try context.tool(named: "InnoDIPrebuiltDAGValidationCoordinator")
         let outputDirectory = context.pluginWorkDirectoryURL
+        let stateDirectory = outputDirectory.appending(
+            path: "innodi-dag-validation-state",
+            directoryHint: .isDirectory
+        )
         let manifestURL = outputDirectory.appending(path: "workspace-analysis.json")
         let manifest = try WorkspaceAnalysisManifestProducer(
             rootPackage: context.package
@@ -33,6 +37,7 @@ struct InnoDIPrebuiltDAGValidationPlugin: BuildToolPlugin {
                 executable: coordinator.url,
                 arguments: [
                     "--analysis-manifest", manifestURL.path(percentEncoded: false),
+                    "--state-dir", stateDirectory.path(percentEncoded: false),
                     "--output-dir", outputDirectory.path(percentEncoded: false),
                 ],
                 inputFiles: [manifestURL] + manifest.sourceFileURLs,

@@ -10,8 +10,8 @@ import Dispatch
 
 @Suite("ValidationCoordinator")
 struct ValidationCoordinatorTests {
-    @Test("Shared validation state directory anchors at the SwiftPM plugin package output")
-    func sharedValidationStateDirectoryAnchorsAtPluginPackageOutput() {
+    @Test("Validation state remains inside the invoking SwiftPM plugin work directory")
+    func sharedValidationStateDirectoryRemainsInsidePluginWorkDirectory() {
         let sourcePluginOutput = URL(
             fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIDAGValidationPlugin",
             isDirectory: true
@@ -28,15 +28,23 @@ struct ValidationCoordinatorTests {
             fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIDAGValidationPlugin/work",
             isDirectory: true
         )
-        let expected = URL(
-            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/innodi-dag-validation-state",
-            isDirectory: true
-        )
+        for pluginWorkDirectory in [
+            sourcePluginOutput,
+            prebuiltPluginOutput,
+            outputsNamedTargetOutput,
+            nestedPluginOutput,
+        ] {
+            let expected = pluginWorkDirectory.appending(
+                path: "innodi-dag-validation-state",
+                directoryHint: .isDirectory
+            )
+            let actual = sharedValidationStateDirectory(
+                forPluginOutputDirectory: pluginWorkDirectory
+            )
 
-        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: sourcePluginOutput).path == expected.path)
-        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: prebuiltPluginOutput).path == expected.path)
-        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: outputsNamedTargetOutput).path == expected.path)
-        #expect(sharedValidationStateDirectory(forPluginOutputDirectory: nestedPluginOutput).path == expected.path)
+            #expect(actual.standardizedFileURL.path == expected.standardizedFileURL.path)
+            #expect(actual.deletingLastPathComponent().path == pluginWorkDirectory.path)
+        }
     }
 
     @Test("Whitespace and comments do not change the AST signature")
