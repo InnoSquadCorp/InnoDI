@@ -329,8 +329,8 @@ struct StrictConcurrencyBuildTests {
         )
     }
 
-    @Test("DAG validation plugin shares state across multiple plugin-attached targets", .tags(.slow))
-    func dagValidationPluginSharesStateAcrossTargets() throws {
+    @Test("DAG validation plugin isolates state across plugin-attached targets", .tags(.slow))
+    func dagValidationPluginIsolatesStateAcrossTargets() throws {
         let fixture = try makeMultiTargetPluginFixture()
         let scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("InnoDI-MultiTargetPlugin-\(UUID().uuidString)", isDirectory: true)
@@ -359,10 +359,28 @@ struct StrictConcurrencyBuildTests {
         #expect(stampURLs.count >= 2)
         #expect(metrics.count >= 2)
         #expect(sharedStateDirectories.count == 1)
-        #expect(metrics.contains { $0.wasCached })
+        #expect(Set(metrics.map(\.signature)).count >= 2)
         if let sharedStateDirectory = sharedStateDirectories.first {
-            let sharedRunResults = try findFiles(named: "result.json", under: sharedStateDirectory)
-            #expect(sharedRunResults.count == 1)
+            let targetStateRoot = sharedStateDirectory.appendingPathComponent(
+                "targets",
+                isDirectory: true
+            )
+            let targetStateDirectories = try FileManager.default
+                .contentsOfDirectory(
+                    at: targetStateRoot,
+                    includingPropertiesForKeys: [.isDirectoryKey]
+                )
+                .filter {
+                    try $0.resourceValues(
+                        forKeys: [.isDirectoryKey]
+                    ).isDirectory == true
+                }
+            let sharedRunResults = try findFiles(
+                named: "result.json",
+                under: targetStateRoot
+            )
+            #expect(targetStateDirectories.count >= 2)
+            #expect(sharedRunResults.count >= 2)
         }
     }
 

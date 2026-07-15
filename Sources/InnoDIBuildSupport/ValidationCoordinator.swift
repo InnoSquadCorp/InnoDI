@@ -428,6 +428,35 @@ package enum ValidationCoordinator {
         )
     }
 
+    /// Loads and validates an authoritative target manifest, isolates shared
+    /// state by its stable primary target ID, and runs validation in process.
+    /// A malformed manifest is terminal; this path never falls back to a root
+    /// directory scan.
+    package static func coordinate(
+        analysisManifestPath: String,
+        sharedStateDirectoryPath: String,
+        outputDirectoryPath: String,
+        lockPolicy: ValidationCoordinatorLockPolicy = .default
+    ) async throws -> ValidationExecutionOutcome {
+        let manifest = try loadWorkspaceAnalysisManifest(
+            at: URL(fileURLWithPath: analysisManifestPath)
+        )
+        let stateDirectory = targetScopedValidationStateDirectory(
+            for: manifest.primaryTargetID,
+            under: URL(
+                fileURLWithPath: sharedStateDirectoryPath,
+                isDirectory: true
+            )
+        )
+        return try await coordinate(
+            manifest: manifest,
+            stateDirectoryPath: stateDirectory.path(percentEncoded: false),
+            outputDirectoryPath: outputDirectoryPath,
+            runner: InProcessValidationCommandRunner(),
+            lockPolicy: lockPolicy
+        )
+    }
+
     package static func coordinate<Runner: ValidationCommandRunning>(
         rootPath: String,
         toolPath: String?,
@@ -437,6 +466,55 @@ package enum ValidationCoordinator {
         verboseLoggingEnabled: Bool = ValidationLogging.isVerboseEnabled(),
         lockPolicy: ValidationCoordinatorLockPolicy = .default,
         runtime: ValidationCoordinatorRuntime = .live
+    ) async throws -> ValidationExecutionOutcome {
+        try await coordinateResolved(
+            rootPath: rootPath,
+            analysisManifest: nil,
+            toolPath: toolPath,
+            stateDirectoryPath: stateDirectoryPath,
+            outputDirectoryPath: outputDirectoryPath,
+            runner: runner,
+            verboseLoggingEnabled: verboseLoggingEnabled,
+            lockPolicy: lockPolicy,
+            runtime: runtime
+        )
+    }
+
+    package static func coordinate<Runner: ValidationCommandRunning>(
+        manifest: WorkspaceAnalysisManifest,
+        stateDirectoryPath: String,
+        outputDirectoryPath: String,
+        runner: Runner,
+        verboseLoggingEnabled: Bool = ValidationLogging.isVerboseEnabled(),
+        lockPolicy: ValidationCoordinatorLockPolicy = .default,
+        runtime: ValidationCoordinatorRuntime = .live
+    ) async throws -> ValidationExecutionOutcome {
+        let manifest = try manifest.validated()
+        return try await coordinateResolved(
+            rootPath: manifest.rootPackageDirectory,
+            analysisManifest: manifest,
+            toolPath: nil,
+            stateDirectoryPath: stateDirectoryPath,
+            outputDirectoryPath: outputDirectoryPath,
+            runner: runner,
+            verboseLoggingEnabled: verboseLoggingEnabled,
+            lockPolicy: lockPolicy,
+            runtime: runtime
+        )
+    }
+
+    private static func coordinateResolved<
+        Runner: ValidationCommandRunning
+    >(
+        rootPath: String,
+        analysisManifest: WorkspaceAnalysisManifest?,
+        toolPath: String?,
+        stateDirectoryPath: String,
+        outputDirectoryPath: String,
+        runner: Runner,
+        verboseLoggingEnabled: Bool,
+        lockPolicy: ValidationCoordinatorLockPolicy,
+        runtime: ValidationCoordinatorRuntime
     ) async throws -> ValidationExecutionOutcome {
         let coordinatorStartTime = validationNow()
         let fileManager = FileManager.default
@@ -458,15 +536,25 @@ package enum ValidationCoordinator {
         let signatureCollectionStartTime = validationNow()
         let signatureCollection: ValidationSignatureCollectionResult
         if unsafeFilesystemOutcome != nil {
-            signatureCollection = try collectValidationSignatureWithMetrics(
-                rootPath: rootPath,
-                stateDirectoryPath: stateDirectoryPath,
-                persistManifestUpdates: false,
-                useManifestCache: false
-            )
+            if let analysisManifest {
+                signatureCollection = try collectValidationSignatureWithMetrics(
+                    manifest: analysisManifest,
+                    stateDirectoryPath: stateDirectoryPath,
+                    persistManifestUpdates: false,
+                    useManifestCache: false
+                )
+            } else {
+                signatureCollection = try collectValidationSignatureWithMetrics(
+                    rootPath: rootPath,
+                    stateDirectoryPath: stateDirectoryPath,
+                    persistManifestUpdates: false,
+                    useManifestCache: false
+                )
+            }
         } else {
             signatureCollection = try await collectValidationSignatureWithSharedCacheLock(
                 rootPath: rootPath,
+                analysisManifest: analysisManifest,
                 stateDirectoryURL: stateDirectoryURL,
                 stateDirectoryPath: stateDirectoryPath,
                 lockPolicy: lockPolicy,
@@ -573,7 +661,16 @@ package enum ValidationCoordinator {
 
             let result: ValidationCommandResult
             let customInitStartTime = validationNow()
-            let workspaceSnapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath)
+            let workspaceSnapshot: WorkspaceSourceSnapshot
+            if let analysisManifest {
+                workspaceSnapshot = try loadWorkspaceSourceSnapshot(
+                    manifest: analysisManifest
+                )
+            } else {
+                workspaceSnapshot = try loadWorkspaceSourceSnapshot(
+                    rootPath: rootPath
+                )
+            }
             let aliasReport = DeferredWrapperAliasBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitValidation = try CustomInitBuildValidator.validate(snapshot: workspaceSnapshot)
             let customInitFailure = customInitValidation.asCommandResult()
@@ -607,7 +704,16 @@ package enum ValidationCoordinator {
                     issues = semanticValidation.issues
                 } else {
                     let hierarchyValidationStartTime = validationNow()
-                    let moduleGraph = try ModuleGraphProvider.snapshot(rootPath: rootPath)
+                    let moduleGraph: WorkspaceModuleGraphSnapshot
+                    if let analysisManifest {
+                        moduleGraph = try ModuleGraphProvider.snapshot(
+                            manifest: analysisManifest
+                        )
+                    } else {
+                        moduleGraph = try ModuleGraphProvider.snapshot(
+                            rootPath: rootPath
+                        )
+                    }
                     let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(
                         snapshot: workspaceSnapshot,
                         moduleGraph: moduleGraph
@@ -787,17 +893,36 @@ package enum ValidationCoordinator {
     /// hit metadata-only cache paths instead of doing duplicate AST work.
     private static func collectValidationSignatureWithSharedCacheLock(
         rootPath: String,
+        analysisManifest: WorkspaceAnalysisManifest?,
         stateDirectoryURL: URL,
         stateDirectoryPath: String,
         lockPolicy: ValidationCoordinatorLockPolicy,
         runtime: ValidationCoordinatorRuntime
     ) async throws -> ValidationSignatureCollectionResult {
-        guard shouldSerializeSignatureCollection(
-            stateDirectoryURL: stateDirectoryURL
-        ) else {
+        func collectSignature(
+            persistManifestUpdates: Bool = true,
+            useManifestCache: Bool = true
+        ) throws -> ValidationSignatureCollectionResult {
+            if let analysisManifest {
+                return try collectValidationSignatureWithMetrics(
+                    manifest: analysisManifest,
+                    stateDirectoryPath: stateDirectoryPath,
+                    persistManifestUpdates: persistManifestUpdates,
+                    useManifestCache: useManifestCache
+                )
+            }
             return try collectValidationSignatureWithMetrics(
                 rootPath: rootPath,
                 stateDirectoryPath: stateDirectoryPath,
+                persistManifestUpdates: persistManifestUpdates,
+                useManifestCache: useManifestCache
+            )
+        }
+
+        guard shouldSerializeSignatureCollection(
+            stateDirectoryURL: stateDirectoryURL
+        ) else {
+            return try collectSignature(
                 persistManifestUpdates: false,
                 useManifestCache: false
             )
@@ -810,10 +935,7 @@ package enum ValidationCoordinator {
         while runtime.monotonicNow() < lockAcquisitionDeadline {
             if let descriptor = try acquireLock(at: lockURL) {
                 defer { releaseLock(descriptor: descriptor, at: lockURL) }
-                return try collectValidationSignatureWithMetrics(
-                    rootPath: rootPath,
-                    stateDirectoryPath: stateDirectoryPath
-                )
+                return try collectSignature()
             }
 
             if try recoverStaleLockIfNeeded(
@@ -841,9 +963,7 @@ package enum ValidationCoordinator {
                     .utf8
             )
         )
-        return try collectValidationSignatureWithMetrics(
-            rootPath: rootPath,
-            stateDirectoryPath: stateDirectoryPath,
+        return try collectSignature(
             persistManifestUpdates: false,
             useManifestCache: false
         )

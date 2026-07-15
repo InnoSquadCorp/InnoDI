@@ -346,6 +346,149 @@ struct WorkspaceTargetScopeTests {
             ))
         }
     }
+
+    @Test("Coordinator validates only the authoritative target snapshot")
+    func coordinatorUsesManifestSnapshotEndToEnd() async throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+        let manifest = try makeValidManifest(fixture: fixture).validated()
+        let outsideURL = fixture.rootURL.appendingPathComponent(
+            "OutsideManifest.swift"
+        )
+        try Data(
+            "@DIContainer struct OutsideContainer {}\n".utf8
+        ).write(to: outsideURL)
+        let stateURL = fixture.rootURL.appendingPathComponent(
+            "coordinator-state",
+            isDirectory: true
+        )
+        let outputURL = fixture.rootURL.appendingPathComponent(
+            "coordinator-output",
+            isDirectory: true
+        )
+        let runner = ManifestSnapshotRecordingRunner()
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            manifest: manifest,
+            stateDirectoryPath: stateURL.path,
+            outputDirectoryPath: outputURL.path,
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(runner.invocationCount == 1)
+        #expect(runner.primaryTargetID == fixture.appID)
+        #expect(runner.sourceIdentities == manifest.sourceIdentities)
+        #expect(!runner.sourceFilePaths.contains(outsideURL.path))
+        #expect(
+            outcome.metricsArtifact.signatureMetrics.scannedFileCount
+                == manifest.sourceIdentities.count
+        )
+    }
+
+    @Test("Manifest path input is target-scoped and never falls back")
+    func manifestPathCoordinatorFailsClosed() async throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+        let manifest = makeValidManifest(fixture: fixture)
+        let manifestURL = fixture.rootURL.appendingPathComponent(
+            "workspace-analysis.json"
+        )
+        try encodeWorkspaceAnalysisManifest(manifest).write(to: manifestURL)
+        let sharedStateURL = fixture.rootURL.appendingPathComponent(
+            "shared-state",
+            isDirectory: true
+        )
+        let outputURL = fixture.rootURL.appendingPathComponent(
+            "path-output",
+            isDirectory: true
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            analysisManifestPath: manifestURL.path,
+            sharedStateDirectoryPath: sharedStateURL.path,
+            outputDirectoryPath: outputURL.path
+        )
+        let expectedStateURL = targetScopedValidationStateDirectory(
+            for: fixture.appID,
+            under: sharedStateURL
+        )
+
+        #expect(outcome.result.exitCode == 0)
+        #expect(FileManager.default.fileExists(
+            atPath: expectedStateURL.appendingPathComponent(
+                "ast-digest-cache.json"
+            ).path
+        ))
+
+        let malformedURL = fixture.rootURL.appendingPathComponent(
+            "malformed-workspace-analysis.json"
+        )
+        try Data("{not-json".utf8).write(to: malformedURL)
+        do {
+            _ = try await ValidationCoordinator.coordinate(
+                analysisManifestPath: malformedURL.path,
+                sharedStateDirectoryPath: sharedStateURL.path,
+                outputDirectoryPath: fixture.rootURL
+                    .appendingPathComponent("malformed-output")
+                    .path
+            )
+            Issue.record("Expected malformed manifest input to fail")
+        } catch WorkspaceAnalysisManifestError.decodingFailed(_) {
+            // Expected. Root scanning is intentionally not attempted.
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+}
+
+private final class ManifestSnapshotRecordingRunner:
+    ValidationCommandRunning,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var invocationCountStorage = 0
+    private var primaryTargetIDStorage: WorkspaceTargetID?
+    private var sourceIdentitiesStorage: [String] = []
+    private var sourceFilePathsStorage: [String] = []
+
+    var invocationCount: Int {
+        lock.withLock { invocationCountStorage }
+    }
+
+    var primaryTargetID: WorkspaceTargetID? {
+        lock.withLock { primaryTargetIDStorage }
+    }
+
+    var sourceIdentities: [String] {
+        lock.withLock { sourceIdentitiesStorage }
+    }
+
+    var sourceFilePaths: [String] {
+        lock.withLock { sourceFilePathsStorage }
+    }
+
+    func runValidationTool(
+        toolPath: String?,
+        rootPath: String,
+        snapshot: WorkspaceSourceSnapshot
+    ) throws -> ValidationCommandResult {
+        lock.withLock {
+            invocationCountStorage += 1
+            primaryTargetIDStorage = snapshot.primaryTargetID
+            sourceIdentitiesStorage = snapshot.files
+                .map(\.sourceIdentity)
+                .sorted()
+            sourceFilePathsStorage = snapshot.files
+                .map(\.filePath)
+                .sorted()
+        }
+        return ValidationCommandResult(
+            exitCode: 0,
+            stdout: "DAG validation passed.\n",
+            stderr: ""
+        )
+    }
 }
 
 private func manifestWithSharedLogicalPath(
