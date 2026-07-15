@@ -23,6 +23,12 @@ let package = Package(
             sources: [
                 "App.swift",
                 "AppContainer.swift"
+            ],
+            plugins: [
+                .plugin(
+                    name: "InnoDIDAGValidationPlugin",
+                    package: "InnoDI"
+                )
             ]
         ),
         .testTarget(
