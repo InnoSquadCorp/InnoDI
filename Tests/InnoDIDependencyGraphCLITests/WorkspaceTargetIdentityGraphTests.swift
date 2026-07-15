@@ -340,6 +340,60 @@ struct WorkspaceTargetIdentityGraphTests {
         #expect(validation.stderr.contains("active Swift compilation conditions"))
     }
 
+    @Test("Conditional imports preserve validateDAG opt-outs")
+    func conditionalImportsPreserveValidationOptOuts() throws {
+        let fixture = try TargetGraphFixture(
+            primarySource: """
+            import InnoDI
+            #if FEATURE
+            import FeatureKit
+            #endif
+
+            struct Consumer {}
+
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: FeatureContainer(), concrete: true)
+                var feature: FeatureContainer
+
+                @Provide(.shared, factory: { (feature: Provider<FeatureKit.FeatureContainer>) in
+                    Consumer()
+                }, concrete: true)
+                var consumer: Consumer
+            }
+            """,
+            dependencies: [
+                .init(
+                    packageIdentity: "feature-package",
+                    moduleName: "FeatureKit",
+                    source: """
+                    import InnoDI
+
+                    @DIContainer(validateDAG: false)
+                    struct FeatureContainer {}
+                    """
+                )
+            ]
+        )
+        defer { fixture.remove() }
+
+        let analysis = try fixture.collectGraph(validateDAG: true)
+        let validation = try fixture.validateGraph()
+
+        #expect(analysis.edges.isEmpty)
+        #expect(validation.exitCode == 0)
+        #expect(
+            !validation.stderr.contains(
+                "[graph.excluded-container-reference]"
+            )
+        )
+        #expect(
+            !validation.stderr.contains(
+                "[graph.unresolved-container-reference]"
+            )
+        )
+    }
+
     @Test("A direct dependency that is not imported remains unresolved")
     func unimportedDependencyDoesNotLeakIntoResolution() throws {
         let fixture = try TargetGraphFixture(
