@@ -4,9 +4,13 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
 
 ## Custom `init` Detection
 
-- La macro rechaza `init` personalizados en el tipo anotado.
-- También rechaza extensiones del mismo archivo que apunten al mismo tipo.
-- La validación de build extiende la regla a extensiones cross-file.
+- La macro rechaza `init` personalizados solo en el cuerpo del tipo anotado.
+- El preflight obligatorio de `InnoDIDAGValidationPlugin` rechaza `init` en
+  extensiones coincidentes del mismo archivo y de otros archivos, incluidas las
+  declaraciones dentro de ramas `#if`.
+- Sin el plugin de validación de build no se garantiza la prohibición en todas
+  las extensiones, porque las macros adjuntas no pueden inspeccionar de forma
+  fiable las extensiones hermanas.
 
 ## Matching Strategy
 

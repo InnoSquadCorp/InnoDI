@@ -14,6 +14,11 @@ al combinar `@DIComponent`.
 Mueve el estado de runtime o especifico del tipo detras de dependencias de
 protocolo o `@Provide(.input)`.
 
+Tambien se rechaza un contenedor declarado explicitamente `private`, porque
+los contenedores hermanos no pueden acceder a su superficie de montaje
+generada. Use `fileprivate` para montaje local al archivo o un contenedor con
+acceso predeterminado dentro de un namespace privado.
+
 El compilador Swift actual omite el contexto del accessor al expandir un
 attached macro sobre un tipo dentro del body de una computed property. El
 plugin de build validation y el CLI del dependency graph escanean el source
@@ -43,8 +48,19 @@ un límite de aislamiento. Los overloads síncronos no cambian. Con
 `mainActor: true`, todos los overloads `withOverrides` y sus closures de
 operación permanecen `@MainActor`.
 
-Cada contenedor compatible genera la estructura de overrides salvo que el
-usuario ya haya declarado un tipo `Overrides` anidado.
+Cada contenedor, incluso sin miembros administrados, genera toda la estructura
+de overrides. Un tipo `Overrides` anidado declarado por el usuario no es
+compatible con InnoDI 5.0 y emite `container.overrides-name-conflict`; cambie
+su nombre para que la macro sea duena de la ABI de overrides montable.
+
+La macro tambien genera el alias reservado de soporte del compilador
+`_InnoDIMountOverrides = Overrides` para el codigo de montaje del contenedor
+padre. No declare ni use directamente ese nombre con guion bajo.
+
+Cada miembro de instancia almacenado debe usar `@Provide` o `@SubContainer`;
+las propiedades calculadas y de tipo siguen disponibles. Asi el inicializador
+sintetizado posee todo el estado y evita cambios en la ABI del inicializador
+memberwise.
 
 Cada `@Provide` debe ser un `var` de instancia simple, almacenado y directo de
 este struct. Se rechazan accessors/observers, `let`, `lazy`, `weak`, `unowned`,

@@ -10,4 +10,12 @@ struct AppContainer {
     init(userID: String) {
         self._storage_userID = userID
     }
+
+    struct _InnoDIMountOverrides {
+    }
+
+    init(userID: String, _ _innoDIApplyOverrides: (inout _InnoDIMountOverrides) -> Void) {
+        while true {
+        }
+    }
 }

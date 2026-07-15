@@ -9,8 +9,6 @@ import Testing
 struct InnoDISwiftUIMacroTests {
     private static let macros: [String: any Macro.Type] = [
         "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
-        "DIFeatureRoot": DIFeatureRootMacro.self,
-        "InnoDISwiftUI.DIFeatureRoot": DIFeatureRootMacro.self,
         "PreviewWithContainer": PreviewWithContainerMacro.self,
     ]
 
@@ -34,17 +32,17 @@ struct InnoDISwiftUIMacroTests {
 
                     struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
                         let container: AppContainer
-                        func body(content: Content) -> some SwiftUI.View {
-                            content.environment(\EnvironmentValues.greetingService, container.greetingService).environment(\EnvironmentValues.activityService, container.activityService)
+                        func body(content: Self.Content) -> some SwiftUI.View {
+                            content.environment(\SwiftUI.EnvironmentValues.greetingService, container.greetingService).environment(\SwiftUI.EnvironmentValues.activityService, container.activityService)
                         }
                     }
 
-                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
-                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    @Swift.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
 
-                extension AppContainer: DIEnvironmentBridging {
+                extension AppContainer: InnoDISwiftUI.DIEnvironmentBridging {
                 }
                 """#,
             macros: Self.macros
@@ -68,17 +66,17 @@ struct InnoDISwiftUIMacroTests {
 
                     struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
                         let container: AppContainer
-                        func body(content: Content) -> some SwiftUI.View {
-                            content.environment(\EnvironmentValues.activityService, container.activityService)
+                        func body(content: Self.Content) -> some SwiftUI.View {
+                            content.environment(\SwiftUI.EnvironmentValues.activityService, container.activityService)
                         }
                     }
 
-                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
-                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    @Swift.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
 
-                extension AppContainer: DIEnvironmentBridging {
+                extension AppContainer: InnoDISwiftUI.DIEnvironmentBridging {
                 }
                 """#,
             macros: Self.macros
@@ -102,17 +100,17 @@ struct InnoDISwiftUIMacroTests {
 
                     public struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
                         let container: AppContainer
-                        public func body(content: Content) -> some SwiftUI.View {
-                            content.environment(\EnvironmentValues.greetingService, container.greetingService)
+                        public func body(content: Self.Content) -> some SwiftUI.View {
+                            content.environment(\SwiftUI.EnvironmentValues.greetingService, container.greetingService)
                         }
                     }
 
-                    @MainActor public func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
-                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    @Swift.MainActor public func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
 
-                extension AppContainer: DIEnvironmentBridging {
+                extension AppContainer: InnoDISwiftUI.DIEnvironmentBridging {
                 }
                 """#,
             macros: Self.macros
@@ -206,6 +204,86 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIEnvironmentBridge rejects key paths outside SwiftUI EnvironmentValues")
+    func environmentBridgeRejectsNonEnvironmentValuesKeyPaths() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "greetingService", environment: \OtherValues.greetingService),
+            ])
+            struct AppContainer {
+                var greetingService: GreetingService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    var greetingService: GreetingService
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-invalid-keypath"),
+                    message: "@DIEnvironmentBridge requires 'environment' to be a direct-member key-path literal rooted at EnvironmentValues or SwiftUI.EnvironmentValues, such as \\EnvironmentValues.service.",
+                    line: 2,
+                    column: 46
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge accepts only direct EnvironmentValues members")
+    func environmentBridgeRejectsCapturedKeyPathComponents() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            typealias ValuesAlias = EnvironmentValues
+
+            @DIEnvironmentBridge([
+                (member: "value", environment: \ValuesAlias.value),
+            ])
+            struct AliasRootBridge { var value: Int }
+
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value.nested),
+            ])
+            struct ChainedBridge { var value: Int }
+
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues[SomeKey.self]),
+            ])
+            struct SubscriptBridge { var value: Int }
+            """#,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-invalid-keypath"
+                ),
+                count: 3
+            ),
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge canonicalizes qualified EnvironmentValues roots")
+    func environmentBridgeAcceptsQualifiedEnvironmentValuesRoot() {
+        let result = expandMacroSource(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \SwiftUI.EnvironmentValues.value),
+            ])
+            struct QualifiedBridge { var value: Int }
+            """#,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "content.environment(\\SwiftUI.EnvironmentValues.value, container.value)"
+            )
+        )
+    }
+
     @Test("DIEnvironmentBridge rejects malformed top-level arguments")
     func environmentBridgeRejectsMalformedTopLevelArguments() {
         assertMacroExpansionInline(
@@ -232,261 +310,6 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
-    @Test("DIFeatureRoot generates default and named helpers")
-    func featureRootGeneratesDefaultAndNamedHelpers() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self)
-                @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-
-                    func dashboardRootView() -> DashboardRootView {
-                        DashboardRootView(container: dashboard)
-                    }
-
-                    func dashboardShellRootView() -> DashboardShellView {
-                        DashboardShellView(container: dashboard)
-                    }
-                }
-                """#,
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot follows enclosing DIContainer MainActor isolation")
-    func featureRootFollowsEnclosingMainActorIsolation() {
-        assertMacroExpansionInline(
-            #"""
-            @DIContainer(mainActor: true)
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                @DIContainer(mainActor: true)
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-
-                    @MainActor func dashboardRootView() -> DashboardRootView {
-                        DashboardRootView(container: dashboard)
-                    }
-                }
-                """#,
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot maps open access to public generated helpers")
-    func featureRootMapsOpenAccessToPublicHelpers() {
-        assertMacroExpansionInline(
-            #"""
-            open class ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                open class ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-
-                    public func dashboardRootView() -> DashboardRootView {
-                        DashboardRootView(container: dashboard)
-                    }
-                }
-                """#,
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot accepts qualified InnoDI SubContainer attributes")
-    func featureRootAcceptsQualifiedSubContainerAttributes() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @InnoDI.SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @InnoDI.SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-
-                    func dashboardRootView() -> DashboardRootView {
-                        DashboardRootView(container: dashboard)
-                    }
-                }
-                """#,
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot rejects invalid aliases before generating helpers")
-    func featureRootRejectsInvalidAlias() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self, as: "dashboard-shell")
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-                }
-                """#,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias"),
-                    message: "Alias 'dashboard-shell' for @DIFeatureRoot must be a non-empty Swift identifier.",
-                    line: 3,
-                    column: 5
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot rejects reserved keyword aliases")
-    func featureRootRejectsReservedKeywordAlias() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self, as: "class")
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-                }
-                """#,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias"),
-                    message: "Alias 'class' for @DIFeatureRoot must be a non-empty Swift identifier.",
-                    line: 3,
-                    column: 5
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot accepts raw-string aliases")
-    func featureRootAcceptsRawStringAlias() {
-        assertMacroExpansionInline(
-            ##"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self, as: #"dashboardShell"#)
-                var dashboard: DashboardContainer
-            }
-            """##,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-
-                    func dashboardShellRootView() -> DashboardRootView {
-                        DashboardRootView(container: dashboard)
-                    }
-                }
-                """#,
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot rejects interpolated aliases instead of treating them as default helpers")
-    func featureRootRejectsInterpolatedAlias() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self, as: "dashboard\(suffix)")
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-                }
-                """#,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-invalid-alias"),
-                    message: #"Alias '"dashboard\(suffix)"' for @DIFeatureRoot must be a non-empty Swift identifier."#,
-                    line: 3,
-                    column: 5
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
-    @Test("DIFeatureRoot ignores multi-binding declarations")
-    func featureRootIgnoresMultiBindingDeclarations() {
-        let expansion = expandMacroSource(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard, secondaryDashboard: DashboardContainer
-            }
-            """#,
-            macros: Self.macros
-        )
-
-        #expect(!expansion.expansion.contains("dashboardRootView"))
-        #expect(expansion.diagnostics.count == 1)
-        #expect(expansion.diagnostics.first?.message == "peer macro can only be applied to a single variable")
-    }
-
-    @Test("DIFeatureRoot requires SubContainer")
-    func featureRootRequiresSubContainer() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    var dashboard: DashboardContainer
-                }
-                """#,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-without-subcontainer"),
-                    message: "@DIFeatureRoot can only be attached to a property that also declares @SubContainer.",
-                    line: 2,
-                    column: 5
-                )
-            ],
-            macros: Self.macros
-        )
-    }
-
     @Test("DIEnvironmentBridge generates a single-member modifier")
     func environmentBridgeSingleMemberShape() {
         assertMacroExpansionInline(
@@ -504,86 +327,632 @@ struct InnoDISwiftUIMacroTests {
 
                     struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier {
                         let container: AppContainer
-                        func body(content: Content) -> some SwiftUI.View {
-                            content.environment(\EnvironmentValues.greetingService, container.greetingService)
+                        func body(content: Self.Content) -> some SwiftUI.View {
+                            content.environment(\SwiftUI.EnvironmentValues.greetingService, container.greetingService)
                         }
                     }
 
-                    @MainActor func _innodiEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
-                        _InnoDIEnvironmentBridgeModifier(container: self)
+                    @Swift.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                        Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
 
-                extension AppContainer: DIEnvironmentBridging {
+                extension AppContainer: InnoDISwiftUI.DIEnvironmentBridging {
                 }
                 """#,
             macros: Self.macros
         )
     }
 
-    @Test("DIFeatureRoot suppresses helpers for escaped SubContainer identifiers")
-    func featureRootSuppressesEscapedSubContainerHelper() {
+    @Test("DIEnvironmentBridge rejects direct nested generated modifier types through #if")
+    func environmentBridgeGeneratedModifierTypeConflictsDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            @DIEnvironmentBridge([])
+            struct ConditionalTypeConflict {
+                #if DEBUG
+                struct _InnoDIEnvironmentBridgeModifier {}
+                #else
+                typealias _InnoDIEnvironmentBridgeModifier = Int
+                #endif
+            }
+
+            @DIEnvironmentBridge([])
+            struct ProtocolTypeConflict {
+                protocol _InnoDIEnvironmentBridgeModifier {}
+            }
+
+            @DIEnvironmentBridge([])
+            struct StaticVariableConflict {
+                static var _InnoDIEnvironmentBridgeModifier: Int { 0 }
+            }
+
+            @DIEnvironmentBridge([])
+            struct StaticFunctionConflict {
+                static func _InnoDIEnvironmentBridgeModifier(_ value: Int) {}
+            }
+
+            @DIEnvironmentBridge([])
+            enum EnumCaseConflict {
+                case _InnoDIEnvironmentBridgeModifier
+            }
+
+            @DIEnvironmentBridge([])
+            class ClassVariableConflict {
+                class var _InnoDIEnvironmentBridgeModifier: Int { 0 }
+            }
+            """#,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-generated-name-conflict"
+                ),
+                count: 7
+            ),
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge rejects direct instance generated helpers through #if")
+    func environmentBridgeGeneratedHelperConflictsDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIEnvironmentBridge([])
+            struct ConditionalVariableConflict {
+                #if DEBUG
+                var _innoDIEnvironmentBridgeModifier: Int { 0 }
+                #endif
+            }
+
+            @DIEnvironmentBridge([])
+            struct FunctionConflict {
+                func _innoDIEnvironmentBridgeModifier() {}
+            }
+            """,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-generated-name-conflict"
+                ),
+                count: 2
+            ),
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge generated-name diagnostics describe the conflicting namespace")
+    func environmentBridgeGeneratedNameConflictMessagesDescribeNamespaces() {
         let result = expandMacroSource(
             """
-            struct Parent {
-                @DIFeatureRoot(DashboardRootView.self)
-                @SubContainer(scope: .shared)
-                var `default`: DashboardContainer
+            @DIEnvironmentBridge([])
+            struct AppContainer {
+                struct _InnoDIEnvironmentBridgeModifier {}
+                var _innoDIEnvironmentBridgeModifier: Int { 0 }
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.map(\.message) == [
+            "@DIEnvironmentBridge generates nested modifier type '_InnoDIEnvironmentBridgeModifier', but the bridge target already declares a conflicting direct type member with that name. Rename the declaration so the modifier can be synthesized without a Swift redeclaration error.",
+            "@DIEnvironmentBridge generates zero-parameter instance helper '_innoDIEnvironmentBridgeModifier', but the bridge target already declares a direct instance variable or zero-parameter instance function with that name. Rename the declaration so the helper can be synthesized without a Swift redeclaration error.",
+        ])
+        #expect(!result.expansion.contains("_InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier"))
+    }
+
+    @Test("DIEnvironmentBridge allows generated spellings in other namespaces and binders")
+    func environmentBridgeGeneratedNamesInOtherNamespacesRemainAvailable() {
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            struct _InnoDIEnvironmentBridgeModifier {}
+
+            @DIEnvironmentBridge([])
+            struct _innoDIEnvironmentBridgeModifier {}
+
+            @DIEnvironmentBridge([])
+            struct ModifierGeneric<_InnoDIEnvironmentBridgeModifier> {}
+
+            @DIEnvironmentBridge([])
+            struct HelperGeneric<_innoDIEnvironmentBridgeModifier> {}
+
+            @DIEnvironmentBridge([])
+            struct CrossNamespaceContainer {
+                var _InnoDIEnvironmentBridgeModifier: Int { 0 }
+                struct _innoDIEnvironmentBridgeModifier {}
+            }
+
+            @DIEnvironmentBridge([])
+            struct DIEnvironmentBridging {}
+
+            @DIEnvironmentBridge([])
+            struct BridgingGeneric<DIEnvironmentBridging> {}
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier"))
+        #expect(result.expansion.contains("func _innoDIEnvironmentBridgeModifier()"))
+        #expect(
+            result.expansion.contains(
+                "Self._InnoDIEnvironmentBridgeModifier(container: self)"
+            )
+        )
+        #expect(
+            result.expansion.contains(
+                "extension DIEnvironmentBridging: InnoDISwiftUI.DIEnvironmentBridging"
+            )
+        )
+        #expect(!result.expansion.contains("_innodiEnvironmentBridgeModifier"))
+    }
+
+    @Test("DIEnvironmentBridge safely stores a target that shares the modifier name")
+    func environmentBridgeModifierNamedTargetUsesKeyPathStorage() {
+        let result = expandMacroSource(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct _InnoDIEnvironmentBridgeModifier {
+                var value: Int { 7 }
+            }
+
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct GenericBridge<
+                _InnoDIEnvironmentBridgeModifier,
+                _InnoDIContainer,
+                _InnoDIContainer_1,
+                _InnoDIValue0,
+                _InnoDIValue0_1
+            > {
+                var value: Int { 8 }
+            }
+            """#,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "struct _InnoDIEnvironmentBridgeModifier<_InnoDIContainer, _InnoDIValue0>"
+            )
+        )
+        #expect(
+            result.expansion.contains(
+                "let member0: Swift.KeyPath<_InnoDIContainer, _InnoDIValue0>"
+            )
+        )
+        #expect(
+            result.expansion.contains(
+                "let environment0: Swift.WritableKeyPath<SwiftUI.EnvironmentValues, _InnoDIValue0>"
+            )
+        )
+        #expect(result.expansion.contains("container[keyPath: member0]"))
+        #expect(result.expansion.contains("member0: \\Self.value"))
+        #expect(result.expansion.contains("Self._InnoDIEnvironmentBridgeModifier("))
+        #expect(result.expansion.contains("-> some SwiftUI.ViewModifier"))
+        #expect(
+            result.expansion.contains(
+                "_InnoDIEnvironmentBridgeModifier<_InnoDIContainer_2, _InnoDIValue0_2>"
+            )
+        )
+    }
+
+    @Test("DIEnvironmentBridge avoids target and EnvironmentValues nested type capture")
+    func environmentBridgeNestedTypeCaptureUsesCanonicalStorage() {
+        let result = expandMacroSource(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct Bridge {
+                struct Bridge {}
+                struct EnvironmentValues {}
+                var value: Int { 1 }
+            }
+
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct NormalBridge {
+                struct EnvironmentValues {}
+                var value: Int { 2 }
+            }
+            """#,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "struct _InnoDIEnvironmentBridgeModifier<_InnoDIContainer, _InnoDIValue0>"
+            )
+        )
+        #expect(
+            result.expansion.contains(
+                "environment0: \\SwiftUI.EnvironmentValues.value"
+            )
+        )
+        #expect(!result.expansion.contains("let container: Bridge"))
+        #expect(result.expansion.contains("let container: NormalBridge"))
+        #expect(
+            result.expansion.contains(
+                "content.environment(\\SwiftUI.EnvironmentValues.value, container.value)"
+            )
+        )
+    }
+
+    @Test("DIEnvironmentBridge avoids target names captured by visible generics")
+    func environmentBridgeVisibleGenericTargetCaptureUsesCanonicalStorage() {
+        let result = expandMacroSource(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct SelfGenericBridge<SelfGenericBridge> {
+                var value: Int { 1 }
+            }
+
+            struct Outer<EnclosingBridge> {
+                @DIEnvironmentBridge([
+                    (member: "value", environment: \EnvironmentValues.value),
+                ])
+                struct EnclosingBridge {
+                    var value: Int { 2 }
+                }
+            }
+            """#,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.components(
+                separatedBy: "struct _InnoDIEnvironmentBridgeModifier<"
+            ).count == 3
+        )
+        #expect(!result.expansion.contains("let container: SelfGenericBridge"))
+        #expect(!result.expansion.contains("let container: EnclosingBridge"))
+    }
+
+    @Test("DIEnvironmentBridge rejects generic parameter-pack targets")
+    func environmentBridgeParameterPackDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct PackBridge<each Value> {
+                var value: Int { 1 }
+            }
+            """#,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "swiftui.environment-bridge-parameter-pack-unsupported"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge widens private generated protocol witnesses")
+    func environmentBridgePrivateTargetUsesFileprivateWitnesses() {
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            private struct PrivateBridge {}
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "fileprivate struct _InnoDIEnvironmentBridgeModifier"
+            )
+        )
+        #expect(result.expansion.contains("fileprivate func body"))
+        #expect(
+            result.expansion.contains(
+                "@Swift.MainActor fileprivate func _innoDIEnvironmentBridgeModifier()"
+            )
+        )
+        #expect(!result.expansion.contains("\n        private func body"))
+    }
+
+    @Test("DIEnvironmentBridge rejects private nested lookup components")
+    func environmentBridgePrivateNestedLookupDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct DirectHost {
+                @DIEnvironmentBridge([])
+                private struct PrivateBridge {}
+            }
+
+            struct IndirectHost {
+                private struct Namespace {
+                    @DIEnvironmentBridge([])
+                    struct Bridge {}
+                }
+            }
+            """,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.usage",
+                    id: "swiftui.environment-bridge-private-nested-target"
+                ),
+                count: 2
+            ),
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge allows static members, parameter overloads, and nested bodies")
+    func environmentBridgeNonRedeclaringGeneratedNamesRemainAvailable() {
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            class StaticPropertyContainer {
+                static var _innoDIEnvironmentBridgeModifier = 0
+                func _innoDIEnvironmentBridgeModifier(value: Int) {}
+                func _InnoDIEnvironmentBridgeModifier() {}
+
+                struct Nested {
+                    typealias _InnoDIEnvironmentBridgeModifier = Int
+                    var _innoDIEnvironmentBridgeModifier = 0
+                }
+
+                func localScope() {
+                    struct _InnoDIEnvironmentBridgeModifier {}
+                    let _innoDIEnvironmentBridgeModifier = 0
+                }
+            }
+
+            @DIEnvironmentBridge([])
+            class ClassFunctionContainer {
+                class func _innoDIEnvironmentBridgeModifier() {}
             }
             """,
             macros: Self.macros
         )
 
         #expect(result.diagnostics.isEmpty)
-        #expect(!result.expansion.contains("defaultRootView"))
+        #expect(result.expansion.contains("struct _InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier"))
+        #expect(result.expansion.contains("func _innoDIEnvironmentBridgeModifier()"))
     }
 
-    @Test("DIFeatureRoot generates a single named helper with `as:` alias")
-    func featureRootGeneratesSingleAliasedHelper() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
-                var dashboard: DashboardContainer
+    @Test("DIEnvironmentBridge rejects direct type declarations that shadow generated qualifiers")
+    func environmentBridgeReservedDirectModuleNamesDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIEnvironmentBridge([])
+            struct AppContainer {
+                struct Swift {}
+                enum SwiftUI {}
+                typealias InnoDISwiftUI = Int
             }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-
-                    func dashboardShellRootView() -> DashboardShellView {
-                        DashboardShellView(container: dashboard)
-                    }
-                }
-                """#,
+            """,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-reserved-module-name"
+                ),
+                count: 3
+            ),
             macros: Self.macros
         )
     }
 
-    @Test("DIFeatureRoot composes with .transient SubContainer scope")
-    func featureRootGeneratesHelperOverTransientSubContainer() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @SubContainer(scope: .transient)
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard: DashboardContainer
+    @Test("DIEnvironmentBridge rejects target and enclosing nominal qualifier shadows")
+    func environmentBridgeReservedScopeModuleNamesDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct Swift {
+                @DIEnvironmentBridge([])
+                struct BridgeContainer {}
             }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @SubContainer(scope: .transient)
-                    var dashboard: DashboardContainer
 
-                    func dashboardRootView() -> DashboardRootView {
-                        DashboardRootView(container: dashboard)
-                    }
-                }
-                """#,
+            @DIEnvironmentBridge([])
+            struct SwiftUI {}
+
+            @DIEnvironmentBridge([])
+            struct InnoDISwiftUI {}
+            """,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-reserved-module-name"
+                ),
+                count: 3
+            ),
             macros: Self.macros
         )
+    }
+
+    @Test("DIEnvironmentBridge rejects target and enclosing generic qualifier shadows")
+    func environmentBridgeReservedGenericParametersDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIEnvironmentBridge([])
+            struct GenericBridge<SwiftUI> {}
+
+            struct Outer<Swift> {
+                @DIEnvironmentBridge([])
+                struct NestedBridge {}
+            }
+
+            @DIEnvironmentBridge([])
+            struct ModuleGeneric<InnoDISwiftUI> {}
+            """,
+            expectedCodes: Array(
+                repeating: MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-reserved-module-name"
+                ),
+                count: 3
+            ),
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge rejects extension lookup contexts")
+    func environmentBridgeExtensionContextDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct Host {}
+
+            extension Host {
+                @DIEnvironmentBridge([])
+                struct NestedBridge {}
+            }
+
+            @DIEnvironmentBridge([])
+            extension Host {}
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "swiftui.environment-bridge-extension-context-unsupported"
+                ),
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "swiftui.environment-bridge-extension-context-unsupported"
+                ),
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge rejects actor and protocol targets before companion expansion")
+    func environmentBridgeUnsupportedDeclarationKindsDiagnose() {
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            actor ActorBridge {}
+
+            @DIEnvironmentBridge([])
+            protocol ProtocolBridge {}
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == Array(
+                repeating: MessageID(
+                    domain: "InnoDI.usage",
+                    id: "swiftui.environment-bridge-unsupported-declaration-kind"
+                ),
+                count: 2
+            )
+        )
+        #expect(!result.expansion.contains("ActorBridge: InnoDISwiftUI"))
+        #expect(!result.expansion.contains("ProtocolBridge: InnoDISwiftUI"))
+    }
+
+    @Test("DIEnvironmentBridge excludes class members from instance mappings")
+    func environmentBridgeClassMembersAreUnknown() {
+        assertMacroExpansionDiagnosticCodes(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            class ClassMemberBridge {
+                class var value: Int { 1 }
+            }
+            """#,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-unknown-member"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge keeps module-like value member names available")
+    func environmentBridgeModuleValueNamesRemainAvailable() {
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            struct AppContainer {
+                var Swift: Int
+                var SwiftUI: Int
+                var InnoDISwiftUI: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("_InnoDIEnvironmentBridgeModifier"))
+    }
+
+    @Test("DIContainer and DIEnvironmentBridge divide qualifier diagnostics without duplicates")
+    func environmentBridgeContainerQualifierDiagnosticsHaveSingleOwners() {
+        let macros: [String: any Macro.Type] = [
+            "DIContainer": DIContainerMacro.self,
+            "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
+        ]
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            @DIContainer
+            struct AppContainer {
+                struct Swift {}
+                struct SwiftUI {}
+            }
+            """,
+            macros: macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID).sorted(by: {
+                String(reflecting: $0) < String(reflecting: $1)
+            }) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.reserved-module-name"
+                ),
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "swiftui.environment-bridge-reserved-module-name"
+                ),
+            ].sorted(by: {
+                String(reflecting: $0) < String(reflecting: $1)
+            })
+        )
+        #expect(!result.expansion.contains("_InnoDIEnvironmentBridgeModifier"))
+    }
+
+    @Test("DIContainer owns generated-name diagnostics shared with DIEnvironmentBridge")
+    func environmentBridgeContainerGeneratedNameDiagnosticsHaveSingleOwner() {
+        let macros: [String: any Macro.Type] = [
+            "DIContainer": DIContainerMacro.self,
+            "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
+        ]
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            @DIContainer
+            struct AppContainer {
+                struct _InnoDIEnvironmentBridgeModifier {}
+            }
+            """,
+            macros: macros
+        )
+
+        #expect(result.diagnostics.map(\.diagnosticID) == [
+            MessageID(
+                domain: "InnoDI.validation",
+                id: "container.reserved-name-prefix"
+            ),
+        ])
+        #expect(!result.expansion.contains("_InnoDIEnvironmentBridgeModifier: SwiftUI.ViewModifier"))
     }
 
     @Test("PreviewWithContainer wraps the trailing closure inside a #Preview block")
@@ -703,31 +1072,4 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
-    @Test("DIFeatureRoot ignores foreign qualified SubContainer attributes")
-    func featureRootIgnoresForeignQualifiedSubContainer() {
-        assertMacroExpansionInline(
-            #"""
-            struct ParentContainer {
-                @OtherDI.SubContainer(scope: .shared)
-                @DIFeatureRoot(DashboardRootView.self)
-                var dashboard: DashboardContainer
-            }
-            """#,
-            expandedSource: #"""
-                struct ParentContainer {
-                    @OtherDI.SubContainer(scope: .shared)
-                    var dashboard: DashboardContainer
-                }
-                """#,
-            diagnostics: [
-                DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-without-subcontainer"),
-                    message: "@DIFeatureRoot can only be attached to a property that also declares @SubContainer.",
-                    line: 3,
-                    column: 5
-                )
-            ],
-            macros: Self.macros
-        )
-    }
 }

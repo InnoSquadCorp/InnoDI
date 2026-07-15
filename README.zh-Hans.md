@@ -227,8 +227,17 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: ...)` 便利初始化器
 4. 四个 `withOverrides` 重载：`sync`、`throws`、`async`、`async throws`
 
-除非用户已经声明了嵌套 `Overrides` 类型，否则每个受支持的容器都会生成
-overrides scaffolding。
+每个容器都会生成完整的 overrides scaffolding，即使没有受管理成员。InnoDI 5.0
+不支持用户声明的嵌套 `Overrides` 类型，并会发出
+`container.overrides-name-conflict`；请重命名该声明，让宏拥有可挂载的
+override ABI。
+
+宏还会为生成的父容器挂载代码生成保留的 compiler-support alias
+`_InnoDIMountOverrides = Overrides`。不要直接声明或引用这个下划线名称。
+
+容器中的每个存储型实例成员都必须使用 `@Provide` 或 `@SubContainer`；计算属性和
+静态属性仍可使用。这样生成的初始化器会拥有全部状态，避免 memberwise
+initializer ABI 漂移。
 
 `@DIContainer` 仅支持文件作用域或名义类型内嵌套的实际非泛型 `struct` 声明。
 声明本身及其任何外层声明都不能包含泛型参数或 `where` 子句。`class`、
@@ -237,6 +246,10 @@ overrides scaffolding。
 包括函数、闭包、访问器和 `switch` case。
 与 `@DIComponent` 叠加使用时同样受此边界限制。请把运行时状态或特定类型的
 状态放到协议依赖或 `@Provide(.input)` 后面。
+
+显式声明为 `private` 的容器也会被拒绝，因为同级容器无法访问其生成的挂载
+接口。文件内挂载请使用 `fileprivate`，或在 private namespace 内嵌套使用
+default access 的容器。
 
 当前 Swift 编译器在为 computed-property body 内的类型展开 attached macro
 时，不会把访问器祖先信息放进 macro context。build-validation plugin 和
@@ -438,7 +451,10 @@ var feature: FeatureContainer
 
 - `.innodi(container)`
 - `@DIEnvironmentBridge`
-- `@DIFeatureRoot`
+- `@SubContainer(..., featureRoot:)` 和 `featureRoots:` 会为子容器生成默认或
+  命名的 feature-root helper。
+- InnoDI 5.0 移除了已弃用的兼容宏 `@DIFeatureRoot`。请改用
+  `@SubContainer` 的 feature-root 参数。
 
 ## CLI 与发布表面
 

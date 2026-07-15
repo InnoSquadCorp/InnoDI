@@ -5,7 +5,7 @@ import InnoDITestSupport
 
 @Suite("External SwiftPM consumer contracts", .serialized, .tags(.slow))
 struct ExternalConsumerContractTests {
-    @Test("Compile-pass fixtures build with strict concurrency")
+    @Test("Compile-pass fixtures build and run with strict concurrency")
     func compilePassFixturesBuild() throws {
         let fixtures = try externalConsumerFixtures(expectation: .pass)
         #expect(!fixtures.isEmpty)
@@ -23,6 +23,16 @@ struct ExternalConsumerContractTests {
             #expect(!result.timedOut, "Fixture '\(fixture.name)' timed out")
             #expect(result.exitCode == 0, "Fixture '\(fixture.name)' must compile")
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+
+            guard !result.timedOut, result.exitCode == 0 else { continue }
+            let execution = try runExternalConsumerExecutable(packageURL: materializedURL)
+            let executionOutput = execution.stdout + "\n" + execution.stderr
+            if execution.timedOut || execution.exitCode != 0 {
+                Issue.record("Fixture '\(fixture.name)' failed at runtime:\n\(executionOutput)")
+            }
+            #expect(!execution.timedOut, "Fixture '\(fixture.name)' execution timed out")
+            #expect(execution.exitCode == 0, "Fixture '\(fixture.name)' must run successfully")
+            assertNoCompilerCrash(in: executionOutput, fixtureName: fixture.name)
         }
     }
 
@@ -44,27 +54,74 @@ struct ExternalConsumerContractTests {
             }
             #expect(!result.timedOut, "Fixture '\(fixture.name)' timed out")
             #expect(result.exitCode != 0, "Fixture '\(fixture.name)' must fail compilation")
-            let compilerErrorLines = Set(
-                output.components(separatedBy: .newlines).filter {
-                    $0.contains(": error:")
-                        && ($0.contains(".swift:") || $0.contains("macro expansion "))
-                }
-            )
-            for diagnostic in expectedDiagnostics {
-                let occurrenceCount = compilerErrorLines.filter {
-                    $0.contains(diagnostic)
-                }.count
-                #expect(
-                    occurrenceCount == 1,
-                    "Fixture '\(fixture.name)' must emit one unique source diagnostic (found \(occurrenceCount)): \(diagnostic)"
-                )
-            }
+            let normalization = normalizeCompilerSourceErrors(in: output)
             #expect(
-                compilerErrorLines.count == expectedDiagnostics.count,
-                "Fixture '\(fixture.name)' emitted unexpected compiler diagnostics:\n\(compilerErrorLines.sorted().joined(separator: "\n"))"
+                normalization.inconsistentPhaseCounts.isEmpty,
+                "Fixture '\(fixture.name)' emitted an unsupported source-diagnostic phase count:\n\(formatDiagnosticMultiset(normalization.inconsistentPhaseCounts))"
+            )
+            let actualCounts = diagnosticMultiset(normalization.messages)
+            let expectedCounts = diagnosticMultiset(expectedDiagnostics)
+            #expect(
+                actualCounts == expectedCounts,
+                "Fixture '\(fixture.name)' emitted a different exact diagnostic multiset.\nExpected:\n\(formatDiagnosticMultiset(expectedCounts))\nActual:\n\(formatDiagnosticMultiset(actualCounts))"
             )
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
         }
+    }
+
+    @Test("Structured plugin diagnostics preserve raw multiplicity")
+    func compilerDiagnosticNormalizationPreservesStructuredPluginMultiplicity() {
+        let output = """
+        /tmp/Fixture.swift:4:3: error: [container.local-declaration-unsupported] plugin validation failed
+        /tmp/Fixture.swift:4:3: error: [container.local-declaration-unsupported] plugin validation failed
+        """
+
+        let normalization = normalizeCompilerSourceErrors(in: output)
+        #expect(normalization.inconsistentPhaseCounts.isEmpty)
+        #expect(
+            diagnosticMultiset(normalization.messages) == [
+                "[container.local-declaration-unsupported] plugin validation failed": 2,
+            ]
+        )
+    }
+
+    @Test("Attached macro diagnostics collapse frontend phase copies")
+    func compilerDiagnosticNormalizationCollapsesMacroPhaseCopies() {
+        let output = """
+        /tmp/Fixture.swift:4:3: error: one macro diagnostic (from macro 'DIContainer')
+        /tmp/Fixture.swift:4:3: error: one macro diagnostic (from macro 'DIContainer')
+        /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
+        /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
+        /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
+        /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
+        """
+
+        let normalization = normalizeCompilerSourceErrors(in: output)
+        #expect(normalization.inconsistentPhaseCounts.isEmpty)
+        #expect(
+            diagnosticMultiset(normalization.messages) == [
+                "one macro diagnostic": 1,
+                "duplicate macro diagnostic": 2,
+            ]
+        )
+    }
+
+    @Test("Raw Swift diagnostics preserve multiplicity without phase provenance")
+    func compilerDiagnosticNormalizationPreservesRawSwiftMultiplicity() {
+        let output = """
+        /tmp/Fixture.swift:6:3: error: raw compiler diagnostic [#ActorIsolatedCall]
+        /tmp/Fixture.swift:6:3: error: raw compiler diagnostic [#ActorIsolatedCall]
+        /tmp/Fixture.swift:7:1: warning: ignored warning
+        unrelated: error: ignored non-source error
+        """
+
+        let normalization = normalizeCompilerSourceErrors(in: output)
+        #expect(normalization.inconsistentPhaseCounts.isEmpty)
+        #expect(
+            diagnosticMultiset(normalization.messages) == [
+                "raw compiler diagnostic": 2,
+            ]
+        )
     }
 
     @Test("Committed fixture templates are invisible to workspace source discovery")
@@ -148,7 +205,17 @@ private func externalConsumerFixtures(
             )
         }
     }
-    let fixtureURLs = entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    let sortedFixtureURLs = entries.sorted {
+        $0.lastPathComponent < $1.lastPathComponent
+    }
+    // Local reproducer escape hatch. CI leaves this unset and always executes
+    // the complete pass/fail matrix.
+    let requestedFixture = ProcessInfo.processInfo.environment[
+        "INNODI_EXTERNAL_FIXTURE"
+    ]
+    let fixtureURLs = sortedFixtureURLs.filter { url in
+        requestedFixture == nil || url.lastPathComponent == requestedFixture
+    }
 
     guard !fixtureURLs.isEmpty else {
         throw ExternalConsumerFixtureError.emptyExpectation(expectation.rawValue)
@@ -283,6 +350,136 @@ private func assertNoCompilerCrash(in output: String, fixtureName: String) {
             "Fixture '\(fixtureName)' emitted crash marker: \(marker)"
         )
     }
+}
+
+private enum CompilerSourceErrorProvenance: Hashable {
+    case structuredPlugin
+    case attachedMacro(name: String)
+    case rawSwift
+}
+
+private struct CompilerSourceError: Hashable {
+    let sourceLocation: String
+    let message: String
+    let provenance: CompilerSourceErrorProvenance
+}
+
+private struct CompilerSourceErrorNormalization {
+    let messages: [String]
+    let inconsistentPhaseCounts: [String: Int]
+}
+
+/// Attached-macro diagnostics identify their provenance, so paired frontend-phase
+/// copies can be normalized without conflating different producers. Structured
+/// plugin diagnostics preserve their raw multiplicity because each stable-code
+/// record is intentional. Raw Swift diagnostics also preserve raw multiplicity:
+/// compiler output has no phase identifier, and collapsing identical records could
+/// hide genuine duplicate semantic errors.
+private func normalizeCompilerSourceErrors(
+    in output: String
+) -> CompilerSourceErrorNormalization {
+    let errors: [CompilerSourceError] = output.components(
+        separatedBy: .newlines
+    ).compactMap { line in
+        guard line.contains(".swift:") || line.contains("macro expansion "),
+              let marker = line.range(of: ": error: ") else {
+            return nil
+        }
+        let sourceLocation = String(line[..<marker.lowerBound])
+        var message = String(line[marker.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let isStructuredPluginDiagnostic = hasStableDiagnosticCodePrefix(message)
+        let macroSuffix = message.range(
+            of: " (from macro '",
+            options: .backwards
+        )
+        let provenance: CompilerSourceErrorProvenance
+        if isStructuredPluginDiagnostic {
+            provenance = .structuredPlugin
+        } else if let macroSuffix, message.hasSuffix("')") {
+            let macroNameEnd = message.index(message.endIndex, offsetBy: -2)
+            provenance = .attachedMacro(
+                name: String(message[macroSuffix.upperBound..<macroNameEnd])
+            )
+            message = String(message[..<macroSuffix.lowerBound])
+        } else {
+            provenance = .rawSwift
+        }
+        if message.hasSuffix("]"),
+           let diagnosticCode = message.range(
+               of: " [#",
+               options: .backwards
+           ) {
+            message = String(message[..<diagnosticCode.lowerBound])
+        }
+        return CompilerSourceError(
+            sourceLocation: sourceLocation,
+            message: message,
+            provenance: provenance
+        )
+    }
+
+    let rawCounts = Dictionary(errors.map { ($0, 1) }, uniquingKeysWith: +)
+    var messages: [String] = []
+    var inconsistentPhaseCounts: [String: Int] = [:]
+    for (error, rawCount) in rawCounts {
+        let semanticCount: Int
+        switch error.provenance {
+        case .structuredPlugin, .rawSwift:
+            semanticCount = rawCount
+        case let .attachedMacro(name):
+            switch rawCount {
+            case 1, 2:
+                semanticCount = 1
+            case let count where count.isMultiple(of: 2):
+                semanticCount = count / 2
+            default:
+                semanticCount = (rawCount + 1) / 2
+                inconsistentPhaseCounts[
+                    "\(error.sourceLocation): \(error.message) (from macro '\(name)')"
+                ] = rawCount
+            }
+        }
+        messages.append(contentsOf: repeatElement(error.message, count: semanticCount))
+    }
+
+    return CompilerSourceErrorNormalization(
+        messages: messages,
+        inconsistentPhaseCounts: inconsistentPhaseCounts
+    )
+}
+
+private func hasStableDiagnosticCodePrefix(_ message: String) -> Bool {
+    guard message.first == "[",
+          let closingBracket = message.firstIndex(of: "]") else {
+        return false
+    }
+    let codeStart = message.index(after: message.startIndex)
+    guard codeStart < closingBracket else {
+        return false
+    }
+    let code = message[codeStart..<closingBracket]
+    guard code.allSatisfy({ character in
+        character.isLetter
+            || character.isNumber
+            || character == "."
+            || character == "-"
+            || character == "_"
+    }) else {
+        return false
+    }
+    let suffixStart = message.index(after: closingBracket)
+    return suffixStart == message.endIndex || message[suffixStart].isWhitespace
+}
+
+private func diagnosticMultiset(_ messages: [String]) -> [String: Int] {
+    Dictionary(messages.map { ($0, 1) }, uniquingKeysWith: +)
+}
+
+private func formatDiagnosticMultiset(_ counts: [String: Int]) -> String {
+    counts.keys.sorted().map { message in
+        "\(counts[message, default: 0])x \(message)"
+    }.joined(separator: "\n")
 }
 
 private func escapedSwiftString(_ value: String) -> String {

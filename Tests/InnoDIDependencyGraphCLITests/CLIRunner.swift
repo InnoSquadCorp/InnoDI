@@ -94,7 +94,47 @@ func dependencyGraphExecutableURL() throws -> URL {
     let fileManager = FileManager.default
     let buildURL = packageRootURL().appendingPathComponent(".build", isDirectory: true)
 
-    let directCandidates = [
+    // `swift test --scratch-path ...` places the CLI beside the test bundle,
+    // not under the repository's `.build`. Walk upward from the running test
+    // executable first so the integration test always launches the binary
+    // produced by the same build instead of a stale default-scratch artifact.
+    var runtimeBuildCandidates: [URL] = []
+    func appendAncestorCandidates(startingAt url: URL) {
+        var directory = url.standardizedFileURL
+        if !directory.hasDirectoryPath {
+            directory.deleteLastPathComponent()
+        }
+        for _ in 0..<6 {
+            runtimeBuildCandidates.append(
+                directory.appendingPathComponent("InnoDI-DependencyGraph")
+            )
+            directory.deleteLastPathComponent()
+        }
+    }
+
+    appendAncestorCandidates(
+        startingAt: URL(fileURLWithPath: CommandLine.arguments[0])
+    )
+    appendAncestorCandidates(startingAt: Bundle.main.bundleURL)
+
+    if let scratchIndex = CommandLine.arguments.firstIndex(of: "--scratch-path"),
+       CommandLine.arguments.indices.contains(scratchIndex + 1) {
+        let scratchURL = URL(
+            fileURLWithPath: CommandLine.arguments[scratchIndex + 1],
+            isDirectory: true
+        )
+        runtimeBuildCandidates.append(
+            scratchURL.appendingPathComponent("debug/InnoDI-DependencyGraph")
+        )
+    }
+    if let bundleIndex = CommandLine.arguments.firstIndex(of: "--test-bundle-path"),
+       CommandLine.arguments.indices.contains(bundleIndex + 1) {
+        appendAncestorCandidates(
+            startingAt: URL(fileURLWithPath: CommandLine.arguments[bundleIndex + 1])
+        )
+    }
+
+    let directCandidates = runtimeBuildCandidates + [
         buildURL.appendingPathComponent("debug/InnoDI-DependencyGraph"),
         buildURL.appendingPathComponent("arm64-apple-macosx/debug/InnoDI-DependencyGraph"),
         buildURL.appendingPathComponent("x86_64-apple-macosx/debug/InnoDI-DependencyGraph")

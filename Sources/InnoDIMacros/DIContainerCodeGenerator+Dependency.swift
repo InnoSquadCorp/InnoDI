@@ -7,7 +7,7 @@
 //  referenced dependency (by name or by closure parameter) into the
 //  expression that should appear in the synthesized init — either
 //  `self.<storage>`, a previously resolved `let` binding, a `.value` read
-//  on an async task, or the `_innoDIUnresolvedDependency` fallback when
+//  on an async task, or the `_innoDITrap` fallback when
 //  `validateDAG: false` opts out of full graph resolution.
 //
 
@@ -15,11 +15,11 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 
 private let storagePrefix = "_storage_"
-private let unresolvedDependencyHelperName = "_innoDIUnresolvedDependency"
+private let unresolvedDependencyTrapName = "_innoDITrap"
 
 /// Builds one argument expression per closure parameter of `member.factory`.
 /// Soft parameters that point at a known soft target are replaced with
-/// `Lazy({ _lazyCell_<name>.resolve() })`; all other parameters fall back to
+/// `Lazy({ _innoDILazyCell_<name>.resolve() })`; all other parameters fall back to
 /// `self._storage_<resolved>` via `resolveClosureParameter`.
 internal func closureArgumentExpressions(
     member: ProvideMemberModel,
@@ -48,19 +48,43 @@ internal func closureArgumentExpressions(
     var expressions: [ExprSyntax] = []
     for ref in references {
         if ref.kind == .soft {
-            guard deferredTargetNameSet.contains(ref.name),
-                  let calleeDescription = ref.lazyWrapperCalleeDescription else {
+            guard let calleeDescription = ref.lazyWrapperCalleeDescription else {
                 throw CodegenInvariantError(description: "Unsupported soft dependency '\(ref.name)' reached code generation.")
             }
-            expressions.append(makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
+            if deferredTargetNameSet.contains(ref.name) {
+                expressions.append(
+                    makeLazyCellWrapperExpr(
+                        name: ref.name,
+                        calleeDescription: calleeDescription
+                    )
+                )
+            } else if allowUnresolvedDependencyFallback {
+                expressions.append(
+                    unresolvedDeferredWrapperExpr(name: ref.name)
+                )
+            } else {
+                throw CodegenInvariantError(description: "Unsupported soft dependency '\(ref.name)' reached code generation.")
+            }
             continue
         }
         if ref.kind == .provider {
-            guard deferredTargetNameSet.contains(ref.name),
-                  let calleeDescription = ref.providerWrapperCalleeDescription else {
+            guard let calleeDescription = ref.providerWrapperCalleeDescription else {
                 throw CodegenInvariantError(description: "Unsupported provider dependency '\(ref.name)' reached code generation.")
             }
-            expressions.append(makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription))
+            if deferredTargetNameSet.contains(ref.name) {
+                expressions.append(
+                    makeProviderCellWrapperExpr(
+                        name: ref.name,
+                        calleeDescription: calleeDescription
+                    )
+                )
+            } else if allowUnresolvedDependencyFallback {
+                expressions.append(
+                    unresolvedDeferredWrapperExpr(name: ref.name)
+                )
+            } else {
+                throw CodegenInvariantError(description: "Unsupported provider dependency '\(ref.name)' reached code generation.")
+            }
             continue
         }
         expressions.append(
@@ -186,27 +210,51 @@ private func unresolvedInitDependencyFallbackExpression(
     return unresolved
 }
 
-/// Emits the local `_innoDIUnresolvedDependency<T>(_: String) -> T` helper
-/// that `validateDAG: false` containers call when a dependency can't be
-/// located in the init's resolved bindings.
-internal func unresolvedDependencyHelperDecl() -> DeclSyntax {
-    DeclSyntax(
-        """
-        func \(raw: unresolvedDependencyHelperName)<T>(_ name: String) -> T {
-            fatalError("InnoDI could not resolve dependency '\\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring.")
-        }
-        """
-    )
-}
-
 private func unresolvedDependencyHelperExpr(name: String) -> ExprSyntax {
     let call = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier(unresolvedDependencyHelperName)),
+        calledExpression: MemberAccessExprSyntax(
+            base: DeclReferenceExprSyntax(baseName: .identifier("InnoDI")),
+            declName: DeclReferenceExprSyntax(baseName: .identifier(unresolvedDependencyTrapName))
+        ),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(expression: ExprSyntax(StringLiteralExprSyntax(content: name)))
+            LabeledExprSyntax(
+                expression: ExprSyntax(
+                    StringLiteralExprSyntax(
+                        content: "InnoDI could not resolve dependency '\(name)' while expanding a container with validateDAG: false. Supply an explicit override or complete the container wiring."
+                    )
+                )
+            )
         ]),
         rightParen: .rightParenToken()
     )
     return ExprSyntax(call)
+}
+
+/// Builds a contextual `Lazy<T>` / `Provider<T>` wrapper whose resolver uses
+/// the same typed runtime trap as unresolved hard edges when DAG validation is
+/// explicitly disabled. The surrounding factory parameter supplies the
+/// concrete wrapper type, so no user-visible or shadowable type qualifier is
+/// required here.
+internal func unresolvedDeferredWrapperExpr(name: String) -> ExprSyntax {
+    let resolver = ClosureExprSyntax(
+        statements: CodeBlockItemListSyntax([
+            CodeBlockItemSyntax(
+                item: .expr(unresolvedDependencyHelperExpr(name: name))
+            )
+        ])
+    )
+    return ExprSyntax(
+        FunctionCallExprSyntax(
+            calledExpression: MemberAccessExprSyntax(
+                period: .periodToken(),
+                declName: DeclReferenceExprSyntax(baseName: .keyword(.`init`))
+            ),
+            leftParen: .leftParenToken(),
+            arguments: LabeledExprListSyntax([
+                LabeledExprSyntax(expression: ExprSyntax(resolver))
+            ]),
+            rightParen: .rightParenToken()
+        )
+    )
 }

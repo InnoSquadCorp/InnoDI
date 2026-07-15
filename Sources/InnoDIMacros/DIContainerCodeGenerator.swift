@@ -35,10 +35,11 @@ struct DIContainerCodeGenerator {
     /// Generates the full member set: primary init + (if applicable) `Overrides`
     /// struct + convenience init + 4 `withOverrides` effect overloads.
     ///
-    /// All `@DIContainer` types synthesize the overrides scaffolding unless a
-    /// user-defined nested `Overrides` type suppresses generation. Input-only
-    /// containers now receive an empty builder so parents can always forward
-    /// `@SubContainer` override closures into child containers.
+    /// All valid `@DIContainer` types synthesize the complete overrides
+    /// scaffolding. A user-defined nested `Overrides` type is rejected before
+    /// this path. Input-only and empty containers receive an empty builder so
+    /// parents can always forward `@SubContainer` override closures into child
+    /// containers.
     ///
     /// Each generated declaration is prefixed with a `// MARK:` comment so
     /// that consumers expanding the macro in Xcode (or reading recorded
@@ -52,8 +53,8 @@ struct DIContainerCodeGenerator {
         var decls: [DeclSyntax] = []
 
         // `.transient` sub-containers are backed by a stored
-        // builder closure that `@SubContainer.PeerMacro` emits; the init
-        // assigns that closure using a `_lazySelf` snapshot so it can
+        // builder closure that `_InnoDISubContainerAccessor` emits; the init
+        // assigns that closure using a `_innoDILazySelfForSub` snapshot so it can
         // reach parent members on every invocation. The closure logic is
         // generated inline by `makeSubContainerInitStatements` — no extra
         // member-level decls are needed here.
@@ -82,6 +83,7 @@ struct DIContainerCodeGenerator {
             makeOverridesStructDecl(model: model)
                 .prependingMARK("// MARK: - Overrides Builder")
         )
+        decls.append(makeMountOverridesAliasDecl(model: model))
         decls.append(
             makeConvenienceInitDecl(model: model)
                 .prependingMARK("// MARK: - Convenience Init with Overrides")
@@ -203,7 +205,7 @@ private func makeInitDecl(
     // Two parameters per `@SubContainer` member — a direct
     // replacement (`<name>: Child? = nil`) and a trailing-closure override
     // block forwarded into the child's own convenience init
-    // (`<name>Overrides: ((inout Child.Overrides) -> Void)? = nil`). Both
+    // (`<name>Overrides: ((inout Child._InnoDIMountOverrides) -> Void)? = nil`). Both
     // default to `nil` so existing call sites stay unchanged; the Overrides
     // builder threads named values in via the convenience init.
     for (index, member) in subContainerMembers.enumerated() {
@@ -211,7 +213,7 @@ private func makeInitDecl(
         let directType = optionalParameterType(for: member.type)
         let childTypeDescription = member.type.trimmedDescription
         let applyTypeSyntax = overrideApplyClosureType(
-            overridesTypeDescription: "\(childTypeDescription).Overrides",
+            overridesTypeDescription: "\(childTypeDescription).\(innoDIMountOverridesTypeName)",
             isMainActor: mainActorEnabled,
             isOptional: true
         )
@@ -254,12 +256,6 @@ private func makeInitDecl(
         }
     )
 
-    if allowUnresolvedDependencyFallback {
-        statements.append(
-            CodeBlockItemSyntax(item: .decl(unresolvedDependencyHelperDecl()))
-        )
-    }
-
     if !deferredTargetMembers.isEmpty || hasTransientSubContainer {
         statements.append(
             CodeBlockItemSyntax(item: .decl(makeDeferredCellSupportDecl()))
@@ -283,7 +279,7 @@ private func makeInitDecl(
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: member.name))))
 
         if asyncResolvedTargetNames.contains(member.name) {
-            let resolvedName = "_resolved_\(member.name)"
+            let resolvedName = "_innoDIResolved_\(member.name)"
             let resolvedDecl = letBinding(
                 name: resolvedName,
                 value: makeProviderStorageReadExpr(name: storageName)
@@ -293,7 +289,7 @@ private func makeInitDecl(
         }
 
         if deferredTargetNameSet.contains(member.name) {
-            // _lazyCell_<name>.store(self._storage_<name>)
+            // _innoDILazyCell_<name>.store(self._storage_<name>)
             statements.append(
                 CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
             )
@@ -323,7 +319,7 @@ private func makeInitDecl(
         statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
 
         if asyncResolvedTargetNames.contains(member.name) {
-            let resolvedName = "_resolved_\(member.name)"
+            let resolvedName = "_innoDIResolved_\(member.name)"
             let resolvedDecl = letBinding(
                 name: resolvedName,
                 value: makeProviderStorageReadExpr(name: storageName)
@@ -340,7 +336,7 @@ private func makeInitDecl(
     }
 
     for member in asyncSharedMembers {
-        let taskName = "_task_\(member.name)"
+        let taskName = "_innoDITask_\(member.name)"
         let successType = taskSuccessTypeDescription(for: member.type)
         let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
         let createExpr = try makeAsyncFactoryExpr(
@@ -377,34 +373,14 @@ private func makeInitDecl(
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: overrideName, valueName: member.name))))
     }
 
-    let transientDeferredTargetMembers = transientMembers.filter { deferredTargetNameSet.contains($0.name) }
-    if !transientDeferredTargetMembers.isEmpty {
-        statements.append(
-            CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelf", value: "self")))
-        )
-        for member in transientDeferredTargetMembers {
-            statements.append(
-                CodeBlockItemSyntax(
-                    item: .expr(
-                        makeLazyCellBindExpr(
-                            name: member.name,
-                            accessorName: member.name,
-                            baseName: "_lazySelf"
-                        )
-                    )
-                )
-            )
-        }
-    }
-
     // Sub-container storage.
     //
     // `.shared` children are built (or replaced by an override) exactly
     // once here and assigned to `_storage_sub_<name>`.
     //
     // `.transient` children capture a closure in `_innoDISubBuild_<name>`
-    // (a `private let` peer emitted by `@SubContainer.PeerMacro`). The
-    // closure captures a `_lazySelfForSub` snapshot so it can read parent
+    // (a `private let` peer emitted by `_InnoDISubContainerAccessor`). The
+    // closure captures a `_innoDILazySelfForSub` snapshot so it can read parent
     // accessors as a fully-constructed value type — value-type copies of
     // `self` are cheap and reflect the stable parent state.
     let autoWireParentMemberNames = (inputMembers + sharedMembers + transientMembers).map(\.name)
@@ -420,7 +396,7 @@ private func makeInitDecl(
                 CodeBlockItemSyntax(
                     item: .decl(
                         makeDeferredCellDecl(
-                            cellName: "_subBuildCell_\(member.name)",
+                            cellName: "_innoDISubBuildCell_\(member.name)",
                             type: member.type
                         )
                     )
@@ -428,7 +404,7 @@ private func makeInitDecl(
             )
             let assignBuildClosure: CodeBlockItemSyntax = """
                 self._innoDISubBuild_\(raw: member.name) = {
-                    _subBuildCell_\(raw: member.name).resolve()
+                    _innoDISubBuildCell_\(raw: member.name).resolve()
                 }
                 """
             statements.append(assignBuildClosure)
@@ -440,7 +416,7 @@ private func makeInitDecl(
         // and builder closures are assigned by the loop above, so `self`
         // is fully initialized.
         statements.append(
-            CodeBlockItemSyntax(item: .decl(letBinding(name: "_lazySelfForSub", value: "self")))
+            CodeBlockItemSyntax(item: .decl(letBinding(name: "_innoDILazySelfForSub", value: "self")))
         )
         for member in subContainerMembers where member.scope == .transient {
             let childTypeDesc = member.type.trimmedDescription
@@ -451,7 +427,7 @@ private func makeInitDecl(
             let baseInitializer = subContainerInitializerExpr(
                 childType: member.type,
                 argumentMappings: selectedArguments,
-                parentMemberBaseName: "_lazySelfForSub",
+                parentMemberBaseName: "_innoDILazySelfForSub",
                 parentMemberPrefix: ""
             )
             let overrideInitializer = subContainerInitializerExpr(
@@ -460,21 +436,45 @@ private func makeInitDecl(
                 trailingOverrideExpression: ExprSyntax(
                     DeclReferenceExprSyntax(baseName: .identifier("apply"))
                 ),
-                parentMemberBaseName: "_lazySelfForSub",
+                parentMemberBaseName: "_innoDILazySelfForSub",
                 parentMemberPrefix: ""
             )
             let assignStmt: CodeBlockItemSyntax = """
-                _subBuildCell_\(raw: member.name).bindResolver { () -> \(raw: childTypeDesc) in
-                    if let direct = _lazySelfForSub._override_sub_\(raw: member.name) {
+                _innoDISubBuildCell_\(raw: member.name).bindResolver { () -> \(raw: childTypeDesc) in
+                    if let direct = _innoDILazySelfForSub._override_sub_\(raw: member.name) {
                         return direct
                     }
-                    if let apply = _lazySelfForSub._override_sub_apply_\(raw: member.name) {
+                    if let apply = _innoDILazySelfForSub._override_sub_apply_\(raw: member.name) {
                         return \(overrideInitializer)
                     }
                     return \(baseInitializer)
                 }
                 """
             statements.append(assignStmt)
+        }
+    }
+
+    // A transient Lazy/Provider target captures a fully initialized snapshot
+    // of the parent. Keep this after every SubContainer peer slot and build
+    // closure has been assigned; taking the snapshot earlier is illegal when
+    // a container combines deferred re-entry with a transient child.
+    let transientDeferredTargetMembers = transientMembers.filter { deferredTargetNameSet.contains($0.name) }
+    if !transientDeferredTargetMembers.isEmpty {
+        statements.append(
+            CodeBlockItemSyntax(item: .decl(letBinding(name: "_innoDILazySelf", value: "self")))
+        )
+        for member in transientDeferredTargetMembers {
+            statements.append(
+                CodeBlockItemSyntax(
+                    item: .expr(
+                        makeLazyCellBindExpr(
+                            name: member.name,
+                            accessorName: member.name,
+                            baseName: "_innoDILazySelf"
+                        )
+                    )
+                )
+            )
         }
     }
 

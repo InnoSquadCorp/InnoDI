@@ -1,0 +1,2 @@
+@SubContainer member 'child' cannot be declared inside #if in InnoDI 5.0. Move the declaration outside conditional compilation and branch inside the child container or its injected implementation instead.
+@SubContainer member 'staticChild' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.

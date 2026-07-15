@@ -94,44 +94,57 @@ fi
 root_path_escaped="${ROOT_DIR//\\/\\\\}"
 root_path_escaped="${root_path_escaped//\"/\\\"}"
 
+package_dir="$TMP_DIR/package"
+mkdir -p "$package_dir/Sources"
+
 for snippet in "${snippets[@]}"; do
-    package_dir="$TMP_DIR/package-$(basename "$snippet" .swift)"
-    mkdir -p "$package_dir/Sources/DocSnippet"
-    cp "$snippet" "$package_dir/Sources/DocSnippet/main.swift"
-
-    cat > "$package_dir/Package.swift" <<EOF
-// swift-tools-version: 6.2
-import PackageDescription
-
-let package = Package(
-    name: "InnoDIDocSnippet",
-    platforms: [
-        .iOS(.v17),
-        .macOS(.v13),
-        .watchOS(.v10),
-        .tvOS(.v17),
-        .visionOS(.v1),
-    ],
-    dependencies: [
-        .package(path: "$root_path_escaped"),
-    ],
-    targets: [
-        .executableTarget(
-            name: "DocSnippet",
-            dependencies: [
-                .product(name: "InnoDI", package: "InnoDI"),
-                .product(name: "InnoDISwiftUI", package: "InnoDI"),
-            ]
-        ),
-    ]
-)
-EOF
-
-    echo "Checking $(sed -n '1s|// Source: ||p' "$snippet")"
-    swift build \
-        --package-path "$package_dir" \
-        -Xswiftc -strict-concurrency=complete \
-        -Xswiftc -warnings-as-errors
+    target_name="DocSnippet$(basename "$snippet" .swift)"
+    mkdir -p "$package_dir/Sources/$target_name"
+    cp "$snippet" "$package_dir/Sources/$target_name/main.swift"
 done
+
+# Build every snippet as an isolated executable target in one package. This
+# preserves module isolation between examples while compiling InnoDI and
+# SwiftSyntax only once. Avoid a large here-document: Bash 5.3 on macOS can
+# block while feeding one to an external command before that command reads.
+{
+    printf '%s\n' '// swift-tools-version: 6.2'
+    printf '%s\n' 'import PackageDescription'
+    printf '\n'
+    printf '%s\n' 'let package = Package('
+    printf '%s\n' '    name: "InnoDIDocSnippets",'
+    printf '%s\n' '    platforms: ['
+    printf '%s\n' '        .iOS(.v17),'
+    printf '%s\n' '        .macOS(.v13),'
+    printf '%s\n' '        .watchOS(.v10),'
+    printf '%s\n' '        .tvOS(.v17),'
+    printf '%s\n' '        .visionOS(.v1),'
+    printf '%s\n' '    ],'
+    printf '%s\n' '    dependencies: ['
+    printf '        .package(path: "%s"),\n' "$root_path_escaped"
+    printf '%s\n' '    ],'
+    printf '%s\n' '    targets: ['
+    for snippet in "${snippets[@]}"; do
+        target_name="DocSnippet$(basename "$snippet" .swift)"
+        printf '%s\n' '        .executableTarget('
+        printf '            name: "%s",\n' "$target_name"
+        printf '%s\n' '            dependencies: ['
+        printf '%s\n' '                .product(name: "InnoDI", package: "InnoDI"),'
+        printf '%s\n' '                .product(name: "InnoDISwiftUI", package: "InnoDI"),'
+        printf '%s\n' '            ]'
+        printf '%s\n' '        ),'
+    done
+    printf '%s\n' '    ]'
+    printf '%s\n' ')'
+} > "$package_dir/Package.swift"
+
+for snippet in "${snippets[@]}"; do
+    echo "Checking $(sed -n '1s|// Source: ||p' "$snippet")"
+done
+
+swift build \
+    --package-path "$package_dir" \
+    -Xswiftc -strict-concurrency=complete \
+    -Xswiftc -warnings-as-errors
 
 echo "Checked ${#snippets[@]} marked Swift documentation snippet(s)."

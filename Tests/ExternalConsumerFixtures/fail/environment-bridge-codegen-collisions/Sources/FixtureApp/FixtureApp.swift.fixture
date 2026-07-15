@@ -1,0 +1,52 @@
+import InnoDISwiftUI
+
+struct OtherValues {
+    var value: Int
+}
+
+@DIEnvironmentBridge([])
+struct StaticVariableConflict {
+    static var _InnoDIEnvironmentBridgeModifier: Int { 0 }
+}
+
+@DIEnvironmentBridge([])
+struct StaticFunctionConflict {
+    static func _InnoDIEnvironmentBridgeModifier(_ value: Int) {}
+}
+
+@DIEnvironmentBridge([])
+enum EnumCaseConflict {
+    case _InnoDIEnvironmentBridgeModifier
+}
+
+@DIEnvironmentBridge([])
+class ClassVariableConflict {
+    class var _InnoDIEnvironmentBridgeModifier: Int { 0 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \OtherValues.value),
+])
+struct InvalidEnvironmentRoot {
+    var value: Int
+}
+
+struct DirectPrivateHost {
+    @DIEnvironmentBridge([])
+    private struct PrivateBridge {}
+}
+
+struct IndirectPrivateHost {
+    private struct Namespace {
+        @DIEnvironmentBridge([])
+        struct Bridge {}
+    }
+}
+
+@DIEnvironmentBridge([])
+struct ParameterPackBridge<each Value> {}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

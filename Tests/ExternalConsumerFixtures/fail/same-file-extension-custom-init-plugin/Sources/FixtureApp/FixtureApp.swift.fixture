@@ -1,0 +1,22 @@
+import InnoDI
+
+struct Config {}
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var config: Config
+}
+
+extension AppContainer {
+    #if os(macOS)
+    init(config: Config, debug: Bool) {
+        self.init(config: config)
+    }
+    #endif
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

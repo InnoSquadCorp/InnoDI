@@ -1,0 +1,174 @@
+import InnoDISwiftUI
+
+private struct ShadowValueKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+private extension EnvironmentValues {
+    var shadowValue: Int {
+        get { self[ShadowValueKey.self] }
+        set { self[ShadowValueKey.self] = newValue }
+    }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public class _InnoDIEnvironmentBridgeModifier {
+    public init() {}
+
+    public var value: Int { 7 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct GenericBridge<
+    _InnoDIEnvironmentBridgeModifier,
+    _InnoDIContainer,
+    _InnoDIContainer_1,
+    _InnoDIValue0,
+    _InnoDIValue0_1
+> {
+    public init() {}
+
+    public var value: Int { 8 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct Content {
+    public init() {}
+
+    public var value: Int { 9 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct DIEnvironmentBridging {
+    public init() {}
+
+    public var value: Int { 10 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct BridgingGeneric<DIEnvironmentBridging> {
+    public init() {}
+
+    public var value: Int { 11 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct CrossNamespaceBridge {
+    public init() {}
+
+    public var _InnoDIEnvironmentBridgeModifier: Int { 0 }
+    public var value: Int { 12 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct NestedNameBridge {
+    public struct NestedNameBridge {}
+
+    public init() {}
+
+    public var value: Int { 13 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct EnvironmentValuesCaptureBridge {
+    public struct EnvironmentValues {}
+
+    public init() {}
+
+    public var value: Int { 14 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+private struct PrivateBridge {
+    var value: Int { 15 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+private struct PrivateShadowBridge {
+    struct PrivateShadowBridge {}
+
+    var value: Int { 16 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct SelfGenericBridge<SelfGenericBridge> {
+    public init() {}
+
+    public var value: Int { 17 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct CrossNamespaceFunctionBridge {
+    public init() {}
+
+    public func _InnoDIEnvironmentBridgeModifier() -> Int { 0 }
+    public var value: Int { 18 }
+}
+
+@DIEnvironmentBridge([
+    (member: "value", environment: \EnvironmentValues.shadowValue),
+])
+public struct TypeAliasCaptureBridge {
+    public typealias TypeAliasCaptureBridge = Int
+
+    public init() {}
+
+    public var value: Int { 19 }
+}
+
+public struct Outer<EnclosingBridge> {
+    @DIEnvironmentBridge([
+        (member: "value", environment: \EnvironmentValues.shadowValue),
+    ])
+    public struct EnclosingBridge {
+        public init() {}
+
+        public var value: Int { 20 }
+    }
+}
+
+@main
+struct FixtureApp {
+    @MainActor
+    static func main() {
+        let container = _InnoDIEnvironmentBridgeModifier()
+        _ = EmptyView().innodi(container)
+        _ = EmptyView().innodi(GenericBridge<Int, Int, Int, Int, Int>())
+        _ = EmptyView().innodi(Content())
+        _ = EmptyView().innodi(DIEnvironmentBridging())
+        _ = EmptyView().innodi(BridgingGeneric<Int>())
+        _ = EmptyView().innodi(CrossNamespaceBridge())
+        _ = EmptyView().innodi(NestedNameBridge())
+        _ = EmptyView().innodi(EnvironmentValuesCaptureBridge())
+        _ = EmptyView().innodi(PrivateBridge())
+        _ = EmptyView().innodi(PrivateShadowBridge())
+        _ = EmptyView().innodi(SelfGenericBridge<Int>())
+        _ = EmptyView().innodi(CrossNamespaceFunctionBridge())
+        _ = EmptyView().innodi(TypeAliasCaptureBridge())
+        _ = EmptyView().innodi(Outer<Int>.EnclosingBridge())
+    }
+}

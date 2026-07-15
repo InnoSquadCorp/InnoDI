@@ -1,49 +1,51 @@
 
 struct AppContainer {
-    @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
+    @Swift.MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var userID: String
-    @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
+    @Swift.MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var apiClient: APIClient
 
     // MARK: - Initialization
-    @MainActor init(userID: String, apiClient: APIClient? = nil) {
+    @Swift.MainActor init(userID: String, apiClient: APIClient? = nil) {
         self._storage_userID = userID
         self._storage_apiClient = apiClient ?? APIClient()
     }
 
     // MARK: - Overrides Builder
-    @MainActor struct Overrides {
+    @Swift.MainActor struct Overrides {
         var apiClient: APIClient? = nil
     }
 
+    typealias _InnoDIMountOverrides = Overrides
+
     // MARK: - Convenience Init with Overrides
-    @MainActor init(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void) {
-        var overrides = Overrides()
-        applyOverrides(&overrides)
-        self.init(userID: userID, apiClient: overrides.apiClient)
+    @Swift.MainActor init(userID: String, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void) {
+        var _innoDIOverrides = Self.Overrides()
+        _innoDIApplyOverrides(&_innoDIOverrides)
+        self.init(userID: userID, apiClient: _innoDIOverrides.apiClient)
     }
 
     // MARK: - withOverrides
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) -> OperationResult) -> OperationResult {
-        let container = Self(userID: userID, applyOverrides)
-        return operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(userID: String, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) -> OperationResult) -> OperationResult {
+        let _innoDIContainer = Self(userID: userID, _innoDIApplyOverrides)
+        return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) throws -> OperationResult) throws -> OperationResult {
-        let container = Self(userID: userID, applyOverrides)
-        return try operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(userID: String, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
+        let _innoDIContainer = Self(userID: userID, _innoDIApplyOverrides)
+        return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) async -> OperationResult) async -> OperationResult {
-        let container = Self(userID: userID, applyOverrides)
-        return await operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(userID: String, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) async -> OperationResult) async -> OperationResult {
+        let _innoDIContainer = Self(userID: userID, _innoDIApplyOverrides)
+        return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    @MainActor static func withOverrides<OperationResult>(userID: String, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
-        let container = Self(userID: userID, applyOverrides)
-        return try await operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(userID: String, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
+        let _innoDIContainer = Self(userID: userID, _innoDIApplyOverrides)
+        return try await _innoDIOperation(_innoDIContainer)
     }
 }

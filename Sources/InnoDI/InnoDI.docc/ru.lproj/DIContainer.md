@@ -14,6 +14,11 @@
 состояние, зависящее от конкретного типа, следует скрыть за protocol
 dependencies или `@Provide(.input)`.
 
+Явно объявленный `private` container также отклоняется: sibling containers не
+могут обращаться к его generated mount surface. Для mounting внутри файла
+используйте `fileprivate` либо container с default access внутри private
+namespace.
+
 Текущий компилятор Swift не передаёт контекст аксессора при expansion attached
 macro для типа внутри body вычисляемого свойства. Build-validation plugin и
 dependency-graph CLI сканируют полное дерево исходного кода и отклоняют также
@@ -40,8 +45,19 @@ dependency-graph CLI сканируют полное дерево исходно
 границу изоляции. Синхронные overload не меняются. При `mainActor: true` все
 overload `withOverrides` и operation closures остаются `@MainActor`.
 
-Пока пользователь сам не объявил вложенный `Overrides`, scaffolding
-генерируется для каждого поддерживаемого контейнера.
+Каждый контейнер, даже без управляемых членов, генерирует полный overrides
+scaffolding. Пользовательский вложенный тип `Overrides` не поддерживается в
+InnoDI 5.0 и вызывает `container.overrides-name-conflict`; переименуйте его,
+чтобы macro владел совместимым с mounting override ABI.
+
+Macro также генерирует зарезервированный compiler-support alias
+`_InnoDIMountOverrides = Overrides` для generated parent mounting code. Не
+объявляйте и не используйте это имя с подчеркиванием напрямую.
+
+Каждый хранимый instance member должен использовать `@Provide` или
+`@SubContainer`; computed и type properties остаются доступными. Это позволяет
+синтезированному initializer владеть всем состоянием и предотвращает дрейф
+memberwise-initializer ABI.
 
 Каждый `@Provide` должен быть прямым обычным хранимым instance `var` этого
 struct. Accessor/observer, `let`, `lazy`, `weak`, `unowned`, `static`/`class`,

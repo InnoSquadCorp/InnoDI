@@ -163,6 +163,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   enum, protocol, extension 등 struct가 아닌 선언에 직접 붙었습니다.
   경계를 비제네릭 struct로 옮기고 런타임 상태는 `.input` 멤버로
   주입하세요.
+- `container.private-access-unsupported` — 컨테이너가 명시적으로 `private`라서
+  sibling container가 생성된 mount surface에 접근할 수 없습니다. 같은 파일에서
+  mount하려면 `fileprivate`를 사용하거나, private namespace 안에 default-access
+  container를 중첩하세요.
 - `container.generic-unsupported` — 컨테이너가 generic parameter를
   선언했거나 generic nominal 선언 안에 중첩됐습니다. 타입별 동작은
   주입되는 의존성 뒤로 옮기세요.
@@ -185,9 +189,17 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.dependency-cycle` — hard cycle이 감지됐습니다. `Lazy<T>`
   또는 `Provider<T>`로 끊거나 ownership을 재구성하세요.
 - `container.custom-init-unsupported` — `@DIContainer`는 이미
-  initializer를 합성합니다. 사용자가 작성한 것을 제거하세요.
+  initializer를 합성합니다. 사용자가 작성한 것을 제거하세요. annotation body의
+  initializer는 macro가 진단합니다. compiler-plugin macro 입력에는 sibling extension이
+  없으므로, 같은 파일 또는 다른 파일 extension의 initializer는 필수
+  `InnoDIDAGValidationPlugin` full-source pass가 진단합니다.
+- `container.unmanaged-stored-property` — stored instance member에 `@Provide`와
+  `@SubContainer`가 모두 없습니다. 빈 컨테이너까지 전체 initializer를 InnoDI 5.0이
+  소유하므로 annotation을 추가하거나 computed/static property로 바꾸세요.
 - `container.overrides-name-conflict` — 사용자의 nested `Overrides`
-  타입이 합성된 빌더와 충돌합니다.
+  타입이 필수 합성 빌더와 충돌합니다. InnoDI 5.0에서는 오류로 처리하므로
+  사용자 선언의 이름을 바꾸세요. 진단 전용 recovery initializer가 mount된
+  child container에서 무관한 Swift argument 오류가 연쇄되는 것을 막습니다.
 - `container.mainactor-conflict` — `@DIContainer(mainActor: true)`가 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
   제거하거나 `mainActor` 생성을 비활성화하세요.
@@ -202,11 +214,15 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   InnoDI는 뒤쪽 선언을 진단하고 첫 선언 위치를 note로 표시하며, 모호한 두
   provider 모두의 peer storage를 억제하고 정상 accessor를 recovery getter로
   대체합니다.
-- `container.reserved-name-prefix` — `@Provide` 또는 `@SubContainer`
-  멤버 이름이 매크로가 generated storage용으로 예약한 prefix
-  (예: `_storage_`, `_override_sub_`, `_innoDISubBuild_`,
-  `_subBuildCell_`, `_lazyCell_`, `_innoDIUnresolvedDependency`,
-  `_lazySelfForSub`)로 시작합니다. 멤버 이름을 변경하세요.
+- `container.reserved-name-prefix` — direct container declaration이 매크로가
+  generated storage와 support용으로 예약한 prefix (`_storage_`, `_override_`,
+  `_innoDI`, `_InnoDI`)로 시작합니다. Plain variable, function, nested nominal
+  type, typealias, top-level `#if` 안의 선언도 포함합니다. 선언 이름을 변경하세요.
+- `container.reserved-module-name` — container 자체, enclosing nominal,
+  `InnoDI`라는 direct declaration, 또는 `Swift`나 `_Concurrency`라는 direct
+  nested type/typealias가 generated support의 module qualifier를 가립니다.
+  선언 이름을 변경하세요. 값 namespace의 `Swift`, `_Concurrency` 멤버는 계속
+  사용할 수 있습니다.
 
 ## SubContainer 진단
 
@@ -217,6 +233,18 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `sub.escaped-identifier-unsupported` — `@SubContainer` property가
   backtick으로 감싼 escaped identifier를 사용합니다. Child storage, override,
   SwiftUI helper identity가 canonical하도록 unescaped identifier로 바꾸세요.
+- `sub.requires-direct-container-member` — `@SubContainer`가 지원되는
+  `@DIContainer` struct의 직접적이고 평범한 stored instance `var`가 아닙니다.
+  해당 컨테이너로 옮기고 accessor, storage modifier, wrapper, unknown
+  attribute를 제거하세요.
+- `sub.conditional-declaration-unsupported` — child 선언 전체가 `#if`
+  안에 있습니다. Storage, accessor, parent init 매크로 단계가 일부만
+  확장하지 않도록 conditional compilation 밖으로 옮기세요.
+- `sub.duplicate-attribute` — 한 property에 `@SubContainer`가 두 번 이상
+  선언됐습니다. Child-container attribute를 하나만 남기세요.
+- `sub.generated-accessor-manual-attachment` — InnoDI의 숨은
+  `_InnoDISubContainerAccessor`를 수동으로 붙였습니다. 제거하세요. 이 compiler
+  support는 parent container가 소유합니다.
 - `sub.unknown-scope` — `scope:` 값이 `.shared`나 `.transient`가
   아닙니다.
 - `sub.conflicts-with-provide` — 한 프로퍼티에 두 attribute를 동시에
@@ -251,11 +279,8 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 ## SwiftUI 진단
 
-- `swiftui.feature-root-without-subcontainer` — `@DIFeatureRoot`는
-  `@SubContainer` 프로퍼티에 함께 붙어야 합니다.
-- `swiftui.feature-root-duplicate-default` — 같은 컨테이너에
-  `@DIFeatureRoot` 또는 `@SubContainer` feature-root default가 두 개
-  있습니다.
+- `swiftui.feature-root-duplicate-default` — `@SubContainer`에 default
+  feature root가 두 개 이상 선언됐습니다.
 - `swiftui.feature-root-helper-name-conflict` — 생성된 헬퍼 이름이
   기존 멤버와 충돌합니다.
 - `swiftui.feature-root-invalid-alias` — feature-root alias 인자가
@@ -270,10 +295,48 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   컨테이너 멤버가 `EnvironmentValues`로 매핑됐습니다. synchronous
   값을 노출하거나, 내부에서 async 작업을 수행하는 service를
   주입하세요.
-- `swiftui.environment-bridge-invalid-keypath` — 인자가 key-path
-  literal이 아닙니다.
+- `swiftui.environment-bridge-invalid-keypath` — `environment:`가
+  `EnvironmentValues` 또는 `SwiftUI.EnvironmentValues`를 root로 하는 하나의
+  direct-property key-path literal이 아닙니다. 생성 코드에서 lexical capture
+  없이 key path를 보존하기 위해 alias, 다른 root, chain, subscript를 거부합니다.
 - `swiftui.environment-bridge-invalid-arguments` — bridge 매크로가
   지원되는 key-path 리스트 형태 외의 인자를 받았습니다.
+- `swiftui.environment-bridge-reserved-module-name` — bridge 대상이나 이를
+  감싸는 nominal·generic parameter, 또는 target의 direct nested
+  type/typealias에 있는 `Swift`/`SwiftUI`/`InnoDISwiftUI` 이름이 생성 modifier의 module
+  qualifier를 가립니다. 타입 선언이나 generic parameter 이름을 바꾸세요.
+  같은 이름의 값 멤버는 계속 사용할 수 있습니다. SwiftSyntax가 attached
+  macro의 lexical context에서 enclosing member를 제거하므로 현재 이 진단의
+  범위 밖입니다. 5.0 release candidate 전에 추가할 target-scoped full-source
+  preflight가 이 경계를 닫습니다.
+- `swiftui.environment-bridge-generated-name-conflict` — bridge target이 생성
+  멤버를 다시 선언했습니다. `_InnoDIEnvironmentBridgeModifier`는 direct nested
+  nominal type, protocol, typealias, static/class variable·function, enum
+  case와 충돌하고,
+  `_innoDIEnvironmentBridgeModifier`는 direct instance variable 또는 parameter가
+  없는 instance function과만 충돌합니다. Top-level `#if` branch는 재귀적으로
+  검사합니다. 대문자 이름의 instance value/function, 소문자 이름의 static/class
+  member와 parameter가 있는 overload, target·generic parameter 이름, 반대
+  namespace의 선언, nested body 안의 선언은 계속 사용할 수 있습니다.
+- `swiftui.environment-bridge-extension-context-unsupported` — bridge 대상이
+  extension 안에 중첩되어 있습니다. Attached syntax macro는 생성 전 다른
+  파일의 extension-member lookup을 검증할 수 없으므로 file 또는 nominal
+  scope로 옮기세요. Direct extension attachment는 Swift의 attached-extension
+  제한이 먼저 거부할 수 있습니다. Target-scoped full-source preflight가
+  추가되기 전까지 direct extension attachment와 standalone local target은
+  compiler-owned 경계로 남습니다.
+- `swiftui.environment-bridge-unsupported-declaration-kind` — bridge 대상이
+  actor, protocol 또는 다른 지원하지 않는 선언 종류입니다. Struct, class,
+  enum으로 옮기세요.
+- `swiftui.environment-bridge-private-nested-target` — 생성 conformance path에
+  다른 타입 안에 중첩된 `private` target 또는 enclosing nominal이 있습니다.
+  해당 private lookup component를 `fileprivate` 또는 default access로 바꾸세요.
+  File-scope private target은 계속 지원하며 생성 protocol witness는
+  `fileprivate`로 넓어집니다.
+- `swiftui.environment-bridge-parameter-pack-unsupported` — bridge target이
+  generic parameter pack을 선언합니다. 일반 generic parameter를 사용하거나
+  bridge를 non-generic adapter type으로 옮기세요. InnoDI 5.0은 Swift의
+  variadic-generics runtime에서 trap 가능한 modifier 생성을 fail closed합니다.
 
 ## Component / Hierarchy 진단
 

@@ -5,10 +5,16 @@
 
 ## Macro Layer
 
-- запрещает пользовательский `init` в annotated type body
-- запрещает такой же `init` в same-file extension
+Макровалидация отклоняет пользовательские `init` только в теле annotated type.
+Attached macro не может надежно просматривать соседние extensions в том же
+исходном файле.
 
-## Build Layer
+## Обязательный Build Layer
 
-- расширяет то же правило на cross-file extension
-- неоднозначные и неподдерживаемые случаи остаются вне детерминированного правила
+`InnoDIDAGValidationPlugin` необходимо подключить к каждому target, который
+объявляет контейнеры. Его full-source preflight отклоняет `init` в совпадающих
+same-file и cross-file extensions, включая объявления внутри ветвей `#if`.
+
+Без build-validation plugin запрет пользовательских `init` во всех extensions
+не гарантируется. Неоднозначные и неподдерживаемые случаи остаются вне
+детерминированного правила.

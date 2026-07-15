@@ -1,0 +1,21 @@
+import InnoDISwiftUI
+
+struct Swift {
+    @DIEnvironmentBridge([])
+    struct NestedBridge {}
+}
+
+enum SwiftUI {
+    @DIEnvironmentBridge([])
+    struct NestedBridge {}
+}
+
+struct InnoDISwiftUI {
+    @DIEnvironmentBridge([])
+    struct NestedBridge {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

@@ -18,7 +18,180 @@ struct HierarchyMacroTests {
         "InnoDI.DIHierarchyRoot": DIHierarchyRootMacro.self,
         "Provide": ProvideMacro.self,
         "SubContainer": SubContainerMacro.self,
+        "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
+        "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
     ]
+
+    @Test("DIComponent suppresses every companion expansion after a reserved qualifier diagnostic")
+    func componentReservedQualifierFailsClosed() {
+        let result = expandMacroSource(
+            """
+            struct Swift {
+                @DIComponent
+                @DIContainer(mainActor: true)
+                struct FeatureContainer {
+                    @Provide(.input) var config: FeatureConfig
+                }
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.reserved-module-name"
+                )
+            ]
+        )
+        #expect(!result.expansion.contains("FeatureContainerDependencies"))
+        #expect(!result.expansion.contains("_InnoDIMainActorComponentMountable"))
+        #expect(!result.expansion.contains("dependencies:"))
+    }
+
+    @Test("DIComponent suppresses every companion expansion for an invalid container")
+    func componentInvalidContainerFailsClosed() {
+        let unmanaged = expandMacroSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct UnmanagedComponent {
+                var rawState = 0
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            unmanaged.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "container.unmanaged-stored-property"
+                )
+            ]
+        )
+        #expect(!unmanaged.expansion.contains("UnmanagedComponentDependencies"))
+        #expect(!unmanaged.expansion.contains("_InnoDIComponentMountable"))
+        #expect(!unmanaged.expansion.contains("dependencies _innoDIDependencies"))
+
+        let customInitializer = expandMacroSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct CustomInitComponent {
+                @Provide(.input) var config: String
+
+                init(config: String) {
+                    self.config = config
+                }
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            customInitializer.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.custom-init-unsupported"
+                )
+            ]
+        )
+        #expect(!customInitializer.expansion.contains("_InnoDIProvideAccessor"))
+        #expect(!customInitializer.expansion.contains("CustomInitComponentDependencies"))
+        #expect(!customInitializer.expansion.contains("_InnoDIComponentMountable"))
+        #expect(!customInitializer.expansion.contains("dependencies _innoDIDependencies"))
+    }
+
+    @Test("DIComponent suppresses companion expansions after model validation fails")
+    func componentValidatorFailureFailsClosed() {
+        let result = expandMacroSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct InvalidSubComponent {
+                @SubContainer
+                var child: ChildContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "sub.scope-required"
+                )
+            ]
+        )
+        #expect(!result.expansion.contains("InvalidSubComponentDependencies"))
+        #expect(!result.expansion.contains("_InnoDIComponentMountable"))
+        #expect(!result.expansion.contains("dependencies _innoDIDependencies"))
+    }
+
+    @Test("DIComponent and DIContainer each own one Overrides conflict diagnostic")
+    func componentOverridesConflictHasStableRoleOwnership() {
+        let result = expandMacroSource(
+            """
+            @DIComponent
+            @DIContainer
+            struct ConflictingComponent {
+                struct Overrides {}
+            }
+            """,
+            macros: Self.macros
+        )
+
+        let diagnosticIDs = result.diagnostics.map(\.diagnosticID)
+        #expect(diagnosticIDs.count == 2)
+        #expect(
+            diagnosticIDs.filter {
+                $0 == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.overrides-name-conflict"
+                )
+            }.count == 1
+        )
+        #expect(
+            diagnosticIDs.filter {
+                $0 == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "component.overrides-builder-required"
+                )
+            }.count == 1
+        )
+        #expect(!result.expansion.contains("ConflictingComponentDependencies"))
+        #expect(!result.expansion.contains("_InnoDIComponentMountable"))
+        #expect(!result.expansion.contains("dependencies _innoDIDependencies"))
+    }
+
+    @Test("DIHierarchyRoot suppresses conformance after a reserved qualifier diagnostic")
+    func hierarchyRootReservedQualifierFailsClosed() {
+        let result = expandMacroSource(
+            """
+            struct Swift {
+                @DIHierarchyRoot
+                @DIContainer
+                struct RootContainer {
+                    @Provide(.input) var value: Int
+                }
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.reserved-module-name"
+                )
+            ]
+        )
+        #expect(!result.expansion.contains("_InnoDIHierarchyRoot"))
+    }
 
     @Test("DIComponent generates a dependency contract and mountable conformance")
     func diComponentGeneratesDependencyContract() {
@@ -38,11 +211,11 @@ struct HierarchyMacroTests {
 
                     // MARK: - Initialization
                     public init(
-                        dependencies: any FeatureContainerDependencies,
-                        _ applyOverrides: (inout Overrides) -> Void = { _ in
+                        dependencies _innoDIDependencies: any FeatureContainerDependencies,
+                        _ _innoDIApplyOverrides: (inout Overrides) -> Void = { _ in
                         }
                     ) {
-                        self.init(config: dependencies.config, applyOverrides)
+                        self.init(config: _innoDIDependencies.config, _innoDIApplyOverrides)
                     }
 
                     public init(config: FeatureConfig, service: (any FeatureServiceProtocol)? = nil) {
@@ -55,35 +228,37 @@ struct HierarchyMacroTests {
                         public var service: (any FeatureServiceProtocol)? = nil
                     }
 
+                    public typealias _InnoDIMountOverrides = Overrides
+
                     // MARK: - Convenience Init with Overrides
-                    public init(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void) {
-                        var overrides = Overrides()
-                        applyOverrides(&overrides)
-                        self.init(config: config, service: overrides.service)
+                    public init(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void) {
+                        var _innoDIOverrides = Self.Overrides()
+                        _innoDIApplyOverrides(&_innoDIOverrides)
+                        self.init(config: config, service: _innoDIOverrides.service)
                     }
 
                     // MARK: - withOverrides
-                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
-                        let container = Self(config: config, applyOverrides)
-                        return operation(container)
+                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                        return _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (throws)
-                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
-                        let container = Self(config: config, applyOverrides)
-                        return try operation(container)
+                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                        return try _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async)
-                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
-                        let container = Self(config: config, applyOverrides)
-                        return await operation(container)
+                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                        return await _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
-                        let container = Self(config: config, applyOverrides)
-                        return try await operation(container)
+                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                        return try await _innoDIOperation(_innoDIContainer)
                     }
                 }
 
@@ -208,11 +383,11 @@ struct HierarchyMacroTests {
         #expect(peers.count == 1)
         #expect(members.count == 1)
         #expect(extensions.count == 1)
-        #expect(dependencies.attributes.trimmedDescription == "@MainActor")
-        #expect(initializer.attributes.trimmedDescription == "@MainActor")
+        #expect(dependencies.attributes.trimmedDescription == "@Swift.MainActor")
+        #expect(initializer.attributes.trimmedDescription == "@Swift.MainActor")
         #expect(
             initializer.signature.parameterClause.parameters.last?.type.trimmedDescription
-                == "@MainActor (inout Overrides) -> Void"
+                == "@Swift.MainActor (inout Overrides) -> Void"
         )
         #expect(
             mountableConformance.type.trimmedDescription

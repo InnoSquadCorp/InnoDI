@@ -197,7 +197,7 @@ struct InnoDISwiftUITests {
         // Compiler-checkable contract: the synthesized helper exists on the
         // protocol witness and the conformance does not require any
         // additional ceremony at the call site.
-        let modifier = bridging._innodiEnvironmentBridgeModifier()
+        let modifier = bridging._innoDIEnvironmentBridgeModifier()
         #expect(String(reflecting: type(of: modifier)).contains("_InnoDIEnvironmentBridgeModifier"))
     }
 

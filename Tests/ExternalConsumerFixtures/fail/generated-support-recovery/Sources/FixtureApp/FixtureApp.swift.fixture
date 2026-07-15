@@ -1,0 +1,35 @@
+import InnoDISwiftUI
+
+@DIContainer
+struct CustomInitContainer {
+    @Provide(.input)
+    var config: String
+
+    init(config: String) {
+        self.config = config
+    }
+}
+
+@DIComponent
+@DIContainer
+struct UnmanagedComponent {
+    var rawState = 0
+}
+
+@DIComponent
+@DIContainer
+struct ConflictingComponent {
+    struct Overrides {}
+}
+
+@DIEnvironmentBridge([])
+struct GeneratedNameCollisionBridge {
+    struct _InnoDIEnvironmentBridgeModifier {}
+
+    func _innoDIEnvironmentBridgeModifier() {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

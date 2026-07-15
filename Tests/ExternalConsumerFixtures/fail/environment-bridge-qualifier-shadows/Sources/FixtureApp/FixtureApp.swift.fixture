@@ -1,0 +1,21 @@
+import InnoDISwiftUI
+
+@DIEnvironmentBridge([])
+struct SwiftShadowBridge {
+    struct Swift {}
+}
+
+@DIEnvironmentBridge([])
+struct SwiftUIShadowBridge {
+    enum SwiftUI {}
+}
+
+@DIEnvironmentBridge([])
+struct InnoDISwiftUIShadowBridge {
+    typealias InnoDISwiftUI = Int
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

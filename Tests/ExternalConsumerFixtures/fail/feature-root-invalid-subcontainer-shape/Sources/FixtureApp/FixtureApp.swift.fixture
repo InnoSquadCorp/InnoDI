@@ -1,0 +1,26 @@
+import InnoDISwiftUI
+
+@DIContainer
+struct ChildContainer {
+    @Provide(.shared, factory: 0, concrete: true)
+    var value: Int
+}
+
+struct ChildRootView {
+    let container: ChildContainer
+}
+
+@DIContainer
+struct ParentContainer {
+    @SubContainer(
+        scope: .shared,
+        with: [],
+        featureRoot: ChildRootView.self
+    )
+    nonisolated(unsafe) static var child: ChildContainer = .init()
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

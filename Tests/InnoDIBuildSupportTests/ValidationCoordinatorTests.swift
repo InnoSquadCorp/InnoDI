@@ -2020,6 +2020,49 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Private container declarations fail before downstream validation")
+    func privateContainerDeclarationFailsBeforeRunnerExecutes() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        @DIContainer
+        private struct PrivateContainer {}
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("PrivateContainer.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(
+            outcome.metricsArtifact.issues.first?.code
+                == "container.private-access-unsupported"
+        )
+        #expect(
+            outcome.metricsArtifact.issues.first?.message.contains(
+                "'PrivateContainer' cannot be declared private"
+            ) == true
+        )
+        #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Full-source preflight rejects containers inside computed-property accessors")
     func accessorLocalContainerFailsBeforeRunnerExecutes() async throws {
         let fixture = try makeFixture()
@@ -2068,8 +2111,8 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
-    @Test("Same-file custom init conflicts remain outside build-stage validation")
-    func sameFileCustomInitConflictsDoNotShortCircuitBuildValidator() async throws {
+    @Test("Same-file extension custom init conflicts fail before compilation")
+    func sameFileCustomInitConflictsShortCircuitBuildValidator() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
@@ -2105,8 +2148,48 @@ struct ValidationCoordinatorTests {
             runner: runner
         )
 
-        #expect(outcome.result.exitCode == 0)
-        #expect(runner.invocationCount == 1)
+        #expect(outcome.result.exitCode == 1)
+        #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(
+            outcome.metricsArtifact.issues.first?.code
+                == "container.custom-init-unsupported"
+        )
+        #expect(outcome.result.stderr.contains("extension"))
+        #expect(runner.invocationCount == 0)
+    }
+
+    @Test("Conditional same-file extension initializers participate in build validation")
+    func conditionalSameFileExtensionInitializersAreRejected() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+        }
+
+        extension AppContainer {
+            #if os(macOS)
+            init(config: Config, debug: Bool) {
+                self.init(config: config)
+            }
+            #endif
+        }
+        """.write(
+            to: rootURL.appendingPathComponent("Container.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try CustomInitBuildValidator.validate(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(result.issues.count == 1)
+        #expect(result.issues.first?.code == "container.custom-init-unsupported")
+        #expect(result.issues.first?.metadata["containerPath"] == "AppContainer")
     }
 
     @Test("Cross-file validator matches nested paths exactly and ignores generic or constrained extensions")

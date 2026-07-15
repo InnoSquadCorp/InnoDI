@@ -5,15 +5,19 @@ validation.
 
 ## Macro Layer
 
-Macro validation rejects custom `init` declarations in:
+Macro validation rejects custom `init` declarations in the annotated type body.
+The attached macro receives that declaration, but cannot reliably inspect
+sibling extensions in the source file.
 
-- the annotated type body
-- same-file extensions whose type path matches the annotated type
+## Required Build Layer
 
-## Build Layer
+Attach `InnoDIDAGValidationPlugin` to every target that declares containers.
+Its full-source preflight rejects custom `init` declarations in matching
+same-file and cross-file extensions, including declarations inside `#if`
+branches, before semantic validation and DAG validation run.
 
-Build validation extends the same rule to cross-file extensions before semantic
-validation and DAG validation run.
+Without the build-validation plugin, the extension-wide custom `init`
+prohibition is not guaranteed.
 
 The build layer matches:
 

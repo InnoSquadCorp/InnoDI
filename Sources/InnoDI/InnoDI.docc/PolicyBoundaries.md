@@ -5,9 +5,12 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 ## Custom `init` Detection
 
 - Macro validation rejects custom `init` declarations in the annotated type.
-- Macro validation also rejects same-file extensions whose type path matches the
-  annotated type.
-- Build validation extends the same rule to cross-file extensions.
+- The required `InnoDIDAGValidationPlugin` full-source preflight rejects custom
+  `init` declarations in matching same-file and cross-file extensions,
+  including declarations inside `#if` branches.
+- Without the build-validation plugin, the extension-wide custom `init`
+  prohibition is not guaranteed because attached macros cannot reliably inspect
+  sibling extensions.
 
 ## Matching Strategy
 

@@ -19,8 +19,7 @@ InnoDI는 generated Swift source와 build-time validation을 함께 쓰는 도�
 - 사용자가 작성한 source는 일반적인 방식으로 lint합니다.
 - macro-expanded output을 hand-written code처럼 lint하지 않습니다.
 - generated interface artifact를 검사하는 설정이라면 InnoDI reserved generated prefix를
-  제외합니다: `_storage_`, `_override_`, `_lazyCell_`, `_subBuildCell_`,
-  `_innoDISubBuild_`, `_lazySelfForSub`.
+  제외합니다: `_storage_`, `_override_`, `_innoDI`, `_InnoDI`.
 
 ## SwiftFormat
 
@@ -40,9 +39,13 @@ source container에 명시적으로 남깁니다.
 
 ## 빌드 플러그인
 
-container를 선언하는 각 target에 `InnoDIDAGValidationPlugin`을 붙입니다. plugin은 이제
-build coordinator를 통해 DAG validator를 in-process로 실행합니다. standalone
-`InnoDI-DependencyGraph` executable은 local inspection과 CI artifact 용도로 계속 사용할 수 있습니다.
+container를 선언하는 각 target에 `InnoDIDAGValidationPlugin`을 붙입니다. attached
+macro는 sibling extension이나 모든 enclosing source scope를 검사할 수 없으므로 이는
+5.0 정확성 계약의 필수 구성입니다. plugin의 full-source pass는 같은 파일과 다른
+파일 extension에 선언된 custom initializer를 포함한 위반을 Swift compile 전에
+차단합니다. plugin은 이제 build coordinator를 통해 DAG validator를 in-process로
+실행합니다. standalone `InnoDI-DependencyGraph` executable은 local inspection과 CI
+artifact 용도로 계속 사용할 수 있습니다.
 
 Derived data가 network volume에 있을 때는 local SwiftPM scratch path를 사용합니다.
 scratch path는 local disk에 있고 writable해야 하며, `/tmp`는 OS와 CI 환경에 맞는 local

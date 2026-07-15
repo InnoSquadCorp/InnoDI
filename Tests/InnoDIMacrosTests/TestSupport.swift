@@ -5,7 +5,11 @@ import SwiftSyntaxMacros
 
 final class TestMacroExpansionContext: MacroExpansionContext {
     var diagnostics: [Diagnostic] = []
-    var lexicalContext: [Syntax] { [] }
+    let lexicalContext: [Syntax]
+
+    init(lexicalContext: [Syntax] = []) {
+        self.lexicalContext = lexicalContext
+    }
 
     func makeUniqueName(_ name: String) -> TokenSyntax {
         let unique = UUID().uuidString.replacingOccurrences(of: "-", with: "_")

@@ -1,0 +1,14 @@
+import InnoDI
+
+@DIContainer
+struct UnmanagedStateContainer {
+    let token: Int
+
+    @Provide(.input)
+    var config: String
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

@@ -1,0 +1,19 @@
+import InnoDI
+
+@DIContainer
+struct ChildContainer {
+    @Provide(.shared, factory: 0, concrete: true)
+    var value: Int
+}
+
+@DIContainer
+struct ParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    @InnoDI._InnoDISubContainerAccessor(recovery: false)
+    var child: ChildContainer
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

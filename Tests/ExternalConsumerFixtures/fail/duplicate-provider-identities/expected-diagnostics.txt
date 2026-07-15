@@ -1,14 +1,20 @@
 @DIContainer declares more than one @Provide member named 'duplicatedMemberValue'. Give every provider property a unique name so storage, overrides, and graph identities remain unambiguous.
 invalid redeclaration of 'duplicatedMemberValue'
+invalid redeclaration of 'duplicatedMemberValue'
 @DIContainer declares more than one @Provide member named 'duplicatedMainActorMemberValue'. Give every provider property a unique name so storage, overrides, and graph identities remain unambiguous.
+invalid redeclaration of 'duplicatedMainActorMemberValue'
 invalid redeclaration of 'duplicatedMainActorMemberValue'
 Factory for @Provide member 'ordinaryConsumer' declares parameter 'ordinaryDuplicateValue' more than once. Give every factory parameter a unique dependency name.
 invalid redeclaration of 'ordinaryDuplicateValue'
+invalid redeclaration of 'ordinaryDuplicateValue'
 Factory for @Provide member 'lazyConsumer' declares parameter 'lazyDuplicateValue' more than once. Give every factory parameter a unique dependency name.
+invalid redeclaration of 'lazyDuplicateValue'
 invalid redeclaration of 'lazyDuplicateValue'
 Factory for @Provide member 'providerConsumer' declares parameter 'providerDuplicateValue' more than once. Give every factory parameter a unique dependency name.
 invalid redeclaration of 'providerDuplicateValue'
+invalid redeclaration of 'providerDuplicateValue'
 Factory for @Provide member 'crossKindConsumer' declares parameter 'crossKindDuplicateValue' more than once. Give every factory parameter a unique dependency name.
+invalid redeclaration of 'crossKindDuplicateValue'
 invalid redeclaration of 'crossKindDuplicateValue'
 @Provide property 'default' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so generated storage and graph identities remain canonical.
 Factory for @Provide member 'escapedParameterConsumer' cannot use backtick-escaped parameter 'default'. Rename the parameter to an unescaped Swift identifier so dependency lookup remains canonical.

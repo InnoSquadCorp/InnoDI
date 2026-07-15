@@ -31,14 +31,15 @@ struct MacroPerformanceBenchmark {
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
+        "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
+        "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
         "DIEnvironmentBridge": DIEnvironmentBridgeMacro.self,
-        "DIFeatureRoot": DIFeatureRootMacro.self,
     ]
 
     /// A composite fixture that exercises the macro surface a real consumer
     /// hits in one expansion: a root `@DIContainer` with mixed scopes,
-    /// a `@SubContainer`, a SwiftUI `@DIEnvironmentBridge`, and a stacked
-    /// `@DIFeatureRoot`. Adding a new macro to the dictionary above without
+    /// a feature-root-generating `@SubContainer`, and a SwiftUI
+    /// `@DIEnvironmentBridge`. Adding a new macro to the dictionary above without
     /// also extending this fixture leaves the new path unmeasured.
     private static let representativeSource = """
     @DIEnvironmentBridge([
@@ -57,8 +58,7 @@ struct MacroPerformanceBenchmark {
         var featureService: FeatureService
         @Provide(.transient, factory: { (apiClient: APIClient) in RequestBuilder(api: apiClient) })
         var requestBuilder: RequestBuilder
-        @SubContainer(scope: .shared)
-        @DIFeatureRoot(DashboardRootView.self)
+        @SubContainer(scope: .shared, featureRoot: DashboardRootView.self)
         var dashboard: DashboardContainer
     }
     """

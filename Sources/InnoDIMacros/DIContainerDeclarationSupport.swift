@@ -1,6 +1,7 @@
 import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
+import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 func findInnoDIAttributes(
@@ -38,6 +39,7 @@ func unescapedInnoDIIdentifierName(_ token: TokenSyntax) -> String {
 extension DIContainerDeclarationSupport {
     func diagnose(
         at attribute: AttributeSyntax,
+        declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) {
         switch self {
@@ -50,6 +52,18 @@ extension DIContainerDeclarationSupport {
                     message: SimpleDiagnostic.containerUnsupportedDeclarationKind(
                         name: name,
                         kind: kind
+                    )
+                )
+            )
+        case let .privateAccess(name):
+            let anchor = declaration.modifiers.first(where: {
+                $0.name.text == "private"
+            }).map(Syntax.init) ?? Syntax(attribute)
+            context.diagnose(
+                Diagnostic(
+                    node: anchor,
+                    message: SimpleDiagnostic.containerPrivateAccessUnsupported(
+                        name: name
                     )
                 )
             )
@@ -91,32 +105,13 @@ extension DIContainerDeclarationSupport {
 /// already rejected the declaration, this recovery getter keeps the compiler
 /// from adding a second structural macro error. The primary diagnostic makes
 /// the expansion unbuildable, so the body cannot reach runtime.
-func failedDIValidationRecoveryAccessor(message: String) -> AccessorDeclSyntax {
-    let failure = FunctionCallExprSyntax(
-        calledExpression: MemberAccessExprSyntax(
-            base: DeclReferenceExprSyntax(baseName: .identifier("Swift")),
-            period: .periodToken(),
-            declName: DeclReferenceExprSyntax(
-                baseName: .identifier("preconditionFailure")
-            )
-        ),
-        leftParen: .leftParenToken(),
-        arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(
-                expression: ExprSyntax(
-                    StringLiteralExprSyntax(
-                        content: message
-                    )
-                )
-            )
-        ]),
-        rightParen: .rightParenToken()
-    )
+func failedDIValidationRecoveryAccessor(message _: String) -> AccessorDeclSyntax {
+    let recoveryLoop: StmtSyntax = "while true {}"
     return AccessorDeclSyntax(
         accessorSpecifier: .keyword(.get),
         body: CodeBlockSyntax(
             statements: CodeBlockItemListSyntax([
-                CodeBlockItemSyntax(item: .expr(ExprSyntax(failure)))
+                CodeBlockItemSyntax(item: .stmt(recoveryLoop))
             ])
         )
     )
@@ -201,10 +196,10 @@ func isSupportedProvideStoredProperty(
     // macros cannot distinguish `Swift.MainActor` from a user-defined
     // `@propertyWrapper struct MainActor` at this phase.
     let supportedAttributeNames: Set<String> = [
-        "DIFeatureRoot",
         "Provide",
         "SubContainer",
         "_InnoDIProvideAccessor",
+        "_InnoDISubContainerAccessor",
     ]
     return declaration.attributes.allSatisfy { element in
         guard let attribute = element.as(AttributeSyntax.self) else {
@@ -226,6 +221,148 @@ func isSupportedProvideStoredProperty(
                 attributeName: attribute.attributeName
             )
         }
+    }
+}
+
+/// `@SubContainer` uses the same closed stored-instance boundary as provider
+/// accessors, but allows only its cooperating public attributes. The hidden
+/// accessor owner is attached after this source declaration has been proven
+/// safe, so wrappers and unknown attributes cannot compete for storage.
+func isSupportedSubContainerStoredProperty(
+    _ declaration: VariableDeclSyntax
+) -> Bool {
+    guard declaration.bindingSpecifier.tokenKind == .keyword(.var),
+          declaration.bindings.count == 1,
+          declaration.bindings.first?.accessorBlock == nil else {
+        return false
+    }
+
+    let unsupportedStorageModifiers: Set<String> = [
+        "class",
+        "lazy",
+        "nonisolated",
+        "static",
+        "unowned",
+        "weak",
+    ]
+    guard !declaration.modifiers.contains(where: {
+        unsupportedStorageModifiers.contains($0.name.text)
+            || $0.detail?.detail.text == "set"
+    }) else {
+        return false
+    }
+
+    let supportedAttributeNames: Set<String> = [
+        "Provide",
+        "SubContainer",
+    ]
+    return declaration.attributes.allSatisfy { element in
+        guard let attribute = element.as(AttributeSyntax.self) else {
+            return false
+        }
+        return supportedAttributeNames.contains { name in
+            InnoDICore.matchesInnoDIAttribute(
+                named: name,
+                attributeName: attribute.attributeName
+            )
+        }
+    }
+}
+
+struct UnmanagedStoredContainerMember {
+    let name: String
+    let anchor: Syntax
+}
+
+/// Finds stored instance state that `@DIContainer` cannot initialize because
+/// it is not owned by either `@Provide` or `@SubContainer`. InnoDI 5.0 emits an
+/// explicit initializer even for a truly empty container so that every child
+/// has a complete mount ABI; accepting unrelated stored state would therefore
+/// remove the memberwise initializer and surface raw definite-initialization
+/// errors. Computed and type properties remain available.
+func unmanagedStoredContainerMembers(
+    in declaration: some DeclGroupSyntax
+) -> [UnmanagedStoredContainerMember] {
+    var result: [UnmanagedStoredContainerMember] = []
+
+    func appendUnmanagedBindings(from variable: VariableDeclSyntax) {
+        guard findInnoDIAttribute(named: "Provide", in: variable.attributes) == nil,
+              findInnoDIAttribute(named: "SubContainer", in: variable.attributes) == nil,
+              findInnoDIAttribute(named: "_InnoDIProvideAccessor", in: variable.attributes) == nil,
+              findInnoDIAttribute(named: "_InnoDISubContainerAccessor", in: variable.attributes) == nil,
+              !variable.modifiers.contains(where: {
+                  $0.name.text == "static" || $0.name.text == "class"
+              }) else {
+            return
+        }
+
+        for binding in variable.bindings where isStoredContainerBinding(binding) {
+            let anchor = Syntax(binding.pattern)
+            result.append(
+                UnmanagedStoredContainerMember(
+                    name: binding.pattern.trimmedDescription,
+                    anchor: anchor
+                )
+            )
+        }
+    }
+
+    for member in declaration.memberBlock.members {
+        if let variable = member.decl.as(VariableDeclSyntax.self) {
+            appendUnmanagedBindings(from: variable)
+            continue
+        }
+        guard let conditional = member.decl.as(IfConfigDeclSyntax.self) else {
+            continue
+        }
+        collectConditionalUnmanagedStoredContainerMembers(
+            in: Syntax(conditional),
+            append: appendUnmanagedBindings
+        )
+    }
+    return result
+}
+
+private func isStoredContainerBinding(_ binding: PatternBindingSyntax) -> Bool {
+    guard let accessorBlock = binding.accessorBlock else {
+        return true
+    }
+    switch accessorBlock.accessors {
+    case .getter:
+        return false
+    case .accessors(let accessors):
+        return !accessors.isEmpty && accessors.allSatisfy { accessor in
+            accessor.accessorSpecifier.text == "willSet"
+                || accessor.accessorSpecifier.text == "didSet"
+        }
+    }
+}
+
+private func collectConditionalUnmanagedStoredContainerMembers(
+    in syntax: Syntax,
+    append: (VariableDeclSyntax) -> Void
+) {
+    if let variable = syntax.as(VariableDeclSyntax.self) {
+        append(variable)
+        return
+    }
+    if syntax.is(StructDeclSyntax.self)
+        || syntax.is(ClassDeclSyntax.self)
+        || syntax.is(ActorDeclSyntax.self)
+        || syntax.is(EnumDeclSyntax.self)
+        || syntax.is(ProtocolDeclSyntax.self)
+        || syntax.is(ExtensionDeclSyntax.self)
+        || syntax.is(FunctionDeclSyntax.self)
+        || syntax.is(InitializerDeclSyntax.self)
+        || syntax.is(SubscriptDeclSyntax.self)
+        || syntax.is(ClosureExprSyntax.self) {
+        return
+    }
+    for child in syntax.children(viewMode: .sourceAccurate) {
+        collectConditionalUnmanagedStoredContainerMembers(
+            in: child,
+            append: append
+        )
     }
 }
 
@@ -335,9 +472,10 @@ func isLocallyValidProvideConfiguration(
     return true
 }
 
-struct ConditionallyCompiledProvideMember {
+struct ConditionallyCompiledDIContainerMember {
     let declaration: VariableDeclSyntax
     let attribute: AttributeSyntax
+    let attributeName: String
 }
 
 /// Returns direct container providers hidden inside a top-level conditional-
@@ -347,13 +485,29 @@ struct ConditionallyCompiledProvideMember {
 /// 5.0 therefore rejects the shape before any partial storage is generated.
 func conditionallyCompiledProvideMembers(
     in declaration: some DeclGroupSyntax
-) -> [ConditionallyCompiledProvideMember] {
-    var result: [ConditionallyCompiledProvideMember] = []
+) -> [ConditionallyCompiledDIContainerMember] {
+    conditionallyCompiledDIContainerMembers(in: declaration).filter {
+        $0.attributeName == "Provide"
+    }
+}
+
+func conditionallyCompiledSubContainerMembers(
+    in declaration: some DeclGroupSyntax
+) -> [ConditionallyCompiledDIContainerMember] {
+    conditionallyCompiledDIContainerMembers(in: declaration).filter {
+        $0.attributeName == "SubContainer"
+    }
+}
+
+private func conditionallyCompiledDIContainerMembers(
+    in declaration: some DeclGroupSyntax
+) -> [ConditionallyCompiledDIContainerMember] {
+    var result: [ConditionallyCompiledDIContainerMember] = []
     for member in declaration.memberBlock.members {
         guard let conditional = member.decl.as(IfConfigDeclSyntax.self) else {
             continue
         }
-        collectConditionallyCompiledProvideMembers(
+        collectConditionallyCompiledDIContainerMembers(
             in: Syntax(conditional),
             into: &result
         )
@@ -366,7 +520,16 @@ func isConditionallyCompiledProvideMember(
     in container: some DeclGroupSyntax
 ) -> Bool {
     conditionallyCompiledProvideMembers(in: container).contains { candidate in
-        sameProvideDeclaration(declaration, candidate.declaration)
+        sameManagedDeclaration(declaration, candidate.declaration)
+    }
+}
+
+func isConditionallyCompiledSubContainerMember(
+    _ declaration: VariableDeclSyntax,
+    in container: some DeclGroupSyntax
+) -> Bool {
+    conditionallyCompiledSubContainerMembers(in: container).contains { candidate in
+        sameManagedDeclaration(declaration, candidate.declaration)
     }
 }
 
@@ -407,26 +570,29 @@ func isConditionallyCompiledDIContainerMember(
     guard let variable = declaration.as(VariableDeclSyntax.self) else {
         return false
     }
-    return conditionallyCompiledProvideMembers(in: container).contains { candidate in
-        sameProvideDeclaration(variable, candidate.declaration)
+    return conditionallyCompiledDIContainerMembers(in: container).contains { candidate in
+        sameManagedDeclaration(variable, candidate.declaration)
     }
 }
 
-private func collectConditionallyCompiledProvideMembers(
+private func collectConditionallyCompiledDIContainerMembers(
     in syntax: Syntax,
-    into result: inout [ConditionallyCompiledProvideMember]
+    into result: inout [ConditionallyCompiledDIContainerMember]
 ) {
     if let variable = syntax.as(VariableDeclSyntax.self) {
-        if let attribute = findInnoDIAttribute(
-            named: "Provide",
-            in: variable.attributes
-        ) {
-            result.append(
-                ConditionallyCompiledProvideMember(
-                    declaration: variable,
-                    attribute: attribute
+        for attributeName in ["Provide", "SubContainer"] {
+            if let attribute = findInnoDIAttribute(
+                named: attributeName,
+                in: variable.attributes
+            ) {
+                result.append(
+                    ConditionallyCompiledDIContainerMember(
+                        declaration: variable,
+                        attribute: attribute,
+                        attributeName: attributeName
+                    )
                 )
-            )
+            }
         }
         return
     }
@@ -447,11 +613,11 @@ private func collectConditionallyCompiledProvideMembers(
     }
 
     for child in syntax.children(viewMode: .sourceAccurate) {
-        collectConditionallyCompiledProvideMembers(in: child, into: &result)
+        collectConditionallyCompiledDIContainerMembers(in: child, into: &result)
     }
 }
 
-private func sameProvideDeclaration(
+private func sameManagedDeclaration(
     _ lhs: VariableDeclSyntax,
     _ rhs: VariableDeclSyntax
 ) -> Bool {
@@ -519,6 +685,74 @@ func isDirectMemberOfSupportedDIContainer(
         return true
     }
     return false
+}
+
+/// Returns true when the direct container owns a declaration that would
+/// shadow generated storage or a compiler-authored module qualifier. Public
+/// peer/accessor roles consult this before emitting partial support; the
+/// container member role owns the stable diagnostics for every offending
+/// declaration.
+func directDIContainerHasReservedGeneratedName(
+    _ declaration: some DeclSyntaxProtocol,
+    in context: some MacroExpansionContext
+) -> Bool {
+    if let container = directEnclosingDeclGroup(startingAt: Syntax(declaration)),
+       findInnoDIAttribute(named: "DIContainer", in: container.attributes) != nil {
+        return containerHasReservedGeneratedName(
+            in: container,
+            lexicalContext: context.lexicalContext
+        )
+    }
+
+    for lexicalNode in context.lexicalContext {
+        guard let container = diContainerDeclGroup(from: lexicalNode),
+              findInnoDIAttribute(
+                  named: "DIContainer",
+                  in: container.attributes
+              ) != nil else {
+            continue
+        }
+        return containerHasReservedGeneratedName(
+            in: container,
+            lexicalContext: Array(context.lexicalContext.dropFirst())
+        )
+    }
+    return false
+}
+
+/// For attached roles that must mirror the container's complete viability
+/// gate without duplicating its user-facing diagnostics. The `@DIContainer`
+/// member role remains the single diagnostic owner.
+final class DiagnosticSuppressingMacroExpansionContext<
+    Base: MacroExpansionContext
+>: MacroExpansionContext {
+    private let base: Base
+
+    init(forwardingTo base: Base) {
+        self.base = base
+    }
+
+    var lexicalContext: [Syntax] {
+        base.lexicalContext
+    }
+
+    func makeUniqueName(_ name: String) -> TokenSyntax {
+        base.makeUniqueName(name)
+    }
+
+    func diagnose(_ diagnostic: Diagnostic) {}
+
+    func location(
+        of node: some SyntaxProtocol,
+        at position: PositionInSyntaxNode,
+        filePathMode: SourceLocationFilePathMode
+    ) -> AbstractSourceLocation? {
+        base.location(
+            of: node,
+            at: position,
+            filePathMode: filePathMode
+        )
+    }
 }
 
 /// Uses the same direct-provider eligibility boundary as `DIContainerParser`
@@ -590,6 +824,10 @@ private func isEligibleProvideMemberForDuplicateIdentity(
         ) == nil
         && findInnoDIAttribute(
             named: "_InnoDIProvideAccessor",
+            in: variable.attributes
+        ) == nil
+        && findInnoDIAttribute(
+            named: "_InnoDISubContainerAccessor",
             in: variable.attributes
         ) == nil
         && isSupportedProvideStoredProperty(variable)

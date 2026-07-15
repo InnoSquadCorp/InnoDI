@@ -53,7 +53,12 @@ package enum CustomInitBuildValidator {
                 resolvedPath = record.extendedTypeReference.displayPath
             }
 
-            guard let container = containersByPath[resolvedPath]?.first(where: { $0.filePath != record.filePath }) else {
+            // Attached declaration macros receive a detached declaration in
+            // compiler-plugin builds, so they cannot reliably inspect sibling
+            // extensions even when those extensions are in the same file.
+            // The full-source preflight therefore owns every extension init,
+            // not only cross-file declarations.
+            guard let container = containersByPath[resolvedPath]?.first else {
                 continue
             }
 
@@ -199,10 +204,9 @@ private final class CustomInitFileCollector: SyntaxVisitor {
             return .skipChildren
         }
 
-        let initializers = node.memberBlock.members.compactMap { member -> ExtensionInitializerRecord.InitializerLocation? in
-            guard let initializer = member.decl.as(InitializerDeclSyntax.self) else {
-                return nil
-            }
+        let initializers = directExtensionInitializers(
+            in: node.memberBlock.members
+        ).map { initializer in
             let location = locationConverter.location(for: initializer.positionAfterSkippingLeadingTrivia)
             return ExtensionInitializerRecord.InitializerLocation(
                 line: location.line,
@@ -263,4 +267,41 @@ private final class CustomInitFileCollector: SyntaxVisitor {
 
 private func containsDIContainerAttribute(_ attributes: AttributeListSyntax?) -> Bool {
     findInnoDIAttribute(named: "DIContainer", in: attributes) != nil
+}
+
+/// Extension members inside top-level conditional-compilation branches share
+/// the extension's lookup scope. Nested declarations and executable bodies do
+/// not, so stop recursion before entering either kind of body.
+private func directExtensionInitializers(
+    in members: MemberBlockItemListSyntax
+) -> [InitializerDeclSyntax] {
+    var result: [InitializerDeclSyntax] = []
+    for member in members {
+        collectDirectExtensionInitializers(
+            in: Syntax(member.decl),
+            into: &result
+        )
+    }
+    return result
+}
+
+private func collectDirectExtensionInitializers(
+    in syntax: Syntax,
+    into result: inout [InitializerDeclSyntax]
+) {
+    if let initializer = syntax.as(InitializerDeclSyntax.self) {
+        result.append(initializer)
+        return
+    }
+
+    guard syntax.is(IfConfigDeclSyntax.self)
+        || syntax.is(IfConfigClauseListSyntax.self)
+        || syntax.is(IfConfigClauseSyntax.self)
+        || syntax.is(MemberBlockItemSyntax.self)
+        || syntax.is(MemberBlockItemListSyntax.self) else {
+        return
+    }
+    for child in syntax.children(viewMode: .sourceAccurate) {
+        collectDirectExtensionInitializers(in: child, into: &result)
+    }
 }

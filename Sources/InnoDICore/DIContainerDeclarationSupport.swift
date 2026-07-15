@@ -5,6 +5,7 @@ import SwiftSyntax
 package enum DIContainerDeclarationSupport: Equatable, Sendable {
     case supported
     case unsupportedKind(name: String, kind: String)
+    case privateAccess(name: String)
     case generic(name: String, contextName: String?)
     case unverifiableEnclosingContext(name: String, extendedType: String)
     case localDeclaration(name: String, context: String)
@@ -19,6 +20,8 @@ package enum DIContainerDeclarationSupport: Equatable, Sendable {
             return nil
         case .unsupportedKind:
             return "container.unsupported-declaration-kind"
+        case .privateAccess:
+            return "container.private-access-unsupported"
         case .generic:
             return "container.generic-unsupported"
         case .unverifiableEnclosingContext:
@@ -35,6 +38,8 @@ package enum DIContainerDeclarationSupport: Equatable, Sendable {
         case let .unsupportedKind(name, kind):
             let article = ["actor", "enum", "extension"].contains(kind) ? "an" : "a"
             return "@DIContainer supports only non-generic structs in InnoDI 5.0; '\(name)' is declared as \(article) \(kind). Convert it to a struct and inject runtime state through @Provide(.input)."
+        case let .privateAccess(name):
+            return "@DIContainer '\(name)' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
         case let .generic(name, contextName):
             let reason = if let contextName {
                 "'\(name)' is nested in generic context '\(contextName)'"
@@ -55,6 +60,8 @@ package enum DIContainerDeclarationSupport: Equatable, Sendable {
             return nil
         case .unsupportedKind:
             return "Convert the container to a non-generic struct and inject runtime state through @Provide(.input)."
+        case .privateAccess:
+            return "Use fileprivate for a file-local container, or nest a default-access container inside a private namespace."
         case .generic:
             return "Move the container out of the generic context and put type-specific behavior behind an injected dependency."
         case .unverifiableEnclosingContext:
@@ -93,6 +100,10 @@ package func classifyDIContainerDeclaration(
         }
 
         return .unsupportedKind(name: "<unknown>", kind: "declaration")
+    }
+
+    if structDecl.modifiers.contains(where: { $0.name.text == "private" }) {
+        return .privateAccess(name: structDecl.name.text)
     }
 
     if structDecl.genericParameterClause != nil || structDecl.genericWhereClause != nil {

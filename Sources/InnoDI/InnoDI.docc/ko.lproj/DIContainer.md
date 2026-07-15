@@ -12,6 +12,10 @@ code scope 안의 선언도 거부됩니다. 이 경계는 `@DIComponent`를 함
 선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
 `@Provide(.input)` 뒤로 옮기세요.
 
+명시적으로 `private`인 컨테이너도 sibling container가 생성된 mount surface에
+접근할 수 없어 거부됩니다. 같은 파일에서 mount하려면 `fileprivate`를 사용하거나,
+private namespace 안에 default-access container를 중첩하세요.
+
 현재 Swift compiler는 computed-property body 안 타입의 attached macro를
 확장할 때 accessor ancestry를 macro context에서 누락합니다. 이 edge case는
 build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
@@ -39,8 +43,18 @@ non-`Sendable` container와 closure 값이 isolation 경계를 넘지 않습니�
 overload는 바뀌지 않습니다. `mainActor: true`에서는 모든 `withOverrides` overload와
 operation closure가 계속 `@MainActor`입니다.
 
-사용자가 nested `Overrides` 타입을 이미 선언하지 않은 한, 지원되는 모든
-컨테이너가 overrides scaffolding을 생성합니다.
+관리 멤버가 없는 경우까지 지원되는 모든 컨테이너가 전체 overrides scaffolding을
+생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 5.0에서
+지원하지 않으며 `container.overrides-name-conflict` 오류가 발생합니다. mount 가능한
+override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바꾸세요.
+
+매크로는 부모 컨테이너의 mount 코드를 위해 compiler support 전용 별칭
+`_InnoDIMountOverrides = Overrides`도 생성합니다. 이 underscore 이름을 직접
+선언하거나 참조하지 마세요.
+
+모든 stored instance member에는 `@Provide` 또는 `@SubContainer`가 필요합니다.
+computed/type property는 계속 사용할 수 있습니다. 그래야 합성 initializer가 모든
+stored state를 소유하고 memberwise initializer ABI 변화를 막을 수 있습니다.
 
 각 `@Provide`는 이 struct의 직접적이고 평범한 stored instance `var`여야 합니다.
 Accessor/observer, `let`, `lazy`, `weak`, `unowned`, `static`/`class`, standalone,

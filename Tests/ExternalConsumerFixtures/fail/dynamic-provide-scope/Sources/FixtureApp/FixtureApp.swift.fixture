@@ -1,13 +1,13 @@
 import InnoDI
 
-private struct Service: Sendable {}
+struct Service: Sendable {}
 
 private enum ScopeChooser {
     static var shared: DIScope { .shared }
 }
 
 @DIContainer
-private struct AppContainer {
+struct AppContainer {
     @Provide(ScopeChooser.shared, factory: Service(), concrete: true)
     var service: Service
 }

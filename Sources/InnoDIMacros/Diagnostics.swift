@@ -27,6 +27,10 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subNamedPropertyRequired = "sub.named-property-required"
     case subExplicitTypeRequired = "sub.explicit-type-required"
     case subEscapedIdentifierUnsupported = "sub.escaped-identifier-unsupported"
+    case subRequiresDirectContainerMember = "sub.requires-direct-container-member"
+    case subConditionalDeclarationUnsupported = "sub.conditional-declaration-unsupported"
+    case subDuplicateAttribute = "sub.duplicate-attribute"
+    case subGeneratedAccessorManualAttachment = "sub.generated-accessor-manual-attachment"
     case provideUnknownScope = "provide.unknown-scope"
     case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
     case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
@@ -68,10 +72,13 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerMainActorNonisolatedMember = "container.mainactor-nonisolated-member"
     case containerBoolLiteralRequired = "container.bool-literal-required"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
+    case containerUnmanagedStoredProperty = "container.unmanaged-stored-property"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
+    case containerReservedModuleName = "container.reserved-module-name"
     case containerDuplicateMemberName = "container.duplicate-member-name"
     case containerUnsupportedDeclarationKind = "container.unsupported-declaration-kind"
+    case containerPrivateAccessUnsupported = "container.private-access-unsupported"
     case containerGenericUnsupported = "container.generic-unsupported"
     case containerUnverifiableEnclosingContext = "container.unverifiable-enclosing-context"
     case containerLocalDeclarationUnsupported = "container.local-declaration-unsupported"
@@ -91,7 +98,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
     case provideLazyAliased = "provide.lazy-aliased"
     case provideProviderAliased = "provide.provider-aliased"
-    case swiftUIFeatureRootWithoutSubContainer = "swiftui.feature-root-without-subcontainer"
     case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
     case swiftUIFeatureRootHelperNameConflict = "swiftui.feature-root-helper-name-conflict"
     case swiftUIFeatureRootInvalidAlias = "swiftui.feature-root-invalid-alias"
@@ -101,6 +107,12 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case swiftUIEnvironmentBridgeAsyncMember = "swiftui.environment-bridge-async-member"
     case swiftUIEnvironmentBridgeInvalidKeyPath = "swiftui.environment-bridge-invalid-keypath"
     case swiftUIEnvironmentBridgeInvalidArguments = "swiftui.environment-bridge-invalid-arguments"
+    case swiftUIEnvironmentBridgeReservedModuleName = "swiftui.environment-bridge-reserved-module-name"
+    case swiftUIEnvironmentBridgeGeneratedNameConflict = "swiftui.environment-bridge-generated-name-conflict"
+    case swiftUIEnvironmentBridgeExtensionContextUnsupported = "swiftui.environment-bridge-extension-context-unsupported"
+    case swiftUIEnvironmentBridgeUnsupportedDeclarationKind = "swiftui.environment-bridge-unsupported-declaration-kind"
+    case swiftUIEnvironmentBridgePrivateNestedTarget = "swiftui.environment-bridge-private-nested-target"
+    case swiftUIEnvironmentBridgeParameterPackUnsupported = "swiftui.environment-bridge-parameter-pack-unsupported"
     case componentRequiresContainer = "component.requires-container"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
@@ -118,13 +130,23 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideEscapedIdentifierUnsupported,
                 .subSingleBinding, .subNamedPropertyRequired, .subExplicitTypeRequired,
                 .subEscapedIdentifierUnsupported,
+                .subRequiresDirectContainerMember,
+                .subConditionalDeclarationUnsupported,
+                .subDuplicateAttribute,
+                .subGeneratedAccessorManualAttachment,
                 .provideUnknownScope, .provideRequiresDirectContainerMember,
                 .provideConditionalDeclarationUnsupported,
                 .provideDuplicateAttribute,
                 .provideGeneratedAccessorManualAttachment,
                 .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
-                .containerUnsupportedDeclarationKind, .containerGenericUnsupported,
-                .containerUnverifiableEnclosingContext, .containerLocalDeclarationUnsupported:
+                .containerUnsupportedDeclarationKind, .containerPrivateAccessUnsupported,
+                .containerGenericUnsupported,
+                .containerUnverifiableEnclosingContext, .containerLocalDeclarationUnsupported,
+                .containerUnmanagedStoredProperty,
+                .swiftUIEnvironmentBridgeExtensionContextUnsupported,
+                .swiftUIEnvironmentBridgeUnsupportedDeclarationKind,
+                .swiftUIEnvironmentBridgePrivateNestedTarget,
+                .swiftUIEnvironmentBridgeParameterPackUnsupported:
             return .usage
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
                 .provideFactoryConflict, .provideConstructionSourceConflict,
@@ -147,7 +169,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerMainActorNonisolatedMember,
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
-                .containerReservedNamePrefix, .containerDuplicateMemberName,
+                .containerReservedNamePrefix, .containerReservedModuleName,
+                .containerDuplicateMemberName,
                 .graphDependencyCycle,
                 .graphAmbiguousContainerReference,
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
@@ -156,12 +179,14 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,
-                .swiftUIFeatureRootWithoutSubContainer, .swiftUIFeatureRootDuplicateDefault,
-                .swiftUIFeatureRootInvalidAlias, .swiftUIFeatureRootInvalidRoot,
+                .swiftUIFeatureRootDuplicateDefault, .swiftUIFeatureRootInvalidAlias,
+                .swiftUIFeatureRootInvalidRoot,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeAsyncMember,
                 .swiftUIEnvironmentBridgeInvalidKeyPath,
                 .swiftUIEnvironmentBridgeInvalidArguments,
+                .swiftUIEnvironmentBridgeReservedModuleName,
+                .swiftUIEnvironmentBridgeGeneratedNameConflict,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
                 .hierarchyRootRequiresContainer,
                 .previewWithContainerMissingContainerExpression,
@@ -314,6 +339,14 @@ extension SimpleDiagnostic {
         return Self(
             support.diagnosticMessage ?? "Unsupported @DIContainer declaration.",
             code: .containerUnsupportedDeclarationKind
+        )
+    }
+
+    static func containerPrivateAccessUnsupported(name: String) -> Self {
+        let support = DIContainerDeclarationSupport.privateAccess(name: name)
+        return Self(
+            support.diagnosticMessage ?? "Unsupported private @DIContainer declaration.",
+            code: .containerPrivateAccessUnsupported
         )
     }
 
@@ -525,6 +558,40 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func subConditionalDeclarationUnsupported(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@SubContainer member '\(memberName)' cannot be declared inside #if in InnoDI 5.0. Move the declaration outside conditional compilation and branch inside the child container or its injected implementation instead.",
+            code: .subConditionalDeclarationUnsupported
+        )
+    }
+
+    static func subRequiresDirectContainerMember(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@SubContainer member '\(memberName)' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.",
+            code: .subRequiresDirectContainerMember
+        )
+    }
+
+    static func subGeneratedAccessorManualAttachment(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@InnoDI._InnoDISubContainerAccessor is compiler support for @DIContainer and cannot be attached manually to '\(memberName)'. Remove it and declare @SubContainer on a direct container member.",
+            code: .subGeneratedAccessorManualAttachment
+        )
+    }
+
+    static func subDuplicateAttribute(memberName: String) -> Self {
+        Self(
+            "@SubContainer member '\(memberName)' declares @SubContainer more than once. Keep exactly one @SubContainer attribute on each child-container property.",
+            code: .subDuplicateAttribute
+        )
+    }
+
     static func provideThrowingDependencyRequiresThrowingConsumer(
         memberName: String,
         dependencyName: String
@@ -547,30 +614,23 @@ extension SimpleDiagnostic {
         )
     }
 
-    static func swiftUIFeatureRootWithoutSubContainer() -> Self {
-        Self(
-            "@DIFeatureRoot can only be attached to a property that also declares @SubContainer.",
-            code: .swiftUIFeatureRootWithoutSubContainer
-        )
-    }
-
     static func swiftUIFeatureRootDuplicateDefault(propertyName: String) -> Self {
         Self(
-            "Property '\(propertyName)' can declare at most one default @DIFeatureRoot without an alias.",
+            "Property '\(propertyName)' can declare at most one default feature root without an alias.",
             code: .swiftUIFeatureRootDuplicateDefault
         )
     }
 
     static func swiftUIFeatureRootHelperNameConflict(helperName: String) -> Self {
         Self(
-            "Generated SwiftUI helper '\(helperName)' would conflict with an existing member or another @DIFeatureRoot helper.",
+            "Generated SwiftUI helper '\(helperName)' would conflict with an existing member or another feature-root helper.",
             code: .swiftUIFeatureRootHelperNameConflict
         )
     }
 
     static func swiftUIFeatureRootInvalidAlias(alias: String) -> Self {
         Self(
-            "Alias '\(alias)' for @DIFeatureRoot must be a non-empty Swift identifier.",
+            "Feature-root alias '\(alias)' must be a non-empty Swift identifier.",
             code: .swiftUIFeatureRootInvalidAlias
         )
     }
@@ -613,6 +673,13 @@ extension SimpleDiagnostic {
         return Self(message, code: .swiftUIEnvironmentBridgeInvalidKeyPath)
     }
 
+    static func swiftUIEnvironmentBridgeInvalidEnvironmentKeyPath() -> Self {
+        Self(
+            "@DIEnvironmentBridge requires 'environment' to be a direct-member key-path literal rooted at EnvironmentValues or SwiftUI.EnvironmentValues, such as \\EnvironmentValues.service.",
+            code: .swiftUIEnvironmentBridgeInvalidKeyPath
+        )
+    }
+
     static func swiftUIEnvironmentBridgeInvalidArguments() -> Self {
         Self(
             "@DIEnvironmentBridge requires a single array literal of (member: ..., environment: ...) mappings.",
@@ -629,7 +696,7 @@ extension SimpleDiagnostic {
 
     static func componentOverridesBuilderRequired() -> Self {
         Self(
-            "@DIComponent requires the synthesized Overrides builder from @DIContainer. Remove the user-defined Overrides type or remove @DIComponent.",
+            "@DIComponent requires the synthesized Overrides builder from @DIContainer. Rename or remove the user-defined Overrides type; custom Overrides types are unsupported in InnoDI 5.0.",
             code: .componentOverridesBuilderRequired
         )
     }
@@ -711,11 +778,17 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func containerUnmanagedStoredProperty(memberName: String) -> Self {
+        Self(
+            "Stored instance member '\(memberName)' is not managed by @DIContainer. Annotate every stored instance member with @Provide or @SubContainer, or make it a computed or type property, so InnoDI can synthesize a complete initializer in 5.0.",
+            code: .containerUnmanagedStoredProperty
+        )
+    }
+
     static func containerOverridesNameConflict(kind: String) -> Self {
         Self(
-            "A nested 'Overrides' \(kind) is already declared. InnoDI's @DIContainer would normally generate an Overrides builder, but the user declaration takes precedence. Rename the user type or skip InnoDI's override scaffolding.",
-            code: .containerOverridesNameConflict,
-            severity: .warning
+            "A nested 'Overrides' \(kind) is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
+            code: .containerOverridesNameConflict
         )
     }
 
@@ -810,8 +883,75 @@ extension SimpleDiagnostic {
 
     static func containerReservedNamePrefix(memberName: String, reservedPrefix: String) -> Self {
         Self(
-            "Container member '\(memberName)' uses the reserved prefix '\(reservedPrefix)'. InnoDI synthesizes private storage with this prefix and a user-declared member would collide with the generated symbols. Rename '\(memberName)' so it does not start with '\(reservedPrefix)'.",
+            "Direct container declaration '\(memberName)' uses the reserved generated prefix '\(reservedPrefix)'. Rename the declaration so it does not collide with compiler-authored storage and support symbols.",
             code: .containerReservedNamePrefix
+        )
+    }
+
+    static func containerReservedModuleName(memberName: String) -> Self {
+        Self(
+            "Declaration '\(memberName)' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.",
+            code: .containerReservedModuleName
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeReservedModuleName(
+        declarationName: String
+    ) -> Self {
+        Self(
+            "Declaration '\(declarationName)' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.",
+            code: .swiftUIEnvironmentBridgeReservedModuleName
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeExtensionContextUnsupported() -> Self {
+        Self(
+            "@DIEnvironmentBridge cannot be attached to an extension or to a declaration nested in an extension in InnoDI 5.0. Move the bridge target into file or nominal scope so generated Swift and SwiftUI qualifiers can be validated.",
+            code: .swiftUIEnvironmentBridgeExtensionContextUnsupported
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeUnsupportedDeclarationKind(
+        name: String,
+        kind: String
+    ) -> Self {
+        Self(
+            "@DIEnvironmentBridge supports only struct, class, and enum declarations in InnoDI 5.0; '\(name)' is declared as \(kind). Move the environment bridge to a supported nominal type.",
+            code: .swiftUIEnvironmentBridgeUnsupportedDeclarationKind
+        )
+    }
+
+    static func swiftUIEnvironmentBridgePrivateNestedTarget(
+        name: String
+    ) -> Self {
+        Self(
+            "@DIEnvironmentBridge cannot synthesize a conformance through private nested lookup component '\(name)' because its generated extension is emitted outside that lexical scope. Use fileprivate or default access.",
+            code: .swiftUIEnvironmentBridgePrivateNestedTarget
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeParameterPackUnsupported() -> Self {
+        Self(
+            "@DIEnvironmentBridge does not support targets with generic parameter packs in InnoDI 5.0. Use ordinary generic parameters or attach the bridge to a non-generic adapter type.",
+            code: .swiftUIEnvironmentBridgeParameterPackUnsupported
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeGeneratedModifierTypeNameConflict(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@DIEnvironmentBridge generates nested modifier type '\(memberName)', but the bridge target already declares a conflicting direct type member with that name. Rename the declaration so the modifier can be synthesized without a Swift redeclaration error.",
+            code: .swiftUIEnvironmentBridgeGeneratedNameConflict
+        )
+    }
+
+    static func swiftUIEnvironmentBridgeGeneratedHelperNameConflict(
+        memberName: String
+    ) -> Self {
+        Self(
+            "@DIEnvironmentBridge generates zero-parameter instance helper '\(memberName)', but the bridge target already declares a direct instance variable or zero-parameter instance function with that name. Rename the declaration so the helper can be synthesized without a Swift redeclaration error.",
+            code: .swiftUIEnvironmentBridgeGeneratedNameConflict
         )
     }
 

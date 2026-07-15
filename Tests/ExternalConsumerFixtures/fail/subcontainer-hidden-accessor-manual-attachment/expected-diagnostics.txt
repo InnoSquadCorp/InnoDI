@@ -1,0 +1,1 @@
+@InnoDI._InnoDISubContainerAccessor is compiler support for @DIContainer and cannot be attached manually to 'child'. Remove it and declare @SubContainer on a direct container member.

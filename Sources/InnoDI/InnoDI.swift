@@ -13,6 +13,14 @@ public enum DIScope {
     case transient
 }
 
+/// Compiler support used by generated invariant paths. Application code must
+/// not call this function directly.
+@_documentation(visibility: internal)
+@inline(never)
+public func _innoDITrap<T>(_ message: String) -> T {
+    fatalError(message)
+}
+
 @attached(memberAttribute)
 @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary)
 /// Marks a supported non-generic struct as an InnoDI container and synthesizes
@@ -430,6 +438,9 @@ public struct FeatureRoot {
 /// The property name must be an unescaped Swift identifier. Backtick-escaped
 /// names are rejected because child storage, override slots, and SwiftUI helper
 /// identities are derived from that spelling.
+/// Declare exactly one `@SubContainer` on a direct, plain, stored instance
+/// `var` in its supported parent `@DIContainer`, outside `#if`. InnoDI attaches
+/// the hidden `_InnoDISubContainerAccessor` support; application code must not.
 ///
 /// ### Overrides
 /// `@DIContainer` extends its nested `Overrides` struct with two optional
@@ -452,8 +463,7 @@ public struct FeatureRoot {
 /// > `with: [\.member]` for same-name forwarding or `bindings: [(child:
 /// > \.x, parent: \.y)]` for explicit relabeling. See <doc:MigrationGuide>
 /// > for the rationale and a stacked-peer-macro recipe.
-@attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
-@attached(accessor)
+@attached(peer)
 public macro SubContainer(
     scope: SubContainerScope,
     with dependencies: [AnyKeyPath] = [],
@@ -461,6 +471,15 @@ public macro SubContainer(
     featureRoot: Any.Type? = nil,
     featureRoots: [FeatureRoot] = []
 ) = #externalMacro(module: "InnoDIMacros", type: "SubContainerMacro")
+
+/// Internal accessor and storage owner synthesized for direct child-container
+/// members by `@DIContainer`. Application code must not attach this macro.
+@_documentation(visibility: internal)
+@attached(accessor)
+@attached(peer, names: prefixed(_storage_sub_), prefixed(_override_sub_), prefixed(_override_sub_apply_), prefixed(_innoDISubBuild_))
+public macro _InnoDISubContainerAccessor(
+    recovery: Bool
+) = #externalMacro(module: "InnoDIMacros", type: "InnoDISubContainerAccessorMacro")
 
 /// Marker protocol synthesized by `@DIComponent`.
 ///

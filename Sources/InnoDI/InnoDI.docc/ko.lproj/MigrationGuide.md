@@ -16,7 +16,7 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
-| 4.x → 5.0 (예정) | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
+| 4.x → 5.0 (미출시) | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
 단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0의 예정 surface와
@@ -60,9 +60,9 @@ var dashboard: DashboardContainer
 이제 `@DIContainer` member expansion에 속하므로 같은 프로퍼티에
 `@SubContainer`와 다른 peer macro를 스택할 필요가 없습니다.
 
-`@DIFeatureRoot`는 deprecated compatibility macro로 계속 제공됩니다. 기존
-call site를 옮기는 동안에만 유지하고, 새 코드는 `featureRoot:` /
-`featureRoots:`를 사용하세요.
+4.3에서는 `@DIFeatureRoot`를 deprecated compatibility macro로 유지했지만,
+InnoDI 5.0에서는 제거합니다. 업그레이드하기 전에 남은 call site를 모두
+`featureRoot:` / `featureRoots:`로 옮기세요.
 
 ---
 
@@ -198,9 +198,10 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 - `swift run InnoDI-DependencyGraph --diagnose-lock [<scratch-path>]` —
   파일시스템 클래스, 환경 변수 override, 활성/stale lock 파일과 메타데이터를
   출력합니다. CI에서 발생하는 `lock-contention-timeout`의 runbook입니다.
-- `Tools/check-no-fatalerror-in-macros.sh` — 두 개의 allow-list runtime
-  invariant 외부에서 매크로 plugin 소스에 새 `fatalError(...)`가
-  들어오면 CI를 실패시키는 레포지토리 로컬 가드입니다.
+- `Tools/check-no-fatalerror-in-macros.sh` — 매크로 plugin 소스에 직접적인
+  `fatalError(...)`가 하나라도 들어오면 CI를 실패시키는 레포지토리 로컬
+  가드입니다. 런타임 invariant 경로는 숨겨진 `_innoDITrap` entry point를
+  사용합니다.
 
 ---
 
@@ -214,8 +215,9 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 |---|---|
 | `concrete:` | 인자를 삭제하세요. 선언된 property type이 concrete storage와 existential storage를 결정합니다. |
 | `@DIFeatureRoot` | `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 교체하세요. |
-| 선언 종류 | 5.0 container/component는 file scope 또는 비제네릭 nominal 안의 비제네릭 struct를 사용하세요. 지원하지 않는 선언 종류와 local scope에는 전용 진단이 발생합니다. |
+| 선언 종류 | 5.0 container/component는 file scope 또는 비제네릭 nominal 안의 비제네릭 struct를 사용하세요. 지원하지 않는 선언 종류, local scope, 명시적인 `private` container에는 전용 진단이 발생합니다. 같은 파일에서 mount하려면 `fileprivate`를 사용하거나 private namespace 안에 default-access container를 두세요. |
 | `@Provide` 선언 | 지원되는 `@DIContainer`의 고유한 unescaped 이름을 가진 직접적이고 평범한 stored instance `var`에 `@Provide`를 정확히 하나만 두세요. 중복 provider attribute나 property 이름, backtick-escaped 이름, `let`, computed/observed accessor, storage modifier, property wrapper, conditional/unknown attribute, setter access control, source에 직접 쓴 모든 property-level actor attribute(`@MainActor` 포함), standalone, 간접 nested 사용을 제거하세요. Actor 격리는 `@DIContainer(mainActor: true)`로 요청하고 `_InnoDIProvideAccessor`를 직접 붙이면 안 됩니다. |
+| `@SubContainer` 선언 | 지원되는 parent `@DIContainer`의 unescaped 이름을 가진 직접적이고 평범한 stored instance `var`에 `@SubContainer`를 정확히 하나만 두세요. 완전한 child 선언을 `#if` 밖으로 옮기고 경쟁하는 wrapper와 storage/accessor modifier를 제거하며 `_InnoDISubContainerAccessor`를 직접 붙이지 마세요. |
 | Provider 타입 | Opaque `some Protocol`은 existential `any Protocol`로, implicitly unwrapped `T!`는 명시적인 `T` 또는 `T?`로 바꾸세요. |
 | 함수 값 `.input` | 생성 initializer 파라미터는 eager `T` 값을 유지하므로 `try` / `await` 인자 평가는 바뀌지 않습니다. 직접 표기한 non-optional function type은 자동 감지합니다. Typealias 뒤에 숨은 non-optional function type에는 literal `escaping: true`를 추가하세요. 이 옵션은 `.input` 밖에서 유효하지 않습니다. |
 | 생성 source | `.shared`/`.transient` 멤버는 `factory:`, `asyncFactory:`, `Type.self`, property initializer 중 정확히 하나를 가져야 합니다. `.input`은 모두 없어야 하고 `with:`도 사용할 수 없습니다. |
@@ -223,9 +225,38 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 | Factory 효과 | async/throwing 효과를 명시하세요. `validateDAG: false`에서도 효과 호환성은 검증되며 `Type.self`/`with:`는 동기 전용입니다. |
 | MainActor | `mainActor: true` component의 dependency conformer와 non-`Sendable` 생성 값의 생성·사용을 `@MainActor`에 두세요. actor 밖에서는 `MainActor.run` 안에서 생성하고 소비하고, direct `await`는 격리된 작업이 `Sendable` 결과를 반환할 때만 사용하세요. convenience initializer, `withOverrides`, child override, component mount의 override 적용 closure도 이제 `@MainActor`입니다. |
 | Non-main-actor async `withOverrides` | 생성되는 `async` / `async throws` 메서드와 operation closure 타입은 `nonisolated(nonsending)`입니다. 호출자 actor executor를 유지하므로 임의의 non-`Sendable` container와 closure가 호출자 isolation 안에 머뭅니다. 동기 overload는 바뀌지 않습니다. |
-| Validation | 동적 scope expression, conditional provider attribute, `#if` 안의 완전한 `@Provide` 멤버 선언을 지원되는 정적 형태로 바꾸세요. |
+| Validation | 동적 scope expression, conditional provider attribute, `#if` 안의 완전한 `@Provide` 또는 `@SubContainer` 멤버 선언을 지원되는 정적 형태로 바꾸세요. |
+| 생성 이름 | `_storage_`, `_override_`, `_innoDI`, `_InnoDI`로 시작하는 direct container declaration, `InnoDI`라는 direct declaration, `Swift` 또는 `_Concurrency`라는 nested type/typealias, 그리고 `InnoDI`·`Swift`·`_Concurrency`라는 container, enclosing nominal, generic parameter 이름을 바꾸세요. 값 namespace의 `Swift`, `_Concurrency` 멤버는 계속 사용할 수 있습니다. `@DIEnvironmentBridge`는 target와 보이는 enclosing binder의 type namespace에서 `Swift`, `SwiftUI`, `InnoDISwiftUI`를 예약하고 struct/class/enum target만 지원하며, extension 대상 또는 extension 안의 대상은 더 이상 지원하지 않습니다. 5.0 후속 단계에서 target-scoped full-source preflight가 추가되기 전까지 attached macro가 볼 수 없는 enclosing declaration의 shadowing member, direct extension attachment, 독립적인 local bridge target도 피하세요. Direct extension과 local target은 Swift의 compiler-owned 제한이 먼저 발생할 수 있습니다. 예전 구현 로컬 이름인 `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, `_lazySelf`는 다시 사용할 수 있습니다. 공개 initializer와 operation label은 바뀌지 않습니다. |
 | Graph JSON | module-qualified ID와 명시적 target/root-pruning scope를 갖는 schema v2로 consumer를 옮기세요. |
 | `@GenerateMock` | experimental 상태를 유지하며, 5.0이 migration 또는 GA freeze를 뜻하지 않습니다. |
+
+공개된 underscored `DIEnvironmentBridging` witness는 5.0에서 breaking rename이
+적용됩니다. `_innodiEnvironmentBridgeModifier()`를
+`_innoDIEnvironmentBridgeModifier()`로 바꾸세요. 예전 이름을 사용한 manual
+conformance와 direct call을 모두 수정해야 합니다. Application code가 이 compiler
+support requirement에 의존하지 않도록 `@DIEnvironmentBridge`와 공개
+`.innodi(_:)` view API를 우선 사용하세요.
+
+생성 conformance는 이제 protocol을
+`InnoDISwiftUI.DIEnvironmentBridging`으로 표기합니다. 따라서 bridge target이나
+보이는 type binder가 `InnoDISwiftUI`라는 이름이면 함께 바꿔야 합니다.
+
+독립적인 `@DIEnvironmentBridge` target의 generated-name migration은 namespace를
+구분합니다. `_InnoDIEnvironmentBridgeModifier`라는 direct nested nominal type,
+protocol, typealias, static/class variable·function, enum case와
+`_innoDIEnvironmentBridgeModifier`라는 direct instance variable 또는 parameter가
+없는 instance function의 이름을 바꾸세요. Top-level `#if` branch에도 같은 규칙을
+적용합니다. 대문자 이름의 instance value/function, 소문자 이름의 static/class
+member와 parameter가 있는 overload, target·generic parameter 이름,
+cross-namespace 선언, nested body 안의 선언은 bridge 합성과 충돌하지 않습니다.
+Mapping은 direct `\EnvironmentValues.member` 또는
+`\SwiftUI.EnvironmentValues.member`를 사용하세요. Alias, 다른 root, chain,
+subscript는 더 이상 지원하지 않습니다. 다른 nominal 안에 중첩된 private target
+또는 enclosing lookup component는 `fileprivate`나 default access로 바꾸세요.
+File-scope private bridge target은 계속 지원합니다. `@DIContainer`도 붙은 target에는
+container의 더 넓은 `_innoDI`·`_InnoDI` prefix 예약이 계속 적용됩니다. Generic
+parameter pack을 선언한 target에서는 bridge를 떼고 일반 generic parameter 또는
+non-generic adapter type을 사용하세요.
 
 5.0에서는 component mounting marker를 isolation에 따라 분리합니다. 일반
 component는 `_InnoDIComponentMountable`에 계속 conform하고, container가
@@ -257,6 +288,9 @@ nominal 선언으로 옮기세요. generic 함수 안의 nested type이나
 `@DIComponent` 같은 attached-extension macro를 함께 적용한 local container처럼
 Swift 언어 자체가 허용하지 않는 위치에서는 Swift compiler 진단이 함께 나올
 수 있습니다.
+명시적인 `private` container는 같은 파일에서 mount할 경우 `fileprivate`로
+바꾸거나, default access를 유지한 채 private namespace 안으로 옮기세요. 그래야
+생성된 child-mount API가 sibling container에서 접근 불가능해지는 일을 막습니다.
 
 모든 provider를 평범한 stored instance 변수로 옮기세요.
 
@@ -276,7 +310,9 @@ var service: Service
 컨테이너 매크로가 합성하는 내부 accessor 지원입니다.
 프로퍼티마다 `@Provide` attribute는 하나만 남기고 모든 direct provider property와
 root factory dependency parameter에 고유한 unescaped effective 이름을 사용하세요.
-`@SubContainer` property 이름도 unescaped여야 합니다.
+`@SubContainer` property 이름도 unescaped여야 하며 `#if` 밖의 직접적이고
+평범한 stored instance variable에 정확히 한 번 선언해야 합니다.
+`_InnoDISubContainerAccessor`를 직접 붙이지 마세요. Parent container가 소유합니다.
 Compiler-support accessor와
 다른 property wrapper를 의도적으로 위조해 함께 붙이면 안정적인 InnoDI misuse
 진단과 함께 Swift 자체의 structural diagnostic도 발생할 수 있습니다.
@@ -381,11 +417,14 @@ codemod 명령, before/after 예제는 5.0.0 tag 전 release blocker입니다.
 - 이전에 공개되어 있던 `_LazyCell<T>` 런타임 헬퍼는 제거됐습니다.
   매크로는 이제 합성된 initializer 안에 로컬 `_InnoDIDeferredCell<T>`를
   emit합니다. downstream 코드는 어느 심볼에도 의존해서는 안 됩니다.
-- `_storage_`, `_override_sub_`, `_innoDISubBuild_`,
+- 4.x에서는 `_storage_`, `_override_sub_`, `_innoDISubBuild_`,
   `_innoDIUnresolvedDependency`, `_subBuildCell_`, `_lazyCell_`,
-  `_lazySelfForSub`로 시작하는 컨테이너 멤버 이름은 이제
-  `container.reserved-name-prefix`로 거부됩니다. 그런 멤버는 이름을
-  변경하세요.
+  `_lazySelfForSub`로 시작하는 컨테이너 멤버 이름을
+  `container.reserved-name-prefix`로 거부했습니다. 5.0의 canonical generated
+  prefix는 `_storage_`, `_override_`, `_innoDI`, `_InnoDI`이므로 앞의 네 예시는
+  더 넓은 prefix 규칙으로 계속 예약됩니다. 그 namespace 밖의 예전 로컬
+  spelling인 `_subBuildCell_`, `_lazyCell_`, `_lazySelfForSub`, `_resolved_`,
+  `_task_`는 다시 사용할 수 있습니다.
 
 ---
 

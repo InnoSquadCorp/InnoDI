@@ -13,6 +13,10 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 ランタイムまたは型固有の状態は、protocol dependency または
 `@Provide(.input)` の背後に移してください。
 
+明示的な `private` container も、sibling container が生成 mount surface に
+アクセスできないため拒否されます。同一 file 内の mount には `fileprivate`、
+または private namespace 内の default-access container を使用してください。
+
 現在の Swift compiler は、computed-property body 内の型に attached macro を
 展開するとき、accessor ancestry を macro context に含めません。この edge case
 は build-validation plugin と dependency-graph CLI が source 全体を scan して
@@ -38,8 +42,19 @@ non-`Sendable` container と closure value は isolation boundary を越えま�
 同期 overload は変更されません。`mainActor: true` では、すべての
 `withOverrides` overload と operation closure が引き続き `@MainActor` です。
 
-ユーザー定義のネスト `Overrides` がない限り、サポート対象の各コンテナが
-overrides scaffolding を生成します。
+管理対象メンバーがない場合も含め、すべてのコンテナが完全な overrides
+scaffolding を生成します。ユーザー定義のネスト `Overrides` 型は InnoDI 5.0
+ではサポートされず、`container.overrides-name-conflict` が発生します。mount
+可能な override ABI を macro が所有できるよう、その宣言を改名してください。
+
+macro は親コンテナの生成 mount code 用に、予約済み compiler-support alias
+`_InnoDIMountOverrides = Overrides` も生成します。この underscore 名を直接宣言・
+参照しないでください。
+
+すべての stored instance member には `@Provide` または `@SubContainer` が
+必要です。computed/type property は引き続き使用できます。これにより合成
+initializer が全 stored state を所有し、memberwise initializer ABI の drift
+を防ぎます。
 
 各 `@Provide` は、この struct の direct かつ plain な stored instance `var`
 でなければなりません。Accessor/observer、`let`、`lazy`、`weak`、`unowned`、

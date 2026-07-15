@@ -132,7 +132,7 @@ private func subContainerSharedAssignmentExpr(
 }
 
 internal func subContainerInitializerExpr(
-    childType: TypeSyntax,
+    childType _: TypeSyntax,
     argumentMappings: [(childLabel: String, parentName: String)],
     trailingOverrideExpression: ExprSyntax? = nil,
     parentMemberBaseName: String = "self",
@@ -171,7 +171,7 @@ internal func subContainerInitializerExpr(
     }
 
     let call = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax("\(childType.trimmed)"),
+        calledExpression: MemberAccessExprSyntax(name: .keyword(.`init`)),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax(arguments),
         rightParen: .rightParenToken()

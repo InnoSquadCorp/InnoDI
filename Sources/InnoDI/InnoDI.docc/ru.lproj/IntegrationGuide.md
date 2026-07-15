@@ -20,8 +20,7 @@ container остаются основной поверхностью для revi
 - Линтуйте user-authored source обычным образом.
 - Не линтуйте macro-expanded output как hand-written code.
 - Если конфигурация проверяет generated interface artifacts, исключите reserved
-  generated prefixes InnoDI: `_storage_`, `_override_`, `_lazyCell_`,
-  `_subBuildCell_`, `_innoDISubBuild_`, `_lazySelfForSub`.
+  generated prefixes InnoDI: `_storage_`, `_override_`, `_innoDI`, `_InnoDI`.
 
 ## SwiftFormat
 

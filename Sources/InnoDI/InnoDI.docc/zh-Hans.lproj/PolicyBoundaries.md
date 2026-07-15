@@ -2,6 +2,14 @@
 
 InnoDI 通过显式边界来保持校验的确定性。
 
+## 自定义 `init` 检测
+
+- 宏校验只会拒绝 annotated type body 中的自定义 `init`。
+- 必需的 `InnoDIDAGValidationPlugin` full-source preflight 会拒绝同文件和跨文件
+  匹配 extension 中的 `init`，包括 `#if` 分支内的声明。
+- 如果未应用 build-validation plugin，则无法保证在所有 extension 中执行该
+  禁止规则，因为 attached macro 无法可靠地检查 sibling extension。
+
 ## Matching Strategy
 
 - 宏、Core 与 graph CLI 尽量共享同一个 nominal-path 模型

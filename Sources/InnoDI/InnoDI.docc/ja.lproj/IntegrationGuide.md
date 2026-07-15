@@ -19,8 +19,7 @@ InnoDI は generated Swift source と build-time validation を組み合わせ�
 - user-authored source は通常どおり lint します。
 - macro-expanded output を hand-written code として lint しないでください。
 - generated interface artifact を検査する設定では、InnoDI の reserved generated prefix を
-  除外します: `_storage_`, `_override_`, `_lazyCell_`, `_subBuildCell_`,
-  `_innoDISubBuild_`, `_lazySelfForSub`.
+  除外します: `_storage_`, `_override_`, `_innoDI`, `_InnoDI`.
 
 ## SwiftFormat
 

@@ -1,45 +1,47 @@
 
 struct AppContainer {
-    @MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
+    @Swift.MainActor @InnoDI._InnoDIProvideAccessor(recovery: false)
     var config: Config
 
     // MARK: - Initialization
-    @MainActor init(config: Config) {
+    @Swift.MainActor init(config: Config) {
         self._storage_config = config
     }
 
     // MARK: - Overrides Builder
-    @MainActor struct Overrides {
+    @Swift.MainActor struct Overrides {
     }
 
+    typealias _InnoDIMountOverrides = Overrides
+
     // MARK: - Convenience Init with Overrides
-    @MainActor init(config: Config, _ applyOverrides: @MainActor (inout Overrides) -> Void) {
-        var overrides = Overrides()
-        applyOverrides(&overrides)
+    @Swift.MainActor init(config: Config, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void) {
+        var _innoDIOverrides = Self.Overrides()
+        _innoDIApplyOverrides(&_innoDIOverrides)
         self.init(config: config)
     }
 
     // MARK: - withOverrides
-    @MainActor static func withOverrides<OperationResult>(config: Config, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) -> OperationResult) -> OperationResult {
-        let container = Self(config: config, applyOverrides)
-        return operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) -> OperationResult) -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+        return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    @MainActor static func withOverrides<OperationResult>(config: Config, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) throws -> OperationResult) throws -> OperationResult {
-        let container = Self(config: config, applyOverrides)
-        return try operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+        return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    @MainActor static func withOverrides<OperationResult>(config: Config, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) async -> OperationResult) async -> OperationResult {
-        let container = Self(config: config, applyOverrides)
-        return await operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) async -> OperationResult) async -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+        return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    @MainActor static func withOverrides<OperationResult>(config: Config, _ applyOverrides: @MainActor (inout Overrides) -> Void, operation: @MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
-        let container = Self(config: config, applyOverrides)
-        return try await operation(container)
+    @Swift.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+        return try await _innoDIOperation(_innoDIContainer)
     }
 }

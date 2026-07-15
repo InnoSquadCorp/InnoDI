@@ -60,7 +60,7 @@ body:
         - "Overrides / withOverrides"
         - "@DIComponent / @DIHierarchyRoot"
         - "@GenerateMock"
-        - "InnoDISwiftUI (@DIEnvironmentBridge / @DIFeatureRoot / #PreviewWithContainer)"
+        - "InnoDISwiftUI (@DIEnvironmentBridge / feature-root helpers / #PreviewWithContainer)"
         - "Build plugin / DAG validator"
         - "Dependency-graph CLI"
         - "Documentation / examples"

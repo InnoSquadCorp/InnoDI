@@ -19,8 +19,7 @@ detail and keeps user-authored container declarations as the review surface.
 - Lint user-authored source normally.
 - Do not lint macro-expanded output as if it were handwritten code.
 - If your setup checks generated interface artifacts, exclude InnoDI's reserved
-  generated prefixes: `_storage_`, `_override_`, `_lazyCell_`,
-  `_subBuildCell_`, `_innoDISubBuild_`, and `_lazySelfForSub`.
+  generated prefixes: `_storage_`, `_override_`, `_innoDI`, and `_InnoDI`.
 
 ## SwiftFormat
 
@@ -43,8 +42,12 @@ whether the report is actionable.
 ## Build Plugin
 
 Attach `InnoDIDAGValidationPlugin` to each target that declares containers.
-The plugin now runs the DAG validator in-process through the build coordinator;
-the standalone `InnoDI-DependencyGraph` executable remains available for local
+This is required by the 5.0 correctness contract because attached macros cannot
+inspect sibling extensions or every enclosing source scope. The plugin's
+full-source pass rejects those declarations before Swift compilation, including
+custom initializers declared in same-file or cross-file extensions. The plugin
+now runs the DAG validator in-process through the build coordinator; the
+standalone `InnoDI-DependencyGraph` executable remains available for local
 inspection and CI artifacts.
 
 Use a local SwiftPM scratch path when derived data lives on a network volume:

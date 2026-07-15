@@ -162,8 +162,11 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 )
 ```
 
-Enable the build-time DAG validator by attaching the plugin to each target that
-declares InnoDI containers:
+Attach the build-time validation plugin to every target that declares InnoDI
+containers. This is a required part of the 5.0 correctness contract, not only
+an optional graph visualization step: the full-source pass rejects declarations
+that attached macros cannot see, including custom initializers in sibling
+extensions.
 
 ```swift
 .target(
@@ -247,8 +250,18 @@ Start with these documents in order:
 4. Four `withOverrides` overloads for `sync`, `throws`, `async`, and
    `async throws` operations.
 
-All containers synthesize the overrides scaffolding unless the user already
-declares a nested `Overrides` type, which suppresses generation.
+Every container, including one with no managed members, synthesizes the full
+overrides scaffolding. A user-declared nested `Overrides` type is unsupported
+in InnoDI 5.0 and emits `container.overrides-name-conflict`; rename it so the
+macro can own the mountable override ABI.
+
+The macro also emits the reserved compiler-support alias
+`_InnoDIMountOverrides = Overrides` for generated parent mounting code. Do not
+declare or reference that underscored name directly.
+
+Every stored instance member in a container must use `@Provide` or
+`@SubContainer`; computed and static properties remain available. This keeps
+the generated initializer complete and prevents memberwise-initializer drift.
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
@@ -273,7 +286,9 @@ the container itself safe to carry off actor.
 
 `@DIContainer` does not support user-defined `init` declarations in the
 annotated type or matching extensions. Use the synthesized initializer or wire
-the type manually without the macro.
+the type manually without the macro. The macro diagnoses initializers in the
+annotated body; the required build plugin diagnoses same-file and cross-file
+extension initializers before compilation.
 
 InnoDI 5.0 supports `@DIContainer` only on an effectively non-generic `struct`
 declared at file scope or as a member of non-generic nominal declarations.
@@ -285,15 +300,20 @@ rejected. The same boundary applies when `@DIComponent` is stacked on the
 container. Move runtime or type-specific state behind injected protocol
 dependencies or `@Provide(.input)` values.
 
+An explicitly `private` container is also rejected because sibling containers
+cannot access its generated mount surface. Use `fileprivate` for file-local
+mounting, or put a default-access container inside a private namespace.
+
 The Swift compiler currently omits accessor ancestry when expanding an
 attached macro on a type declared inside a computed-property body. The InnoDI
 build-validation plugin and dependency-graph CLI scan the full source tree and
-enforce the same local-scope rejection for that compiler edge case. Attach the
-plugin to every target that declares containers when adopting the 5.0
-declaration contract. Without that full-source preflight, a local container
-stacked with companion macros such as `@DIComponent` can surface compiler or
-companion-macro errors in addition to, or instead of, the stable InnoDI
-diagnostic.
+enforce the same local-scope rejection for that compiler edge case. They also
+see sibling extensions that compiler-plugin macro input omits. Attach the plugin
+to every target that declares containers when adopting the 5.0 declaration
+contract. Without that full-source preflight, extension custom initializers can
+bypass the policy, and a local container stacked with companion macros such as
+`@DIComponent` can surface compiler or companion-macro errors in addition to,
+or instead of, the stable InnoDI diagnostic.
 
 ### `@Provide` and scopes
 
@@ -321,6 +341,14 @@ Both declaration kinds must use unescaped identifiers; backtick-escaped
 property and factory-parameter names are rejected in 5.0. `@SubContainer`
 property names must also be unescaped because generated child storage,
 overrides, and root-helper identities derive from them.
+Generated storage/support declarations reserve `_storage_`, `_override_`,
+`_innoDI`, and `_InnoDI`; the exact direct declaration name `InnoDI` is also
+reserved, while `Swift`, `_Concurrency`, and SwiftUI bridge anchors are
+reserved in the type namespace visible to the attached macro. See the 5.0 section of the
+[Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md) for the exact
+matrix. Until the later target-scoped preflight lands, avoid same-named members
+in enclosing declarations because SwiftSyntax hides those member lists from
+attached macros.
 The explicit property type must not be an
 opaque `some Protocol` or an implicitly unwrapped optional `T!`; expose an
 existential `any Protocol`, or use explicit `T` / `T?`, respectively. A
@@ -448,8 +476,8 @@ Important details:
 - Input-only containers still synthesize an empty builder.
 - If a child container is input-only, `<name>Overrides` closures still compile
   and execute as no-ops until the child gains overrideable members.
-- If the container already declares a nested `Overrides` type, the macro emits
-  only the primary initializer and skips the generated builder surface.
+- A container must not declare its own nested `Overrides` type. InnoDI 5.0
+  rejects that collision instead of emitting a partial, non-mountable API.
 
 ## `Lazy<T>` and `Provider<T>`
 
@@ -493,6 +521,10 @@ var feature: FeatureContainer
 Key rules:
 
 - `scope:` is required.
+- Declare exactly one `@SubContainer` on a direct, plain, stored instance `var`
+  in its supported parent `@DIContainer`, outside `#if`. Wrappers, storage or
+  accessor modifiers, unknown attributes, and manual attachment of
+  `InnoDI._InnoDISubContainerAccessor` are unsupported.
 - Implicit same-name wiring is only a convenience for zero or one parent
   `@Provide` candidate. If the parent has multiple candidates, add explicit
   wiring instead of relying on generated Swift initializer errors.
@@ -521,9 +553,9 @@ contract:
 - `@DIEnvironmentBridge` maps container members into SwiftUI environment keys.
 - `@SubContainer(..., featureRoot:)` and `featureRoots:` generate default or
   named feature-root helpers for child containers.
-- `@DIFeatureRoot` remains as a deprecated compatibility macro; new code
-  should use the `@SubContainer` arguments so helper generation stays in the
-  container macro pipeline.
+- InnoDI 5.0 removes the deprecated `@DIFeatureRoot` compatibility macro.
+  Replace it with the `@SubContainer` arguments so helper generation stays in
+  the container macro pipeline and does not stack peer macros on one property.
 
 Use `@DIContainer(mainActor: true)` for UI-root containers when you want the
 generated container API isolated to the main actor. A paired `@DIComponent`

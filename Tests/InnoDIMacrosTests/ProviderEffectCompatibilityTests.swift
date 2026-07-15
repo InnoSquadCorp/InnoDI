@@ -1127,7 +1127,7 @@ struct ProviderEffectCompatibilityTests {
             )
         )
         #expect(accessors.count == 1)
-        #expect(accessors.first?.description.contains("Invalid generated @Provide accessor owner") == true)
+        #expect(accessors.first?.description.contains("while true") == true)
     }
 
     @Test("Forged recovery cannot suppress standalone Provide diagnostics")
@@ -1167,11 +1167,7 @@ struct ProviderEffectCompatibilityTests {
             ]
         )
         #expect(accessors.count == 1)
-        #expect(
-            accessors.first?.description.contains(
-                "Invalid generated @Provide accessor owner"
-            ) == true
-        )
+        #expect(accessors.first?.description.contains("while true") == true)
 
         assertMacroExpansionDiagnosticCodes(
             parsed.description,

@@ -1,0 +1,31 @@
+import InnoDI
+
+struct Swift {
+    @DIComponent
+    @DIContainer(mainActor: true)
+    struct ComponentContainer {
+        @Provide(.input)
+        var value: Int
+    }
+}
+
+enum _Concurrency {
+    @DIContainer
+    struct AsyncContainer {
+        @Provide(.input)
+        var value: Int
+    }
+}
+
+struct InnoDI {
+    @DIContainer
+    struct RuntimeContainer {
+        @Provide(.input)
+        var value: Int
+    }
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

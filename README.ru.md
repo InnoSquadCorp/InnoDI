@@ -245,8 +245,19 @@ var apiClient: any APIClientProtocol
 3. convenience `init(<inputs...>, _ applyOverrides: ...)`
 4. четыре overload `withOverrides` для `sync`, `throws`, `async` и `async throws`
 
-Каждый поддерживаемый контейнер генерирует overrides scaffolding, если
-пользователь сам не объявил вложенный тип `Overrides`.
+Каждый контейнер, даже без управляемых членов, генерирует полный overrides
+scaffolding. Пользовательский вложенный тип `Overrides` не поддерживается в
+InnoDI 5.0 и вызывает `container.overrides-name-conflict`; переименуйте его,
+чтобы macro владел совместимым с mounting override ABI.
+
+Macro также генерирует зарезервированный compiler-support alias
+`_InnoDIMountOverrides = Overrides` для generated parent mounting code. Не
+объявляйте и не используйте это имя с подчеркиванием напрямую.
+
+Каждый хранимый instance member контейнера должен использовать `@Provide` или
+`@SubContainer`; computed и static properties остаются доступными. Это
+сохраняет полноту сгенерированного initializer и предотвращает дрейф
+memberwise-initializer ABI.
 
 `@DIContainer` поддерживает только фактически необобщённые объявления `struct`
 на уровне файла или с номинальной вложенностью. Ни само объявление, ни любое
@@ -258,6 +269,11 @@ var apiClient: any APIClientProtocol
 совместном использовании `@DIComponent`. Состояние времени выполнения и
 состояние, зависящее от конкретного типа, следует скрыть за protocol
 dependencies или `@Provide(.input)`.
+
+Явно объявленный `private` container также отклоняется: sibling containers не
+могут обращаться к его generated mount surface. Для mounting внутри файла
+используйте `fileprivate` либо container с default access внутри private
+namespace.
 
 Текущий компилятор Swift не передаёт контекст аксессора при expansion attached
 macro для типа внутри body вычисляемого свойства. Build-validation plugin и
@@ -480,7 +496,10 @@ var feature: FeatureContainer
 
 - `.innodi(container)`
 - `@DIEnvironmentBridge`
-- `@DIFeatureRoot`
+- `@SubContainer(..., featureRoot:)` и `featureRoots:` создают стандартные или
+  именованные feature-root helpers.
+- В InnoDI 5.0 устаревший макрос совместимости `@DIFeatureRoot` удален.
+  Замените его аргументами feature root у `@SubContainer`.
 
 ## CLI и release-информация
 

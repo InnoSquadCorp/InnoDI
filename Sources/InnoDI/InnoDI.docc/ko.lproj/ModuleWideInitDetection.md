@@ -5,15 +5,18 @@
 
 ## Macro Layer
 
-매크로 검증은 다음 위치의 custom `init`을 거부합니다.
+매크로 검증은 annotated type body 안의 custom `init`만 거부합니다. attached
+macro는 같은 소스 파일의 sibling extension을 안정적으로 확인할 수 없습니다.
 
-- annotated type body
-- 같은 타입 경로를 가리키는 same-file extension
+## 필수 Build Layer
 
-## Build Layer
+컨테이너를 선언하는 모든 target에 `InnoDIDAGValidationPlugin`을 연결해야 합니다.
+이 plugin의 full-source preflight는 semantic validation과 DAG validation 전에
+같은 파일과 다른 파일의 일치하는 extension에 선언된 `init`을 모두 거부하며,
+`#if` branch 안의 선언도 포함합니다.
 
-build validation은 semantic validation과 DAG validation 전에 같은 규칙을
-cross-file extension까지 확장합니다.
+build-validation plugin을 적용하지 않으면 모든 extension에 대한 custom `init`
+금지 계약은 보장되지 않습니다.
 
 매칭 대상:
 

@@ -15,14 +15,14 @@
 ///
 /// > Important: Conforming types should always go through
 /// > `@DIEnvironmentBridge` — application code should not implement
-/// > `_innodiEnvironmentBridgeModifier()` directly. The underscore marks it
+/// > `_innoDIEnvironmentBridgeModifier()` directly. The underscore marks it
 /// > as an InnoDI-internal requirement whose shape may evolve.
 @MainActor
 public protocol DIEnvironmentBridging {
     associatedtype InnoDIEnvironmentBridgeModifier: ViewModifier
 
     @_documentation(visibility: internal)
-    func _innodiEnvironmentBridgeModifier() -> InnoDIEnvironmentBridgeModifier
+    func _innoDIEnvironmentBridgeModifier() -> InnoDIEnvironmentBridgeModifier
 }
 
 public extension View {
@@ -37,17 +37,22 @@ public extension View {
     @inlinable
     @MainActor
     func innodiServices<Container: DIEnvironmentBridging>(from container: Container) -> some View {
-        modifier(container._innodiEnvironmentBridgeModifier())
+        modifier(container._innoDIEnvironmentBridgeModifier())
     }
 }
 
-@attached(member, names: named(_InnoDIEnvironmentBridgeModifier), named(_innodiEnvironmentBridgeModifier))
+@attached(member, names: named(_InnoDIEnvironmentBridgeModifier), named(_innoDIEnvironmentBridgeModifier))
 @attached(extension, conformances: DIEnvironmentBridging)
 /// Synthesizes SwiftUI environment wiring for a container type.
 ///
 /// The attribute does not create `EnvironmentKey` / `EnvironmentValues`
 /// declarations. Apps keep ownership of those keys and only describe how
 /// container members should be forwarded at the root boundary.
+/// Each `environment:` value must be a direct property key path rooted at
+/// `EnvironmentValues` or `SwiftUI.EnvironmentValues`; aliases, other roots,
+/// chained properties, and subscripts are rejected.
+/// Targets with generic parameter packs are rejected in InnoDI 5.0; use
+/// ordinary generic parameters or a non-generic adapter type.
 ///
 /// ```swift
 /// @DIEnvironmentBridge([
@@ -60,27 +65,6 @@ public extension View {
 public macro DIEnvironmentBridge(
     _ mappings: [(member: String, environment: AnyKeyPath)]
 ) = #externalMacro(module: "InnoDIMacros", type: "DIEnvironmentBridgeMacro")
-
-@available(*, deprecated, message: "Use @SubContainer(..., featureRoot:) or featureRoots: instead.")
-@attached(peer, names: arbitrary)
-/// Declares one SwiftUI feature-root helper for a `@SubContainer` property.
-///
-/// Repeat the attribute to attach multiple root views to the same child
-/// container:
-///
-/// ```swift
-/// @SubContainer(scope: .shared)
-/// @DIFeatureRoot(DashboardFeatureRootView.self)
-/// @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
-/// var dashboard: DashboardContainer
-/// ```
-///
-/// This expands to `dashboardRootView()` and `dashboardShellRootView()` on the
-/// parent container. The view type must declare `init(container: ChildType)`.
-public macro DIFeatureRoot(
-    _ rootView: Any.Type,
-    as alias: String? = nil
-) = #externalMacro(module: "InnoDIMacros", type: "DIFeatureRootMacro")
 
 /// Wraps Xcode 16's `#Preview` so a SwiftUI preview can express a typed
 /// container parameter once instead of constructing it, capturing it in a

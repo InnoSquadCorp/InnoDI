@@ -4,10 +4,16 @@
 
 ## Macro Layer
 
-- annotated type body の custom `init` を拒否
-- 同じ型パスを指す same-file extension の `init` も拒否
+マクロ検証が custom `init` を拒否できるのは annotated type body 内だけです。
+attached macro は、同じソースファイルにある sibling extension を確実には参照
+できません。
 
-## Build Layer
+## 必須の Build Layer
 
-- 同じルールを cross-file extension まで拡張
-- 曖昧または未対応のケースは deterministic rule の外に置く
+コンテナを宣言するすべての target に `InnoDIDAGValidationPlugin` を追加して
+ください。full-source preflight は、same-file と cross-file の両方の一致する
+extension にある `init` を、`#if` branch 内の宣言も含めて拒否します。
+
+build-validation plugin を適用しない場合、すべての extension に対する custom
+`init` の禁止は保証されません。曖昧または未対応のケースは deterministic rule
+の外に置かれます。

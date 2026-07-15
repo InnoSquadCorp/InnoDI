@@ -58,7 +58,7 @@ private func makeWithOverridesMethod(
 
     let applyOverridesParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
-        secondName: .identifier("applyOverrides"),
+        secondName: .identifier("_innoDIApplyOverrides"),
         colon: .colonToken(),
         type: overrideApplyClosureType(isMainActor: model.options.mainActor),
         ellipsis: nil,
@@ -70,7 +70,7 @@ private func makeWithOverridesMethod(
     // operation: (Self) [async] [throws] -> OperationResult
     var operationTypeDescription: String
     if model.options.mainActor {
-        operationTypeDescription = "@MainActor (Self) "
+        operationTypeDescription = "@Swift.MainActor (Self) "
     } else if isAsync {
         operationTypeDescription = "nonisolated(nonsending) (Self) "
     } else {
@@ -81,7 +81,7 @@ private func makeWithOverridesMethod(
     operationTypeDescription += "-> OperationResult"
     let operationParam = FunctionParameterSyntax(
         firstName: .identifier("operation"),
-        secondName: nil,
+        secondName: .identifier("_innoDIOperation"),
         colon: .colonToken(),
         type: TypeSyntax(stringLiteral: operationTypeDescription),
         ellipsis: nil,
@@ -121,8 +121,8 @@ private func makeWithOverridesMethod(
         returnClause: returnClause
     )
 
-    // Body: let container = Self(<inputs...>, applyOverrides)
-    //       return [try] [await] operation(container)
+    // Body: let _innoDIContainer = Self(<inputs...>, _innoDIApplyOverrides)
+    //       return [try] [await] _innoDIOperation(_innoDIContainer)
     var statements: [CodeBlockItemSyntax] = []
 
     var callArgs: [LabeledExprSyntax] = []
@@ -138,7 +138,7 @@ private func makeWithOverridesMethod(
     }
     callArgs.append(
         LabeledExprSyntax(
-            expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("applyOverrides")))
+            expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIApplyOverrides")))
         )
     )
 
@@ -153,7 +153,7 @@ private func makeWithOverridesMethod(
         bindingSpecifier: .keyword(.let),
         bindings: PatternBindingListSyntax([
             PatternBindingSyntax(
-                pattern: IdentifierPatternSyntax(identifier: .identifier("container")),
+                pattern: IdentifierPatternSyntax(identifier: .identifier("_innoDIContainer")),
                 initializer: InitializerClauseSyntax(value: selfCall)
             )
         ])
@@ -161,10 +161,10 @@ private func makeWithOverridesMethod(
     statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(containerDecl))))
 
     let operationCall = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("operation")),
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("_innoDIOperation")),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax([
-            LabeledExprSyntax(expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("container"))))
+            LabeledExprSyntax(expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIContainer"))))
         ]),
         rightParen: .rightParenToken()
     )

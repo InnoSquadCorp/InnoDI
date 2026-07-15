@@ -2,9 +2,8 @@
 //  SwiftUIMacros.swift
 //  InnoDIMacros
 //
-//  Thin helpers shared by `DIEnvironmentBridgeMacro.swift` and
-//  `DIFeatureRootMacro.swift`. The macro implementations themselves live in
-//  their own files now; this module keeps only the common AST utilities
+//  SwiftUI macro AST utilities. The macro implementations themselves live in
+//  their own files; this module keeps only the common helpers
 //  (container member enumeration, nominal-type synthesis, access-level
 //  modifier mapping, attribute lookup, feature-root alias validation, etc.).
 //
@@ -137,23 +136,6 @@ internal func hasAttribute(named name: String, in attributes: AttributeListSynta
         allowingQualifiedModules: ["InnoDI"],
         in: attributes
     ) != nil
-}
-
-internal func featureRootAttributes(in attributes: AttributeListSyntax?) -> [AttributeSyntax] {
-    guard let attributes else {
-        return []
-    }
-    return attributes.compactMap { element -> AttributeSyntax? in
-        guard let attribute = element.as(AttributeSyntax.self),
-              matchesAttribute(
-                named: "DIFeatureRoot",
-                attributeName: attribute.attributeName,
-                allowingQualifiedModules: ["InnoDISwiftUI"]
-              ) else {
-            return nil
-        }
-        return attribute
-    }
 }
 
 // MARK: - FeatureRoot alias validation

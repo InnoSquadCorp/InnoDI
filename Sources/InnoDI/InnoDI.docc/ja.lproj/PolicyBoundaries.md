@@ -2,6 +2,15 @@
 
 InnoDI は明示的な境界を置くことで検証を決定的に保ちます。
 
+## Custom `init` の検出
+
+- マクロ検証が custom `init` を拒否できるのは annotated type body 内だけです。
+- 必須の `InnoDIDAGValidationPlugin` full-source preflight は、same-file と
+  cross-file の両方の一致する extension にある `init` を、`#if` branch 内の
+  宣言も含めて拒否します。
+- build-validation plugin を適用しない場合、attached macro は sibling
+  extension を確実には参照できないため、extension 全体での禁止は保証されません。
+
 ## Matching Strategy
 
 - マクロ、Core、graph CLI は可能な限り同じ nominal-path モデルを共有

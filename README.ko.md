@@ -153,8 +153,10 @@ SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
 )
 ```
 
-InnoDI 컨테이너를 선언하는 타깃에는 build-time DAG validator 플러그인을
-연결합니다.
+InnoDI 컨테이너를 선언하는 모든 타깃에는 build-time validation 플러그인을
+연결합니다. 이는 선택적인 graph 시각화 단계가 아니라 5.0 정확성 계약의 필수
+구성입니다. attached macro가 볼 수 없는 sibling extension의 custom initializer
+같은 선언은 full-source pass가 차단합니다.
 
 ```swift
 .target(
@@ -237,8 +239,18 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: (inout Overrides) -> Void)` 형태의 convenience init
 4. `sync`, `throws`, `async`, `async throws` 4종류의 `withOverrides` overload
 
-사용자가 직접 nested `Overrides` 타입을 선언하지 않는 한, 지원되는 모든
-컨테이너는 overrides scaffolding을 생성합니다.
+관리 멤버가 하나도 없는 경우까지 모든 컨테이너가 전체 overrides scaffolding을
+생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 5.0에서
+지원하지 않으며 `container.overrides-name-conflict` 오류가 발생합니다. mount 가능한
+override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바꾸세요.
+
+매크로는 부모 컨테이너의 mount 코드를 위해 compiler support 전용 별칭
+`_InnoDIMountOverrides = Overrides`도 생성합니다. 이 underscore 이름을 직접
+선언하거나 참조하지 마세요.
+
+컨테이너의 모든 stored instance member에는 `@Provide` 또는 `@SubContainer`가
+필요합니다. computed/static property는 계속 사용할 수 있습니다. 그래야 생성
+initializer가 전체 상태를 소유하고 memberwise initializer 변화가 생기지 않습니다.
 
 `@DIContainer`가 지원하는 선언은 file scope 또는 nominal type 안에 nested된,
 유효하게 non-generic인 `struct`뿐입니다. 선언 자체와 모든 enclosing 선언에
@@ -249,10 +261,16 @@ code scope 안의 선언도 거부됩니다. 이 경계는 `@DIComponent`를 함
 선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
 `@Provide(.input)` 뒤로 옮기세요.
 
+명시적으로 `private`인 컨테이너도 sibling container가 생성된 mount surface에
+접근할 수 없어 거부됩니다. 같은 파일에서 mount하려면 `fileprivate`를 사용하거나,
+private namespace 안에 default-access container를 중첩하세요.
+
 현재 Swift compiler는 computed-property body 안 타입의 attached macro를
 확장할 때 accessor ancestry를 macro context에서 누락합니다. 이 edge case는
 build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
-거부합니다. 컨테이너를 선언하는 모든 target에 plugin을 연결하세요.
+거부합니다. compiler-plugin macro 입력에서 빠지는 sibling extension도 이 단계가
+검사합니다. 컨테이너를 선언하는 모든 target에 plugin을 연결하세요. full-source
+preflight가 없으면 extension custom initializer가 정책을 우회할 수 있습니다.
 
 ```swift
 @DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
@@ -276,7 +294,9 @@ non-`Sendable` container/component 값은 `@MainActor` caller를 사용하거나
 
 `@DIContainer`는 annotated type이나 매칭되는 extension에 사용자 정의 `init`
 선언을 허용하지 않습니다. 생성된 initializer를 사용하거나, 매크로 없이
-수동으로 wiring해야 합니다.
+수동으로 wiring해야 합니다. annotation body의 initializer는 macro가 진단하고,
+같은 파일과 다른 파일 extension의 initializer는 필수 build plugin이 compile 전에
+진단합니다.
 
 ### `@Provide`와 스코프
 
@@ -302,7 +322,14 @@ root factory closure의 dependency parameter는 각각 고유한 effective 이�
 거부됩니다. 두 선언은 escaped identifier를 사용할 수 없으며 5.0에서는
 backtick으로 감싼 property와 factory parameter 이름을 거부합니다.
 `@SubContainer` property 이름도 generated child storage, override, root helper
-identity의 입력이므로 escaped identifier를 사용할 수 없습니다. 명시적 property type에는 opaque
+identity의 입력이므로 escaped identifier를 사용할 수 없습니다. Generated
+storage/support declaration은 `_storage_`, `_override_`, `_innoDI`, `_InnoDI`를
+예약하며 direct declaration의 정확한 이름 `InnoDI`도 예약합니다. `Swift`,
+`_Concurrency`와 SwiftUI bridge anchor는 attached macro가 볼 수 있는 type
+namespace에서 예약합니다. 정확한
+5.0 matrix는 [Migration Guide](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md)를
+참고하세요. 후속 target-scoped preflight가 추가되기 전까지 SwiftSyntax가 숨기는
+enclosing declaration의 같은 이름 멤버도 피해야 합니다. 명시적 property type에는 opaque
 `some Protocol`이나 implicitly unwrapped optional `T!`를 사용할 수 없습니다.
 각각 `any Protocol`, 명시적인 `T` 또는 `T?`로 바꾸세요. Compiler-support
 accessor와 다른 property wrapper를 의도적으로 위조해 함께 붙이면 InnoDI의
@@ -422,8 +449,8 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 - input-only container도 비어 있는 builder를 합성합니다.
 - child container가 input-only여도 `<name>Overrides` 클로저는 컴파일되며,
   child에 override 가능한 멤버가 생기기 전까지는 no-op으로 동작합니다.
-- 컨테이너가 직접 nested `Overrides` 타입을 선언하면 매크로는 primary
-  initializer만 남기고 생성된 builder surface는 건너뜁니다.
+- 컨테이너는 nested `Overrides` 타입을 직접 선언하면 안 됩니다. InnoDI 5.0은
+  부분적이고 mount 불가능한 API를 생성하는 대신 이 충돌을 오류로 거부합니다.
 
 ## `Lazy<T>`와 `Provider<T>`
 
@@ -462,10 +489,16 @@ var feature: FeatureContainer
 핵심 규칙:
 
 - `scope:`는 필수입니다.
+- 지원되는 parent `@DIContainer` 안에서 `#if` 밖의 직접적이고 평범한 stored
+  instance `var`에 `@SubContainer`를 정확히 하나만 선언합니다. Wrapper,
+  storage/accessor modifier, unknown attribute, 그리고
+  `InnoDI._InnoDISubContainerAccessor`의 수동 부착은 지원하지 않습니다.
 - parent `@Provide` 후보가 0개 또는 1개일 때만 이름 기준 implicit wiring을 편의로 허용합니다.
 - parent 후보가 여러 개면 `with:` 또는 `bindings:`로 명시 wiring해야 합니다.
 - `with:`는 같은 이름 subset/order를 forward합니다.
 - `bindings:`는 child input label과 parent member 이름이 다를 때 remap합니다.
+- `featureRoot:` / `featureRoots:`는 같은 property에 별도 peer macro를 쌓지
+  않고 parent에 SwiftUI root helper를 생성합니다.
 - `with:` 또는 `bindings:` 중 정확히 하나의 wiring form만 사용합니다.
 - parent의 `Overrides`에는 전체 교체 슬롯(`feature`)과 child override closure(`featureOverrides`)가 모두 추가됩니다.
 
@@ -480,7 +513,11 @@ cross-module ownership에는 다음을 사용합니다.
 
 - `.innodi(container)`는 생성된 environment bridge를 view tree에 적용합니다.
 - `@DIEnvironmentBridge`는 container member를 SwiftUI environment key에 매핑합니다.
-- `@DIFeatureRoot`는 child container의 default 또는 named feature-root helper를 생성합니다.
+- `@SubContainer(..., featureRoot:)`와 `featureRoots:`는 child container의
+  default 또는 named feature-root helper를 생성합니다.
+- InnoDI 5.0에서는 deprecated compatibility macro인 `@DIFeatureRoot`를
+  제거합니다. 한 property에 peer macro를 겹치지 않도록 `@SubContainer`의
+  `featureRoot:` 또는 `featureRoots:` argument로 교체하세요.
 
 생성되는 컨테이너 API를 main actor에 격리하려면 UI 루트 컨테이너에
 `@DIContainer(mainActor: true)`를 사용하세요. `@DIComponent`를 함께 적용하면

@@ -160,6 +160,10 @@ Most frequently-hit codes:
   class, actor, enum, protocol, extension, or another non-struct declaration.
   Move the boundary to a non-generic struct and inject runtime state through
   `.input` members.
+- `container.private-access-unsupported` — the container is explicitly
+  `private`, so sibling containers cannot access its generated mount surface.
+  Use `fileprivate` for file-local mounting, or nest a default-access container
+  inside a private namespace.
 - `container.generic-unsupported` — the container declares generic parameters
   or is nested in an enclosing generic nominal declaration. Move type-specific
   behavior behind an injected dependency.
@@ -182,9 +186,19 @@ Most frequently-hit codes:
 - `container.dependency-cycle` — hard cycle detected; break with `Lazy<T>`
   or `Provider<T>`, or restructure ownership.
 - `container.custom-init-unsupported` — `@DIContainer` already synthesizes
-  an initializer; remove the user-written one.
+  an initializer; remove the user-written one. An initializer in the annotated
+  body is diagnosed by the macro. Initializers in same-file or cross-file
+  extensions are owned by the required `InnoDIDAGValidationPlugin` full-source
+  pass because compiler-plugin macro input does not contain sibling extensions.
+- `container.unmanaged-stored-property` — a stored instance member has neither
+  `@Provide` nor `@SubContainer`. InnoDI 5.0 owns the complete container
+  initializer, including for empty containers; annotate the member or make it
+  computed/static.
 - `container.overrides-name-conflict` — the user's nested `Overrides` type
-  collides with the synthesized builder.
+  collides with the required synthesized builder. InnoDI 5.0 treats this as
+  an error; rename the custom declaration. A diagnostic-only recovery
+  initializer prevents mounted child containers from producing unrelated
+  Swift argument errors.
 - `container.mainactor-conflict` — `@DIContainer(mainActor: true)` is combined
   with another global actor on the container or a dependency member. Remove
   the custom actor or disable `mainActor` generation.
@@ -198,11 +212,16 @@ Most frequently-hit codes:
   use the same property name. Rename one provider. InnoDI diagnoses the later
   declaration, notes the first, suppresses peer storage, and replaces normal
   accessors with recovery getters for both ambiguous providers.
-- `container.reserved-name-prefix` — a `@Provide` or `@SubContainer`
-  member name starts with one of the prefixes the macro reserves for
-  generated storage (for example `_storage_`, `_override_sub_`,
-  `_innoDISubBuild_`, `_subBuildCell_`, `_lazyCell_`,
-  `_innoDIUnresolvedDependency`, `_lazySelfForSub`). Rename the member.
+- `container.reserved-name-prefix` — a direct container declaration starts
+  with one of the prefixes the macro reserves for generated storage and
+  support declarations (`_storage_`, `_override_`, `_innoDI`, or `_InnoDI`).
+  Rename the declaration. This includes plain variables, functions, nested
+  nominal types, typealiases, and declarations inside a top-level `#if`.
+- `container.reserved-module-name` — the container, an enclosing nominal, or a
+  direct declaration named `InnoDI`, or a direct nested type/typealias named
+  `Swift` or `_Concurrency`, shadows a module qualifier used by generated
+  support. Rename the declaration. Value members named `Swift` or
+  `_Concurrency` remain available.
 
 ## SubContainer diagnostics
 
@@ -213,6 +232,18 @@ Most frequently-hit codes:
 - `sub.escaped-identifier-unsupported` — an `@SubContainer` property uses a
   backtick-escaped identifier. Rename it to an unescaped identifier so child
   storage, override, and SwiftUI helper identities remain canonical.
+- `sub.requires-direct-container-member` — `@SubContainer` is not a direct,
+  plain, stored instance `var` in a supported `@DIContainer` struct. Move it
+  into that container and remove accessors, storage modifiers, wrappers, and
+  unknown attributes.
+- `sub.conditional-declaration-unsupported` — the complete child declaration
+  appears inside `#if`. Move it outside conditional compilation so storage,
+  accessor, and parent-init macro phases cannot expand only part of the child.
+- `sub.duplicate-attribute` — the property declares `@SubContainer` more than
+  once. Keep exactly one child-container attribute.
+- `sub.generated-accessor-manual-attachment` — InnoDI's hidden
+  `_InnoDISubContainerAccessor` was attached manually. Remove it; the parent
+  container owns this compiler support.
 - `sub.unknown-scope` — the `scope:` value is not `.shared` or `.transient`.
 - `sub.conflicts-with-provide` — a property can't carry both attributes.
 - `sub.overrides-name-conflict` — generated child override helper storage
@@ -244,10 +275,8 @@ Most frequently-hit codes:
 
 ## SwiftUI diagnostics
 
-- `swiftui.feature-root-without-subcontainer` — `@DIFeatureRoot` must
-  accompany a `@SubContainer` property.
-- `swiftui.feature-root-duplicate-default` — two `@DIFeatureRoot` defaults
-  or `@SubContainer` feature-root defaults on the same container.
+- `swiftui.feature-root-duplicate-default` — a `@SubContainer` declares more
+  than one default feature root.
 - `swiftui.feature-root-helper-name-conflict` — generated helper name
   collides with an existing member.
 - `swiftui.feature-root-invalid-alias` — the feature-root alias argument
@@ -261,10 +290,50 @@ Most frequently-hit codes:
 - `swiftui.environment-bridge-async-member` — an `asyncFactory`-backed
   container member was mapped into `EnvironmentValues`; expose a synchronous
   value or inject a service that performs async work internally.
-- `swiftui.environment-bridge-invalid-keypath` — the argument isn't a
-  key-path literal.
+- `swiftui.environment-bridge-invalid-keypath` — `environment:` is not a
+  single direct-property key-path literal rooted at `EnvironmentValues` or
+  `SwiftUI.EnvironmentValues`. Aliases, other roots, chains, and subscripts
+  are rejected so generated code can preserve the key path without lexical
+  capture.
 - `swiftui.environment-bridge-invalid-arguments` — the bridge macro received
   arguments outside its supported key-path list shape.
+- `swiftui.environment-bridge-reserved-module-name` — the bridge target, an
+  enclosing nominal or generic parameter, or a direct nested type/typealias in
+  the target named `Swift`, `SwiftUI`, or `InnoDISwiftUI` shadows a qualifier used by its
+  generated modifier. Rename the type declaration or generic parameter. Value
+  members with those names remain available. Enclosing members remain outside
+  this attached-macro diagnostic because SwiftSyntax removes their member
+  lists from lexical context; the planned target-scoped full-source preflight
+  will close that boundary before the 5.0 release candidate.
+- `swiftui.environment-bridge-generated-name-conflict` — the bridge target
+  redeclares a generated member. `_InnoDIEnvironmentBridgeModifier` conflicts
+  with a direct nested nominal type, protocol, typealias, static/class
+  variable or function, or enum case;
+  `_innoDIEnvironmentBridgeModifier` conflicts only with a direct instance
+  variable or zero-parameter instance function. Top-level `#if` branches are
+  inspected recursively. Uppercase instance values/functions, lowercase
+  static/class members, lowercase parameterized overloads, target and
+  generic-parameter names, declarations in the opposite namespace, and
+  declarations inside nested bodies remain available.
+- `swiftui.environment-bridge-extension-context-unsupported` — the bridge
+  target is nested in an extension. Move it into file or nominal scope; an
+  attached syntax macro cannot prove extension-member lookup across files
+  before generating qualified SwiftUI support. A direct extension attachment
+  may instead be rejected earlier by Swift's attached-extension restriction.
+  Until the target-scoped full-source preflight lands, direct extension
+  attachments and standalone local targets remain compiler-owned boundaries.
+- `swiftui.environment-bridge-unsupported-declaration-kind` — the bridge
+  target is an actor, protocol, or another unsupported declaration kind. Move
+  it to a struct, class, or enum.
+- `swiftui.environment-bridge-private-nested-target` — the generated
+  conformance path contains a `private` target or enclosing nominal nested in
+  another type. Change that private lookup component to `fileprivate` or
+  default access. A file-scope private target remains supported; its generated
+  protocol witnesses are widened to `fileprivate`.
+- `swiftui.environment-bridge-parameter-pack-unsupported` — the bridge target
+  declares a generic parameter pack. Use ordinary generic parameters or put
+  the bridge on a non-generic adapter type; InnoDI 5.0 fails closed instead of
+  emitting a modifier that can trap in the Swift variadic-generics runtime.
 
 ## Component / Hierarchy diagnostics
 

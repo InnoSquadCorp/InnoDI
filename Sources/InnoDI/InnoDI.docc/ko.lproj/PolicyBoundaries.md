@@ -4,9 +4,13 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 
 ## Custom `init` Detection
 
-- 매크로 검증은 annotated type의 custom `init`을 거부합니다.
-- 같은 타입 경로를 가리키는 same-file extension의 `init`도 거부합니다.
-- build validation은 같은 규칙을 cross-file extension까지 확장합니다.
+- 매크로 검증은 annotated type body 안의 custom `init`만 거부합니다.
+- 필수 `InnoDIDAGValidationPlugin` full-source preflight는 같은 파일과 다른 파일의
+  일치하는 extension에 선언된 `init`을 모두 거부하며, `#if` branch 안의 선언도
+  포함합니다.
+- build-validation plugin을 적용하지 않으면 attached macro가 sibling extension을
+  안정적으로 확인할 수 없으므로 extension 전체에 대한 금지 계약은 보장되지
+  않습니다.
 
 ## Matching Strategy
 
