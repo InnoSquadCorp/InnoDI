@@ -22,9 +22,9 @@ struct ValidationContractTests {
 
     @Test("Shared-run cache keys stay version salted")
     func sharedRunCacheKeyUsesCurrentVersionSalt() {
-        #expect(sharedRunCacheVersion == 5)
-        #expect(sharedRunCacheKey(for: "abc123") == "shared-run-v5-abc123")
-        #expect(sharedRunCacheKey(for: "abc123") != "shared-run-v4-abc123")
+        #expect(sharedRunCacheVersion == 6)
+        #expect(sharedRunCacheKey(for: "abc123") == "shared-run-v6-abc123")
+        #expect(sharedRunCacheKey(for: "abc123") != "shared-run-v5-abc123")
     }
 
     @Test("Coordinator emits decodable metrics and matching Markdown summary artifacts")

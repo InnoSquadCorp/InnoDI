@@ -93,9 +93,39 @@ internal func pruneSharedRunDirectories(keepingDirectoryName directoryName: Stri
 
     for entry in entries {
         let values = try? entry.resourceValues(forKeys: [.isDirectoryKey])
-        guard values?.isDirectory == true, entry.lastPathComponent != directoryName else {
+        guard values?.isDirectory == true,
+              entry.lastPathComponent != directoryName,
+              isPrunableSharedRunDirectoryName(entry.lastPathComponent) else {
             continue
         }
         try? fileManager.removeItem(at: entry)
+    }
+}
+
+private func isPrunableSharedRunDirectoryName(_ name: String) -> Bool {
+    if isStableValidationHash(name) {
+        return true
+    }
+
+    let prefix = "shared-run-v"
+    guard name.hasPrefix(prefix) else {
+        return false
+    }
+    let components = name.dropFirst(prefix.count).split(
+        separator: "-",
+        maxSplits: 1,
+        omittingEmptySubsequences: false
+    )
+    guard components.count == 2,
+          !components[0].isEmpty,
+          components[0].utf8.allSatisfy({ (48...57).contains($0) }) else {
+        return false
+    }
+    return isStableValidationHash(String(components[1]))
+}
+
+private func isStableValidationHash(_ value: String) -> Bool {
+    value.utf8.count == 32 && value.utf8.allSatisfy { byte in
+        (48...57).contains(byte) || (97...102).contains(byte)
     }
 }

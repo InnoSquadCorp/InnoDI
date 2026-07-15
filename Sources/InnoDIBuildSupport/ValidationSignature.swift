@@ -21,6 +21,21 @@ struct LiveValidationSyntaxParser: ValidationSyntaxParsing {
 struct ValidationFileFingerprint: Codable, Equatable, Sendable {
     let fileSize: Int
     let modifiedAt: TimeInterval
+    /// Physical source identity used only to validate metadata-cache hits.
+    ///
+    /// It is intentionally excluded from the final semantic signature so a
+    /// checkout move can reuse the same shared-run key after content proof.
+    let fileIdentity: String?
+
+    init(
+        fileSize: Int,
+        modifiedAt: TimeInterval,
+        fileIdentity: String? = nil
+    ) {
+        self.fileSize = fileSize
+        self.modifiedAt = modifiedAt
+        self.fileIdentity = fileIdentity
+    }
 }
 
 /// Cached digest entry for one Swift source file.
@@ -38,7 +53,7 @@ struct ValidationFileDigestRecord: Codable, Equatable, Sendable {
 /// This is the durable source of truth for the three-stage cache flow:
 /// metadata fingerprint -> raw content hash -> normalized AST digest.
 struct ValidationDigestManifest: Codable, Equatable, Sendable {
-    static let currentVersion = 3
+    static let currentVersion = 4
 
     let version: Int
     let files: [String: ValidationFileDigestRecord]
@@ -53,6 +68,11 @@ package struct LoadedValidationDigestManifest {
     let manifest: ValidationDigestManifest
     let invalidatedByCorruption: Bool
     let invalidatedByVersion: Bool
+}
+
+private struct ValidationSignatureSource {
+    let cacheKey: String
+    let fileURL: URL
 }
 
 /// Collects the normalized package signature that keys shared validation runs.
@@ -71,12 +91,60 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         try collectWithMetrics(rootPath: rootPath).signature
     }
 
+    func collect(manifest: WorkspaceAnalysisManifest) throws -> String {
+        try collectWithMetrics(manifest: manifest).signature
+    }
+
     /// Returns the signature plus cache-hit diagnostics used by coordinator
     /// metrics artifacts and release tooling.
     func collectWithMetrics(
         rootPath: String,
         persistManifestUpdates: Bool = true,
         useManifestCache: Bool = true
+    ) throws -> ValidationSignatureCollectionResult {
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let sources = try discoverValidationSourceFiles(rootPath: rootPath)
+            .map { relativePath in
+                ValidationSignatureSource(
+                    cacheKey: relativePath,
+                    fileURL: rootURL.appendingPathComponent(relativePath)
+                )
+            }
+        return try collectWithMetrics(
+            sources: sources,
+            signatureScopeRecords: [],
+            persistManifestUpdates: persistManifestUpdates,
+            useManifestCache: useManifestCache
+        )
+    }
+
+    func collectWithMetrics(
+        manifest: WorkspaceAnalysisManifest,
+        persistManifestUpdates: Bool = true,
+        useManifestCache: Bool = true
+    ) throws -> ValidationSignatureCollectionResult {
+        let manifest = try manifest.validated()
+        let sources = manifest.targets.flatMap { target in
+            target.sources.map { source in
+                ValidationSignatureSource(
+                    cacheKey: source.identity(in: target.id),
+                    fileURL: URL(fileURLWithPath: source.filePath)
+                )
+            }
+        }
+        return try collectWithMetrics(
+            sources: sources,
+            signatureScopeRecords: manifestSignatureScopeRecords(manifest),
+            persistManifestUpdates: persistManifestUpdates,
+            useManifestCache: useManifestCache
+        )
+    }
+
+    private func collectWithMetrics(
+        sources: [ValidationSignatureSource],
+        signatureScopeRecords: [String],
+        persistManifestUpdates: Bool,
+        useManifestCache: Bool
     ) throws -> ValidationSignatureCollectionResult {
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
@@ -96,7 +164,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             )
         }
         let existingManifest = loadedManifest.manifest
-        let sourceFiles = try discoverValidationSourceFiles(rootPath: rootPath)
+        let sourceKeys = sources.map(\.cacheKey)
         var updatedRecords: [String: ValidationFileDigestRecord] = [:]
         var metadataCacheHitCount = 0
         var contentHashReuseCount = 0
@@ -114,51 +182,54 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             reasonCodes.insert(.cacheMissManifestCorrupted)
         }
 
-        let deletedFileSet = Set(existingManifest.files.keys).subtracting(sourceFiles)
+        let deletedFileSet = Set(existingManifest.files.keys)
+            .subtracting(sourceKeys)
         if !deletedFileSet.isEmpty {
             reasonCodes.insert(.cacheMissDeletedFile)
         }
         deletedFiles = deletedFileSet.sorted()
 
-        for relativePath in sourceFiles {
-            let fileURL = URL(fileURLWithPath: rootPath).appendingPathComponent(relativePath)
-            let fingerprint = try makeFingerprint(for: fileURL)
-            let wasCached = existingManifest.files[relativePath] != nil
+        for source in sources {
+            let cacheKey = source.cacheKey
+            let fingerprint = try makeFingerprint(for: source.fileURL)
+            let wasCached = existingManifest.files[cacheKey] != nil
 
             if !wasCached {
                 reasonCodes.insert(.cacheMissNewFile)
-                newFiles.append(relativePath)
+                newFiles.append(cacheKey)
             }
 
-            if let cached = existingManifest.files[relativePath], cached.fingerprint == fingerprint {
-                updatedRecords[relativePath] = cached
+            if let cached = existingManifest.files[cacheKey],
+               cached.fingerprint == fingerprint {
+                updatedRecords[cacheKey] = cached
                 metadataCacheHitCount += 1
                 reasonCodes.insert(.cacheHitMetadata)
                 continue
             }
 
-            let data = try Data(contentsOf: fileURL)
+            let data = try Data(contentsOf: source.fileURL)
             let contentHash = rawContentHash(for: data)
 
-            if let cached = existingManifest.files[relativePath], cached.contentHash == contentHash {
-                updatedRecords[relativePath] = ValidationFileDigestRecord(
+            if let cached = existingManifest.files[cacheKey],
+               cached.contentHash == contentHash {
+                updatedRecords[cacheKey] = ValidationFileDigestRecord(
                     fingerprint: fingerprint,
                     contentHash: contentHash,
                     digest: cached.digest
                 )
                 contentHashReuseCount += 1
-                contentHashReusedFiles.append(relativePath)
+                contentHashReusedFiles.append(cacheKey)
                 reasonCodes.insert(.cacheHitContentHash)
                 continue
             }
 
-            let source = String(decoding: data, as: UTF8.self)
-            let syntax = parser.parse(source: source)
+            let sourceText = String(decoding: data, as: UTF8.self)
+            let syntax = parser.parse(source: sourceText)
             let digest = normalizedDigest(for: syntax)
             astReparseCount += 1
-            reparsedFiles.append(relativePath)
+            reparsedFiles.append(cacheKey)
             reasonCodes.insert(.cacheMissContentChanged)
-            updatedRecords[relativePath] = ValidationFileDigestRecord(
+            updatedRecords[cacheKey] = ValidationFileDigestRecord(
                 fingerprint: fingerprint,
                 contentHash: contentHash,
                 digest: digest
@@ -171,17 +242,26 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         }
 
         var hasher = StableHasher()
-        hasher.combine("count:\(sourceFiles.count)")
+        if !signatureScopeRecords.isEmpty {
+            hasher.combine("scope-record-count:\(signatureScopeRecords.count)")
+            for record in signatureScopeRecords {
+                hasher.combine("scope-record[\(record.utf8.count)]:")
+                hasher.combine(record)
+            }
+        }
+        hasher.combine("count:\(sourceKeys.count)")
 
-        for relativePath in sourceFiles {
-            hasher.combine("file:\(relativePath)")
-            hasher.combine("digest:\(updatedRecords[relativePath]?.digest ?? "missing")")
+        for cacheKey in sourceKeys {
+            hasher.combine("file:\(cacheKey)")
+            hasher.combine(
+                "digest:\(updatedRecords[cacheKey]?.digest ?? "missing")"
+            )
         }
 
         return ValidationSignatureCollectionResult(
             signature: hasher.finalize(),
             metrics: ValidationSignatureMetrics(
-                scannedFileCount: sourceFiles.count,
+                scannedFileCount: sourceKeys.count,
                 metadataCacheHitCount: metadataCacheHitCount,
                 contentHashReuseCount: contentHashReuseCount,
                 astReparseCount: astReparseCount
@@ -237,6 +317,92 @@ func collectValidationSignatureWithMetrics(
     )
 }
 
+/// Computes a target-scoped signature from the authoritative SwiftPM
+/// manifest. Callers must provide a target-scoped state directory so two
+/// plugin invocations can never share digest records accidentally.
+func collectValidationSignature(
+    manifest: WorkspaceAnalysisManifest,
+    stateDirectoryPath: String
+) throws -> String {
+    try collectValidationSignatureWithMetrics(
+        manifest: manifest,
+        stateDirectoryPath: stateDirectoryPath
+    ).signature
+}
+
+func collectValidationSignatureWithMetrics(
+    manifest: WorkspaceAnalysisManifest,
+    stateDirectoryPath: String,
+    persistManifestUpdates: Bool = true,
+    useManifestCache: Bool = true
+) throws -> ValidationSignatureCollectionResult {
+    try ValidationSignatureCollector(
+        stateDirectoryPath: stateDirectoryPath,
+        parser: LiveValidationSyntaxParser()
+    )
+    .collectWithMetrics(
+        manifest: manifest,
+        persistManifestUpdates: persistManifestUpdates,
+        useManifestCache: useManifestCache
+    )
+}
+
+private func manifestSignatureScopeRecords(
+    _ manifest: WorkspaceAnalysisManifest
+) -> [String] {
+    var records: [String] = [
+        "manifest-signature-v1",
+        "schema-version=\(manifest.schemaVersion)",
+        "build-system=\(manifest.buildSystem)",
+        "analysis-scope=\(manifest.analysisScope)",
+        "root-package-identity=\(manifest.rootPackageIdentity)",
+        "primary-target-id=\(manifest.primaryTargetID.rawValue)",
+        "target-count=\(manifest.targets.count)",
+    ]
+
+    for target in manifest.targets {
+        records.append("target.begin")
+        records.append("target.id=\(target.id.rawValue)")
+        records.append("target.package-identity=\(target.packageIdentity)")
+        records.append("target.package-display-name=\(target.packageDisplayName)")
+        records.append("target.name=\(target.targetName)")
+        records.append("target.module-name=\(target.moduleName)")
+        records.append("target.kind=\(target.kind.rawValue)")
+        records.append("target.role=\(target.role.rawValue)")
+        records.append("target.source-count=\(target.sources.count)")
+        for source in target.sources {
+            records.append("source.begin")
+            records.append("source.id=\(source.identity(in: target.id))")
+            records.append("source.origin=\(source.origin.rawValue)")
+            records.append("source.end")
+        }
+        records.append("target.dependency-count=\(target.dependencies.count)")
+        for dependency in target.dependencies {
+            records.append("dependency.begin")
+            records.append("dependency.kind=\(dependency.kind.rawValue)")
+            records.append("dependency.name=\(dependency.name)")
+            if let packageIdentity = dependency.packageIdentity {
+                records.append("dependency.package-identity.present=true")
+                records.append(
+                    "dependency.package-identity=\(packageIdentity)"
+                )
+            } else {
+                records.append("dependency.package-identity.present=false")
+            }
+            records.append(
+                "dependency.target-count=\(dependency.targetIDs.count)"
+            )
+            for targetID in dependency.targetIDs {
+                records.append("dependency.target-id=\(targetID.rawValue)")
+            }
+            records.append("dependency.end")
+        }
+        records.append("target.end")
+    }
+
+    return records
+}
+
 /// Discovers Swift source files that participate in build validation.
 ///
 /// The returned paths are relative to `rootPath` and sorted so the final
@@ -253,7 +419,11 @@ private func makeFingerprint(for fileURL: URL) throws -> ValidationFileFingerpri
     let resourceValues = try fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
     return ValidationFileFingerprint(
         fileSize: resourceValues.fileSize ?? 0,
-        modifiedAt: resourceValues.contentModificationDate?.timeIntervalSince1970 ?? 0
+        modifiedAt: resourceValues.contentModificationDate?.timeIntervalSince1970 ?? 0,
+        fileIdentity: fileURL
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path(percentEncoded: false)
     )
 }
 
