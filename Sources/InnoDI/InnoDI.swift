@@ -597,8 +597,9 @@ public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "D
 /// `bundleWithOverrides:`).
 ///
 /// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
-/// rollout schedule. Adoption is opt-in until the macro reaches GA in
-/// 5.0; expect the generated shape to evolve before then.
+/// rollout schedule. Adoption remains opt-in through InnoDI 5.0; the macro
+/// reaches GA only after RFC 0001's dedicated promotion criteria pass, and
+/// the generated shape may evolve until then.
 ///
 /// > Important: this surface is experimental. The attribute name is
 /// > stable, but generated symbol shape (mock helper names, storage

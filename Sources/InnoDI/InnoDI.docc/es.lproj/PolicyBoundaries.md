@@ -12,6 +12,29 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
   las extensiones, porque las macros adjuntas no pueden inspeccionar de forma
   fiable las extensiones hermanas.
 
+## Limites de generated qualifiers y bridges
+
+- Adjunte `InnoDIDAGValidationPlugin` a cada target que declare containers
+  InnoDI o un `@DIEnvironmentBridge` standalone.
+- El full-source pass target-scoped rechaza shadows de generated qualifiers en
+  declaraciones envolventes, extensiones coincidentes y otros source del mismo
+  target, asi como qualifier shadows con acceso `public` o `package` visibles en
+  targets de dependencias importados, que las macros adjuntas no pueden
+  inspeccionar.
+- Tambien rechaza `@DIEnvironmentBridge` aplicado directamente a una extension o
+  declarado en un scope local standalone. Mueva el bridge target al scope de
+  archivo o nominal.
+- Para un bridge de clase o un generated site anidado en una clase, el primer
+  tipo heredado debe resolverse mediante declaraciones y typealiases visibles
+  como source. Como este pass es un indice sintactico conservador y no el type
+  checker semantico de Swift, un primer tipo heredado que solo exista en un SDK
+  o binario, no se resuelva o sea ambiguo falla con
+  `generated-qualifier.inheritance-unverifiable`.
+- La cadena de superclases visible como source se inspecciona para detectar
+  qualifier shadows. La generacion del bridge rechaza type members heredados
+  llamados `Swift` o `SwiftUI`, pero un `InnoDISwiftUI` heredado es seguro. Las
+  declaraciones directas y envolventes `InnoDISwiftUI` siguen reservadas.
+
 ## Matching Strategy
 
 - `InnoDIMacros`, `InnoDICore` y el graph CLI comparten el mismo modelo nominal cuando es posible.

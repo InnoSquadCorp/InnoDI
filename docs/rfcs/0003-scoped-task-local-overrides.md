@@ -224,8 +224,9 @@ explicitly keeps `withOverrides` as the canonical app-wide swap.
 
 1. **Phase 1 (this RFC, post-approval)** — generate the TaskLocal,
    `withScopedOverrides` overloads, and accessor adjustments behind a
-   feature flag (`@DIContainer(scopedOverrides: true)`). Land in 5.0
-   experimental.
+   feature flag (`@DIContainer(scopedOverrides: true)`). Land experimentally
+   in a future 5.x release only after this RFC is accepted; it is outside the
+   5.0.0 hardening scope.
 2. **Phase 2** — promote to the default after one minor release of
    feedback. Update the README's swift-dependencies guidance to call
    out scoped overrides as the in-house alternative.

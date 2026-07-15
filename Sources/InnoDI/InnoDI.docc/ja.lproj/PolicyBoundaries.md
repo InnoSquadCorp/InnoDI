@@ -11,6 +11,28 @@ InnoDI は明示的な境界を置くことで検証を決定的に保ちます�
 - build-validation plugin を適用しない場合、attached macro は sibling
   extension を確実には参照できないため、extension 全体での禁止は保証されません。
 
+## Generated qualifier と bridge の境界
+
+- InnoDI container または standalone `@DIEnvironmentBridge` を宣言するすべての
+  target に `InnoDIDAGValidationPlugin` を付けます。
+- target-scoped full-source pass は、attached macro から見えない enclosing
+  declaration、matching extension、同じ target の別 source にある generated
+  qualifier shadow、および import 済み dependency target で可視な `public` /
+  `package` qualifier shadow を拒否します。
+- `@DIEnvironmentBridge` を extension に直接付ける形と standalone local scope の
+  宣言も拒否します。Bridge target を file または nominal scope に移して
+  ください。
+- class bridge、または class 内に nested された generated site では、最初の
+  inherited type が source-visible declaration と typealias で解決できる必要が
+  あります。この pass は Swift の semantic type checker ではなく保守的な
+  syntactic index なので、SDK または binary にしか存在しない、unresolved、
+  ambiguous な最初の inherited type は
+  `generated-qualifier.inheritance-unverifiable` で fail closed します。
+- source-visible superclass chain の qualifier shadow を検査します。Bridge 生成は
+  inherited type member `Swift` と `SwiftUI` を拒否しますが、inherited
+  `InnoDISwiftUI` は安全です。direct または enclosing scope の
+  `InnoDISwiftUI` declaration は引き続き予約されています。
+
 ## Matching Strategy
 
 - マクロ、Core、graph CLI は可能な限り同じ nominal-path モデルを共有

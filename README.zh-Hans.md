@@ -149,7 +149,20 @@ dependencies: [
 )
 ```
 
-把 build-time DAG validator 插件加到每个声明 InnoDI container 的 target：
+把 build-time DAG validator 插件加到每个声明 InnoDI container 或 standalone
+`@DIEnvironmentBridge` 的 target。target-scoped full-source pass 会拒绝 attached
+macro 无法看到的 enclosing declaration 与同一 target 中的 generated qualifier
+shadow，以及已导入 dependency target 中可见的 `public` / `package` qualifier
+shadow，并在 Swift 编译前拒绝 bridge 的 direct-extension attachment 和 standalone
+local target：
+
+当 generated site 是 class 或 nested 在 class 内时，可能表示 superclass 的第一个
+inherited type 必须能通过 source-visible declaration 与 typealias 解析。仅存在于
+SDK、仅存在于 binary、无法解析或有歧义的第一个 inherited type 会以
+`generated-qualifier.inheritance-unverifiable` fail closed。请把 generated site
+移到 struct / enum 或 source-visible adapter，或者让 target-scoped source snapshot
+可以看到 superclass chain。该 preflight 是保守的 syntactic index，不能替代
+Swift type checker。
 
 ```swift
 .target(
@@ -163,9 +176,10 @@ dependencies: [
 )
 ```
 
-如果团队已经确认 source-tool 编译是主要采用成本，配套的
-`InnoDIValidationTools` package 提供可选的 prebuilt macOS validation
-plugin。只挂载上面的 source plugin 或 prebuilt plugin 之一，不能同时挂载；
+`InnoDIValidationTools` 目前是尚未发布的配套 package scaffold。仓库中已提交的
+artifact 是会有意失败的 fail-safe placeholder，并不是可用的 prebuilt validator。
+在 public release 发布并验证真实 artifact 之前，consumer 不得依赖该 package。
+正式发布后，只挂载上面的 source plugin 或 prebuilt plugin 之一，不能同时挂载；
 unsupported hosts 和 local package development 应继续使用 source plugin。
 
 ## 快速开始
@@ -295,8 +309,30 @@ source-written property-level attribute，其中也包括 `@MainActor`。请使�
 factory 或注入实现内部进行分支。
 
 每个 property 只能附加一个 `@Provide`；重复 attribute 会以
-`provide.duplicate-attribute` 拒绝。显式 property type 不能使用 opaque
-`some Protocol` 或 implicitly unwrapped optional `T!`，请分别迁移到
+`provide.duplicate-attribute` 拒绝。direct provider property 与 root factory
+closure dependency parameter 各自都必须使用唯一的 effective name；duplicate
+identity 会在生成 lookup 或 storage code 前被拒绝。这两类 declaration 都必须使用
+unescaped identifier，5.0 会拒绝 backtick-escaped property 和 factory-parameter
+name。`@SubContainer` property name 也必须 unescaped，因为生成的 child storage、
+override 与 root-helper identity 都由它派生。
+
+生成的 storage / support declaration 会保留 `_storage_`、`_override_`、
+`_innoDI` 与 `_InnoDI` 前缀，direct declaration 的精确名称 `InnoDI` 也被保留。
+`Swift`、`_Concurrency` 以及 SwiftUI bridge anchor 则在 attached macro 可见的
+type namespace 中保留。完整的 5.0 matrix 请参阅
+[Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md)。target-scoped
+full-source pass 会拒绝 attached macro 看不到、但会遮蔽 generated qualifier 的
+enclosing scope / same-target declaration，以及 imported dependency target 中可见的
+`public` / `package` declaration。
+对于 class bridge 或 enclosing class，该 scan 也会沿 source-visible superclass
+chain 检查。继承的 type member `Swift` 与 `SwiftUI` 会被拒绝；继承的
+`InnoDISwiftUI` member 则是安全的。direct 或 lexical scope 中可见的
+`InnoDISwiftUI` declaration 仍然保留。由于这是保守的 syntactic index，仅存在于
+SDK、仅存在于 binary、无法解析或有歧义的第一个 inherited type 不会被假设为没有
+shadow，而会以 `generated-qualifier.inheritance-unverifiable` fail closed。
+
+显式 property type 不能使用 opaque `some Protocol` 或 implicitly unwrapped
+optional `T!`，请分别迁移到
 `any Protocol`，或显式的 `T` / `T?`。如果刻意伪造 compiler-support accessor
 并与另一个 property wrapper 组合，除了 InnoDI misuse diagnostic 外，Swift
 自身也可能发出 structural diagnostic。
@@ -423,13 +459,21 @@ var logger: RequestLogger
 `@SubContainer` 用来建模父容器拥有的子容器：
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(
+    scope: .shared,
+    with: [\.config, \.apiClient],
+    featureRoot: FeatureRootScene.self
+)
 var feature: FeatureContainer
 ```
 
 关键规则：
 
 - `scope:` 必填
+- 请在受支持的 parent `@DIContainer` 中、`#if` 之外的直接、普通、存储型实例
+  `var` 上只声明一个 `@SubContainer`。不支持 wrapper、storage / accessor
+  modifier、unknown attribute，或手动附加
+  `InnoDI._InnoDISubContainerAccessor`。
 - 只有父容器有 0 个或 1 个 `@Provide` 候选时，才会使用按名称的隐式 wiring。
   父容器有多个候选时必须显式添加 wiring，不要依赖生成的 Swift initializer
   错误。
@@ -437,6 +481,8 @@ var feature: FeatureContainer
   字面量数组；不支持运行时变量或计算得到的数组元素。
 - `with: []` 是显式的空子集，将调用 `Child()`。
 - `bindings:` 将子容器 input label remap 到不同的父成员名。
+- `featureRoot:` / `featureRoots:` 会在 parent container 上生成 SwiftUI root
+  helper，无需在同一个 property 上叠加另一个 peer macro。
 - `with:`、`bindings:` 两种 wiring form 只能选择一种。
 - 父容器的 `Overrides` 同时拥有完整替换槽 (`feature`) 和子容器 override
   closure (`featureOverrides`)。
@@ -460,7 +506,7 @@ var feature: FeatureContainer
 ## CLI 与发布表面
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```

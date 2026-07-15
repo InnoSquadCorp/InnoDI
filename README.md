@@ -163,10 +163,22 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 ```
 
 Attach the build-time validation plugin to every target that declares InnoDI
-containers. This is a required part of the 5.0 correctness contract, not only
-an optional graph visualization step: the full-source pass rejects declarations
-that attached macros cannot see, including custom initializers in sibling
-extensions.
+containers or a standalone `@DIEnvironmentBridge`. This is a required part of
+the 5.0 correctness contract, not only an optional graph visualization step.
+The target-scoped full-source pass rejects custom initializers in sibling
+extensions, generated-qualifier shadows in enclosing or other same-target
+declarations, visible qualifier shadows with `public` or `package` access in
+imported dependency targets, and direct-extension or standalone-local bridge
+targets that attached macros cannot validate alone.
+
+When a generated site is a class or is nested inside a class, the first
+inherited type (the position that can name its superclass) must resolve through
+source-visible declarations and typealiases. An SDK-only, binary-only,
+unresolved, or ambiguous first inherited type fails closed with
+`generated-qualifier.inheritance-unverifiable`; move the generated site to a
+struct/enum or a source-visible adapter, or make the superclass chain available
+to the target-scoped source snapshot. This preflight is a conservative
+syntactic index, not a replacement for Swift's type checker.
 
 ```swift
 .target(
@@ -180,11 +192,12 @@ extensions.
 )
 ```
 
-For teams that have measured source-tool compilation as the dominant adoption
-cost, the companion `InnoDIValidationTools` package provides an optional
-prebuilt macOS validation plugin. Attach either the source plugin above or the
-prebuilt plugin, never both; unsupported hosts and local package development
-should keep using the source plugin.
+`InnoDIValidationTools` is currently an unpublished companion-package scaffold.
+Its checked-in artifact is an intentional fail-safe placeholder, not a usable
+prebuilt validator. Consumers must not depend on it until a public release
+publishes and verifies the real artifact. After that release, attach either the
+source plugin above or the prebuilt plugin, never both; unsupported hosts and
+local package development should keep using the source plugin.
 
 ## Quick Start
 
@@ -346,9 +359,18 @@ Generated storage/support declarations reserve `_storage_`, `_override_`,
 reserved, while `Swift`, `_Concurrency`, and SwiftUI bridge anchors are
 reserved in the type namespace visible to the attached macro. See the 5.0 section of the
 [Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md) for the exact
-matrix. Until the later target-scoped preflight lands, avoid same-named members
-in enclosing declarations because SwiftSyntax hides those member lists from
-attached macros.
+matrix. The target-scoped full-source pass rejects same-named declarations in
+enclosing scopes or elsewhere in the target, plus visible declarations with
+`public` or `package` access in imported dependency targets, when they shadow a
+generated qualifier that SwiftSyntax hides from the attached macro.
+For a class bridge or an enclosing class, that scan follows a source-visible
+superclass chain: inherited type members named `Swift` or `SwiftUI` are
+rejected, while an inherited `InnoDISwiftUI` member is safe. A directly or
+lexically visible `InnoDISwiftUI` declaration remains reserved. Because this is
+a conservative syntactic index, an SDK-only, binary-only, unresolved, or
+ambiguous first inherited type fails closed with
+`generated-qualifier.inheritance-unverifiable` rather than assuming the
+superclass is shadow-free.
 The explicit property type must not be an
 opaque `some Protocol` or an implicitly unwrapped optional `T!`; expose an
 existential `any Protocol`, or use explicit `T` / `T?`, respectively. A
@@ -571,7 +593,7 @@ the main actor; use direct `await` only when the isolated operation returns a
 Render a graph:
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 ```
 
 Validate the global DAG:

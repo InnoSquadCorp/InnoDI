@@ -43,9 +43,26 @@ declarations. Считайте эти generated members частью compiled AP
 ## Build-плагин
 
 Подключайте `InnoDIDAGValidationPlugin` к каждому target, который объявляет
-containers. Plugin теперь запускает DAG validator in-process через build
-coordinator; standalone executable `InnoDI-DependencyGraph` остается доступным
-для local inspection и CI artifacts.
+containers или standalone `@DIEnvironmentBridge`. Target-scoped full-source
+pass отклоняет невидимые для attached macro generated qualifier shadows во
+включающих объявлениях и других source того же target, а также видимые
+qualifier shadows с доступом `public` или `package` в импортированных dependency
+targets. Он также отклоняет direct-extension attachments и standalone local
+bridge targets до компиляции Swift.
+
+Для class bridge или container/bridge, вложенного в class, preflight рассматривает
+первый inherited type как потенциальный superclass. Все пройденные class и
+typealias должны быть source-visible в snapshot workspace. Первый inherited type,
+доступный только в SDK или binary, unresolved либо ambiguous, отклоняется с
+`generated-qualifier.inheritance-unverifiable`; используйте struct/enum или
+source-visible adapter, если внешнюю иерархию нельзя индексировать. Консервативный
+syntax-only index отклоняет унаследованные type members `Swift` и `SwiftUI`,
+используемые при генерации bridge, но допускает унаследованный `InnoDISwiftUI`.
+Прямые и enclosing declarations `InnoDISwiftUI` остаются зарезервированными.
+
+Plugin теперь запускает DAG validator
+in-process через build coordinator; standalone executable
+`InnoDI-DependencyGraph` остается доступным для local inspection и CI artifacts.
 
 Если derived data находится на network volume, используйте local SwiftPM scratch
 path. Scratch path должен находиться на local disk и быть writable; замените

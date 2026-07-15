@@ -10,6 +10,25 @@ InnoDI 通过显式边界来保持校验的确定性。
 - 如果未应用 build-validation plugin，则无法保证在所有 extension 中执行该
   禁止规则，因为 attached macro 无法可靠地检查 sibling extension。
 
+## Generated qualifier 与 bridge 边界
+
+- 为每个声明 InnoDI container 或 standalone `@DIEnvironmentBridge` 的 target 附加
+  `InnoDIDAGValidationPlugin`。
+- target-scoped full-source pass 会拒绝 attached macro 无法检查的 enclosing
+  declaration、matching extension 与同一 target 其他 source 中的 generated
+  qualifier shadow，以及已导入 dependency target 中可见的 `public` / `package`
+  qualifier shadow。
+- 它也会拒绝直接标注 extension 或声明在 standalone local scope 中的
+  `@DIEnvironmentBridge`。请把 bridge target 移到 file 或 nominal scope。
+- 对于 class bridge 或嵌套在 class 中的 generated site，第一个 inherited type
+  必须能通过 source-visible declaration 和 typealias 解析。这个 pass 是保守的
+  syntactic index，而不是 Swift 的 semantic type checker，因此仅存在于 SDK 或
+  binary、无法解析或解析结果有歧义的第一个 inherited type 会以
+  `generated-qualifier.inheritance-unverifiable` fail closed。
+- source-visible superclass chain 会接受 qualifier shadow 检查。Bridge 生成会拒绝
+  继承的 type member `Swift` 和 `SwiftUI`，但继承的 `InnoDISwiftUI` 是安全的。
+  直接声明或 enclosing scope 中的 `InnoDISwiftUI` 仍是保留名称。
+
 ## Matching Strategy
 
 - 宏、Core 与 graph CLI 尽量共享同一个 nominal-path 模型
