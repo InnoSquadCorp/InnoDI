@@ -11,12 +11,12 @@ import Testing
 
 /// In-process macro expansion benchmark.
 ///
-/// The shell harness `Tools/measure-macro-performance.sh` spawns a full
-/// `swift test` invocation per measured iteration, paying cold build-graph
-/// and test-runtime startup costs each time. This suite does the opposite:
-/// one `swift test` invocation, one test case, N macro expansions timed
-/// with `ContinuousClock`. Variance drops sharply and wall-clock runtime
-/// shrinks by an order of magnitude.
+/// The shell harness `Tools/measure-macro-performance.sh` defaults to one
+/// `swift test` invocation, one test case, and N macro expansions timed with
+/// `ContinuousClock`. This avoids paying cold build-graph and test-runtime
+/// startup costs for every sample. The harness's explicit `--subprocess`
+/// mode retains the slower process-level measurement when that signal is
+/// needed.
 ///
 /// Outputs are written to `INNODI_MACRO_BENCH_OUTPUT` when set (the shell
 /// harness picks that path up), otherwise logged to stdout. The env var is

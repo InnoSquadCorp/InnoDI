@@ -18,12 +18,12 @@ FILTER_OVERRIDE=0
 # the regression gate even inside GitHub Actions (e.g. a workflow that wants
 # the timing report without failing the run). Default to enforcing on
 # `GITHUB_ACTIONS=true` and to report-only otherwise.
-if [[ -n "${ENFORCE_REGRESSION_GATE:-}" ]]; then
-  ENFORCE_REGRESSION_GATE="$ENFORCE_REGRESSION_GATE"
-elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
-  ENFORCE_REGRESSION_GATE=1
-else
-  ENFORCE_REGRESSION_GATE=0
+if [[ -z "${ENFORCE_REGRESSION_GATE:-}" ]]; then
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    ENFORCE_REGRESSION_GATE=1
+  else
+    ENFORCE_REGRESSION_GATE=0
+  fi
 fi
 PERF_LOG="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf.XXXXXX")"
 IN_PROCESS_REPORT="$(mktemp "${TMPDIR:-/tmp}/innodi-macro-perf-inproc.XXXXXX")"
@@ -39,7 +39,7 @@ Options:
                           (default: InnoDIMacrosTests)
   --baseline <PATH>       Baseline JSON path (default: Tools/macro-performance-baseline.json)
   --threshold <PCT>       Allowed regression percentage (default: 20)
-  --update-baseline       Overwrite baseline with current measurements
+  --update-baseline       Create or overwrite the baseline with current measurements
   --in-process            Use the in-process SwiftSyntax benchmark (default)
   --subprocess            Measure a full swift test subprocess run
   --enforce               Fail when the threshold is exceeded
@@ -172,11 +172,38 @@ read_json_number() {
   printf '%s\n' "$value"
 }
 
-swift_version="$(swift --version 2>/dev/null | head -n 1 | sed 's/"/\\"/g')"
+is_positive_number() {
+  local value="$1"
+  [[ "$value" =~ ^([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]] \
+    && awk -v value="$value" 'BEGIN { exit(value > 0 ? 0 : 1) }'
+}
+
+if ! swift_version_output="$(swift --version 2>/dev/null)"; then
+  echo "[macro-perf] failed to read the active Swift version" >&2
+  exit 1
+fi
+swift_version="${swift_version_output%%$'\n'*}"
+if [[ -z "$swift_version" ]]; then
+  echo "[macro-perf] active Swift version is empty" >&2
+  exit 1
+fi
+swift_version_json="${swift_version//\\/\\\\}"
+swift_version_json="${swift_version_json//\"/\\\"}"
 
 preflight_baseline_compatibility() {
-  if [[ "$UPDATE_BASELINE" -eq 1 || ! -f "$BASELINE_FILE" ]]; then
+  if [[ "$UPDATE_BASELINE" -eq 1 ]]; then
     return 0
+  fi
+
+  if [[ ! -f "$BASELINE_FILE" ]]; then
+    echo "[macro-perf] baseline missing: $BASELINE_FILE" >&2
+    echo "[macro-perf] create it explicitly with --update-baseline" >&2
+    exit 1
+  fi
+
+  if ! python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$BASELINE_FILE"; then
+    echo "[macro-perf] baseline is not valid JSON: $BASELINE_FILE" >&2
+    exit 1
   fi
 
   local baseline_mode
@@ -211,12 +238,24 @@ preflight_baseline_compatibility() {
 
   local baseline_swift_version
   baseline_swift_version="$(read_json_string swift_version "$BASELINE_FILE")"
-  if [[ -n "$baseline_swift_version" && "$baseline_swift_version" != "$swift_version" ]]; then
-    echo "[macro-perf] baseline swift version mismatch; skipping regression gate"
-    echo "[macro-perf] baseline swift='${baseline_swift_version}'"
-    echo "[macro-perf] current swift='${swift_version}'"
-    echo "[macro-perf] update baseline with --update-baseline when toolchain migration stabilizes"
-    exit 0
+  if [[ -z "$baseline_swift_version" ]]; then
+    echo "[macro-perf] baseline swift_version missing from $BASELINE_FILE; update baseline with --update-baseline" >&2
+    exit 1
+  fi
+
+  if [[ "$baseline_swift_version" != "$swift_version" ]]; then
+    echo "[macro-perf] baseline swift version mismatch; refusing to skip the regression gate" >&2
+    echo "[macro-perf] baseline swift='${baseline_swift_version}'" >&2
+    echo "[macro-perf] current swift='${swift_version}'" >&2
+    echo "[macro-perf] update baseline explicitly with --update-baseline after validating the new toolchain" >&2
+    exit 1
+  fi
+
+  local baseline_mean
+  baseline_mean="$(read_json_number mean_ms "$BASELINE_FILE")"
+  if ! is_positive_number "$baseline_mean"; then
+    echo "[macro-perf] baseline mean_ms must be a finite positive number in $BASELINE_FILE" >&2
+    exit 1
   fi
 }
 
@@ -225,7 +264,10 @@ preflight_baseline_compatibility
 run_once_ms() {
   local started ended elapsed_ms
   started="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
-  swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
+  if ! swift test --filter "$FILTER" >"$PERF_LOG" 2>&1; then
+    echo "[macro-perf] measured subprocess failed; check $PERF_LOG" >&2
+    return 1
+  fi
   ended="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
   elapsed_ms="$(awk -v s="$started" -v e="$ended" 'BEGIN { printf "%.3f", (e - s) / 1000000.0 }')"
   echo "$elapsed_ms"
@@ -245,9 +287,34 @@ if [[ "$MEASURE_MODE" == "in-process" ]]; then
   # Parse the JSON report the in-process benchmark just wrote so the rest
   # of the script (baseline diff, exit code gating) can treat it like any
   # other measurement run.
+  if ! samples_output="$(
+    python3 -c '
+import json
+import math
+import sys
+
+with open(sys.argv[1]) as report_file:
+    report = json.load(report_file)
+expected = int(sys.argv[2])
+samples = report.get("samples_ms")
+if report.get("iterations") != expected:
+    raise SystemExit("benchmark report iterations do not match the requested count")
+if not isinstance(samples, list) or len(samples) != expected:
+    raise SystemExit("benchmark report sample count does not match the requested count")
+for sample in samples:
+    if isinstance(sample, bool) or not isinstance(sample, (int, float)):
+        raise SystemExit("benchmark samples must be numbers")
+    if not math.isfinite(float(sample)) or float(sample) <= 0:
+        raise SystemExit("benchmark samples must be finite positive numbers")
+    print(f"{float(sample):.3f}")
+' "$IN_PROCESS_REPORT" "$ITERATIONS"
+  )"; then
+    echo "[macro-perf] failed to parse a valid in-process benchmark report: $IN_PROCESS_REPORT" >&2
+    exit 1
+  fi
   while IFS= read -r sample; do
-    samples+=("$sample")
-  done < <(python3 -c "import json,sys; print('\n'.join(f'{x:.3f}' for x in json.load(open(sys.argv[1]))['samples_ms']))" "$IN_PROCESS_REPORT")
+    [[ -n "$sample" ]] && samples+=("$sample")
+  done <<< "$samples_output"
   for i in "${!samples[@]}"; do
     echo "[macro-perf] run $((i+1))/$ITERATIONS: ${samples[$i]} ms"
   done
@@ -263,6 +330,17 @@ else
   done
 fi
 
+if [[ "${#samples[@]}" -ne "$ITERATIONS" ]]; then
+  echo "[macro-perf] expected $ITERATIONS samples, received ${#samples[@]}" >&2
+  exit 1
+fi
+for sample in "${samples[@]}"; do
+  if ! is_positive_number "$sample"; then
+    echo "[macro-perf] invalid sample '$sample'; samples must be finite positive numbers" >&2
+    exit 1
+  fi
+done
+
 samples_lines="$(printf '%s\n' "${samples[@]}")"
 mean_ms="$(printf '%s\n' "$samples_lines" | awk '{sum += $1} END { printf "%.3f", sum / NR }')"
 min_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 < min { min = $1 } END { printf "%.3f", min }')"
@@ -275,7 +353,7 @@ samples_json="$(printf '%s\n' "${samples[@]}" | awk 'BEGIN { printf "[" } NR > 1
 report_json="$(cat <<JSON
 {
   "updated_at": "${updated_at}",
-  "swift_version": "${swift_version}",
+  "swift_version": "${swift_version_json}",
   "mode": "${MEASURE_MODE}",
   "filter": "${FILTER}",
   "iterations": ${ITERATIONS},
@@ -290,9 +368,8 @@ JSON
 
 echo "[macro-perf] summary: mean=${mean_ms}ms min=${min_ms}ms max=${max_ms}ms stdev=${stdev_ms}ms"
 
-mkdir -p "$(dirname "$BASELINE_FILE")"
-
-if [[ "$UPDATE_BASELINE" -eq 1 || ! -f "$BASELINE_FILE" ]]; then
+if [[ "$UPDATE_BASELINE" -eq 1 ]]; then
+  mkdir -p "$(dirname "$BASELINE_FILE")"
   printf '%s\n' "$report_json" > "$BASELINE_FILE"
   echo "[macro-perf] baseline updated: $BASELINE_FILE"
   exit 0
@@ -300,12 +377,12 @@ fi
 
 baseline_mean="$(read_json_number mean_ms "$BASELINE_FILE")"
 
-if [[ -z "$baseline_mean" ]]; then
-  echo "[macro-perf] failed to parse baseline mean_ms from $BASELINE_FILE" >&2
+if ! is_positive_number "$baseline_mean"; then
+  echo "[macro-perf] baseline mean_ms must be a finite positive number in $BASELINE_FILE" >&2
   exit 1
 fi
 
-regression_pct="$(awk -v current="$mean_ms" -v baseline="$baseline_mean" 'BEGIN { if (baseline == 0) { print "0.00" } else { printf "%.2f", ((current - baseline) / baseline) * 100.0 } }')"
+regression_pct="$(awk -v current="$mean_ms" -v baseline="$baseline_mean" 'BEGIN { printf "%.2f", ((current - baseline) / baseline) * 100.0 }')"
 
 echo "[macro-perf] baseline mean=${baseline_mean}ms, current mean=${mean_ms}ms, delta=${regression_pct}%"
 
