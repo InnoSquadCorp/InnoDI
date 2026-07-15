@@ -8,7 +8,7 @@ private enum ScopeChooser {
 
 @DIContainer
 struct AppContainer {
-    @Provide(ScopeChooser.shared, factory: Service(), concrete: true)
+    @Provide(ScopeChooser.shared, factory: Service())
     var service: Service
 }
 

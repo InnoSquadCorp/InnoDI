@@ -810,7 +810,7 @@ struct ValidationCoordinatorTests {
         struct AppContainer {
             @Provide(.shared, factory: { (lazyConfig: Lazy<Config>, serviceProvider: Provider<Service>) in
                 Service()
-            }, concrete: true)
+            })
             var service: Service
         }
         """.write(
@@ -859,7 +859,7 @@ struct ValidationCoordinatorTests {
         struct AppContainer {
             @Provide(.shared, factory: { (lazyConfig: DeferredLazy<Config>, serviceProvider: DeferredProvider<Service>) in
                 Service()
-            }, concrete: true)
+            })
             var service: Service
         }
         """.write(
@@ -914,7 +914,7 @@ struct ValidationCoordinatorTests {
         struct AppContainer {
             @Provide(.shared, factory: { (lazyConfig: InnoDI.Lazy<Config>, serviceProvider: InnoDI.Provider<Service>) in
                 Service()
-            }, concrete: true)
+            })
             var service: Service
         }
         """.write(
@@ -959,7 +959,7 @@ struct ValidationCoordinatorTests {
         struct AppContainer {
             @InnoDI.Provide(.shared, factory: { (lazyConfig: DeferredLazy<Config>, serviceProvider: DeferredProvider<Service>) in
                 Service()
-            }, concrete: true)
+            })
             var service: Service
         }
         """.write(

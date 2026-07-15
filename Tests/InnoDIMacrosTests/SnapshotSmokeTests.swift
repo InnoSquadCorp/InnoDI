@@ -30,13 +30,13 @@ struct SnapshotSmokeTests {
         )
     }
 
-    @Test("Missing concrete opt-in reports a diagnostic with a Fix-It")
-    func concreteOptInDiagnosticInline() {
+    @Test("Missing shared factory reports a diagnostic inline")
+    func sharedFactoryRequiredDiagnosticInline() {
         let source = """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: APIClient())
-                var apiClient: APIClient
+                @Provide(.shared)
+                var apiClient: any APIClientProtocol
             }
             """
 
@@ -45,27 +45,14 @@ struct SnapshotSmokeTests {
             expandedSource: """
                 struct AppContainer {
                     @InnoDI._InnoDIProvideAccessor(recovery: true)
-                    var apiClient: APIClient
+                    var apiClient: any APIClientProtocol
                 }
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true.",
+                    message: "@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.",
                     line: 3,
-                    column: 5,
-                    notes: [
-                        NoteSpec(
-                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
-                            line: 3,
-                            column: 5
-                        ),
-                        NoteSpec(
-                            message: "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
-                            line: 4,
-                            column: 9
-                        ),
-                    ],
-                    fixIts: [FixItSpec(message: "Add concrete: true")]
+                    column: 5
                 )
             ],
             macros: Self.macros
@@ -73,37 +60,24 @@ struct SnapshotSmokeTests {
     }
 
     @Test("Snapshot helper validates diagnostics when requested")
-    func concreteOptInDiagnosticSnapshot() {
+    func sharedFactoryRequiredDiagnosticSnapshot() {
         let source = """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: APIClient())
-                var apiClient: APIClient
+                @Provide(.shared)
+                var apiClient: any APIClientProtocol
             }
             """
 
         assertMacroExpansionSnapshot(
             source,
-            matches: "concreteOptInDiagnosticSnapshot",
+            matches: "sharedFactoryRequiredDiagnostic",
             diagnostics: [
                 DiagnosticSpec(
-                    id: MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required"),
-                    message: "Concrete dependency 'apiClient: APIClient' requires concrete: true.",
+                    id: MessageID(domain: "InnoDI.validation", id: "provide.shared-factory-required"),
+                    message: "@Provide(.shared) requires factory: <expr>, type: Type.self, or property initializer.",
                     line: 3,
-                    column: 5,
-                    notes: [
-                        NoteSpec(
-                            message: "InnoDI defaults to protocol-typed storage so container diffs stay reviewable and the graph stays substitutable. If this dependency must remain a concrete type, opt in explicitly with concrete: true; apply the fixit named 'Add concrete: true' to insert the argument.",
-                            line: 3,
-                            column: 5
-                        ),
-                        NoteSpec(
-                            message: "If protocol-first wiring is possible, prefer changing the property type to an existential such as any Protocol.",
-                            line: 4,
-                            column: 9
-                        ),
-                    ],
-                    fixIts: [FixItSpec(message: "Add concrete: true")]
+                    column: 5
                 )
             ],
             macros: Self.macros

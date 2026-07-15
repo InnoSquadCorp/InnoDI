@@ -2,7 +2,7 @@ import InnoDI
 
 @DIContainer
 struct ChildContainer {
-    @Provide(.shared, factory: 0, concrete: true)
+    @Provide(.shared, factory: 0)
     var value: Int
 }
 

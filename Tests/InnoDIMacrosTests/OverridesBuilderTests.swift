@@ -32,10 +32,10 @@ struct OverridesBuilderTests {
                 @Provide(.input)
                 var userID: String
 
-                @Provide(.shared, factory: APIClient(), concrete: true)
+                @Provide(.shared, factory: APIClient())
                 var apiClient: APIClient
 
-                @Provide(.transient, factory: { ViewModel() }, concrete: true)
+                @Provide(.transient, factory: { ViewModel() })
                 var viewModel: ViewModel
             }
             """,
@@ -50,7 +50,7 @@ struct OverridesBuilderTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: APIClient(), concrete: true)
+                @Provide(.shared, factory: APIClient())
                 var apiClient: APIClient
             }
             """,
@@ -65,7 +65,7 @@ struct OverridesBuilderTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.transient, factory: { ViewModel() }, concrete: true)
+                @Provide(.transient, factory: { ViewModel() })
                 var viewModel: ViewModel
             }
             """,
@@ -83,7 +83,7 @@ struct OverridesBuilderTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, asyncFactory: { (config: Config) async in Service(config: config) }, concrete: true)
+                @Provide(.shared, asyncFactory: { (config: Config) async in Service(config: config) })
                 var service: Service
             }
             """,
@@ -101,7 +101,7 @@ struct OverridesBuilderTests {
                 @Provide(.input)
                 var userID: String
 
-                @Provide(.shared, factory: APIClient(), concrete: true)
+                @Provide(.shared, factory: APIClient())
                 var apiClient: APIClient
             }
             """,
@@ -119,7 +119,7 @@ struct OverridesBuilderTests {
                 @Provide(.input)
                 var userID: String
 
-                @Provide(.shared, factory: APIClient(), concrete: true)
+                @Provide(.shared, factory: APIClient())
                 var apiClient: APIClient
             }
             """,
@@ -199,7 +199,7 @@ struct OverridesBuilderTests {
                 @Provide(.input)
                 var userID: String
 
-                @Provide(.shared, factory: APIClient(), concrete: true)
+                @Provide(.shared, factory: APIClient())
                 var apiClient: APIClient
             }
             """,

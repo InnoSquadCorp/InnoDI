@@ -51,12 +51,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.shared, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.shared, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -73,12 +73,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.shared, asyncFactory: { () async throws -> Token in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.shared, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -95,12 +95,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.shared, asyncFactory: { () async throws -> Token in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.shared, asyncFactory: { (token: Token) async in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -117,10 +117,10 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.shared, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
-                @Provide(.shared, Session.self, with: [\\Self.token], concrete: true)
+                @Provide(.shared, Session.self, with: [\\Self.token])
                 var session: Session
             }
             """,
@@ -138,12 +138,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.transient, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -160,12 +160,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.transient, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -187,10 +187,10 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
-                @Provide(.transient, Session.self, with: [\\Self.token], concrete: true)
+                @Provide(.transient, Session.self, with: [\\Self.token])
                 var session: Session
             }
             """,
@@ -217,12 +217,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async throws -> Token in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.transient, asyncFactory: { (token: Token) async in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -239,12 +239,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.shared, factory: { (token: Lazy<Token>) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
 
                 @Provide(.transient, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
             }
             """,
@@ -263,12 +263,12 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.shared, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 @Provide(.shared, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -283,12 +283,12 @@ struct ProviderEffectCompatibilityTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.input, asyncFactory: { () async in Token() }, concrete: true)
+                @Provide(.input, asyncFactory: { () async in Token() })
                 var token: Token
 
                 @Provide(.transient, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -320,37 +320,37 @@ struct ProviderEffectCompatibilityTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Seed(), concrete: true)
+                @Provide(.shared, factory: Seed())
                 var seed: Seed
 
                 @Provide(.shared, factory: { (seed: Seed) in
                     SyncValue(seed: seed)
-                }, concrete: true)
+                })
                 var syncValue: SyncValue
 
                 @Provide(.shared, asyncFactory: { (seed: Seed) async in
                     AsyncValue(seed: seed)
-                }, concrete: true)
+                })
                 var asyncValue: AsyncValue
 
                 @Provide(.shared, asyncFactory: { (asyncValue: AsyncValue) async in
                     AsyncConsumer(value: asyncValue)
-                }, concrete: true)
+                })
                 var asyncConsumer: AsyncConsumer
 
                 @Provide(.shared, asyncFactory: { (syncValue: SyncValue) async throws -> ThrowingValue in
                     ThrowingValue(value: syncValue)
-                }, concrete: true)
+                })
                 var throwingValue: ThrowingValue
 
                 @Provide(.shared, asyncFactory: { (asyncValue: AsyncValue) async throws -> ThrowingFromAsync in
                     ThrowingFromAsync(value: asyncValue)
-                }, concrete: true)
+                })
                 var throwingFromAsync: ThrowingFromAsync
 
                 @Provide(.transient, asyncFactory: { (throwingValue: ThrowingValue) async throws -> ThrowingConsumer in
                     ThrowingConsumer(value: throwingValue)
-                }, concrete: true)
+                })
                 var throwingConsumer: ThrowingConsumer
             }
             """,
@@ -367,13 +367,13 @@ struct ProviderEffectCompatibilityTests {
             struct AppContainer {
                 @Provide(.transient, asyncFactory: { () async in
                     Token()
-                }, concrete: true)
+                })
                 var token: Token
 
                 struct Helper {
                     @Provide(.transient, factory: { (token: Token) in
                         Session(token: token)
-                    }, concrete: true)
+                    })
                     var session: Session
                 }
             }
@@ -410,10 +410,10 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 var input: Input
 
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
 
-                @Provide(.transient, factory: Request(), concrete: true)
+                @Provide(.transient, factory: Request())
                 var request: Request
 
                 @Provide(.input)
@@ -437,7 +437,7 @@ struct ProviderEffectCompatibilityTests {
             @DIContainer
             struct AppContainer {
                 func makeService() {
-                    @Provide(.shared, factory: Service(), concrete: true)
+                    @Provide(.shared, factory: Service())
                     var localService: Service
                     _ = localService
                 }
@@ -466,10 +466,10 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 let immutable: Int
 
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var computed: Int { 42 }
 
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 lazy var lazyValue: Int = 42
 
                 @Provide(.input)
@@ -478,7 +478,7 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 unowned var unownedValue: Service
 
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var observed: Int {
                     didSet {}
                 }
@@ -487,24 +487,24 @@ struct ProviderEffectCompatibilityTests {
                 private(set) var restrictedValue: Int
 
                 @Box
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var wrappedValue: Int
 
                 @BoxActor
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var actorNamedWrapperValue: Int
 
                 @MainActor
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var sourceWrittenMainActorValue: Int
 
                 #if os(macOS)
                 @Box
                 #endif
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var conditionalWrapperValue: Int
 
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 class var classValue: Int { 42 }
             }
             """,
@@ -535,7 +535,7 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 var (first, second): (Int, Int)
 
-                @Provide(.shared, concrete: true)
+                @Provide(.shared)
                 var inferred = 42
 
                 @Provide(.input)
@@ -566,7 +566,7 @@ struct ProviderEffectCompatibilityTests {
             @DIContainer
             struct AppContainer {
                 #if os(macOS)
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
                 #endif
             }
@@ -592,8 +592,8 @@ struct ProviderEffectCompatibilityTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: 42, concrete: true)
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
+                @Provide(.shared, factory: 42)
                 var value: Int = 0
             }
             """,
@@ -733,16 +733,16 @@ struct ProviderEffectCompatibilityTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: { (hardValue: Int, hardValue: Int) in 0 }, concrete: true)
+                @Provide(.shared, factory: { (hardValue: Int, hardValue: Int) in 0 })
                 var hardConsumer: Int
 
-                @Provide(.shared, factory: { (lazyValue: Lazy<Int>, lazyValue: Lazy<Int>) in 0 }, concrete: true)
+                @Provide(.shared, factory: { (lazyValue: Lazy<Int>, lazyValue: Lazy<Int>) in 0 })
                 var lazyConsumer: Int
 
-                @Provide(.shared, factory: { (providerValue: Provider<Int>, providerValue: Provider<Int>) in 0 }, concrete: true)
+                @Provide(.shared, factory: { (providerValue: Provider<Int>, providerValue: Provider<Int>) in 0 })
                 var providerConsumer: Int
 
-                @Provide(.shared, factory: { (mixedValue: Int, mixedValue: Lazy<Int>) in 0 }, concrete: true)
+                @Provide(.shared, factory: { (mixedValue: Int, mixedValue: Lazy<Int>) in 0 })
                 var mixedConsumer: Int
             }
             """,
@@ -801,7 +801,6 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(
                     .shared,
                     factory: { (dependency: Int, `dependency`: Int) in 0 },
-                    concrete: true
                 )
                 var consumer: Int
             }
@@ -904,7 +903,7 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, Service.self, with: [\\.config], concrete: true)
+                @Provide(.shared, Service.self, with: [\\.config])
                 var service: Service
             }
             """,
@@ -935,7 +934,7 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.shared, Service.self, with: [\\OtherRoot.config], concrete: true)
+                @Provide(.shared, Service.self, with: [\\OtherRoot.config])
                 var service: Service
             }
             """,
@@ -965,10 +964,10 @@ struct ProviderEffectCompatibilityTests {
                 @Provide(.input)
                 var values: [Config]
 
-                @Provide(.shared, Service.self, with: [\\Self.holder.config], concrete: true)
+                @Provide(.shared, Service.self, with: [\\Self.holder.config])
                 var nested: Service
 
-                @Provide(.shared, Service.self, with: [\\Self.values[0]], concrete: true)
+                @Provide(.shared, Service.self, with: [\\Self.values[0]])
                 var subscripted: Service
             }
             """,
@@ -991,14 +990,13 @@ struct ProviderEffectCompatibilityTests {
             """
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, asyncFactory: { () async in Token() }, concrete: true)
+                @Provide(.shared, asyncFactory: { () async in Token() })
                 var token: Token
 
                 @Provide(
                     .shared,
                     Session.self,
                     with: [\\Self.token, Paths.other],
-                    concrete: true
                 )
                 var session: Session
             }
@@ -1032,14 +1030,12 @@ struct ProviderEffectCompatibilityTests {
                     A.self,
                     with: [\\Self.b],
                     factory: { (b: B) in A(b: b) },
-                    concrete: true
                 )
                 var a: A
 
                 @Provide(
                     .transient,
                     factory: { (a: A) in B(a: a) },
-                    concrete: true
                 )
                 var b: B
             }
@@ -1066,12 +1062,12 @@ struct ProviderEffectCompatibilityTests {
             @DIContainer(mainActor: true)
             struct AppContainer {
                 @FeatureActor
-                @Provide(.transient, asyncFactory: { () async in Token() }, concrete: true)
+                @Provide(.transient, asyncFactory: { () async in Token() })
                 var token: Token
 
                 @Provide(.transient, factory: { (token: Token) in
                     Session(token: token)
-                }, concrete: true)
+                })
                 var session: Session
             }
             """,
@@ -1208,11 +1204,11 @@ struct ProviderEffectCompatibilityTests {
             @DIContainer
             struct AppContainer {
                 @InnoDI._InnoDIProvideAccessor(recovery: false)
-                @Provide(.transient, factory: 42, concrete: true)
+                @Provide(.transient, factory: 42)
                 var transientValue: Int
 
                 @InnoDI._InnoDIProvideAccessor(recovery: false)
-                @Provide(.shared, factory: 42, concrete: true)
+                @Provide(.shared, factory: 42)
                 var sharedValue: Int
 
                 @InnoDI._InnoDIProvideAccessor(recovery: flag)

@@ -40,10 +40,10 @@ struct GeneratedSymbolCollisionTests {
                 """
                 @DIContainer
                 struct Container {
-                    @Provide(.shared, factory: Service(), concrete: true)
+                    @Provide(.shared, factory: Service())
                     var task_cache: Service
 
-                    @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+                    @Provide(.shared, asyncFactory: { () async in Service() })
                     var cache: Service
                 }
                 """,
@@ -70,7 +70,7 @@ struct GeneratedSymbolCollisionTests {
                 """
                 @DIContainer
                 struct Container {
-                    @Provide(.transient, factory: Service(), concrete: true)
+                    @Provide(.transient, factory: Service())
                     var sub_feature: Service
 
                     @SubContainer(scope: .transient, with: [])
@@ -85,7 +85,7 @@ struct GeneratedSymbolCollisionTests {
                 """
                 @DIContainer
                 struct Container {
-                    @Provide(.transient, factory: Service(), concrete: true)
+                    @Provide(.transient, factory: Service())
                     var sub_apply_feature: Service
 
                     @SubContainer(scope: .shared, with: [])
@@ -143,7 +143,7 @@ struct GeneratedSymbolCollisionTests {
             """
             @DIContainer
             struct Container {
-                @Provide(.transient, factory: Service(), concrete: true)
+                @Provide(.transient, factory: Service())
                 var sub_apply_feature: Service
 
                 @SubContainer(scope: .shared, with: [])
@@ -183,7 +183,7 @@ struct GeneratedSymbolCollisionTests {
             """
             @DIContainer(validateDAG: false, mainActor: true)
             struct Container {
-                @Provide(.transient, factory: Service(), concrete: true)
+                @Provide(.transient, factory: Service())
                 var sub_feature: Service
 
                 @SubContainer(scope: .transient, with: [])
@@ -214,10 +214,10 @@ struct GeneratedSymbolCollisionTests {
             """
             @DIContainer
             struct Container {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var task_cache: Service
 
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var cache: Service
 
                 @Provide(.input)
@@ -226,7 +226,7 @@ struct GeneratedSymbolCollisionTests {
                 @SubContainer(scope: .transient, with: [])
                 var feature: Child
 
-                @Provide(.transient, factory: Service(), concrete: true)
+                @Provide(.transient, factory: Service())
                 var apply_other: Service
 
                 @SubContainer(scope: .shared, with: [])

@@ -213,59 +213,6 @@ struct ParsingTests {
     }
     
     @Test
-    func parseProvideAttributeConcrete() throws {
-        let source = """
-        struct AppContainer {
-            @Provide(.shared, factory: URLSession.shared, concrete: true)
-            var session: URLSession
-        }
-        """
-        guard let decl = firstVarDecl(in: source) else {
-            #expect(Bool(false), "Expected variable declaration.")
-            return
-        }
-
-        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
-        let info = try #require(parsed)
-        #expect(info.scope == .shared)
-        #expect(info.concrete == true)
-    }
-    
-    @Test
-    func parseProvideAttributeConcreteDefault() throws {
-        let source = """
-        struct AppContainer {
-            @Provide(.shared, factory: SomeService())
-            var service: SomeServiceProtocol
-        }
-        """
-        guard let decl = firstVarDecl(in: source) else {
-            #expect(Bool(false), "Expected variable declaration.")
-            return
-        }
-
-        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
-        let info = try #require(parsed)
-        #expect(info.concrete == false)
-    }
-
-    @Test
-    func parseProvideAttributePreservesInvalidConcreteBool() throws {
-        let source = """
-        struct AppContainer {
-            @Provide(.shared, factory: SomeService(), concrete: shouldUseConcrete)
-            var service: SomeService
-        }
-        """
-        let decl = try #require(firstVarDecl(in: source))
-
-        let parsed = InnoDICore.parseProvideAttribute(decl.attributes)
-        let info = try #require(parsed)
-        #expect(info.concrete == false)
-        #expect(info.concreteParseState == .invalid)
-    }
-
-    @Test
     func parseProvideAttributePreservesInvalidWithArgument() throws {
         let source = """
         struct AppContainer {

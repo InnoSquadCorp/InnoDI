@@ -15,7 +15,7 @@ struct SubSmokeConfig: Equatable {
 struct SubSmokeFeatureContainer {
     @Provide(.input) var config: SubSmokeConfig
 
-    @Provide(.shared, factory: SubSmokeStore(), concrete: true)
+    @Provide(.shared, factory: SubSmokeStore())
     var store: SubSmokeStore
 }
 
@@ -47,7 +47,7 @@ struct SubSmokeAppContainerTransient {
 
 @DIContainer
 struct SubOnlyFeatureContainer {
-    @Provide(.shared, factory: SubOnlyStore(label: "default"), concrete: true)
+    @Provide(.shared, factory: SubOnlyStore(label: "default"))
     var store: SubOnlyStore
 }
 

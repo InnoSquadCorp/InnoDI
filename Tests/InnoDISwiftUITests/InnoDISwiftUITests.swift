@@ -48,7 +48,7 @@ struct SharedFeatureContainer {
     @Provide(.input) var username: String
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
-    @Provide(.shared, factory: UUID(), concrete: true)
+    @Provide(.shared, factory: UUID())
     var token: UUID
 }
 
@@ -61,7 +61,7 @@ struct TransientFeatureContainer {
     @Provide(.input) var username: String
     @Provide(.input) var greetingService: any TestGreetingServiceProtocol
     @Provide(.input) var activityService: any TestActivityServiceProtocol
-    @Provide(.shared, factory: UUID(), concrete: true)
+    @Provide(.shared, factory: UUID())
     var token: UUID
 }
 

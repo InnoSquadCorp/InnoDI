@@ -28,7 +28,7 @@ struct StrictConcurrencyBuildTests {
 
             @DIContainer
             struct AsyncContainer {
-                @Provide(.shared, asyncFactory: { () async in Service() }, concrete: true)
+                @Provide(.shared, asyncFactory: { () async in Service() })
                 var service: Service
             }
 
@@ -37,17 +37,17 @@ struct StrictConcurrencyBuildTests {
                 @Provide(.input)
                 var config: Config
 
-                @Provide(.transient, factory: { Service() }, concrete: true)
+                @Provide(.transient, factory: { Service() })
                 var service: Service
 
                 @Provide(.shared, factory: { (service: InnoDI.Lazy<Service>) in
                     LazyHolder(lazy: service)
-                }, concrete: true)
+                })
                 var lazyHolder: LazyHolder
 
                 @Provide(.shared, factory: { (service: InnoDI.Provider<Service>) in
                     ProviderHolder(provider: service)
-                }, concrete: true)
+                })
                 var providerHolder: ProviderHolder
             }
 
@@ -102,7 +102,7 @@ struct StrictConcurrencyBuildTests {
             ])
             @DIContainer(mainActor: true)
             struct AppContainer {
-                @Provide(.shared, factory: Greeting(), concrete: true)
+                @Provide(.shared, factory: Greeting())
                 var greeting: Greeting
             }
 
@@ -294,7 +294,7 @@ struct StrictConcurrencyBuildTests {
 
             @DIContainer
             struct AppContainer {
-                @Provide(.shared, factory: Service(), concrete: true)
+                @Provide(.shared, factory: Service())
                 var service: Service
             }
 
@@ -757,7 +757,7 @@ private func multiTargetFeatureSource(containerName: String) -> String {
 
     @DIContainer
     struct \(containerName) {
-        @Provide(.shared, factory: Service(), concrete: true)
+        @Provide(.shared, factory: Service())
         var service: Service
     }
 

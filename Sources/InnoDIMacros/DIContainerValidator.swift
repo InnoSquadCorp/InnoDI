@@ -250,13 +250,6 @@ struct DIContainerValidator {
                 }
             }
 
-            if member.scope != .input && !member.concreteOptIn && requiresConcreteOptIn(type: member.type) {
-                context.diagnose(
-                    makeConcreteOptInDiagnostic(member: member)
-                )
-                hadErrors = true
-            }
-
             // Configuration diagnostics own the declaration until its local
             // construction mode is coherent. Do not derive sibling lookup,
             // graph, or effect errors from a provider that code generation has

@@ -32,7 +32,7 @@ struct RuntimeContainer {
 
     @Provide(.transient, factory: { (apiClient: any APIClientProtocol) in
         ViewModel(id: "vm", apiTag: apiClient.tag())
-    }, concrete: true)
+    })
     var viewModel: ViewModel
 }
 

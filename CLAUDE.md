@@ -171,7 +171,8 @@ forks pass without setup.
   `asyncFactory:`, `Type.self`, or a property initializer
 - `.transient`: fresh dependency on every access; exactly one of `factory:`,
   `asyncFactory:`, `Type.self`, or a property initializer
-- concrete `.shared` and `.transient` storage requires `concrete: true`
+- the declared property type determines storage shape: concrete nominal types
+  use concrete storage and `any Protocol` types use existential storage
 
 Sibling DI edges are intentionally syntax-bounded. Read them only from named
 parameters on the root `factory:`/`asyncFactory:` closure literal, or from

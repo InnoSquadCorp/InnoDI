@@ -330,7 +330,7 @@ static var service: Service {
 }
 
 // 이후
-@Provide(.shared, factory: Service(), concrete: true)
+@Provide(.shared, factory: Service())
 var service: Service
 ```
 
@@ -409,7 +409,7 @@ struct FeatureContainer {
     // 이후: root 클로저의 이름 있는 파라미터가 sibling edge를 선언합니다.
     @Provide(.shared, factory: { (apiClient: APIClient) in
         Repository(client: apiClient)
-    }, concrete: true)
+    })
     var migratedRepository: Repository
 }
 ```

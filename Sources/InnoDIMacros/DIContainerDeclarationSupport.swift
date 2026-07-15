@@ -398,7 +398,6 @@ func isLocallyValidProvideConfiguration(
     arguments: ProvideArguments
 ) -> Bool {
     guard let scope = arguments.scope,
-          !arguments.concreteParseState.isInvalid,
           !arguments.escapingParseState.isInvalid,
           !arguments.dependenciesParseState.isInvalid,
           declaration.bindings.count == 1,
@@ -461,12 +460,6 @@ func isLocallyValidProvideConfiguration(
             || parameters.hasEscapedNames {
             return false
         }
-    }
-
-    if scope != .input,
-       !arguments.concrete,
-       requiresConcreteOptIn(type: type) {
-        return false
     }
 
     return true

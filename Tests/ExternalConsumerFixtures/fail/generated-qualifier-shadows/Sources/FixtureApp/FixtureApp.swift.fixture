@@ -16,21 +16,18 @@ struct QualifierShadowContainer {
     @Provide(
         .transient,
         factory: { (request: Int) in request + 1 },
-        concrete: true
     )
     var response: Int
 
     @Provide(
         .shared,
         asyncFactory: { (request: Int) async in request + 2 },
-        concrete: true
     )
     var asyncResponse: Int
 
     @Provide(
         .shared,
         factory: { (response: Lazy<Int>) in DeferredConsumer(response: response) },
-        concrete: true
     )
     var deferredResponse: DeferredConsumer
 }

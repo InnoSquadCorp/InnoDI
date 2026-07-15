@@ -2411,7 +2411,7 @@ struct WorkspaceHierarchyBuildValidatorTests {
             @DIComponent
             @DIContainer
             struct FeatureContainer {
-                @Provide(.shared, factory: FeatureService(), concrete: true)
+                @Provide(.shared, factory: FeatureService())
                 var service: FeatureService
             }
             """,

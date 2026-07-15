@@ -29,7 +29,7 @@ struct FeatureContainer {
     @Provide(.input)
     var config: AppConfig
 
-    @Provide(.shared, FeatureService.self, with: [\Self.config], concrete: true)
+    @Provide(.shared, FeatureService.self, with: [\Self.config])
     var service: FeatureService
 }
 

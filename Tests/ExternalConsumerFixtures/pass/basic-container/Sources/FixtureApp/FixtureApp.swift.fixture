@@ -61,26 +61,25 @@ struct AppContainer {
     @Provide(.input)
     var referenceState: ReferenceState
 
-    @Provide(.shared, factory: Service(), concrete: true)
+    @Provide(.shared, factory: Service())
     var service: Service
 
-    @Provide(.shared, concrete: true)
+    @Provide(.shared)
     var literalValue: LiteralValue = LiteralValue(value: 7)
 
     @Provide(.shared, factory: { (service: Service, literalValue: LiteralValue) in
         ServicePair(service: service, literalValue: literalValue)
-    }, concrete: true)
+    })
     var servicePair: ServicePair
 
     @Provide(
         .shared,
         LiteralConsumer.self,
         with: [\Self.literalValue],
-        concrete: true
     )
     var literalConsumer: LiteralConsumer
 
-    @Provide(.shared, asyncFactory: { () async in AsyncService() }, concrete: true)
+    @Provide(.shared, asyncFactory: { () async in AsyncService() })
     var asyncService: AsyncService
 
     @SubContainer(scope: .shared, with: [\AppContainer.service])

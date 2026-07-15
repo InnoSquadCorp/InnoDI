@@ -93,6 +93,9 @@ public macro DIContainer(
 /// property-wrapper combination involving the compiler-support accessor can
 /// also receive Swift structural diagnostics in addition to InnoDI's misuse
 /// diagnostic.
+/// The declared property type is the single source of truth for generated
+/// storage: `ConcreteType` produces concrete storage, while `any Protocol`
+/// produces existential storage.
 ///
 /// Sibling DI edges use a closed syntax. They come only from named parameters
 /// on the root `factory:` or `asyncFactory:` closure literal, or from `type`
@@ -137,7 +140,6 @@ public macro DIContainer(
 ///     `.shared` and `.transient` dependencies. Consumers must declare every
 ///     effect required by their providers; InnoDI does not infer effects, and
 ///     validates them even when the container uses `validateDAG: false`.
-///   - concrete: Explicit opt-in for concrete-type storage.
 ///   - escaping: A literal Boolean opt-in for a non-optional function-valued
 ///     `.input` whose function type is hidden behind a typealias. Direct
 ///     function type spellings are detected automatically. Obvious nonfunction
@@ -149,7 +151,6 @@ public macro Provide(
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 
@@ -178,10 +179,10 @@ public macro _InnoDIProvideAccessor(
 ///     // Declare the soft-target side first. `a`'s factory only consumes
 ///     // the already-initialized `b` via a Lazy wrapper, so `a` compiles
 ///     // cleanly even though `b` references `a` in turn.
-///     @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) }, concrete: true)
+///     @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) })
 ///     var a: CoordinatorA
 ///
-///     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) }, concrete: true)
+///     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) })
 ///     var b: CoordinatorB
 /// }
 /// ```
@@ -257,12 +258,12 @@ public struct Lazy<T> {
 ///
 ///     @Provide(.transient, factory: { (config: Config) in
 ///         Request(config: config)
-///     }, concrete: true)
+///     })
 ///     var request: Request
 ///
 ///     @Provide(.shared, factory: { (requests: Provider<Request>) in
 ///         RequestLogger(requests: requests)
-///     }, concrete: true)
+///     })
 ///     var logger: RequestLogger
 /// }
 ///

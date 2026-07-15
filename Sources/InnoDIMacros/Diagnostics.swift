@@ -41,7 +41,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideInputInvalidConfiguration = "provide.input-invalid-configuration"
     case provideEscapingInvalidScope = "provide.escaping-invalid-scope"
     case provideEscapingNonFunctionType = "provide.escaping-nonfunction-type"
-    case provideConcreteOptInRequired = "provide.concrete-opt-in-required"
     case provideFactoryConflict = "provide.factory-conflict"
     case provideConstructionSourceConflict = "provide.construction-source-conflict"
     case provideWithRequiresTypeConstruction = "provide.with-requires-type-construction"
@@ -151,7 +150,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIEnvironmentBridgeParameterPackUnsupported,
                 .componentEscapedTargetUnsupported:
             return .usage
-        case .provideSharedFactoryRequired, .provideTransientFactoryRequired, .provideConcreteOptInRequired,
+        case .provideSharedFactoryRequired, .provideTransientFactoryRequired,
                 .provideFactoryConflict, .provideConstructionSourceConflict,
                 .provideWithRequiresTypeConstruction,
                 .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
@@ -236,8 +235,6 @@ struct SimpleNote: NoteMessage {
 }
 
 struct SimpleFixIt: FixItMessage {
-    static let addConcreteTrueTitle = "Add concrete: true"
-
     let message: String
     let fixItID: MessageID
 
@@ -390,13 +387,6 @@ extension SimpleDiagnostic {
         return Self(
             support.diagnosticMessage ?? "Unsupported local @DIContainer declaration.",
             code: .containerLocalDeclarationUnsupported
-        )
-    }
-
-    static func provideConcreteOptInRequired(name: String, typeDescription: String) -> Self {
-        Self(
-            "Concrete dependency '\(name): \(typeDescription)' requires concrete: true.",
-            code: .provideConcreteOptInRequired
         )
     }
 

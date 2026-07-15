@@ -60,10 +60,10 @@ struct StorageStressContainer {
     @Provide(.input)
     var transientCounter: StorageStressFactoryCounter
 
-    @Provide(.shared, factory: { (sharedCounter: StorageStressFactoryCounter) in sharedCounter.make() }, concrete: true)
+    @Provide(.shared, factory: { (sharedCounter: StorageStressFactoryCounter) in sharedCounter.make() })
     var sharedProbe: StorageStressProbe
 
-    @Provide(.transient, factory: { (transientCounter: StorageStressFactoryCounter) in transientCounter.make() }, concrete: true)
+    @Provide(.transient, factory: { (transientCounter: StorageStressFactoryCounter) in transientCounter.make() })
     var transientProbe: StorageStressProbe
 }
 

@@ -20,7 +20,7 @@ struct Greeter {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.shared, factory: { Greeter() }, concrete: true)
+    @Provide(.shared, factory: { Greeter() })
     var greeter: Greeter
 }
 
@@ -36,15 +36,13 @@ print(container.greeter.hello())
 * `@Provide(.shared, factory:)` declares a member built once per container
   instance from the supplied closure. The instance is cached and reused on
   every read.
-* `concrete: true` is required because the storage type is a concrete
-  `Greeter`, not a protocol existential. The macro wants the choice to be
-  explicit rather than implied.
+* The declared property type is `Greeter`, so generated storage and overrides
+  use that concrete nominal type. Declaring an `any Protocol` existential
+  instead would produce existential storage.
 
 ## Try it
 
-* Remove `concrete: true` and read the diagnostic. The macro asks you to
-  opt in because the stored type is not a protocol.
-* Add a second `@Provide(.shared, factory: { Greeter() }, concrete: true)`
+* Add a second `@Provide(.shared, factory: { Greeter() })`
   with a different name and confirm the second member is cached
   independently.
 

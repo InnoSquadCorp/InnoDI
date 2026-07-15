@@ -112,17 +112,17 @@ struct AppContainer {
 
     @Provide(.shared, factory: { (config: Config) in
         Service(config: config)
-    }, concrete: true)
+    })
     var service: Service
 
     @Provide(.transient, factory: { (config: Config) in
         Request(config: config)
-    }, concrete: true)
+    })
     var request: Request
 
     @Provide(.shared, factory: { (service: Lazy<Service>, request: Provider<Request>) in
         Consumer(service: service, requests: request)
-    }, concrete: true)
+    })
     var consumer: Consumer
 }
 
@@ -144,7 +144,7 @@ struct FeatureContainer {
 
     @Provide(.shared, factory: { (featureConfig: Config) in
         FeatureService(config: featureConfig)
-    }, concrete: true)
+    })
     var service: FeatureService
 }
 
@@ -164,11 +164,12 @@ let container = AppContainer(config: Config())
 _ = container.feature
 ```
 
-## Concrete Opt-In
+## Declared Storage Shape
 
 - Protocol-first dependency design is preferred.
-- Concrete `.shared` and `.transient` storage requires explicit
-  `concrete: true`.
+- The declared property type is the source of truth: a concrete nominal type
+  uses concrete storage, while `any Protocol` uses existential storage.
+- Storage shape is not selected by an attribute flag or macro heuristic.
 
 ## Runtime Lookup Tradeoffs
 

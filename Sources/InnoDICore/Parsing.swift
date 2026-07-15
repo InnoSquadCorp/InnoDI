@@ -97,10 +97,6 @@ public struct ProvideArguments {
     public let asyncFactoryExpr: ExprSyntax?
     /// Whether the async factory closure is throwing.
     public let asyncFactoryIsThrowing: Bool
-    /// Whether concrete opt-in (`concrete: true`) was explicitly requested.
-    public let concrete: Bool
-    /// Literal parse state for `concrete:`.
-    public let concreteParseState: BoolArgumentParseState
     /// Whether a function-valued `.input` hidden behind a typealias must be
     /// emitted as an escaping initializer parameter.
     public let escaping: Bool
@@ -122,7 +118,6 @@ public struct ProvideArguments {
     ///   - factoryExpr: Parsed factory expression.
     ///   - asyncFactoryExpr: Parsed async factory expression.
     ///   - asyncFactoryIsThrowing: Whether the async factory closure throws.
-    ///   - concrete: Explicit concrete opt-in value.
     ///   - escaping: Explicit escaping-input opt-in value.
     ///   - typeExpr: Positional type expression.
     ///   - dependencies: Parsed dependency names from `with:`.
@@ -133,8 +128,6 @@ public struct ProvideArguments {
         factoryExpr: ExprSyntax?,
         asyncFactoryExpr: ExprSyntax? = nil,
         asyncFactoryIsThrowing: Bool = false,
-        concrete: Bool = false,
-        concreteParseState: BoolArgumentParseState? = nil,
         escaping: Bool = false,
         escapingParseState: BoolArgumentParseState? = nil,
         typeExpr: ExprSyntax? = nil,
@@ -147,8 +140,6 @@ public struct ProvideArguments {
         self.factoryExpr = factoryExpr
         self.asyncFactoryExpr = asyncFactoryExpr
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
-        self.concrete = concrete
-        self.concreteParseState = concreteParseState ?? (concrete ? .parsed(true) : .omitted)
         self.escaping = escaping
         self.escapingParseState = escapingParseState ?? (escaping ? .parsed(true) : .omitted)
         self.typeExpr = typeExpr
@@ -427,8 +418,6 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var factoryExpr: ExprSyntax?
     var asyncFactoryExpr: ExprSyntax?
     var asyncFactoryIsThrowing = false
-    var concrete: Bool = false
-    var concreteParseState: BoolArgumentParseState = .omitted
     var escaping: Bool = false
     var escapingParseState: BoolArgumentParseState = .omitted
     var typeExpr: ExprSyntax?
@@ -446,13 +435,6 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     asyncFactoryExpr = argument.expression
                     if let closure = argument.expression.as(ClosureExprSyntax.self) {
                         asyncFactoryIsThrowing = closure.signature?.effectSpecifiers?.throwsClause != nil
-                    }
-                    continue
-                }
-                if label == "concrete" {
-                    concreteParseState = parseBoolArgument(argument.expression)
-                    if let value = concreteParseState.value {
-                        concrete = value
                     }
                     continue
                 }
@@ -510,8 +492,6 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         factoryExpr: factoryExpr,
         asyncFactoryExpr: asyncFactoryExpr,
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,
-        concrete: concrete,
-        concreteParseState: concreteParseState,
         escaping: escaping,
         escapingParseState: escapingParseState,
         typeExpr: typeExpr,

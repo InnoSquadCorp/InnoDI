@@ -36,7 +36,6 @@ indebido de InnoDI.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -73,7 +72,9 @@ non-optional.
 - `with:` solo se admite con `Type.self` y providers sincronos.
 - `asyncFactory` se admite para `.shared` y `.transient`, y debe ser una
   closure `async`.
-- El almacenamiento concrete `.shared` y `.transient` requiere `concrete: true`.
+- El tipo declarado de la property determina la forma de almacenamiento: un
+  tipo nominal concreto usa almacenamiento concreto y `any Protocol` usa
+  almacenamiento existencial.
 - La resolucion por nombre es estricta para parametros de factory y `with:`.
 
 ## Contrato de edges sibling
@@ -109,6 +110,6 @@ rechazan targets construidos mediante `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:factory:asyncFactory:concrete:escaping:)``
+- ``Provide(_:_:with:factory:asyncFactory:escaping:)``
 - ``DIScope``
 - <doc:Validation>

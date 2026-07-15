@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -329,7 +329,6 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -362,7 +361,8 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
   有効です。named container、module-qualified、typealias root、nested component、
   optional chaining、subscript、computed array element は拒否されます。参照先
   provider はすべて同期 construction でなければなりません。
-- 具象型の `.shared` / `.transient` ストレージには `concrete: true` が必要です。
+- 宣言した property type が storage shape を決定します。具象の nominal type は
+  具象 storage、`any Protocol` は existential storage になります。
 - factory パラメータと `with:` wiring の name 解決は member name に対して厳密です。
 
 Sibling DI edge は次の閉じた構文だけから生成されます。
@@ -436,14 +436,14 @@ input-only コンテナも空の builder を生成します。子コンテナが
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

@@ -167,6 +167,11 @@ standalone release assets.
 - `.shared` and `.transient` providers now require exactly one construction
   source from `factory:`, `asyncFactory:`, `Type.self`, or a property
   initializer. `.input` providers reject all four sources and `with:`.
+- The public `@Provide` signature no longer accepts `concrete:`. The declared
+  property type is the single source of truth for storage and override shape:
+  a concrete nominal type produces concrete storage, while `any Protocol`
+  produces existential storage. No replacement positional token or inference
+  flag is added.
 - `.input` initializer parameters remain eager `T` values, preserving normal
   `try` / `await` argument evaluation. Direct non-optional function types are
   detected and emitted as escaping parameters automatically. A non-optional
@@ -224,6 +229,20 @@ standalone release assets.
 
 ### Upgrade Actions
 
+- Run the migration tool from the consumer package or workspace root, then
+  review the diff and confirm a clean final check:
+  ```sh
+  swift run InnoDI-Migrate --root . --check
+  swift run InnoDI-Migrate --root . --write
+  swift run InnoDI-Migrate --root . --check
+  ```
+  It removes supported `concrete:` arguments and migrates supported deprecated
+  feature-root declarations atomically. Resolve any reported ambiguous site
+  manually before rerunning `--write`; the tool leaves the workspace unchanged
+  when it cannot prove a safe migration.
+- Delete any remaining `concrete:` argument and express the intended storage
+  shape with the declared property type. Use a concrete nominal type for
+  concrete storage or `any Protocol` for existential storage and overrides.
 - Before adopting 5.0, move unsupported containers and components to file scope
   or a non-generic nominal `struct`; inject runtime or type-specific state
   through `@Provide(.input)` or protocol dependencies. Replace an explicit

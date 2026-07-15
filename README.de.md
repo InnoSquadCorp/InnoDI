@@ -17,7 +17,7 @@ struct APIClient { let baseURL: String }
 @DIContainer
 struct AppContainer {
     @Provide(.input) var baseURL: String
-    @Provide(.shared, APIClient.self, with: [\Self.baseURL], concrete: true)
+    @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
 
@@ -343,7 +343,6 @@ auch strukturelle Swift-Diagnosen auslösen.
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
-    concrete: Bool = false,
     escaping: Bool = false
 )
 ```
@@ -378,7 +377,8 @@ Weitere Regeln:
   verschachtelte Komponenten, Optional Chaining, Subscripts und berechnete
   Array-Elemente werden abgelehnt. Jeder referenzierte Provider muss synchron
   konstruiert werden.
-- Konkrete `.shared`- und `.transient`-Typen brauchen `concrete: true`.
+- Der deklarierte Property-Typ bestimmt die Speicherform: Ein konkreter
+  Nominaltyp verwendet konkreten Speicher, `any Protocol` existenziellen Speicher.
 - Die Namensauflosung fur factory-Parameter und `with:`-Wiring ist streng
   an Member-Namen gebunden.
 
@@ -454,14 +454,14 @@ und laufen als No-op.
 ```swift
 @Provide(.shared, factory: { (service: Lazy<Service>) in
     Consumer(service: service)
-}, concrete: true)
+})
 var consumer: Consumer
 ```
 
 ```swift
 @Provide(.shared, factory: { (requests: Provider<Request>) in
     RequestLogger(requests: requests)
-}, concrete: true)
+})
 var logger: RequestLogger
 ```
 

@@ -47,3 +47,10 @@ InnoDI 通过显式边界来保持校验的确定性。
   周边调用路径本身可以安全传输，否则应把它们视为留在容器的隔离域内。
 - 非 `Sendable` 依赖应通过明确的容器边界传递，并由应用层隔离，而不是隐藏在
   全局 lookup 后面。
+
+## 声明类型决定存储形态
+
+- 推荐 protocol-first 的依赖设计。
+- 声明的 property type 是唯一依据：具体 nominal type 使用具体存储，
+  `any Protocol` 使用 existential 存储。
+- 存储形态不由 attribute flag 或 macro heuristic 选择。

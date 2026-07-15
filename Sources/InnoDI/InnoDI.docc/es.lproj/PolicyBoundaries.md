@@ -67,7 +67,11 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
   contenedor y quedar aisladas en la capa de la app, no ocultarse tras un
   lookup global.
 
-## Concrete Opt-In
+## Forma de almacenamiento declarada
 
 - Se prefiere diseño protocol-first.
-- El almacenamiento concrete `.shared` y `.transient` requiere `concrete: true`.
+- El tipo declarado de la property es la fuente de verdad: un tipo nominal
+  concreto usa almacenamiento concreto y `any Protocol` usa almacenamiento
+  existencial.
+- La forma de almacenamiento no se selecciona mediante un flag de atributo ni
+  una heurística del macro.

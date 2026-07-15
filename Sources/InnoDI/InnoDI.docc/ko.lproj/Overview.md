@@ -62,7 +62,7 @@ graph tooling에 초점을 둡니다.
 ### Symbols
 
 - ``DIContainer(root:validateDAG:mainActor:)``
-- ``Provide(_:_:with:factory:asyncFactory:concrete:escaping:)``
+- ``Provide(_:_:with:factory:asyncFactory:escaping:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``
