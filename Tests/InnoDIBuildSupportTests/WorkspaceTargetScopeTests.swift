@@ -25,6 +25,7 @@ struct WorkspaceTargetScopeTests {
 
         #expect(snapshot.rootPath == fixture.rootPath)
         #expect(snapshot.primaryTargetID == fixture.appID)
+        #expect(snapshot.analysisManifest == (try manifest.validated()))
         #expect(snapshot.files.count == 4)
         #expect(!snapshot.files.contains {
             $0.filePath == unrelatedURL.path
@@ -104,6 +105,7 @@ struct WorkspaceTargetScopeTests {
         })
 
         #expect(snapshot.primaryTargetID == nil)
+        #expect(snapshot.analysisManifest == nil)
         #expect(app.targetID == nil)
         #expect(app.origin == nil)
         #expect(app.sourceIdentity == app.relativePath)

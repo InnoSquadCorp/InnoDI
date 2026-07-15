@@ -60,6 +60,11 @@ package struct WorkspaceSourceSnapshot {
     package let rootURL: URL
     package let files: [WorkspaceSourceFile]
     package let primaryTargetID: WorkspaceTargetID?
+    /// Authoritative target topology for manifest-backed analysis.
+    ///
+    /// Root-path callers intentionally keep this `nil` so their historical
+    /// workspace-wide resolution behavior remains unchanged.
+    package let analysisManifest: WorkspaceAnalysisManifest?
 
     private let filesBySourceIdentity: [String: WorkspaceSourceFile]
     private let filesByRelativePath: [String: WorkspaceSourceFile]
@@ -68,12 +73,14 @@ package struct WorkspaceSourceSnapshot {
         rootPath: String,
         rootURL: URL,
         files: [WorkspaceSourceFile],
-        primaryTargetID: WorkspaceTargetID? = nil
+        primaryTargetID: WorkspaceTargetID? = nil,
+        analysisManifest: WorkspaceAnalysisManifest? = nil
     ) {
         self.rootPath = rootPath
         self.rootURL = rootURL
         self.files = files
         self.primaryTargetID = primaryTargetID
+        self.analysisManifest = analysisManifest
         self.filesBySourceIdentity = Dictionary(
             grouping: files,
             by: \.sourceIdentity
@@ -192,7 +199,8 @@ package func loadWorkspaceSourceSnapshot(
         rootPath: manifest.rootPackageDirectory,
         rootURL: rootURL,
         files: files,
-        primaryTargetID: manifest.primaryTargetID
+        primaryTargetID: manifest.primaryTargetID,
+        analysisManifest: manifest
     )
 }
 
