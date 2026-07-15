@@ -73,7 +73,7 @@ unica operacion.
 
 ## Requisitos
 
-- Swift tools version `6.2`
+- Swift tools version `6.2` (CI valida Swift 6.2 y 6.3)
 - Plataformas:
   - iOS 17+
   - macOS 13+

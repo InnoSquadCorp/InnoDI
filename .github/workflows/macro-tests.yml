@@ -14,6 +14,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Run Test Suite
         # -warnings-as-errors catches any regression that would slip through
         # `swiftSettings`'s warning-only StrictConcurrency gate. Paired with
@@ -118,6 +120,60 @@ jobs:
           path: build/perf-trend-report.json
           if-no-files-found: ignore
 
+  swift-62-compatibility:
+    name: Swift 6.2 compatibility
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.2
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.2"
+      - name: Run strict external compatibility contracts
+        run: |
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests
+
+  apple-platform-builds:
+    name: Apple platform builds (Xcode 26.3)
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
+      - name: Build public libraries for every declared Apple platform
+        run: |
+          set -euo pipefail
+          SOURCE_PREFIX="$(pwd -P)/Sources/"
+          mkdir -p .build/platform-logs
+          for platform in macOS iOS watchOS tvOS visionOS; do
+            echo "Building InnoDISwiftUI for generic/platform=$platform"
+            BUILD_LOG=".build/platform-logs/${platform}.log"
+            xcodebuild -quiet \
+              -scheme InnoDISwiftUI \
+              -destination "generic/platform=$platform" \
+              -derivedDataPath .build/xcode-platform-derived-data \
+              -clonedSourcePackagesDirPath .build/xcode-platform-source-packages \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO \
+              SWIFT_STRICT_CONCURRENCY=complete \
+              build 2>&1 | tee "$BUILD_LOG"
+            if awk -v prefix="$SOURCE_PREFIX" '
+              index($0, prefix) && index($0, "warning:") { print; found = 1 }
+              END { exit(found ? 0 : 1) }
+            ' "$BUILD_LOG"; then
+              echo "Compiler warning emitted by an InnoDI source while building $platform."
+              exit 1
+            fi
+          done
+
   path-identity:
     runs-on: macos-26
     steps:
@@ -127,6 +183,8 @@ jobs:
           path: not-innodi
       - name: Select Xcode 26.3
         uses: ./not-innodi/.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Run Strict Concurrency Fixture
         working-directory: not-innodi
         run: |

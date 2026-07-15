@@ -64,7 +64,7 @@ override 仅应在单次 operation 内生效时，才取出 `swift-dependencies`
 
 ## 要求
 
-- Swift tools version `6.2`
+- Swift tools version `6.2`（CI 验证：Swift 6.2 与 6.3）
 - 平台：
   - iOS 17+
   - macOS 13+

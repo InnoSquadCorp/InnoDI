@@ -71,7 +71,7 @@ fur die Dauer einer einzigen Operation gelten soll.
 
 ## Anforderungen
 
-- Swift tools version `6.2`
+- Swift tools version `6.2` (CI validiert Swift 6.2 und 6.3)
 - Plattformen:
   - iOS 17+
   - macOS 13+

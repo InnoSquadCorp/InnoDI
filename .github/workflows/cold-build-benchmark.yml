@@ -30,6 +30,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Run cold build benchmark
         env:
           BINDINGS: ${{ github.event.inputs.bindings || '100' }}
