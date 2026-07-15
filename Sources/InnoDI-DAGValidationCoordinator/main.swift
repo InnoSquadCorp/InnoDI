@@ -1,13 +1,6 @@
 import Foundation
 import InnoDIBuildSupport
 
-struct CoordinatorArguments {
-    let rootPath: String
-    let toolPath: String?
-    let stateDirectoryPath: String?
-    let outputDirectoryPath: String
-}
-
 enum CoordinatorExitCode {
     static let failure: Int32 = 1
 }
@@ -17,16 +10,28 @@ do {
     let lockPolicy = ValidationCoordinatorLockPolicy(
         environment: ProcessInfo.processInfo.environment
     )
-    let stateDirectoryPath = arguments.stateDirectoryPath ?? sharedValidationStateDirectory(
+    let sharedStateDirectoryPath = arguments.stateDirectoryPath
+        ?? sharedValidationStateDirectory(
         forPluginOutputDirectory: URL(fileURLWithPath: arguments.outputDirectoryPath, isDirectory: true)
     ).path(percentEncoded: false)
-    let outcome = try await ValidationCoordinator.coordinate(
-        rootPath: arguments.rootPath,
-        toolPath: arguments.toolPath,
-        stateDirectoryPath: stateDirectoryPath,
-        outputDirectoryPath: arguments.outputDirectoryPath,
-        lockPolicy: lockPolicy
-    )
+    let outcome: ValidationExecutionOutcome
+    switch arguments.input {
+    case .rootPath(let rootPath):
+        outcome = try await ValidationCoordinator.coordinate(
+            rootPath: rootPath,
+            toolPath: arguments.toolPath,
+            stateDirectoryPath: sharedStateDirectoryPath,
+            outputDirectoryPath: arguments.outputDirectoryPath,
+            lockPolicy: lockPolicy
+        )
+    case .analysisManifestPath(let manifestPath):
+        outcome = try await ValidationCoordinator.coordinate(
+            analysisManifestPath: manifestPath,
+            sharedStateDirectoryPath: sharedStateDirectoryPath,
+            outputDirectoryPath: arguments.outputDirectoryPath,
+            lockPolicy: lockPolicy
+        )
+    }
 
     if outcome.result.exitCode != 0 || !outcome.wasCached {
         if !outcome.result.stdout.isEmpty {
@@ -46,70 +51,6 @@ do {
     Foundation.exit(CoordinatorExitCode.failure)
 }
 
-private func parseArguments() throws -> CoordinatorArguments {
-    let args = Array(CommandLine.arguments.dropFirst())
-    var rootPath: String?
-    var toolPath: String?
-    var stateDirectoryPath: String?
-    var outputDirectoryPath: String?
-    var index = 0
-
-    func requireValue(for option: String) throws -> String {
-        guard index + 1 < args.count else {
-            throw CoordinatorArgumentError.missingValue(option: option)
-        }
-        let value = args[index + 1]
-        guard !value.hasPrefix("-") else {
-            throw CoordinatorArgumentError.missingValue(option: option)
-        }
-        return value
-    }
-
-    while index < args.count {
-        let option = args[index]
-        switch option {
-        case "--root":
-            rootPath = try requireValue(for: option)
-            index += 2
-        case "--tool":
-            toolPath = try requireValue(for: option)
-            index += 2
-        case "--state-dir":
-            stateDirectoryPath = try requireValue(for: option)
-            index += 2
-        case "--output-dir":
-            outputDirectoryPath = try requireValue(for: option)
-            index += 2
-        default:
-            throw CoordinatorArgumentError.unknownOption(option)
-        }
-    }
-
-    guard let rootPath, let outputDirectoryPath else {
-        throw CoordinatorArgumentError.missingRequiredArguments
-    }
-
-    return CoordinatorArguments(
-        rootPath: rootPath,
-        toolPath: toolPath,
-        stateDirectoryPath: stateDirectoryPath,
-        outputDirectoryPath: outputDirectoryPath
-    )
-}
-
-enum CoordinatorArgumentError: LocalizedError {
-    case missingValue(option: String)
-    case unknownOption(String)
-    case missingRequiredArguments
-
-    var errorDescription: String? {
-        switch self {
-        case let .missingValue(option):
-            return "Option \(option) requires a value."
-        case let .unknownOption(option):
-            return "Unknown option \(option)."
-        case .missingRequiredArguments:
-            return "Required options: --root, --output-dir. Optional compatibility inputs: --state-dir <path>, --tool <path>."
-        }
-    }
+private func parseArguments() throws -> ValidationCoordinatorArguments {
+    try parseValidationCoordinatorArguments()
 }
