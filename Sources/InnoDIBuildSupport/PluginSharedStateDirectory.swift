@@ -1,4 +1,5 @@
 import Foundation
+import InnoDIWorkspaceAnalysis
 
 package func sharedValidationStateDirectory(forPluginOutputDirectory outputDirectory: URL) -> URL {
     let components = outputDirectory.pathComponents
@@ -29,4 +30,20 @@ package func sharedValidationStateDirectory(forPluginOutputDirectory outputDirec
         fallback = parent
     }
     return fallback.appending(path: "innodi-dag-validation-state", directoryHint: .isDirectory)
+}
+
+/// Isolates AST digests, locks, and shared-run results for one stable target.
+///
+/// The package-level base remains shared by source and prebuilt plugin
+/// variants, while the target hash prevents parallel target invocations from
+/// reusing a result computed for a different source closure.
+package func targetScopedValidationStateDirectory(
+    for targetID: WorkspaceTargetID,
+    under sharedStateDirectory: URL
+) -> URL {
+    var hasher = StableHasher()
+    hasher.combine("target-state-v1:\(targetID.rawValue)")
+    return sharedStateDirectory
+        .appending(path: "targets", directoryHint: .isDirectory)
+        .appending(path: hasher.finalize(), directoryHint: .isDirectory)
 }
