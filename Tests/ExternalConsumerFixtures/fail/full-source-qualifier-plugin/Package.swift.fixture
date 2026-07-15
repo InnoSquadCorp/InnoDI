@@ -1,0 +1,28 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "FullSourceQualifierPluginConsumer",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(path: "{{INNODI_PACKAGE_PATH}}")
+    ],
+    targets: [
+        .executableTarget(
+            name: "FixtureApp",
+            dependencies: [
+                .product(
+                    name: "InnoDISwiftUI",
+                    package: "{{INNODI_PACKAGE_IDENTITY}}"
+                )
+            ],
+            plugins: [
+                .plugin(
+                    name: "InnoDIDAGValidationPlugin",
+                    package: "{{INNODI_PACKAGE_IDENTITY}}"
+                )
+            ]
+        )
+    ]
+)

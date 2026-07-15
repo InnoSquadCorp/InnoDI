@@ -1,0 +1,14 @@
+struct Swift {}
+
+extension FeatureHost {
+    struct _Concurrency {}
+    struct SwiftUI {}
+}
+
+extension FeatureHost.AppContainer {
+    typealias InnoDI = Int
+}
+
+extension FeatureHost.BridgeContainer {
+    typealias InnoDISwiftUI = Int
+}

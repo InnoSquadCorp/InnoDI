@@ -1,0 +1,20 @@
+import InnoDISwiftUI
+
+class BaseBridge {
+    struct Swift {}
+    struct SwiftUI {}
+    struct InnoDISwiftUI {}
+}
+
+@DIEnvironmentBridge([])
+final class InheritedBridge: BaseBridge {}
+
+struct FeatureHost {
+    @DIContainer
+    struct AppContainer {
+        @Provide(.input) var value: Int
+    }
+
+    @DIEnvironmentBridge([])
+    struct BridgeContainer {}
+}

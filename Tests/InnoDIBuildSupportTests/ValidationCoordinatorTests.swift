@@ -1968,6 +1968,58 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Full-source qualifier validation fails before DAG runner executes")
+    func qualifierValidationFailsBeforeRunnerExecutes() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input) var value: Int
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("Container.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "struct Swift {}\n".write(
+            to: fixture.rootURL.appendingPathComponent("QualifierShadow.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let runner = MockValidationRunner(
+            results: [
+                ValidationCommandResult(
+                    exitCode: 0,
+                    stdout: "unexpected\n",
+                    stderr: ""
+                )
+            ]
+        )
+
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        #expect(
+            outcome.metricsArtifact.issues.map(\.code) == [
+                "container.reserved-module-name"
+            ]
+        )
+        #expect(
+            outcome.metricsArtifact.reasonCodes.contains(
+                .liveRunSemanticFailure
+            )
+        )
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Unsupported container declarations fail once before downstream validation")
     func unsupportedContainerDeclarationFailsBeforeRunnerExecutes() async throws {
         let fixture = try makeFixture()

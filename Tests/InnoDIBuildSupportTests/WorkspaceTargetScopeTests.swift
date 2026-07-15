@@ -311,8 +311,8 @@ struct WorkspaceTargetScopeTests {
         #expect(appState.deletingLastPathComponent().lastPathComponent == "targets")
         #expect(appState.lastPathComponent.count == 32)
 
-        let currentName = "shared-run-v6-" + String(repeating: "a", count: 32)
-        let staleVersionName = "shared-run-v5-" + String(
+        let currentName = "shared-run-v7-" + String(repeating: "a", count: 32)
+        let staleVersionName = "shared-run-v6-" + String(
             repeating: "b",
             count: 32
         )

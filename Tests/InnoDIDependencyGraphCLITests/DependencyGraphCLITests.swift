@@ -484,8 +484,8 @@ struct DependencyGraphCLITests {
         #expect(!result.stderr.contains("DAG validation passed."))
     }
 
-    @Test("Render mode warns and skips invalid UTF-8 sources")
-    func renderModeWarnsAndSkipsInvalidUTF8Sources() throws {
+    @Test("Render mode fails strict source loading on invalid UTF-8")
+    func renderModeFailsStrictSourceLoadingOnInvalidUTF8() throws {
         let fixtureURL = try makeFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
         try Data([0xff, 0xfe, 0xfd]).write(to: fixtureURL.appendingPathComponent("Broken.swift"))
@@ -496,9 +496,10 @@ struct DependencyGraphCLITests {
             "--format", "ascii"
         ])
 
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("InnoDI Dependency Graph"))
-        #expect(result.stderr.contains("Warning: failed to read 'Broken.swift'"))
+        #expect(result.exitCode == 1)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("Error loading Swift sources"))
+        #expect(!result.stderr.contains("InnoDI Dependency Graph"))
     }
 
     @Test("Validation output files still mirror stderr diagnostics")
