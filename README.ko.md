@@ -153,10 +153,21 @@ SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
 )
 ```
 
-InnoDI 컨테이너를 선언하는 모든 타깃에는 build-time validation 플러그인을
-연결합니다. 이는 선택적인 graph 시각화 단계가 아니라 5.0 정확성 계약의 필수
-구성입니다. attached macro가 볼 수 없는 sibling extension의 custom initializer
-같은 선언은 full-source pass가 차단합니다.
+InnoDI 컨테이너 또는 standalone `@DIEnvironmentBridge`를 선언하는 모든 target에
+build-time validation plugin을 연결합니다. 이는 선택적인 graph 시각화 단계가
+아니라 5.0 정확성 계약의 필수 구성입니다. target-scoped full-source pass는
+attached macro가 단독으로 확인할 수 없는 sibling extension의 custom initializer,
+enclosing 또는 같은 target의 generated qualifier shadow, 현재 target에서 보이는
+imported dependency target의 `public` 또는 `package` qualifier shadow, bridge의
+direct-extension attachment와 standalone local target을 compile 전에 차단합니다.
+
+Generated site가 class이거나 class 안에 중첩되면 superclass가 올 수 있는 첫
+inherited type이 source-visible declaration과 typealias를 통해 해소되어야 합니다.
+SDK 또는 binary에만 있거나, 해소되지 않거나, 모호한 첫 inherited type은
+`generated-qualifier.inheritance-unverifiable`로 fail closed합니다. Generated
+site를 struct/enum 또는 source-visible adapter로 옮기거나 target-scoped source
+snapshot이 superclass chain을 볼 수 있게 하세요. 이 preflight는 Swift
+type checker를 대신하는 semantic index가 아니라 보수적인 syntactic index입니다.
 
 ```swift
 .target(
@@ -170,11 +181,12 @@ InnoDI 컨테이너를 선언하는 모든 타깃에는 build-time validation �
 )
 ```
 
-소스 도구 컴파일이 도입 비용의 대부분이라고 측정한 팀은 동반
-`InnoDIValidationTools` 패키지의 선택적 prebuilt macOS validation plugin을
-사용할 수 있습니다. 위의 source plugin 또는 prebuilt plugin 중 하나만
-연결하고, 둘 다 연결하지 마세요. unsupported hosts와 local package
-development에서는 source plugin을 계속 사용해야 합니다.
+`InnoDIValidationTools`는 현재 공개되지 않은 companion package scaffold입니다.
+체크인된 artifact는 의도적으로 실패하는 fail-safe placeholder이며 사용할 수 있는
+prebuilt validator가 아닙니다. 실제 artifact를 게시하고 검증한 public release 전에는
+consumer dependency에 추가하면 안 됩니다. 공개 후에는 위의 source plugin 또는
+prebuilt plugin 중 하나만 연결하고, 둘 다 연결하지 마세요. unsupported hosts와
+local package development에서는 source plugin을 계속 사용해야 합니다.
 
 ## 빠른 시작
 
@@ -328,8 +340,16 @@ storage/support declaration은 `_storage_`, `_override_`, `_innoDI`, `_InnoDI`�
 `_Concurrency`와 SwiftUI bridge anchor는 attached macro가 볼 수 있는 type
 namespace에서 예약합니다. 정확한
 5.0 matrix는 [Migration Guide](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md)를
-참고하세요. 후속 target-scoped preflight가 추가되기 전까지 SwiftSyntax가 숨기는
-enclosing declaration의 같은 이름 멤버도 피해야 합니다. 명시적 property type에는 opaque
+참고하세요. target-scoped full-source pass는 SwiftSyntax가 attached macro에서 숨기는
+enclosing declaration의 같은 이름 멤버, 같은 target의 qualifier shadow, 현재 target에서
+보이는 imported dependency target의 `public` 또는 `package` qualifier shadow를
+거부합니다. Class bridge 또는 이를 감싸는 class에서는 source-visible superclass
+chain도 따라갑니다. 상속된 type member `Swift`와 `SwiftUI`는 거부하지만 상속된
+`InnoDISwiftUI`는 안전합니다. 직접 또는 lexical scope에서 보이는
+`InnoDISwiftUI` declaration은 계속 예약됩니다. 이 검사는 보수적인 syntactic
+index이므로 SDK·binary에만 있거나 해소되지 않거나 모호한 첫 inherited type은
+superclass에 shadow가 없다고 추측하지 않고
+`generated-qualifier.inheritance-unverifiable`로 fail closed합니다. 명시적 property type에는 opaque
 `some Protocol`이나 implicitly unwrapped optional `T!`를 사용할 수 없습니다.
 각각 `any Protocol`, 명시적인 `T` 또는 `T?`로 바꾸세요. Compiler-support
 accessor와 다른 property wrapper를 의도적으로 위조해 함께 붙이면 InnoDI의
@@ -532,7 +552,7 @@ cross-module ownership에는 다음을 사용합니다.
 그래프 렌더링:
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 ```
 
 global DAG 검증:

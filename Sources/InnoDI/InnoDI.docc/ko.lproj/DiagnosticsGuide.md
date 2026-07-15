@@ -225,7 +225,22 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   `InnoDI`라는 direct declaration, 또는 `Swift`나 `_Concurrency`라는 direct
   nested type/typealias가 generated support의 module qualifier를 가립니다.
   선언 이름을 변경하세요. 값 namespace의 `Swift`, `_Concurrency` 멤버는 계속
-  사용할 수 있습니다.
+  사용할 수 있습니다. Target-scoped full-source preflight는 같은 진단을 sibling
+  file, enclosing member, matching extension, import한 dependency target에서
+  보이는 선언까지 확장합니다.
+- `generated-qualifier.inheritance-unverifiable` — generated site인 class 또는
+  generated site를 lexical scope로 감싸는 class의 첫 inherited type을
+  target-scoped source index가 하나로 해소할 수 없습니다. 첫 inherited 위치에는
+  superclass가 올 수 있으므로 validator는 container 또는 bridge support를
+  생성하기 전에 source-visible class와 typealias chain을 따라갑니다. 이 위치의
+  source-visible protocol은 superclass scan을 끝내지만 SDK·binary에만 있거나,
+  해소되지 않거나, 모호한 declaration은 fail closed합니다. Generated site를
+  struct/enum 또는 source-visible adapter로 옮기거나 inheritance chain을 indexed
+  source로 제공하세요. 이 validator는 외부 module을 type-check하지 않는 보수적인
+  syntactic index입니다. Class bridge에서는 상속된 type member `Swift`와
+  `SwiftUI`가 해당 reserved-module 진단을 받지만 상속된 `InnoDISwiftUI`는
+  안전합니다. 다만 직접 또는 lexical scope에서 보이는 같은 이름의 declaration은
+  계속 예약됩니다.
 
 ## SubContainer 진단
 
@@ -306,12 +321,12 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   지원되는 key-path 리스트 형태 외의 인자를 받았습니다.
 - `swiftui.environment-bridge-reserved-module-name` — bridge 대상이나 이를
   감싸는 nominal·generic parameter, 또는 target의 direct nested
-  type/typealias에 있는 `Swift`/`SwiftUI`/`InnoDISwiftUI` 이름이 생성 modifier의 module
-  qualifier를 가립니다. 타입 선언이나 generic parameter 이름을 바꾸세요.
-  같은 이름의 값 멤버는 계속 사용할 수 있습니다. SwiftSyntax가 attached
-  macro의 lexical context에서 enclosing member를 제거하므로 현재 이 진단의
-  범위 밖입니다. 5.0 release candidate 전에 추가할 target-scoped full-source
-  preflight가 이 경계를 닫습니다.
+  type/typealias에 있는 `Swift`/`SwiftUI`/`InnoDISwiftUI` 이름이 생성 modifier의
+  module qualifier를 가립니다. 타입 선언이나 generic parameter 이름을
+  바꾸세요. 같은 이름의 값 멤버는 계속 사용할 수 있습니다. 필수
+  target-scoped full-source preflight는 attached macro가 검사할 수 없는 sibling
+  file, enclosing member, matching extension, import한 dependency target에서
+  보이는 선언까지 같은 진단으로 차단합니다.
 - `swiftui.environment-bridge-generated-name-conflict` — bridge target이 생성
   멤버를 다시 선언했습니다. `_InnoDIEnvironmentBridgeModifier`는 direct nested
   nominal type, protocol, typealias, static/class variable·function, enum
@@ -322,12 +337,17 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   member와 parameter가 있는 overload, target·generic parameter 이름, 반대
   namespace의 선언, nested body 안의 선언은 계속 사용할 수 있습니다.
 - `swiftui.environment-bridge-extension-context-unsupported` — bridge 대상이
-  extension 안에 중첩되어 있습니다. Attached syntax macro는 생성 전 다른
-  파일의 extension-member lookup을 검증할 수 없으므로 file 또는 nominal
-  scope로 옮기세요. Direct extension attachment는 Swift의 attached-extension
-  제한이 먼저 거부할 수 있습니다. Target-scoped full-source preflight가
-  추가되기 전까지 direct extension attachment와 standalone local target은
-  compiler-owned 경계로 남습니다.
+  extension이거나 extension 안에 중첩되어 있습니다. Attached syntax macro는
+  생성 전 다른 파일의 extension-member lookup을 검증할 수 없으므로 file 또는
+  nominal scope로 옮기세요. Target-scoped full-source preflight는 source compile
+  전에 두 형태에 모두 이 진단을 내며, 필수 plugin을 연결하지 않으면 direct
+  extension attachment를 Swift가 먼저 거부할 수 있습니다.
+- `swiftui.environment-bridge-local-declaration-unsupported` — bridge 대상이
+  function, initializer, deinitializer, subscript, accessor 또는 closure 안에
+  선언되어 있습니다. 생성 conformance가 안정적인 lookup path를 갖도록 file
+  또는 nominal scope로 옮기세요. Attached macro가 Swift의 local-declaration
+  진단보다 먼저 이 경계를 안정적으로 소유할 수 없으므로 build/CLI
+  full-source pass가 내는 진단입니다.
 - `swiftui.environment-bridge-unsupported-declaration-kind` — bridge 대상이
   actor, protocol 또는 다른 지원하지 않는 선언 종류입니다. Struct, class,
   enum으로 옮기세요.

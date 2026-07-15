@@ -12,6 +12,28 @@ InnoDI сохраняет детерминированность за счет �
 - Без build-validation plugin запрет во всех extensions не гарантируется,
   поскольку attached macro не может надежно просматривать соседние extensions.
 
+## Границы generated qualifiers и bridges
+
+- Подключайте `InnoDIDAGValidationPlugin` к каждому target, где объявлены
+  InnoDI containers или standalone `@DIEnvironmentBridge`.
+- Target-scoped full-source pass отклоняет невидимые для attached macro
+  generated qualifier shadows во включающих объявлениях, matching extensions
+  и других source того же target, а также видимые qualifier shadows с доступом
+  `public` или `package` в импортированных dependency targets.
+- Он также отклоняет `@DIEnvironmentBridge`, примененный прямо к extension
+  или объявленный в standalone local scope. Перенесите bridge target на file
+  или nominal scope.
+- Для class bridge или generated site, вложенного в class, первый inherited type
+  должен разрешаться через source-visible declarations и typealiases. Этот pass
+  является консервативным syntactic index, а не semantic type checker Swift,
+  поэтому первый inherited type, доступный только в SDK или binary, unresolved
+  либо ambiguous, приводит к
+  `generated-qualifier.inheritance-unverifiable`.
+- Source-visible superclass chain проверяется на qualifier shadows. Генерация
+  bridge отклоняет унаследованные type members `Swift` и `SwiftUI`, но
+  унаследованный `InnoDISwiftUI` безопасен. Прямые и enclosing declarations
+  `InnoDISwiftUI` остаются зарезервированными.
+
 ## Matching Strategy
 
 - общий nominal-path подход для макросов, Core и graph CLI

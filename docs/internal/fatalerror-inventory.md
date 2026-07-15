@@ -36,9 +36,10 @@ reserved `InnoDI` names in the container's direct scope and visible enclosing
 binders prevent those declarations from shadowing calls emitted by the macro.
 Enclosing member lists and declarations elsewhere in a consumer file or module
 are outside an attached syntax macro's validation boundary. The target-scoped
-full-source preflight planned later in the 5.0 train will own them; until then,
-Swift may diagnose those shadowing declarations itself. Diagnostic-only recovery getters use an
-identifier-free nonreturning loop instead of a runtime trap. Any
+full-source preflight now owns sibling-file, enclosing-member,
+matching-extension, and visible dependency declarations before compilation.
+Diagnostic-only recovery getters use an identifier-free nonreturning loop
+instead of a runtime trap. Any
 `fatalError(...)` occurrence under `Sources/InnoDIMacros/` is now unexpected
 and fails CI.
 

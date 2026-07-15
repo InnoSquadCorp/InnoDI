@@ -21,7 +21,7 @@ changes a consumer must make**.
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
-→ 4.1 operational hardening, then the upcoming 5.0 surface and older hops.
+→ 4.1 operational hardening, then the unreleased 5.0 surface and older hops.
 
 ---
 
@@ -210,14 +210,14 @@ Two additions that you don't have to use, but might want to:
 
 ---
 
-## 4.x → 5.0 (planned)
+## 4.x → 5.0 (unreleased)
 
 5.0 restores the compiler and graph contracts before adding more macro
 surface. The originally paired wiring simplification has already landed, and
 experimental features do not automatically become GA because this is a major
 release.
 
-| Area | Planned consumer effect |
+| Area | Consumer effect |
 |---|---|
 | `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
 | `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
@@ -232,10 +232,22 @@ release.
 | MainActor | Put dependency conformers, construction, and use of non-`Sendable` generated values for `mainActor: true` components on `@MainActor`. From off actor, construct and consume them inside `MainActor.run`; use direct `await` only when the isolated operation returns a `Sendable` result. Override-application closures for convenience initializers, `withOverrides`, child overrides, and component mounting are now `@MainActor`. |
 | Non-main-actor async `withOverrides` | Generated `async` / `async throws` methods and operation closure types are `nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary non-`Sendable` containers and closures stay within the caller's isolation. Sync overloads are unchanged. |
 | Validation | Replace dynamic scope expressions, conditional provider attributes, and complete `@Provide` or `@SubContainer` member declarations inside `#if` with supported, statically analyzable forms. |
-| Generated names | Rename direct container declarations beginning with `_storage_`, `_override_`, `_innoDI`, or `_InnoDI`, plus any direct declaration named `InnoDI`, nested type/typealias named `Swift` or `_Concurrency`, and a container, enclosing nominal, or generic parameter named `InnoDI`, `Swift`, or `_Concurrency`. Value members named `Swift` or `_Concurrency` remain available. `@DIEnvironmentBridge` also reserves type-namespace `Swift`, `SwiftUI`, and `InnoDISwiftUI` in its target and visible enclosing binders, supports only struct/class/enum targets, and no longer supports an extension target or a target nested in an extension. Until the target-scoped full-source preflight lands later in the 5.0 train, also avoid shadowing members in enclosing declarations, direct extension attachments, and standalone local bridge targets because attached macros cannot validate those scopes before the compiler's attached-extension checks. Direct extension and local targets may receive Swift's compiler-owned restriction first. Former implementation-local spellings such as `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, and `_lazySelf` are available again. Public initializer and operation labels are unchanged. |
+| Generated names | Rename direct container declarations beginning with `_storage_`, `_override_`, `_innoDI`, or `_InnoDI`, plus any direct declaration named `InnoDI`, nested type/typealias named `Swift` or `_Concurrency`, and a container, enclosing nominal, or generic parameter named `InnoDI`, `Swift`, or `_Concurrency`. Value members named `Swift` or `_Concurrency` remain available. `@DIEnvironmentBridge` also reserves type-namespace `Swift`, `SwiftUI`, and `InnoDISwiftUI` in its target and visible enclosing binders, supports only struct/class/enum targets, and no longer supports an extension target, a target nested in an extension, or a local target inside executable code. The required target-scoped full-source preflight rejects visible qualifier shadows from sibling files, enclosing members, matching extensions, and imported dependency targets, plus direct-extension and local bridge targets that an attached macro cannot validate alone. Without that preflight, Swift may issue its compiler-owned restriction first for direct-extension or local targets. Former implementation-local spellings such as `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, and `_lazySelf` are available again. Public initializer and operation labels are unchanged. |
 | Generated peer collisions | Give every direct `@Provide` and `@SubContainer` property a unique name across both roles. Distinct names can still map to the same hidden peer—for example async `X` and `task_X`, or child `X` and `sub_X`, `sub_apply_X`, or `apply_X`. Follow `container.generated-symbol-collision` and rename either declaration; the diagnostic names the exact generated symbol and its first source claim. |
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
+
+If a generated container or bridge is a class, or is nested in one, its first
+inherited type must resolve through the target-scoped source snapshot. The
+preflight follows source-visible superclass and typealias chains to find
+inherited qualifier shadows. SDK-only and binary-only declarations are outside
+this conservative syntactic index, so they fail in the same way as unresolved
+or ambiguous first inheritance with
+`generated-qualifier.inheritance-unverifiable`. Move the generated site to a
+struct/enum or a source-visible adapter when that chain cannot be exposed. For
+bridge generation, inherited type members named `Swift` or `SwiftUI` must be
+renamed; inherited `InnoDISwiftUI` is safe, while direct and enclosing
+declarations with that name remain reserved.
 
 Run the public migration executable before compiling the rest of the package:
 
@@ -446,9 +458,10 @@ closure `async throws` when the provider can throw. `validateDAG: false` does
 not bypass this compatibility matrix. `Type.self`/`with:` is intentionally
 stricter and cannot target either `async` or `async throws` providers.
 
-This section is the migration outline while implementation proceeds. Remaining
-diagnostics, codemod commands, and before/after examples are release blockers
-and will be added before the 5.0.0 tag.
+The stable diagnostics, `InnoDI-Migrate` command, and before/after examples in
+this section are part of the 5.0 release candidate. Run the migration command
+with `--check` after reviewing any write-mode changes so unresolved or
+unsupported sites fail closed before adopting 5.0.
 
 ---
 

@@ -12,6 +12,27 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
   안정적으로 확인할 수 없으므로 extension 전체에 대한 금지 계약은 보장되지
   않습니다.
 
+## Generated Qualifier와 Bridge 경계
+
+- InnoDI container 또는 standalone `@DIEnvironmentBridge`를 선언하는 모든 target에
+  `InnoDIDAGValidationPlugin`을 붙입니다.
+- target-scoped full-source pass는 attached macro가 검사할 수 없는 enclosing
+  declaration, matching extension, 같은 target의 다른 source에 있는 generated
+  qualifier shadow와 현재 target에서 보이는 imported dependency target의 `public`
+  또는 `package` qualifier shadow를 거부합니다.
+- `@DIEnvironmentBridge`를 extension에 직접 붙이거나 standalone local scope에
+  선언하는 형태도 거부합니다. Bridge target을 file 또는 nominal scope로
+  옮기세요.
+- Class bridge 또는 class 안에 중첩된 generated site의 첫 inherited type은
+  source-visible declaration과 typealias를 통해 해소되어야 합니다. 이 pass는
+  Swift의 semantic type checker가 아닌 보수적인 syntactic index이므로 SDK나
+  binary에만 있거나 해소되지 않거나 모호한 첫 inherited type은
+  `generated-qualifier.inheritance-unverifiable`로 fail closed합니다.
+- Source-visible superclass chain에서 qualifier shadow를 검사합니다. Bridge
+  생성은 상속된 type member `Swift`와 `SwiftUI`를 거부하지만 상속된
+  `InnoDISwiftUI`는 안전합니다. 직접 또는 enclosing scope의
+  `InnoDISwiftUI` declaration은 계속 예약됩니다.
+
 ## Matching Strategy
 
 - `InnoDIMacros`, `InnoDICore`, graph CLI는 가능한 한 동일한 nominal-path 모델을 공유합니다.

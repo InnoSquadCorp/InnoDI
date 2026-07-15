@@ -161,8 +161,21 @@ SwiftUI helper が必要な場合だけ `InnoDISwiftUI` を追加します。
 )
 ```
 
-build-time DAG validator を有効にするには、InnoDI container を宣言する
-各 target に plugin を追加します。
+build-time DAG validator を有効にするには、InnoDI container または standalone
+`@DIEnvironmentBridge` を宣言する各 target に plugin を追加します。target-scoped
+full-source pass は、attached macro から見えない enclosing declaration や同じ
+target の generated qualifier shadow、import 済み dependency target で可視な
+`public` / `package` qualifier shadow を拒否し、bridge の direct-extension
+attachment と standalone local target も Swift compile 前に遮断します。
+
+generated site が class、または class 内に nested している場合、superclass を
+指定できる位置にある最初の inherited type は source-visible declaration と
+typealias を通じて解決できなければなりません。SDK-only、binary-only、未解決、
+または ambiguous な最初の inherited type は
+`generated-qualifier.inheritance-unverifiable` で fail closed します。generated
+site を struct / enum または source-visible adapter へ移すか、target-scoped source
+snapshot から superclass chain が見えるようにしてください。この preflight は
+Swift type checker の代替ではなく、保守的な syntactic index です。
 
 ```swift
 .target(
@@ -176,11 +189,13 @@ build-time DAG validator を有効にするには、InnoDI container を宣言�
 )
 ```
 
-source-tool のコンパイルが導入コストの大部分を占めると計測済みのチーム向けに、
-companion package の `InnoDIValidationTools` は任意の prebuilt macOS
-validation plugin を提供します。上記の source plugin か prebuilt plugin の
-どちらか一方だけを attach し、両方は attach しないでください。unsupported
-hosts と local package development では source plugin を使い続けてください。
+`InnoDIValidationTools` は現在 unpublished の companion package scaffold です。
+checked-in artifact は意図的に失敗する fail-safe placeholder であり、利用可能な
+prebuilt validator ではありません。実際の artifact を公開して検証した public
+release までは consumer dependency に追加しないでください。公開後は上記の
+source plugin か prebuilt plugin のどちらか一方だけを attach し、両方は attach
+しないでください。unsupported hosts と local package development では source
+plugin を使い続けてください。
 
 ## クイックスタート
 
@@ -315,8 +330,32 @@ compiler support です。完全な `@Provide` member declaration を `#if` 内�
 置き、factory または注入する実装の内部で分岐してください。
 
 各 property に付与できる `@Provide` は正確に 1 つです。重複 attribute は
-`provide.duplicate-attribute` で拒否されます。明示的な property type に opaque
-`some Protocol` または implicitly unwrapped optional `T!` は使用できません。
+`provide.duplicate-attribute` で拒否されます。direct provider property と root
+factory closure の dependency parameter は、それぞれ effective name が一意で
+なければなりません。duplicate identity は generated lookup や storage code の
+生成前に拒否されます。どちらの declaration も unescaped identifier が必須で、
+backtick-escaped property / factory-parameter name は 5.0 で拒否されます。
+`@SubContainer` property name も、生成される child storage、override、root-helper
+identity の基になるため unescaped でなければなりません。
+
+生成される storage / support declaration は `_storage_`、`_override_`、
+`_innoDI`、`_InnoDI` を予約し、direct declaration の正確な名前 `InnoDI` も
+予約します。`Swift`、`_Concurrency`、SwiftUI bridge anchor は attached macro
+から見える type namespace で予約されます。正確な 5.0 matrix は
+[Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md) を参照してください。
+target-scoped full-source pass は、attached macro から見えない generated qualifier
+と衝突する enclosing scope / same-target declaration、および imported dependency
+target で可視な `public` / `package` declaration を拒否します。
+class bridge またはそれを囲む class では、scan は source-visible superclass
+chain もたどります。継承した type member `Swift` と `SwiftUI` は拒否されますが、
+継承した `InnoDISwiftUI` member は安全です。direct または lexical scope から
+見える `InnoDISwiftUI` declaration は引き続き予約されます。この scan は保守的な
+syntactic index であるため、SDK-only、binary-only、未解決、または ambiguous な
+最初の inherited type は superclass に shadow がないと仮定せず、
+`generated-qualifier.inheritance-unverifiable` で fail closed します。
+
+明示的な property type に opaque `some Protocol` または implicitly unwrapped
+optional `T!` は使用できません。
 それぞれ `any Protocol`、明示的な `T` または `T?` に移行してください。
 compiler-support accessor と別の property wrapper を意図的に偽装して併用した
 場合、InnoDI の misuse diagnostic に加えて Swift 自身の structural diagnostic
@@ -455,13 +494,21 @@ var logger: RequestLogger
 `@SubContainer` は親が所有する子コンテナを表します:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(
+    scope: .shared,
+    with: [\.config, \.apiClient],
+    featureRoot: FeatureRootScene.self
+)
 var feature: FeatureContainer
 ```
 
 主なルール:
 
 - `scope:` は必須です。
+- supported parent `@DIContainer` の direct / plain / stored instance `var` に、
+  `#if` の外で正確に 1 つの `@SubContainer` を宣言してください。wrapper、
+  storage / accessor modifier、unknown attribute、
+  `InnoDI._InnoDISubContainerAccessor` の手動付与はサポートされません。
 - 親の `@Provide` 候補が 0 個または 1 個の場合のみ、名前ベースの
   implicit wiring が convenience として有効です。親候補が複数ある場合は
   生成された Swift initializer のエラーに頼らず、必ず explicit wiring を
@@ -471,6 +518,8 @@ var feature: FeatureContainer
   配列要素はサポートされません。
 - `with: []` は明示的な空 subset で、`Child()` を呼び出します。
 - `bindings:` は子 input label を別の親メンバー名に remap します。
+- `featureRoot:` / `featureRoots:` は、同じ property に別の peer macro を重ねず、
+  parent container に SwiftUI root helper を生成します。
 - `with:`、`bindings:` の wiring form は 1 つだけ選びます。
 - 親の `Overrides` には完全置換スロット (`feature`) と子 override closure
   (`featureOverrides`) の両方が追加されます。
@@ -494,7 +543,7 @@ var feature: FeatureContainer
 ## CLI とリリース情報
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```

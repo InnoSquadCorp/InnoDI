@@ -167,7 +167,24 @@ Fuge `InnoDISwiftUI` nur hinzu, wenn du die SwiftUI-Hilfen benotigst:
 ```
 
 Aktiviere den build-time DAG-Validator, indem du das Plugin an jedes Target
-hangst, das InnoDI-Container deklariert:
+haengst, das InnoDI-Container oder eine eigenstaendige
+`@DIEnvironmentBridge`-Deklaration enthaelt. Der target-scoped Full-Source-Pass
+lehnt Generated-Qualifier-Verschattungen in umschliessenden Deklarationen und im
+selben Target sowie sichtbare Qualifier-Verschattungen mit `public`- oder
+`package`-Zugriff in importierten Dependency-Targets ab, die Attached Macros
+nicht sehen koennen. Er lehnt auch direkte Extension-Attachments und standalone
+lokale Bridge-Targets vor der Swift-Kompilierung ab:
+
+Wenn eine generierte Stelle eine Klasse ist oder in einer Klasse verschachtelt
+ist, muss der erste geerbte Typ - also die Position, die eine Superklasse
+benennen kann - über source-visible Deklarationen und Typealiases auflösbar sein.
+Ein nur im SDK oder Binary vorhandener, nicht auflösbarer oder mehrdeutiger
+erster geerbter Typ schlägt fail closed mit
+`generated-qualifier.inheritance-unverifiable` fehl. Verschieben Sie die
+generierte Stelle in einen struct / enum oder einen source-visible Adapter, oder
+machen Sie die Superklassenkette für den target-scoped Source-Snapshot sichtbar.
+Dieser Preflight ist ein konservativer syntaktischer Index und kein Ersatz für
+den Swift Type Checker.
 
 ```swift
 .target(
@@ -181,11 +198,13 @@ hangst, das InnoDI-Container deklariert:
 )
 ```
 
-Wenn Teams gemessen haben, dass das Kompilieren des Source-Tools der dominante
-Einfuehrungsaufwand ist, stellt das Companion-Paket `InnoDIValidationTools` ein
-optionales prebuilt macOS validation plugin bereit. Haenge entweder das source
-plugin oben oder das prebuilt plugin an, niemals beide; unsupported hosts und
-lokale Paketentwicklung sollten weiter das source plugin verwenden.
+`InnoDIValidationTools` ist derzeit ein unveroeffentlichtes Companion-Package-
+Scaffold. Das eingecheckte Artefakt ist ein absichtlich fehlschlagender
+Fail-Safe-Placeholder und kein nutzbarer prebuilt Validator. Consumer duerfen
+erst davon abhaengen, wenn ein Public Release das echte Artefakt veroeffentlicht
+und verifiziert hat. Danach darf entweder das source plugin oben oder das
+prebuilt plugin angehaengt werden, niemals beide; unsupported hosts und lokale
+Paketentwicklung sollten weiter das source plugin verwenden.
 
 ## Schnellstart
 
@@ -329,8 +348,35 @@ Deklaration außerhalb der Bedingung und verzweigen Sie in der Factory oder
 injizierten Implementierung.
 
 Pro Property ist genau ein `@Provide` zulässig; doppelte Attribute werden mit
-`provide.duplicate-attribute` abgelehnt. Der explizite Property-Typ darf weder
-ein opakes `some Protocol` noch ein implicitly unwrapped optional `T!` sein.
+`provide.duplicate-attribute` abgelehnt. Direkte Provider-Properties und
+Dependency-Parameter der Root-Factory-Closure müssen jeweils eindeutige
+effective names haben; doppelte Identitäten werden vor der Erzeugung von
+Lookup- oder Storage-Code abgelehnt. Beide Deklarationsarten müssen unescaped
+Identifier verwenden; backtick-escaped Property- und Factory-Parameternamen
+werden in 5.0 abgelehnt. Auch Namen von `@SubContainer`-Properties müssen
+unescaped sein, weil Child-Storage, Overrides und Root-Helper-Identitäten daraus
+erzeugt werden.
+
+Generierte Storage-/Support-Deklarationen reservieren `_storage_`, `_override_`,
+`_innoDI` und `_InnoDI`; auch der exakte direkte Deklarationsname `InnoDI` ist
+reserviert. `Swift`, `_Concurrency` und SwiftUI-Bridge-Anker sind im für das
+Attached Macro sichtbaren Type-Namespace reserviert. Die genaue 5.0-Matrix steht
+im [Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md). Der
+target-scoped Full-Source-Pass lehnt Deklarationen im Enclosing Scope oder im
+selben Target sowie sichtbare `public`-/`package`-Deklarationen in importierten
+Dependency-Targets ab, wenn sie einen Generated Qualifier verdecken, den das
+Attached Macro nicht sehen kann.
+Bei einer Class Bridge oder einer umschließenden Klasse folgt der Scan auch der
+source-visible Superklassenkette. Geerbte Type-Member namens `Swift` oder
+`SwiftUI` werden abgelehnt, ein geerbtes `InnoDISwiftUI`-Member ist dagegen
+sicher. Eine direkt oder im lexical scope sichtbare `InnoDISwiftUI`-Deklaration
+bleibt reserviert. Da dies ein konservativer syntaktischer Index ist, schlägt
+ein nur im SDK oder Binary vorhandener, nicht auflösbarer oder mehrdeutiger
+erster geerbter Typ mit `generated-qualifier.inheritance-unverifiable` fail
+closed fehl, statt eine shadow-freie Superklasse anzunehmen.
+
+Der explizite Property-Typ darf weder ein opakes `some Protocol` noch ein
+implicitly unwrapped optional `T!` sein.
 Migrieren Sie zu `any Protocol` beziehungsweise zu einem expliziten `T` oder
 `T?`. Eine absichtlich gefälschte Kombination aus Compiler-Support-Accessor
 und einem weiteren Property Wrapper kann zusätzlich zur InnoDI-Misuse-Diagnose
@@ -473,13 +519,22 @@ können kein `asyncFactory`-Member als Target verwenden.
 `@SubContainer` modelliert Child-Container, die einem Parent gehoren:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(
+    scope: .shared,
+    with: [\.config, \.apiClient],
+    featureRoot: FeatureRootScene.self
+)
 var feature: FeatureContainer
 ```
 
 Wichtige Regeln:
 
 - `scope:` ist Pflicht.
+- Deklarieren Sie genau ein `@SubContainer` auf einer direkten, einfachen,
+  gespeicherten Instanz-`var` im unterstützten Parent-`@DIContainer`, außerhalb
+  von `#if`. Wrapper, Storage-/Accessor-Modifier, unbekannte Attribute und das
+  manuelle Anfügen von `InnoDI._InnoDISubContainerAccessor` werden nicht
+  unterstützt.
 - Implizites Same-Name-Wiring ist nur eine Convenience, wenn der Parent null
   oder einen `@Provide`-Kandidaten hat. Bei mehreren Kandidaten muss
   explizites Wiring hinzugefugt werden statt sich auf vom Compiler
@@ -489,6 +544,8 @@ Wichtige Regeln:
   Runtime-Variablen oder berechnete Elemente werden nicht unterstutzt.
 - `with: []` ist eine explizit leere Untermenge und ruft `Child()` auf.
 - `bindings:` mappt Child-Input-Labels auf andere Parent-Member-Namen.
+- `featureRoot:` / `featureRoots:` erzeugen SwiftUI-Root-Helper am Parent-
+  Container, ohne ein weiteres Peer Macro auf dieselbe Property zu stapeln.
 - Genau eine Wiring-Form verwenden: `with:` oder `bindings:`.
 - `Overrides` des Parents enthalt sowohl einen Vollersatz-Slot (`feature`)
   als auch eine Child-Override-Closure (`featureOverrides`).
@@ -512,7 +569,7 @@ Fur cross-module Ownership:
 ## CLI und Release-Oberflache
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```

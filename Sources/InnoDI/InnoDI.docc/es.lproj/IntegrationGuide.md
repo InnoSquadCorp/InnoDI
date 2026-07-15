@@ -43,10 +43,30 @@ Cuando una herramienta reporte un simbolo generado, mapeelo al `@DIContainer`,
 
 ## Plugin de build
 
-Adjunte `InnoDIDAGValidationPlugin` a cada target que declare containers. El
-plugin ahora ejecuta el validador DAG in-process mediante el build coordinator;
-el ejecutable standalone `InnoDI-DependencyGraph` sigue disponible para inspeccion
-local y artifacts de CI.
+Adjunte `InnoDIDAGValidationPlugin` a cada target que declare containers o un
+`@DIEnvironmentBridge` standalone. El full-source pass target-scoped rechaza
+shadows de generated qualifiers en declaraciones envolventes o en el mismo
+target, asi como qualifier shadows con acceso `public` o `package` visibles en
+targets de dependencias importados, que las macros adjuntas no pueden
+inspeccionar. Tambien rechaza direct-extension attachments y bridge targets
+locales standalone antes de la
+compilacion de Swift.
+
+Para un bridge de clase, o un container/bridge anidado en una clase, el
+preflight sigue el primer tipo heredado como posible superclase. Cada clase y
+typealias recorrido debe ser visible como source en el snapshot del workspace.
+Un primer tipo heredado que solo exista en un SDK o binario, que no se resuelva
+o que sea ambiguo se rechaza con
+`generated-qualifier.inheritance-unverifiable`; use un struct/enum o un adapter
+visible como source cuando la jerarquia externa no pueda indexarse. El indice
+sintactico conservador rechaza para la generacion del bridge los type members
+heredados llamados `Swift` o `SwiftUI`, pero acepta un `InnoDISwiftUI` heredado.
+Las declaraciones directas y envolventes `InnoDISwiftUI` siguen reservadas.
+
+El plugin ahora ejecuta el validador DAG in-process
+mediante el build coordinator; el ejecutable standalone
+`InnoDI-DependencyGraph` sigue disponible para inspeccion local y artifacts de
+CI.
 
 Use un SwiftPM scratch path local cuando derived data este en un volumen de red.
 El scratch path debe estar en un disco local y ser writable; reemplace `/tmp` por

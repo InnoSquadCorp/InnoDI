@@ -165,7 +165,21 @@ dependencies: [
 ```
 
 Включите build-time DAG validator, добавив plugin в каждый target, где
-объявляются InnoDI containers:
+объявляются InnoDI containers или standalone `@DIEnvironmentBridge`.
+Target-scoped full-source pass отклоняет невидимые для attached macro generated
+qualifier shadows во включающих объявлениях и других source того же target, а
+также видимые qualifier shadows с доступом `public` или `package` в
+импортированных dependency targets. Он также отклоняет direct-extension
+attachments и standalone local bridge targets до компиляции Swift:
+
+Если generated site является class или вложен в class, первый inherited type —
+позиция, которая может указывать superclass, — должен разрешаться через
+source-visible declarations и typealiases. Первый inherited type, доступный
+только в SDK или binary, неразрешенный либо неоднозначный, приводит к fail-closed
+ошибке `generated-qualifier.inheritance-unverifiable`. Переместите generated
+site в struct / enum или source-visible adapter либо сделайте superclass chain
+доступной для target-scoped source snapshot. Этот preflight использует
+консервативный syntactic index и не заменяет Swift type checker.
 
 ```swift
 .target(
@@ -179,11 +193,13 @@ dependencies: [
 )
 ```
 
-Для команд, которые измерили, что компиляция source tool является основной
-стоимостью внедрения, сопутствующий package `InnoDIValidationTools`
-предоставляет optional prebuilt macOS validation plugin. Подключайте либо
-source plugin выше, либо prebuilt plugin, но никогда оба; unsupported hosts и
-local package development должны продолжать использовать source plugin.
+`InnoDIValidationTools` сейчас является неопубликованным scaffold сопутствующего
+package. Checked-in artifact — это fail-safe placeholder, который намеренно
+завершается ошибкой, а не пригодный к использованию prebuilt validator. Consumers
+не должны добавлять эту dependency, пока public release не опубликует и не
+проверит настоящий artifact. После такого release подключайте либо source plugin
+выше, либо prebuilt plugin, но никогда оба; unsupported hosts и local package
+development должны продолжать использовать source plugin.
 
 ## Быстрый старт
 
@@ -323,8 +339,35 @@ attributes. Помимо `@Provide`, не допускаются никакие 
 вне условия и выполняйте ветвление внутри factory или инжектируемой реализации.
 
 Для одного property разрешен ровно один `@Provide`; duplicate attributes
-отклоняются кодом `provide.duplicate-attribute`. Явный тип property не может
-быть opaque `some Protocol` или implicitly unwrapped optional `T!`; используйте
+отклоняются кодом `provide.duplicate-attribute`. Имена direct provider property
+и dependency parameter корневой factory closure должны быть уникальными внутри
+каждой группы; duplicate identity отклоняется до генерации lookup или storage
+code. Оба вида declaration должны использовать unescaped identifiers; в 5.0
+backtick-escaped имена property и factory parameter отклоняются. Имя property с
+`@SubContainer` также должно быть unescaped, поскольку из него формируются child
+storage, overrides и идентификаторы root helper.
+
+Сгенерированные storage/support declarations резервируют `_storage_`,
+`_override_`, `_innoDI` и `_InnoDI`; точное имя прямого declaration `InnoDI`
+также зарезервировано. `Swift`, `_Concurrency` и anchors SwiftUI bridge
+зарезервированы в type namespace, видимом attached macro. Точная матрица 5.0
+описана в [Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md).
+Target-scoped full-source pass отклоняет declarations во внешнем scope или том
+же target, а также видимые `public` / `package` declarations в импортированных
+dependency targets, если они перекрывают generated qualifier, невидимый для
+attached macro.
+Для class bridge или enclosing class scan также проходит source-visible
+superclass chain. Унаследованные type members `Swift` и `SwiftUI` отклоняются,
+а унаследованный member `InnoDISwiftUI` безопасен. Declaration
+`InnoDISwiftUI`, видимый напрямую или в lexical scope, остается
+зарезервированным. Поскольку это консервативный syntactic index, первый
+inherited type, доступный только в SDK или binary, неразрешенный либо
+неоднозначный, приводит к fail-closed ошибке
+`generated-qualifier.inheritance-unverifiable`, а не к предположению, что в
+superclass нет shadow.
+
+Явный тип property не может быть opaque `some Protocol` или implicitly
+unwrapped optional `T!`; используйте
 соответственно `any Protocol` либо явный `T` / `T?`. Намеренно поддельная
 комбинация compiler-support accessor с другим property wrapper может получить
 структурные диагностики Swift в дополнение к диагностике misuse от InnoDI.
@@ -464,13 +507,21 @@ var logger: RequestLogger
 `@SubContainer` моделирует дочерние контейнеры, которыми владеет родитель:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(
+    scope: .shared,
+    with: [\.config, \.apiClient],
+    featureRoot: FeatureRootScene.self
+)
 var feature: FeatureContainer
 ```
 
 Ключевые правила:
 
 - `scope:` обязателен.
+- Объявляйте ровно один `@SubContainer` на прямом, обычном, хранимом instance
+  `var` в поддерживаемом parent `@DIContainer`, вне `#if`. Не поддерживаются
+  wrappers, storage/accessor modifiers, неизвестные attributes и ручное
+  прикрепление `InnoDI._InnoDISubContainerAccessor`.
 - Неявное wiring по имени используется только как convenience, когда у
   родителя 0 или 1 кандидат `@Provide`. Если кандидатов несколько, добавьте
   явное wiring вместо того, чтобы полагаться на ошибки сгенерированного
@@ -481,6 +532,8 @@ var feature: FeatureContainer
   поддерживаются.
 - `with: []` — явно пустое подмножество, вызывает `Child()`.
 - `bindings:` remap-ит child input label на другое имя member родителя.
+- `featureRoot:` / `featureRoots:` создают SwiftUI root helpers на parent
+  container без наложения еще одного peer macro на тот же property.
 - Выбирайте ровно одну wiring form: `with:` или `bindings:`.
 - `Overrides` родителя получает и слот полной замены (`feature`), и
   child-override closure (`featureOverrides`).
@@ -504,7 +557,7 @@ var feature: FeatureContainer
 ## CLI и release-информация
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```

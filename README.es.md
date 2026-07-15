@@ -167,7 +167,22 @@ Agrega `InnoDISwiftUI` solo si tambien necesitas los helpers de SwiftUI:
 ```
 
 Activa el validador DAG en build-time agregando el plugin a cada target que
-declara contenedores InnoDI:
+declara contenedores InnoDI o un `@DIEnvironmentBridge` standalone. El
+full-source pass target-scoped rechaza shadows de generated qualifiers en
+declaraciones envolventes o en el mismo target, asi como qualifier shadows con
+acceso `public` o `package` visibles en targets de dependencias importados, que
+las macros adjuntas no pueden inspeccionar. Tambien rechaza direct-extension
+attachments y bridge targets locales standalone antes de la compilacion de Swift:
+
+Cuando un generated site es una class o esta anidado dentro de una class, el
+primer inherited type —la posicion que puede nombrar su superclass— debe poder
+resolverse mediante declarations y typealiases visibles en source. Un primer
+inherited type disponible solo en el SDK o en un binary, no resuelto o ambiguo,
+falla de forma cerrada con `generated-qualifier.inheritance-unverifiable`.
+Mueve el generated site a un struct / enum o a un adapter visible en source, o
+haz que la superclass chain este disponible para el source snapshot
+target-scoped. Este preflight es un indice sintactico conservador, no un
+reemplazo del type checker de Swift.
 
 ```swift
 .target(
@@ -181,10 +196,12 @@ declara contenedores InnoDI:
 )
 ```
 
-Para equipos que hayan medido que compilar la herramienta fuente es el costo
-dominante de adopcion, el paquete complementario `InnoDIValidationTools`
-proporciona un plugin de validacion macOS prebuilt opcional. Adjunta el source
-plugin anterior o el prebuilt plugin, nunca ambos; los hosts no soportados y el
+`InnoDIValidationTools` es actualmente un scaffold de paquete complementario no
+publicado. El artifact incluido en el repositorio es un placeholder fail-safe
+que falla intencionalmente, no un validador prebuilt utilizable. Los consumers
+no deben depender de ese package hasta que un public release publique y
+verifique el artifact real. Despues de ese release, adjunta el source plugin
+anterior o el prebuilt plugin, nunca ambos; los hosts no soportados y el
 desarrollo local de paquetes deben seguir usando el source plugin.
 
 ## Inicio rapido
@@ -336,9 +353,36 @@ tambien se rechaza con
 la condicion y bifurca dentro de su factory o implementacion inyectada.
 
 Cada property admite exactamente un `@Provide`; los attributes duplicados se
-rechazan con `provide.duplicate-attribute`. El tipo explicito de la property no
-puede ser un `some Protocol` opaco ni un optional implicitamente desempaquetado
-`T!`; migra a `any Protocol` o a `T` / `T?`, respectivamente. Una combinacion
+rechazan con `provide.duplicate-attribute`. Las direct provider properties y
+los dependency parameters del root factory closure deben tener effective names
+unicos dentro de cada grupo; las identidades duplicadas se rechazan antes de
+generar lookup o storage code. Ambos tipos de declaracion deben usar identifiers
+sin escape; 5.0 rechaza nombres de property o factory parameter entre backticks.
+Los nombres de property `@SubContainer` tambien deben estar sin escape porque
+de ellos se derivan el child storage, los overrides y las identidades de los
+root helpers.
+
+Las declaraciones generadas de storage/support reservan `_storage_`,
+`_override_`, `_innoDI` y `_InnoDI`; tambien se reserva el nombre directo exacto
+`InnoDI`. `Swift`, `_Concurrency` y los anchors del bridge de SwiftUI se reservan
+en el type namespace visible para el attached macro. Consulta la matriz exacta
+de 5.0 en la [Migration Guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md). El
+full-source pass target-scoped rechaza declaraciones del enclosing scope o del
+mismo target, y declaraciones visibles `public` / `package` de dependency
+targets importados, cuando ocultan un generated qualifier que el attached macro
+no puede ver.
+Para un class bridge o una class envolvente, el scan tambien sigue una
+superclass chain visible en source. Los type members heredados llamados `Swift`
+o `SwiftUI` se rechazan, mientras que un member `InnoDISwiftUI` heredado es
+seguro. Una declaracion `InnoDISwiftUI` visible de forma directa o lexical sigue
+reservada. Como este es un indice sintactico conservador, un primer inherited
+type disponible solo en el SDK o en un binary, no resuelto o ambiguo, falla de
+forma cerrada con `generated-qualifier.inheritance-unverifiable` en vez de
+asumir que la superclass no contiene shadows.
+
+El tipo explicito de la property no puede ser un `some Protocol` opaco ni un
+optional implicitamente desempaquetado `T!`; migra a `any Protocol` o a `T` /
+`T?`, respectivamente. Una combinacion
 deliberadamente falsificada del accessor de soporte del compilador con otro
 property wrapper tambien puede recibir diagnosticos estructurales de Swift,
 ademas del diagnostico de uso indebido de InnoDI.
@@ -486,13 +530,22 @@ sincronos y no pueden apuntar a un miembro `asyncFactory`.
 `@SubContainer` modela child containers poseidos por un parent:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(
+    scope: .shared,
+    with: [\.config, \.apiClient],
+    featureRoot: FeatureRootScene.self
+)
 var feature: FeatureContainer
 ```
 
 Reglas clave:
 
 - `scope:` es obligatorio.
+- Declara exactamente un `@SubContainer` en una `var` de instancia directa,
+  simple y almacenada del parent `@DIContainer` compatible, fuera de `#if`.
+  No se admiten wrappers, modificadores de storage/accessor, attributes
+  desconocidos ni adjuntar manualmente
+  `InnoDI._InnoDISubContainerAccessor`.
 - El wiring implicito por nombre solo es una convenience cuando el parent
   tiene 0 o 1 candidato `@Provide`. Si hay varios candidatos, agrega wiring
   explicito en vez de depender de errores del initializer generado.
@@ -502,6 +555,8 @@ Reglas clave:
   soportados.
 - `with: []` es un subconjunto vacio explicito y llama a `Child()`.
 - `bindings:` remapea labels de input del child a otros nombres del parent.
+- `featureRoot:` / `featureRoots:` generan helpers de raiz SwiftUI en el parent
+  container sin apilar otro peer macro sobre la misma property.
 - Elige exactamente una forma de wiring: `with:` o `bindings:`.
 - El `Overrides` del parent gana tanto un slot de reemplazo completo
   (`feature`) como un closure de override del child (`featureOverrides`).
@@ -527,7 +582,7 @@ Para ownership cross-module:
 Renderizar el grafo:
 
 ```bash
-swift run InnoDI-DependencyGraph --root .
+swift run InnoDI-DependencyGraph --root . --root-pruning all
 ```
 
 Validar el DAG global:

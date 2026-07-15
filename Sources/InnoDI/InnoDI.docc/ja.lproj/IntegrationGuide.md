@@ -39,8 +39,26 @@ container に明示的に残します。
 
 ## ビルドプラグイン
 
-container を宣言する各 target に `InnoDIDAGValidationPlugin` を付けます。plugin は build
-coordinator 経由で DAG validator を in-process 実行するようになりました。standalone
+container または standalone `@DIEnvironmentBridge` を宣言する各 target に
+`InnoDIDAGValidationPlugin` を付けます。target-scoped full-source pass は attached
+macro から見えない enclosing declaration や同じ target の generated qualifier
+shadow、import 済み dependency target で可視な `public` / `package` qualifier
+shadow を拒否し、bridge の direct-extension attachment と standalone local target
+も Swift compile 前に遮断します。
+
+class bridge、または class 内に nested された container/bridge では、preflight は
+最初の inherited type を superclass 候補として追跡します。追跡する class と
+typealias はすべて workspace snapshot で source-visible である必要があります。
+SDK または binary にしか存在しない、unresolved、あるいは ambiguous な最初の
+inherited type は `generated-qualifier.inheritance-unverifiable` で拒否されます。
+外部 hierarchy を index できない場合は struct/enum または source-visible adapter
+を使用してください。保守的な syntax-only index は bridge 生成で使う inherited
+type member `Swift` と `SwiftUI` を拒否しますが、inherited `InnoDISwiftUI` は
+許可します。direct または enclosing scope の `InnoDISwiftUI` declaration は
+引き続き予約されています。
+
+plugin は build coordinator 経由で DAG validator
+を in-process 実行するようになりました。standalone
 `InnoDI-DependencyGraph` executable は local inspection と CI artifact 用に引き続き利用できます。
 
 derived data が network volume にある場合は local SwiftPM scratch path を使います。scratch path は

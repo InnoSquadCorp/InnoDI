@@ -45,10 +45,31 @@ entscheiden, ob der Report actionable ist.
 
 ## Build-Plugin
 
-Haengen Sie `InnoDIDAGValidationPlugin` an jedes Target, das Container deklariert.
-Das Plugin fuehrt den DAG-Validator jetzt in-process ueber den Build Coordinator
-aus; das standalone Executable `InnoDI-DependencyGraph` bleibt fuer lokale
-Inspektion und CI-Artefakte verfuegbar.
+Haengen Sie `InnoDIDAGValidationPlugin` an jedes Target, das Container oder eine
+eigenstaendige `@DIEnvironmentBridge`-Deklaration enthaelt. Der target-scoped
+Full-Source-Pass lehnt Generated-Qualifier-Verschattungen in umschliessenden
+Deklarationen und im selben Target sowie sichtbare Qualifier-Verschattungen mit
+`public`- oder `package`-Zugriff in importierten Dependency-Targets ab, die
+Attached Macros nicht sehen koennen. Er lehnt auch direkte Extension-Attachments
+und standalone lokale Bridge-Targets vor der
+Swift-Kompilierung ab.
+
+Bei einer Class-Bridge oder einem in einer Klasse verschachtelten Container bzw.
+einer Bridge folgt der Preflight dem ersten geerbten Typ als potenzieller
+Superklasse. Jede durchlaufene Klasse und jeder Typealias muss im Workspace
+Snapshot als Source sichtbar sein. Ein nur im SDK oder Binary vorhandener,
+unaufgeloester oder mehrdeutiger erster geerbter Typ wird mit
+`generated-qualifier.inheritance-unverifiable` abgelehnt. Verwenden Sie einen
+Struct/Enum oder einen source-sichtbaren Adapter, wenn die externe Hierarchie
+nicht indexiert werden kann. Der konservative Syntax-Index lehnt geerbte
+Typmember namens `Swift` oder `SwiftUI` fuer die Bridge-Generierung ab, akzeptiert
+aber ein geerbtes `InnoDISwiftUI`. Direkte und umschliessende Deklarationen mit
+dem Namen `InnoDISwiftUI` bleiben reserviert.
+
+Das Plugin fuehrt den DAG-Validator jetzt in-process
+ueber den Build Coordinator aus; das standalone Executable
+`InnoDI-DependencyGraph` bleibt fuer lokale Inspektion und CI-Artefakte
+verfuegbar.
 
 Verwenden Sie einen lokalen SwiftPM scratch path, wenn derived data auf einem
 Network Volume liegt. Der scratch path muss auf einer lokalen Disk liegen und

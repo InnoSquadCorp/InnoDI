@@ -8,6 +8,11 @@ The main `InnoDI` package remains the default integration path. Use this
 package only when consumer build-cost measurements show that the prebuilt
 validator is worth the extra release artifact dependency.
 
+> Important: this directory is currently an unpublished release scaffold. Its
+> checked-in artifact is an intentional fail-fast placeholder, not a usable
+> validator. Do not add this package as a consumer dependency until an InnoDI
+> release explicitly publishes and verifies the real prebuilt artifact.
+
 ## Usage
 
 Add both packages at the same tag:

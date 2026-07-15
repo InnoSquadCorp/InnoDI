@@ -41,13 +41,28 @@ whether the report is actionable.
 
 ## Build Plugin
 
-Attach `InnoDIDAGValidationPlugin` to each target that declares containers.
-This is required by the 5.0 correctness contract because attached macros cannot
-inspect sibling extensions or every enclosing source scope. The plugin's
-full-source pass rejects those declarations before Swift compilation, including
-custom initializers declared in same-file or cross-file extensions. The plugin
-now runs the DAG validator in-process through the build coordinator; the
-standalone `InnoDI-DependencyGraph` executable remains available for local
+Attach `InnoDIDAGValidationPlugin` to each target that declares containers or a
+standalone `@DIEnvironmentBridge`. This is required by the 5.0 correctness
+contract because attached macros cannot inspect sibling extensions, every
+enclosing declaration, or other source in the same target. The target-scoped
+full-source pass rejects matching same-file and cross-file custom initializers,
+generated-qualifier shadows in enclosing or other same-target declarations,
+visible qualifier shadows with `public` or `package` access in imported
+dependency targets, and direct-extension or standalone-local bridge targets
+before Swift compilation.
+
+For a class bridge, or a container/bridge nested in a class, the preflight also
+follows the first inherited type as the potential superclass. Every traversed
+class and typealias must be source-visible in the workspace snapshot. An
+SDK-only, binary-only, unresolved, or ambiguous first inherited type is rejected
+with `generated-qualifier.inheritance-unverifiable`; use a struct/enum or a
+source-visible adapter when the external hierarchy cannot be indexed. The
+syntax-only index conservatively rejects inherited `Swift` and `SwiftUI` type
+members used by bridge generation, but accepts an inherited `InnoDISwiftUI`
+member. Direct and enclosing `InnoDISwiftUI` declarations remain reserved.
+
+The plugin now runs the DAG validator in-process through the build coordinator;
+the standalone `InnoDI-DependencyGraph` executable remains available for local
 inspection and CI artifacts.
 
 Use a local SwiftPM scratch path when derived data lives on a network volume:

@@ -38,9 +38,23 @@ source container 中显式表达。
 
 ## 构建插件
 
-为每个声明 containers 的 target 附加 `InnoDIDAGValidationPlugin`。plugin 现在通过 build
-coordinator in-process 运行 DAG validator；standalone `InnoDI-DependencyGraph`
-executable 仍可用于 local inspection 和 CI artifacts。
+为每个声明 containers 或 standalone `@DIEnvironmentBridge` 的 target 附加
+`InnoDIDAGValidationPlugin`。target-scoped full-source pass 会拒绝 attached macro
+无法看到的 enclosing declaration 与同一 target 中的 generated qualifier shadow，
+以及已导入 dependency target 中可见的 `public` / `package` qualifier shadow，并在
+Swift 编译前拒绝 bridge 的 direct-extension attachment 和 standalone local target。
+
+对于 class bridge，或嵌套在 class 中的 container/bridge，preflight 会把第一个
+inherited type 作为潜在 superclass 继续追踪。经过的每个 class 和 typealias 都必须在
+workspace snapshot 中 source-visible。仅存在于 SDK 或 binary、无法解析或解析结果
+有歧义的第一个 inherited type 会以
+`generated-qualifier.inheritance-unverifiable` 拒绝；外部 hierarchy 无法建立索引时，
+请改用 struct/enum 或 source-visible adapter。这个保守的 syntax-only index 会拒绝
+bridge 生成所使用的继承 type member `Swift` 和 `SwiftUI`，但允许继承的
+`InnoDISwiftUI`。直接声明或 enclosing scope 中的 `InnoDISwiftUI` 仍是保留名称。
+
+plugin 现在通过 build coordinator in-process 运行 DAG validator；standalone
+`InnoDI-DependencyGraph` executable 仍可用于 local inspection 和 CI artifacts。
 
 当 derived data 位于 network volume 时，请使用 local SwiftPM scratch path。scratch path
 必须位于 local disk 且 writable；必要时请根据 OS 或 CI 环境将 `/tmp` 替换为合适的 local

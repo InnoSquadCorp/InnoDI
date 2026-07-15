@@ -3,7 +3,8 @@
 `@GenerateMock` (RFC 0001) synthesizes a call-recording mock peer for a
 protocol so tests can plug into the existing `Overrides` builder without
 hand-writing the mock body. The attribute is shipping in 4.x as
-**experimental**; the generated shape may evolve before 5.0 GA.
+**experimental** and remains so in InnoDI 5.0. Its generated shape may evolve
+until RFC 0001's dedicated GA criteria pass.
 
 ## Usage
 

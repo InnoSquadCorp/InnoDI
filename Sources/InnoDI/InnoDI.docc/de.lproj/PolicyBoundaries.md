@@ -13,6 +13,29 @@ InnoDI bleibt deterministisch, indem einige Grenzen explizit gesetzt werden.
   gewährleistet, da Attached Macros benachbarte Extensions nicht zuverlässig
   untersuchen können.
 
+## Grenzen fuer generierte Qualifier und Bridges
+
+- Haengen Sie `InnoDIDAGValidationPlugin` an jedes Target, das InnoDI-Container
+  oder eine eigenstaendige `@DIEnvironmentBridge`-Deklaration enthaelt.
+- Der target-scoped Full-Source-Pass lehnt Generated-Qualifier-Verschattungen in
+  umschliessenden Deklarationen, passenden Extensions und anderem Source
+  desselben Targets sowie sichtbare Qualifier-Verschattungen mit `public`- oder
+  `package`-Zugriff in importierten Dependency-Targets ab, die Attached Macros
+  nicht untersuchen koennen.
+- Er lehnt auch `@DIEnvironmentBridge` direkt an einer Extension oder in einem
+  standalone lokalen Scope ab. Verschieben Sie Bridge-Targets in den File- oder
+  Nominal-Scope.
+- Bei einer Class-Bridge oder einem in einer Klasse verschachtelten Generated
+  Site muss der erste geerbte Typ ueber source-sichtbare Deklarationen und
+  Typealiases aufgeloest werden. Da dieser Pass ein konservativer Syntax-Index
+  und nicht Swifts semantischer Typechecker ist, fuehrt ein nur im SDK oder
+  Binary vorhandener, unaufgeloester oder mehrdeutiger erster geerbter Typ zu
+  `generated-qualifier.inheritance-unverifiable`.
+- Die source-sichtbare Superklassenkette wird auf Qualifier-Verschattungen
+  geprueft. Die Bridge-Generierung lehnt geerbte Typmember namens `Swift` oder
+  `SwiftUI` ab, ein geerbtes `InnoDISwiftUI` ist jedoch sicher. Direkte und
+  umschliessende Deklarationen namens `InnoDISwiftUI` bleiben reserviert.
+
 ## Matching Strategy
 
 - Gemeinsames nominales Modell für Makros, Core und Graph-CLI

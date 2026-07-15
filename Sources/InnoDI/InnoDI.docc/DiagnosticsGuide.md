@@ -224,7 +224,23 @@ Most frequently-hit codes:
   direct declaration named `InnoDI`, or a direct nested type/typealias named
   `Swift` or `_Concurrency`, shadows a module qualifier used by generated
   support. Rename the declaration. Value members named `Swift` or
-  `_Concurrency` remain available.
+  `_Concurrency` remain available. The target-scoped full-source preflight
+  extends the same diagnostic to visible declarations in sibling files,
+  enclosing members, matching extensions, and imported dependency targets.
+- `generated-qualifier.inheritance-unverifiable` — a class that is itself a
+  generated site, or lexically encloses one, has a first inherited type that
+  the target-scoped source index cannot resolve uniquely. The first inherited
+  position can name the superclass, so the validator follows source-visible
+  classes and typealiases before generating container or bridge support. A
+  known source-visible protocol in that position ends the superclass scan, but
+  an SDK-only, binary-only, unresolved, or ambiguous declaration fails closed.
+  Move the generated site to a struct/enum or a source-visible adapter, or make
+  the inheritance chain available as indexed source. This validator is a
+  conservative syntactic index and does not type-check external modules. For a
+  class bridge, inherited type members named `Swift` or `SwiftUI` receive the
+  corresponding reserved-module diagnostic; inherited `InnoDISwiftUI` is safe,
+  although a direct or lexically visible declaration with that name remains
+  reserved.
 
 ## SubContainer diagnostics
 
@@ -302,12 +318,12 @@ Most frequently-hit codes:
   arguments outside its supported key-path list shape.
 - `swiftui.environment-bridge-reserved-module-name` — the bridge target, an
   enclosing nominal or generic parameter, or a direct nested type/typealias in
-  the target named `Swift`, `SwiftUI`, or `InnoDISwiftUI` shadows a qualifier used by its
-  generated modifier. Rename the type declaration or generic parameter. Value
-  members with those names remain available. Enclosing members remain outside
-  this attached-macro diagnostic because SwiftSyntax removes their member
-  lists from lexical context; the planned target-scoped full-source preflight
-  will close that boundary before the 5.0 release candidate.
+  the target named `Swift`, `SwiftUI`, or `InnoDISwiftUI` shadows a qualifier
+  used by its generated modifier. Rename the type declaration or generic
+  parameter. Value members with those names remain available. The required
+  target-scoped full-source preflight extends the same diagnostic to visible
+  declarations in sibling files, enclosing members, matching extensions, and
+  imported dependency targets that an attached macro cannot inspect.
 - `swiftui.environment-bridge-generated-name-conflict` — the bridge target
   redeclares a generated member. `_InnoDIEnvironmentBridgeModifier` conflicts
   with a direct nested nominal type, protocol, typealias, static/class
@@ -319,12 +335,18 @@ Most frequently-hit codes:
   generic-parameter names, declarations in the opposite namespace, and
   declarations inside nested bodies remain available.
 - `swiftui.environment-bridge-extension-context-unsupported` — the bridge
-  target is nested in an extension. Move it into file or nominal scope; an
-  attached syntax macro cannot prove extension-member lookup across files
-  before generating qualified SwiftUI support. A direct extension attachment
-  may instead be rejected earlier by Swift's attached-extension restriction.
-  Until the target-scoped full-source preflight lands, direct extension
-  attachments and standalone local targets remain compiler-owned boundaries.
+  target is an extension or is nested in an extension. Move it into file or
+  nominal scope; an attached syntax macro cannot prove extension-member lookup
+  across files before generating qualified SwiftUI support. The target-scoped
+  full-source preflight emits this diagnostic for both forms before source
+  compilation; without the required plugin, Swift may reject a direct
+  extension attachment first.
+- `swiftui.environment-bridge-local-declaration-unsupported` — the bridge
+  target is declared inside a function, initializer, deinitializer, subscript,
+  accessor, or closure. Move it to file or nominal scope so the generated
+  conformance has a stable lookup path. This is a build/CLI full-source
+  diagnostic because attached macros cannot reliably own that boundary before
+  Swift diagnoses the local declaration.
 - `swiftui.environment-bridge-unsupported-declaration-kind` — the bridge
   target is an actor, protocol, or another unsupported declaration kind. Move
   it to a struct, class, or enum.

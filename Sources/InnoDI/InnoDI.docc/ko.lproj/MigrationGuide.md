@@ -19,7 +19,7 @@ breaking change 표는
 | 4.x → 5.0 (미출시) | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
-단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0의 예정 surface와
+단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 미출시 5.0 surface와
 이전 버전 hop — 으로 펼쳐집니다.
 
 ---
@@ -205,13 +205,13 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ---
 
-## 4.x → 5.0 (예정)
+## 4.x → 5.0 (미출시)
 
 5.0은 매크로 surface를 더 늘리기 전에 compiler와 graph의 공개 계약을
 복구합니다. 원래 함께 계획했던 wiring 단순화는 이미 적용됐으며, major
 release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않습니다.
 
-| 영역 | 예정된 컨슈머 영향 |
+| 영역 | 컨슈머 영향 |
 |---|---|
 | `concrete:` | 인자를 삭제하세요. 선언된 property type이 concrete storage와 existential storage를 결정합니다. |
 | `@DIFeatureRoot` | `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 교체하세요. |
@@ -226,10 +226,21 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 | MainActor | `mainActor: true` component의 dependency conformer와 non-`Sendable` 생성 값의 생성·사용을 `@MainActor`에 두세요. actor 밖에서는 `MainActor.run` 안에서 생성하고 소비하고, direct `await`는 격리된 작업이 `Sendable` 결과를 반환할 때만 사용하세요. convenience initializer, `withOverrides`, child override, component mount의 override 적용 closure도 이제 `@MainActor`입니다. |
 | Non-main-actor async `withOverrides` | 생성되는 `async` / `async throws` 메서드와 operation closure 타입은 `nonisolated(nonsending)`입니다. 호출자 actor executor를 유지하므로 임의의 non-`Sendable` container와 closure가 호출자 isolation 안에 머뭅니다. 동기 overload는 바뀌지 않습니다. |
 | Validation | 동적 scope expression, conditional provider attribute, `#if` 안의 완전한 `@Provide` 또는 `@SubContainer` 멤버 선언을 지원되는 정적 형태로 바꾸세요. |
-| 생성 이름 | `_storage_`, `_override_`, `_innoDI`, `_InnoDI`로 시작하는 direct container declaration, `InnoDI`라는 direct declaration, `Swift` 또는 `_Concurrency`라는 nested type/typealias, 그리고 `InnoDI`·`Swift`·`_Concurrency`라는 container, enclosing nominal, generic parameter 이름을 바꾸세요. 값 namespace의 `Swift`, `_Concurrency` 멤버는 계속 사용할 수 있습니다. `@DIEnvironmentBridge`는 target와 보이는 enclosing binder의 type namespace에서 `Swift`, `SwiftUI`, `InnoDISwiftUI`를 예약하고 struct/class/enum target만 지원하며, extension 대상 또는 extension 안의 대상은 더 이상 지원하지 않습니다. 5.0 후속 단계에서 target-scoped full-source preflight가 추가되기 전까지 attached macro가 볼 수 없는 enclosing declaration의 shadowing member, direct extension attachment, 독립적인 local bridge target도 피하세요. Direct extension과 local target은 Swift의 compiler-owned 제한이 먼저 발생할 수 있습니다. 예전 구현 로컬 이름인 `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, `_lazySelf`는 다시 사용할 수 있습니다. 공개 initializer와 operation label은 바뀌지 않습니다. |
+| 생성 이름 | `_storage_`, `_override_`, `_innoDI`, `_InnoDI`로 시작하는 direct container declaration, `InnoDI`라는 direct declaration, `Swift` 또는 `_Concurrency`라는 nested type/typealias, 그리고 `InnoDI`·`Swift`·`_Concurrency`라는 container, enclosing nominal, generic parameter 이름을 바꾸세요. 값 namespace의 `Swift`, `_Concurrency` 멤버는 계속 사용할 수 있습니다. `@DIEnvironmentBridge`는 target와 보이는 enclosing binder의 type namespace에서 `Swift`, `SwiftUI`, `InnoDISwiftUI`를 예약하고 struct/class/enum target만 지원하며, extension 대상·extension 안의 대상·executable code 안의 local 대상은 더 이상 지원하지 않습니다. 필수 target-scoped full-source preflight는 attached macro만으로 확인할 수 없는 sibling file, enclosing member, matching extension, import한 dependency target의 보이는 qualifier shadow와 direct-extension/local bridge target을 거부합니다. 해당 preflight 없이 컴파일하면 direct-extension과 local target에는 Swift의 compiler-owned 제한이 먼저 발생할 수 있습니다. 예전 구현 로컬 이름인 `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, `_lazySelf`는 다시 사용할 수 있습니다. 공개 initializer와 operation label은 바뀌지 않습니다. |
 | 생성 peer 충돌 | Direct `@Provide`와 `@SubContainer` property는 두 역할 전체에서 고유한 이름을 사용하세요. 서로 다른 이름도 같은 hidden peer로 변환될 수 있습니다. 예를 들어 async `X`와 `task_X`, 또는 child `X`와 `sub_X`, `sub_apply_X`, `apply_X`가 충돌할 수 있습니다. `container.generated-symbol-collision`이 가리키는 두 선언 중 하나를 바꾸세요. 진단에는 정확한 생성 symbol과 최초 source claim이 표시됩니다. |
 | Graph JSON | module-qualified ID와 명시적 target/root-pruning scope를 갖는 schema v2로 consumer를 옮기세요. |
 | `@GenerateMock` | experimental 상태를 유지하며, 5.0이 migration 또는 GA freeze를 뜻하지 않습니다. |
+
+Generated container 또는 bridge가 class이거나 class 안에 중첩되면 첫 inherited
+type이 target-scoped source snapshot에서 해소되어야 합니다. Preflight는 상속된
+qualifier shadow를 찾기 위해 source-visible superclass와 typealias chain을
+따라갑니다. SDK 또는 binary에만 있는 declaration은 이 보수적인 syntactic index의
+범위 밖이므로 해소되지 않거나 모호한 첫 inheritance와 동일하게 fail closed합니다.
+이때 `generated-qualifier.inheritance-unverifiable`이 발생합니다. Chain을 source로
+제공할 수 없다면 generated site를 struct/enum 또는 source-visible
+adapter로 옮기세요. Bridge 생성에서는 상속된 type member `Swift`와 `SwiftUI`의
+이름을 바꿔야 합니다. 상속된 `InnoDISwiftUI`는 안전하지만 직접 또는 enclosing
+scope에 선언된 같은 이름은 계속 예약됩니다.
 
 나머지 package를 compile하기 전에 공개 migration executable을 실행하세요.
 
@@ -429,8 +440,10 @@ async provider를 가리키면 `asyncFactory:`를 사용하고, provider가 thro
 우회할 수 없습니다. `Type.self`/`with:`는 더 엄격한 동기 전용 형태로 `async`나
 `async throws` provider를 참조할 수 없습니다.
 
-이 섹션은 구현이 진행되는 동안의 migration 개요입니다. 남은 진단,
-codemod 명령, before/after 예제는 5.0.0 tag 전 release blocker입니다.
+이 섹션의 안정된 진단, `InnoDI-Migrate` 명령, before/after 예제는 5.0
+release candidate에 포함됩니다. Write mode 변경을 검토한 뒤 `--check`로
+마무리해 해결되지 않았거나 지원하지 않는 site가 5.0 채택 전에 fail closed로
+중단되는지 확인하세요.
 
 ---
 
