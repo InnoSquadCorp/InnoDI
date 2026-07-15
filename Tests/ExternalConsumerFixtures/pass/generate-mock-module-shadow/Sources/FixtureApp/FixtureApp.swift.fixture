@@ -1,0 +1,17 @@
+import InnoDI
+import ShadowKit
+
+@GenerateMock
+protocol Greeter {
+    func greet(name: String) -> String
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        let _: ShadowKit.Swift = .init()
+        let mock = GreeterMock()
+        mock.greetReturnValue = "Hello"
+        precondition(mock.greet(name: "InnoDI") == "Hello")
+    }
+}

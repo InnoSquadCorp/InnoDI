@@ -263,7 +263,7 @@ private func renderTypedFunctionMock(
             snippetLines.append("        return try \(names.resultProperty).get()")
         } else {
             snippetLines.append("        guard let value = \(names.returnProperty) else {")
-            snippetLines.append("            preconditionFailure(\"\(names.returnProperty) was not set on \\(Swift.type(of: self)) before \(baseName) was invoked\")")
+            snippetLines.append("            preconditionFailure(\"\(names.returnProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
             snippetLines.append("        }")
             snippetLines.append("        return value")
         }
@@ -339,7 +339,7 @@ private func renderGenericFunctionMock(
         snippetLines.append("        }")
     } else {
         snippetLines.append("        guard let handler = \(names.handlerProperty) else {")
-        snippetLines.append("            preconditionFailure(\"\(names.handlerProperty) was not set on \\(Swift.type(of: self)) before \(baseName) was invoked\")")
+        snippetLines.append("            preconditionFailure(\"\(names.handlerProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
         snippetLines.append("        }")
         snippetLines.append("        let rawValue = \(invocationPrefix)handler(\(handlerArgumentArray))")
         snippetLines.append("        guard let value = rawValue as? \(returnTypeRendered) else {")
@@ -380,7 +380,7 @@ private func renderVariableMock(variable: VariableDeclSyntax) -> String? {
         var \(escapedName): \(type) {
             get {
                 guard let value = \(storageName) else {
-                    preconditionFailure("\(name) was not set on \\(Swift.type(of: self)) before it was read")
+                    preconditionFailure("\(name) was not set on \\(Self.self) before it was read")
                 }
                 return value
             }
