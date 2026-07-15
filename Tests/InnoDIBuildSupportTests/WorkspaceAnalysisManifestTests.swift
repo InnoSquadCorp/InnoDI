@@ -524,6 +524,96 @@ struct WorkspaceAnalysisManifestTests {
         )
     }
 
+    @Test("Target dependency cycles fail closed deterministically")
+    func rejectsTargetDependencyCyclesDeterministically() throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+        let manifest = makeValidManifest(fixture: fixture)
+        let app = try #require(manifest.primaryTarget)
+        let feature = try #require(manifest.target(id: fixture.featureID))
+        let support = try #require(manifest.target(id: fixture.supportID))
+        let appToFeature = try #require(app.dependencies.first {
+            $0.targetIDs.contains(fixture.featureID)
+        })
+        let featureToApp = WorkspaceAnalysisDependency(
+            kind: .target,
+            name: "App",
+            targetIDs: [fixture.appID]
+        )
+        let cyclicFeature = replacingTarget(
+            feature,
+            dependencies: [featureToApp]
+        )
+        let expectedPath = [
+            fixture.appID,
+            fixture.featureID,
+            fixture.appID,
+        ]
+        let expectedError = WorkspaceAnalysisManifestError
+            .targetDependencyCycle(expectedPath)
+
+        expectManifestError(
+            expectedError,
+            from: replacingManifest(
+                manifest,
+                targets: [app, support, cyclicFeature]
+            )
+        )
+        expectManifestError(
+            expectedError,
+            from: replacingManifest(
+                manifest,
+                targets: [
+                    cyclicFeature,
+                    support,
+                    replacingTarget(
+                        app,
+                        dependencies: Array(app.dependencies.reversed())
+                    ),
+                ]
+            )
+        )
+        expectManifestError(
+            expectedError,
+            from: replacingManifest(
+                manifest,
+                targets: [
+                    replacingTarget(
+                        app,
+                        dependencies: [appToFeature]
+                    ),
+                    support,
+                    cyclicFeature,
+                ]
+            )
+        )
+        #expect(
+            expectedError.errorDescription
+                == "Workspace target dependency cycle detected: "
+                + "'\(fixture.appID.rawValue)' -> "
+                + "'\(fixture.featureID.rawValue)' -> "
+                + "'\(fixture.appID.rawValue)'."
+        )
+    }
+
+    @Test("Acyclic target dependency topology remains valid")
+    func acceptsAcyclicTargetDependencyTopology() throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+        let manifest = makeValidManifest(
+            fixture: fixture,
+            reverseInputOrder: true
+        )
+
+        let validated = try manifest.validated()
+
+        #expect(validated.primaryTargetID == fixture.appID)
+        #expect(
+            validated.targets.map(\.id)
+                == manifest.targets.map(\.id).sorted()
+        )
+    }
+
     @Test("Malformed JSON fails closed")
     func malformedJSONFailsClosed() throws {
         let fixture = try ManifestFixture()

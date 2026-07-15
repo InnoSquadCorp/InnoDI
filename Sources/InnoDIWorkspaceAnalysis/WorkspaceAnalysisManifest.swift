@@ -348,6 +348,13 @@ package struct WorkspaceAnalysisManifest: Codable, Equatable, Sendable {
             )
         }
 
+        if let cycle = targetDependencyCycle(
+            from: primaryTargetID,
+            targets: canonicalTargets
+        ) {
+            throw WorkspaceAnalysisManifestError.targetDependencyCycle(cycle)
+        }
+
         let reachableTargetIDs = reachableTargets(
             from: primaryTargetID,
             targets: canonicalTargets
@@ -417,6 +424,7 @@ package enum WorkspaceAnalysisManifestError: LocalizedError, Equatable {
     case duplicateDependencyTarget(WorkspaceTargetID, WorkspaceTargetID)
     case selfDependency(WorkspaceTargetID)
     case danglingDependency(WorkspaceTargetID, WorkspaceTargetID)
+    case targetDependencyCycle([WorkspaceTargetID])
     case unreachableTarget(WorkspaceTargetID)
 
     package var errorDescription: String? {
@@ -483,6 +491,11 @@ package enum WorkspaceAnalysisManifestError: LocalizedError, Equatable {
             return "Workspace target '\(id.rawValue)' depends on itself."
         case .danglingDependency(let source, let target):
             return "Workspace target '\(source.rawValue)' depends on missing target '\(target.rawValue)'."
+        case .targetDependencyCycle(let path):
+            let description = path
+                .map { "'\($0.rawValue)'" }
+                .joined(separator: " -> ")
+            return "Workspace target dependency cycle detected: \(description)."
         case .unreachableTarget(let id):
             return "Workspace target '\(id.rawValue)' is outside the primary target's visible dependency closure."
         }
@@ -705,6 +718,73 @@ private func reachableTargets(
         }
     }
     return result
+}
+
+/// Returns one stable, closed cycle path before reachability validation.
+///
+/// The primary target anchors a cycle when it participates in one. Other
+/// cycles are rotated to their lexicographically smallest stable target ID.
+private func targetDependencyCycle(
+    from primaryTargetID: WorkspaceTargetID,
+    targets: [WorkspaceAnalysisTarget]
+) -> [WorkspaceTargetID]? {
+    let dependenciesByTarget = Dictionary(
+        uniqueKeysWithValues: targets.map {
+            ($0.id, $0.directDependencyTargetIDs)
+        }
+    )
+    var completed = Set<WorkspaceTargetID>()
+    var activePath: [WorkspaceTargetID] = []
+    var activeIndices: [WorkspaceTargetID: Int] = [:]
+
+    func visit(_ targetID: WorkspaceTargetID) -> [WorkspaceTargetID]? {
+        if let cycleStart = activeIndices[targetID] {
+            let cycle = Array(activePath[cycleStart...]) + [targetID]
+            return canonicalTargetDependencyCycle(
+                cycle,
+                primaryTargetID: primaryTargetID
+            )
+        }
+        guard !completed.contains(targetID) else {
+            return nil
+        }
+
+        activeIndices[targetID] = activePath.count
+        activePath.append(targetID)
+        for dependencyID in dependenciesByTarget[targetID, default: []] {
+            if let cycle = visit(dependencyID) {
+                return cycle
+            }
+        }
+        activePath.removeLast()
+        activeIndices[targetID] = nil
+        completed.insert(targetID)
+        return nil
+    }
+
+    let traversalRoots = [primaryTargetID]
+        + targets.map(\.id).filter { $0 != primaryTargetID }.sorted()
+    for targetID in traversalRoots where !completed.contains(targetID) {
+        if let cycle = visit(targetID) {
+            return cycle
+        }
+    }
+    return nil
+}
+
+private func canonicalTargetDependencyCycle(
+    _ closedPath: [WorkspaceTargetID],
+    primaryTargetID: WorkspaceTargetID
+) -> [WorkspaceTargetID] {
+    let cycle = Array(closedPath.dropLast())
+    guard !cycle.isEmpty else {
+        return closedPath
+    }
+    let startIndex = cycle.firstIndex(of: primaryTargetID)
+        ?? cycle.indices.min { cycle[$0] < cycle[$1] }
+        ?? cycle.startIndex
+    let rotated = Array(cycle[startIndex...]) + Array(cycle[..<startIndex])
+    return rotated + [rotated[0]]
 }
 
 private func isCanonicalManifestAtom(_ value: String) -> Bool {
