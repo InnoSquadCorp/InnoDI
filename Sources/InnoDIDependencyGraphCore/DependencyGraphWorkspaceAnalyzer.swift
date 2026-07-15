@@ -5,10 +5,16 @@ import InnoDIWorkspaceAnalysis
 package struct DependencyGraphAnalysis {
     package let nodes: [DependencyGraphNode]
     package let edges: [DependencyGraphEdge]
+    package let preflightFailure: DependencyGraphCommandResult?
 
-    package init(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) {
+    package init(
+        nodes: [DependencyGraphNode],
+        edges: [DependencyGraphEdge],
+        preflightFailure: DependencyGraphCommandResult? = nil
+    ) {
         self.nodes = nodes
         self.edges = edges
+        self.preflightFailure = preflightFailure
     }
 }
 
@@ -37,7 +43,13 @@ package func collectDependencyGraph(
         snapshot: snapshot,
         validateDAG: validateDAG
     )
-    return DependencyGraphAnalysis(nodes: collection.nodes, edges: collection.edges)
+    return DependencyGraphAnalysis(
+        nodes: collection.nodes,
+        edges: collection.edges,
+        preflightFailure: identityCollisionFailure(
+            collection.identityCollisions
+        )
+    )
 }
 
 package func collectRenderableDependencyGraph(
@@ -46,7 +58,11 @@ package func collectRenderableDependencyGraph(
 ) -> DependencyGraphAnalysis {
     let analysis = collectDependencyGraph(snapshot: snapshot, validateDAG: validateDAG)
     let rendered = rootPrunedRenderGraph(nodes: analysis.nodes, edges: analysis.edges)
-    return DependencyGraphAnalysis(nodes: rendered.nodes, edges: rendered.edges)
+    return DependencyGraphAnalysis(
+        nodes: rendered.nodes,
+        edges: rendered.edges,
+        preflightFailure: analysis.preflightFailure
+    )
 }
 
 package func validateDependencyGraph(snapshot: WorkspaceSourceSnapshot) -> DependencyGraphCommandResult {
@@ -62,7 +78,8 @@ package func validateDependencyGraph(snapshot: WorkspaceSourceSnapshot) -> Depen
     return validateDependencyGraph(
         nodes: collection.nodes,
         edges: collection.edges,
-        semanticIssues: collection.semanticIssues
+        semanticIssues: collection.semanticIssues,
+        identityCollisions: collection.identityCollisions
     )
 }
 
@@ -70,6 +87,13 @@ private struct DependencyGraphDiagnosticCollection {
     let nodes: [DependencyGraphNode]
     let edges: [DependencyGraphEdge]
     let semanticIssues: [SemanticContainerReferenceIssue]
+    let identityCollisions: [DependencyGraphIdentityCollision]
+}
+
+private struct DependencyGraphIdentityCollision: Hashable, Sendable {
+    let id: String
+    let occurrenceCount: Int
+    let sourceIdentities: [String]
 }
 
 private func collectDependencyGraphWithDiagnostics(
@@ -91,7 +115,12 @@ private func collectDependencyGraphWithDiagnostics(
 
     let nodes = normalizeNodes(collector.nodes)
     guard !nodes.isEmpty else {
-        return DependencyGraphDiagnosticCollection(nodes: [], edges: [], semanticIssues: [])
+        return DependencyGraphDiagnosticCollection(
+            nodes: [],
+            edges: [],
+            semanticIssues: [],
+            identityCollisions: []
+        )
     }
 
     let semanticResolver = SemanticResolverIndex(
@@ -167,7 +196,8 @@ private func collectDependencyGraphWithDiagnostics(
     return DependencyGraphDiagnosticCollection(
         nodes: nodes,
         edges: deduplicateEdges(usageCollector.edges + ownershipEdges),
-        semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues
+        semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues,
+        identityCollisions: []
     )
 }
 
@@ -193,6 +223,7 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
     var exportedImportsByTargetID: [
         WorkspaceTargetID: TargetAwareSourceImports
     ] = [:]
+    var sourceIdentityOccurrencesByNodeID: [String: [String]] = [:]
 
     for sourceFile in snapshot.files.sorted(by: {
         $0.sourceIdentity < $1.sourceIdentity
@@ -201,7 +232,9 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
             continue
         }
         let sourceImports = targetAwareSourceImports(in: sourceFile.syntax)
-        let collector = ContainerCollector()
+        let collector = ContainerCollector(
+            moduleIdentity: targetID.rawValue
+        )
         collector.walkFile(
             relativePath: sourceFile.sourceIdentity,
             tree: sourceFile.syntax
@@ -216,6 +249,11 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
         rawNodesByTargetID[targetID, default: []].append(
             contentsOf: collector.nodes
         )
+        for node in collector.nodes {
+            sourceIdentityOccurrencesByNodeID[node.id, default: []].append(
+                sourceFile.sourceIdentity
+            )
+        }
         aliasesByTargetID[targetID, default: []].append(
             contentsOf: aliases
         )
@@ -233,13 +271,32 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
         )
     }
 
+    let identityCollisions = rawNodesByTargetID.values
+        .flatMap { $0 }
+        .reduce(into: [String: DependencyGraphNode]()) { nodesByID, node in
+            nodesByID[node.id] = nodesByID[node.id] ?? node
+        }
+        .compactMap { id, _ -> DependencyGraphIdentityCollision? in
+            let occurrences = sourceIdentityOccurrencesByNodeID[id] ?? []
+            guard occurrences.count > 1 else {
+                return nil
+            }
+            return DependencyGraphIdentityCollision(
+                id: id,
+                occurrenceCount: occurrences.count,
+                sourceIdentities: Array(Set(occurrences)).sorted()
+            )
+        }
+        .sorted { $0.id < $1.id }
+
     let nodesByTargetID = rawNodesByTargetID.mapValues(normalizeNodes)
     let nodes = normalizeNodes(nodesByTargetID.values.flatMap { $0 })
     guard !nodes.isEmpty else {
         return DependencyGraphDiagnosticCollection(
             nodes: [],
             edges: [],
-            semanticIssues: []
+            semanticIssues: [],
+            identityCollisions: identityCollisions
         )
     }
 
@@ -259,7 +316,8 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
             sourceImports: collectedSource.sourceImports
         )
         let usageCollector = ContainerUsageCollector(
-            referenceResolver: resolver
+            referenceResolver: resolver,
+            moduleIdentity: collectedSource.targetID.rawValue
         )
         usageCollector.walkFile(
             relativePath: collectedSource.sourceFile.sourceIdentity,
@@ -307,9 +365,45 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
 
     return DependencyGraphDiagnosticCollection(
         nodes: nodes,
-        edges: deduplicateEdges(edges),
-        semanticIssues: semanticIssues
+        edges: sortedGraphEdges(deduplicateEdges(edges)),
+        semanticIssues: semanticIssues,
+        identityCollisions: identityCollisions
     )
+}
+
+private func sortedGraphEdges(
+    _ edges: [DependencyGraphEdge]
+) -> [DependencyGraphEdge] {
+    edges.sorted { lhs, rhs in
+        if lhs.fromID != rhs.fromID {
+            return lhs.fromID < rhs.fromID
+        }
+        if lhs.toID != rhs.toID {
+            return lhs.toID < rhs.toID
+        }
+        if lhs.label != rhs.label {
+            switch (lhs.label, rhs.label) {
+            case (nil, .some):
+                return true
+            case (.some, nil):
+                return false
+            case (.some(let lhsLabel), .some(let rhsLabel)):
+                return lhsLabel < rhsLabel
+            case (nil, nil):
+                break
+            }
+        }
+        if lhs.isOwnership != rhs.isOwnership {
+            return lhs.isOwnership && !rhs.isOwnership
+        }
+        if lhs.isProvider != rhs.isProvider {
+            return lhs.isProvider && !rhs.isProvider
+        }
+        if lhs.isSoft != rhs.isSoft {
+            return lhs.isSoft && !rhs.isSoft
+        }
+        return false
+    }
 }
 
 private func rootPrunedRenderGraph(
@@ -346,10 +440,11 @@ private func rootPrunedRenderGraph(
 private func validateDependencyGraph(
     nodes: [DependencyGraphNode],
     edges: [DependencyGraphEdge],
-    semanticIssues: [SemanticContainerReferenceIssue]
+    semanticIssues: [SemanticContainerReferenceIssue],
+    identityCollisions: [DependencyGraphIdentityCollision]
 ) -> DependencyGraphCommandResult {
     let eligibleNodes = nodes.filter(\.validateDAG)
-    guard !eligibleNodes.isEmpty else {
+    guard !eligibleNodes.isEmpty || !identityCollisions.isEmpty else {
         return DependencyGraphCommandResult(
             exitCode: DependencyGraphCoreExitCode.success,
             stdout: "DAG validation passed (all containers opted out via validateDAG: false).\n",
@@ -364,7 +459,10 @@ private func validateDependencyGraph(
     let adjacency = buildCycleDetectionAdjacency(nodes: eligibleNodes, edges: eligibleEdges)
     let cycleResult = analyzeDependencyCycles(adjacency: adjacency)
     let cycles = cycleResult.cycles
-    if cycles.isEmpty && eligibleSemanticIssues.isEmpty && !cycleResult.truncatedByDepthLimit {
+    if cycles.isEmpty,
+       eligibleSemanticIssues.isEmpty,
+       identityCollisions.isEmpty,
+       !cycleResult.truncatedByDepthLimit {
         return DependencyGraphCommandResult(
             exitCode: DependencyGraphCoreExitCode.success,
             stdout: "DAG validation passed.\n",
@@ -374,6 +472,10 @@ private func validateDependencyGraph(
 
     let labelsByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.displayName) })
     var lines: [String] = ["DAG validation failed."]
+
+    if let failure = identityCollisionFailure(identityCollisions) {
+        lines.append(contentsOf: failure.stderr.split(separator: "\n").map(String.init))
+    }
 
     let ambiguousIssues = eligibleSemanticIssues.filter { $0.state == .ambiguous }
     let unresolvedIssues = eligibleSemanticIssues.filter { $0.state == .unresolved }
@@ -444,6 +546,27 @@ private func validateDependencyGraph(
         lines.append("- [graph.dependency-cycle] cycle detection truncated at depth limit before validation completed")
     }
 
+    return DependencyGraphCommandResult(
+        exitCode: DependencyGraphCoreExitCode.dagValidationFailure,
+        stdout: "",
+        stderr: lines.joined(separator: "\n") + "\n"
+    )
+}
+
+private func identityCollisionFailure(
+    _ collisions: [DependencyGraphIdentityCollision]
+) -> DependencyGraphCommandResult? {
+    guard !collisions.isEmpty else {
+        return nil
+    }
+    var lines = ["Duplicate semantic container identities:"]
+    for collision in collisions {
+        lines.append(
+            "- [graph.duplicate-semantic-identity] \(collision.id) declarations: "
+                + "\(collision.occurrenceCount); sources: "
+                + collision.sourceIdentities.joined(separator: ", ")
+        )
+    }
     return DependencyGraphCommandResult(
         exitCode: DependencyGraphCoreExitCode.dagValidationFailure,
         stdout: "",

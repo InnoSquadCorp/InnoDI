@@ -28,12 +28,10 @@ struct WorkspaceTargetIdentityGraphTests {
         let expectedIDs: Set<String> = [
             containerID(
                 targetID: appID,
-                logicalPath: "Sources/Shared.swift",
                 containerName: "SharedContainer"
             ),
             containerID(
                 targetID: featureID,
-                logicalPath: "Sources/Shared.swift",
                 containerName: "SharedContainer"
             ),
         ]
@@ -42,6 +40,157 @@ struct WorkspaceTargetIdentityGraphTests {
         #expect(Set(analysis.nodes.map(\.id)) == expectedIDs)
         #expect(Set(analysis.nodes.map(\.semanticPath)) == ["SharedContainer"])
         #expect(try fixture.validateGraph().exitCode == 0)
+    }
+
+    @Test("Schema-v2 IDs survive checkout and source-file moves")
+    func schemaV2IdentitiesIgnorePhysicalAndLogicalSourcePaths() throws {
+        let primarySource = factorySource(
+            imports: ["FeatureKit"],
+            factoryType: "FeatureKit.FeatureContainer"
+        )
+        let original = try TargetGraphFixture(
+            primaryLogicalPath: "Sources/App/Original.swift",
+            primarySource: primarySource,
+            dependencies: [
+                .init(
+                    packageIdentity: "feature-package",
+                    moduleName: "FeatureKit",
+                    logicalPath: "Sources/FeatureKit/Original.swift",
+                    source: containerSource(named: "FeatureContainer")
+                )
+            ]
+        )
+        defer { original.remove() }
+        let moved = try TargetGraphFixture(
+            primaryLogicalPath: "Sources/App/Moved.swift",
+            primarySource: primarySource,
+            dependencies: [
+                .init(
+                    packageIdentity: "feature-package",
+                    moduleName: "FeatureKit",
+                    logicalPath: "Sources/FeatureKit/Nested/Moved.swift",
+                    source: containerSource(named: "FeatureContainer")
+                )
+            ]
+        )
+        defer { moved.remove() }
+
+        let originalGraph = try original.collectGraph()
+        let movedGraph = try moved.collectGraph()
+
+        #expect(Set(originalGraph.nodes) == Set(movedGraph.nodes))
+        #expect(Set(originalGraph.edges) == Set(movedGraph.edges))
+        #expect(
+            Set(originalGraph.nodes.map(\.id)) == [
+                "swiftpm:root-package:App::AppContainer",
+                "swiftpm:feature-package:FeatureKit::FeatureContainer",
+            ]
+        )
+    }
+
+    @Test("Schema-v2 edge ordering survives source-order changes")
+    func schemaV2EdgesUseSemanticOrdering() throws {
+        let aSource = rootedFactorySource(
+            rootName: "ARoot",
+            childName: "AChild"
+        )
+        let zSource = rootedFactorySource(
+            rootName: "ZRoot",
+            childName: "ZChild"
+        )
+        let original = try TargetGraphFixture(
+            primaryLogicalPath: "Sources/App/A-Z.swift",
+            primarySource: zSource,
+            additionalPrimarySources: [
+                "Sources/App/Z-A.swift": aSource
+            ],
+            dependencies: []
+        )
+        defer { original.remove() }
+        let moved = try TargetGraphFixture(
+            primaryLogicalPath: "Sources/App/Z-Z.swift",
+            primarySource: zSource,
+            additionalPrimarySources: [
+                "Sources/App/A-A.swift": aSource
+            ],
+            dependencies: []
+        )
+        defer { moved.remove() }
+
+        let originalEdges = try original.collectGraph().edges
+        let movedEdges = try moved.collectGraph().edges
+
+        #expect(originalEdges == movedEdges)
+        #expect(
+            originalEdges.map(\.fromID) == [
+                "swiftpm:root-package:App::ARoot",
+                "swiftpm:root-package:App::ZRoot",
+            ]
+        )
+    }
+
+    @Test("Duplicate semantic identities in one target fail deterministically")
+    func duplicateSemanticIdentityFailsWithoutCollapsingSilently() throws {
+        let fixture = try TargetGraphFixture(
+            primaryLogicalPath: "Sources/App/First.swift",
+            primarySource: containerSource(named: "SharedContainer"),
+            additionalPrimarySources: [
+                "Sources/App/Second.swift": containerSource(
+                    named: "SharedContainer"
+                )
+            ],
+            dependencies: []
+        )
+        defer { fixture.remove() }
+
+        let result = try fixture.validateGraph()
+        let renderAnalysis = try fixture.collectRenderableGraph()
+
+        #expect(result.exitCode == 3)
+        #expect(renderAnalysis.preflightFailure?.exitCode == 3)
+        #expect(
+            renderAnalysis.preflightFailure?.stderr.contains(
+                "[graph.duplicate-semantic-identity]"
+            ) == true
+        )
+        #expect(
+            result.stderr.contains(
+                "[graph.duplicate-semantic-identity] "
+                    + "swiftpm:root-package:App::SharedContainer"
+            )
+        )
+        #expect(result.stderr.contains("Sources/App/First.swift"))
+        #expect(result.stderr.contains("Sources/App/Second.swift"))
+    }
+
+    @Test("Duplicate semantic identities in one file also fail")
+    func sameFileDuplicateSemanticIdentityFails() throws {
+        let duplicateSource = """
+        import InnoDI
+
+        @DIContainer
+        struct SharedContainer {}
+
+        @DIContainer
+        struct SharedContainer {}
+        """
+        let fixture = try TargetGraphFixture(
+            primaryLogicalPath: "Sources/App/Duplicates.swift",
+            primarySource: duplicateSource,
+            dependencies: []
+        )
+        defer { fixture.remove() }
+
+        let result = try fixture.validateGraph()
+
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("declarations: 2"))
+        #expect(
+            occurrenceCount(
+                "swiftpm:root-package:App::Sources/App/Duplicates.swift",
+                in: result.stderr
+            ) == 1
+        )
     }
 
     @Test("Current target declarations win over imported namesakes")
@@ -74,17 +223,14 @@ struct WorkspaceTargetIdentityGraphTests {
         let appID = fixture.primaryTargetID
         let appContainerID = containerID(
             targetID: appID,
-            logicalPath: fixture.primaryLogicalPath,
             containerName: "AppContainer"
         )
         let localSharedID = containerID(
             targetID: appID,
-            logicalPath: fixture.primaryLogicalPath,
             containerName: "SharedContainer"
         )
         let importedSharedID = containerID(
             targetID: fixture.targetID(moduleName: "FeatureKit"),
-            logicalPath: fixture.logicalPath(moduleName: "FeatureKit"),
             containerName: "SharedContainer"
         )
         let outgoing = analysis.edges.filter { $0.fromID == appContainerID }
@@ -758,7 +904,6 @@ private struct TargetGraphDependencySpec {
 
 private final class TargetGraphFixture {
     let rootURL: URL
-    let primaryLogicalPath: String
     let primaryTargetID = WorkspaceTargetID.swiftPM(
         packageIdentity: "root-package",
         moduleName: "App"
@@ -897,7 +1042,6 @@ private final class TargetGraphFixture {
         }
 
         self.rootURL = rootURL
-        self.primaryLogicalPath = primaryLogicalPath
         self.primarySources = primarySources
         self.dependencies = dependencies
         self.primaryDependencyModuleNames = Set(
@@ -962,6 +1106,13 @@ private final class TargetGraphFixture {
         )
     }
 
+    func collectRenderableGraph() throws -> DependencyGraphAnalysis {
+        collectRenderableDependencyGraph(
+            snapshot: try loadSnapshot(),
+            validateDAG: false
+        )
+    }
+
     func validateGraph() throws -> DependencyGraphCommandResult {
         validateDependencyGraph(snapshot: try loadSnapshot())
     }
@@ -975,18 +1126,11 @@ private final class TargetGraphFixture {
         )
     }
 
-    func logicalPath(moduleName: String) -> String {
-        let dependency = dependencies.first { $0.moduleName == moduleName }
-        precondition(dependency != nil, "Unknown fixture module \(moduleName)")
-        return dependency!.logicalPath
-    }
-
     func primaryContainerID(
         named containerName: String = "AppContainer"
     ) -> String {
         containerID(
             targetID: primaryTargetID,
-            logicalPath: primaryLogicalPath,
             containerName: containerName
         )
     }
@@ -997,7 +1141,6 @@ private final class TargetGraphFixture {
     ) -> String {
         containerID(
             targetID: targetID(moduleName: moduleName),
-            logicalPath: logicalPath(moduleName: moduleName),
             containerName: containerName
         )
     }
@@ -1043,12 +1186,29 @@ private func factorySource(
     """
 }
 
+private func rootedFactorySource(
+    rootName: String,
+    childName: String
+) -> String {
+    """
+    import InnoDI
+
+    @DIContainer(root: true)
+    struct \(rootName) {
+        @Provide(.shared, factory: \(childName)(), concrete: true)
+        var child: \(childName)
+    }
+
+    @DIContainer
+    struct \(childName) {}
+    """
+}
+
 private func containerID(
     targetID: WorkspaceTargetID,
-    logicalPath: String,
     containerName: String
 ) -> String {
-    "\(targetID.rawValue)::\(logicalPath)#\(containerName)"
+    "\(targetID.rawValue)::\(containerName)"
 }
 
 private func occurrenceCount(_ needle: String, in haystack: String) -> Int {

@@ -85,6 +85,9 @@ package func runDependencyGraphCLI() -> Int32 {
         snapshot: snapshot,
         validateDAG: false
     )
+    if let failure = renderedGraph.preflightFailure {
+        return writeValidationResult(failure, outputPath: outputPath)
+    }
     guard !renderedGraph.nodes.isEmpty else {
         return writeNoContainersMessage(outputPath: outputPath)
     }

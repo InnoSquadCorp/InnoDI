@@ -225,6 +225,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     var semanticIssues: [SemanticContainerReferenceIssue] = []
     var fallbackMatchedReferences: [String] = []
 
+    private let moduleIdentity: String?
     private var currentRelativeFilePath: String = ""
     var declarationPath: [String] = []
     private var activeDeclarations: [DeclarationEntry] = []
@@ -235,6 +236,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         semanticResolver: SemanticResolverIndex,
         viewMode: SyntaxTreeViewMode = .sourceAccurate
     ) {
+        moduleIdentity = nil
         self.referenceResolver = .legacy(
             allContainerIDsBySemanticPath: allContainerIDsBySemanticPath,
             eligibleContainerIDsBySemanticPath: eligibleContainerIDsBySemanticPath,
@@ -245,8 +247,10 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
 
     init(
         referenceResolver: GraphContainerResolver,
+        moduleIdentity: String? = nil,
         viewMode: SyntaxTreeViewMode = .sourceAccurate
     ) {
+        self.moduleIdentity = moduleIdentity
         self.referenceResolver = referenceResolver
         super.init(viewMode: viewMode)
     }
@@ -346,7 +350,11 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
     ) -> SyntaxVisitorContinueKind {
         beginDeclarationContext(named: name)
         let containerID = isContainer
-            ? GraphIdentity.makeContainerID(fileRelativePath: currentRelativeFilePath, declarationPath: declarationPath)
+            ? GraphIdentity.makeContainerID(
+                fileRelativePath: currentRelativeFilePath,
+                declarationPath: declarationPath,
+                moduleIdentity: moduleIdentity
+            )
             : nil
         activeDeclarations.append(
             DeclarationEntry(
