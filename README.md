@@ -69,7 +69,7 @@ live for the duration of one operation.
 
 ## Requirements
 
-- Swift tools version `6.2`
+- Swift tools version `6.2` (CI validates Swift 6.2 and 6.3)
 - Platforms:
   - iOS 17+
   - macOS 13+

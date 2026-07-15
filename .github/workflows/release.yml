@@ -20,15 +20,9 @@ jobs:
       - name: Select Xcode 26.3
         # Pin to Xcode 26.3 (Swift 6.3) so release validation and DocC
         # generation run on one known toolchain.
-        run: |
-          if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
-            echo "Xcode 26.3 not installed on this runner."
-            ls -1 /Applications | grep '^Xcode' || true
-            exit 1
-          fi
-          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
-          xcodebuild -version
-          swift --version
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
 
       - name: Run Main Test Suite
         run: swift test

@@ -22,6 +22,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Build SampleApp
         run: |
           cd Examples/SampleApp
@@ -38,6 +40,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Build and Test SwiftUIExample
         run: |
           cd Examples/SwiftUIExample
@@ -51,6 +55,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Build and Test PreviewInjectionExample
         run: |
           cd Examples/PreviewInjectionExample

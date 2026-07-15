@@ -70,7 +70,7 @@ app-wide swap (например подменить `APIClient`); `swift-dependen
 
 ## Требования
 
-- Swift tools version `6.2`
+- Swift tools version `6.2` (CI проверяет Swift 6.2 и 6.3)
 - Платформы:
   - iOS 17+
   - macOS 13+

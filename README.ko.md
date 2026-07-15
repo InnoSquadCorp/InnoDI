@@ -69,7 +69,7 @@ override가 필요할 때 꺼냅니다.
 
 ## 요구 사항
 
-- Swift tools version `6.2`
+- Swift tools version `6.2` (CI 검증: Swift 6.2 및 6.3)
 - 플랫폼:
   - iOS 17+
   - macOS 13+

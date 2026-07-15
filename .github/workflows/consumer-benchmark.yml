@@ -22,16 +22,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Select Xcode 26.3
-        run: |
-          if [[ ! -d /Applications/Xcode_26.3.app/Contents/Developer ]]; then
-            echo "Xcode 26.3 not installed on this runner."
-            for xcode in /Applications/Xcode*.app; do
-              [[ -e "$xcode" ]] && echo "$(basename "$xcode")"
-            done
-            exit 1
-          fi
-          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
-          swift --version
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.3"
       - name: Generate synthetic consumer
         env:
           BINDING_COUNT: ${{ github.event.inputs.binding_count || '100' }}
