@@ -260,6 +260,9 @@ struct TargetAwareContainerResolutionIndex {
         }
 
         var dependencyResolutions: [GraphContainerResolution] = []
+        var ineligibleConditionalResolutions: [
+            GraphContainerResolution
+        ] = []
         for candidate in candidates {
             guard let firstComponent = candidate.reference.components.first
             else {
@@ -289,14 +292,20 @@ struct TargetAwareContainerResolutionIndex {
                 continue
             }
 
-            if let reason = conditionalImportFailure(
+            if let conditionalResolution = conditionalImportResolution(
                 for: candidate.reference,
                 from: target,
                 sourceImports: candidate.sourceImports
             ) {
-                return .excluded(
-                    reason: reason,
-                    aliasExpansionTrace: candidate.aliasExpansionTrace
+                let tracedResolution = conditionalResolution
+                    .withAliasExpansionTrace(
+                        candidate.aliasExpansionTrace
+                    )
+                if tracedResolution.requiresDiagnostic {
+                    return tracedResolution
+                }
+                ineligibleConditionalResolutions.append(
+                    tracedResolution
                 )
             }
 
@@ -349,6 +358,11 @@ struct TargetAwareContainerResolutionIndex {
         }
 
         guard !dependencyResolutions.isEmpty else {
+            if !ineligibleConditionalResolutions.isEmpty {
+                return mergedResolution(
+                    ineligibleConditionalResolutions
+                )
+            }
             return .unresolved(
                 aliasExpansionTrace: uniqueSortedStrings(
                     candidates.flatMap(\.aliasExpansionTrace)
@@ -358,13 +372,13 @@ struct TargetAwareContainerResolutionIndex {
         return mergedResolution(dependencyResolutions)
     }
 
-    private func conditionalImportFailure(
+    private func conditionalImportResolution(
         for reference: SemanticTypeReference,
         from target: IndexedTarget,
         sourceImports: TargetAwareSourceImports
-    ) -> String? {
+    ) -> GraphContainerResolution? {
         var activeTargetIDs: Set<WorkspaceTargetID> = [target.id]
-        return conditionalImportFailure(
+        return conditionalImportResolution(
             for: reference,
             from: target,
             sourceImports: sourceImports,
@@ -372,12 +386,13 @@ struct TargetAwareContainerResolutionIndex {
         )
     }
 
-    private func conditionalImportFailure(
+    private func conditionalImportResolution(
         for reference: SemanticTypeReference,
         from target: IndexedTarget,
         sourceImports: TargetAwareSourceImports,
         activeTargetIDs: inout Set<WorkspaceTargetID>
-    ) -> String? {
+    ) -> GraphContainerResolution? {
+        var ineligibleMatches: [GraphContainerResolution] = []
         for dependencyID in target.directDependencyTargetIDs {
             guard let dependency = targetsByID[dependencyID] else {
                 continue
@@ -396,13 +411,20 @@ struct TargetAwareContainerResolutionIndex {
                 moduleName: dependency.moduleName,
                 reference: lookupReference
             ),
-               targetContainsPotentialContainer(
+               let resolution = targetPotentialContainerResolution(
                 lookupReference,
                 in: dependency
-               ) {
-                return "conditional import visibility for module "
-                    + "'\(dependency.moduleName)' cannot be proven without "
-                    + "the active Swift compilation conditions"
+            ) {
+                if !resolution.eligibleCandidateIDs.isEmpty {
+                    return .excluded(
+                        reason: "conditional import visibility for module "
+                            + "'\(dependency.moduleName)' cannot be proven "
+                            + "without the active Swift compilation "
+                            + "conditions",
+                        aliasExpansionTrace: []
+                    )
+                }
+                ineligibleMatches.append(resolution)
             }
             guard sourceImports.exposes(
                 moduleName: dependency.moduleName,
@@ -414,34 +436,40 @@ struct TargetAwareContainerResolutionIndex {
                   activeTargetIDs.insert(dependency.id).inserted else {
                 continue
             }
-            if let reason = conditionalImportFailure(
+            if let resolution = conditionalImportResolution(
                 for: reference,
                 from: dependency,
                 sourceImports: dependency.exportedImports,
                 activeTargetIDs: &activeTargetIDs
             ) {
-                return reason
+                if resolution.requiresDiagnostic {
+                    return resolution
+                }
+                ineligibleMatches.append(resolution)
             }
             activeTargetIDs.remove(dependency.id)
         }
-        return nil
+        guard !ineligibleMatches.isEmpty else {
+            return nil
+        }
+        return mergedResolution(ineligibleMatches)
     }
 
-    private func targetContainsPotentialContainer(
+    private func targetPotentialContainerResolution(
         _ reference: SemanticTypeReference,
         in target: IndexedTarget
-    ) -> Bool {
+    ) -> GraphContainerResolution? {
         let candidates = expandedCandidates(
             for: reference,
             in: target,
             sourceImports: .empty
         )
-        if localResolution(
+        if let exactResolution = localResolution(
             candidates: candidates,
             in: target,
             useSuffixFallback: false
-        ) != nil {
-            return true
+        ) {
+            return exactResolution
         }
         let suffixCandidates = candidates.filter { candidate in
             guard candidate.reference.components.count > 1,
@@ -455,7 +483,7 @@ struct TargetAwareContainerResolutionIndex {
             candidates: suffixCandidates,
             in: target,
             useSuffixFallback: true
-        ) != nil
+        )
     }
 
     private func visibleDependencies(
