@@ -20,16 +20,17 @@ package func runDependencyGraphCLI() -> Int32 {
         return 1
     }
 
-    let rootPath = parsed.root
     let outputPath = parsed.output
     let outputFormat = parsed.format ?? .mermaid
+    let maintenanceRootPath = parsed.rootPath
+        ?? FileManager.default.currentDirectoryPath
 
     // `--diagnose-lock` short-circuits before any source loading: it
     // does not need to parse the user's containers, only inspect the
     // scratch directory.
     if let requested = parsed.diagnoseLockPath {
         return runDiagnoseLockSubcommand(
-            rootPath: rootPath,
+            rootPath: maintenanceRootPath,
             requestedScratchPath: requested
         )
     }
@@ -38,25 +39,48 @@ package func runDependencyGraphCLI() -> Int32 {
     // artifacts; it never parses source.
     if let requested = parsed.cacheStatsPath {
         return runCacheStatsSubcommand(
-            rootPath: rootPath,
+            rootPath: maintenanceRootPath,
             requestedStatePath: requested
         )
     }
 
+    guard let input = parsed.input else {
+        fputs("Error: graph input was not resolved\n", stderr)
+        return ExitCode.failure
+    }
+
     let snapshot: WorkspaceSourceSnapshot
+    let primaryTargetID: WorkspaceTargetID?
     do {
-        if parsed.validateDAG {
-            snapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath)
-        } else {
-            snapshot = try loadWorkspaceSourceSnapshot(rootPath: rootPath) { relativePath, fileURL, error in
-                fputs(
-                    "Warning: failed to read '\(relativePath)' (\(fileURL.path(percentEncoded: false))): \(error)\n",
-                    stderr
+        switch input {
+        case .analysisManifest(let path):
+            let manifest = try loadWorkspaceAnalysisManifest(
+                at: URL(fileURLWithPath: path)
+            )
+            snapshot = try loadWorkspaceSourceSnapshot(manifest: manifest)
+            primaryTargetID = manifest.primaryTargetID
+        case .root(let rootPath):
+            primaryTargetID = nil
+            if parsed.validateDAG {
+                snapshot = try loadWorkspaceSourceSnapshot(
+                    rootPath: rootPath
                 )
+            } else {
+                snapshot = try loadWorkspaceSourceSnapshot(
+                    rootPath: rootPath
+                ) { relativePath, fileURL, error in
+                    fputs(
+                        "Warning: failed to read '\(relativePath)' (\(fileURL.path(percentEncoded: false))): \(error)\n",
+                        stderr
+                    )
+                }
             }
         }
     } catch {
-        fputs("Error loading Swift sources: \(error)\n", stderr)
+        fputs(
+            "Error loading Swift sources: \(error.localizedDescription)\n",
+            stderr
+        )
         return ExitCode.failure
     }
 
@@ -81,9 +105,14 @@ package func runDependencyGraphCLI() -> Int32 {
         )
     }
 
+    guard let rootPruning = parsed.rootPruning else {
+        fputs("Error: render scope was not resolved\n", stderr)
+        return ExitCode.failure
+    }
     let renderedGraph = collectRenderableDependencyGraph(
         snapshot: snapshot,
-        validateDAG: false
+        validateDAG: false,
+        rootPruning: rootPruning
     )
     if let failure = renderedGraph.preflightFailure {
         return writeValidationResult(failure, outputPath: outputPath)
@@ -93,15 +122,34 @@ package func runDependencyGraphCLI() -> Int32 {
     }
 
     let rendered: String
-    switch outputFormat {
-    case .mermaid:
-        rendered = renderMermaid(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
-    case .dot:
-        rendered = renderDOT(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
-    case .ascii:
-        rendered = renderASCII(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
-    case .json:
-        rendered = renderJSON(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
+    do {
+        switch outputFormat {
+        case .mermaid:
+            rendered = renderMermaid(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
+        case .dot:
+            rendered = renderDOT(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
+        case .ascii:
+            rendered = renderASCII(nodes: renderedGraph.nodes, edges: renderedGraph.edges)
+        case .json:
+            guard let primaryTargetID else {
+                fputs(
+                    "Error: JSON schema v2 requires target-scoped analysis\n",
+                    stderr
+                )
+                return ExitCode.failure
+            }
+            rendered = try renderJSON(
+                scope: GraphJSON.Scope(
+                    primaryTargetID: primaryTargetID.rawValue,
+                    rootPruning: rootPruning
+                ),
+                nodes: renderedGraph.nodes,
+                edges: renderedGraph.edges
+            )
+        }
+    } catch {
+        fputs("Error rendering dependency graph: \(error)\n", stderr)
+        return ExitCode.failure
     }
 
     return writeGraphOutput(rendered, format: outputFormat, outputPath: outputPath)

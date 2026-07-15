@@ -1,4 +1,5 @@
 import Foundation
+import InnoDIDependencyGraphCore
 
 enum OutputFormat: Equatable {
     case mermaid
@@ -17,20 +18,30 @@ enum OutputFormat: Equatable {
     }
 }
 
+enum GraphInput: Equatable {
+    case root(String)
+    case analysisManifest(String)
+}
+
 struct ParsedArguments: Equatable {
-    var root: String
+    var input: GraphInput?
+    var rootPruning: DependencyGraphRootPruning?
     var format: OutputFormat?
     var output: String?
     var validateDAG: Bool
-    /// When non-nil, the CLI runs the `--diagnose-lock` subcommand
-    /// against the resolved scratch path instead of rendering or
-    /// validating a graph. The associated value is the directory the
-    /// user passed (or the default).
+    /// When non-nil, the CLI runs the `--diagnose-lock` maintenance command.
+    /// An empty string asks the caller to use `<root>/.build`.
     var diagnoseLockPath: String?
-    /// When non-nil, the CLI runs the `--cache-stats` subcommand
-    /// against the resolved state directory. Same path-resolution
-    /// rules as `--diagnose-lock`.
+    /// When non-nil, the CLI runs the `--cache-stats` maintenance command.
+    /// An empty string asks the caller to use the default state directory.
     var cacheStatsPath: String?
+
+    var rootPath: String? {
+        guard case .root(let path) = input else {
+            return nil
+        }
+        return path
+    }
 }
 
 /// Outcome of parsing command-line arguments. `.helpRequested` is a normal
@@ -44,136 +55,250 @@ enum ArgumentParseResult: Equatable {
 enum ArgumentsError: Error, Equatable {
     case missingOptionValue(option: String)
     case invalidFormat(value: String)
+    case invalidRootPruning(value: String)
     case unknownOption(option: String)
+    case unexpectedArgument(value: String)
+    case duplicateOption(option: String)
+    case mutuallyExclusiveOptions(first: String, second: String)
+    case missingGraphInput
+    case missingRootPruning
+    case rootPruningWithValidation
+    case formatWithValidation
+    case jsonRequiresAnalysisManifest
+    case incompatibleMaintenanceOption(option: String)
 }
 
 /// Pure-function argument parser. No process exit, no stderr writes — the
 /// caller decides how to surface errors and whether to print usage.
-func parseArguments(_ rawArguments: [String] = Array(CommandLine.arguments.dropFirst()))
-    -> ArgumentParseResult
-{
-    var root = FileManager.default.currentDirectoryPath
+func parseArguments(
+    _ rawArguments: [String] = Array(CommandLine.arguments.dropFirst())
+) -> ArgumentParseResult {
+    var rootPath: String?
+    var manifestPath: String?
+    var rootPruning: DependencyGraphRootPruning?
     var format: OutputFormat?
     var output: String?
     var validateDAG = false
     var diagnoseLockPath: String?
     var cacheStatsPath: String?
+    var seenOptions: Set<String> = []
 
     let args = rawArguments
     var index = 0
 
-    func requireOptionValue(_ option: String, at index: Int) -> Result<String, ArgumentsError> {
+    func requireOptionValue(
+        _ option: String,
+        at index: Int
+    ) -> Result<String, ArgumentsError> {
         guard index + 1 < args.count else {
             return .failure(.missingOptionValue(option: option))
         }
 
         let value = args[index + 1]
-        guard !value.hasPrefix("-") || (option == "--output" && value == "-") else {
+        guard !value.hasPrefix("-")
+            || (option == "--output" && value == "-") else {
             return .failure(.missingOptionValue(option: option))
         }
 
         return .success(value)
     }
 
-    while index < args.count {
-        let arg = args[index]
+    func recordOption(_ option: String) -> ArgumentsError? {
+        guard seenOptions.insert(option).inserted else {
+            return .duplicateOption(option: option)
+        }
+        return nil
+    }
 
-        if arg == "--root" {
-            switch requireOptionValue(arg, at: index) {
-            case .success(let value):
-                root = value
-                index += 2
-                continue
+    while index < args.count {
+        let option = args[index]
+
+        if option == "--help" || option == "-h" {
+            return .helpRequested
+        }
+
+        if option == "--root"
+            || option == "--analysis-manifest"
+            || option == "--root-pruning"
+            || option == "--format"
+            || option == "--output" {
+            if let error = recordOption(option) {
+                return .failed(error)
+            }
+            let value: String
+            switch requireOptionValue(option, at: index) {
+            case .success(let parsedValue):
+                value = parsedValue
             case .failure(let error):
                 return .failed(error)
             }
-        } else if arg == "--format" {
-            switch requireOptionValue(arg, at: index) {
-            case .success(let value):
-                guard let outputFormat = OutputFormat(string: value) else {
+
+            switch option {
+            case "--root":
+                rootPath = value
+            case "--analysis-manifest":
+                manifestPath = value
+            case "--root-pruning":
+                guard let parsed = DependencyGraphRootPruning(
+                    rawValue: value.lowercased()
+                ) else {
+                    return .failed(.invalidRootPruning(value: value))
+                }
+                rootPruning = parsed
+            case "--format":
+                guard let parsed = OutputFormat(string: value) else {
                     return .failed(.invalidFormat(value: value))
                 }
-                format = outputFormat
-                index += 2
-                continue
-            case .failure(let error):
-                return .failed(error)
-            }
-        } else if arg == "--output" {
-            switch requireOptionValue(arg, at: index) {
-            case .success(let value):
+                format = parsed
+            case "--output":
                 output = value
-                index += 2
-                continue
-            case .failure(let error):
+            default:
+                break
+            }
+            index += 2
+            continue
+        }
+
+        if option == "--validate-dag" {
+            if let error = recordOption(option) {
                 return .failed(error)
             }
-        } else if arg == "--validate-dag" {
             validateDAG = true
             index += 1
             continue
-        } else if arg == "--diagnose-lock" {
-            // `--diagnose-lock` accepts an optional path. Without it
-            // the subcommand defaults to scanning `<root>/.build`,
-            // which matches SPM's standard scratch directory.
-            if index + 1 < args.count, !args[index + 1].hasPrefix("-") {
-                diagnoseLockPath = args[index + 1]
-                index += 2
-            } else {
-                diagnoseLockPath = ""  // sentinel: caller fills in default
-                index += 1
-            }
-            continue
-        } else if arg == "--cache-stats" {
-            // Same path-handling shape as --diagnose-lock.
-            if index + 1 < args.count, !args[index + 1].hasPrefix("-") {
-                cacheStatsPath = args[index + 1]
-                index += 2
-            } else {
-                cacheStatsPath = ""
-                index += 1
-            }
-            continue
-        } else if arg == "--help" || arg == "-h" {
-            return .helpRequested
-        } else if arg.hasPrefix("-") {
-            return .failed(.unknownOption(option: arg))
         }
 
-        index += 1
+        if option == "--diagnose-lock" || option == "--cache-stats" {
+            if let error = recordOption(option) {
+                return .failed(error)
+            }
+            let path: String
+            if index + 1 < args.count, !args[index + 1].hasPrefix("-") {
+                path = args[index + 1]
+                index += 2
+            } else {
+                path = ""
+                index += 1
+            }
+            if option == "--diagnose-lock" {
+                diagnoseLockPath = path
+            } else {
+                cacheStatsPath = path
+            }
+            continue
+        }
+
+        if option.hasPrefix("-") {
+            return .failed(.unknownOption(option: option))
+        }
+        return .failed(.unexpectedArgument(value: option))
+    }
+
+    if rootPath != nil, manifestPath != nil {
+        return .failed(
+            .mutuallyExclusiveOptions(
+                first: "--root",
+                second: "--analysis-manifest"
+            )
+        )
+    }
+    if diagnoseLockPath != nil, cacheStatsPath != nil {
+        return .failed(
+            .mutuallyExclusiveOptions(
+                first: "--diagnose-lock",
+                second: "--cache-stats"
+            )
+        )
+    }
+
+    let input: GraphInput?
+    if let rootPath {
+        input = .root(rootPath)
+    } else if let manifestPath {
+        input = .analysisManifest(manifestPath)
+    } else {
+        input = nil
+    }
+
+    let isMaintenanceCommand = diagnoseLockPath != nil
+        || cacheStatsPath != nil
+    if isMaintenanceCommand {
+        if manifestPath != nil {
+            return .failed(
+                .incompatibleMaintenanceOption(
+                    option: "--analysis-manifest"
+                )
+            )
+        }
+        for (isPresent, option) in [
+            (rootPruning != nil, "--root-pruning"),
+            (format != nil, "--format"),
+            (output != nil, "--output"),
+            (validateDAG, "--validate-dag"),
+        ] where isPresent {
+            return .failed(.incompatibleMaintenanceOption(option: option))
+        }
+        return .parsed(
+            ParsedArguments(
+                input: input,
+                rootPruning: nil,
+                format: nil,
+                output: nil,
+                validateDAG: false,
+                diagnoseLockPath: diagnoseLockPath,
+                cacheStatsPath: cacheStatsPath
+            )
+        )
+    }
+
+    guard let input else {
+        return .failed(.missingGraphInput)
+    }
+    if validateDAG {
+        if rootPruning != nil {
+            return .failed(.rootPruningWithValidation)
+        }
+        if format != nil {
+            return .failed(.formatWithValidation)
+        }
+    } else if rootPruning == nil {
+        return .failed(.missingRootPruning)
+    }
+    if format == .json, case .root = input {
+        return .failed(.jsonRequiresAnalysisManifest)
     }
 
     return .parsed(
         ParsedArguments(
-            root: root,
+            input: input,
+            rootPruning: rootPruning,
             format: format,
             output: output,
             validateDAG: validateDAG,
-            diagnoseLockPath: diagnoseLockPath,
-            cacheStatsPath: cacheStatsPath
+            diagnoseLockPath: nil,
+            cacheStatsPath: nil
         )
     )
 }
 
 func usageText() -> String {
     """
-    Usage: InnoDI-DependencyGraph --root <path> [--format <mermaid|dot|ascii|json>] [--output <file>] [--validate-dag]
-           InnoDI-DependencyGraph --diagnose-lock [<scratch-path>]
-           InnoDI-DependencyGraph --cache-stats [<scratch-path>]
+    Usage: InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --root-pruning <all|roots> [--format <mermaid|dot|ascii|json>] [--output <file>]
+           InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --validate-dag [--output <file>]
+           InnoDI-DependencyGraph [--root <path>] --diagnose-lock [<scratch-path>]
+           InnoDI-DependencyGraph [--root <path>] --cache-stats [<state-path>]
 
     Options:
-      --root <path>          Root directory of the project (default: current directory)
-      --format <fmt>         Output format: mermaid (default), dot, ascii, json
-      --output <file>        Output file path (default: stdout; use - for stdout)
-      --validate-dag         Validate dependency graph DAG and fail on cycles/ambiguity
-      --diagnose-lock [path] Print the validation coordinator's view of the lock
-                             directory: filesystem class, environment, and any
-                             active or stale lock files with their metadata.
-                             Defaults to <root>/.build when no path is given.
-      --cache-stats [path]   Aggregate cache hit/miss counts from validation
-                             metrics artifacts under the given state directory.
-                             Same path-defaulting rules as --diagnose-lock.
-      --help, -h             Show this help message
+      --root <path>              Legacy workspace-root input for text graphs or DAG validation
+      --analysis-manifest <path> Target-scoped SwiftPM analysis manifest input
+      --root-pruning <mode>      Required render scope: all or roots
+      --format <fmt>             Output format: mermaid (default), dot, ascii, json
+                                 JSON schema v2 requires --analysis-manifest
+      --output <file>            Output file path (default: stdout; use - for stdout)
+      --validate-dag             Validate the full selected target scope; cannot be pruned
+      --diagnose-lock [path]     Inspect validation lock state (default: <root>/.build)
+      --cache-stats [path]       Aggregate validation cache metrics
+      --help, -h                 Show this help message
     """
 }
 
@@ -181,7 +306,6 @@ func printUsage() {
     print(usageText())
 }
 
-/// Describes the argument error in a stable format for stderr output.
 extension ArgumentsError {
     var message: String {
         switch self {
@@ -189,8 +313,28 @@ extension ArgumentsError {
             return "Error: Option \(option) requires a value"
         case .invalidFormat(let value):
             return "Error: Invalid --format value '\(value)'"
+        case .invalidRootPruning(let value):
+            return "Error: Invalid --root-pruning value '\(value)'"
         case .unknownOption(let option):
             return "Error: Unknown option '\(option)'"
+        case .unexpectedArgument(let value):
+            return "Error: Unexpected argument '\(value)'"
+        case .duplicateOption(let option):
+            return "Error: Option \(option) may be specified only once"
+        case .mutuallyExclusiveOptions(let first, let second):
+            return "Error: Options \(first) and \(second) are mutually exclusive"
+        case .missingGraphInput:
+            return "Error: Exactly one of --root <path> or --analysis-manifest <path> is required"
+        case .missingRootPruning:
+            return "Error: Render mode requires --root-pruning <all|roots>"
+        case .rootPruningWithValidation:
+            return "Error: --root-pruning is not supported with --validate-dag"
+        case .formatWithValidation:
+            return "Error: --format is not supported with --validate-dag"
+        case .jsonRequiresAnalysisManifest:
+            return "Error: JSON schema v2 requires --analysis-manifest <path>"
+        case .incompatibleMaintenanceOption(let option):
+            return "Error: Option \(option) is not supported with maintenance commands"
         }
     }
 }

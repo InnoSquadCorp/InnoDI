@@ -35,6 +35,11 @@ package enum DependencyGraphCoreExitCode {
     package static let dagValidationFailure: Int32 = 3
 }
 
+package enum DependencyGraphRootPruning: String, Codable, Equatable, Sendable {
+    case all
+    case roots
+}
+
 package func collectDependencyGraph(
     snapshot: WorkspaceSourceSnapshot,
     validateDAG: Bool
@@ -54,10 +59,24 @@ package func collectDependencyGraph(
 
 package func collectRenderableDependencyGraph(
     snapshot: WorkspaceSourceSnapshot,
-    validateDAG: Bool
+    validateDAG: Bool,
+    rootPruning: DependencyGraphRootPruning
 ) -> DependencyGraphAnalysis {
     let analysis = collectDependencyGraph(snapshot: snapshot, validateDAG: validateDAG)
-    let rendered = rootPrunedRenderGraph(nodes: analysis.nodes, edges: analysis.edges)
+    guard rootPruning == .roots else {
+        return analysis
+    }
+    guard let rendered = rootPrunedRenderGraph(
+        nodes: analysis.nodes,
+        edges: analysis.edges
+    ) else {
+        return DependencyGraphAnalysis(
+            nodes: [],
+            edges: [],
+            preflightFailure: analysis.preflightFailure
+                ?? rootPruningWithoutRootsFailure()
+        )
+    }
     return DependencyGraphAnalysis(
         nodes: rendered.nodes,
         edges: rendered.edges,
@@ -409,10 +428,10 @@ private func sortedGraphEdges(
 private func rootPrunedRenderGraph(
     nodes: [DependencyGraphNode],
     edges: [DependencyGraphEdge]
-) -> (nodes: [DependencyGraphNode], edges: [DependencyGraphEdge]) {
+) -> (nodes: [DependencyGraphNode], edges: [DependencyGraphEdge])? {
     let rootIDs = nodes.filter(\.isRoot).map(\.id)
     guard !rootIDs.isEmpty else {
-        return (nodes, edges)
+        return nil
     }
 
     var adjacency: [String: [String]] = [:]
@@ -434,6 +453,14 @@ private func rootPrunedRenderGraph(
     return (
         nodes.filter { reachableIDs.contains($0.id) },
         edges.filter { reachableIDs.contains($0.fromID) && reachableIDs.contains($0.toID) }
+    )
+}
+
+private func rootPruningWithoutRootsFailure() -> DependencyGraphCommandResult {
+    DependencyGraphCommandResult(
+        exitCode: DependencyGraphCoreExitCode.dagValidationFailure,
+        stdout: "",
+        stderr: "[graph.root-pruning-no-roots] Root pruning requires at least one @DIContainer(root: true) declaration.\n"
     )
 }
 

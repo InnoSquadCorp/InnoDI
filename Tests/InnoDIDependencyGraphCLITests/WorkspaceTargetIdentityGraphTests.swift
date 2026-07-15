@@ -1109,7 +1109,8 @@ private final class TargetGraphFixture {
     func collectRenderableGraph() throws -> DependencyGraphAnalysis {
         collectRenderableDependencyGraph(
             snapshot: try loadSnapshot(),
-            validateDAG: false
+            validateDAG: false,
+            rootPruning: .all
         )
     }
 

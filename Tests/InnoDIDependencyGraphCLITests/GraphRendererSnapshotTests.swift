@@ -19,6 +19,7 @@ struct GraphRendererSnapshotTests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "mermaid"
         ])
         try #require(result.exitCode == 0, "CLI exited non-zero. stderr: \(result.stderr)")
@@ -32,6 +33,7 @@ struct GraphRendererSnapshotTests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "dot"
         ])
         try #require(result.exitCode == 0, "CLI exited non-zero. stderr: \(result.stderr)")
@@ -45,6 +47,7 @@ struct GraphRendererSnapshotTests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "ascii"
         ])
         try #require(result.exitCode == 0, "CLI exited non-zero. stderr: \(result.stderr)")
