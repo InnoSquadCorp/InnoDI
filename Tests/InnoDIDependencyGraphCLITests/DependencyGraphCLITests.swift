@@ -26,7 +26,11 @@ struct DependencyGraphCLITests {
         let rootPath = fixtureURL.path(percentEncoded: false)
 
         for arguments in [
-            ["--root", rootPath, "--format", "json"],
+            [
+                "--root", rootPath,
+                "--root-pruning", "roots",
+                "--format", "ascii",
+            ],
             ["--root", rootPath, "--validate-dag"],
         ] {
             let result = try runCLI(arguments)
@@ -71,15 +75,27 @@ struct DependencyGraphCLITests {
 
         let rootPath = fixtureURL.path(percentEncoded: false)
 
-        let mermaid = try runCLI(["--root", rootPath, "--format", "mermaid"])
+        let mermaid = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "mermaid",
+        ])
         #expect(mermaid.exitCode == 0)
         #expect(mermaid.stdout.contains("graph TD"))
 
-        let dot = try runCLI(["--root", rootPath, "--format", "dot"])
+        let dot = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "dot",
+        ])
         #expect(dot.exitCode == 0)
         #expect(dot.stdout.contains("digraph InnoDI"))
 
-        let ascii = try runCLI(["--root", rootPath, "--format", "ascii"])
+        let ascii = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "ascii",
+        ])
         #expect(ascii.exitCode == 0)
         #expect(ascii.stdout.contains("InnoDI Dependency Graph"))
     }
@@ -91,17 +107,29 @@ struct DependencyGraphCLITests {
 
         let rootPath = fixtureURL.path(percentEncoded: false)
 
-        let mermaid = try runCLI(["--root", rootPath, "--format", "mermaid"])
+        let mermaid = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "mermaid",
+        ])
         #expect(mermaid.exitCode == 0)
         #expect(mermaid.stdout.contains("-.->"))
         #expect(mermaid.stdout.contains("==>"))
 
-        let dot = try runCLI(["--root", rootPath, "--format", "dot"])
+        let dot = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "dot",
+        ])
         #expect(dot.exitCode == 0)
         #expect(dot.stdout.contains("style=dashed"))
         #expect(dot.stdout.contains("style=dotted"))
 
-        let ascii = try runCLI(["--root", rootPath, "--format", "ascii"])
+        let ascii = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "ascii",
+        ])
         #expect(ascii.exitCode == 0)
         #expect(ascii.stdout.contains("- ->"))
         #expect(ascii.stdout.contains("~~>"))
@@ -116,7 +144,11 @@ struct DependencyGraphCLITests {
 
         let rootPath = fixtureURL.path(percentEncoded: false)
 
-        let mermaid = try runCLI(["--root", rootPath, "--format", "mermaid"])
+        let mermaid = try runCLI([
+            "--root", rootPath,
+            "--root-pruning", "roots",
+            "--format", "mermaid",
+        ])
         #expect(mermaid.exitCode == 0)
         #expect(mermaid.stdout.contains("-.->"))
         #expect(mermaid.stdout.contains("==>"))
@@ -134,6 +166,7 @@ struct DependencyGraphCLITests {
         let outputURL = fixtureURL.appendingPathComponent("graph.dot")
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "dot",
             "--output", outputURL.path(percentEncoded: false)
         ])
@@ -145,20 +178,261 @@ struct DependencyGraphCLITests {
         #expect(content.contains("digraph InnoDI"))
     }
 
-    @Test("--output - writes graph output to stdout")
+    @Test("--output - writes text graph output to stdout")
     func outputDashWritesGraphToStdout() throws {
         let fixtureURL = try makeFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
-            "--format", "json",
+            "--root-pruning", "roots",
+            "--format", "ascii",
             "--output", "-"
         ])
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"schemaVersion\""))
+        #expect(result.stdout.contains("InnoDI Dependency Graph"))
         #expect(result.stderr.isEmpty)
+    }
+
+    @Test("Manifest-backed JSON emits the schema-v2 scope and stable IDs")
+    func manifestBackedJSONV2EndToEnd() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let manifest = try writeCLIAnalysisManifest(for: fixtureURL)
+
+        let result = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "json",
+            "--output", "-",
+        ])
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        let document = try JSONDecoder().decode(
+            GraphJSON.Document.self,
+            from: Data(result.stdout.utf8)
+        )
+        #expect(document.schemaVersion == 2)
+        #expect(document.scope.primaryTargetID == manifest.targetID.rawValue)
+        #expect(document.scope.rootPruning == .all)
+        #expect(
+            document.nodes.map(\.id) == [
+                "swiftpm:cli-fixture:FixtureApp::AppContainer",
+                "swiftpm:cli-fixture:FixtureApp::FeatureContainer",
+            ]
+        )
+        #expect(!result.stdout.contains(fixtureURL.path(percentEncoded: false)))
+
+        let validation = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--validate-dag",
+        ])
+        #expect(validation.exitCode == 0)
+        #expect(validation.stdout.contains("DAG validation passed."))
+    }
+
+    @Test("Malformed manifests never fall back to a root scan")
+    func malformedManifestIsTerminal() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let manifestURL = fixtureURL.appendingPathComponent(
+            "broken-workspace-analysis.json"
+        )
+        try Data("not-json".utf8).write(to: manifestURL)
+
+        let result = try runCLI([
+            "--analysis-manifest", manifestURL.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "ascii",
+        ])
+
+        #expect(result.exitCode == 1)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("Error loading Swift sources"))
+        #expect(result.stderr.contains("could not be decoded"))
+        #expect(!result.stderr.contains("InnoDI Dependency Graph"))
+    }
+
+    @Test("Manifest render fails on duplicate semantic identities")
+    func manifestRenderRejectsDuplicateSemanticIdentities() throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "InnoDI-CLI-Duplicate-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: fixtureURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let source = """
+        import InnoDI
+
+        @DIContainer
+        struct SharedContainer {}
+        """
+        try source.write(
+            to: fixtureURL.appendingPathComponent("First.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try source.write(
+            to: fixtureURL.appendingPathComponent("Second.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let manifest = try writeCLIAnalysisManifest(for: fixtureURL)
+
+        let result = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "ascii",
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stdout.isEmpty)
+        #expect(
+            result.stderr.contains("[graph.duplicate-semantic-identity]")
+        )
+    }
+
+    @Test("Manifest DAG validation never broadens to sibling sources")
+    func manifestValidationUsesOnlyDeclaredSources() throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "InnoDI-CLI-Scope-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: fixtureURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let includedSource = """
+        import InnoDI
+
+        @DIContainer(root: true)
+        struct IncludedContainer {}
+        """
+        let poisonSource = """
+        import InnoDI
+
+        @DIContainer
+        private struct HiddenSiblingContainer {}
+        """
+        try includedSource.write(
+            to: fixtureURL.appendingPathComponent("Included.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try poisonSource.write(
+            to: fixtureURL.appendingPathComponent("Poison.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let manifest = try writeCLIAnalysisManifest(
+            for: fixtureURL,
+            includingSourcePaths: ["Included.swift"]
+        )
+
+        let targetScoped = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--validate-dag",
+        ])
+        let legacyRoot = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag",
+        ])
+
+        #expect(targetScoped.exitCode == 0)
+        #expect(targetScoped.stdout.contains("DAG validation passed."))
+        #expect(legacyRoot.exitCode == 1)
+        #expect(
+            legacyRoot.stderr.contains(
+                "[container.private-access-unsupported]"
+            )
+        )
+    }
+
+    @Test("Manifest JSON all and roots scopes select different payloads")
+    func manifestJSONRootPruningMatchesScopeEnvelope() throws {
+        let fixtureURL = try makeRootedOwnershipRenderFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let manifest = try writeCLIAnalysisManifest(for: fixtureURL)
+
+        let allResult = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "json",
+        ])
+        let rootsResult = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--root-pruning", "roots",
+            "--format", "json",
+        ])
+
+        #expect(allResult.exitCode == 0)
+        #expect(rootsResult.exitCode == 0)
+        let allDocument = try JSONDecoder().decode(
+            GraphJSON.Document.self,
+            from: Data(allResult.stdout.utf8)
+        )
+        let rootsDocument = try JSONDecoder().decode(
+            GraphJSON.Document.self,
+            from: Data(rootsResult.stdout.utf8)
+        )
+        #expect(allDocument.scope.rootPruning == .all)
+        #expect(rootsDocument.scope.rootPruning == .roots)
+        #expect(
+            allDocument.nodes.contains { $0.semanticPath == "OrphanContainer" }
+        )
+        #expect(
+            !rootsDocument.nodes.contains {
+                $0.semanticPath == "OrphanContainer"
+            }
+        )
+        #expect(allDocument.nodes.count > rootsDocument.nodes.count)
+    }
+
+    @Test("Maintenance commands dispatch without graph input or pruning")
+    func maintenanceCommandsDispatchBeforeGraphValidation() throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "InnoDI-CLI-Maintenance-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: fixtureURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let lockResult = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--diagnose-lock",
+        ])
+        let cacheResult = try runCLI(["--cache-stats"])
+
+        #expect(lockResult.exitCode == 0)
+        #expect(lockResult.stdout.contains("InnoDI lock diagnostic"))
+        #expect(
+            lockResult.stdout.contains(
+                fixtureURL.appendingPathComponent(".build").path(
+                    percentEncoded: false
+                )
+            )
+        )
+        #expect(cacheResult.exitCode == 0)
+        #expect(cacheResult.stdout.contains("InnoDI cache statistics"))
+        #expect(
+            cacheResult.stdout.contains(
+                packageRootURL().appendingPathComponent(".build").path(
+                    percentEncoded: false
+                )
+            )
+        )
     }
 
     @Test("--output - writes DAG validation messages to stdout")
@@ -218,11 +492,12 @@ struct DependencyGraphCLITests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
-            "--format", "json"
+            "--root-pruning", "roots",
+            "--format", "ascii"
         ])
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"schemaVersion\""))
+        #expect(result.stdout.contains("InnoDI Dependency Graph"))
         #expect(result.stderr.contains("Warning: failed to read 'Broken.swift'"))
     }
 
@@ -296,6 +571,7 @@ struct DependencyGraphCLITests {
         let outputURL = fixtureURL.appendingPathComponent("graph.png")
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "dot",
             "--output", outputURL.path(percentEncoded: false)
         ])
@@ -318,6 +594,7 @@ struct DependencyGraphCLITests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "all",
             "--format", "ascii",
             "--output", "/dev/null/nope.txt"
         ])
@@ -587,6 +864,7 @@ struct DependencyGraphCLITests {
 
         let asciiResult = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "ascii"
         ])
 
@@ -635,6 +913,7 @@ struct DependencyGraphCLITests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "ascii"
         ])
 
@@ -651,6 +930,7 @@ struct DependencyGraphCLITests {
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
             "--format", "ascii"
         ])
 
@@ -660,13 +940,14 @@ struct DependencyGraphCLITests {
         #expect(!result.stdout.contains("\n  OrphanContainer"))
     }
 
-    @Test("Render mode keeps the full graph when no roots are declared")
+    @Test("All scope keeps the full graph when no roots are declared")
     func renderWithoutRootsKeepsFullGraph() throws {
         let fixtureURL = try makeRootlessRenderFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
 
         let result = try runCLI([
             "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "all",
             "--format", "ascii"
         ])
 
@@ -675,6 +956,77 @@ struct DependencyGraphCLITests {
         #expect(result.stdout.contains("\n  FeatureContainer"))
         #expect(result.stdout.contains("\n  OrphanContainer"))
     }
+
+    @Test("Root pruning fails when no graph roots are declared")
+    func rootPruningRequiresRoots() throws {
+        let fixtureURL = try makeRootlessRenderFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "roots",
+            "--format", "ascii",
+        ])
+
+        #expect(result.exitCode == 3)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("[graph.root-pruning-no-roots]"))
+    }
+}
+
+private struct CLIAnalysisManifestFixture {
+    let url: URL
+    let targetID: WorkspaceTargetID
+}
+
+private func writeCLIAnalysisManifest(
+    for rootURL: URL,
+    includingSourcePaths: [String]? = nil
+) throws -> CLIAnalysisManifestFixture {
+    let packageIdentity = "cli-fixture"
+    let moduleName = "FixtureApp"
+    let targetID = WorkspaceTargetID.swiftPM(
+        packageIdentity: packageIdentity,
+        moduleName: moduleName
+    )
+    let rootPath = rootURL.path(percentEncoded: false)
+    let discoveredSourcePaths = try discoverWorkspaceSourceFiles(
+        rootPath: rootPath
+    )
+    let selectedSourcePaths = includingSourcePaths ?? discoveredSourcePaths
+    let sources = selectedSourcePaths.sorted().map {
+        logicalPath in
+        WorkspaceAnalysisSource(
+            filePath: rootURL.appendingPathComponent(logicalPath).path(
+                percentEncoded: false
+            ),
+            logicalPath: logicalPath,
+            origin: .declared
+        )
+    }
+    let target = WorkspaceAnalysisTarget(
+        id: targetID,
+        packageIdentity: packageIdentity,
+        packageDisplayName: "CLI Fixture",
+        packageDirectory: rootPath,
+        targetName: moduleName,
+        moduleName: moduleName,
+        kind: .generic,
+        role: .primary,
+        sources: sources,
+        dependencies: []
+    )
+    let manifest = WorkspaceAnalysisManifest(
+        rootPackageIdentity: packageIdentity,
+        rootPackageDirectory: rootPath,
+        primaryTargetID: targetID,
+        targets: [target]
+    )
+    let manifestURL = rootURL.appendingPathComponent(
+        "workspace-analysis.json"
+    )
+    try encodeWorkspaceAnalysisManifest(manifest).write(to: manifestURL)
+    return CLIAnalysisManifestFixture(url: manifestURL, targetID: targetID)
 }
 
 // CLI process helpers (runCLI, CLIRunResult, DataSink, ExecutableNotFound,

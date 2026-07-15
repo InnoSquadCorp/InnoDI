@@ -25,17 +25,17 @@ struct CacheStatsArgumentsTests {
         #expect(args.cacheStatsPath == "/tmp/cache")
     }
 
-    @Test("--cache-stats does not consume an option-shaped next argument")
-    func cacheStatsDoesNotEatNextOption() {
-        guard case let .parsed(args, _) = parseArguments([
+    @Test("--cache-stats rejects graph options instead of consuming them")
+    func cacheStatsRejectsGraphOption() {
+        let result = parseArguments([
             "--cache-stats",
             "--format", "json"
-        ]) else {
-            Issue.record("Expected parsed result")
-            return
-        }
-        #expect(args.cacheStatsPath == "")
-        #expect(args.format == .json)
+        ])
+        #expect(
+            result == .failed(
+                .incompatibleMaintenanceOption(option: "--format")
+            )
+        )
     }
 }
 
