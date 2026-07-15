@@ -7,27 +7,36 @@ Latest stable public release: `4.3.0`
 Current development train: `5.0.0` (unreleased)
 
 `main` accumulates the 5.0 contract-hardening work as independently green
-commits. Keep README installation snippets on 4.3.0 until the complete 5.0
-release-candidate gate passes and an immutable 5.0.0 tag is created.
+commits. Keep README installation snippets on 4.3.0 during development. When
+the release operator is ready to publish, land one final release-candidate
+commit that renames `## Unreleased` to the exact stable version, updates the
+latest-stable metadata and every localized README installation reference, and
+then dispatch the SHA-bound release workflow immediately. The workflow validates
+that exact commit before it creates the immutable annotated tag.
 
 ## Release Checklist
 
-Before tagging a release:
+Before dispatching the `Release Gate` workflow:
 
-1. Update the matching `## <tag>` section in this file. The release workflow publishes that section as the GitHub Release body.
-2. Confirm the README installation snippet points at the same tag.
-3. Run the main package test suite:
+1. Use an unprefixed stable SemVer such as `5.0.0`; prerelease/build metadata
+   and a leading `v` are not accepted.
+2. Run the main package test suite:
    - `swift test`
-4. Run the strict-concurrency suite:
+3. Run the strict-concurrency suite:
    - `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
-5. Run example builds and tests:
-   - `(cd Examples/SwiftUIExample && swift build && swift test)`
-   - `(cd Examples/PreviewInjectionExample && swift build && swift test)`
-6. Run the global DAG check:
+4. Build, test, and where applicable run every example under strict
+   concurrency with warnings as errors:
+   - `Examples/SampleApp` (`swift build`, `swift test`, and `swift run --skip-build SampleApp`)
+   - `Examples/SwiftUIExample` (`swift build` and `swift test`)
+   - `Examples/PreviewInjectionExample` (`swift build` and `swift test`)
+5. Run the global DAG check:
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
-7. Verify the macro-source `fatalError` allow-list is intact:
+6. Run the repository contract guards:
    - `Tools/check-no-fatalerror-in-macros.sh`
-8. Validate the Apple Privacy Manifests bundled with the embedded products:
+   - `Tools/check-ci-validation-opt-out.sh`
+   - `Tools/check-docs-code-blocks.sh`
+   - `Tools/check-localized-readme-sync.sh`
+7. Validate the Apple Privacy Manifests bundled with the embedded products:
    - `plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy`
    - `plutil -lint Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy`
    - When the manifest is touched in this release, double-check that
@@ -35,32 +44,92 @@ Before tagging a release:
      `NSPrivacyCollectedDataTypes`, and `NSPrivacyAccessedAPITypes` still
      match the actual SDK behavior — adding any Required Reason API to the
      runtime targets requires a corresponding manifest entry.
-9. Generate DocC:
-   - `Tools/generate-docc.sh`
-10. Decide whether any artifact or schema contract changed and update the contract notes below.
-11. Confirm the GitHub Actions `Release Gate` workflow is using the intended tag and toolchain.
-12. If publishing the optional prebuilt validation plugin, prepare and verify
-    the companion package artifact:
+8. With Xcode 26.3 selected, build `InnoDISwiftUI` for the generic macOS, iOS,
+   watchOS, tvOS, and visionOS destinations under complete strict concurrency,
+   and reject warnings originating from an InnoDI source file.
+9. Enforce the checked-in macro-performance baseline:
+   - `Tools/measure-macro-performance.sh --enforce`
+10. Generate DocC:
+    - `Tools/generate-docc.sh`
+    - package `.build/docc/InnoDI` with
+      `Tools/package-release-docc.sh --source .build/docc/InnoDI --output <archive>`
+      when manually checking reproducibility; the workflow performs this step
+      twice-tested with normalized archive metadata
+11. Decide whether any artifact or schema contract changed and update the
+    contract notes below. If publishing the optional prebuilt validation
+    plugin, prepare and verify its companion package artifact before the core
+    candidate is pushed:
     - `(cd InnoDIValidationTools && Tools/prepare-release-artifact.sh --tag <tag> --source-path ../ --output-dir Artifacts)`
     - verify a synthetic consumer can build with `InnoDIPrebuiltDAGValidationPlugin`
-    - publish `InnoDIValidationTools` with the same tag as this repository
-13. For public-discovery releases, confirm Swift Package Index readiness:
+    - publish `InnoDIValidationTools` with the same tag only after this core
+      release succeeds
+12. For public-discovery releases, confirm the pre-publication Swift Package
+    Index inputs:
     - repository is public
     - `Package.swift` is at the root
-    - a semantic-version tag exists
     - `swift package dump-package` succeeds with the current Swift toolchain
-    - package URL submitted to SPI includes `https://` and `.git`
-    - after the package appears on SPI, use the maintainer badge markdown from
-      the package page and add it to `README.md`
-14. After tagging, evaluate external discovery PRs:
+13. Complete the GitHub-side publication controls:
+    - enable immutable releases for the repository
+    - add an active branch ruleset with no bypass actors or exclusions that
+      covers exactly `refs/heads/main` (or `refs/heads/*`) and prevents
+      non-fast-forward updates and deletion; store its numeric ID in the
+      repository variable `RELEASE_MAIN_RULESET_ID`
+    - add an active tag ruleset with no bypass actors or exclusions that covers
+      stable SemVer tags, prevents update and deletion, and does not prevent
+      creation; store its numeric ID in `RELEASE_TAG_RULESET_ID`
+    - configure the `release` environment with exactly one required-reviewer
+      rule, at least one reviewer, self-review prevention, and exactly one
+      custom deployment branch policy named `main`
+    - disallow administrator bypass in the environment settings where the
+      repository plan permits it; GitHub's environment REST response does not
+      expose that setting, so the workflow cannot verify it automatically
+    - store `RELEASE_ADMIN_TOKEN` only in that environment; use a fine-grained
+      token limited to this repository with `Administration: read` and
+      `Actions: read` so the workflow can verify immutable-release, ruleset,
+      and environment policy without granting it an additional release-write
+      credential
+    The workflow fails closed before publication when the environment secret
+    or either ruleset variable is missing, a policy does not match the contract,
+    or repository release immutability is disabled. GitHub does not expose one
+    transaction that combines tag comparison and draft publication. The tag
+    ruleset closes that mutable-tag window, while the branch ruleset guarantees
+    that a validated candidate remains on monotonic `main` history if `main`
+    advances before publication.
+14. In one final release-candidate commit:
+    - rename the current `## Unreleased` section to the exact version
+    - update `Latest stable public release` to the exact version
+    - remove the matching `Current development train: <version> (unreleased)`
+      line, or advance it to a later development train
+    - update every installation reference in `README.md` and the six localized
+      README variants to the exact version
+    - leave exactly one matching release-notes section in this file
+15. Push that final candidate to `main`, record its full 40-character commit
+    SHA, and immediately dispatch `Release Gate` from `main` with the exact
+    version and SHA. Do not create or push the release tag manually, and do not
+    rewrite or delete `main`. A normal fast-forward may advance `main`; the
+    workflow rechecks that the exact candidate is still an ancestor of current
+    remote `main`. It validates and packages that candidate before its
+    least-privilege publication job creates the annotated tag and GitHub
+    Release. If publication fails after the tag push, rerun only the failed
+    jobs; the exact annotated tag is then the recovery anchor even if `main`
+    later advances.
+16. After publication, verify the peeled remote tag SHA, GitHub Release notes,
+    release immutability, the two checksum-covered assets, and `SHA256SUMS`.
+    Add a fresh empty `## Unreleased` section and the next development-train
+    metadata in a separate post-release commit. For public-discovery releases,
+    confirm that the semantic-version tag is visible, submit a package URL
+    containing `https://` and `.git` to SPI, and add the maintainer badge from
+    the package page after indexing. Then evaluate external discovery PRs:
     - `matteocrippa/awesome-swift` for the compile-time DI category
     - the current leading SwiftUI awesome list only if the submitted entry
       focuses on `InnoDISwiftUI` helpers rather than core DI
 
 ## Release Notes Source
 
-The tag-driven `Release Gate` workflow extracts the matching `## <tag>` section
-from this file and uses it as the GitHub Release body.
+The manual, SHA-bound `Release Gate` workflow extracts the matching
+`## <version>` section from this file and uses it as the GitHub Release body.
+It rejects a candidate whose version, full commit SHA, latest-stable metadata,
+localized README references, or release-notes section do not agree.
 
 Each version section should include:
 
@@ -74,6 +143,7 @@ These artifacts are treated as release-quality contracts:
 
 - validation metrics JSON artifact
 - validation summary Markdown artifact
+- dependency graph JSON document
 
 Versioning rules:
 
@@ -85,6 +155,7 @@ Current tracked versions:
 
 - `ValidationMetricsArtifact.currentVersion`: see [ValidationMetrics.swift](Sources/InnoDIBuildSupport/ValidationMetrics.swift)
 - `sharedRunCacheVersion`: see [ValidationCoordinator.swift](Sources/InnoDIBuildSupport/ValidationCoordinator.swift)
+- `GraphJSON.currentSchemaVersion`: see [JSONRenderer.swift](Sources/InnoDIDependencyGraphCore/Rendering/JSONRenderer.swift)
 
 If artifact naming, schema shape, or coordinator cache salt changes, update
 this document and the release-contract tests in the same change.
@@ -112,6 +183,8 @@ catalog.
 The release workflow publishes these assets to the GitHub Release:
 
 - packaged DocC archive
+- extracted release notes
+- SHA-256 checksum manifest covering both files
 
 Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
@@ -130,10 +203,13 @@ standalone release assets.
   enabled the strict macro test workflow for pushes to `main`.
 - Restored public `@DIComponent` expansion across Swift module boundaries by
   exporting its generated associated-type witnesses.
+- Added the public `InnoDI-DependencyGraph` executable product and stabilized
+  graph JSON schema v2 around module-qualified node identities, explicit
+  target scope, and explicit root-pruning metadata.
 
-### Breaking or Behavior Changes
+### Breaking and Behavior Changes
 
-- `@DIContainer` and `@DIComponent` now accept only effectively non-generic
+- **Intentional breaking change:** `@DIContainer` and `@DIComponent` now accept only effectively non-generic
   `struct` declarations at file scope or inside non-generic nominal
   declarations. Direct non-struct or generic declarations, declarations in an
   enclosing generic nominal context, declarations nested inside extensions,
@@ -145,10 +221,23 @@ standalone release assets.
   can add compiler-owned or companion-macro diagnostics without that preflight
   when a local container is stacked with an attached-extension macro such as
   `@DIComponent`.
-- The shared build-validation cache salt is now v5 so workspaces cannot reuse
-  a green result produced before the declaration-matrix preflight rejected
-  inaccessible private mount surfaces.
-- Public `@Provide` now accepts only a direct, plain, stored instance `var` in
+- **Contract-restoring behavior correction:** The shared build-validation
+  cache salt is now v7 so a workspace cannot reuse a green result produced
+  before target-topology signatures and the target-scoped full-source
+  generated-qualifier preflight existed.
+- **Intentional breaking change:** Targets that declare an InnoDI container or
+  a standalone `@DIEnvironmentBridge` must attach
+  `InnoDIDAGValidationPlugin`. Its target-scoped full-source pass extends
+  generated module-qualifier diagnostics to visible sibling-file, enclosing,
+  matching-extension, and imported dependency declarations. It also rejects
+  `@DIEnvironmentBridge` attached directly to an extension, nested in an
+  extension, or declared inside executable code. Move bridge targets to file
+  or nominal scope and rename `InnoDI`, `Swift`, `_Concurrency`, `SwiftUI`, or
+  `InnoDISwiftUI` shadows according to the diagnostic.
+- **Contract-restoring behavior correction:** Root-path graph rendering now
+  fails when any discovered Swift source cannot be read or decoded. It no
+  longer warns and renders a partial graph that could omit a validation site.
+- **Intentional breaking change:** Public `@Provide` now accepts only a direct, plain, stored instance `var` in
   the same supported `@DIContainer` struct. `let`, computed or observed
   properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone or
   indirectly nested declarations, property wrappers, conditional/unknown
@@ -159,20 +248,20 @@ standalone release assets.
   on provider declarations and accessors are internal compiler support. A
   complete provider member inside `#if` receives the dedicated
   `provide.conditional-declaration-unsupported` diagnostic.
-- A property accepts exactly one `@Provide`; duplicate attributes are rejected
+- **Intentional breaking change:** A property accepts exactly one `@Provide`; duplicate attributes are rejected
   with `provide.duplicate-attribute`. Opaque `some Protocol` provider types are
   rejected with `provide.opaque-type-unsupported` and must become
   `any Protocol`. Implicitly unwrapped `T!` provider types are rejected with
   `provide.iuo-type-unsupported` and must become explicit `T` or `T?`.
-- `.shared` and `.transient` providers now require exactly one construction
+- **Intentional breaking change:** `.shared` and `.transient` providers now require exactly one construction
   source from `factory:`, `asyncFactory:`, `Type.self`, or a property
   initializer. `.input` providers reject all four sources and `with:`.
-- The public `@Provide` signature no longer accepts `concrete:`. The declared
+- **Intentional breaking change:** The public `@Provide` signature no longer accepts `concrete:`. The declared
   property type is the single source of truth for storage and override shape:
   a concrete nominal type produces concrete storage, while `any Protocol`
   produces existential storage. No replacement positional token or inference
   flag is added.
-- `.input` initializer parameters remain eager `T` values, preserving normal
+- **Contract-restoring behavior correction:** `.input` initializer parameters remain eager `T` values, preserving normal
   `try` / `await` argument evaluation. Direct non-optional function types are
   detected and emitted as escaping parameters automatically. A non-optional
   function type hidden behind a typealias uses the literal opt-in
@@ -180,7 +269,7 @@ standalone release assets.
   nonfunction/optional-function shapes receive stable diagnostics; Swift may
   diagnose a conservatively accepted alias that does not resolve to a
   non-optional function.
-- Sibling DI edges now have a closed syntax: named parameters on the root
+- **Intentional breaking change:** Sibling DI edges now have a closed syntax: named parameters on the root
   `factory:`/`asyncFactory:` closure literal, or `Type.self` plus a literal
   `with:` array containing only canonical direct-member key paths spelled
   exactly `\Self.member`, such as `[\Self.config]`; `[]` is also valid. Named
@@ -189,11 +278,11 @@ standalone release assets.
   valid only with `Type.self` and can target synchronous providers only.
   Non-closure factories and property initializers are opaque zero-edge sources
   and may not read sibling container members.
-- Factory effects are explicit and checked on every explicit sibling edge.
+- **Contract-restoring behavior correction:** Factory effects are explicit and checked on every explicit sibling edge.
   `validateDAG: false` does not suppress async/throwing compatibility errors.
-- The deprecated `@DIFeatureRoot` compatibility macro is removed. Declare
+- **Intentional breaking change:** The deprecated `@DIFeatureRoot` compatibility macro is removed. Declare
   SwiftUI roots through `@SubContainer(featureRoot:)` or `featureRoots:`.
-- Every `@DIContainer`, including a container with no managed members, now
+- **Contract-restoring behavior correction:** Every `@DIContainer`, including a container with no managed members, now
   synthesizes the complete `Overrides` and trailing-override initializer ABI
   required for `@SubContainer` mounting. A user-declared nested `Overrides`
   type is now a terminal `container.overrides-name-conflict` error instead of
@@ -201,31 +290,35 @@ standalone release assets.
   compiler-support alias `_InnoDIMountOverrides = Overrides`; generated parent
   mounting code uses it so an invalid child cannot bind to a user-collidable
   `Overrides` declaration. Consumers must not declare or reference the alias.
-- Every stored instance member in a container must now be managed by
+- **Intentional breaking change:** Every stored instance member in a container must now be managed by
   `@Provide` or `@SubContainer`; computed and type properties remain supported.
   Unmanaged stored state receives `container.unmanaged-stored-property` before
   the generated initializer could remove or conflict with a memberwise init.
-- With `validateDAG: false`, unresolved `Lazy<T>` and `Provider<T>` factory
+- **Contract-restoring behavior correction:** With `validateDAG: false`, unresolved `Lazy<T>` and `Provider<T>` factory
   parameters now receive the same typed runtime-trap fallback as unresolved
   hard dependencies. This preserves the explicit opt-out without leaking an
   internal code-generation invariant or partial child storage.
-- `mainActor: true` now covers the whole generated surface: dependency
+- **Contract-restoring behavior correction:** `mainActor: true` now covers the whole generated surface: dependency
   accessors, every generated initializer, `Overrides`, the `applyOverrides`
   function types used by convenience initializers, `withOverrides`, child
   overrides, and component mounting, all four `withOverrides` operation
   closures, and feature-root helpers generated by `@SubContainer`.
-- For containers without `mainActor: true`, generated `async` and
+- **Contract-restoring behavior correction:** For containers without `mainActor: true`, generated `async` and
   `async throws` `withOverrides` methods and their operation closure types are
   `nonisolated(nonsending)`. They retain the caller's actor executor, so
   arbitrary non-`Sendable` containers and closures do not cross isolation.
   Synchronous overloads are unchanged; main-actor overloads remain
   `@MainActor`.
-- Main-actor components now conform to the dedicated
+- **Intentional breaking change:** Main-actor components now conform to the dedicated
   `_InnoDIMainActorComponentMountable` protocol; ordinary components continue
   to use `_InnoDIComponentMountable`. This split preserves the actor type on
   generic mounting override closures.
-- 5.0 release notes will keep contract-restoring behavior corrections separate
-  from intentional breaking API changes.
+- **Intentional breaking change:** Graph JSON output is schema v2. JSON render
+  mode requires a target-scoped `--analysis-manifest` plus an explicit
+  `--root-pruning all|roots`; the legacy `--root` input remains available for
+  text rendering and DAG validation but cannot emit schema v2 JSON. Node IDs
+  are module-qualified, and the document records selected target and pruning
+  scope.
 
 ### Upgrade Actions
 
@@ -284,6 +377,17 @@ standalone release assets.
   effect validation still applies there.
 - Replace every remaining `@DIFeatureRoot` with
   `@SubContainer(featureRoot:)` or `featureRoots:` before adopting 5.0.
+- Attach `InnoDIDAGValidationPlugin` to every target that declares a container
+  or standalone `@DIEnvironmentBridge`. Rename generated-qualifier shadows
+  reported from sibling files, enclosing members, matching extensions, or
+  visible dependency targets. Move direct-extension, extension-nested, and
+  local bridge targets to file or nominal scope. Ensure every Swift source
+  below a legacy `--root` graph input is readable UTF-8 because partial graph
+  rendering is no longer accepted.
+- Invoke the public graph command with `swift run InnoDI-DependencyGraph`.
+  Update JSON consumers to decode schema v2, provide a target-scoped
+  `--analysis-manifest`, and choose `--root-pruning all` or `roots`
+  explicitly. Do not request JSON with the legacy `--root` input.
 - Move dependency conformers plus construction and use of non-`Sendable`
   generated values for `mainActor: true` components onto `@MainActor`. From an
   off-actor caller, construct and consume those values inside `MainActor.run`;
@@ -298,7 +402,10 @@ standalone release assets.
   `@MainActor` `_InnoDIMainActorComponentMountable` overload whose override
   parameter is an `@MainActor` function type. Helpers constrained only to
   `_InnoDIComponentMountable` no longer accept main-actor components.
-- Do not update package requirements to 5.0 before the release tag exists.
+- Keep consumer package requirements on 4.3.0 during development. Only the
+  final, fully validated release-candidate commit updates the repository's
+  installation snippets to 5.0.0; the SHA-bound workflow must be dispatched
+  immediately so it can create and verify that tag.
 
 ## 4.3.0
 
@@ -514,8 +621,8 @@ standalone release assets.
 - `InnoDICore` no longer exposes `parseStrictStringArrayArgument`, and
   `SubContainerAttributeInfo` no longer carries `hasWithNamesDependencies`.
 - `@GenerateMock` remains experimental. The attribute name is stable, but
-  generated helper storage names are not release-frozen until the planned 5.0
-  GA.
+  generated helper storage names are not release-frozen until its independent
+  future GA criteria pass.
 
 ### Upgrade Actions
 

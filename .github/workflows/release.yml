@@ -1,125 +1,897 @@
 name: Release Gate
 
 on:
-  push:
-    tags:
-      - '*.*.*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: Stable unprefixed SemVer to publish (for example 5.0.0)
+        required: true
+        type: string
+      commit_sha:
+        description: Exact 40-character main commit SHA to release
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: innodi-release
+  cancel-in-progress: false
 
 jobs:
+  preflight:
+    name: Validate release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate local release candidate
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "Release Gate must be dispatched from main, not $DISPATCH_REF." >&2
+            exit 1
+          fi
+
+          Tools/validate-release-candidate.sh \
+            --version "$VERSION" \
+            --commit-sha "$EXPECTED_SHA"
+
+      - name: Validate remote release anchor
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          set +e
+          REMOTE_TAGS="$(git ls-remote --exit-code --tags origin \
+            "refs/tags/$VERSION" "refs/tags/$VERSION^{}" 2>&1)"
+          TAG_STATUS=$?
+          set -e
+          case "$TAG_STATUS" in
+            0)
+              REMOTE_TAG_OBJECT_SHA="$(printf '%s\n' "$REMOTE_TAGS" \
+                | awk -v ref="refs/tags/$VERSION" '$2 == ref { print $1 }')"
+              REMOTE_PEELED_SHA="$(printf '%s\n' "$REMOTE_TAGS" \
+                | awk '$2 ~ /\^\{\}$/ { print $1 }')"
+              if [[ "$(printf '%s\n' "$REMOTE_PEELED_SHA" | wc -l | tr -d ' ')" != "1" \
+                || "$REMOTE_PEELED_SHA" != "$EXPECTED_SHA" ]]; then
+                echo "Existing tag $VERSION is lightweight or does not target $EXPECTED_SHA." >&2
+                printf '%s\n' "$REMOTE_TAGS" >&2
+                exit 1
+              fi
+              git fetch --no-tags origin "refs/tags/$VERSION" >/dev/null
+              REMOTE_TAG_TARGET_SHA="$(git cat-file -p "$REMOTE_TAG_OBJECT_SHA" \
+                | awk 'NF == 0 { exit } /^object / { print substr($0, 8) }')"
+              REMOTE_TAG_TARGET_TYPE="$(git cat-file -p "$REMOTE_TAG_OBJECT_SHA" \
+                | awk 'NF == 0 { exit } /^type / { print substr($0, 6) }')"
+              REMOTE_EMBEDDED_TAG_NAME="$(git cat-file -p "$REMOTE_TAG_OBJECT_SHA" \
+                | awk 'NF == 0 { exit } /^tag / { print substr($0, 5) }')"
+              if [[ "$REMOTE_TAG_TARGET_SHA" != "$EXPECTED_SHA" \
+                || "$REMOTE_TAG_TARGET_TYPE" != "commit" \
+                || "$REMOTE_EMBEDDED_TAG_NAME" != "$VERSION" ]]; then
+                echo "Annotated tag object must embed object $EXPECTED_SHA, type commit, and tag $VERSION." >&2
+                exit 1
+              fi
+
+              git fetch --no-tags --force origin \
+                "refs/heads/main:refs/remotes/origin/release-candidate-main"
+              REMOTE_MAIN_SHA="$(git rev-parse refs/remotes/origin/release-candidate-main)"
+              if ! git merge-base --is-ancestor "$EXPECTED_SHA" "$REMOTE_MAIN_SHA"; then
+                echo "Existing tag target $EXPECTED_SHA is not an ancestor of current remote main $REMOTE_MAIN_SHA." >&2
+                exit 1
+              fi
+              echo "Using existing annotated tag $VERSION as the recovery anchor."
+              ;;
+            2)
+              if [[ "$DISPATCH_SHA" != "$EXPECTED_SHA" ]]; then
+                echo "An untagged commit_sha must equal the main SHA selected in the workflow UI." >&2
+                exit 1
+              fi
+
+              REMOTE_MAIN="$(git ls-remote --exit-code origin refs/heads/main)"
+              REMOTE_MAIN_SHA="$(printf '%s\n' "$REMOTE_MAIN" | awk '$2 == "refs/heads/main" { print $1 }')"
+              if [[ "$REMOTE_MAIN_SHA" != "$EXPECTED_SHA" ]]; then
+                echo "Remote main moved: expected $EXPECTED_SHA, found ${REMOTE_MAIN_SHA:-<missing>}." >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unable to verify whether release tag $VERSION exists:" >&2
+              printf '%s\n' "$REMOTE_TAGS" >&2
+              exit "$TAG_STATUS"
+              ;;
+          esac
+
+  recovery-state:
+    name: Validate exact release recovery state
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Validate exact release recovery state
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          API_VERSION: "2026-03-10"
+        run: |
+          set -euo pipefail
+
+          STABLE_SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          if [[ ! "$VERSION" =~ $STABLE_SEMVER_PATTERN ]]; then
+            echo "version must be a stable, unprefixed semantic version without leading zeroes." >&2
+            exit 1
+          fi
+
+          RELEASE_JSON="$(mktemp)"
+          RELEASE_ERROR="$(mktemp)"
+          RELEASE_PAGES="$(mktemp)"
+          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR" "$RELEASE_PAGES"' EXIT
+          set +e
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: $API_VERSION" \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
+            > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
+          RELEASE_STATUS=$?
+          set -e
+
+          if [[ "$RELEASE_STATUS" == "0" ]]; then
+            RELEASE_EXISTS=true
+          elif grep -q '(HTTP 404)' "$RELEASE_ERROR"; then
+            gh api --paginate --slurp \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: $API_VERSION" \
+              "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              > "$RELEASE_PAGES"
+            RELEASE_MATCH_COUNT="$(jq --arg version "$VERSION" \
+              '[.[][] | select(.tag_name == $version)] | length' "$RELEASE_PAGES")"
+            case "$RELEASE_MATCH_COUNT" in
+              0)
+                RELEASE_EXISTS=false
+                ;;
+              1)
+                jq --arg version "$VERSION" \
+                  '.[][] | select(.tag_name == $version)' "$RELEASE_PAGES" \
+                  > "$RELEASE_JSON"
+                RELEASE_EXISTS=true
+                ;;
+              *)
+                echo "GitHub returned multiple releases for exact tag $VERSION." >&2
+                exit 1
+                ;;
+            esac
+          else
+            echo "Unable to inspect the exact GitHub Release for $VERSION:" >&2
+            cat "$RELEASE_ERROR" >&2
+            exit "$RELEASE_STATUS"
+          fi
+
+          if [[ "$RELEASE_EXISTS" == "true" ]]; then
+            if ! jq -e --arg version "$VERSION" '
+              .tag_name == $version
+              and (.draft == true or .immutable == true)
+            ' "$RELEASE_JSON" >/dev/null; then
+              echo "Existing release $VERSION is neither a recoverable draft nor immutable." >&2
+              jq '{id, tag_name, draft, prerelease, immutable}' "$RELEASE_JSON" >&2
+              exit 1
+            fi
+          else
+            echo "No existing GitHub Release for $VERSION; publication will start from a draft."
+          fi
+
   release-gate:
+    name: Validate and package release
+    needs: recovery-state
     runs-on: macos-26
     timeout-minutes: 240
+    permissions:
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Select Xcode 26.3
-        # Pin to Xcode 26.3 (Swift 6.3) so release validation and DocC
-        # generation run on one known toolchain.
         uses: ./.github/actions/select-xcode
         with:
           version: "26.3"
 
-      - name: Run Main Test Suite
+      - name: Revalidate candidate checkout
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          Tools/validate-release-candidate.sh \
+            --version "$VERSION" \
+            --commit-sha "$EXPECTED_SHA"
+          swift package dump-package >/dev/null
+
+      - name: Run main test suite
         run: swift test
 
-      - name: Run Strict Concurrency Test Suite
+      - name: Run strict concurrency test suite
         run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
-      - name: No fatalError in synthesized code
-        # Keep the release gate aligned with the PR macro-tests workflow and
-        # RELEASING.md. Macro-synthesized accessors must never embed runtime
-        # traps into user code unless the site is explicitly inventoried and
-        # allow-listed.
-        run: Tools/check-no-fatalerror-in-macros.sh
-
-      - name: Validate CI keeps build validation enabled
-        run: Tools/check-ci-validation-opt-out.sh
-
-      - name: Validate compiled documentation snippets
-        run: Tools/check-docs-code-blocks.sh
-
-      - name: Validate localized README structural sync
-        # Release tags must keep localized READMEs structurally aligned with
-        # the English canonical README.
-        run: Tools/check-localized-readme-sync.sh
-
-      - name: Test SwiftUI Example
+      - name: Validate repository contracts
         run: |
-          cd Examples/SwiftUIExample
-          swift build
-          swift test
+          set -euo pipefail
+          Tools/check-no-fatalerror-in-macros.sh
+          Tools/check-ci-validation-opt-out.sh
+          Tools/check-docs-code-blocks.sh
+          Tools/check-localized-readme-sync.sh
+          plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy
+          plutil -lint Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy
 
-      - name: Test SwiftUI Example Under Strict Concurrency
+      - name: Build and test examples under strict concurrency
         run: |
-          cd Examples/SwiftUIExample
-          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          set -euo pipefail
+          (
+            cd Examples/SampleApp
+            swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+            swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+            swift run --skip-build SampleApp
+          )
+          (
+            cd Examples/SwiftUIExample
+            swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+            swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          )
+          (
+            cd Examples/PreviewInjectionExample
+            swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+            swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          )
 
-      - name: Test Preview Injection Example
+      - name: Build public libraries for every declared Apple platform
         run: |
-          cd Examples/PreviewInjectionExample
-          swift build
-          swift test
+          set -euo pipefail
+          SOURCE_PREFIX="$(pwd -P)/Sources/"
+          mkdir -p .build/platform-logs
+          for platform in macOS iOS watchOS tvOS visionOS; do
+            echo "Building InnoDISwiftUI for generic/platform=$platform"
+            BUILD_LOG=".build/platform-logs/$platform.log"
+            xcodebuild -quiet \
+              -scheme InnoDISwiftUI \
+              -destination "generic/platform=$platform" \
+              -derivedDataPath .build/xcode-platform-derived-data \
+              -clonedSourcePackagesDirPath .build/xcode-platform-source-packages \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO \
+              SWIFT_STRICT_CONCURRENCY=complete \
+              build 2>&1 | tee "$BUILD_LOG"
+            if awk -v prefix="$SOURCE_PREFIX" '
+              index($0, prefix) && index($0, "warning:") { print; found = 1 }
+              END { exit(found ? 0 : 1) }
+            ' "$BUILD_LOG"; then
+              echo "Compiler warning emitted by an InnoDI source while building $platform." >&2
+              exit 1
+            fi
+          done
 
-      - name: Test Preview Injection Example Under Strict Concurrency
-        run: |
-          cd Examples/PreviewInjectionExample
-          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-
-      - name: Validate Global DAG
+      - name: Validate global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
 
-      - name: Macro Performance Check
+      - name: Enforce macro performance baseline
         run: Tools/measure-macro-performance.sh --enforce
 
-      - name: Generate DocC
-        run: Tools/generate-docc.sh
-
-      - name: Package DocC Artifact
+      - name: Generate release artifacts
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          mkdir -p .build/docc
-          tar -C .build/docc -czf .build/docc/innodi-docc.tar.gz InnoDI
+          set -euo pipefail
+          Tools/generate-docc.sh
+          mkdir -p release-assets
+          Tools/package-release-docc.sh \
+            --source .build/docc/InnoDI \
+            --output release-assets/innodi-docc.tar.gz
+          Tools/extract-release-notes.sh "$VERSION" \
+            > release-assets/release-notes.md
+          test -s release-assets/innodi-docc.tar.gz
+          test -s release-assets/release-notes.md
+          (
+            cd release-assets
+            shasum -a 256 innodi-docc.tar.gz release-notes.md \
+              > SHA256SUMS
+          )
 
-      - name: Upload Release Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Upload validated release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: innodi-release-gate
-          path: |
-            .build/docc/innodi-docc.tar.gz
+          name: innodi-release-${{ inputs.version }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 14
 
   publish-release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: release-gate
+    name: Create immutable tag and GitHub Release
+    needs:
+      - recovery-state
+      - release-gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download Release Artifacts
-        uses: actions/download-artifact@v4
+      - name: Checkout exact validated candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          name: innodi-release-gate
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: release-repository
+
+      - name: Download validated release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: innodi-release-${{ inputs.version }}
           path: release-assets
 
-      - name: Prepare Release Notes
+      - name: Revalidate candidate and artifacts without credentials
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+          REPOSITORY_DIR: release-repository
         run: |
-          chmod +x Tools/extract-release-notes.sh
-          Tools/extract-release-notes.sh "${GITHUB_REF_NAME}" > release-notes.md
+          set -euo pipefail
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          body_path: release-notes.md
-          fail_on_unmatched_files: false
-          files: |
-            release-assets/**/*.tar.gz
+          STABLE_SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          FULL_SHA_PATTERN='^[0-9a-f]{40}$'
+          if [[ ! "$VERSION" =~ $STABLE_SEMVER_PATTERN ]]; then
+            echo "version must be a stable, unprefixed semantic version without leading zeroes." >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_SHA" =~ $FULL_SHA_PATTERN ]]; then
+            echo "commit SHA must be exactly 40 lowercase hexadecimal characters." >&2
+            exit 1
+          fi
+
+          ACTUAL_SHA="$(git -C "$REPOSITORY_DIR" rev-parse --verify HEAD)"
+          if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
+            echo "Publish checkout mismatch: expected $EXPECTED_SHA, found $ACTUAL_SHA." >&2
+            exit 1
+          fi
+          if [[ -n "$(git -C "$REPOSITORY_DIR" status --porcelain --untracked-files=no)" ]]; then
+            echo "Publish checkout contains tracked worktree changes." >&2
+            exit 1
+          fi
+
+          test -s release-assets/innodi-docc.tar.gz
+          test -s release-assets/release-notes.md
+          test -s release-assets/SHA256SUMS
+          (
+            cd release-assets
+            sha256sum --check --strict SHA256SUMS
+          )
+
+          if [[ "$(wc -l < release-assets/SHA256SUMS | tr -d ' ')" != "2" ]] \
+            || ! grep -Eq '^[0-9a-f]{64}  innodi-docc\.tar\.gz$' release-assets/SHA256SUMS \
+            || ! grep -Eq '^[0-9a-f]{64}  release-notes\.md$' release-assets/SHA256SUMS; then
+            echo "SHA256SUMS must contain exactly the two generated payload checksums." >&2
+            exit 1
+          fi
+
+          gh release verify --help >/dev/null
+          gh release verify-asset --help >/dev/null
+
+      - name: Require immutable release and tag policies
+        env:
+          RELEASE_ADMIN_TOKEN: ${{ secrets.RELEASE_ADMIN_TOKEN }}
+          RELEASE_MAIN_RULESET_ID: ${{ vars.RELEASE_MAIN_RULESET_ID }}
+          RELEASE_TAG_RULESET_ID: ${{ vars.RELEASE_TAG_RULESET_ID }}
+          VERSION: ${{ inputs.version }}
+          API_VERSION: "2026-03-10"
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$RELEASE_ADMIN_TOKEN" ]]; then
+            echo "The release environment must provide RELEASE_ADMIN_TOKEN with repository Administration and Actions read access." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG_RULESET_ID" =~ ^[0-9]+$ ]]; then
+            echo "The release environment must provide a numeric RELEASE_TAG_RULESET_ID." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_MAIN_RULESET_ID" =~ ^[0-9]+$ ]]; then
+            echo "The release environment must provide a numeric RELEASE_MAIN_RULESET_ID." >&2
+            exit 1
+          fi
+
+          RELEASE_ENVIRONMENT="$(GH_TOKEN="$RELEASE_ADMIN_TOKEN" gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: $API_VERSION" \
+            "repos/$GITHUB_REPOSITORY/environments/release")"
+          if ! jq -e '
+            . as $environment
+            | [$environment.protection_rules[]?
+                | select(.type == "required_reviewers")] as $requiredReviewerRules
+            | $environment.name == "release"
+              and ($environment.protection_rules | type == "array")
+              and ($requiredReviewerRules | length == 1)
+              and ($requiredReviewerRules[0].prevent_self_review == true)
+              and ($requiredReviewerRules[0].reviewers
+                | type == "array" and length > 0)
+              and ($environment.deployment_branch_policy == {
+                protected_branches: false,
+                custom_branch_policies: true
+              })
+          ' <<< "$RELEASE_ENVIRONMENT" >/dev/null; then
+            echo "The release environment must require a non-self approval." >&2
+            jq '{name, protection_rules, deployment_branch_policy}' \
+              <<< "$RELEASE_ENVIRONMENT" >&2
+            exit 1
+          fi
+
+          DEPLOYMENT_BRANCH_POLICIES="$(GH_TOKEN="$RELEASE_ADMIN_TOKEN" gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: $API_VERSION" \
+            "repos/$GITHUB_REPOSITORY/environments/release/deployment-branch-policies?per_page=100")"
+          if ! jq -e '
+            .total_count == 1
+            and (.branch_policies | type == "array" and length == 1)
+            and .branch_policies[0].name == "main"
+          ' <<< "$DEPLOYMENT_BRANCH_POLICIES" >/dev/null; then
+            echo "The release environment must allow deployments from main only." >&2
+            jq '{total_count, branch_policies}' \
+              <<< "$DEPLOYMENT_BRANCH_POLICIES" >&2
+            exit 1
+          fi
+
+          IMMUTABLE_POLICY="$(GH_TOKEN="$RELEASE_ADMIN_TOKEN" gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: $API_VERSION" \
+            "repos/$GITHUB_REPOSITORY/immutable-releases")"
+          if ! jq -e '.enabled == true' <<< "$IMMUTABLE_POLICY" >/dev/null; then
+            echo "Immutable releases are not enabled for $GITHUB_REPOSITORY." >&2
+            jq '{enabled, enforced_by_owner}' <<< "$IMMUTABLE_POLICY" >&2
+            exit 1
+          fi
+
+          MAIN_RULESET="$(GH_TOKEN="$RELEASE_ADMIN_TOKEN" gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: $API_VERSION" \
+            "repos/$GITHUB_REPOSITORY/rulesets/$RELEASE_MAIN_RULESET_ID")"
+          if ! jq -e \
+            --argjson rulesetID "$RELEASE_MAIN_RULESET_ID" '
+              .id == $rulesetID
+              and .target == "branch"
+              and .enforcement == "active"
+              and (.bypass_actors | type == "array" and length == 0)
+              and (.conditions.ref_name.exclude | type == "array" and length == 0)
+              and (.conditions.ref_name.include | type == "array")
+              and any(.conditions.ref_name.include[];
+                . == "refs/heads/main"
+                or . == "refs/heads/*")
+              and ([.rules[].type] | index("non_fast_forward") != null)
+              and ([.rules[].type] | index("deletion") != null)
+            ' <<< "$MAIN_RULESET" >/dev/null; then
+            echo "Main ruleset $RELEASE_MAIN_RULESET_ID does not enforce monotonic main history." >&2
+            jq '{id, name, target, enforcement, bypass_actors, conditions, rules: [.rules[].type]}' \
+              <<< "$MAIN_RULESET" >&2
+            exit 1
+          fi
+
+          TAG_RULESET="$(GH_TOKEN="$RELEASE_ADMIN_TOKEN" gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: $API_VERSION" \
+            "repos/$GITHUB_REPOSITORY/rulesets/$RELEASE_TAG_RULESET_ID")"
+          if ! jq -e \
+            --arg version "$VERSION" \
+            --argjson rulesetID "$RELEASE_TAG_RULESET_ID" '
+              .id == $rulesetID
+              and .target == "tag"
+              and .enforcement == "active"
+              and (.bypass_actors | type == "array" and length == 0)
+              and (.conditions.ref_name.exclude | type == "array" and length == 0)
+              and (.conditions.ref_name.include | type == "array")
+              and any(.conditions.ref_name.include[];
+                . == "~ALL"
+                or . == ("refs/tags/" + $version)
+                or . == "refs/tags/*")
+              and ([.rules[].type] | index("update") != null)
+              and ([.rules[].type] | index("deletion") != null)
+              and ([.rules[].type] | index("creation") == null)
+            ' <<< "$TAG_RULESET" >/dev/null; then
+            echo "Tag ruleset $RELEASE_TAG_RULESET_ID does not fail closed for stable release tags." >&2
+            jq '{id, name, target, enforcement, bypass_actors, conditions, rules: [.rules[].type]}' \
+              <<< "$TAG_RULESET" >&2
+            exit 1
+          fi
+
+      - name: Converge annotated tag and immutable release
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+          REPOSITORY_DIR: release-repository
+          GH_TOKEN: ${{ github.token }}
+          API_VERSION: "2026-03-10"
+        run: |
+          set -euo pipefail
+
+          RELEASE_JSON="$(mktemp)"
+          RELEASE_ERROR="$(mktemp)"
+          RELEASE_PAGES="$(mktemp)"
+          REMOTE_ASSET_DIR="$(mktemp -d)"
+          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR" "$RELEASE_PAGES"; rm -rf "$REMOTE_ASSET_DIR"' EXIT
+
+          api() {
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: $API_VERSION" \
+              "$@"
+          }
+
+          inspect_remote_tag() {
+            set +e
+            REMOTE_TAGS="$(git -C "$REPOSITORY_DIR" ls-remote --exit-code --tags origin \
+              "refs/tags/$VERSION" "refs/tags/$VERSION^{}" 2>&1)"
+            TAG_STATUS=$?
+            set -e
+
+            case "$TAG_STATUS" in
+              0)
+                REMOTE_TAG_OBJECT_SHA="$(printf '%s\n' "$REMOTE_TAGS" \
+                  | awk -v ref="refs/tags/$VERSION" '$2 == ref { print $1 }')"
+                DIRECT_TAG_COUNT="$(printf '%s\n' "$REMOTE_TAGS" \
+                  | awk -v ref="refs/tags/$VERSION" '$2 == ref { count += 1 } END { print count + 0 }')"
+                PEELED_TAG_COUNT="$(printf '%s\n' "$REMOTE_TAGS" \
+                  | awk -v ref="refs/tags/$VERSION^{}" '$2 == ref { count += 1 } END { print count + 0 }')"
+                REMOTE_PEELED_SHA="$(printf '%s\n' "$REMOTE_TAGS" \
+                  | awk -v ref="refs/tags/$VERSION^{}" '$2 == ref { print $1 }')"
+                if [[ "$DIRECT_TAG_COUNT" != "1" || "$PEELED_TAG_COUNT" != "1" \
+                  || "$REMOTE_PEELED_SHA" != "$EXPECTED_SHA" ]]; then
+                  echo "Tag $VERSION must be one annotated tag targeting $EXPECTED_SHA." >&2
+                  printf '%s\n' "$REMOTE_TAGS" >&2
+                  exit 1
+                fi
+                git -C "$REPOSITORY_DIR" fetch --no-tags origin \
+                  "refs/tags/$VERSION" >/dev/null
+                REMOTE_TAG_TARGET_SHA="$(git -C "$REPOSITORY_DIR" \
+                  cat-file -p "$REMOTE_TAG_OBJECT_SHA" \
+                  | awk 'NF == 0 { exit } /^object / { print substr($0, 8) }')"
+                REMOTE_TAG_TARGET_TYPE="$(git -C "$REPOSITORY_DIR" \
+                  cat-file -p "$REMOTE_TAG_OBJECT_SHA" \
+                  | awk 'NF == 0 { exit } /^type / { print substr($0, 6) }')"
+                REMOTE_EMBEDDED_TAG_NAME="$(git -C "$REPOSITORY_DIR" \
+                  cat-file -p "$REMOTE_TAG_OBJECT_SHA" \
+                  | awk 'NF == 0 { exit } /^tag / { print substr($0, 5) }')"
+                if [[ "$REMOTE_TAG_TARGET_SHA" != "$EXPECTED_SHA" \
+                  || "$REMOTE_TAG_TARGET_TYPE" != "commit" \
+                  || "$REMOTE_EMBEDDED_TAG_NAME" != "$VERSION" ]]; then
+                  echo "Annotated tag object must embed object $EXPECTED_SHA, type commit, and tag $VERSION." >&2
+                  exit 1
+                fi
+                REMOTE_TAG_EXISTS=true
+                ;;
+              2)
+                REMOTE_TAG_EXISTS=false
+                REMOTE_PEELED_SHA=""
+                ;;
+              *)
+                echo "Unable to inspect remote tag $VERSION:" >&2
+                printf '%s\n' "$REMOTE_TAGS" >&2
+                exit "$TAG_STATUS"
+                ;;
+            esac
+          }
+
+          verify_expected_is_remote_main_ancestor() {
+            git -C "$REPOSITORY_DIR" fetch --no-tags --force origin \
+              "refs/heads/main:refs/remotes/origin/release-candidate-main"
+            REMOTE_MAIN_SHA="$(git -C "$REPOSITORY_DIR" rev-parse \
+              refs/remotes/origin/release-candidate-main)"
+            if ! git -C "$REPOSITORY_DIR" merge-base --is-ancestor \
+              "$EXPECTED_SHA" "$REMOTE_MAIN_SHA"; then
+              echo "Release candidate $EXPECTED_SHA is not an ancestor of current remote main $REMOTE_MAIN_SHA." >&2
+              exit 1
+            fi
+          }
+
+          fetch_release() {
+            : > "$RELEASE_JSON"
+            : > "$RELEASE_ERROR"
+            : > "$RELEASE_PAGES"
+            set +e
+            api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
+              > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
+            RELEASE_STATUS=$?
+            set -e
+
+            if [[ "$RELEASE_STATUS" == "0" ]]; then
+              RELEASE_EXISTS=true
+            elif grep -q '(HTTP 404)' "$RELEASE_ERROR"; then
+              api --paginate --slurp \
+                "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+                > "$RELEASE_PAGES"
+              RELEASE_MATCH_COUNT="$(jq --arg version "$VERSION" \
+                '[.[][] | select(.tag_name == $version)] | length' "$RELEASE_PAGES")"
+              case "$RELEASE_MATCH_COUNT" in
+                0)
+                  RELEASE_EXISTS=false
+                  ;;
+                1)
+                  jq --arg version "$VERSION" \
+                    '.[][] | select(.tag_name == $version)' "$RELEASE_PAGES" \
+                    > "$RELEASE_JSON"
+                  RELEASE_EXISTS=true
+                  ;;
+                *)
+                  echo "GitHub returned multiple releases for exact tag $VERSION." >&2
+                  exit 1
+                  ;;
+              esac
+            else
+              echo "Unable to inspect the exact GitHub Release for $VERSION:" >&2
+              cat "$RELEASE_ERROR" >&2
+              exit "$RELEASE_STATUS"
+            fi
+          }
+
+          verify_release_payload() {
+            local expected_draft="$1"
+            local expected_immutable="$2"
+            local compare_local_digests="$3"
+            local asset local_digest remote_digest
+
+            if ! jq -e \
+              --arg version "$VERSION" \
+              --argjson expected_draft "$expected_draft" \
+              --argjson expected_immutable "$expected_immutable" \
+              --rawfile notes release-assets/release-notes.md '
+                .tag_name == $version
+                and .name == ("InnoDI " + $version)
+                and .body == $notes
+                and .draft == $expected_draft
+                and .prerelease == false
+                and .immutable == $expected_immutable
+                and (if $expected_draft then .published_at == null else .published_at != null end)
+                and ([.assets[].name] | sort)
+                  == ["SHA256SUMS", "innodi-docc.tar.gz", "release-notes.md"]
+                and all(.assets[]; .state == "uploaded")
+                and all(.assets[];
+                  (.digest | type == "string" and startswith("sha256:")))
+              ' "$RELEASE_JSON" >/dev/null; then
+              echo "Release $VERSION metadata or asset inventory does not match the validated candidate." >&2
+              jq '{id, tag_name, name, draft, prerelease, immutable, published_at, assets: [.assets[] | {name, state, digest}]}' \
+                "$RELEASE_JSON" >&2
+              exit 1
+            fi
+
+            if [[ "$compare_local_digests" == "true" ]]; then
+              for asset in innodi-docc.tar.gz release-notes.md SHA256SUMS; do
+                local_digest="sha256:$(sha256sum "release-assets/$asset" | awk '{ print $1 }')"
+                remote_digest="$(jq -er --arg asset "$asset" \
+                  '.assets[] | select(.name == $asset) | .digest' "$RELEASE_JSON")"
+                if [[ "$remote_digest" != "$local_digest" ]]; then
+                  echo "Release asset $asset digest mismatch: expected $local_digest, found $remote_digest." >&2
+                  exit 1
+                fi
+              done
+            fi
+          }
+
+          wait_for_immutable_release() {
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              fetch_release
+              if [[ "$RELEASE_EXISTS" == "true" ]] \
+                && jq -e '.draft == false and .immutable == true' \
+                  "$RELEASE_JSON" >/dev/null; then
+                return 0
+              fi
+              if [[ "$attempt" != "5" ]]; then
+                sleep 5
+              fi
+            done
+            echo "Release $VERSION did not become immutable after publication." >&2
+            exit 1
+          }
+
+          verify_published_attestation() {
+            local attempt asset
+            for attempt in 1 2 3 4 5; do
+              if gh release verify "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null; then
+                rm -rf "$REMOTE_ASSET_DIR"
+                mkdir -p "$REMOTE_ASSET_DIR"
+                if gh release download "$VERSION" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --dir "$REMOTE_ASSET_DIR"; then
+                  ATTESTED_ASSETS=true
+                  if ! cmp -s release-assets/release-notes.md \
+                    "$REMOTE_ASSET_DIR/release-notes.md"; then
+                    echo "Published release-notes.md differs from the validated release notes." >&2
+                    ATTESTED_ASSETS=false
+                  elif ! (
+                    cd "$REMOTE_ASSET_DIR"
+                    [[ "$(wc -l < SHA256SUMS | tr -d ' ')" == "2" ]]
+                    grep -Eq '^[0-9a-f]{64}  innodi-docc\.tar\.gz$' SHA256SUMS
+                    grep -Eq '^[0-9a-f]{64}  release-notes\.md$' SHA256SUMS
+                    sha256sum --check --strict SHA256SUMS
+                  ); then
+                    echo "Published SHA256SUMS does not validate the fixed release payloads." >&2
+                    ATTESTED_ASSETS=false
+                  fi
+
+                  if [[ "$ATTESTED_ASSETS" == "true" ]]; then
+                    for asset in innodi-docc.tar.gz release-notes.md SHA256SUMS; do
+                      if ! gh release verify-asset "$VERSION" "$REMOTE_ASSET_DIR/$asset" \
+                        --repo "$GITHUB_REPOSITORY" >/dev/null; then
+                        ATTESTED_ASSETS=false
+                        break
+                      fi
+                    done
+                  fi
+                  if [[ "$ATTESTED_ASSETS" == "true" ]]; then
+                    return 0
+                  fi
+                fi
+              fi
+              if [[ "$attempt" != "5" ]]; then
+                sleep 5
+              fi
+            done
+            echo "GitHub did not produce a valid immutable release attestation for $VERSION." >&2
+            exit 1
+          }
+
+          inspect_remote_tag
+          verify_expected_is_remote_main_ancestor
+          if [[ "$REMOTE_TAG_EXISTS" == "false" ]]; then
+            git -C "$REPOSITORY_DIR" config user.name "github-actions[bot]"
+            git -C "$REPOSITORY_DIR" config user.email \
+              "41898282+github-actions[bot]@users.noreply.github.com"
+            if git -C "$REPOSITORY_DIR" show-ref --verify --quiet \
+              "refs/tags/$VERSION"; then
+              echo "Local tag $VERSION exists even though the remote tag is absent." >&2
+              exit 1
+            fi
+            git -C "$REPOSITORY_DIR" tag -a "$VERSION" "$EXPECTED_SHA" \
+              -m "InnoDI $VERSION"
+            LOCAL_TAG_TARGET_SHA="$(git -C "$REPOSITORY_DIR" \
+              cat-file -p "refs/tags/$VERSION" \
+              | awk 'NF == 0 { exit } /^object / { print substr($0, 8) }')"
+            LOCAL_TAG_TARGET_TYPE="$(git -C "$REPOSITORY_DIR" \
+              cat-file -p "refs/tags/$VERSION" \
+              | awk 'NF == 0 { exit } /^type / { print substr($0, 6) }')"
+            LOCAL_EMBEDDED_TAG_NAME="$(git -C "$REPOSITORY_DIR" \
+              cat-file -p "refs/tags/$VERSION" \
+              | awk 'NF == 0 { exit } /^tag / { print substr($0, 5) }')"
+            if [[ "$LOCAL_TAG_TARGET_SHA" != "$EXPECTED_SHA" \
+              || "$LOCAL_TAG_TARGET_TYPE" != "commit" \
+              || "$LOCAL_EMBEDDED_TAG_NAME" != "$VERSION" ]]; then
+              echo "Local annotated tag must embed object $EXPECTED_SHA, type commit, and tag $VERSION." >&2
+              exit 1
+            fi
+
+            gh auth setup-git --hostname github.com
+            git -C "$REPOSITORY_DIR" push --porcelain \
+              origin \
+              "refs/tags/$VERSION:refs/tags/$VERSION"
+            inspect_remote_tag
+          else
+            echo "Reusing annotated tag $VERSION at $EXPECTED_SHA after proving it remains on current main history."
+          fi
+
+          fetch_release
+          if [[ "$RELEASE_EXISTS" == "true" ]] \
+            && [[ "$(jq -r '.draft' "$RELEASE_JSON")" == "false" ]]; then
+            verify_release_payload false true true
+            inspect_remote_tag
+            verify_published_attestation
+            echo "Immutable release $VERSION is already complete and exact."
+            exit 0
+          fi
+
+          if [[ "$RELEASE_EXISTS" == "false" ]]; then
+            set +e
+            gh release create "$VERSION" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --verify-tag \
+              --target "$EXPECTED_SHA" \
+              --title "InnoDI $VERSION" \
+              --notes-file release-assets/release-notes.md
+            CREATE_STATUS=$?
+            set -e
+            if [[ "$CREATE_STATUS" != "0" ]]; then
+              echo "Draft creation raced with another publisher; checking the exact release state." >&2
+            fi
+            fetch_release
+            if [[ "$RELEASE_EXISTS" == "false" ]]; then
+              echo "Unable to create or recover draft release $VERSION." >&2
+              exit 1
+            fi
+          fi
+
+          if [[ "$(jq -r '.draft' "$RELEASE_JSON")" != "true" ]]; then
+            verify_release_payload false true true
+            inspect_remote_tag
+            verify_published_attestation
+            echo "Immutable release $VERSION was completed by another publisher."
+            exit 0
+          fi
+
+          gh release edit "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --target "$EXPECTED_SHA" \
+            --title "InnoDI $VERSION" \
+            --notes-file release-assets/release-notes.md \
+            --draft \
+            --prerelease=false
+
+          fetch_release
+          while IFS= read -r asset_id; do
+            if [[ ! "$asset_id" =~ ^[0-9]+$ ]]; then
+              echo "GitHub returned a non-numeric release asset id: $asset_id" >&2
+              exit 1
+            fi
+            api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          done < <(jq -r '
+            .assets[]
+            | select(.name != "innodi-docc.tar.gz"
+              and .name != "release-notes.md"
+              and .name != "SHA256SUMS")
+            | .id
+          ' "$RELEASE_JSON")
+
+          gh release upload "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber \
+            release-assets/innodi-docc.tar.gz \
+            release-assets/release-notes.md \
+            release-assets/SHA256SUMS
+
+          fetch_release
+          verify_release_payload true false true
+
+          # A draft does not lock its tag. Recheck the peeled target in the
+          # immediately preceding operation before publication makes it immutable.
+          inspect_remote_tag
+          verify_expected_is_remote_main_ancestor
+          FINAL_REMOTE_TAG="$(git -C "$REPOSITORY_DIR" ls-remote --exit-code origin \
+            "refs/tags/$VERSION^{}")"
+          FINAL_REMOTE_PEELED_SHA="$(printf '%s\n' "$FINAL_REMOTE_TAG" \
+            | awk -v ref="refs/tags/$VERSION^{}" '$2 == ref { print $1 }')"
+          if [[ "$FINAL_REMOTE_PEELED_SHA" != "$EXPECTED_SHA" ]]; then
+            echo "Tag $VERSION moved immediately before publication." >&2
+            exit 1
+          fi
+
+          RELEASE_ID="$(jq -er '.id | select(type == "number")' "$RELEASE_JSON")"
+          api --method PATCH \
+            --raw-field tag_name="$VERSION" \
+            --raw-field target_commitish="$EXPECTED_SHA" \
+            --raw-field name="InnoDI $VERSION" \
+            --field body=@release-assets/release-notes.md \
+            --field draft=false \
+            --field prerelease=false \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            > "$RELEASE_JSON"
+
+          wait_for_immutable_release
+          verify_release_payload false true true
+          inspect_remote_tag
+          verify_published_attestation
