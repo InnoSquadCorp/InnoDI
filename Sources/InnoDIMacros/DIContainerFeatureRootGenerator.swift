@@ -27,7 +27,7 @@ private func makeFeatureRootHelperDecl(
     isMainActor: Bool
 ) -> DeclSyntax {
     let rootViewCall = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax("\(raw: root.rootViewTypeName)"),
+        calledExpression: MemberAccessExprSyntax(name: .keyword(.`init`)),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax([
             LabeledExprSyntax(

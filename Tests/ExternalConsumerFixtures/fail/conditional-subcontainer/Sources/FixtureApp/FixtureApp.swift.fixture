@@ -1,0 +1,19 @@
+import InnoDI
+
+struct ConditionalChild {}
+
+@DIContainer
+struct ConditionalSubContainerParent {
+    #if os(macOS)
+    @SubContainer(scope: .shared, with: [])
+    var child: ConditionalChild
+    #endif
+
+    @SubContainer(scope: .shared, with: [])
+    nonisolated(unsafe) static var staticChild: ConditionalChild = .init()
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

@@ -1,0 +1,124 @@
+import InnoDI
+
+protocol FixtureValue: Sendable {
+    var id: Int { get }
+}
+
+struct DefaultFixtureValue: FixtureValue {
+    let id: Int
+}
+
+@DIContainer
+struct EmptyChildContainer {}
+
+@DIContainer
+struct SharedEmptyParent {
+    @SubContainer(scope: .shared, with: [])
+    var child: EmptyChildContainer
+}
+
+@DIContainer
+struct TransientEmptyParent {
+    @SubContainer(scope: .transient, with: [])
+    var child: EmptyChildContainer
+}
+
+@DIContainer(validateDAG: false)
+struct DeferredFallbackParent {
+    @Provide(
+        .shared,
+        factory: { (missingLazy: Lazy<Int>) -> any FixtureValue in
+            DefaultFixtureValue(id: 1)
+        }
+    )
+    var lazyValue: any FixtureValue
+
+    @Provide(
+        .shared,
+        factory: { (missingProvider: Provider<Int>) -> any FixtureValue in
+            DefaultFixtureValue(id: 2)
+        }
+    )
+    var providerValue: any FixtureValue
+
+    @Provide(
+        .shared,
+        asyncFactory: { (missingAsyncLazy: Lazy<Int>) async -> any FixtureValue in
+            DefaultFixtureValue(id: 3)
+        }
+    )
+    var asyncLazyValue: any FixtureValue
+
+    @Provide(
+        .shared,
+        asyncFactory: { (missingAsyncProvider: Provider<Int>) async -> any FixtureValue in
+            DefaultFixtureValue(id: 4)
+        }
+    )
+    var asyncProviderValue: any FixtureValue
+
+    @SubContainer(scope: .shared, with: [])
+    var child: EmptyChildContainer
+}
+
+@DIContainer
+fileprivate struct FileLocalChildContainer {}
+
+@DIContainer
+fileprivate struct FileLocalParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    fileprivate var child: FileLocalChildContainer
+}
+
+private enum PrivateContainerNamespace {
+    @DIContainer
+    struct Child {}
+
+    @DIContainer
+    struct Parent {
+        @SubContainer(scope: .shared, with: [])
+        var child: Child
+    }
+
+    static func verifyMount() {
+        let child = Parent.withOverrides { overrides in
+            overrides.childOverrides = { _ in }
+        } operation: { parent in
+            parent.child
+        }
+        _ = child
+    }
+}
+
+@main
+struct FixtureApp {
+    static func main() async {
+        let shared = SharedEmptyParent()
+        _ = shared.child
+
+        let transient = TransientEmptyParent()
+        _ = transient.child
+        _ = transient.child
+
+        let overridden = SharedEmptyParent.withOverrides { overrides in
+            overrides.childOverrides = { _ in }
+        } operation: { parent in
+            parent.child
+        }
+        _ = overridden
+
+        let deferred = DeferredFallbackParent()
+        precondition(deferred.lazyValue.id == 1)
+        precondition(deferred.providerValue.id == 2)
+        _ = deferred.child
+
+        let fileLocalChild = FileLocalParentContainer.withOverrides { overrides in
+            overrides.childOverrides = { _ in }
+        } operation: { parent in
+            parent.child
+        }
+        _ = fileLocalChild
+
+        PrivateContainerNamespace.verifyMount()
+    }
+}

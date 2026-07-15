@@ -37,6 +37,13 @@ public struct FeatureContainer {
     public var request: FeatureRequest
 }
 
+@DIComponent
+@DIContainer
+public struct BindingNameFeatureContainer {
+    @Provide(.input) public var dependencies: Int
+    @Provide(.input) public var applyOverrides: String
+}
+
 public enum FeatureNamespace {
     public enum Detail {
         @DIComponent

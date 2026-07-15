@@ -9,7 +9,7 @@ struct AppContainer {
 
     // MARK: - Initialization
     init(a: A? = nil, b: B? = nil, c: C? = nil) {
-        final class _InnoDIDeferredCell<T>: @unchecked Sendable {
+        final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
             private var value: T?
             private var resolver: (() -> T)?
 
@@ -26,16 +26,16 @@ struct AppContainer {
                     if let resolver {
                         return resolver()
                     }
-                    preconditionFailure("InnoDI codegen invariant violated: deferred dependency resolved before initialization completed.")
+                    return InnoDI._innoDITrap("InnoDI codegen invariant violated: deferred dependency resolved before initialization completed.")
                 }
                 return value
             }
         }
-        let _lazyCell_c = _InnoDIDeferredCell<C>()
+        let _innoDILazyCell_c = _InnoDIDeferredCell<C>()
         self._storage_a = a ?? { (c: Lazy<C>) in
                 A(c: c)
-            }(Lazy {
-                _lazyCell_c.resolve()
+            }(.init {
+                _innoDILazyCell_c.resolve()
             })
         self._storage_b = b ?? { (a: A) in
                 B(a: a)
@@ -43,7 +43,7 @@ struct AppContainer {
         self._storage_c = c ?? { (b: B) in
                 C(b: b)
             }(self._storage_b!)
-        _lazyCell_c.storeValue(self._storage_c!)
+        _innoDILazyCell_c.storeValue(self._storage_c!)
     }
 
     // MARK: - Overrides Builder
@@ -53,34 +53,36 @@ struct AppContainer {
         var c: C? = nil
     }
 
+    typealias _InnoDIMountOverrides = Overrides
+
     // MARK: - Convenience Init with Overrides
-    init(_ applyOverrides: (inout Overrides) -> Void) {
-        var overrides = Overrides()
-        applyOverrides(&overrides)
-        self.init(a: overrides.a, b: overrides.b, c: overrides.c)
+    init(_ _innoDIApplyOverrides: (inout Overrides) -> Void) {
+        var _innoDIOverrides = Self.Overrides()
+        _innoDIApplyOverrides(&_innoDIOverrides)
+        self.init(a: _innoDIOverrides.a, b: _innoDIOverrides.b, c: _innoDIOverrides.c)
     }
 
     // MARK: - withOverrides
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
-        let container = Self(applyOverrides)
-        return operation(container)
+    static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+        let _innoDIContainer = Self(_innoDIApplyOverrides)
+        return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
-        let container = Self(applyOverrides)
-        return try operation(container)
+    static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+        let _innoDIContainer = Self(_innoDIApplyOverrides)
+        return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
-        let container = Self(applyOverrides)
-        return await operation(container)
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+        let _innoDIContainer = Self(_innoDIApplyOverrides)
+        return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
-        let container = Self(applyOverrides)
-        return try await operation(container)
+    nonisolated(nonsending) static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+        let _innoDIContainer = Self(_innoDIApplyOverrides)
+        return try await _innoDIOperation(_innoDIContainer)
     }
 }

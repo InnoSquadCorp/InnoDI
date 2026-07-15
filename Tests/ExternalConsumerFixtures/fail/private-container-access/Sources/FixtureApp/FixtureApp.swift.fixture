@@ -1,0 +1,18 @@
+import InnoDI
+
+@DIContainer
+private struct PrivateEmptyContainer {}
+
+@DIContainer
+private struct PrivateChildContainer {}
+
+@DIContainer
+private struct PrivateParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    private var child: PrivateChildContainer
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

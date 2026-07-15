@@ -251,8 +251,20 @@ Empieza por estos documentos en este orden:
 4. Cuatro overloads de `withOverrides` para operaciones `sync`, `throws`,
    `async` y `async throws`.
 
-Cada contenedor compatible sintetiza la estructura de overrides salvo que el
-usuario ya declare un tipo `Overrides` anidado, lo cual suprime la generacion.
+Cada contenedor, incluso si no tiene miembros administrados, sintetiza toda la
+estructura de overrides. Un tipo `Overrides` anidado declarado por el usuario
+no es compatible con InnoDI 5.0 y emite
+`container.overrides-name-conflict`; cambie su nombre para que la macro sea
+duena de la ABI de overrides montable.
+
+La macro tambien genera el alias reservado de soporte del compilador
+`_InnoDIMountOverrides = Overrides` para el codigo de montaje del contenedor
+padre. No declare ni use directamente ese nombre con guion bajo.
+
+Cada miembro de instancia almacenado del contenedor debe usar `@Provide` o
+`@SubContainer`; las propiedades calculadas y estaticas siguen disponibles.
+Asi el inicializador generado posee todo el estado y no cambia silenciosamente
+la ABI del inicializador memberwise.
 
 `@DIContainer` solo admite declaraciones `struct` efectivamente no genericas
 en el alcance de archivo o anidadas nominalmente. Ni la propia declaracion ni
@@ -264,6 +276,11 @@ funciones, closures, accessors y casos de `switch`. El mismo limite se aplica
 al combinar `@DIComponent`.
 Mueve el estado de runtime o especifico del tipo detras de dependencias de
 protocolo o `@Provide(.input)`.
+
+Tambien se rechaza un contenedor declarado explicitamente `private`, porque
+los contenedores hermanos no pueden acceder a su superficie de montaje
+generada. Use `fileprivate` para montaje local al archivo o un contenedor con
+acceso predeterminado dentro de un namespace privado.
 
 El compilador Swift actual omite el contexto del accessor al expandir un
 attached macro sobre un tipo dentro del body de una computed property. El
@@ -499,7 +516,10 @@ Para ownership cross-module:
 
 - `.innodi(container)` aplica el environment bridge generado a un arbol de vistas.
 - `@DIEnvironmentBridge` mapea miembros del contenedor a environment keys.
-- `@DIFeatureRoot` genera helpers default o con nombre para feature roots.
+- `@SubContainer(..., featureRoot:)` y `featureRoots:` generan helpers de
+  feature root predeterminados o con nombre.
+- InnoDI 5.0 elimina el macro de compatibilidad obsoleto `@DIFeatureRoot`.
+  Sustituyelo por los argumentos de feature root de `@SubContainer`.
 
 ## CLI y superficie de release
 

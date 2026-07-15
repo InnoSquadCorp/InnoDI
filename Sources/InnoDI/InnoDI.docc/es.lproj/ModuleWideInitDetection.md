@@ -5,15 +5,19 @@ la validacion de build.
 
 ## Macro Layer
 
-La macro rechaza `init` personalizados en:
+La validación de la macro rechaza `init` personalizados solo en el cuerpo del
+tipo anotado. Una macro adjunta no puede inspeccionar de forma fiable las
+extensiones hermanas del archivo fuente.
 
-- el cuerpo del tipo anotado
-- extensiones del mismo archivo que apunten al mismo tipo
+## Capa de build obligatoria
 
-## Build Layer
+Conecta `InnoDIDAGValidationPlugin` a cada target que declare contenedores. Su
+preflight de todo el código fuente rechaza `init` en extensiones coincidentes
+del mismo archivo y de otros archivos, incluidas las declaraciones dentro de
+ramas `#if`, antes de la validación semántica y DAG.
 
-La validacion de build extiende la misma regla a extensiones cross-file antes
-de la validacion semantica y DAG.
+Sin el plugin de validación de build, no se garantiza la prohibición de `init`
+en todas las extensiones.
 
 ## Boundaries
 

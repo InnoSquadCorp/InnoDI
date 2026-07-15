@@ -12,6 +12,10 @@ cases are rejected. The same boundary applies when `@DIComponent` is stacked
 on the container. Move runtime or type-specific state behind injected protocol
 dependencies or `@Provide(.input)` values.
 
+An explicitly `private` container is also rejected because sibling containers
+cannot access its generated mount surface. Use `fileprivate` for file-local
+mounting, or put a default-access container inside a private namespace.
+
 ## Declaration
 
 ```swift
@@ -34,8 +38,18 @@ non-`Sendable` container and closure values do not cross an isolation boundary.
 The synchronous overloads are unchanged. With `mainActor: true`, every
 `withOverrides` overload and operation closure remains `@MainActor`.
 
-Every supported container synthesizes the overrides scaffolding unless the
-user already declares a nested `Overrides` type.
+Every supported container, including one with no managed members, synthesizes
+the complete overrides scaffolding. A user-declared nested `Overrides` type is
+unsupported in InnoDI 5.0 and emits `container.overrides-name-conflict`; rename
+it so the macro can own the mountable override ABI.
+
+The macro also emits the reserved compiler-support alias
+`_InnoDIMountOverrides = Overrides` for generated parent mounting code. Do not
+declare or reference that underscored name directly.
+
+Every stored instance member must use `@Provide` or `@SubContainer`.
+Computed and type properties remain available. This lets the synthesized
+initializer own all stored state and prevents memberwise-initializer ABI drift.
 
 Every `@Provide` member must be a direct, plain, stored instance `var` in this
 struct. InnoDI rejects `let`, computed/observed properties, storage modifiers

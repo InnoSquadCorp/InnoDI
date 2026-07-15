@@ -32,6 +32,10 @@ struct DiagnosticsTests {
             .subNamedPropertyRequired,
             .subExplicitTypeRequired,
             .subEscapedIdentifierUnsupported,
+            .subRequiresDirectContainerMember,
+            .subConditionalDeclarationUnsupported,
+            .subDuplicateAttribute,
+            .subGeneratedAccessorManualAttachment,
             .provideUnknownScope,
             .provideRequiresDirectContainerMember,
             .provideConditionalDeclarationUnsupported,
@@ -40,9 +44,14 @@ struct DiagnosticsTests {
             .provideInputInvalidConfiguration,
             .transientFactoryUnnamedParameters,
             .containerUnsupportedDeclarationKind,
+            .containerPrivateAccessUnsupported,
             .containerGenericUnsupported,
             .containerUnverifiableEnclosingContext,
-            .containerLocalDeclarationUnsupported
+            .containerLocalDeclarationUnsupported,
+            .containerUnmanagedStoredProperty,
+            .swiftUIEnvironmentBridgeExtensionContextUnsupported,
+            .swiftUIEnvironmentBridgeUnsupportedDeclarationKind,
+            .swiftUIEnvironmentBridgePrivateNestedTarget
         ]
 
         let validationCodes: [InnoDIDiagnosticCode] = [
@@ -95,7 +104,10 @@ struct DiagnosticsTests {
             .subAutoWiringAmbiguous,
             .subSharedParentMustNotBeTransient,
             .swiftUIEnvironmentBridgeAsyncMember,
+            .swiftUIEnvironmentBridgeReservedModuleName,
+            .swiftUIEnvironmentBridgeGeneratedNameConflict,
             .containerReservedNamePrefix,
+            .containerReservedModuleName,
             .containerDuplicateMemberName
         ]
 
@@ -120,6 +132,10 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subNamedPropertyRequired(), MessageID(domain: "InnoDI.usage", id: "sub.named-property-required")),
             (SimpleDiagnostic.subExplicitTypeRequired(), MessageID(domain: "InnoDI.usage", id: "sub.explicit-type-required")),
             (SimpleDiagnostic.subEscapedPropertyIdentifier(memberName: "default"), MessageID(domain: "InnoDI.usage", id: "sub.escaped-identifier-unsupported")),
+            (SimpleDiagnostic.subRequiresDirectContainerMember(memberName: "feature"), MessageID(domain: "InnoDI.usage", id: "sub.requires-direct-container-member")),
+            (SimpleDiagnostic.subConditionalDeclarationUnsupported(memberName: "feature"), MessageID(domain: "InnoDI.usage", id: "sub.conditional-declaration-unsupported")),
+            (SimpleDiagnostic.subDuplicateAttribute(memberName: "feature"), MessageID(domain: "InnoDI.usage", id: "sub.duplicate-attribute")),
+            (SimpleDiagnostic.subGeneratedAccessorManualAttachment(memberName: "feature"), MessageID(domain: "InnoDI.usage", id: "sub.generated-accessor-manual-attachment")),
             (SimpleDiagnostic.provideUnknownScope("foo"), MessageID(domain: "InnoDI.usage", id: "provide.unknown-scope")),
             (SimpleDiagnostic.provideRequiresDirectContainerMember(memberName: "service"), MessageID(domain: "InnoDI.usage", id: "provide.requires-direct-container-member")),
             (SimpleDiagnostic.provideConditionalDeclarationUnsupported(memberName: "service"), MessageID(domain: "InnoDI.usage", id: "provide.conditional-declaration-unsupported")),
@@ -128,9 +144,11 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.provideInputInvalidConfiguration(), MessageID(domain: "InnoDI.usage", id: "provide.input-invalid-configuration")),
             (SimpleDiagnostic.transientFactoryUnnamedParameters(), MessageID(domain: "InnoDI.usage", id: "transient-factory.unnamed-parameters")),
             (SimpleDiagnostic.containerUnsupportedDeclarationKind(name: "AppContainer", kind: "class"), MessageID(domain: "InnoDI.usage", id: "container.unsupported-declaration-kind")),
+            (SimpleDiagnostic.containerPrivateAccessUnsupported(name: "AppContainer"), MessageID(domain: "InnoDI.usage", id: "container.private-access-unsupported")),
             (SimpleDiagnostic.containerGenericUnsupported(name: "AppContainer", contextName: nil), MessageID(domain: "InnoDI.usage", id: "container.generic-unsupported")),
             (SimpleDiagnostic.containerUnverifiableEnclosingContext(name: "AppContainer", extendedType: "Feature"), MessageID(domain: "InnoDI.usage", id: "container.unverifiable-enclosing-context")),
             (SimpleDiagnostic.containerLocalDeclarationUnsupported(name: "AppContainer", context: "function 'build'"), MessageID(domain: "InnoDI.usage", id: "container.local-declaration-unsupported")),
+            (SimpleDiagnostic.containerUnmanagedStoredProperty(memberName: "token"), MessageID(domain: "InnoDI.usage", id: "container.unmanaged-stored-property")),
             (SimpleDiagnostic.provideSharedFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.shared-factory-required")),
             (SimpleDiagnostic.provideTransientFactoryRequired(), MessageID(domain: "InnoDI.validation", id: "provide.transient-factory-required")),
             (SimpleDiagnostic.provideConcreteOptInRequired(name: "service", typeDescription: "Service"), MessageID(domain: "InnoDI.validation", id: "provide.concrete-opt-in-required")),
@@ -178,7 +196,16 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
             (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")),
             (SimpleDiagnostic.swiftUIEnvironmentBridgeAsyncMember(memberName: "service"), MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-async-member")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidEnvironmentKeyPath(), MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-invalid-keypath")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeReservedModuleName(declarationName: "SwiftUI"), MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-reserved-module-name")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeGeneratedModifierTypeNameConflict(memberName: "_InnoDIEnvironmentBridgeModifier"), MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-generated-name-conflict")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeGeneratedHelperNameConflict(memberName: "_innoDIEnvironmentBridgeModifier"), MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-generated-name-conflict")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeExtensionContextUnsupported(), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-extension-context-unsupported")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeUnsupportedDeclarationKind(name: "Bridge", kind: "an actor"), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-unsupported-declaration-kind")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgePrivateNestedTarget(name: "Bridge"), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-private-nested-target")),
+            (SimpleDiagnostic.swiftUIEnvironmentBridgeParameterPackUnsupported(), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-parameter-pack-unsupported")),
             (SimpleDiagnostic.containerReservedNamePrefix(memberName: "_storage_config", reservedPrefix: "_storage_"), MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")),
+            (SimpleDiagnostic.containerReservedModuleName(memberName: "InnoDI"), MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name")),
             (SimpleDiagnostic.containerDuplicateMemberName(memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.duplicate-member-name"))
         ]
 

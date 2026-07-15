@@ -19,8 +19,7 @@ surface 保留下来时效果最好。
 - 对用户手写 source 正常 lint。
 - 不要把 macro-expanded output 当作 hand-written code 来 lint。
 - 如果配置会检查 generated interface artifacts，请排除 InnoDI 的 reserved generated prefixes:
-  `_storage_`, `_override_`, `_lazyCell_`, `_subBuildCell_`, `_innoDISubBuild_`,
-  `_lazySelfForSub`.
+  `_storage_`, `_override_`, `_innoDI`, `_InnoDI`.
 
 ## SwiftFormat
 

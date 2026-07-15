@@ -21,8 +21,7 @@ declaraciones de contenedores escritas por el usuario como la superficie de revi
 - Aplique lint normalmente al source escrito por el usuario.
 - No aplique lint a la salida macro-expanded como si fuera codigo escrito a mano.
 - Si su configuracion revisa artifacts de interface generados, excluya los prefijos
-  reservados de InnoDI: `_storage_`, `_override_`, `_lazyCell_`, `_subBuildCell_`,
-  `_innoDISubBuild_` y `_lazySelfForSub`.
+  reservados de InnoDI: `_storage_`, `_override_`, `_innoDI` y `_InnoDI`.
 
 ## SwiftFormat
 

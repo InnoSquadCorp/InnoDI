@@ -45,6 +45,11 @@ struct DependencyGraphCLITests {
             )
             #expect(
                 result.stderr.components(
+                    separatedBy: "[container.private-access-unsupported]"
+                ).count - 1 == 1
+            )
+            #expect(
+                result.stderr.components(
                     separatedBy: "[container.unverifiable-enclosing-context]"
                 ).count - 1 == 1
             )
@@ -749,6 +754,9 @@ private func makeUnsupportedDeclarationFixtureProject() throws -> URL {
 
     @DIContainer
     struct GenericContainer<Value> {}
+
+    @DIContainer
+    private struct PrivateContainer {}
 
     struct ExtensionOuter {}
     extension ExtensionOuter {

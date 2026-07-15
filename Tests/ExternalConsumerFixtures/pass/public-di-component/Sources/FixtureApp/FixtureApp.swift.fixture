@@ -4,6 +4,11 @@ private struct AppDependencies: FeatureContainerDependencies {
     let config = FeatureConfig()
 }
 
+private struct BindingNameDependencies: BindingNameFeatureContainerDependencies {
+    let dependencies = 41
+    let applyOverrides = "safe"
+}
+
 private struct NestedDependencies:
     FeatureNamespace.Detail.NestedFeatureContainerDependencies {
     let config = FeatureConfig()
@@ -15,9 +20,6 @@ private enum ProbeError: Error {
 
 private func asyncThrowingProbe() async throws {
     await Task.yield()
-    if Bool.random() {
-        throw ProbeError.failed
-    }
 }
 
 @MainActor
@@ -98,6 +100,11 @@ struct FixtureApp {
         let _: any FeatureServiceProtocol = container.service
         let _: FeatureRequest = defaultContainer.request
         let _: FeatureRequest = container.request
+        let bindingNames = BindingNameFeatureContainer(
+            dependencies: BindingNameDependencies()
+        )
+        precondition(bindingNames.dependencies == 41)
+        precondition(bindingNames.applyOverrides == "safe")
         let nested = FeatureNamespace.Detail.NestedFeatureContainer(
             dependencies: NestedDependencies()
         )

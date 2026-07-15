@@ -105,8 +105,18 @@ keeps arbitrary non-`Sendable` containers and closures from crossing isolation.
 Keep synchronous overloads unchanged. Every `mainActor: true` overload and
 operation closure remains `@MainActor`.
 
-All containers synthesize the overrides scaffolding unless the user already
-declares a nested `Overrides` type, which suppresses generation.
+Every container, including a truly empty one, synthesizes the complete
+overrides scaffolding. A user-declared nested `Overrides` type is a terminal
+`container.overrides-name-conflict` error in InnoDI 5.0; never generate a
+partial primary-initializer-only surface.
+
+Every stored instance member in a container must be managed by `@Provide` or
+`@SubContainer`; computed and type properties remain available. Emit
+`container.unmanaged-stored-property` before initializer generation otherwise.
+
+An explicitly `private` container is unsupported in 5.0 because sibling
+containers cannot access its generated mount surface. Require `fileprivate`
+for same-file mounting or default access inside a private namespace.
 
 `root` affects graph rendering only. `validateDAG: false` skips global DAG
 validation plus the macro's local cycle and other graph-derived checks. It

@@ -19,7 +19,7 @@ struct Lazy<T> {
 // With `Lazy<T>`, we break the cycle by deferring the resolution of `b` on
 // the `a` side: `a`'s factory stores the Lazy wrapper without invoking it,
 // so `CoordinatorA` is constructed before `b` exists. Once init has written
-// `_storage_b`, the `_lazyCell_b` box is populated and any later
+// `_storage_b`, the `_innoDILazyCell_b` box is populated and any later
 // `a.resolveB()` returns the shared `.shared` instance.
 
 final class CoordinatorA {
@@ -37,7 +37,7 @@ final class CoordinatorB {
 struct LazyCycleContainer {
     // Declare the soft-target side first. `a`'s factory receives the Lazy
     // wrapper and stores it — the wrapper resolves `b` only when invoked at
-    // call time, by which point init has fully populated `_lazyCell_b`.
+    // call time, by which point init has fully populated `_innoDILazyCell_b`.
     @Provide(.shared, factory: { (b: InnoDI.Lazy<CoordinatorB>) in
         CoordinatorA(b: b)
     }, concrete: true)

@@ -13,6 +13,8 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
+internal let innoDIMountOverridesTypeName = "_InnoDIMountOverrides"
+
 // MARK: - Overrides builder
 
 internal func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [ProvideMemberModel] {
@@ -58,7 +60,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         memberDecls.append(MemberBlockItemSyntax(decl: directSlot))
 
         let applyType = overrideApplyClosureType(
-            overridesTypeDescription: "\(member.type.trimmedDescription).Overrides",
+            overridesTypeDescription: "\(member.type.trimmedDescription).\(innoDIMountOverridesTypeName)",
             isMainActor: model.options.mainActor,
             isOptional: true
         )
@@ -88,6 +90,43 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
     return DeclSyntax(structDecl)
 }
 
+/// Stable child-mount ABI used by parent `@SubContainer` code. Valid
+/// containers alias the source-facing builder so parent code no longer
+/// depends directly on a user-collidable nested name.
+internal func makeMountOverridesAliasDecl(
+    model: DIContainerExpansionModel
+) -> DeclSyntax {
+    DeclSyntax(
+        TypeAliasDeclSyntax(
+            modifiers: accessModifiers(model.accessLevel),
+            name: .identifier(innoDIMountOverridesTypeName),
+            initializer: TypeInitializerClauseSyntax(
+                value: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Overrides")))
+            )
+        )
+    )
+}
+
+/// A diagnostic-only mount type for a container whose user declaration
+/// collided with `Overrides`. It keeps parent expansion type-checkable without
+/// exposing or specializing the conflicting declaration.
+internal func makeOverridesConflictMountTypeDecl(
+    model: DIContainerExpansionModel
+) -> DeclSyntax {
+    DeclSyntax(
+        StructDeclSyntax(
+            attributes: model.options.mainActor
+                ? mainActorAttributeList()
+                : AttributeListSyntax([]),
+            modifiers: accessModifiers(model.accessLevel),
+            name: .identifier(innoDIMountOverridesTypeName),
+            memberBlock: MemberBlockSyntax(
+                members: MemberBlockItemListSyntax([])
+            )
+        )
+    )
+}
+
 internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclSyntax {
     let modifiers = accessModifiers(model.accessLevel)
     let inputMembers = model.inputMembers
@@ -110,13 +149,13 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
 
     // Final unnamed trailing closure parameter. Main-actor containers carry
     // isolation on the closure type as well as on the initializer:
-    //   _ applyOverrides: [@MainActor] (inout Overrides) -> Void
+    //   _ _innoDIApplyOverrides: [@MainActor] (inout Overrides) -> Void
     let overridesClosureType = overrideApplyClosureType(
         isMainActor: model.options.mainActor
     )
     let closureParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
-        secondName: .identifier("applyOverrides"),
+        secondName: .identifier("_innoDIApplyOverrides"),
         colon: .colonToken(),
         type: overridesClosureType,
         ellipsis: nil,
@@ -131,15 +170,18 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
 
     var statements: [CodeBlockItemSyntax] = []
 
-    // var overrides = Overrides()
+    // var _innoDIOverrides = Overrides()
     let makeOverrides = VariableDeclSyntax(
         bindingSpecifier: .keyword(.var),
         bindings: PatternBindingListSyntax([
             PatternBindingSyntax(
-                pattern: IdentifierPatternSyntax(identifier: .identifier("overrides")),
+                pattern: IdentifierPatternSyntax(identifier: .identifier("_innoDIOverrides")),
                 initializer: InitializerClauseSyntax(
                     value: FunctionCallExprSyntax(
-                        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("Overrides")),
+                        calledExpression: MemberAccessExprSyntax(
+                            base: DeclReferenceExprSyntax(baseName: .keyword(.Self)),
+                            declName: DeclReferenceExprSyntax(baseName: .identifier("Overrides"))
+                        ),
                         leftParen: .leftParenToken(),
                         arguments: LabeledExprListSyntax([]),
                         rightParen: .rightParenToken()
@@ -150,14 +192,14 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
     )
     statements.append(CodeBlockItemSyntax(item: .decl(DeclSyntax(makeOverrides))))
 
-    // applyOverrides(&overrides)
+    // _innoDIApplyOverrides(&_innoDIOverrides)
     let applyCall = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("applyOverrides")),
+        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("_innoDIApplyOverrides")),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax([
             LabeledExprSyntax(
                 expression: InOutExprSyntax(
-                    expression: DeclReferenceExprSyntax(baseName: .identifier("overrides"))
+                    expression: DeclReferenceExprSyntax(baseName: .identifier("_innoDIOverrides"))
                 )
             )
         ]),
@@ -190,7 +232,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
             // shared / transient value pulled out of the overrides builder.
             valueExpr = ExprSyntax(
                 MemberAccessExprSyntax(
-                    base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("overrides"))),
+                    base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIOverrides"))),
                     declName: DeclReferenceExprSyntax(baseName: .identifier(member.name))
                 )
             )
@@ -211,7 +253,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
         let isLast = runningIndex == totalArgCount - 1
         let valueExpr = ExprSyntax(
             MemberAccessExprSyntax(
-                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("overrides"))),
+                base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIOverrides"))),
                 declName: DeclReferenceExprSyntax(baseName: .identifier(pair.source))
             )
         )
@@ -246,4 +288,58 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
     )
 
     return DeclSyntax(initDecl)
+}
+
+/// Emits only the source shape that a parent `@SubContainer` needs to type
+/// check after a user-defined nested `Overrides` declaration has already made
+/// the child container invalid. The primary InnoDI error keeps this
+/// initializer unreachable; the nonreturning body prevents secondary stored
+/// property and `extra argument in call` diagnostics from obscuring it.
+internal func makeOverridesConflictRecoveryInitDecl(
+    model: DIContainerExpansionModel
+) -> DeclSyntax {
+    let modifiers = accessModifiers(model.accessLevel)
+    var params: [FunctionParameterSyntax] = model.inputMembers.map { member in
+        FunctionParameterSyntax(
+            firstName: .identifier(member.name),
+            secondName: nil,
+            colon: .colonToken(),
+            type: inputParameterType(for: member),
+            ellipsis: nil,
+            defaultValue: nil,
+            trailingComma: .commaToken()
+        )
+    }
+    params.append(
+        FunctionParameterSyntax(
+            firstName: .wildcardToken(),
+            secondName: .identifier("_innoDIApplyOverrides"),
+            colon: .colonToken(),
+            type: overrideApplyClosureType(
+                overridesTypeDescription: innoDIMountOverridesTypeName,
+                isMainActor: model.options.mainActor
+            ),
+            ellipsis: nil,
+            defaultValue: nil,
+            trailingComma: nil
+        )
+    )
+
+    let loop: CodeBlockItemSyntax = "while true {}"
+    return DeclSyntax(
+        InitializerDeclSyntax(
+            attributes: model.options.mainActor
+                ? mainActorAttributeList()
+                : AttributeListSyntax([]),
+            modifiers: modifiers,
+            signature: FunctionSignatureSyntax(
+                parameterClause: FunctionParameterClauseSyntax(
+                    parameters: FunctionParameterListSyntax(params)
+                )
+            ),
+            body: CodeBlockSyntax(
+                statements: CodeBlockItemListSyntax([loop])
+            )
+        )
+    )
 }

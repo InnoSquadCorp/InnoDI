@@ -14,6 +14,11 @@ ausfuhrbaren oder lokalen Scopes, darunter Funktionen, Closures, Accessors und
 Verschieben Sie Laufzeit- oder
 typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Provide(.input)`.
 
+Ein explizit `private` deklarierter Container wird ebenfalls abgelehnt, weil
+Sibling-Container seine generierte Mount-Oberflache nicht erreichen. Verwenden
+Sie `fileprivate` fur file-lokales Mounting oder einen Container mit
+Default-Zugriff in einem privaten Namespace.
+
 Der aktuelle Swift-Compiler lasst beim Erweitern eines attached macro auf einem
 Typ in einem computed-property-Body den Accessor-Kontext weg. Das
 Build-Validation-Plugin und die Dependency-Graph-CLI scannen den vollstandigen
@@ -40,8 +45,20 @@ beliebige non-`Sendable` Container- und Closure-Werte keine Isolationsgrenze
 überschreiten. Synchrone Overloads bleiben unverändert. Mit `mainActor: true`
 bleiben alle `withOverrides`-Overloads und Operation-Closures `@MainActor`.
 
-Jeder unterstutzte Container erzeugt Overrides-Scaffolding, solange kein
-benutzerdefinierter verschachtelter `Overrides`-Typ existiert.
+Jeder Container, auch ohne verwaltete Member, erzeugt das vollstandige
+Overrides-Scaffolding. Ein benutzerdefinierter verschachtelter `Overrides`-Typ
+ist in InnoDI 5.0 nicht unterstutzt und erzeugt
+`container.overrides-name-conflict`; benennen Sie ihn um, damit das Makro die
+mountbare Override-ABI besitzen kann.
+
+Das Makro erzeugt ausserdem den reservierten Compiler-Support-Alias
+`_InnoDIMountOverrides = Overrides` fur generierten Parent-Mount-Code. Diesen
+unterstrichenen Namen nicht direkt deklarieren oder referenzieren.
+
+Jedes gespeicherte Instanz-Member muss `@Provide` oder `@SubContainer`
+verwenden; berechnete und Typ-Properties bleiben verfugbar. So besitzt der
+synthetisierte Initialisierer den gesamten Zustand und verhindert einen Drift
+der Memberwise-Initializer-ABI.
 
 Jedes `@Provide` muss eine direkte, einfache, gespeicherte Instanz-`var` dieses
 struct sein. Accessor-/Observer-Blöcke, `let`, `lazy`, `weak`, `unowned`,

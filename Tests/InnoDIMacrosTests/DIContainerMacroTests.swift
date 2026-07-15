@@ -1,4 +1,5 @@
 import Foundation
+import InnoDICore
 import InnoDITestSupport
 import SwiftParser
 import SwiftDiagnostics
@@ -19,6 +20,8 @@ struct DIContainerMacroTests {
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
+        "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
+        "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
     ]
 
     @Test
@@ -249,35 +252,37 @@ struct DIContainerMacroTests {
                         package var apiClient: APIClient? = nil
                     }
 
+                    package typealias _InnoDIMountOverrides = Overrides
+
                     // MARK: - Convenience Init with Overrides
-                    package init(_ applyOverrides: (inout Overrides) -> Void) {
-                        var overrides = Overrides()
-                        applyOverrides(&overrides)
-                        self.init(apiClient: overrides.apiClient)
+                    package init(_ _innoDIApplyOverrides: (inout Overrides) -> Void) {
+                        var _innoDIOverrides = Self.Overrides()
+                        _innoDIApplyOverrides(&_innoDIOverrides)
+                        self.init(apiClient: _innoDIOverrides.apiClient)
                     }
 
                     // MARK: - withOverrides
-                    package static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) -> OperationResult) -> OperationResult {
-                        let container = Self(applyOverrides)
-                        return operation(container)
+                    package static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                        return _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (throws)
-                    package static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: (Self) throws -> OperationResult) throws -> OperationResult {
-                        let container = Self(applyOverrides)
-                        return try operation(container)
+                    package static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                        return try _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async)
-                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
-                        let container = Self(applyOverrides)
-                        return await operation(container)
+                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                        return await _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ applyOverrides: (inout Overrides) -> Void, operation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
-                        let container = Self(applyOverrides)
-                        return try await operation(container)
+                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                        return try await _innoDIOperation(_innoDIContainer)
                     }
                 }
                 """,
@@ -422,7 +427,7 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Qualified InnoDI.Lazy preserves the written wrapper qualifier")
+    @Test("Qualified InnoDI.Lazy uses shadow-safe contextual construction")
     func qualifiedLazyBreaksTwoCycleAcrossShared() {
         assertMacroExpansionSnapshot(
             """
@@ -955,7 +960,7 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Qualified InnoDI.Provider preserves the written wrapper qualifier")
+    @Test("Qualified InnoDI.Provider uses shadow-safe contextual construction")
     func qualifiedProviderInSharedFactory() {
         assertMacroExpansionSnapshot(
             """
@@ -1859,7 +1864,7 @@ struct DIContainerMacroTests {
 
     @Test("Custom init inside container body is rejected explicitly")
     func customInitInsideContainerBodyIsRejected() {
-        assertMacroExpansionDiagnosticCodes(
+        let result = expandMacroSource(
             """
             @DIContainer
             struct AppContainer {
@@ -1871,11 +1876,17 @@ struct DIContainerMacroTests {
                 }
             }
             """,
-            expectedCodes: [
-                MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
-            ],
             macros: Self.macros
         )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(domain: "InnoDI.validation", id: "container.custom-init-unsupported")
+            ]
+        )
+        #expect(!result.expansion.contains("_InnoDIProvideAccessor"))
+        #expect(!result.expansion.contains("_storage_config"))
+        #expect(result.expansion.contains("self.config = config"))
     }
 
     // NOTE: Tests involving same-file `extension AppContainer { init ... }` detection
@@ -1980,6 +1991,56 @@ struct DIContainerMacroTests {
 
         #expect(generated.isEmpty)
         #expect(diagnostics.count == 3)
+    }
+
+    @Test("Conditional custom initializers in bodies and same-file extensions are rejected")
+    func conditionalCustomInitializersAreRejected() throws {
+        let source = """
+        @DIContainer
+        struct AppContainer {
+            @Provide(.input)
+            var config: Config
+
+            #if DEBUG
+            init(config: Config) {
+                self.config = config
+            }
+            #endif
+        }
+
+        extension AppContainer {
+            #if RELEASE
+            init(config: Config, release: Bool) {
+                self.init(config: config)
+            }
+            #endif
+        }
+        """
+
+        let parsed = Parser.parse(source: source)
+        let declaration = try #require(
+            parsed.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let attribute = try #require(
+            declaration.attributes.first?.as(AttributeSyntax.self)
+        )
+        let context = TestMacroExpansionContext()
+
+        let generated = try DIContainerMacro.expansion(
+            of: attribute,
+            providingMembersOf: declaration,
+            in: context
+        )
+
+        #expect(generated.isEmpty)
+        #expect(
+            context.diagnostics.filter {
+                $0.diagnosticID == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.custom-init-unsupported"
+                )
+            }.count == 2
+        )
     }
 
     @Test("Cross-file extension initializers are outside the current detection policy")
@@ -2099,6 +2160,24 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Explicit private containers emit the access diagnostic")
+    func privateContainerEmitsDedicatedDiagnostic() throws {
+        let declaration = try #require(
+            Parser.parse(
+                source: "@DIContainer\nprivate struct PrivateContainer {}"
+            ).statements.first?.item.as(StructDeclSyntax.self)
+        )
+
+        try assertUnsupportedContainerDeclaration(
+            declaration,
+            expectedID: "container.private-access-unsupported",
+            expectedMessage: "@DIContainer 'PrivateContainer' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
+        )
+        #expect(
+            declaration.modifiers.first?.name.text == "private"
+        )
+    }
+
     @Test("Direct generic containers emit the generic diagnostic")
     func directGenericContainerEmitsDedicatedDiagnostic() throws {
         let declaration = try #require(
@@ -2164,7 +2243,7 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Unsupported stacked container macros emit one diagnostic with recovery accessors")
+    @Test("Unsupported stacked container macros emit one diagnostic without companion support")
     func unsupportedStackedContainerSuppressesCompanionExpansions() {
         assertMacroExpansionInline(
             """
@@ -2179,11 +2258,7 @@ struct DIContainerMacroTests {
             expandedSource: """
                 final class UnsupportedContainer {
                     var config: Config
-                    var child: ChildContainer {
-                        get {
-                            Swift.preconditionFailure("Unsupported @DIContainer declaration")
-                        }
-                    }
+                    var child: ChildContainer
                 }
                 """,
             diagnostics: [
@@ -3223,16 +3298,324 @@ struct DIContainerMacroTests {
         )
     }
 
-    @Test("Container member starting with reserved prefix emits container.reserved-name-prefix")
+    @Test("Generated implementation bindings use the canonical InnoDI namespace")
+    func generatedImplementationBindingsUseCanonicalNamespace() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct FeatureContainer {}
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @Provide(
+                    .shared,
+                    asyncFactory: { (config: AppConfig) async in Service(config: config) },
+                    concrete: true
+                )
+                var service: Service
+
+                @Provide(
+                    .shared,
+                    factory: { (request: Lazy<Request>) in Consumer(request: request) },
+                    concrete: true
+                )
+                var consumer: Consumer
+
+                @Provide(.transient, factory: Request(), concrete: true)
+                var request: Request
+
+                @SubContainer(scope: .transient, with: [])
+                var feature: FeatureContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        for generatedName in [
+            "_innoDIResolved_config",
+            "_innoDITask_service",
+            "_innoDILazyCell_request",
+            "_innoDILazySelf",
+            "_innoDISubBuildCell_feature",
+            "_innoDILazySelfForSub",
+            "_innoDIApplyOverrides",
+            "_innoDIOverrides",
+            "_innoDIOperation",
+            "_innoDIContainer",
+        ] {
+            #expect(result.expansion.contains(generatedName))
+        }
+        for obsoleteName in [
+            "let _resolved_config =",
+            "let _task_service:",
+            "_lazyCell_request",
+            "_subBuildCell_feature",
+            "let _lazySelf =",
+            "let _lazySelfForSub =",
+        ] {
+            #expect(!result.expansion.contains(obsoleteName))
+        }
+    }
+
+    @Test("validateDAG false emits typed fallback wrappers for unresolved deferred dependencies")
+    func validateDAGFalseSupportsUnresolvedDeferredWrappers() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct ChildContainer {}
+
+            @DIContainer(validateDAG: false)
+            struct AppContainer {
+                @Provide(
+                    .shared,
+                    factory: { (missingLazy: Lazy<Int>) in Service() },
+                    concrete: true
+                )
+                var lazyService: Service
+
+                @Provide(
+                    .shared,
+                    factory: { (missingProvider: Provider<Int>) in Service() },
+                    concrete: true
+                )
+                var providerService: Service
+
+                @Provide(
+                    .shared,
+                    asyncFactory: { (missingAsyncLazy: Lazy<Int>) async in Service() },
+                    concrete: true
+                )
+                var asyncLazyService: Service
+
+                @Provide(
+                    .shared,
+                    asyncFactory: { (missingAsyncProvider: Provider<Int>) async in Service() },
+                    concrete: true
+                )
+                var asyncProviderService: Service
+
+                @SubContainer(scope: .shared, with: [])
+                var child: ChildContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(!result.expansion.contains("internal.codegen-invariant"))
+        for name in [
+            "missingLazy",
+            "missingProvider",
+            "missingAsyncLazy",
+            "missingAsyncProvider",
+        ] {
+            #expect(
+                result.expansion.contains(
+                    "InnoDI._innoDITrap(\"InnoDI could not resolve dependency '\(name)'"
+                )
+            )
+        }
+        #expect(result.expansion.contains("_storage_sub_child"))
+    }
+
+    @Test("unmanaged stored container state fails closed before initializer synthesis")
+    func unmanagedStoredContainerMembersDiagnose() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                let token: Int
+                var count = 0
+                var observed = 0 { didSet {} }
+
+                #if os(macOS)
+                var conditional = "macOS"
+                #endif
+
+                static var shared = 0
+                var computed: Int { 42 }
+
+                @Provide(.input)
+                var config: String
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == Array(
+                repeating: MessageID(
+                    domain: "InnoDI.usage",
+                    id: "container.unmanaged-stored-property"
+                ),
+                count: 4
+            )
+        )
+        #expect(!result.expansion.contains("init("))
+        #expect(!result.expansion.contains("_storage_config"))
+        #expect(!result.expansion.contains("struct Overrides"))
+    }
+
+    @Test("Former generated-local prefixes remain valid provider names")
+    func formerGeneratedLocalPrefixesRemainAvailable() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var _resolved_config: Int
+                @Provide(.input) var _task_service: Int
+                @Provide(.input) var _lazyCell_request: Int
+                @Provide(.input) var _subBuildCell_feature: Int
+                @Provide(.input) var _lazySelf: Int
+                @Provide(.input) var _lazySelfForSub: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+    }
+
+    @Test("Container members starting with canonical reserved prefixes are rejected")
     func containerReservedNamePrefixDiagnoses() {
         assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
                 @Provide(.input) var _storage_config: AppConfig
+                @Provide(.input) var _override_config: AppConfig
+                @Provide(.input) var _innoDIConfig: AppConfig
+                @Provide(.input) var _InnoDIConfig: AppConfig
             }
             """,
             expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Managed member named InnoDI cannot shadow generated runtime support")
+    func containerReservedModuleNameDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var InnoDI: AppConfig
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Direct nested types cannot shadow generated module qualifiers")
+    func containerReservedNestedModuleNamesDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                struct Swift {}
+                enum _Concurrency {}
+                typealias InnoDI = Int
+
+                @Provide(.input) var config: AppConfig
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Container and enclosing nominal names cannot shadow generated module qualifiers")
+    func containerReservedScopeModuleNamesDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct Swift {
+                @DIContainer
+                struct FirstContainer {
+                    @Provide(.input) var value: Int
+                }
+            }
+
+            enum _Concurrency {
+                @DIContainer
+                struct SecondContainer {
+                    @Provide(.input) var value: Int
+                }
+            }
+
+            @DIContainer
+            struct InnoDI {
+                @Provide(.input) var value: Int
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name"),
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Value members named Swift or _Concurrency remain available")
+    func containerModuleValueNamesRemainAvailable() {
+        let result = expandMacroSource(
+            """
+            @DIContainer(mainActor: true)
+            struct AppContainer {
+                @Provide(.input) var Swift: Int
+                @Provide(.input) var _Concurrency: Int
+
+                @Provide(
+                    .shared,
+                    asyncFactory: { () async in 1 },
+                    concrete: true
+                )
+                var asyncValue: Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("@Swift.MainActor"))
+        #expect(result.expansion.contains("_Concurrency.Task<Int, Swift.Never>"))
+    }
+
+    @Test("Plain direct declarations also honor reserved generated prefixes")
+    func plainDirectDeclarationsHonorReservedPrefixes() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                struct _InnoDIHelper {}
+                func _innoDIHelper() {}
+                var _storage_probe: Int { 0 }
+                typealias _override_Alias = Int
+                #if DEBUG
+                typealias _innoDIConditional = Int
+                #endif
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
+                MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix"),
                 MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")
             ],
             macros: Self.macros
@@ -3269,7 +3652,6 @@ struct DIContainerMacroTests {
             }
             """,
             expectedCodes: [
-                MessageID(domain: "SwiftSyntaxMacroExpansion", id: "accessorMacroOnVariableWithMultipleBindings"),
                 MessageID(domain: "SwiftSyntaxMacroExpansion", id: "peerMacroOnVariableWithMultipleBindings"),
                 MessageID(domain: "InnoDI.usage", id: "sub.single-binding")
             ],
@@ -3362,7 +3744,7 @@ struct DIContainerMacroTests {
         ] {
             #expect(!result.expansion.contains(prefix))
         }
-        #expect(result.expansion.contains("preconditionFailure"))
+        #expect(!result.expansion.contains("_InnoDISubContainerAccessor"))
     }
 
     @Test("Standalone escaped SubContainer identifiers keep recovery unreachable")
@@ -3386,7 +3768,293 @@ struct DIContainerMacroTests {
             ]
         )
         #expect(!result.expansion.contains("_storage_sub_"))
-        #expect(result.expansion.contains("preconditionFailure"))
+        #expect(!result.expansion.contains("while true"))
+    }
+
+    @Test("Standalone SubContainer declarations are rejected")
+    func standaloneSubContainerRequiresContainer() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            struct StandaloneParent {
+                @SubContainer(scope: .shared)
+                var child: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.requires-direct-container-member"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Static SubContainer declarations are rejected")
+    func staticSubContainerRequiresInstanceMember() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                static var child: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.requires-direct-container-member"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("SubContainer declaration matrix rejects non-plain storage")
+    func subContainerDeclarationMatrixFailsClosed() {
+        let declarations = [
+            "let child: FeatureContainer",
+            "lazy var child: FeatureContainer = .init()",
+            "weak var child: FeatureContainer?",
+            "unowned var child: FeatureContainer",
+            "private(set) var child: FeatureContainer",
+            "@MainActor var child: FeatureContainer",
+            "@UnknownWrapper var child: FeatureContainer",
+            "var child: FeatureContainer { .init() }",
+            "var child: FeatureContainer { didSet {} }",
+        ]
+
+        for declaration in declarations {
+            let result = expandMacroSource(
+                """
+                @DIContainer
+                struct AppContainer {
+                    @SubContainer(scope: .shared)
+                    \(declaration)
+                }
+                """,
+                macros: Self.macros
+            )
+
+            #expect(
+                result.diagnostics.map(\.diagnosticID) == [
+                    MessageID(
+                        domain: "InnoDI.usage",
+                        id: "sub.requires-direct-container-member"
+                    )
+                ]
+            )
+            #expect(!result.expansion.contains("_InnoDISubContainerAccessor"))
+            #expect(!result.expansion.contains("_storage_sub_"))
+            #expect(!result.expansion.contains("struct Overrides"))
+            #expect(!result.expansion.contains("withOverrides"))
+        }
+    }
+
+    @Test("Duplicate SubContainer attributes emit one public usage diagnostic")
+    func duplicateSubContainerAttributesDiagnose() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                @SubContainer(scope: .shared)
+                var child: FeatureContainer
+            }
+            """,
+            expectedCodes: [
+                MessageID(domain: "InnoDI.usage", id: "sub.duplicate-attribute")
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Conditionally compiled SubContainer declarations fail closed")
+    func conditionalSubContainerDeclarationDiagnoses() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                #if os(macOS)
+                @SubContainer(scope: .shared)
+                var child: FeatureContainer
+                #endif
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.conditional-declaration-unsupported"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Conditional SubContainer owns the terminal diagnostic before name validation")
+    func conditionalEscapedSubContainerHasOneDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                #if os(macOS)
+                @SubContainer(scope: .shared)
+                var `default`: FeatureContainer
+                #endif
+            }
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.conditional-declaration-unsupported"
+                )
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Hidden SubContainer support owns peers and accessors")
+    func hiddenSubContainerSupportOwnsGeneration() throws {
+        let parsed = Parser.parse(source: """
+        @DIContainer
+        struct AppContainer {
+            @SubContainer(scope: .shared)
+            @InnoDI._InnoDISubContainerAccessor(recovery: false)
+            var child: FeatureContainer
+        }
+        """)
+        guard let container = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let variable = container.memberBlock.members.first?.decl.as(VariableDeclSyntax.self),
+              let support = findInnoDIAttribute(
+                  named: "_InnoDISubContainerAccessor",
+                  in: variable.attributes
+              ) else {
+            Issue.record("Should parse hidden SubContainer support")
+            return
+        }
+        let context = TestMacroExpansionContext()
+        let peers = try InnoDISubContainerAccessorMacro.expansion(
+            of: support,
+            providingPeersOf: variable,
+            in: context
+        )
+        let accessors = try InnoDISubContainerAccessorMacro.expansion(
+            of: support,
+            providingAccessorsOf: variable,
+            in: context
+        )
+        let peerText = peers.map(\.description).joined(separator: "\n")
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(accessors.map(\.description).joined().contains("get"))
+        #expect(peerText.contains("_storage_sub_child"))
+        #expect(peerText.contains("_override_sub_apply_child"))
+    }
+
+    @Test("Hidden SubContainer support uses the nearest container isolation")
+    func hiddenSubContainerSupportUsesNearestLexicalContainer() throws {
+        let parsed = Parser.parse(source: """
+        @DIContainer
+        struct OuterContainer {
+            @DIContainer(mainActor: true)
+            struct InnerContainer {
+                @SubContainer(scope: .transient)
+                @InnoDI._InnoDISubContainerAccessor(recovery: false)
+                var child: FeatureContainer
+            }
+        }
+        """)
+        let outer = try #require(
+            parsed.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let inner = try #require(
+            outer.memberBlock.members.first?.decl.as(StructDeclSyntax.self)
+        )
+        let variable = try #require(
+            inner.memberBlock.members.first?.decl.as(VariableDeclSyntax.self)
+        )
+        let support = try #require(
+            findInnoDIAttribute(
+                named: "_InnoDISubContainerAccessor",
+                in: variable.attributes
+            )
+        )
+        let context = TestMacroExpansionContext(
+            lexicalContext: [Syntax(inner), Syntax(outer)]
+        )
+
+        let peers = try InnoDISubContainerAccessorMacro.expansion(
+            of: support,
+            providingPeersOf: variable,
+            in: context
+        )
+        let peerText = peers.map(\.description).joined(separator: "\n")
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(peerText.contains("@Swift.MainActor"))
+        #expect(peerText.contains("_innoDISubBuild_child"))
+    }
+
+    @Test("Hidden SubContainer recovery emits no peers")
+    func hiddenSubContainerSupportRecoverySuppressesPeers() throws {
+        let parsed = Parser.parse(source: """
+        @DIContainer
+        struct AppContainer {
+            @SubContainer(scope: .shared)
+            @InnoDI._InnoDISubContainerAccessor(recovery: true)
+            var child: FeatureContainer
+        }
+        """)
+        guard let container = parsed.statements.first?.item.as(StructDeclSyntax.self),
+              let variable = container.memberBlock.members.first?.decl.as(VariableDeclSyntax.self),
+              let support = findInnoDIAttribute(
+                  named: "_InnoDISubContainerAccessor",
+                  in: variable.attributes
+              ) else {
+            Issue.record("Should parse hidden SubContainer recovery support")
+            return
+        }
+        let context = TestMacroExpansionContext()
+        let peers = try InnoDISubContainerAccessorMacro.expansion(
+            of: support,
+            providingPeersOf: variable,
+            in: context
+        )
+        let accessors = try InnoDISubContainerAccessorMacro.expansion(
+            of: support,
+            providingAccessorsOf: variable,
+            in: context
+        )
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(peers.isEmpty)
+        #expect(accessors.map(\.description).joined().contains("while true"))
+    }
+
+    @Test("Source-attached hidden SubContainer support rejects the parent model")
+    func manualSubContainerSupportAttachmentFailsClosed() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared)
+                @InnoDI._InnoDISubContainerAccessor(recovery: false)
+                var child: FeatureContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.usage",
+                    id: "sub.generated-accessor-manual-attachment"
+                )
+            ]
+        )
+        #expect(!result.expansion.contains("struct Overrides"))
+        #expect(!result.expansion.contains("withOverrides"))
     }
 
     @Test("@SubContainer without scope: emits sub.scope-required")
@@ -3579,6 +4247,73 @@ struct DIContainerMacroTests {
             ],
             macros: Self.macros
         )
+    }
+
+    @Test("SubContainer validator failures select hidden recovery support")
+    func subContainerValidatorFailureSelectsRecoverySupport() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var config: AppConfig
+
+                @SubContainer(scope: .shared, with: [\\.missing])
+                var feature: FeatureContainer
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "sub.unknown-parent-member"
+                )
+            ]
+        )
+        #expect(
+            result.expansion.contains(
+                "_InnoDISubContainerAccessor(recovery: true)"
+            )
+        )
+        #expect(
+            !result.expansion.contains(
+                "_InnoDISubContainerAccessor(recovery: false)"
+            )
+        )
+        #expect(!result.expansion.contains("_storage_sub_feature"))
+        #expect(!result.expansion.contains("struct Overrides"))
+        #expect(!result.expansion.contains("withOverrides"))
+    }
+
+    @Test("Custom initializers preserve SubContainer source storage")
+    func customInitializerPreservesSubContainerSourceStorage() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @SubContainer(scope: .shared, with: [])
+                var feature: FeatureContainer
+
+                init() {}
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID) == [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.custom-init-unsupported"
+                )
+            ]
+        )
+        #expect(!result.expansion.contains("_InnoDISubContainerAccessor"))
+        #expect(!result.expansion.contains("_storage_sub_feature"))
+        #expect(!result.expansion.contains("struct Overrides"))
+        #expect(!result.expansion.contains("withOverrides"))
     }
 
     @Test("@SubContainer generated override slot names diagnose member collisions")

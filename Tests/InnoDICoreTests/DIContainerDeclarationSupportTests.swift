@@ -30,6 +30,37 @@ struct DIContainerDeclarationSupportTests {
         let conditionalCollector = DIContainerDeclarationSupportCollector()
         conditionalCollector.walk(conditionalSource)
         #expect(conditionalCollector.issues.isEmpty)
+
+        let fileLocal = try firstDeclaration(
+            "@DIContainer fileprivate struct FileLocalContainer {}",
+            as: StructDeclSyntax.self
+        )
+        #expect(classifyDIContainerDeclaration(fileLocal) == .supported)
+
+        let privateNamespace = try firstDeclaration(
+            "private enum Namespace { @DIContainer struct Container {} }",
+            as: EnumDeclSyntax.self
+        )
+        let effectivelyPrivateNested = try #require(
+            privateNamespace.memberBlock.members.first?.decl.as(StructDeclSyntax.self)
+        )
+        #expect(classifyDIContainerDeclaration(effectivelyPrivateNested) == .supported)
+    }
+
+    @Test("Explicit private access has a stable fail-closed contract")
+    func privateContainerIsUnsupported() throws {
+        let declaration = try firstDeclaration(
+            "@DIContainer private struct PrivateContainer {}",
+            as: StructDeclSyntax.self
+        )
+        let support = classifyDIContainerDeclaration(declaration)
+
+        #expect(support == .privateAccess(name: "PrivateContainer"))
+        #expect(support.diagnosticCode == "container.private-access-unsupported")
+        #expect(
+            support.diagnosticMessage
+                == "@DIContainer 'PrivateContainer' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
+        )
     }
 
     @Test("Every non-struct declaration kind has a stable diagnostic")

@@ -60,7 +60,7 @@ internal func taskSuccessTypeDescription(for type: TypeSyntax) -> String {
 /// to a container's opted-in main-actor isolation domain.
 internal func mainActorAttribute() -> AttributeSyntax {
     AttributeSyntax(
-        attributeName: IdentifierTypeSyntax(name: .identifier("MainActor"))
+        attributeName: TypeSyntax(stringLiteral: "Swift.MainActor")
     )
 }
 
@@ -73,7 +73,7 @@ internal func overrideApplyClosureType(
     isMainActor: Bool,
     isOptional: Bool = false
 ) -> TypeSyntax {
-    let actorPrefix = isMainActor ? "@MainActor " : ""
+    let actorPrefix = isMainActor ? "@Swift.MainActor " : ""
     let closure = "\(actorPrefix)(inout \(overridesTypeDescription)) -> Void"
     return TypeSyntax(
         stringLiteral: isOptional ? "(\(closure))?" : closure

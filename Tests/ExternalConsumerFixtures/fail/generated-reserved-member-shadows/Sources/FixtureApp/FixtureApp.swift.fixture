@@ -1,0 +1,31 @@
+import InnoDI
+
+@DIContainer
+struct ManagedReservedNameContainer {
+    @Provide(.input)
+    var _storage_value: Int
+
+    @Provide(.input)
+    var InnoDI: Int
+}
+
+struct PlainChild {}
+
+@DIContainer
+struct ReservedSubContainerParent {
+    @SubContainer(scope: .shared, with: [])
+    var _innoDIChild: PlainChild
+}
+
+@DIContainer
+struct ReservedSiblingSubContainerParent {
+    struct Swift {}
+
+    @SubContainer(scope: .shared, with: [])
+    var child: PlainChild
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

@@ -1,5 +1,7 @@
 import InnoDITestSupport
 import SwiftDiagnostics
+import SwiftParser
+import SwiftSyntax
 import SwiftSyntaxMacros
 import Testing
 
@@ -144,7 +146,19 @@ struct OverridesBuilderTests {
         )
     }
 
-    @Test("input-only container with user-defined Overrides emits the same warning diagnostic")
+    @Test("empty container generates the complete mountable Overrides ABI")
+    func emptyContainerGeneratesScaffolding() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct EmptyContainer {}
+            """,
+            matches: "emptyContainerGeneratesScaffolding",
+            macros: Self.macros
+        )
+    }
+
+    @Test("input-only container with user-defined Overrides fails closed")
     func inputOnlyUserDefinedOverridesSkipsConflictWarning() {
         assertMacroExpansionSnapshot(
             """
@@ -162,17 +176,17 @@ struct OverridesBuilderTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict"),
-                    message: "A nested 'Overrides' struct is already declared. InnoDI's @DIContainer would normally generate an Overrides builder, but the user declaration takes precedence. Rename the user type or skip InnoDI's override scaffolding.",
+                    message: "A nested 'Overrides' struct is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
                     line: 3,
                     column: 5,
-                    severity: .warning
+                    severity: .error
                 )
             ],
             macros: Self.macros
         )
     }
 
-    @Test("user-defined nested 'Overrides' suppresses synthesis with a warning diagnostic")
+    @Test("user-defined nested 'Overrides' emits a recovery initializer with an error")
     func userDefinedOverridesConflict() {
         assertMacroExpansionSnapshot(
             """
@@ -193,13 +207,62 @@ struct OverridesBuilderTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict"),
-                    message: "A nested 'Overrides' struct is already declared. InnoDI's @DIContainer would normally generate an Overrides builder, but the user declaration takes precedence. Rename the user type or skip InnoDI's override scaffolding.",
+                    message: "A nested 'Overrides' struct is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
                     line: 3,
                     column: 5,
-                    severity: .warning
+                    severity: .error
                 )
             ],
             macros: Self.macros
         )
+    }
+
+    @Test("Overrides conflict lookup covers protocols, #if branches, and escaped names")
+    func overridesConflictLookupCoversAllDirectTypeDeclarations() throws {
+        let source = Parser.parse(
+            source: """
+            struct ProtocolContainer {
+                protocol Overrides {}
+            }
+
+            struct ConditionalContainer {
+                #if os(macOS)
+                struct Overrides {}
+                #endif
+            }
+
+            struct EscapedContainer {
+                struct `Overrides` {}
+            }
+
+            struct NestedNonConflictContainer {
+                struct Namespace {
+                    struct Overrides {}
+                }
+            }
+            """
+        )
+        let declarations = source.statements.compactMap {
+            $0.item.as(StructDeclSyntax.self)
+        }
+
+        #expect(declarations.count == 4)
+        let protocolConflict = DIContainerParser.findOverridesNameConflict(
+            in: try #require(declarations.first)
+        )
+        let conditionalConflict = DIContainerParser.findOverridesNameConflict(
+            in: try #require(declarations.dropFirst().first)
+        )
+        let escapedConflict = DIContainerParser.findOverridesNameConflict(
+            in: try #require(declarations.dropFirst(2).first)
+        )
+        let nestedNonConflict = DIContainerParser.findOverridesNameConflict(
+            in: try #require(declarations.dropFirst(3).first)
+        )
+
+        #expect(protocolConflict?.kind == "protocol")
+        #expect(conditionalConflict?.kind == "struct")
+        #expect(escapedConflict?.kind == "struct")
+        #expect(nestedNonConflict == nil)
     }
 }

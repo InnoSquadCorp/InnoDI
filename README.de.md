@@ -247,8 +247,20 @@ var apiClient: any APIClientProtocol
 3. ein Convenience-`init(<inputs...>, _ applyOverrides: ...)`
 4. vier `withOverrides`-Overloads fur `sync`, `throws`, `async` und `async throws`
 
-Jeder unterstutzte Container erzeugt die Overrides-Oberflache, sofern nicht
-bereits ein verschachtelter Typ `Overrides` vom Benutzer definiert wird.
+Jeder Container, auch ohne verwaltete Member, erzeugt die vollstandige
+Overrides-Oberflache. Ein benutzerdefinierter verschachtelter Typ `Overrides`
+ist in InnoDI 5.0 nicht unterstutzt und erzeugt
+`container.overrides-name-conflict`; benennen Sie ihn um, damit das Makro die
+mountbare Override-ABI besitzen kann.
+
+Das Makro erzeugt ausserdem den reservierten Compiler-Support-Alias
+`_InnoDIMountOverrides = Overrides` fur generierten Parent-Mount-Code. Diesen
+unterstrichenen Namen nicht direkt deklarieren oder referenzieren.
+
+Jedes gespeicherte Instanz-Member eines Containers muss `@Provide` oder
+`@SubContainer` verwenden; berechnete und statische Properties bleiben
+verfugbar. So bleibt der generierte Initialisierer vollstandig und die
+Memberwise-Initializer-ABI driftet nicht.
 
 `@DIContainer` unterstutzt ausschliesslich effektiv nicht-generische
 `struct`-Deklarationen auf Dateiebene oder mit nominaler Verschachtelung. Weder
@@ -260,6 +272,11 @@ ausfuhrbaren oder lokalen Scopes, darunter Funktionen, Closures, Accessors und
 `switch`-Falle. Diese Grenze gilt ebenso bei kombiniertem `@DIComponent`.
 Verschieben Sie Laufzeit- oder
 typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Provide(.input)`.
+
+Ein explizit `private` deklarierter Container wird ebenfalls abgelehnt, weil
+Sibling-Container seine generierte Mount-Oberflache nicht erreichen. Verwenden
+Sie `fileprivate` fur file-lokales Mounting oder einen Container mit
+Default-Zugriff in einem privaten Namespace.
 
 Der aktuelle Swift-Compiler lasst beim Erweitern eines attached macro auf einem
 Typ in einem computed-property-Body den Accessor-Kontext weg. Das
@@ -487,7 +504,10 @@ Fur cross-module Ownership:
 
 - `.innodi(container)`
 - `@DIEnvironmentBridge`
-- `@DIFeatureRoot`
+- `@SubContainer(..., featureRoot:)` und `featureRoots:` erzeugen standardmäßige
+  oder benannte Feature-Root-Helper.
+- InnoDI 5.0 entfernt das veraltete Kompatibilitätsmakro `@DIFeatureRoot`.
+  Ersetzen Sie es durch die Feature-Root-Argumente von `@SubContainer`.
 
 ## CLI und Release-Oberflache
 

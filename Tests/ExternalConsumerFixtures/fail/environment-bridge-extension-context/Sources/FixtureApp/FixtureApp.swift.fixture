@@ -1,0 +1,26 @@
+import InnoDISwiftUI
+
+struct Host {}
+
+extension Host {
+    @DIEnvironmentBridge([])
+    struct NestedBridge {}
+}
+
+@DIEnvironmentBridge([])
+actor ActorBridge {}
+
+@DIEnvironmentBridge([])
+protocol ProtocolBridge {}
+
+@DIEnvironmentBridge([
+    (member: "colorScheme", environment: \EnvironmentValues.colorScheme),
+])
+class ClassMemberBridge {
+    class var colorScheme: ColorScheme { .light }
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

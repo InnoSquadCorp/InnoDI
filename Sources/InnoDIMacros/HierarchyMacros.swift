@@ -32,18 +32,30 @@ extension DIComponentMacro: PeerMacro {
         ).isSupported else {
             return []
         }
+        guard !containerHasReservedGeneratedName(
+            in: declGroup,
+            lexicalContext: context.lexicalContext
+        ) else {
+            return []
+        }
+        guard let model = validatedDIComponentContainerModel(
+            declaration: declGroup,
+            context: context
+        ) else {
+            return []
+        }
 
         guard let nominalInfo = hierarchyNominalTypeInfo(for: declGroup) else {
             return []
         }
 
         let protocolName = "\(nominalInfo.baseName)Dependencies"
-        let inputMembers = hierarchyInputMembers(in: declGroup)
+        let inputMembers = hierarchyInputMembers(in: model)
         let protocolDecl = makeComponentDependenciesProtocolDecl(
             accessLevel: hierarchyAccessLevelModifiers(for: declGroup.modifiers),
             protocolName: protocolName,
             inputMembers: inputMembers,
-            isMainActor: parseDIContainerAttribute(declGroup.attributes)?.mainActor == true
+            isMainActor: model.options.mainActor
         )
 
         return [DeclSyntax(protocolDecl)]
@@ -75,6 +87,12 @@ extension DIComponentMacro: MemberMacro {
         ).isSupported else {
             return []
         }
+        guard !containerHasReservedGeneratedName(
+            in: declaration,
+            lexicalContext: context.lexicalContext
+        ) else {
+            return []
+        }
 
         if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
             context.diagnose(
@@ -85,6 +103,12 @@ extension DIComponentMacro: MemberMacro {
             )
             return []
         }
+        guard let model = validatedDIComponentContainerModel(
+            declaration: declaration,
+            context: context
+        ) else {
+            return []
+        }
 
         guard let nominalInfo = hierarchyNominalTypeInfo(for: declaration) else {
             return []
@@ -92,22 +116,20 @@ extension DIComponentMacro: MemberMacro {
 
         let accessLevel = hierarchyAccessLevelModifierText(for: declaration.modifiers)
         let protocolName = "\(nominalInfo.baseName)Dependencies"
-        let inputMembers = hierarchyInputMembers(in: declaration)
+        let inputMembers = hierarchyInputMembers(in: model)
         let callArguments = inputMembers.map {
-            "\($0.name): dependencies.\($0.name)"
-        } + ["applyOverrides"]
+            "\($0.name): _innoDIDependencies.\($0.name)"
+        } + ["_innoDIApplyOverrides"]
         let joinedArguments = callArguments.joined(separator: ", ")
-        let isMainActor = parseDIContainerAttribute(
-            declaration.attributes
-        )?.mainActor == true
+        let isMainActor = model.options.mainActor
         let applyOverridesType = overrideApplyClosureType(
             isMainActor: isMainActor
         ).trimmedDescription
 
         var initDecl: DeclSyntax = """
             \(raw: accessLevel)init(
-                dependencies: any \(raw: protocolName),
-                _ applyOverrides: \(raw: applyOverridesType) = { _ in }
+                dependencies _innoDIDependencies: any \(raw: protocolName),
+                _ _innoDIApplyOverrides: \(raw: applyOverridesType) = { _ in }
             ) {
                 self.init(\(raw: joinedArguments))
             }
@@ -141,8 +163,20 @@ extension DIComponentMacro: ExtensionMacro {
         ).isSupported else {
             return []
         }
+        guard !containerHasReservedGeneratedName(
+            in: declaration,
+            lexicalContext: context.lexicalContext
+        ) else {
+            return []
+        }
 
         if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
+            return []
+        }
+        guard let model = validatedDIComponentContainerModel(
+            declaration: declaration,
+            context: context
+        ) else {
             return []
         }
 
@@ -162,7 +196,7 @@ extension DIComponentMacro: ExtensionMacro {
                 type: type,
                 dependenciesType: dependenciesType,
                 accessLevel: accessLevel,
-                isMainActor: parseDIContainerAttribute(declaration.attributes)?.mainActor == true
+                isMainActor: model.options.mainActor
             )
         ]
     }
@@ -192,6 +226,12 @@ extension DIHierarchyRootMacro: ExtensionMacro {
             declaration,
             lexicalContext: context.lexicalContext
         ).isSupported else {
+            return []
+        }
+        guard !containerHasReservedGeneratedName(
+            in: declaration,
+            lexicalContext: context.lexicalContext
+        ) else {
             return []
         }
 
@@ -242,25 +282,52 @@ private func hierarchyDeclGroup(from declaration: some DeclSyntaxProtocol) -> (a
     return nil
 }
 
-private func hierarchyInputMembers(in declaration: some DeclGroupSyntax) -> [HierarchyInputMember] {
-    declaration.memberBlock.members.compactMap { member in
-        guard let variableDecl = member.decl.as(VariableDeclSyntax.self),
-              !variableDecl.modifiers.contains(where: { $0.name.text == "static" }),
-              let attribute = findInnoDIAttribute(
-                named: "Provide",
-                in: variableDecl.attributes
-              ),
-              let binding = variableDecl.bindings.first,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-              let type = binding.typeAnnotation?.type,
-              parseProvideArguments(attribute).scope == .input else {
-            return nil
-        }
-
+private func hierarchyInputMembers(
+    in model: DIContainerExpansionModel
+) -> [HierarchyInputMember] {
+    model.inputMembers.map { member in
         return HierarchyInputMember(
-            name: identifier.identifier.text,
-            type: type.trimmed
+            name: member.name,
+            type: member.type.trimmed
         )
+    }
+}
+
+/// Every `@DIComponent` role must agree with the container member role about
+/// whether public support can be generated. Run the complete parse,
+/// validation, and codegen gate without re-emitting diagnostics; otherwise a
+/// rejected container can leave a peer protocol, initializer, or conformance
+/// that references support `@DIContainer` deliberately suppressed.
+private func validatedDIComponentContainerModel(
+    declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext
+) -> DIContainerExpansionModel? {
+    guard DIContainerParser.userDefinedInitializers(
+        in: declaration
+    ).isEmpty,
+    DIContainerParser.findOverridesNameConflict(in: declaration) == nil else {
+        return nil
+    }
+
+    let validationContext = DiagnosticSuppressingMacroExpansionContext(
+        forwardingTo: context
+    )
+    guard let model = DIContainerParser.parse(
+        declaration: declaration,
+        context: validationContext
+    ), DIContainerValidator.validate(
+        model: model,
+        declaration: declaration,
+        context: validationContext
+    ) else {
+        return nil
+    }
+
+    do {
+        _ = try DIContainerCodeGenerator.generateAll(for: model)
+        return model
+    } catch {
+        return nil
     }
 }
 

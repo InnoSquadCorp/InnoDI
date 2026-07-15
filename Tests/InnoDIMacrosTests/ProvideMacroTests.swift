@@ -694,7 +694,7 @@ struct ProvideMacroTests {
 
         let peerGenerated = peerDecls.map(\.description).joined(separator: "\n")
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
-        #expect(peerGenerated == "private var _storage_task_service: Task<Service, Never>? = nil")
+        #expect(peerGenerated == "private var _storage_task_service: _Concurrency.Task<Service, Swift.Never>? = nil")
         #expect(accessorGenerated == #"getasync{return await _storage_task_service!.value}"#)
     }
 
@@ -731,7 +731,7 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _storage_task_service: Task<Service, Error>? = nil"
+            ) == "private var _storage_task_service: _Concurrency.Task<Service, Swift.Error>? = nil"
         )
         #expect(
             try supportPeerStorage(

@@ -1,0 +1,318 @@
+import InnoDI
+import InnoDISwiftUI
+
+let _innoDITrap = 24
+
+struct NameConfig: Sendable {
+    let value: Int
+}
+
+struct AsyncValue: Sendable {
+    let value: Int
+}
+
+protocol ConstructedServiceProtocol {
+    var config: Int { get }
+}
+
+struct ConstructedService: ConstructedServiceProtocol {
+    let config: Int
+}
+
+struct Request {
+    let value: Int
+}
+
+struct TrapService {
+    let value: Int
+}
+
+struct DeferredConsumer {
+    let lazyRequest: Lazy<Request>
+    let requestProvider: Provider<Request>
+}
+
+@DIEnvironmentBridge([])
+struct BridgeValueNames {
+    let Swift: Int
+    let SwiftUI: Int
+}
+
+@DIContainer
+struct EmptyChild {
+    @Provide(.shared, factory: 0, concrete: true)
+    var value: Int
+}
+
+@DIContainer
+struct ConvenienceNamesContainer {
+    @Provide(.input) var applyOverrides: Int
+    @Provide(.input) var overrides: Int
+    @Provide(.input) var operation: Int
+    @Provide(.input) var container: Int
+    @Provide(.input) var Overrides: Int
+}
+
+@DIContainer(mainActor: true)
+struct AsyncNamesContainer {
+    struct Task<Success, Failure> {}
+    struct Never {}
+    struct Error: Swift.Error {}
+
+    @Provide(.input) var config: NameConfig
+    @Provide(.input) var _resolved_config: Int
+    @Provide(.input) var _task_service: Int
+    @Provide(.input) var Task: Int
+    @Provide(.input) var Swift: Int
+    @Provide(.input) var _Concurrency: Int
+
+    @Provide(
+        .shared,
+        asyncFactory: { (config: NameConfig) async in
+            AsyncValue(value: config.value)
+        },
+        concrete: true
+    )
+    var service: AsyncValue
+
+    @Provide(
+        .shared,
+        asyncFactory: { (config: NameConfig) async throws in
+            AsyncValue(value: config.value + 1)
+        },
+        concrete: true
+    )
+    var throwingService: AsyncValue
+}
+
+@DIContainer
+struct DeferredNamesContainer {
+    struct Sendable {}
+
+    @Provide(.input) var _lazyCell_request: Int
+    @Provide(.input) var _lazySelf: Int
+    @Provide(.input) var Lazy: Int
+    @Provide(.input) var Provider: Int
+    @Provide(.input) var preconditionFailure: Int
+
+    @Provide(
+        .shared,
+        factory: { (
+            request: Lazy<Request>,
+            providerRequest: Provider<Request>
+        ) in
+            DeferredConsumer(
+                lazyRequest: request,
+                requestProvider: providerRequest
+            )
+        },
+        concrete: true
+    )
+    var consumer: DeferredConsumer
+
+    @Provide(
+        .transient,
+        factory: Request(value: 7),
+        concrete: true
+    )
+    var request: Request
+
+    @Provide(
+        .transient,
+        factory: Request(value: 8),
+        concrete: true
+    )
+    var providerRequest: Request
+
+    @SubContainer(scope: .transient, with: [])
+    var emptyChild: EmptyChild
+}
+
+@DIContainer
+struct ChildType {
+    @Provide(.input) var config: Int
+}
+
+struct FeatureRootView {
+    let container: ChildType
+}
+
+enum FixtureTypes {
+    typealias FeatureRoot = FeatureRootView
+    typealias Constructed = ConstructedService
+}
+
+@DIContainer
+struct ShadowedTypeParent {
+    @Provide(.input) var config: Int
+    @Provide(.input) var _subBuildCell_feature: Int
+    @Provide(.input) var _lazySelfForSub: Int
+    @Provide(.input) var ChildType: Int
+    @Provide(.input) var FeatureRootView: Int
+
+    @SubContainer(
+        scope: .transient,
+        with: [\Self.config],
+        featureRoot: FixtureTypes.FeatureRoot.self
+    )
+    var feature: ChildType
+}
+
+@DIContainer(validateDAG: false)
+struct TrapNamesContainer {
+    @Provide(.input) var fatalError: Int
+    @Provide(.input) var Swift: Int
+
+    @Provide(
+        .shared,
+        factory: { (missing: Int) in TrapService(value: missing) },
+        concrete: true
+    )
+    var service: TrapService
+}
+
+@DIContainer(mainActor: true)
+struct ActorNameContainer {
+    struct MainActor {}
+
+    @Provide(.input) var value: Int
+
+    @SubContainer(scope: .transient, with: [])
+    var child: EmptyChild
+}
+
+@DIContainer
+struct NonisolatedOuterContainer {
+    @DIContainer(mainActor: true)
+    struct IsolatedInnerContainer {
+        @SubContainer(scope: .transient, with: [])
+        var child: EmptyChild
+    }
+}
+
+@DIContainer(mainActor: true)
+struct IsolatedOuterContainer {
+    @DIContainer
+    struct NonisolatedInnerContainer {
+        @SubContainer(scope: .transient, with: [])
+        var child: EmptyChild
+    }
+}
+
+@DIContainer
+struct TypeExpressionNamesContainer {
+    @Provide(.input) var config: Int
+    @Provide(.input) var ConstructedService: Int
+
+    @Provide(
+        .shared,
+        FixtureTypes.Constructed.self,
+        with: [\Self.config]
+    )
+    var sharedService: any ConstructedServiceProtocol
+
+    @Provide(
+        .transient,
+        FixtureTypes.Constructed.self,
+        with: [\Self.config]
+    )
+    var transientService: any ConstructedServiceProtocol
+
+    @Provide(
+        .shared,
+        FixtureTypes.Constructed.self,
+        with: [\Self.config],
+        concrete: true
+    )
+    var optionalService: ConstructedService?
+}
+
+@main
+struct FixtureApp {
+    @Swift.MainActor
+    static func main() async {
+        let bridgeValueNames = BridgeValueNames(Swift: 1, SwiftUI: 2)
+        precondition(bridgeValueNames.Swift + bridgeValueNames.SwiftUI == 3)
+
+        let convenience = ConvenienceNamesContainer(
+            applyOverrides: 1,
+            overrides: 2,
+            operation: 3,
+            container: 4,
+            Overrides: 5
+        ) { _ in }
+        precondition(convenience.Overrides == 5)
+
+        let scopedValue = ConvenienceNamesContainer.withOverrides(
+            applyOverrides: 1,
+            overrides: 2,
+            operation: 3,
+            container: 4,
+            Overrides: 5,
+            { _ in },
+            operation: { $0.container }
+        )
+        precondition(scopedValue == 4)
+
+        let asyncNames = AsyncNamesContainer(
+            config: NameConfig(value: 6),
+            _resolved_config: 7,
+            _task_service: 8,
+            Task: 9,
+            Swift: 10,
+            _Concurrency: 11
+        )
+        precondition(asyncNames.Swift + asyncNames._Concurrency == 21)
+        let asyncValue = await asyncNames.service.value
+        precondition(asyncValue == 6)
+        let throwingAsyncValue = try! await asyncNames.throwingService.value
+        precondition(throwingAsyncValue == 7)
+
+        let deferred = DeferredNamesContainer(
+            _lazyCell_request: 10,
+            _lazySelf: 11,
+            Lazy: 12,
+            Provider: 13,
+            preconditionFailure: 14
+        )
+        precondition(deferred.consumer.lazyRequest().value == 7)
+        precondition(deferred.consumer.requestProvider().value == 8)
+        precondition(deferred.emptyChild.value == 0)
+
+        let parent = ShadowedTypeParent(
+            config: 15,
+            _subBuildCell_feature: 16,
+            _lazySelfForSub: 17,
+            ChildType: 18,
+            FeatureRootView: 19
+        )
+        precondition(parent.feature.config == 15)
+        precondition(parent.featureRootView().container.config == 15)
+
+        let trapNames = TrapNamesContainer(
+            fatalError: 20,
+            Swift: 21,
+            service: TrapService(value: 22)
+        )
+        precondition(trapNames.fatalError + trapNames.Swift == 41)
+        precondition(trapNames.service.value == 22)
+        precondition(_innoDITrap == 24)
+
+        let actorNames = ActorNameContainer(value: 25)
+        precondition(actorNames.value == 25)
+        precondition(actorNames.child.value == 0)
+
+        let isolatedInner = NonisolatedOuterContainer.IsolatedInnerContainer()
+        precondition(isolatedInner.child.value == 0)
+        let nonisolatedInner = IsolatedOuterContainer.NonisolatedInnerContainer()
+        precondition(nonisolatedInner.child.value == 0)
+
+        let typeExpressionNames = TypeExpressionNamesContainer(
+            config: 22,
+            ConstructedService: 23
+        )
+        precondition(typeExpressionNames.sharedService.config == 22)
+        precondition(typeExpressionNames.transientService.config == 22)
+        precondition(typeExpressionNames.optionalService?.config == 22)
+    }
+}

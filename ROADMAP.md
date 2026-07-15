@@ -102,7 +102,8 @@ InnoDI 4.3.0 integrated SwiftUI feature-root helper generation into
 - `featureRoot:` covers the common single-root form.
 - `featureRoots:` covers default and aliased root helpers.
 - `InnoDISwiftUI` no longer depends directly on `InnoDIMacros`.
-- `@DIFeatureRoot` remains available only as a deprecated compatibility path.
+- In 4.3.0, `@DIFeatureRoot` remained available only as a deprecated
+  compatibility path.
 
 The concrete-inference and macro-consolidation runway previously planned for
 4.3 did not ship.
@@ -120,6 +121,10 @@ breaking train. The release priority is public-contract trust, in this order:
 5. Module-qualified graph identity, JSON schema v2, and explicit CLI scope.
 6. Public-command, platform, performance, branch, and pre-tag release gates.
 7. Migration tooling and the accepted 5.0 surface removals.
+
+The deprecated `@DIFeatureRoot` compatibility macro has been removed on
+`main`; feature-root helper generation now has one supported spelling through
+`@SubContainer(featureRoot:)` or `featureRoots:`.
 
 `main` is the 5.0 development line, while 4.3.0 remains the stable installation
 version until the release-candidate matrix passes and the 5.0.0 tag is created.

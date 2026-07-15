@@ -17,7 +17,7 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 4.x → 5.0 (planned) | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
+| 4.x → 5.0 (unreleased) | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
@@ -61,9 +61,9 @@ The generated helper names are unchanged: the default root still emits
 belongs to the `@DIContainer` member expansion, so `@SubContainer` no longer
 needs to be stacked with another peer macro on the same property.
 
-`@DIFeatureRoot` remains available as a deprecated compatibility macro. Keep it
-only while migrating existing call sites; new code should use
-`featureRoot:` / `featureRoots:`.
+In 4.3, `@DIFeatureRoot` remained available as a deprecated compatibility
+macro. InnoDI 5.0 removes it; migrate every remaining call site to
+`featureRoot:` / `featureRoots:` before upgrading.
 
 ---
 
@@ -204,9 +204,9 @@ Two additions that you don't have to use, but might want to:
   active/stale lock files with metadata. Runbook for
   `lock-contention-timeout` on CI.
 - `Tools/check-no-fatalerror-in-macros.sh` — repository-local
-  guard that fails CI if a new `fatalError(...)` slips into the
-  macro plugin sources outside the two allow-listed runtime
-  invariants.
+  guard that fails CI if any direct `fatalError(...)` slips into the
+  macro plugin sources. Runtime invariant paths use the hidden
+  `_innoDITrap` entry point instead.
 
 ---
 
@@ -221,8 +221,9 @@ release.
 |---|---|
 | `concrete:` | Delete the argument. The declared property type determines concrete versus existential storage. |
 | `@DIFeatureRoot` | Replace it with `@SubContainer(featureRoot:)` or `featureRoots:`. |
-| Declaration kinds | Use file-scope or nominally nested non-generic structs for 5.0 containers/components; unsupported kinds and local scopes receive dedicated diagnostics. |
+| Declaration kinds | Use file-scope or nominally nested non-generic structs for 5.0 containers/components; unsupported kinds, local scopes, and explicit `private` containers receive dedicated diagnostics. Use `fileprivate` for same-file mounting or a default-access container inside a private namespace. |
 | `@Provide` declaration | Keep exactly one `@Provide` on a uniquely named, unescaped, direct, plain, stored instance `var` in its supported `@DIContainer`. Remove duplicate provider attributes or property names, backtick-escaped names, `let`, computed/observed accessors, storage modifiers, property wrappers, conditional/unknown attributes, setter access controls, all source-written property-level actor attributes (including `@MainActor`), standalone, and indirectly nested uses. Request isolation with `@DIContainer(mainActor: true)` and never attach `_InnoDIProvideAccessor` manually. |
+| `@SubContainer` declaration | Keep exactly one `@SubContainer` on an unescaped, direct, plain, stored instance `var` in its supported parent `@DIContainer`. Move complete child declarations out of `#if`, remove competing wrappers and storage/accessor modifiers, and never attach `_InnoDISubContainerAccessor` manually. |
 | Provider type | Replace opaque `some Protocol` with existential `any Protocol`. Replace implicitly unwrapped `T!` with explicit `T` or `T?`. |
 | Function-valued `.input` | Generated initializer parameters remain eager `T` values, so `try` / `await` argument evaluation is unchanged. Direct non-optional function types are detected automatically. Add literal `escaping: true` when a non-optional function type is hidden behind a typealias; the option is invalid outside `.input`. |
 | Construction source | A `.shared`/`.transient` member must have exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer. An `.input` member must have none and cannot use `with:`. |
@@ -230,9 +231,40 @@ release.
 | Factory effects | Declare async and throwing effects explicitly. Effect compatibility remains enforced with `validateDAG: false`; `Type.self`/`with:` remains synchronous-only. |
 | MainActor | Put dependency conformers, construction, and use of non-`Sendable` generated values for `mainActor: true` components on `@MainActor`. From off actor, construct and consume them inside `MainActor.run`; use direct `await` only when the isolated operation returns a `Sendable` result. Override-application closures for convenience initializers, `withOverrides`, child overrides, and component mounting are now `@MainActor`. |
 | Non-main-actor async `withOverrides` | Generated `async` / `async throws` methods and operation closure types are `nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary non-`Sendable` containers and closures stay within the caller's isolation. Sync overloads are unchanged. |
-| Validation | Replace dynamic scope expressions, conditional provider attributes, and complete `@Provide` member declarations inside `#if` with supported, statically analyzable forms. |
+| Validation | Replace dynamic scope expressions, conditional provider attributes, and complete `@Provide` or `@SubContainer` member declarations inside `#if` with supported, statically analyzable forms. |
+| Generated names | Rename direct container declarations beginning with `_storage_`, `_override_`, `_innoDI`, or `_InnoDI`, plus any direct declaration named `InnoDI`, nested type/typealias named `Swift` or `_Concurrency`, and a container, enclosing nominal, or generic parameter named `InnoDI`, `Swift`, or `_Concurrency`. Value members named `Swift` or `_Concurrency` remain available. `@DIEnvironmentBridge` also reserves type-namespace `Swift`, `SwiftUI`, and `InnoDISwiftUI` in its target and visible enclosing binders, supports only struct/class/enum targets, and no longer supports an extension target or a target nested in an extension. Until the target-scoped full-source preflight lands later in the 5.0 train, also avoid shadowing members in enclosing declarations, direct extension attachments, and standalone local bridge targets because attached macros cannot validate those scopes before the compiler's attached-extension checks. Direct extension and local targets may receive Swift's compiler-owned restriction first. Former implementation-local spellings such as `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, and `_lazySelf` are available again. Public initializer and operation labels are unchanged. |
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
+
+The public underscored `DIEnvironmentBridging` witness is a breaking rename in
+5.0: `_innodiEnvironmentBridgeModifier()` becomes
+`_innoDIEnvironmentBridgeModifier()`. Rename any manual conformance or direct
+call that used the old spelling. Prefer `@DIEnvironmentBridge` and the public
+`.innodi(_:)` view API so application code does not depend on this compiler
+support requirement.
+
+Generated conformances now spell the protocol as
+`InnoDISwiftUI.DIEnvironmentBridging`, so bridge targets and visible type
+binders named `InnoDISwiftUI` must also be renamed.
+
+Generated-name migration for a standalone `@DIEnvironmentBridge` target is
+namespace-aware. Rename a direct nested nominal type, protocol, typealias,
+static/class variable or function, or enum case named
+`_InnoDIEnvironmentBridgeModifier`, and rename a direct instance variable or
+zero-parameter instance function named
+`_innoDIEnvironmentBridgeModifier`. Top-level `#if` branches follow the same
+rules. Uppercase instance values/functions, lowercase static/class members and
+parameterized overloads, target and generic parameter names, cross-namespace
+declarations, and declarations inside nested bodies do not collide with bridge
+synthesis. Use a direct `\EnvironmentValues.member` or
+`\SwiftUI.EnvironmentValues.member` mapping; aliases, other roots, chains, and
+subscripts are no longer accepted. Change any private target or enclosing
+lookup component nested in another nominal to `fileprivate` or default access.
+A file-scope private bridge target remains supported. A target that also declares
+`@DIContainer` remains subject to the container's broader `_innoDI` and
+`_InnoDI` prefix reservation. Move a bridge off any target that declares a
+generic parameter pack; use ordinary generic parameters or a non-generic
+adapter type.
 
 5.0 splits the component mounting marker by isolation. Ordinary components
 continue to conform to `_InnoDIComponentMountable`; components whose container
@@ -267,6 +299,10 @@ or a non-generic nominal declaration regardless of whether that scope is
 generic. Swift may add its own language diagnostic for an inherently invalid
 placement such as a type nested in a generic function or a local container
 stacked with an attached-extension macro such as `@DIComponent`.
+An explicitly `private` container must become `fileprivate` for same-file
+mounting, or move behind a private namespace while retaining default access.
+This prevents generated child-mount APIs from becoming inaccessible to sibling
+containers.
 
 Move every provider to a plain stored instance variable:
 
@@ -286,8 +322,9 @@ Do not attach `_InnoDIProvideAccessor` yourself. It is internal accessor
 support synthesized by the container macro for valid provider members.
 Keep only one `@Provide` attribute per property, and give every direct provider
 property and root factory dependency parameter a unique, unescaped effective
-name. `@SubContainer` property names must also be unescaped. A
-deliberately forged
+name. `@SubContainer` property names must also be unescaped and declared
+exactly once as direct plain stored instance variables outside `#if`. Do not
+attach `_InnoDISubContainerAccessor`; the parent container owns it. A deliberately forged
 combination of the compiler-support accessor with another property wrapper can
 also receive Swift structural diagnostics in addition to the stable InnoDI
 misuse diagnostic.
@@ -399,11 +436,14 @@ The high-impact items:
   The macro now emits a local `_InnoDIDeferredCell<T>` inside
   synthesized initializers; downstream code should not depend on
   either symbol.
-- Container members whose names begin with `_storage_`,
+- In 4.x, container members whose names began with `_storage_`,
   `_override_sub_`, `_innoDISubBuild_`, `_innoDIUnresolvedDependency`,
-  `_subBuildCell_`, `_lazyCell_`, or `_lazySelfForSub` are now
-  rejected with `container.reserved-name-prefix`. Rename any
-  such member.
+  `_subBuildCell_`, `_lazyCell_`, or `_lazySelfForSub` were rejected with
+  `container.reserved-name-prefix`. In 5.0 the canonical generated prefixes
+  are `_storage_`, `_override_`, `_innoDI`, and `_InnoDI`, so the first four
+  examples remain reserved by those broader prefixes. Former local spellings
+  outside that namespace — `_subBuildCell_`, `_lazyCell_`, `_lazySelfForSub`,
+  `_resolved_`, and `_task_` — are available again.
 
 ---
 

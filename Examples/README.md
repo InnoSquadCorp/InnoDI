@@ -47,7 +47,8 @@ swift test
 Highlights:
 
 - `.innodi(container)` applies the generated environment bridge at the feature root.
-- `@DIFeatureRoot` emits both default and named SwiftUI feature-root helpers for a shared `@SubContainer`.
+- `@SubContainer(..., featureRoot:)` and `featureRoots:` emit default and named
+  SwiftUI feature-root helpers.
 - init overrides and the `Overrides` builder keep live and test roots on the same container contract.
 
 ## Preview Injection Example

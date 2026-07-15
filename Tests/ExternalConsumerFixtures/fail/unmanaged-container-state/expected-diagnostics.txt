@@ -1,0 +1,1 @@
+Stored instance member 'token' is not managed by @DIContainer. Annotate every stored instance member with @Provide or @SubContainer, or make it a computed or type property, so InnoDI can synthesize a complete initializer in 5.0.

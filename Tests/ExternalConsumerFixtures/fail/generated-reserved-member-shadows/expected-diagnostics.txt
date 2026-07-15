@@ -1,0 +1,4 @@
+Direct container declaration '_storage_value' uses the reserved generated prefix '_storage_'. Rename the declaration so it does not collide with compiler-authored storage and support symbols.
+Declaration 'InnoDI' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
+Direct container declaration '_innoDIChild' uses the reserved generated prefix '_innoDI'. Rename the declaration so it does not collide with compiler-authored storage and support symbols.
+Declaration 'Swift' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.

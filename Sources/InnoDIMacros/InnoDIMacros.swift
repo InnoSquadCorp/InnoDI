@@ -15,8 +15,8 @@ struct InnoDIPlugin: CompilerPlugin {
         ProvideMacro.self,
         InnoDIProvideAccessorMacro.self,
         SubContainerMacro.self,
+        InnoDISubContainerAccessorMacro.self,
         DIEnvironmentBridgeMacro.self,
-        DIFeatureRootMacro.self,
         PreviewWithContainerMacro.self,
         GenerateMockMacro.self
     ]

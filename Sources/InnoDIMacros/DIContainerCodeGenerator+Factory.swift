@@ -97,18 +97,34 @@ internal func makeAsyncFactoryExpr(
         let references = member.closureParameterReferences
         let expressions: [ExprSyntax] = try references.map { ref in
             if ref.kind == .soft {
-                guard deferredTargetNameSet.contains(ref.name),
-                      let calleeDescription = ref.lazyWrapperCalleeDescription else {
+                guard let calleeDescription = ref.lazyWrapperCalleeDescription else {
                     throw CodegenInvariantError(description: "Unsupported soft dependency '\(ref.name)' reached async code generation.")
                 }
-                return makeLazyCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
+                if deferredTargetNameSet.contains(ref.name) {
+                    return makeLazyCellWrapperExpr(
+                        name: ref.name,
+                        calleeDescription: calleeDescription
+                    )
+                }
+                if allowUnresolvedDependencyFallback {
+                    return unresolvedDeferredWrapperExpr(name: ref.name)
+                }
+                throw CodegenInvariantError(description: "Unsupported soft dependency '\(ref.name)' reached async code generation.")
             }
             if ref.kind == .provider {
-                guard deferredTargetNameSet.contains(ref.name),
-                      let calleeDescription = ref.providerWrapperCalleeDescription else {
+                guard let calleeDescription = ref.providerWrapperCalleeDescription else {
                     throw CodegenInvariantError(description: "Unsupported provider dependency '\(ref.name)' reached async code generation.")
                 }
-                return makeProviderCellWrapperExpr(name: ref.name, calleeDescription: calleeDescription)
+                if deferredTargetNameSet.contains(ref.name) {
+                    return makeProviderCellWrapperExpr(
+                        name: ref.name,
+                        calleeDescription: calleeDescription
+                    )
+                }
+                if allowUnresolvedDependencyFallback {
+                    return unresolvedDeferredWrapperExpr(name: ref.name)
+                }
+                throw CodegenInvariantError(description: "Unsupported provider dependency '\(ref.name)' reached async code generation.")
             }
             return try dependencyExpression(
                 for: ref.name,

@@ -344,13 +344,13 @@ struct ParsingTests {
     func findAttributeAcceptsAllowedQualifiedModuleNames() throws {
         let source = """
         struct ParentContainer {
-            @InnoDISwiftUI.DIFeatureRoot(DashboardRootView.self)
+            @InnoDISwiftUI.DIEnvironmentBridge([])
             var dashboard: DashboardContainer
         }
         """
         let decl = try #require(firstVarDecl(in: source))
         let attribute = findAttribute(
-            named: "DIFeatureRoot",
+            named: "DIEnvironmentBridge",
             allowingQualifiedModules: ["InnoDISwiftUI"],
             in: decl.attributes
         )
@@ -361,13 +361,13 @@ struct ParsingTests {
     func findAttributeRejectsForeignQualifiedModuleNames() throws {
         let source = """
         struct ParentContainer {
-            @OtherDI.DIFeatureRoot(DashboardRootView.self)
+            @OtherDI.DIEnvironmentBridge([])
             var dashboard: DashboardContainer
         }
         """
         let decl = try #require(firstVarDecl(in: source))
         let attribute = findAttribute(
-            named: "DIFeatureRoot",
+            named: "DIEnvironmentBridge",
             allowingQualifiedModules: ["InnoDISwiftUI"],
             in: decl.attributes
         )

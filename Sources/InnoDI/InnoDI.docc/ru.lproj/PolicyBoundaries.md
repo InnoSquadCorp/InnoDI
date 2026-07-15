@@ -2,6 +2,16 @@
 
 InnoDI сохраняет детерминированность за счет явных границ.
 
+## Обнаружение пользовательских `init`
+
+- Макровалидация отклоняет пользовательские `init` только в теле annotated
+  type.
+- Обязательный full-source preflight `InnoDIDAGValidationPlugin` отклоняет
+  `init` в совпадающих same-file и cross-file extensions, включая объявления
+  внутри ветвей `#if`.
+- Без build-validation plugin запрет во всех extensions не гарантируется,
+  поскольку attached macro не может надежно просматривать соседние extensions.
+
 ## Matching Strategy
 
 - общий nominal-path подход для макросов, Core и graph CLI

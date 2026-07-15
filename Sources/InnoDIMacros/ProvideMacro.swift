@@ -98,6 +98,10 @@ public struct ProvideMacro: PeerMacro {
             return []
         }
 
+        guard !directDIContainerHasReservedGeneratedName(decl, in: context) else {
+            return []
+        }
+
         if let generatedAccessor = findInnoDIAttribute(
             named: "_InnoDIProvideAccessor",
             in: varDecl.attributes
@@ -216,6 +220,17 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
               directDIContainerMembership(declaration, in: context) == .supported else {
             return []
         }
+        let memberName = unescapedInnoDIIdentifierName(identifier.identifier)
+        guard memberName != "InnoDI",
+              !reservedGeneratedMemberPrefixes.contains(where: {
+                  memberName.hasPrefix($0)
+              }),
+              !directDIContainerHasReservedGeneratedName(
+                  declaration,
+                  in: context
+              ) else {
+            return []
+        }
 
         let parseResult = parseProvideArguments(provideAttribute)
         guard parseResult.scope != nil else { return [] }
@@ -236,7 +251,6 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             return []
         }
 
-        let memberName = identifier.identifier.text
         switch parseResult.scope {
         case .transient:
             return [
@@ -294,6 +308,25 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             return [
                 failedDIValidationRecoveryAccessor(
                     message: "Invalid generated @Provide accessor owner"
+                )
+            ]
+        }
+
+        if directDIContainerHasReservedGeneratedName(declaration, in: context) {
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid reserved generated container name"
+                )
+            ]
+        }
+        let memberName = unescapedInnoDIIdentifierName(identifier.identifier)
+        if memberName == "InnoDI"
+            || reservedGeneratedMemberPrefixes.contains(where: {
+                memberName.hasPrefix($0)
+            }) {
+            return [
+                failedDIValidationRecoveryAccessor(
+                    message: "Invalid reserved generated provider name"
                 )
             ]
         }
@@ -378,7 +411,6 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             ]
         }
 
-        let memberName = identifier.identifier.text
         let isMainActor = enclosingDIContainerInfo(
             for: declaration,
             in: context

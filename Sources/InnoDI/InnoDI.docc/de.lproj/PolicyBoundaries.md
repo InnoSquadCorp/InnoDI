@@ -2,6 +2,17 @@
 
 InnoDI bleibt deterministisch, indem einige Grenzen explizit gesetzt werden.
 
+## Erkennung benutzerdefinierter `init`
+
+- Die Makrovalidierung lehnt benutzerdefinierte `init` nur im Body des
+  annotierten Typs ab.
+- Der erforderliche Full-Source-Preflight von `InnoDIDAGValidationPlugin` lehnt
+  `init` in passenden same-file und cross-file Extensions ab, einschließlich
+  Deklarationen innerhalb von `#if`-Zweigen.
+- Ohne das Build-Validation-Plugin ist das extensionsweite Verbot nicht
+  gewährleistet, da Attached Macros benachbarte Extensions nicht zuverlässig
+  untersuchen können.
+
 ## Matching Strategy
 
 - Gemeinsames nominales Modell für Makros, Core und Graph-CLI

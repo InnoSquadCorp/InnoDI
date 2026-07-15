@@ -6,6 +6,7 @@ import SwiftSyntaxMacros
 struct DIContainerValidator {
     static func validate(
         model: DIContainerExpansionModel,
+        declaration: some DeclGroupSyntax,
         context: some MacroExpansionContext
     ) -> Bool {
         var hadErrors = false
@@ -496,25 +497,26 @@ struct DIContainerValidator {
         // generated symbol and produce confusing Swift errors instead of an
         // InnoDI diagnostic. Reject up front so the user gets actionable
         // guidance.
-        let reservedMemberPrefixes: [String] = [
-            "_storage_",
-            "_override_sub_",
-            "_innoDISubBuild_",
-            "_innoDIUnresolvedDependency",
-            "_subBuildCell_",
-            "_lazyCell_",
-            "_lazySelfForSub"
-        ]
-
-        let allMembers: [(name: String, attribute: AttributeSyntax)] =
-            model.members.map { (name: $0.name, attribute: $0.attribute) }
-            + model.subContainerMembers.map { (name: $0.name, attribute: $0.attribute) }
-
-        for entry in allMembers {
-            for prefix in reservedMemberPrefixes where entry.name.hasPrefix(prefix) {
+        for entry in directContainerDeclarationNames(in: declaration) {
+            let shadowsGeneratedModuleQualifier = entry.name == "InnoDI"
+                || (entry.namespace == .type
+                    && ["Swift", "_Concurrency"].contains(entry.name))
+            if shadowsGeneratedModuleQualifier {
                 context.diagnose(
                     Diagnostic(
-                        node: Syntax(entry.attribute),
+                        node: entry.anchor,
+                        message: SimpleDiagnostic.containerReservedModuleName(
+                            memberName: entry.name
+                        )
+                    )
+                )
+                hadErrors = true
+                continue
+            }
+            for prefix in reservedGeneratedMemberPrefixes where entry.name.hasPrefix(prefix) {
+                context.diagnose(
+                    Diagnostic(
+                        node: entry.anchor,
                         message: SimpleDiagnostic.containerReservedNamePrefix(
                             memberName: entry.name,
                             reservedPrefix: prefix
@@ -524,6 +526,24 @@ struct DIContainerValidator {
                 hadErrors = true
                 break
             }
+        }
+
+        for entry in reservedGeneratedQualifierScopeDeclarations(
+            for: declaration,
+            lexicalContext: context.lexicalContext
+        ) {
+            context.diagnose(
+                Diagnostic(
+                    node: generatedNameDiagnosticAnchor(
+                        for: entry,
+                        attachedTo: declaration
+                    ),
+                    message: SimpleDiagnostic.containerReservedModuleName(
+                        memberName: entry.name
+                    )
+                )
+            )
+            hadErrors = true
         }
 
         // Sub-container validation.
@@ -740,10 +760,10 @@ struct DIContainerValidator {
         // typealiases and flags any closure parameter whose bare identifier
         // matches one of them. Cross-file aliases stay invisible.
         //
-        // Anchor selection: we need any member's attribute syntax to walk up
-        // to `SourceFileSyntax`. An empty container returns early in
-        // `DIContainerMacro.expansion` before reaching the validator, so
-        // reaching this point with both collections empty is impossible.
+        // Anchor selection: we need any managed member's attribute syntax to
+        // walk up to `SourceFileSyntax`. A container with no managed members
+        // still reaches this validator for direct-name checks and simply has
+        // no deferred-wrapper aliases to inspect.
         let aliasAnchor: Syntax? = model.members.first.map { Syntax($0.attribute) }
             ?? model.subContainerMembers.first.map { Syntax($0.attribute) }
         if let anchor = aliasAnchor {

@@ -21,8 +21,8 @@ geschriebenen Container-Deklarationen als Review-Oberflaeche beibehalten.
 - Linten Sie user-authored source normal.
 - Linten Sie macro-expanded output nicht so, als waere er handgeschriebener Code.
 - Wenn Ihre Konfiguration generated interface artifacts prueft, schliessen Sie
-  die reservierten InnoDI-Prefixe aus: `_storage_`, `_override_`, `_lazyCell_`,
-  `_subBuildCell_`, `_innoDISubBuild_` und `_lazySelfForSub`.
+  die reservierten InnoDI-Prefixe aus: `_storage_`, `_override_`, `_innoDI`
+  und `_InnoDI`.
 
 ## SwiftFormat
 

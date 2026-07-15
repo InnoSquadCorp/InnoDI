@@ -486,6 +486,29 @@ func runStrictConcurrencyBuild(
     )
 }
 
+func runExternalConsumerExecutable(
+    packageURL: URL
+) throws -> StrictConcurrencyBuildResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = [
+        "swift",
+        "run",
+        "--package-path",
+        packageURL.path(percentEncoded: false),
+        "--skip-build",
+        "FixtureApp",
+    ]
+    process.currentDirectoryURL = packageRootURL()
+
+    return try runCapturedProcess(
+        process,
+        timeoutSeconds: strictConcurrencyBuildTimeoutSeconds,
+        terminationGraceSeconds: strictConcurrencyTerminationGracePeriodSeconds,
+        hardKillGraceSeconds: strictConcurrencyHardKillGracePeriodSeconds
+    )
+}
+
 private func runCapturedProcess(
     _ process: Process,
     timeoutSeconds: TimeInterval,

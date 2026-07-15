@@ -1,0 +1,46 @@
+import InnoDI
+
+struct DeferredConsumer {
+    let response: Lazy<Int>
+}
+
+@DIContainer(mainActor: true)
+struct QualifierShadowContainer {
+    struct Swift {}
+    enum _Concurrency {}
+    typealias InnoDI = Int
+
+    @Provide(.input)
+    var request: Int
+
+    @Provide(
+        .transient,
+        factory: { (request: Int) in request + 1 },
+        concrete: true
+    )
+    var response: Int
+
+    @Provide(
+        .shared,
+        asyncFactory: { (request: Int) async in request + 2 },
+        concrete: true
+    )
+    var asyncResponse: Int
+
+    @Provide(
+        .shared,
+        factory: { (response: Lazy<Int>) in DeferredConsumer(response: response) },
+        concrete: true
+    )
+    var deferredResponse: DeferredConsumer
+}
+
+@DIContainer
+struct EmptyReservedPrefixContainer {
+    struct _InnoDIHelper {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

@@ -1,0 +1,1 @@
+@SubContainer on 'child' cannot infer child inputs because the parent has multiple @Provide members. Add with: for same-name wiring, or bindings: for explicit child-to-parent remapping. Use with: [] when the child is intentionally constructed without parent inputs.

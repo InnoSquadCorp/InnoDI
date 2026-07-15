@@ -24,7 +24,11 @@ public struct DIContainerMacro: MemberMacro {
             lexicalContext: context.lexicalContext
         )
         guard declarationSupport.isSupported else {
-            declarationSupport.diagnose(at: attribute, in: context)
+            declarationSupport.diagnose(
+                at: attribute,
+                declaration: decl,
+                in: context
+            )
             return []
         }
 
@@ -63,11 +67,11 @@ public struct DIContainerMacro: MemberMacro {
             return []
         }
 
-        if model.members.isEmpty && model.subContainerMembers.isEmpty {
-            return []
-        }
-
-        let isValid = DIContainerValidator.validate(model: model, context: context)
+        let isValid = DIContainerValidator.validate(
+            model: model,
+            declaration: decl,
+            context: context
+        )
         if !isValid {
             return []
         }
@@ -80,7 +84,11 @@ public struct DIContainerMacro: MemberMacro {
                         message: SimpleDiagnostic.containerOverridesNameConflict(kind: conflict.kind)
                     )
                 )
-                return [try DIContainerCodeGenerator.generateInit(for: model)]
+                return [
+                    try DIContainerCodeGenerator.generateInit(for: model),
+                    makeOverridesConflictMountTypeDecl(model: model),
+                    makeOverridesConflictRecoveryInitDecl(model: model),
+                ]
             }
 
             return try DIContainerCodeGenerator.generateAll(
@@ -118,7 +126,84 @@ extension DIContainerMacro: MemberAttributeMacro {
             return []
         }
 
-        guard findInnoDIAttributes(named: "Provide", in: variable.attributes).count <= 1 else {
+        // Preserve the public misuse diagnostic before any container-wide
+        // recovery suppression. A forged support accessor must never become
+        // silent just because another direct declaration also uses a reserved
+        // generated name.
+        if let manuallyAttachedAccessor = findInnoDIAttribute(
+            named: "_InnoDIProvideAccessor",
+            in: variable.attributes
+        ) {
+            let memberName = variable.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(manuallyAttachedAccessor),
+                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                        memberName: memberName
+                    )
+                )
+            )
+            return []
+        }
+
+        if let manuallyAttachedAccessor = findInnoDIAttribute(
+            named: "_InnoDISubContainerAccessor",
+            in: variable.attributes
+        ) {
+            let memberName = variable.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(manuallyAttachedAccessor),
+                    message: SimpleDiagnostic.subGeneratedAccessorManualAttachment(
+                        memberName: memberName
+                    )
+                )
+            )
+            return []
+        }
+
+        // A source-written initializer owns initialization of the original
+        // stored properties. The container member role emits the terminal
+        // custom-init diagnostic; attaching a generated accessor here would
+        // turn those properties into get-only computed members and make valid
+        // `self.member = value` assignments produce secondary Swift errors.
+        guard DIContainerParser.userDefinedInitializers(
+            in: declaration
+        ).isEmpty else {
+            return []
+        }
+
+        // The container member expansion owns the stable reserved-name
+        // diagnostics. Do not emit actor/accessor support through a qualifier
+        // that a direct declaration has already shadowed.
+        guard !containerHasReservedGeneratedName(
+            in: declaration,
+            lexicalContext: context.lexicalContext
+        ) else {
+            return []
+        }
+
+        let provideAttributes = findInnoDIAttributes(
+            named: "Provide",
+            in: variable.attributes
+        )
+        let subContainerAttributes = findInnoDIAttributes(
+            named: "SubContainer",
+            in: variable.attributes
+        )
+        let hasProvide = !provideAttributes.isEmpty
+        let hasSubContainer = !subContainerAttributes.isEmpty
+        let isInstanceMember = !variable.modifiers.contains {
+            $0.name.text == "static" || $0.name.text == "class"
+        }
+
+        if isConditionallyCompiledSubContainerMember(variable, in: declaration) {
+            // The public peer and container parser own the diagnostic. Keep
+            // the declaration stored and emit no partial child support.
             return []
         }
 
@@ -126,11 +211,9 @@ extension DIContainerMacro: MemberAttributeMacro {
             // The container member expansion diagnoses this unsupported shape.
             // Attach only a recovery accessor so the rejected stored property
             // cannot create a synthesized-init or missing-storage cascade.
-            let isInstanceMember = !variable.modifiers.contains {
-                $0.name.text == "static" || $0.name.text == "class"
-            }
             if isInstanceMember,
-               findInnoDIAttribute(named: "Provide", in: variable.attributes) != nil,
+               hasProvide,
+               !hasSubContainer,
                canAttachGeneratedProvideAccessor(to: variable) {
                 return [provideAccessorAttribute(recovery: true)]
             }
@@ -138,9 +221,6 @@ extension DIContainerMacro: MemberAttributeMacro {
         }
 
         var attributes: [AttributeSyntax] = []
-        let isInstanceMember = !variable.modifiers.contains {
-            $0.name.text == "static" || $0.name.text == "class"
-        }
         // Property-level isolation is required for call-site enforcement.
         // Accessor-level `@MainActor` checks the generated getter body but does
         // not prevent another actor from reading the property synchronously.
@@ -163,28 +243,9 @@ extension DIContainerMacro: MemberAttributeMacro {
             attributes.append(mainActorAttribute())
         }
 
-        if let manuallyAttachedAccessor = findInnoDIAttribute(
-            named: "_InnoDIProvideAccessor",
-            in: variable.attributes
-        ) {
-            let memberName = variable.bindings.first?
-                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
-                ?? "<unknown>"
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(manuallyAttachedAccessor),
-                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
-                        memberName: memberName
-                    )
-                )
-            )
-            return attributes
-        }
-
-        if findInnoDIAttribute(
-            named: "Provide",
-            in: variable.attributes
-        ) != nil,
+        if hasProvide,
+           !hasSubContainer,
+           provideAttributes.count == 1,
            isInstanceMember,
            canAttachGeneratedProvideAccessor(to: variable) {
             let recovery = provideMemberValidationRecovery(
@@ -195,7 +256,97 @@ extension DIContainerMacro: MemberAttributeMacro {
             attributes.append(provideAccessorAttribute(recovery: recovery))
         }
 
+        if hasSubContainer,
+           subContainerAttributes.count == 1,
+           isInstanceMember,
+           canAttachGeneratedSubContainerAccessor(to: variable) {
+            let recovery = hasProvide
+                || subContainerMemberValidationRecovery(
+                    member: variable,
+                    in: declaration,
+                    context: context,
+                    options: options
+                )
+            attributes.append(
+                subContainerAccessorAttribute(recovery: recovery)
+            )
+        }
+
         return attributes
+    }
+}
+
+private func canAttachGeneratedSubContainerAccessor(
+    to declaration: VariableDeclSyntax
+) -> Bool {
+    guard isSupportedSubContainerStoredProperty(declaration),
+          let binding = declaration.bindings.first,
+          let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+          !isEscapedInnoDIIdentifier(identifier.identifier),
+          binding.typeAnnotation != nil else {
+        return false
+    }
+    return true
+}
+
+private func subContainerMemberValidationRecovery(
+    member: VariableDeclSyntax,
+    in declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext,
+    options: DIContainerAttributeInfo
+) -> Bool {
+    guard let attribute = findInnoDIAttribute(
+        named: "SubContainer",
+        in: member.attributes
+    ) else {
+        return true
+    }
+    let arguments = parseSubContainerArguments(attribute)
+    if arguments.scope == nil {
+        return true
+    }
+    if options.mainActor,
+       (detectConflictingGlobalActor(in: member.attributes) != nil
+        || member.modifiers.contains(where: { $0.name.text == "nonisolated" })) {
+        return true
+    }
+    if !DIContainerParser.userDefinedInitializers(in: declaration).isEmpty {
+        return true
+    }
+
+    // The hidden accessor owns every concrete child-storage peer. Mirror the
+    // complete container validation gate without re-emitting its diagnostics:
+    // if the member role allowed `recovery: false` after a graph or wiring
+    // error, those peers could survive even
+    // though the container member role correctly suppressed all public code.
+    let validationContext = DiagnosticSuppressingMacroExpansionContext(
+        forwardingTo: context
+    )
+    guard let model = DIContainerParser.parse(
+        declaration: declaration,
+        context: validationContext
+    ) else {
+        return true
+    }
+    guard DIContainerValidator.validate(
+        model: model,
+        declaration: declaration,
+        context: validationContext
+    ) else {
+        return true
+    }
+
+    do {
+        if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
+            _ = try DIContainerCodeGenerator.generateInit(for: model)
+        } else {
+            _ = try DIContainerCodeGenerator.generateAll(for: model)
+        }
+        return false
+    } catch is CodegenInvariantError {
+        return true
+    } catch {
+        return true
     }
 }
 
@@ -213,6 +364,10 @@ private func provideMemberValidationRecovery(
     in declaration: some DeclGroupSyntax,
     options: DIContainerAttributeInfo
 ) -> Bool {
+    if !unmanagedStoredContainerMembers(in: declaration).isEmpty {
+        return true
+    }
+
     guard let attribute = findInnoDIAttribute(named: "Provide", in: member.attributes) else {
         return true
     }
@@ -374,5 +529,12 @@ private func provideAccessorAttribute(recovery: Bool) -> AttributeSyntax {
     let attribute: AttributeSyntax = recovery
         ? "@InnoDI._InnoDIProvideAccessor(recovery: true)"
         : "@InnoDI._InnoDIProvideAccessor(recovery: false)"
+    return attribute
+}
+
+private func subContainerAccessorAttribute(recovery: Bool) -> AttributeSyntax {
+    let attribute: AttributeSyntax = recovery
+        ? "@InnoDI._InnoDISubContainerAccessor(recovery: true)"
+        : "@InnoDI._InnoDISubContainerAccessor(recovery: false)"
     return attribute
 }

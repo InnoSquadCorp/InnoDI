@@ -2,15 +2,6 @@
 struct AppContainer {
     @InnoDI._InnoDIProvideAccessor(recovery: false) var config: AppConfig
     @InnoDI._InnoDIProvideAccessor(recovery: false) var request: Request
-    var feature: FeatureContainer {
-        get {
-            return _storage_sub_feature
-        }
-    }
-
-    private let _storage_sub_feature: FeatureContainer
-
-    private let _override_sub_feature: FeatureContainer?
-
-    private let _override_sub_apply_feature: ((inout FeatureContainer.Overrides) -> Void)?
+    @InnoDI._InnoDISubContainerAccessor(recovery: true)
+    var feature: FeatureContainer
 }

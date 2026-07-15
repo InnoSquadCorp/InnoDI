@@ -13,4 +13,12 @@ struct AppContainer {
         self._storage_userID = userID
         self._storage_apiClient = apiClient ?? APIClient()
     }
+
+    struct _InnoDIMountOverrides {
+    }
+
+    init(userID: String, _ _innoDIApplyOverrides: (inout _InnoDIMountOverrides) -> Void) {
+        while true {
+        }
+    }
 }

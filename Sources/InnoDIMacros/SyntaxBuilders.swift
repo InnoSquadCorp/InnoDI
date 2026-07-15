@@ -108,45 +108,25 @@ internal func providerStoragePeerDecl(
     return DeclSyntax(decl)
 }
 
-/// Builds the peer decl for async-shared storage in the shape
-/// `private let <name>: Task<<successType>, <failureType>>`.
-internal func taskStoragePeerDecl(
-    name: String,
+/// Builds the standard-library task type without allowing a nested container
+/// declaration named `Task`, `Error`, or `Never` to shadow compiler-authored
+/// async storage.
+private func standardTaskType(
     successType: String,
     failureType: String
-) -> DeclSyntax {
-    let genericClause = GenericArgumentClauseSyntax(
-        arguments: GenericArgumentListSyntax([
-            GenericArgumentSyntax(
-                argument: .type(TypeSyntax("\(raw: successType)")),
-                trailingComma: .commaToken(trailingTrivia: .space)
-            ),
-            GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
-        ])
+) -> TypeSyntax {
+    let qualifiedFailureType: String
+    switch failureType {
+    case "Error":
+        qualifiedFailureType = "Swift.Error"
+    case "Never":
+        qualifiedFailureType = "Swift.Never"
+    default:
+        qualifiedFailureType = failureType
+    }
+    return TypeSyntax(
+        stringLiteral: "_Concurrency.Task<\(successType), \(qualifiedFailureType)>"
     )
-    let taskType = TypeSyntax(
-        IdentifierTypeSyntax(
-            name: .identifier("Task"),
-            genericArgumentClause: genericClause
-        )
-    )
-
-    let decl = VariableDeclSyntax(
-        modifiers: DeclModifierListSyntax([
-            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
-        ]),
-        bindingSpecifier: .keyword(.let, trailingTrivia: .space),
-        bindings: PatternBindingListSyntax([
-            PatternBindingSyntax(
-                pattern: IdentifierPatternSyntax(identifier: .identifier(name)),
-                typeAnnotation: TypeAnnotationSyntax(
-                    colon: .colonToken(trailingTrivia: .space),
-                    type: taskType
-                )
-            )
-        ])
-    )
-    return DeclSyntax(decl)
 }
 
 /// Async counterpart of `providerStoragePeerDecl`.
@@ -155,22 +135,11 @@ internal func providerTaskStoragePeerDecl(
     successType: String,
     failureType: String
 ) -> DeclSyntax {
-    let genericClause = GenericArgumentClauseSyntax(
-        arguments: GenericArgumentListSyntax([
-            GenericArgumentSyntax(
-                argument: .type(TypeSyntax("\(raw: successType)")),
-                trailingComma: .commaToken(trailingTrivia: .space)
-            ),
-            GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
-        ])
-    )
     let taskType = TypeSyntax(
         OptionalTypeSyntax(
-            wrappedType: TypeSyntax(
-                IdentifierTypeSyntax(
-                    name: .identifier("Task"),
-                    genericArgumentClause: genericClause
-                )
+            wrappedType: standardTaskType(
+                successType: successType,
+                failureType: failureType
             )
         )
     )
@@ -208,8 +177,8 @@ internal func subContainerBuildClosurePeerDecl(
             isMainActor
                 ? AttributeListSyntax.Element.attribute(
                     AttributeSyntax(
-                        attributeName: IdentifierTypeSyntax(
-                            name: .identifier("MainActor", trailingTrivia: .space)
+                        attributeName: TypeSyntax(
+                            stringLiteral: "Swift.MainActor "
                         )
                     )
                 )
@@ -354,32 +323,32 @@ internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
 /// add explicit synchronization.
 internal func makeDeferredCellSupportDecl() -> DeclSyntax {
     """
-    final class _InnoDIDeferredCell<T>: @unchecked Sendable {
-        private var value: T?
-        private var resolver: (() -> T)?
+        final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
+            private var value: T?
+            private var resolver: (() -> T)?
 
-        func storeValue(_ value: T) {
-            self.value = value
-        }
-
-        func bindResolver(_ resolver: @escaping () -> T) {
-            self.resolver = resolver
-        }
-
-        func resolve() -> T {
-            guard let value else {
-                if let resolver {
-                    return resolver()
-                }
-                preconditionFailure("InnoDI codegen invariant violated: deferred dependency resolved before initialization completed.")
+            func storeValue(_ value: T) {
+                self.value = value
             }
-            return value
+
+            func bindResolver(_ resolver: @escaping () -> T) {
+                self.resolver = resolver
+            }
+
+            func resolve() -> T {
+                guard let value else {
+                    if let resolver {
+                        return resolver()
+                    }
+                    return InnoDI._innoDITrap("InnoDI codegen invariant violated: deferred dependency resolved before initialization completed.")
+                }
+                return value
+            }
         }
-    }
     """
 }
 
-/// Builds a `let _lazyCell_<name> = _InnoDIDeferredCell<Type>()` local
+/// Builds a `let _innoDILazyCell_<name> = _InnoDIDeferredCell<Type>()` local
 /// binding used to implement the soft-edge (`Lazy<T>`) escape hatch. The
 /// cell is captured as a heap-allocated box while the initializer runs, so
 /// any `Lazy` wrapper distributed beforehand continues to share the same
@@ -387,7 +356,7 @@ internal func makeDeferredCellSupportDecl() -> DeclSyntax {
 /// binding, wrappers created after container-init can read the value safely
 /// without any mutable capture.
 internal func makeLazyCellDecl(name: String, type: TypeSyntax) -> DeclSyntax {
-    makeDeferredCellDecl(cellName: "_lazyCell_\(name)", type: type)
+    makeDeferredCellDecl(cellName: "_innoDILazyCell_\(name)", type: type)
 }
 
 /// Builds a `let <cellName> = _InnoDIDeferredCell<Type>()` local binding.
@@ -413,14 +382,14 @@ internal func makeDeferredCellDecl(cellName: String, type: TypeSyntax) -> DeclSy
 }
 
 /// Builds a write expression in the shape
-/// `_lazyCell_<name>.storeValue(self._storage_<name>)`.
+/// `_innoDILazyCell_<name>.storeValue(self._storage_<name>)`.
 ///
 /// Called immediately after the init populates shared/input storage, so that
 /// a `Lazy` wrapper distributed beforehand returns the same instance when it
 /// finally resolves.
 internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSyntax {
     let cellMember = MemberAccessExprSyntax(
-        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
+        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDILazyCell_\(name)"))),
         declName: DeclReferenceExprSyntax(baseName: .identifier("storeValue"))
     )
     let call = FunctionCallExprSyntax(
@@ -435,14 +404,14 @@ internal func makeLazyCellStoreExpr(name: String, storageName: String) -> ExprSy
 }
 
 /// Builds a late-binding expression in the shape
-/// `_lazyCell_<name>.bindResolver { self.<name> }`.
+/// `_innoDILazyCell_<name>.bindResolver { self.<name> }`.
 ///
 /// A `.transient` soft target must recompute a fresh value through the
 /// accessor after init, so the cell binds a resolver closure instead of
 /// storing a concrete value.
 internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName: String = "self") -> ExprSyntax {
     let resolverAccess = MemberAccessExprSyntax(
-        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
+        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDILazyCell_\(name)"))),
         declName: DeclReferenceExprSyntax(baseName: .identifier("bindResolver"))
     )
     let closure = ClosureExprSyntax(
@@ -461,27 +430,25 @@ internal func makeLazyCellBindExpr(name: String, accessorName: String, baseName:
 }
 
 /// Builds an argument expression in the shape
-/// `<Qualified>.Lazy({ _lazyCell_<name>.resolve() })`.
+/// `.init({ _innoDILazyCell_<name>.resolve() })`.
 ///
-/// Passed to a factory that declared a soft parameter. `Lazy`'s generic
-/// parameter is inferred from the closure return type, so `<Type>` is
-/// intentionally omitted.
-internal func makeLazyCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeDeferredCellWrapperExpr(name: name, calleeDescription: calleeDescription)
+/// The factory parameter supplies the `Lazy<T>` contextual type, avoiding an
+/// unqualified constructor name that a container member could shadow.
+internal func makeLazyCellWrapperExpr(name: String, calleeDescription _: String) -> ExprSyntax {
+    makeDeferredCellWrapperExpr(name: name)
 }
 
-/// Builds a `<Qualified>.Lazy({ self.<name> })` wrapper.
+/// Builds a contextual `.init({ self.<name> })` Lazy wrapper.
 ///
 /// Used inside a transient accessor (getter). At getter time `self` is
 /// already fully initialized, so storage can be read directly without an
 /// init-time box.
 internal func makeLazyAccessorWrapperExpr(
     name: String,
-    calleeDescription: String
+    calleeDescription _: String
 ) -> ExprSyntax {
     makeDeferredAccessorWrapperExpr(
-        name: name,
-        calleeDescription: calleeDescription
+        name: name
     )
 }
 
@@ -494,29 +461,27 @@ internal func makeLazyAccessorWrapperExpr(
 // runs that closure to produce a new instance. The wrapper therefore
 // differs from `Lazy` only in which nominal type wraps the closure.
 
-/// Builds an argument expression in the shape
-/// `<Qualified>.Provider({ _lazyCell_<name>.resolve() })`. Injected into a
-/// `Provider<T>` parameter on the `.shared` init path.
-internal func makeProviderCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeDeferredCellWrapperExpr(name: name, calleeDescription: calleeDescription)
+/// Builds a contextual `.init({ _innoDILazyCell_<name>.resolve() })` argument
+/// for a `Provider<T>` parameter on the `.shared` init path.
+internal func makeProviderCellWrapperExpr(name: String, calleeDescription _: String) -> ExprSyntax {
+    makeDeferredCellWrapperExpr(name: name)
 }
 
-/// Builds a `<Qualified>.Provider({ self.<name> })` wrapper. Used inside
-/// a transient accessor (`self` is already fully initialized at call time).
+/// Builds a contextual `.init({ self.<name> })` Provider wrapper. Used inside a
+/// transient accessor (`self` is already fully initialized at call time).
 internal func makeProviderAccessorWrapperExpr(
     name: String,
-    calleeDescription: String
+    calleeDescription _: String
 ) -> ExprSyntax {
     makeDeferredAccessorWrapperExpr(
-        name: name,
-        calleeDescription: calleeDescription
+        name: name
     )
 }
 
 /// Builds a deferred wrapper expression that resolves through the
-/// `_lazyCell_<name>.resolve()` cell.
-private func makeDeferredCellWrapperExpr(name: String, calleeDescription: String) -> ExprSyntax {
-    makeLazyCellWrapperExprCore(name: name, calleeDescription: calleeDescription)
+/// `_innoDILazyCell_<name>.resolve()` cell.
+private func makeDeferredCellWrapperExpr(name: String) -> ExprSyntax {
+    makeLazyCellWrapperExprCore(name: name)
 }
 
 /// Builds a deferred wrapper expression that captures `self.<name>` directly.
@@ -525,21 +490,19 @@ private func makeDeferredCellWrapperExpr(name: String, calleeDescription: String
 /// `Provider<T>` are only meant for use within the container's existing
 /// isolation domain and do not support actor-boundary transport.
 private func makeDeferredAccessorWrapperExpr(
-    name: String,
-    calleeDescription: String
+    name: String
 ) -> ExprSyntax {
     makeDeferredWrapperExpr(
-        calleeDescription: calleeDescription,
         resolverExpression: makeSelfMemberAccessExpr(name: name)
     )
 }
 
 /// Shared implementation behind `makeDeferredCellWrapperExpr` so both `Lazy`
-/// and `Provider` paths can reuse it. Callers pick the wrapper name
-/// (`"Lazy"`, `"Provider"`, `"InnoDI.Lazy"`, …) via `calleeDescription`.
-private func makeLazyCellWrapperExprCore(name: String, calleeDescription: String) -> ExprSyntax {
+/// and `Provider` paths can reuse contextual `.init` construction without an
+/// unqualified wrapper type name that a container member could shadow.
+private func makeLazyCellWrapperExprCore(name: String) -> ExprSyntax {
     let resolveAccess = MemberAccessExprSyntax(
-        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_lazyCell_\(name)"))),
+        base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDILazyCell_\(name)"))),
         declName: DeclReferenceExprSyntax(baseName: .identifier("resolve"))
     )
     let resolveCall = FunctionCallExprSyntax(
@@ -548,17 +511,17 @@ private func makeLazyCellWrapperExprCore(name: String, calleeDescription: String
         arguments: LabeledExprListSyntax([]),
         rightParen: .rightParenToken()
     )
-    return makeDeferredWrapperExpr(calleeDescription: calleeDescription, resolverExpression: ExprSyntax(resolveCall))
+    return makeDeferredWrapperExpr(resolverExpression: ExprSyntax(resolveCall))
 }
 
-private func makeDeferredWrapperExpr(calleeDescription: String, resolverExpression: ExprSyntax) -> ExprSyntax {
+private func makeDeferredWrapperExpr(resolverExpression: ExprSyntax) -> ExprSyntax {
     let closure = ClosureExprSyntax(
         statements: CodeBlockItemListSyntax([
             CodeBlockItemSyntax(item: .expr(resolverExpression))
         ])
     )
     let call = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax("\(raw: calleeDescription)"),
+        calledExpression: MemberAccessExprSyntax(name: .keyword(.`init`)),
         leftParen: nil,
         arguments: LabeledExprListSyntax([]),
         rightParen: nil,
@@ -570,7 +533,7 @@ private func makeDeferredWrapperExpr(calleeDescription: String, resolverExpressi
 // MARK: - Task wrapper decl
 
 /// Assembles the `DeclSyntax` for
-/// `let <taskName> = Task<Success, Failure> { if let override = <overrideName> { return override }; return <awaitedFactoryExpr> }`
+/// `let <taskName>: _Concurrency.Task<Success, Failure> = .init { if let override = <overrideName> { return override }; return <awaitedFactoryExpr> }`
 /// directly via the `SwiftSyntaxBuilder` AST.
 internal func makeAsyncTaskDecl(
     taskName: String,
@@ -579,22 +542,12 @@ internal func makeAsyncTaskDecl(
     failureType: String,
     awaitedFactoryExpr: ExprSyntax
 ) -> DeclSyntax {
-    // Task<Success, Failure>
-    let genericClause = GenericArgumentClauseSyntax(
-        arguments: GenericArgumentListSyntax([
-            GenericArgumentSyntax(
-                argument: .type(TypeSyntax("\(raw: successType)")),
-                trailingComma: .commaToken(trailingTrivia: .space)
-            ),
-            GenericArgumentSyntax(argument: .type(TypeSyntax("\(raw: failureType)")))
-        ])
-    )
-    let taskRef = GenericSpecializationExprSyntax(
-        expression: DeclReferenceExprSyntax(baseName: .identifier("Task")),
-        genericArgumentClause: genericClause
+    let taskType = standardTaskType(
+        successType: successType,
+        failureType: failureType
     )
 
-    // Task<...> { ... }
+    // .init { ... }
     let closure = ClosureExprSyntax(
         statements: CodeBlockItemListSyntax([
             overrideCheckStmt(overrideName: overrideName),
@@ -602,12 +555,29 @@ internal func makeAsyncTaskDecl(
         ])
     )
     let taskCall = FunctionCallExprSyntax(
-        calledExpression: ExprSyntax(taskRef),
+        calledExpression: MemberAccessExprSyntax(name: .keyword(.`init`)),
         leftParen: nil,
         arguments: LabeledExprListSyntax([]),
         rightParen: nil,
         trailingClosure: closure
     )
 
-    return letBinding(name: taskName, value: ExprSyntax(taskCall))
+    return DeclSyntax(
+        VariableDeclSyntax(
+            bindingSpecifier: .keyword(.let, trailingTrivia: .space),
+            bindings: PatternBindingListSyntax([
+                PatternBindingSyntax(
+                    pattern: IdentifierPatternSyntax(identifier: .identifier(taskName)),
+                    typeAnnotation: TypeAnnotationSyntax(
+                        colon: .colonToken(trailingTrivia: .space),
+                        type: taskType
+                    ),
+                    initializer: InitializerClauseSyntax(
+                        equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                        value: taskCall
+                    )
+                )
+            ])
+        )
+    )
 }

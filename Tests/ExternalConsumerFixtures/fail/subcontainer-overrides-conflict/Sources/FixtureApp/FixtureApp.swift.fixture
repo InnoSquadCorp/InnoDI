@@ -1,0 +1,93 @@
+import InnoDI
+
+@DIContainer
+struct ConflictingChildContainer {
+    struct Overrides {}
+}
+
+@DIContainer
+struct ParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    var child: ConflictingChildContainer
+}
+
+@DIContainer
+public struct PublicConflictingChildContainer {
+    struct Overrides {}
+}
+
+@DIContainer
+public struct PublicParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    public var child: PublicConflictingChildContainer
+}
+
+@DIContainer
+struct PrivateConflictingChildContainer {
+    private struct Overrides {}
+}
+
+@DIContainer
+struct PrivateParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    var child: PrivateConflictingChildContainer
+}
+
+@DIContainer
+struct GenericConflictingChildContainer {
+    struct Overrides<Value> {}
+}
+
+@DIContainer
+struct GenericParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    var child: GenericConflictingChildContainer
+}
+
+@DIContainer
+struct ProtocolConflictingChildContainer {
+    protocol Overrides {}
+}
+
+@DIContainer
+struct ProtocolParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    var child: ProtocolConflictingChildContainer
+}
+
+@DIContainer
+struct ConditionalConflictingChildContainer {
+    #if os(macOS)
+    struct Overrides {}
+    #endif
+}
+
+@DIContainer
+struct ConditionalParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    var child: ConditionalConflictingChildContainer
+}
+
+@DIContainer
+struct EscapedConflictingChildContainer {
+    struct `Overrides` {}
+}
+
+@DIContainer
+struct EscapedParentContainer {
+    @SubContainer(scope: .shared, with: [])
+    var child: EscapedConflictingChildContainer
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        _ = ParentContainer()
+        _ = PublicParentContainer()
+        _ = PrivateParentContainer()
+        _ = GenericParentContainer()
+        _ = ProtocolParentContainer()
+        _ = ConditionalParentContainer()
+        _ = EscapedParentContainer()
+    }
+}

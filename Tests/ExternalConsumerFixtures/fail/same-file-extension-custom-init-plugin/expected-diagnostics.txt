@@ -1,0 +1,1 @@
+[container.custom-init-unsupported] @DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring.

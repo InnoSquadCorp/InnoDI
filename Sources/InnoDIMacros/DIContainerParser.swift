@@ -12,31 +12,75 @@ struct DIContainerParser {
     /// Scans the container body for a user declaration named `Overrides` that
     /// would clash with the synthesized builder struct. Returns the offending
     /// declaration along with its kind ("struct", "class", "typealias", etc.)
-    /// so callers can emit a clear warning.
+    /// so callers can emit a clear error. Top-level conditional-compilation
+    /// branches participate in the same member lookup scope, while nested type
+    /// bodies stop at their own declaration.
     static func findOverridesNameConflict(in decl: some DeclGroupSyntax) -> OverridesNameConflict? {
         for member in decl.memberBlock.members {
-            let d = member.decl
-            if let s = d.as(StructDeclSyntax.self), s.name.text == "Overrides" {
-                return OverridesNameConflict(node: s, kind: "struct")
+            if let conflict = findOverridesNameConflict(in: Syntax(member.decl)) {
+                return conflict
             }
-            if let c = d.as(ClassDeclSyntax.self), c.name.text == "Overrides" {
-                return OverridesNameConflict(node: c, kind: "class")
-            }
-            if let e = d.as(EnumDeclSyntax.self), e.name.text == "Overrides" {
-                return OverridesNameConflict(node: e, kind: "enum")
-            }
-            if let a = d.as(ActorDeclSyntax.self), a.name.text == "Overrides" {
-                return OverridesNameConflict(node: a, kind: "actor")
-            }
-            if let t = d.as(TypeAliasDeclSyntax.self), t.name.text == "Overrides" {
-                return OverridesNameConflict(node: t, kind: "typealias")
+        }
+        return nil
+    }
+
+    private static func findOverridesNameConflict(
+        in syntax: Syntax
+    ) -> OverridesNameConflict? {
+        func matches(_ token: TokenSyntax) -> Bool {
+            unescapedInnoDIIdentifierName(token) == "Overrides"
+        }
+
+        if let declaration = syntax.as(StructDeclSyntax.self) {
+            return matches(declaration.name)
+                ? OverridesNameConflict(node: declaration, kind: "struct")
+                : nil
+        }
+        if let declaration = syntax.as(ClassDeclSyntax.self) {
+            return matches(declaration.name)
+                ? OverridesNameConflict(node: declaration, kind: "class")
+                : nil
+        }
+        if let declaration = syntax.as(EnumDeclSyntax.self) {
+            return matches(declaration.name)
+                ? OverridesNameConflict(node: declaration, kind: "enum")
+                : nil
+        }
+        if let declaration = syntax.as(ActorDeclSyntax.self) {
+            return matches(declaration.name)
+                ? OverridesNameConflict(node: declaration, kind: "actor")
+                : nil
+        }
+        if let declaration = syntax.as(ProtocolDeclSyntax.self) {
+            return matches(declaration.name)
+                ? OverridesNameConflict(node: declaration, kind: "protocol")
+                : nil
+        }
+        if let declaration = syntax.as(TypeAliasDeclSyntax.self) {
+            return matches(declaration.name)
+                ? OverridesNameConflict(node: declaration, kind: "typealias")
+                : nil
+        }
+
+        guard syntax.is(IfConfigDeclSyntax.self)
+            || syntax.is(IfConfigClauseListSyntax.self)
+            || syntax.is(IfConfigClauseSyntax.self)
+            || syntax.is(MemberBlockItemSyntax.self)
+            || syntax.is(MemberBlockItemListSyntax.self) else {
+            return nil
+        }
+        for child in syntax.children(viewMode: .sourceAccurate) {
+            if let conflict = findOverridesNameConflict(in: child) {
+                return conflict
             }
         }
         return nil
     }
 
     static func userDefinedInitializers(in decl: some DeclGroupSyntax) -> [InitializerDeclSyntax] {
-        let bodyInitializers = decl.memberBlock.members.compactMap { $0.decl.as(InitializerDeclSyntax.self) }
+        let bodyInitializers = directInitializers(
+            in: decl.memberBlock.members
+        )
 
         guard let sourceFile = sourceFile(containing: Syntax(decl)),
               let declarationPath = nominalDeclarationPath(containing: Syntax(decl)) else {
@@ -48,7 +92,7 @@ struct DIContainerParser {
         }
         .filter { matchesSameFileContainerExtension($0, declarationPath: declarationPath) }
         .flatMap { extensionDecl in
-            extensionDecl.memberBlock.members.compactMap { $0.decl.as(InitializerDeclSyntax.self) }
+            directInitializers(in: extensionDecl.memberBlock.members)
         }
 
         return bodyInitializers + extensionInitializers
@@ -87,6 +131,18 @@ struct DIContainerParser {
             hadErrors = true
         }
 
+        for member in unmanagedStoredContainerMembers(in: decl) {
+            context.diagnose(
+                Diagnostic(
+                    node: member.anchor,
+                    message: SimpleDiagnostic.containerUnmanagedStoredProperty(
+                        memberName: member.name
+                    )
+                )
+            )
+            hadErrors = true
+        }
+
         for conditionalMember in conditionallyCompiledProvideMembers(in: decl) {
             let memberName = conditionalMember.declaration.bindings.first?
                 .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
@@ -102,8 +158,37 @@ struct DIContainerParser {
             hadErrors = true
         }
 
+        for conditionalMember in conditionallyCompiledSubContainerMembers(in: decl) {
+            let memberName = conditionalMember.declaration.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(conditionalMember.attribute),
+                    message: SimpleDiagnostic.subConditionalDeclarationUnsupported(
+                        memberName: memberName
+                    )
+                )
+            )
+            hadErrors = true
+        }
+
         for member in decl.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else {
+                continue
+            }
+
+            if findInnoDIAttribute(
+                named: "_InnoDIProvideAccessor",
+                in: varDecl.attributes
+            ) != nil || findInnoDIAttribute(
+                named: "_InnoDISubContainerAccessor",
+                in: varDecl.attributes
+            ) != nil {
+                // The member-attribute role owns the manual-attachment
+                // diagnostic. Exclude every forged support owner before
+                // either public managed-member model can reach codegen.
+                hadErrors = true
                 continue
             }
 
@@ -119,18 +204,31 @@ struct DIContainerParser {
                 continue
             }
 
-            if varDecl.modifiers.contains(where: { $0.name.text == "static" }) {
-                continue
-            }
-
             // `@SubContainer` classification lives next to `@Provide` so the
             // two attributes can coexist in the same member scan. When both
             // are present on the same property we emit the dedicated
             // conflict diagnostic and skip the property entirely — the
             // codegen pathway for each attribute is mutually exclusive.
             let provideAttribute = provideAttributes.first
-            let subContainerAttribute = InnoDICore.findInnoDIAttribute(named: "SubContainer", in: varDecl.attributes)
+            let subContainerAttributes = findInnoDIAttributes(
+                named: "SubContainer",
+                in: varDecl.attributes
+            )
+            if subContainerAttributes.count > 1 {
+                hadErrors = true
+                continue
+            }
+            let subContainerAttribute = subContainerAttributes.first
             let isDependencyMember = provideAttribute != nil || subContainerAttribute != nil
+
+            if varDecl.modifiers.contains(where: { $0.name.text == "static" }),
+               subContainerAttribute == nil {
+                // Public @Provide owns its plain-instance-member diagnostic.
+                // A static @SubContainer must continue through the child
+                // declaration validator below so it cannot disappear without
+                // the documented InnoDI usage error.
+                continue
+            }
 
             if options.mainActor, isDependencyMember {
                 if let conflictingActor = detectConflictingGlobalActor(
@@ -191,8 +289,22 @@ struct DIContainerParser {
                 if isEscapedInnoDIIdentifier(
                     validatedBinding.identifier.identifier
                 ) {
-                    // The public @SubContainer accessor owns the single
-                    // diagnostic and recovery getter, including standalone use.
+                    // Public @SubContainer owns the single escaped-name
+                    // diagnostic. Hidden child support is never attached.
+                    hadErrors = true
+                    continue
+                }
+                guard isSupportedSubContainerStoredProperty(varDecl) else {
+                    context.diagnose(
+                        Diagnostic(
+                            node: Syntax(subAttribute),
+                            message: SimpleDiagnostic.subRequiresDirectContainerMember(
+                                memberName: validatedBinding.identifier.identifier.text
+                            )
+                        )
+                    )
+                    // Fail the model before hidden support or container init
+                    // code can reference missing peers.
                     hadErrors = true
                     continue
                 }
@@ -239,19 +351,6 @@ struct DIContainerParser {
             }
 
             guard let attribute = provideAttribute else {
-                continue
-            }
-
-            if InnoDICore.findInnoDIAttribute(
-                named: "_InnoDIProvideAccessor",
-                in: varDecl.attributes
-            ) != nil {
-                // The member-attribute role owns the single user-facing
-                // manual-attachment diagnostic. Exclude the forged member
-                // from the container model as well: `recovery: true` asks the
-                // peer role to suppress storage, so codegen must not emit an
-                // init that still assigns the missing backing slot.
-                hadErrors = true
                 continue
             }
 
@@ -402,6 +501,40 @@ struct DIContainerParser {
             members: members,
             subContainerMembers: subContainerMembers
         )
+    }
+}
+
+/// Collects initializers declared directly in a container or its matching
+/// same-file extension. Conditional-compilation branches share the surrounding
+/// member scope, while nested declarations and executable bodies do not.
+private func directInitializers(
+    in members: MemberBlockItemListSyntax
+) -> [InitializerDeclSyntax] {
+    var result: [InitializerDeclSyntax] = []
+    for member in members {
+        collectDirectInitializers(in: Syntax(member.decl), into: &result)
+    }
+    return result
+}
+
+private func collectDirectInitializers(
+    in syntax: Syntax,
+    into result: inout [InitializerDeclSyntax]
+) {
+    if let initializer = syntax.as(InitializerDeclSyntax.self) {
+        result.append(initializer)
+        return
+    }
+
+    guard syntax.is(IfConfigDeclSyntax.self)
+        || syntax.is(IfConfigClauseListSyntax.self)
+        || syntax.is(IfConfigClauseSyntax.self)
+        || syntax.is(MemberBlockItemSyntax.self)
+        || syntax.is(MemberBlockItemListSyntax.self) else {
+        return
+    }
+    for child in syntax.children(viewMode: .sourceAccurate) {
+        collectDirectInitializers(in: child, into: &result)
     }
 }
 
@@ -869,7 +1002,6 @@ private func extractFeatureRootReferences(
         }
         if featureRootHelperConflicts(
             helperName: root.helperName,
-            currentPropertyName: propertyName,
             existingSubContainers: existingSubContainers,
             in: declaration
         ) {
@@ -975,7 +1107,6 @@ private func isFeatureRootInitializerCallee(_ expression: ExprSyntax) -> Bool {
 
 private func featureRootHelperConflicts(
     helperName: String,
-    currentPropertyName: String,
     existingSubContainers: [SubContainerMemberModel],
     in declaration: some DeclGroupSyntax
 ) -> Bool {
@@ -1002,68 +1133,9 @@ private func featureRootHelperConflicts(
         }) {
             return true
         }
-
-        guard variableDecl.bindings.first?
-            .pattern.as(IdentifierPatternSyntax.self)?
-            .identifier.text != currentPropertyName else {
-            continue
-        }
-
-        for attribute in featureRootAttributes(in: variableDecl.attributes) {
-            guard let info = parseDeprecatedFeatureRootAttribute(attribute) else {
-                continue
-            }
-            if let alias = info.alias, !isValidFeatureRootAlias(alias) {
-                continue
-            }
-            let propertyName = variableDecl.bindings.first?
-                .pattern.as(IdentifierPatternSyntax.self)?
-                .identifier.text
-            guard let propertyName else {
-                continue
-            }
-            let candidate = featureRootHelperName(propertyName: propertyName, alias: info.alias)
-            if candidate == helperName {
-                return true
-            }
-        }
     }
 
     return false
-}
-
-private struct DeprecatedFeatureRootInfo {
-    let alias: String?
-}
-
-private func parseDeprecatedFeatureRootAttribute(_ attribute: AttributeSyntax) -> DeprecatedFeatureRootInfo? {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
-        return nil
-    }
-    var rootViewTypeName: String?
-    var alias: String?
-
-    for argument in arguments {
-        if argument.label?.text == "as" {
-            alias = stringLiteralValue(argument.expression)
-            continue
-        }
-        if argument.label == nil {
-            rootViewTypeName = parseFeatureRootTypeName(from: argument.expression)
-        }
-    }
-
-    guard rootViewTypeName != nil else {
-        return nil
-    }
-    return DeprecatedFeatureRootInfo(alias: alias)
-}
-
-private func featureRootHelperName(propertyName: String, alias: String?) -> String {
-    if let alias, !alias.isEmpty {
-        return "\(alias)RootView"
-    }
-    return "\(propertyName)RootView"
 }
 
 private func finalKeyPathExpression(_ expression: ExprSyntax) -> KeyPathExprSyntax? {

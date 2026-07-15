@@ -242,8 +242,19 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: ...)`
 4. `sync` / `throws` / `async` / `async throws` の `withOverrides`
 
-ユーザー定義のネスト `Overrides` 型がない限り、サポート対象の各コンテナが
-overrides scaffolding を生成します。
+管理対象メンバーがない場合も含め、すべてのコンテナが完全な overrides
+scaffolding を生成します。ユーザー定義のネスト `Overrides` 型は InnoDI 5.0
+ではサポートされず、`container.overrides-name-conflict` が発生します。mount
+可能な override ABI を macro が所有できるよう、その宣言を改名してください。
+
+macro は親コンテナの生成 mount code 用に、予約済み compiler-support alias
+`_InnoDIMountOverrides = Overrides` も生成します。この underscore 名を直接宣言・
+参照しないでください。
+
+コンテナのすべての stored instance member には `@Provide` または
+`@SubContainer` が必要です。computed/static property は引き続き使用できます。
+これにより生成 initializer が全状態を所有し、memberwise initializer の ABI
+drift を防ぎます。
 
 `@DIContainer` がサポートするのは、ファイルスコープまたは nominal type 内に
 ネストされた、実質的に非ジェネリックな `struct` 宣言だけです。宣言自体にも、
@@ -254,6 +265,10 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 宣言も拒否されます。この境界は `@DIComponent` を併用した宣言にも適用されます。
 ランタイムまたは型固有の状態は、protocol dependency または
 `@Provide(.input)` の背後に移してください。
+
+明示的な `private` container も、sibling container が生成 mount surface に
+アクセスできないため拒否されます。同一 file 内の mount には `fileprivate`、
+または private namespace 内の default-access container を使用してください。
 
 現在の Swift compiler は、computed-property body 内の型に attached macro を
 展開するとき、accessor ancestry を macro context に含めません。この edge case
@@ -471,7 +486,10 @@ var feature: FeatureContainer
 
 - `.innodi(container)`
 - `@DIEnvironmentBridge`
-- `@DIFeatureRoot`
+- `@SubContainer(..., featureRoot:)` と `featureRoots:` は、デフォルトまたは
+  名前付きの feature-root helper を生成します。
+- InnoDI 5.0 では非推奨の互換マクロ `@DIFeatureRoot` を削除します。
+  `@SubContainer` の feature-root 引数へ移行してください。
 
 ## CLI とリリース情報
 
