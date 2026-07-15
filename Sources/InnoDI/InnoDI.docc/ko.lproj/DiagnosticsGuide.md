@@ -209,11 +209,16 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.bool-literal-required` — `root:`, `validateDAG:`,
   `mainActor:`가 literal `true` 또는 `false`가 아닙니다. build
   configuration별 attribute 분기는 conditional compilation을 쓰세요.
-- `container.duplicate-member-name` — 직접 선언된 instance `@Provide`
-  멤버 둘이 같은 property 이름을 사용합니다. 한 provider의 이름을 바꾸세요.
-  InnoDI는 뒤쪽 선언을 진단하고 첫 선언 위치를 note로 표시하며, 모호한 두
-  provider 모두의 peer storage를 억제하고 정상 accessor를 recovery getter로
-  대체합니다.
+- `container.duplicate-member-name` — `@Provide`/`@SubContainer` 조합을
+  포함해 직접 선언된 managed instance member 둘이 같은 property 이름을
+  사용합니다. 한 property의 이름을 바꾸세요. InnoDI는 뒤쪽 선언을 진단하고
+  첫 선언 위치를 note로 표시하며 모호한 identity의 support를 억제합니다.
+- `container.generated-symbol-collision` — 서로 다른 managed property
+  이름이 같은 hidden storage, override 또는 child-builder symbol로
+  매핑됩니다. `@Provide`나 `@SubContainer` property 하나의 이름을 바꾸세요.
+  InnoDI는 source-order first-claim-wins 진단을 사용하고 모든 managed
+  accessor를 recovery로 전환해 Swift의 invalid redeclaration과 잘못된
+  storage type 연쇄 오류를 막습니다.
 - `container.reserved-name-prefix` — direct container declaration이 매크로가
   generated storage와 support용으로 예약한 prefix (`_storage_`, `_override_`,
   `_innoDI`, `_InnoDI`)로 시작합니다. Plain variable, function, nested nominal
@@ -340,6 +345,11 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 ## Component / Hierarchy 진단
 
+- `component.escaped-target-unsupported` — `@DIComponent` 대상이 backtick으로
+  감싼 escaped identifier를 사용합니다. 생성되는 `<Container>Dependencies`
+  peer가 하나의 canonical Swift 이름을 갖도록 타입을 unescaped identifier로
+  바꾸세요. 이 진단은 peer macro만 소유하며 member와 extension role은 진단
+  사본이나 잘못된 support 선언을 만들지 않고 fail closed합니다.
 - `component.requires-container` — `@DIComponent`는
   `@DIContainer`로 표시된 타입에 부착되어야 합니다.
 - `component.overrides-builder-required` — `@DIComponent`는 합성된

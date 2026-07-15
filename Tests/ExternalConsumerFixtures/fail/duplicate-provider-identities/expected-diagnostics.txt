@@ -1,9 +1,15 @@
-@DIContainer declares more than one @Provide member named 'duplicatedMemberValue'. Give every provider property a unique name so storage, overrides, and graph identities remain unambiguous.
+@DIContainer declares more than one managed member named 'duplicatedMemberValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
 invalid redeclaration of 'duplicatedMemberValue'
 invalid redeclaration of 'duplicatedMemberValue'
-@DIContainer declares more than one @Provide member named 'duplicatedMainActorMemberValue'. Give every provider property a unique name so storage, overrides, and graph identities remain unambiguous.
+@DIContainer declares more than one managed member named 'duplicatedMainActorMemberValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
 invalid redeclaration of 'duplicatedMainActorMemberValue'
 invalid redeclaration of 'duplicatedMainActorMemberValue'
+@DIContainer declares more than one managed member named 'duplicatedSubValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
+invalid redeclaration of 'duplicatedSubValue'
+invalid redeclaration of 'duplicatedSubValue'
+@DIContainer declares more than one managed member named 'duplicatedCrossRoleValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
+invalid redeclaration of 'duplicatedCrossRoleValue'
+invalid redeclaration of 'duplicatedCrossRoleValue'
 Factory for @Provide member 'ordinaryConsumer' declares parameter 'ordinaryDuplicateValue' more than once. Give every factory parameter a unique dependency name.
 invalid redeclaration of 'ordinaryDuplicateValue'
 invalid redeclaration of 'ordinaryDuplicateValue'

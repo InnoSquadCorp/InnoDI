@@ -1,0 +1,82 @@
+import InnoDI
+
+struct TaskStorageValue: Sendable {}
+
+@DIContainer
+struct UnrelatedChild {}
+
+@DIContainer(validateDAG: false, mainActor: true)
+struct TaskStorageCollisionContainer {
+    @Provide(
+        .shared,
+        factory: TaskStorageValue(),
+        concrete: true
+    )
+    var task_cache: TaskStorageValue
+
+    @Provide(
+        .shared,
+        asyncFactory: { () async in TaskStorageValue() },
+        concrete: true
+    )
+    var cache: TaskStorageValue
+
+    @Provide(.input)
+    var unrelated: Int
+
+    @SubContainer(scope: .shared, with: [])
+    var unrelatedChild: UnrelatedChild
+}
+
+@DIContainer
+struct StorageSubChild {}
+
+@DIContainer
+struct StorageSubCollisionContainer {
+    @Provide(.input)
+    var sub_feature: Int
+
+    @SubContainer(scope: .shared, with: [])
+    var feature: StorageSubChild
+}
+
+@DIContainer
+struct OverrideSubChild {}
+
+@DIContainer
+struct OverrideSubCollisionContainer {
+    @Provide(.transient, factory: 1, concrete: true)
+    var sub_feature: Int
+
+    @SubContainer(scope: .transient, with: [])
+    var feature: OverrideSubChild
+}
+
+@DIContainer
+struct OverrideSubApplyChild {}
+
+@DIContainer
+struct OverrideSubApplyCollisionContainer {
+    @Provide(.transient, factory: 2, concrete: true)
+    var sub_apply_feature: Int
+
+    @SubContainer(scope: .shared, with: [])
+    var feature: OverrideSubApplyChild
+}
+
+@DIContainer
+struct SubApplyChild {}
+
+@DIContainer
+struct SubApplyCollisionContainer {
+    @SubContainer(scope: .shared, with: [])
+    var apply_feature: SubApplyChild
+
+    @SubContainer(scope: .transient, with: [])
+    var feature: SubApplyChild
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

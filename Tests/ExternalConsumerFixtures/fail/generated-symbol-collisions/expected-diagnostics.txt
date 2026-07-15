@@ -1,0 +1,5 @@
+@DIContainer member 'cache' would generate support symbol '_storage_task_cache', but earlier managed member 'task_cache' already claims it. Rename one of the @Provide or @SubContainer properties.
+@DIContainer member 'feature' would generate support symbol '_storage_sub_feature', but earlier managed member 'sub_feature' already claims it. Rename one of the @Provide or @SubContainer properties.
+@DIContainer member 'feature' would generate support symbol '_override_sub_feature', but earlier managed member 'sub_feature' already claims it. Rename one of the @Provide or @SubContainer properties.
+@DIContainer member 'feature' would generate support symbol '_override_sub_apply_feature', but earlier managed member 'sub_apply_feature' already claims it. Rename one of the @Provide or @SubContainer properties.
+@DIContainer member 'feature' would generate support symbol '_override_sub_apply_feature', but earlier managed member 'apply_feature' already claims it. Rename one of the @Provide or @SubContainer properties.

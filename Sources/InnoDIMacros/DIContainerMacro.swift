@@ -186,7 +186,6 @@ extension DIContainerMacro: MemberAttributeMacro {
         ) else {
             return []
         }
-
         let provideAttributes = findInnoDIAttributes(
             named: "Provide",
             in: variable.attributes
@@ -243,24 +242,32 @@ extension DIContainerMacro: MemberAttributeMacro {
             attributes.append(mainActorAttribute())
         }
 
-        if hasProvide,
-           !hasSubContainer,
-           provideAttributes.count == 1,
-           isInstanceMember,
-           canAttachGeneratedProvideAccessor(to: variable) {
-            let recovery = provideMemberValidationRecovery(
-                member: variable,
-                in: declaration,
-                options: options
-            )
+        let shouldAttachProvideAccessor = hasProvide
+            && !hasSubContainer
+            && provideAttributes.count == 1
+            && isInstanceMember
+            && canAttachGeneratedProvideAccessor(to: variable)
+        let shouldAttachSubContainerAccessor = hasSubContainer
+            && subContainerAttributes.count == 1
+            && isInstanceMember
+            && canAttachGeneratedSubContainerAccessor(to: variable)
+        let hasGeneratedPeerCollision =
+            (shouldAttachProvideAccessor || shouldAttachSubContainerAccessor)
+            && hasGeneratedPeerSymbolCollision(in: declaration)
+
+        if shouldAttachProvideAccessor {
+            let recovery = hasGeneratedPeerCollision
+                || provideMemberValidationRecovery(
+                    member: variable,
+                    in: declaration,
+                    options: options
+                )
             attributes.append(provideAccessorAttribute(recovery: recovery))
         }
 
-        if hasSubContainer,
-           subContainerAttributes.count == 1,
-           isInstanceMember,
-           canAttachGeneratedSubContainerAccessor(to: variable) {
-            let recovery = hasProvide
+        if shouldAttachSubContainerAccessor {
+            let recovery = hasGeneratedPeerCollision
+                || hasProvide
                 || subContainerMemberValidationRecovery(
                     member: variable,
                     in: declaration,
@@ -372,7 +379,7 @@ private func provideMemberValidationRecovery(
         return true
     }
 
-    if hasDuplicateProvideMemberName(
+    if hasDuplicateManagedMemberName(
         member,
         in: declaration,
         options: options

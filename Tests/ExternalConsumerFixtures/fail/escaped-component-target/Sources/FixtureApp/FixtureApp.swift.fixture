@@ -1,0 +1,12 @@
+import InnoDI
+
+@DIComponent
+@DIContainer
+struct `default` {
+    @Provide(.input) var value: Int
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

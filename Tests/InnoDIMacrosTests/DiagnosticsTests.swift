@@ -51,7 +51,8 @@ struct DiagnosticsTests {
             .containerUnmanagedStoredProperty,
             .swiftUIEnvironmentBridgeExtensionContextUnsupported,
             .swiftUIEnvironmentBridgeUnsupportedDeclarationKind,
-            .swiftUIEnvironmentBridgePrivateNestedTarget
+            .swiftUIEnvironmentBridgePrivateNestedTarget,
+            .componentEscapedTargetUnsupported
         ]
 
         let validationCodes: [InnoDIDiagnosticCode] = [
@@ -108,7 +109,8 @@ struct DiagnosticsTests {
             .swiftUIEnvironmentBridgeGeneratedNameConflict,
             .containerReservedNamePrefix,
             .containerReservedModuleName,
-            .containerDuplicateMemberName
+            .containerDuplicateMemberName,
+            .containerGeneratedSymbolCollision
         ]
 
         for code in usageCodes {
@@ -204,9 +206,11 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.swiftUIEnvironmentBridgeUnsupportedDeclarationKind(name: "Bridge", kind: "an actor"), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-unsupported-declaration-kind")),
             (SimpleDiagnostic.swiftUIEnvironmentBridgePrivateNestedTarget(name: "Bridge"), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-private-nested-target")),
             (SimpleDiagnostic.swiftUIEnvironmentBridgeParameterPackUnsupported(), MessageID(domain: "InnoDI.usage", id: "swiftui.environment-bridge-parameter-pack-unsupported")),
+            (SimpleDiagnostic.componentEscapedTargetUnsupported(name: "default"), MessageID(domain: "InnoDI.usage", id: "component.escaped-target-unsupported")),
             (SimpleDiagnostic.containerReservedNamePrefix(memberName: "_storage_config", reservedPrefix: "_storage_"), MessageID(domain: "InnoDI.validation", id: "container.reserved-name-prefix")),
             (SimpleDiagnostic.containerReservedModuleName(memberName: "InnoDI"), MessageID(domain: "InnoDI.validation", id: "container.reserved-module-name")),
-            (SimpleDiagnostic.containerDuplicateMemberName(memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.duplicate-member-name"))
+            (SimpleDiagnostic.containerDuplicateMemberName(memberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.duplicate-member-name")),
+            (SimpleDiagnostic.containerGeneratedSymbolCollision(conflictingMemberName: "task_service", generatedName: "_storage_task_service", firstMemberName: "service"), MessageID(domain: "InnoDI.validation", id: "container.generated-symbol-collision"))
         ]
 
         for item in cases {

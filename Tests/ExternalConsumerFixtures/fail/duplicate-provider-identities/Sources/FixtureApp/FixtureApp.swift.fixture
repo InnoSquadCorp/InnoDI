@@ -19,6 +19,27 @@ struct DuplicateMainActorProviderMemberContainer {
 }
 
 @DIContainer
+struct DuplicateManagedIdentityChild {}
+
+@DIContainer
+struct DuplicateSubContainerMemberContainer {
+    @SubContainer(scope: .shared, with: [])
+    var duplicatedSubValue: DuplicateManagedIdentityChild
+
+    @SubContainer(scope: .transient, with: [])
+    var duplicatedSubValue: DuplicateManagedIdentityChild
+}
+
+@DIContainer
+struct DuplicateCrossRoleMemberContainer {
+    @Provide(.input)
+    var duplicatedCrossRoleValue: Int
+
+    @SubContainer(scope: .shared, with: [])
+    var duplicatedCrossRoleValue: DuplicateManagedIdentityChild
+}
+
+@DIContainer
 struct DuplicateFactoryParameterContainer {
     @Provide(
         .shared,

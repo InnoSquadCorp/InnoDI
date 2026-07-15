@@ -233,6 +233,7 @@ release.
 | Non-main-actor async `withOverrides` | Generated `async` / `async throws` methods and operation closure types are `nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary non-`Sendable` containers and closures stay within the caller's isolation. Sync overloads are unchanged. |
 | Validation | Replace dynamic scope expressions, conditional provider attributes, and complete `@Provide` or `@SubContainer` member declarations inside `#if` with supported, statically analyzable forms. |
 | Generated names | Rename direct container declarations beginning with `_storage_`, `_override_`, `_innoDI`, or `_InnoDI`, plus any direct declaration named `InnoDI`, nested type/typealias named `Swift` or `_Concurrency`, and a container, enclosing nominal, or generic parameter named `InnoDI`, `Swift`, or `_Concurrency`. Value members named `Swift` or `_Concurrency` remain available. `@DIEnvironmentBridge` also reserves type-namespace `Swift`, `SwiftUI`, and `InnoDISwiftUI` in its target and visible enclosing binders, supports only struct/class/enum targets, and no longer supports an extension target or a target nested in an extension. Until the target-scoped full-source preflight lands later in the 5.0 train, also avoid shadowing members in enclosing declarations, direct extension attachments, and standalone local bridge targets because attached macros cannot validate those scopes before the compiler's attached-extension checks. Direct extension and local targets may receive Swift's compiler-owned restriction first. Former implementation-local spellings such as `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, and `_lazySelf` are available again. Public initializer and operation labels are unchanged. |
+| Generated peer collisions | Give every direct `@Provide` and `@SubContainer` property a unique name across both roles. Distinct names can still map to the same hidden peer—for example async `X` and `task_X`, or child `X` and `sub_X`, `sub_apply_X`, or `apply_X`. Follow `container.generated-symbol-collision` and rename either declaration; the diagnostic names the exact generated symbol and its first source claim. |
 | Graph JSON | Migrate consumers to schema v2 module-qualified IDs and explicit target/root-pruning scope. |
 | `@GenerateMock` | Remains experimental; no migration or GA freeze is implied by 5.0. |
 
@@ -267,14 +268,19 @@ generic parameter pack; use ordinary generic parameters or a non-generic
 adapter type.
 
 5.0 splits the component mounting marker by isolation. Ordinary components
-continue to conform to `_InnoDIComponentMountable`; components whose container
-uses `mainActor: true` instead conform to
-`_InnoDIMainActorComponentMountable`. Update generic mounting helpers with a
-separate `@MainActor` actor-marker overload and type its override parameter as
+continue to conform to `InnoDI._InnoDIComponentMountable`; components whose
+container uses `mainActor: true` instead conform to
+`InnoDI._InnoDIMainActorComponentMountable`. Hierarchy roots similarly conform
+to `InnoDI.DIHierarchyRootMarker`. These module-qualified conformances cannot
+be captured by same-named declarations in a consumer module. Update generic
+mounting helpers with a separate `@MainActor` actor-marker overload and type its override parameter as
 `@MainActor (inout Component._InnoDIComponentOverrides) -> Void`. A helper that
 only constrains `_InnoDIComponentMountable` no longer accepts a main-actor
 component. Keep a non-`Sendable` mounted result inside the `@MainActor` caller
 or the `MainActor.run` block instead of returning it to an off-actor context.
+Rename a backtick-escaped `@DIComponent` target to an unescaped Swift
+identifier so its generated `<Container>Dependencies` protocol has one
+canonical name.
 
 For containers without `mainActor: true`, keep asynchronous `withOverrides`
 work on the caller's isolation. The generated `async` and `async throws`
@@ -322,7 +328,11 @@ Do not attach `_InnoDIProvideAccessor` yourself. It is internal accessor
 support synthesized by the container macro for valid provider members.
 Keep only one `@Provide` attribute per property, and give every direct provider
 property and root factory dependency parameter a unique, unescaped effective
-name. `@SubContainer` property names must also be unescaped and declared
+name. Direct `@Provide` and `@SubContainer` properties share one managed-member
+identity namespace, so their names must also be unique across roles. Even when
+the source names differ, rename a declaration if
+`container.generated-symbol-collision` reports that both declarations map to
+the same hidden peer. `@SubContainer` property names must also be unescaped and declared
 exactly once as direct plain stored instance variables outside `#if`. Do not
 attach `_InnoDISubContainerAccessor`; the parent container owns it. A deliberately forged
 combination of the compiler-support accessor with another property wrapper can

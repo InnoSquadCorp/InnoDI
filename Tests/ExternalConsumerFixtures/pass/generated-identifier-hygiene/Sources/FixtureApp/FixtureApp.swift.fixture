@@ -45,6 +45,27 @@ struct EmptyChild {
 }
 
 @DIContainer
+struct GeneratedPeerNearMissContainer {
+    @Provide(.shared, factory: 25, concrete: true)
+    var task_cache: Int
+
+    @Provide(.shared, factory: 26, concrete: true)
+    var cache: Int
+
+    @Provide(.input)
+    var sub_feature: Int
+
+    @SubContainer(scope: .transient, with: [])
+    var feature: EmptyChild
+
+    @Provide(.transient, factory: 28, concrete: true)
+    var apply_other: Int
+
+    @SubContainer(scope: .shared, with: [])
+    var other: EmptyChild
+}
+
+@DIContainer
 struct ConvenienceNamesContainer {
     @Provide(.input) var applyOverrides: Int
     @Provide(.input) var overrides: Int
@@ -233,6 +254,16 @@ struct FixtureApp {
     static func main() async {
         let bridgeValueNames = BridgeValueNames(Swift: 1, SwiftUI: 2)
         precondition(bridgeValueNames.Swift + bridgeValueNames.SwiftUI == 3)
+
+        let generatedPeerNearMiss = GeneratedPeerNearMissContainer(
+            sub_feature: 27
+        )
+        precondition(generatedPeerNearMiss.task_cache == 25)
+        precondition(generatedPeerNearMiss.cache == 26)
+        precondition(generatedPeerNearMiss.sub_feature == 27)
+        precondition(generatedPeerNearMiss.feature.value == 0)
+        precondition(generatedPeerNearMiss.apply_other == 28)
+        precondition(generatedPeerNearMiss.other.value == 0)
 
         let convenience = ConvenienceNamesContainer(
             applyOverrides: 1,

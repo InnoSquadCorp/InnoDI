@@ -227,6 +227,7 @@ release라는 이유만으로 experimental 기능을 자동 GA로 올리지 않�
 | Non-main-actor async `withOverrides` | 생성되는 `async` / `async throws` 메서드와 operation closure 타입은 `nonisolated(nonsending)`입니다. 호출자 actor executor를 유지하므로 임의의 non-`Sendable` container와 closure가 호출자 isolation 안에 머뭅니다. 동기 overload는 바뀌지 않습니다. |
 | Validation | 동적 scope expression, conditional provider attribute, `#if` 안의 완전한 `@Provide` 또는 `@SubContainer` 멤버 선언을 지원되는 정적 형태로 바꾸세요. |
 | 생성 이름 | `_storage_`, `_override_`, `_innoDI`, `_InnoDI`로 시작하는 direct container declaration, `InnoDI`라는 direct declaration, `Swift` 또는 `_Concurrency`라는 nested type/typealias, 그리고 `InnoDI`·`Swift`·`_Concurrency`라는 container, enclosing nominal, generic parameter 이름을 바꾸세요. 값 namespace의 `Swift`, `_Concurrency` 멤버는 계속 사용할 수 있습니다. `@DIEnvironmentBridge`는 target와 보이는 enclosing binder의 type namespace에서 `Swift`, `SwiftUI`, `InnoDISwiftUI`를 예약하고 struct/class/enum target만 지원하며, extension 대상 또는 extension 안의 대상은 더 이상 지원하지 않습니다. 5.0 후속 단계에서 target-scoped full-source preflight가 추가되기 전까지 attached macro가 볼 수 없는 enclosing declaration의 shadowing member, direct extension attachment, 독립적인 local bridge target도 피하세요. Direct extension과 local target은 Swift의 compiler-owned 제한이 먼저 발생할 수 있습니다. 예전 구현 로컬 이름인 `_resolved_`, `_task_`, `_lazyCell_`, `_subBuildCell_`, `_lazySelf`는 다시 사용할 수 있습니다. 공개 initializer와 operation label은 바뀌지 않습니다. |
+| 생성 peer 충돌 | Direct `@Provide`와 `@SubContainer` property는 두 역할 전체에서 고유한 이름을 사용하세요. 서로 다른 이름도 같은 hidden peer로 변환될 수 있습니다. 예를 들어 async `X`와 `task_X`, 또는 child `X`와 `sub_X`, `sub_apply_X`, `apply_X`가 충돌할 수 있습니다. `container.generated-symbol-collision`이 가리키는 두 선언 중 하나를 바꾸세요. 진단에는 정확한 생성 symbol과 최초 source claim이 표시됩니다. |
 | Graph JSON | module-qualified ID와 명시적 target/root-pruning scope를 갖는 schema v2로 consumer를 옮기세요. |
 | `@GenerateMock` | experimental 상태를 유지하며, 5.0이 migration 또는 GA freeze를 뜻하지 않습니다. |
 
@@ -259,14 +260,19 @@ parameter pack을 선언한 target에서는 bridge를 떼고 일반 generic para
 non-generic adapter type을 사용하세요.
 
 5.0에서는 component mounting marker를 isolation에 따라 분리합니다. 일반
-component는 `_InnoDIComponentMountable`에 계속 conform하고, container가
-`mainActor: true`인 component는 대신 `_InnoDIMainActorComponentMountable`에
-conform합니다. generic mounting helper에는 `@MainActor` actor marker용 overload를 별도로
-추가하고 override parameter를
+component는 `InnoDI._InnoDIComponentMountable`에 계속 conform하고, container가
+`mainActor: true`인 component는 대신
+`InnoDI._InnoDIMainActorComponentMountable`에 conform합니다. Hierarchy root도
+`InnoDI.DIHierarchyRootMarker`에 conform합니다. Module qualifier 때문에 consumer
+module의 같은 이름 선언이 생성 conformance를 가로채지 못합니다. generic mounting
+helper에는 `@MainActor` actor marker용 overload를 별도로 추가하고 override parameter를
 `@MainActor (inout Component._InnoDIComponentOverrides) -> Void`로 선언하세요.
 `_InnoDIComponentMountable`만 constraint로 사용하는 helper는 더 이상 main-actor
 component를 받지 않습니다. non-`Sendable` mount 결과는 actor 밖으로 반환하지 말고
 `@MainActor` caller나 `MainActor.run` block 안에서 계속 사용하세요.
+Backtick으로 escape한 `@DIComponent` target은 unescaped Swift identifier로 이름을
+바꿔 생성되는 `<Container>Dependencies` protocol 이름이 하나의 canonical spelling을
+갖도록 하세요.
 
 `mainActor: true`를 사용하지 않는 컨테이너의 비동기 `withOverrides` 작업은 호출자
 isolation에 유지하세요. 생성되는 `async`와 `async throws` 메서드 및 operation
@@ -310,7 +316,10 @@ var service: Service
 컨테이너 매크로가 합성하는 내부 accessor 지원입니다.
 프로퍼티마다 `@Provide` attribute는 하나만 남기고 모든 direct provider property와
 root factory dependency parameter에 고유한 unescaped effective 이름을 사용하세요.
-`@SubContainer` property 이름도 unescaped여야 하며 `#if` 밖의 직접적이고
+Direct `@Provide`와 `@SubContainer` property는 하나의 managed-member identity
+namespace를 공유하므로 역할을 가로질러서도 이름이 고유해야 합니다. Source 이름이
+서로 달라도 `container.generated-symbol-collision`이 같은 hidden peer를 가리키면
+둘 중 하나의 이름을 바꾸세요. `@SubContainer` property 이름도 unescaped여야 하며 `#if` 밖의 직접적이고
 평범한 stored instance variable에 정확히 한 번 선언해야 합니다.
 `_InnoDISubContainerAccessor`를 직접 붙이지 마세요. Parent container가 소유합니다.
 Compiler-support accessor와

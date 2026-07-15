@@ -268,7 +268,7 @@ struct HierarchyMacroTests {
                     }
                 }
 
-                extension FeatureContainer: _InnoDIComponentMountable {
+                extension FeatureContainer: InnoDI._InnoDIComponentMountable {
                     public typealias _InnoDIComponentDependencies = any FeatureContainerDependencies
                     public typealias _InnoDIComponentOverrides = Overrides
                 }
@@ -328,7 +328,7 @@ struct HierarchyMacroTests {
         )
         #expect(
             extensionDecl.inheritanceClause?.inheritedTypes.first?.type.trimmedDescription
-                == "_InnoDIMainActorComponentMountable"
+                == "InnoDI._InnoDIMainActorComponentMountable"
         )
     }
 
@@ -391,7 +391,94 @@ struct HierarchyMacroTests {
         )
         #expect(
             mountableConformance.type.trimmedDescription
-                == "_InnoDIMainActorComponentMountable"
+                == "InnoDI._InnoDIMainActorComponentMountable"
+        )
+    }
+
+    @Test("Hierarchy macros module-qualify every runtime marker")
+    func hierarchyMacrosModuleQualifyRuntimeMarkers() throws {
+        let source = Parser.parse(
+            source: """
+                @DIHierarchyRoot
+                @DIContainer
+                struct AppContainer {}
+                """
+        )
+        let root = try #require(
+            source.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let attribute = try #require(
+            root.attributes.first?.as(AttributeSyntax.self)
+        )
+        let context = TestMacroExpansionContext()
+
+        let extensions = try DIHierarchyRootMacro.expansion(
+            of: attribute,
+            attachedTo: root,
+            providingExtensionsOf: TypeSyntax(stringLiteral: "AppContainer"),
+            conformingTo: [],
+            in: context
+        )
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(extensions.count == 1)
+        #expect(
+            extensions.first?.inheritanceClause?.inheritedTypes.first?.type.trimmedDescription
+                == "InnoDI.DIHierarchyRootMarker"
+        )
+    }
+
+    @Test("DIComponent escaped target diagnostic belongs only to the peer role")
+    func componentEscapedTargetHasStableRoleOwnership() throws {
+        let source = Parser.parse(
+            source: """
+                @DIComponent
+                @DIContainer
+                struct `default` {
+                    @Provide(.input) var value: Int
+                }
+                """
+        )
+        let component = try #require(
+            source.statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let attribute = try #require(
+            component.attributes.first?.as(AttributeSyntax.self)
+        )
+        let context = TestMacroExpansionContext()
+
+        let peers = try DIComponentMacro.expansion(
+            of: attribute,
+            providingPeersOf: component,
+            in: context
+        )
+        let members = try DIComponentMacro.expansion(
+            of: attribute,
+            providingMembersOf: component,
+            in: context
+        )
+        let extensions = try DIComponentMacro.expansion(
+            of: attribute,
+            attachedTo: component,
+            providingExtensionsOf: TypeSyntax(stringLiteral: "`default`"),
+            conformingTo: [],
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(members.isEmpty)
+        #expect(extensions.isEmpty)
+        #expect(context.diagnostics.count == 1)
+        #expect(
+            context.diagnostics.first?.diagnosticID
+                == MessageID(
+                    domain: "InnoDI.usage",
+                    id: "component.escaped-target-unsupported"
+                )
+        )
+        #expect(
+            context.diagnostics.first?.message
+                == "@DIComponent target 'default' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name."
         )
     }
 

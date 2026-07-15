@@ -755,16 +755,16 @@ final class DiagnosticSuppressingMacroExpansionContext<
     }
 }
 
-/// Uses the same direct-provider eligibility boundary as `DIContainerParser`
-/// before deciding that two declarations compete for one generated identity.
+/// Uses the same direct managed-member eligibility boundary as `DIContainerParser`
+/// before deciding that two managed declarations compete for one identity.
 /// The container member-attribute role calls this before attaching the hidden
 /// storage/accessor owner, so its single recovery bit suppresses both roles.
-func hasDuplicateProvideMemberName(
+func hasDuplicateManagedMemberName(
     _ member: VariableDeclSyntax,
     in declaration: some DeclGroupSyntax,
     options: DIContainerAttributeInfo
 ) -> Bool {
-    guard isEligibleProvideMemberForDuplicateIdentity(
+    guard isEligibleManagedMemberForDuplicateIdentity(
         member,
         options: options
     ), let memberName = member.bindings.first?
@@ -775,7 +775,7 @@ func hasDuplicateProvideMemberName(
     var matchingCount = 0
     for sibling in declaration.memberBlock.members {
         guard let variable = sibling.decl.as(VariableDeclSyntax.self),
-              isEligibleProvideMemberForDuplicateIdentity(
+              isEligibleManagedMemberForDuplicateIdentity(
                   variable,
                   options: options
               ),
@@ -792,7 +792,7 @@ func hasDuplicateProvideMemberName(
     return false
 }
 
-private func isEligibleProvideMemberForDuplicateIdentity(
+private func isEligibleManagedMemberForDuplicateIdentity(
     _ variable: VariableDeclSyntax,
     options: DIContainerAttributeInfo
 ) -> Bool {
@@ -802,10 +802,22 @@ private func isEligibleProvideMemberForDuplicateIdentity(
         return false
     }
 
-    return findInnoDIAttributes(
+    let provideAttributes = findInnoDIAttributes(
         named: "Provide",
         in: variable.attributes
-    ).count == 1
+    )
+    let subContainerAttributes = findInnoDIAttributes(
+        named: "SubContainer",
+        in: variable.attributes
+    )
+    let hasExactlyOneManagedRole =
+        (provideAttributes.count == 1 && subContainerAttributes.isEmpty)
+        || (subContainerAttributes.count == 1 && provideAttributes.isEmpty)
+    let hasSupportedShape = provideAttributes.count == 1
+        ? isSupportedProvideStoredProperty(variable)
+        : isSupportedSubContainerStoredProperty(variable)
+
+    return hasExactlyOneManagedRole
         && !variable.modifiers.contains(where: {
             $0.name.text == "static" || $0.name.text == "class"
         })
@@ -819,10 +831,6 @@ private func isEligibleProvideMemberForDuplicateIdentity(
                 )
         )
         && findInnoDIAttribute(
-            named: "SubContainer",
-            in: variable.attributes
-        ) == nil
-        && findInnoDIAttribute(
             named: "_InnoDIProvideAccessor",
             in: variable.attributes
         ) == nil
@@ -830,7 +838,7 @@ private func isEligibleProvideMemberForDuplicateIdentity(
             named: "_InnoDISubContainerAccessor",
             in: variable.attributes
         ) == nil
-        && isSupportedProvideStoredProperty(variable)
+        && hasSupportedShape
         && variable.bindings.first?.typeAnnotation != nil
         && variable.bindings.first?.pattern.is(IdentifierPatternSyntax.self) == true
 }

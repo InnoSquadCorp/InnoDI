@@ -110,7 +110,7 @@ struct DIContainerParser {
         let accessLevel = containerAccessLevel(for: decl)
         var members: [ProvideMemberModel] = []
         var subContainerMembers: [SubContainerMemberModel] = []
-        var firstProvideIdentifierByName: [String: TokenSyntax] = [:]
+        var firstManagedIdentifierByName: [String: TokenSyntax] = [:]
         var hadErrors = false
 
         if diagnoseInvalidContainerBoolArguments(
@@ -173,7 +173,7 @@ struct DIContainerParser {
             hadErrors = true
         }
 
-        for member in decl.memberBlock.members {
+        for (sourceOrder, member) in decl.memberBlock.members.enumerated() {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else {
                 continue
             }
@@ -313,6 +313,15 @@ struct DIContainerParser {
                 let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
                 let invalidBindingReferences = extractInvalidSubContainerBindingReferences(from: subAttribute)
                 let memberName = validatedBinding.identifier.identifier.text
+                if diagnoseDuplicateManagedMemberName(
+                    memberName,
+                    identifier: validatedBinding.identifier.identifier,
+                    firstIdentifierByName: &firstManagedIdentifierByName,
+                    context: context
+                ) {
+                    hadErrors = true
+                    continue
+                }
                 let featureRoots = extractFeatureRootReferences(
                     from: subAttribute,
                     propertyName: memberName,
@@ -326,6 +335,7 @@ struct DIContainerParser {
                 }
                 subContainerMembers.append(
                     SubContainerMemberModel(
+                        sourceOrder: sourceOrder,
                         name: memberName,
                         type: validatedBinding.typeAnnotation.type,
                         scope: subArgs.scope,
@@ -382,29 +392,15 @@ struct DIContainerParser {
             }
 
             let memberName = validatedBinding.identifier.identifier.text
-            if let firstIdentifier = firstProvideIdentifierByName[memberName] {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(validatedBinding.identifier.identifier),
-                        message: SimpleDiagnostic.containerDuplicateMemberName(
-                            memberName: memberName
-                        ),
-                        notes: [
-                            Note(
-                                node: Syntax(firstIdentifier),
-                                message: SimpleNote(
-                                    "The first @Provide member named '\(memberName)' is declared here.",
-                                    code: .containerDuplicateMemberName,
-                                    suffix: "first-declaration"
-                                )
-                            )
-                        ]
-                    )
-                )
+            if diagnoseDuplicateManagedMemberName(
+                memberName,
+                identifier: validatedBinding.identifier.identifier,
+                firstIdentifierByName: &firstManagedIdentifierByName,
+                context: context
+            ) {
                 hadErrors = true
                 continue
             }
-            firstProvideIdentifierByName[memberName] = validatedBinding.identifier.identifier
 
             let parseResult = InnoDICore.parseProvideArguments(attribute)
             let withDependencyReferences = extractWithDependencyReferences(
@@ -467,6 +463,7 @@ struct DIContainerParser {
             let initializerExpr = validatedBinding.binding.initializer?.value
             members.append(
                 ProvideMemberModel(
+                    sourceOrder: sourceOrder,
                     name: memberName,
                     type: validatedBinding.typeAnnotation.type,
                     scope: scope,
@@ -502,6 +499,38 @@ struct DIContainerParser {
             subContainerMembers: subContainerMembers
         )
     }
+}
+
+private func diagnoseDuplicateManagedMemberName(
+    _ memberName: String,
+    identifier: TokenSyntax,
+    firstIdentifierByName: inout [String: TokenSyntax],
+    context: some MacroExpansionContext
+) -> Bool {
+    guard let firstIdentifier = firstIdentifierByName[memberName] else {
+        firstIdentifierByName[memberName] = identifier
+        return false
+    }
+
+    context.diagnose(
+        Diagnostic(
+            node: Syntax(identifier),
+            message: SimpleDiagnostic.containerDuplicateMemberName(
+                memberName: memberName
+            ),
+            notes: [
+                Note(
+                    node: Syntax(firstIdentifier),
+                    message: SimpleNote(
+                        "The first managed dependency member named '\(memberName)' is declared here.",
+                        code: .containerDuplicateMemberName,
+                        suffix: "first-declaration"
+                    )
+                )
+            ]
+        )
+    )
+    return true
 }
 
 /// Collects initializers declared directly in a container or its matching
@@ -1116,26 +1145,9 @@ private func featureRootHelperConflicts(
         return true
     }
 
-    for member in declaration.memberBlock.members {
-        let decl = member.decl
-
-        if let functionDecl = decl.as(FunctionDeclSyntax.self),
-           functionDecl.name.text == helperName {
-            return true
-        }
-
-        guard let variableDecl = decl.as(VariableDeclSyntax.self) else {
-            continue
-        }
-
-        if variableDecl.bindings.contains(where: {
-            $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == helperName
-        }) {
-            return true
-        }
+    return directContainerDeclarationNames(in: declaration).contains {
+        $0.namespace == .value && $0.name == helperName
     }
-
-    return false
 }
 
 private func finalKeyPathExpression(_ expression: ExprSyntax) -> KeyPathExprSyntax? {

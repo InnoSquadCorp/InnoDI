@@ -26,6 +26,21 @@ extension DIComponentMacro: PeerMacro {
             return []
         }
 
+        guard let targetName = hierarchyNominalNameToken(for: declGroup) else {
+            return []
+        }
+        guard !isEscapedInnoDIIdentifier(targetName) else {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(targetName),
+                    message: SimpleDiagnostic.componentEscapedTargetUnsupported(
+                        name: unescapedInnoDIIdentifierName(targetName)
+                    )
+                )
+            )
+            return []
+        }
+
         guard classifyDIContainerDeclaration(
             declGroup,
             lexicalContext: context.lexicalContext
@@ -78,6 +93,10 @@ extension DIComponentMacro: MemberMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
+            return []
+        }
+        guard let targetName = hierarchyNominalNameToken(for: declaration),
+              !isEscapedInnoDIIdentifier(targetName) else {
             return []
         }
 
@@ -154,6 +173,10 @@ extension DIComponentMacro: ExtensionMacro {
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
+            return []
+        }
+        guard let targetName = hierarchyNominalNameToken(for: declaration),
+              !isEscapedInnoDIIdentifier(targetName) else {
             return []
         }
 
@@ -250,18 +273,27 @@ private struct HierarchyInputMember {
     let type: TypeSyntax
 }
 
-private func hierarchyNominalTypeInfo(for declaration: some DeclGroupSyntax) -> HierarchyNominalTypeInfo? {
+private func hierarchyNominalNameToken(
+    for declaration: some DeclGroupSyntax
+) -> TokenSyntax? {
     if let structDecl = declaration.as(StructDeclSyntax.self) {
-        return HierarchyNominalTypeInfo(baseName: structDecl.name.text)
+        return structDecl.name
     }
     if let classDecl = declaration.as(ClassDeclSyntax.self) {
-        return HierarchyNominalTypeInfo(baseName: classDecl.name.text)
+        return classDecl.name
     }
     if let actorDecl = declaration.as(ActorDeclSyntax.self) {
-        return HierarchyNominalTypeInfo(baseName: actorDecl.name.text)
+        return actorDecl.name
     }
     if let enumDecl = declaration.as(EnumDeclSyntax.self) {
-        return HierarchyNominalTypeInfo(baseName: enumDecl.name.text)
+        return enumDecl.name
+    }
+    return nil
+}
+
+private func hierarchyNominalTypeInfo(for declaration: some DeclGroupSyntax) -> HierarchyNominalTypeInfo? {
+    if let name = hierarchyNominalNameToken(for: declaration) {
+        return HierarchyNominalTypeInfo(baseName: name.text)
     }
     return nil
 }
@@ -382,7 +414,10 @@ private func makeComponentMountableExtensionDecl(
             inheritedTypes: InheritedTypeListSyntax([
                 InheritedTypeSyntax(
                     type: TypeSyntax(
-                        IdentifierTypeSyntax(
+                        MemberTypeSyntax(
+                            baseType: IdentifierTypeSyntax(
+                                name: .identifier("InnoDI")
+                            ),
                             name: .identifier(
                                 isMainActor
                                     ? "_InnoDIMainActorComponentMountable"
@@ -457,7 +492,14 @@ private func makeHierarchyRootMarkerExtensionDecl(
         inheritanceClause: InheritanceClauseSyntax(
             inheritedTypes: InheritedTypeListSyntax([
                 InheritedTypeSyntax(
-                    type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("DIHierarchyRootMarker")))
+                    type: TypeSyntax(
+                        MemberTypeSyntax(
+                            baseType: IdentifierTypeSyntax(
+                                name: .identifier("InnoDI")
+                            ),
+                            name: .identifier("DIHierarchyRootMarker")
+                        )
+                    )
                 )
             ])
         ),
