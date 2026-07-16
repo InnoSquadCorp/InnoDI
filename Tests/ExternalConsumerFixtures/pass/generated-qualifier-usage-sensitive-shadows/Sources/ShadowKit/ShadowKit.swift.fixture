@@ -1,0 +1,9 @@
+public struct Swift: Sendable {
+    public init() {}
+}
+
+public enum _Concurrency {}
+
+public struct InnoDI: Sendable {
+    public init() {}
+}

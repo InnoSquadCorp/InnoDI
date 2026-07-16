@@ -16,7 +16,7 @@ struct GeneratedQualifierPreflightCLITests {
         )
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
         try """
-        @DIContainer(root: true)
+        @DIContainer(root: true, mainActor: true)
         struct AppContainer {
             @Provide(.input) var value: Int
         }

@@ -10,9 +10,18 @@ class BaseBridge {
 final class InheritedBridge: BaseBridge {}
 
 struct FeatureHost {
-    @DIContainer
+    @DIContainer(mainActor: true)
     struct AppContainer {
-        @Provide(.input) var value: Int
+        @Provide(.transient, factory: { 1 })
+        var dependency: Int
+
+        @Provide(factory: { (dependency: Provider<Int>) in
+            dependency()
+        })
+        var value: Int
+
+        @Provide(asyncFactory: { () async -> Int in 2 })
+        var asyncValue: Int
     }
 
     @DIEnvironmentBridge([])

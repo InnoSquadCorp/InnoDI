@@ -733,7 +733,6 @@ struct InnoDISwiftUIMacroTests {
             struct AppContainer {
                 struct Swift {}
                 enum SwiftUI {}
-                typealias InnoDISwiftUI = Int
             }
             """,
             expectedCodes: Array(
@@ -741,10 +740,36 @@ struct InnoDISwiftUIMacroTests {
                     domain: "InnoDI.validation",
                     id: "swiftui.environment-bridge-reserved-module-name"
                 ),
-                count: 3
+                count: 2
             ),
             macros: Self.macros
         )
+    }
+
+    @Test("DIEnvironmentBridge allows direct InnoDISwiftUI type declarations")
+    func environmentBridgeAllowsDirectInnoDISwiftUITypeNames() {
+        let result = expandMacroSource(
+            """
+            @DIEnvironmentBridge([])
+            struct NestedTypeBridge {
+                struct InnoDISwiftUI {}
+            }
+
+            @DIEnvironmentBridge([])
+            struct TypeAliasBridge {
+                typealias InnoDISwiftUI = Int
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains(
+            "extension NestedTypeBridge: InnoDISwiftUI.DIEnvironmentBridging"
+        ))
+        #expect(result.expansion.contains(
+            "extension TypeAliasBridge: InnoDISwiftUI.DIEnvironmentBridging"
+        ))
     }
 
     @Test("DIEnvironmentBridge rejects target and enclosing nominal qualifier shadows")

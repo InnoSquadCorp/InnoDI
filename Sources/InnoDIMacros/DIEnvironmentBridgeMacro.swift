@@ -517,18 +517,20 @@ private func environmentBridgeQualifierConflicts(
     in declaration: some DeclGroupSyntax,
     lexicalContext: [Syntax]
 ) -> [DirectContainerDeclarationName] {
-    let qualifierNames: Set<String> = [
+    let memberBodyQualifierNames: Set<String> = [
         "Swift",
         "SwiftUI",
-        "InnoDISwiftUI",
     ]
+    let scopeQualifierNames = memberBodyQualifierNames.union([
+        "InnoDISwiftUI",
+    ])
     let directTypeConflicts = directContainerDeclarationNames(in: declaration).filter {
-        $0.namespace == .type && qualifierNames.contains($0.name)
+        $0.namespace == .type && memberBodyQualifierNames.contains($0.name)
     }
     return directTypeConflicts + generatedQualifierScopeDeclarations(
         for: declaration,
         lexicalContext: lexicalContext,
-        qualifierNames: qualifierNames
+        qualifierNames: scopeQualifierNames
     )
 }
 
