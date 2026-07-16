@@ -107,40 +107,171 @@ RELEASING_FILE="$ROOT_DIR/RELEASING.md"
 [[ -f "$RELEASING_FILE" ]] || fail "missing release source: $RELEASING_FILE"
 
 EXPECTED_LATEST_LINE="Latest stable public release: \`$VERSION\`"
-LATEST_LINE_COUNT="$({ grep -c '^Latest stable public release:' "$RELEASING_FILE" || true; })"
-EXACT_LATEST_LINE_COUNT="$({ grep -Fxc "$EXPECTED_LATEST_LINE" "$RELEASING_FILE" || true; })"
+UNRELEASED_CANDIDATE_LINE="Current development train: \`$VERSION\` (unreleased)"
+
+RELEASE_SECTION_METRICS="$({
+    awk \
+        -v expected_latest_line="$EXPECTED_LATEST_LINE" \
+        -v unreleased_candidate_line="$UNRELEASED_CANDIDATE_LINE" \
+        -v expected_heading="## $VERSION" '
+        function has_meaningful_content(line, normalized) {
+            normalized = line
+            sub(/^[[:space:]]+/, "", normalized)
+            sub(/[[:space:]]+$/, "", normalized)
+
+            if (normalized == "" ||
+                normalized ~ /^<!--.*-->$/ ||
+                normalized ~ /^#{1,6}[[:space:]]/ ||
+                normalized ~ /^(```|~~~)/ ||
+                normalized ~ /^[-*_][-*_[:space:]]*$/) {
+                return 0
+            }
+
+            sub(/^[-*+][[:space:]]+/, "", normalized)
+            sub(/^[0-9]+[.)][[:space:]]+/, "", normalized)
+            sub(/^\[[ xX]\][[:space:]]+/, "", normalized)
+            gsub(/[[:punct:][:space:]]/, "", normalized)
+            normalized = tolower(normalized)
+
+            return normalized != "" &&
+                normalized != "ready" &&
+                normalized != "releasecandidateisready" &&
+                normalized != "tbd" &&
+                normalized != "todo" &&
+                normalized != "placeholder" &&
+                normalized != "comingsoon" &&
+                normalized != "none" &&
+                normalized != "na" &&
+                normalized != "notapplicable" &&
+                normalized != "nochanges"
+        }
+
+        {
+            line = $0
+            sub(/\r$/, "", line)
+
+            if (line ~ /^Latest stable public release:/) {
+                latest_line_count++
+            }
+            if (line == expected_latest_line) {
+                exact_latest_line_count++
+            }
+            if (line == unreleased_candidate_line) {
+                unreleased_candidate_line_count++
+            }
+            if (line == "## Unreleased") {
+                unreleased_section_count++
+            }
+
+            if (line == expected_heading) {
+                version_section_count++
+                in_expected_section = 1
+                active_subsection = ""
+                next
+            }
+
+            if (line ~ /^##[[:space:]]/) {
+                in_expected_section = 0
+                active_subsection = ""
+                next
+            }
+
+            if (!in_expected_section) {
+                next
+            }
+
+            if (line ~ /[^[:space:]]/) {
+                nonempty_version_section_count = 1
+            }
+
+            if (line == "### Highlights") {
+                highlights_count++
+                active_subsection = "highlights"
+                next
+            }
+            if (line == "### Breaking and Behavior Changes" ||
+                line == "### Breaking or Behavior Changes") {
+                breaking_count++
+                active_subsection = "breaking"
+                next
+            }
+            if (line == "### Upgrade Actions") {
+                upgrade_count++
+                active_subsection = "upgrade"
+                next
+            }
+            if (line ~ /^###[[:space:]]/) {
+                active_subsection = ""
+                next
+            }
+
+            if (!has_meaningful_content(line)) {
+                next
+            }
+
+            if (active_subsection == "highlights") {
+                highlights_has_content = 1
+            } else if (active_subsection == "breaking") {
+                breaking_has_content = 1
+            } else if (active_subsection == "upgrade") {
+                upgrade_has_content = 1
+            }
+        }
+
+        END {
+            print latest_line_count + 0,
+                exact_latest_line_count + 0,
+                unreleased_candidate_line_count + 0,
+                unreleased_section_count + 0,
+                version_section_count + 0,
+                nonempty_version_section_count + 0,
+                highlights_count + 0,
+                highlights_has_content + 0,
+                breaking_count + 0,
+                breaking_has_content + 0,
+                upgrade_count + 0,
+                upgrade_has_content + 0
+        }
+    ' "$RELEASING_FILE"
+})" || fail "failed to inspect release notes in RELEASING.md"
+
+read -r \
+    LATEST_LINE_COUNT \
+    EXACT_LATEST_LINE_COUNT \
+    UNRELEASED_CANDIDATE_LINE_COUNT \
+    UNRELEASED_SECTION_COUNT \
+    VERSION_SECTION_COUNT \
+    NONEMPTY_VERSION_SECTION_COUNT \
+    HIGHLIGHTS_SECTION_COUNT \
+    HIGHLIGHTS_HAS_CONTENT \
+    BREAKING_SECTION_COUNT \
+    BREAKING_HAS_CONTENT \
+    UPGRADE_SECTION_COUNT \
+    UPGRADE_HAS_CONTENT \
+    <<< "$RELEASE_SECTION_METRICS"
 
 [[ "$LATEST_LINE_COUNT" == "1" && "$EXACT_LATEST_LINE_COUNT" == "1" ]] || \
     fail "RELEASING.md must contain exactly one line: $EXPECTED_LATEST_LINE"
-
-UNRELEASED_CANDIDATE_LINE="Current development train: \`$VERSION\` (unreleased)"
-if grep -Fqx "$UNRELEASED_CANDIDATE_LINE" "$RELEASING_FILE"; then
+[[ "$UNRELEASED_CANDIDATE_LINE_COUNT" == "0" ]] || \
     fail "RELEASING.md cannot describe release candidate $VERSION as the current unreleased train"
-fi
-
-read -r VERSION_SECTION_COUNT NONEMPTY_VERSION_SECTION_COUNT < <(
-    awk -v expected_heading="## $VERSION" '
-        $0 == expected_heading {
-            section_count++
-            in_expected_section = 1
-            next
-        }
-        in_expected_section && /^##[[:space:]]/ {
-            in_expected_section = 0
-        }
-        in_expected_section && /[^[:space:]]/ {
-            section_has_content = 1
-        }
-        END {
-            print section_count + 0, section_has_content + 0
-        }
-    ' "$RELEASING_FILE"
-)
-
+[[ "$UNRELEASED_SECTION_COUNT" == "0" ]] || \
+    fail "RELEASING.md cannot contain a '## Unreleased' section for a release candidate"
 [[ "$VERSION_SECTION_COUNT" == "1" ]] || \
     fail "RELEASING.md must contain exactly one '## $VERSION' section (found $VERSION_SECTION_COUNT)"
 [[ "$NONEMPTY_VERSION_SECTION_COUNT" == "1" ]] || \
     fail "RELEASING.md section '## $VERSION' must be nonempty"
+[[ "$HIGHLIGHTS_SECTION_COUNT" == "1" ]] || \
+    fail "RELEASING.md section '## $VERSION' must contain exactly one '### Highlights' subsection (found $HIGHLIGHTS_SECTION_COUNT)"
+[[ "$HIGHLIGHTS_HAS_CONTENT" == "1" ]] || \
+    fail "RELEASING.md subsection '### Highlights' must contain non-placeholder content"
+[[ "$BREAKING_SECTION_COUNT" == "1" ]] || \
+    fail "RELEASING.md section '## $VERSION' must contain exactly one breaking or behavior changes subsection (found $BREAKING_SECTION_COUNT)"
+[[ "$BREAKING_HAS_CONTENT" == "1" ]] || \
+    fail "RELEASING.md breaking or behavior changes subsection must contain non-placeholder content"
+[[ "$UPGRADE_SECTION_COUNT" == "1" ]] || \
+    fail "RELEASING.md section '## $VERSION' must contain exactly one '### Upgrade Actions' subsection (found $UPGRADE_SECTION_COUNT)"
+[[ "$UPGRADE_HAS_CONTENT" == "1" ]] || \
+    fail "RELEASING.md subsection '### Upgrade Actions' must contain non-placeholder content"
 
 README_FILES=(
     "README.md"
