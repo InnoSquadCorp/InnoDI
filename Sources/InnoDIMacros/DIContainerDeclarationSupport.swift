@@ -27,13 +27,11 @@ func findInnoDIAttributes(
 /// them selectively would make expansion semantics depend on normalization.
 /// InnoDI 5.0 therefore rejects these spellings at the declaration boundary.
 func isEscapedInnoDIIdentifier(_ token: TokenSyntax) -> Bool {
-    let text = token.text
-    return text.count >= 2 && text.first == "`" && text.last == "`"
+    InnoDICore.isEscapedInnoDIIdentifier(token)
 }
 
 func unescapedInnoDIIdentifierName(_ token: TokenSyntax) -> String {
-    guard isEscapedInnoDIIdentifier(token) else { return token.text }
-    return String(token.text.dropFirst().dropLast())
+    InnoDICore.unescapedInnoDIIdentifierName(token)
 }
 
 extension DIContainerDeclarationSupport {
@@ -168,60 +166,10 @@ func isSupportedProvideStoredProperty(
     _ declaration: VariableDeclSyntax,
     allowingGeneratedMainActor: Bool = false
 ) -> Bool {
-    guard declaration.bindingSpecifier.tokenKind == .keyword(.var),
-          declaration.bindings.count == 1,
-          declaration.bindings.first?.accessorBlock == nil else {
-        return false
-    }
-
-    let unsupportedStorageModifiers: Set<String> = [
-        "class",
-        "lazy",
-        "static",
-        "unowned",
-        "weak",
-    ]
-    guard !declaration.modifiers.contains(where: {
-        unsupportedStorageModifiers.contains($0.name.text)
-            || $0.detail?.detail.text == "set"
-    }) else {
-        return false
-    }
-
-    // SwiftSyntax cannot resolve an arbitrary attribute's semantic role. Keep
-    // the 5.0 declaration contract closed: allow only InnoDI's cooperating
-    // property attributes, plus `MainActor` after the container macro itself
-    // generated it. Source-written actor-looking attributes are rejected before
-    // an accessor macro can collide with a property wrapper because syntax
-    // macros cannot distinguish `Swift.MainActor` from a user-defined
-    // `@propertyWrapper struct MainActor` at this phase.
-    let supportedAttributeNames: Set<String> = [
-        "Provide",
-        "SubContainer",
-        "_InnoDIProvideAccessor",
-        "_InnoDISubContainerAccessor",
-    ]
-    return declaration.attributes.allSatisfy { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            // An AttributeList `#if` can hide a storage-transforming wrapper.
-            // Syntax macros cannot prove the active branch, so 5.0 rejects the
-            // declaration instead of attaching an accessor optimistically.
-            return false
-        }
-        if InnoDICore.matchesAttribute(
-            named: "MainActor",
-            attributeName: attribute.attributeName,
-            allowingQualifiedModules: ["Swift"]
-        ) {
-            return allowingGeneratedMainActor
-        }
-        return supportedAttributeNames.contains { name in
-            InnoDICore.matchesInnoDIAttribute(
-                named: name,
-                attributeName: attribute.attributeName
-            )
-        }
-    }
+    InnoDICore.isSupportedProvideStoredProperty(
+        declaration,
+        allowingGeneratedMainActor: allowingGeneratedMainActor
+    )
 }
 
 /// `@SubContainer` uses the same closed stored-instance boundary as provider
@@ -231,42 +179,7 @@ func isSupportedProvideStoredProperty(
 func isSupportedSubContainerStoredProperty(
     _ declaration: VariableDeclSyntax
 ) -> Bool {
-    guard declaration.bindingSpecifier.tokenKind == .keyword(.var),
-          declaration.bindings.count == 1,
-          declaration.bindings.first?.accessorBlock == nil else {
-        return false
-    }
-
-    let unsupportedStorageModifiers: Set<String> = [
-        "class",
-        "lazy",
-        "nonisolated",
-        "static",
-        "unowned",
-        "weak",
-    ]
-    guard !declaration.modifiers.contains(where: {
-        unsupportedStorageModifiers.contains($0.name.text)
-            || $0.detail?.detail.text == "set"
-    }) else {
-        return false
-    }
-
-    let supportedAttributeNames: Set<String> = [
-        "Provide",
-        "SubContainer",
-    ]
-    return declaration.attributes.allSatisfy { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            return false
-        }
-        return supportedAttributeNames.contains { name in
-            InnoDICore.matchesInnoDIAttribute(
-                named: name,
-                attributeName: attribute.attributeName
-            )
-        }
-    }
+    InnoDICore.isSupportedSubContainerStoredProperty(declaration)
 }
 
 struct UnmanagedStoredContainerMember {
@@ -374,18 +287,10 @@ func canAttachGeneratedProvideAccessor(
     to declaration: VariableDeclSyntax,
     allowingGeneratedMainActor: Bool = false
 ) -> Bool {
-    guard isSupportedProvideStoredProperty(
-        declaration,
+    InnoDICore.canAttachGeneratedProvideAccessor(
+        to: declaration,
         allowingGeneratedMainActor: allowingGeneratedMainActor
-    ),
-          let binding = declaration.bindings.first,
-          binding.pattern.is(IdentifierPatternSyntax.self),
-          let type = binding.typeAnnotation?.type,
-          !isOpaqueSomeType(type),
-          !isImplicitlyUnwrappedOptionalType(type) else {
-        return false
-    }
-    return true
+    )
 }
 
 /// Returns whether one syntactically valid direct provider has a locally
@@ -397,72 +302,10 @@ func isLocallyValidProvideConfiguration(
     declaration: VariableDeclSyntax,
     arguments: ProvideArguments
 ) -> Bool {
-    guard let scope = arguments.scope,
-          !arguments.escapingParseState.isInvalid,
-          !arguments.dependenciesParseState.isInvalid,
-          declaration.bindings.count == 1,
-          let binding = declaration.bindings.first,
-          let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-          !isEscapedInnoDIIdentifier(identifier.identifier),
-          let type = binding.typeAnnotation?.type,
-          !isOpaqueSomeType(type),
-          !isImplicitlyUnwrappedOptionalType(type) else {
-        return false
-    }
-
-    let constructionSourceCount = [
-        arguments.factoryExpr != nil,
-        arguments.asyncFactoryExpr != nil,
-        arguments.typeExpr != nil,
-        binding.initializer != nil,
-    ].filter { $0 }.count
-    let hasConstructionSource = constructionSourceCount > 0
-
-    if constructionSourceCount > 1 {
-        return false
-    }
-
-    switch scope {
-    case .input:
-        guard !hasConstructionSource,
-              (!arguments.escaping || supportsExplicitEscapingInput(type)),
-              !arguments.dependenciesParseState.hasArgument else {
-            return false
-        }
-    case .shared, .transient:
-        guard !arguments.escaping else { return false }
-        guard hasConstructionSource else { return false }
-        if arguments.dependenciesParseState.hasArgument,
-           arguments.typeExpr == nil {
-            return false
-        }
-    }
-
-    if let asyncFactory = arguments.asyncFactoryExpr,
-       !isAsyncClosureExpression(asyncFactory) {
-        return false
-    }
-
-    if let factory = arguments.factoryExpr,
-       isAsyncClosureExpression(factory)
-        || factoryExpressionContainsAwait(factory)
-        || isThrowingClosureExpression(factory)
-        || factoryExpressionContainsPlainTry(factory) {
-        return false
-    }
-
-    let closure = arguments.factoryExpr?.as(ClosureExprSyntax.self)
-        ?? arguments.asyncFactoryExpr?.as(ClosureExprSyntax.self)
-    if let closure {
-        let parameters = parseClosureParameterNames(closure)
-        if parameters.hasWildcard
-            || parameters.hasDuplicateNames
-            || parameters.hasEscapedNames {
-            return false
-        }
-    }
-
-    return true
+    InnoDICore.isLocallyValidProvideConfiguration(
+        declaration: declaration,
+        arguments: arguments
+    )
 }
 
 struct ConditionallyCompiledDIContainerMember {

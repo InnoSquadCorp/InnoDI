@@ -2882,6 +2882,46 @@ struct DIContainerMacroTests {
         )
     }
 
+    @Test("Invalid child wiring suppresses container support but keeps valid async peers")
+    func invalidChildWiringKeepsValidAsyncPeerSupport() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input) var value: Int
+
+                @Provide(asyncFactory: { () async -> Int in 1 })
+                var asyncValue: Int
+
+                @SubContainer(
+                    scope: .transient,
+                    with: [\\.value],
+                    bindings: [(child: \\.value, parent: \\.value)]
+                )
+                var invalidChild: Child
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.map(\.diagnosticID) == [
+            MessageID(
+                domain: "InnoDI.validation",
+                id: "sub.bindings-conflicts-with-with"
+            )
+        ])
+        #expect(result.expansion.contains(
+            "@InnoDI._InnoDIProvideAccessor(recovery: false)\n"
+                + "    var asyncValue: Int"
+        ))
+        #expect(result.expansion.contains(
+            "@InnoDI._InnoDISubContainerAccessor(recovery: true)\n"
+                + "    var invalidChild: Child"
+        ))
+        #expect(!result.expansion.contains("_innoDISubBuild_invalidChild"))
+        #expect(!result.expansion.contains("InnoDI.DeferredCell"))
+    }
+
     @Test("@SubContainer with: requires a literal key-path array")
     func subContainerWithVariableDiagnosesInvalidSameNameWiring() {
         assertMacroExpansionDiagnosticCodes(

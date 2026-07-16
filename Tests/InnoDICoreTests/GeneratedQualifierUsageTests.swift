@@ -208,6 +208,73 @@ struct GeneratedQualifierUsageTests {
         #expect(usage.fileScopeExtensions.isEmpty)
     }
 
+    @Test("Invalid managed members do not claim container-owned qualifiers")
+    func invalidMembersDoNotClaimContainerOwnedQualifiers() throws {
+        let usage = try containerUsage(
+            """
+            @DIContainer
+            struct Container {
+                @Provide(asyncFactory: { 1 })
+                var invalidAsync: Int
+
+                @SubContainer(
+                    scope: .transient,
+                    with: [\\.value],
+                    bindings: [(child: \\.value, parent: \\.value)]
+                )
+                var invalidChild: Child
+            }
+            """
+        )
+
+        #expect(usage.attachedAttributes == [.init("InnoDI")])
+        #expect(usage.memberBodies.isEmpty)
+        #expect(usage.fileScopeExtensions.isEmpty)
+    }
+
+    @Test("Main actor support remains emitted for invalid managed members")
+    func mainActorSupportSurvivesInvalidMembers() throws {
+        let usage = try containerUsage(
+            """
+            @DIContainer(mainActor: true)
+            struct Container {
+                @Provide(asyncFactory: { 1 })
+                var invalidAsync: Int
+
+                @SubContainer(scope: .transient)
+                let invalidChild: Child
+            }
+            """
+        )
+
+        #expect(usage.memberBodies == [.init("Swift")])
+    }
+
+    @Test("Valid async peers survive an invalid container-owned sibling")
+    func validAsyncPeerSurvivesInvalidSibling() throws {
+        let usage = try containerUsage(
+            """
+            @DIContainer
+            struct Container {
+                @Provide(asyncFactory: { () async -> Int in 1 })
+                var asyncValue: Int
+
+                @SubContainer(
+                    scope: .transient,
+                    with: [\\.value],
+                    bindings: [(child: \\.value, parent: \\.value)]
+                )
+                var invalidChild: Child
+            }
+            """
+        )
+
+        #expect(usage.memberBodies == [
+            .init("Swift"),
+            .init("_Concurrency"),
+        ])
+    }
+
     @Test("Hierarchy conformances are file-scope type lookups")
     func hierarchyExtensionQualifier() throws {
         let component = try containerUsage(

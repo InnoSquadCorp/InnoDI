@@ -53,9 +53,12 @@ package struct GeneratedQualifierUsage {
         let attributes = declaration.attributes
         let options = parseDIContainerAttribute(attributes)
         let members = DirectManagedMemberCollector.collect(from: declaration)
+        let containerGenerationIsLocallyViable = members.allSatisfy(
+            \.isLocallyViableForContainerGeneration
+        )
 
         var attachedAttributes: Set<GeneratedQualifierRequirement> = []
-        if members.contains(where: \.isManaged) {
+        if members.contains(where: \.emitsGeneratedAccessorAttribute) {
             attachedAttributes.insert(.init("InnoDI"))
         }
 
@@ -64,8 +67,7 @@ package struct GeneratedQualifierUsage {
             memberBodies.insert(.init("Swift"))
         }
 
-        let provides = members.compactMap(\.provide)
-        let validProvides = provides.filter(\.hasLocallyValidConstruction)
+        let validProvides = members.compactMap(\.provide)
         let inputNames = Set(
             validProvides.filter { $0.scope == .input }.map(\.name)
         )
@@ -99,17 +101,20 @@ package struct GeneratedQualifierUsage {
             }
         }
 
-        let hasTransientSubContainer = members.contains { member in
-            member.subContainer?.scope == .transient
-        }
-        if !deferredTargetNames.isEmpty || hasTransientSubContainer {
+        let hasTransientSubContainer = containerGenerationIsLocallyViable
+            && members.contains { member in
+                member.subContainer?.scope == .transient
+            }
+        if containerGenerationIsLocallyViable,
+           !deferredTargetNames.isEmpty || hasTransientSubContainer {
             memberBodies.formUnion([
                 .init("Swift"),
                 .init("InnoDI", namespace: .typeOrValue),
             ])
         }
 
-        if options?.validateDAG == false,
+        if containerGenerationIsLocallyViable,
+           options?.validateDAG == false,
            emitsUnresolvedFallback(
             inputNames: inputNames,
             syncShared: syncShared,
@@ -179,44 +184,17 @@ private struct ManagedDependencyReference {
 private struct ManagedProvideMember {
     let sourceOrder: Int
     let name: String
-    let scope: ProvideScope?
+    let scope: ProvideScope
     let factory: ExprSyntax?
     let asyncFactory: ExprSyntax?
-    let typeExpression: ExprSyntax?
-    let initializer: ExprSyntax?
     let withDependencies: [String]
-    let withDependenciesAreValid: Bool
     let references: [ManagedDependencyReference]
 
     var isAsync: Bool {
         asyncFactory != nil
     }
 
-    var hasLocallyValidConstruction: Bool {
-        guard let scope, withDependenciesAreValid else { return false }
-        let constructionSourceCount = [
-            factory != nil,
-            asyncFactory != nil,
-            typeExpression != nil,
-            initializer != nil,
-        ].filter { $0 }.count
-        switch scope {
-        case .input:
-            return constructionSourceCount == 0 && withDependencies.isEmpty
-        case .shared, .transient:
-            guard constructionSourceCount == 1 else { return false }
-            if !withDependencies.isEmpty && typeExpression == nil {
-                return false
-            }
-            if let asyncFactory {
-                return isAsyncClosure(asyncFactory)
-            }
-            return true
-        }
-    }
-
     func supports(_ dependencyKind: ManagedDependencyKind) -> Bool {
-        guard let scope else { return false }
         switch dependencyKind {
         case .hard:
             return true
@@ -234,16 +212,14 @@ private struct ManagedProvideMember {
 }
 
 private struct ManagedSubContainerMember {
-    let scope: SubContainerScopeValue?
+    let scope: SubContainerScopeValue
 }
 
 private struct DirectManagedMember {
+    let emitsGeneratedAccessorAttribute: Bool
+    let isLocallyViableForContainerGeneration: Bool
     let provide: ManagedProvideMember?
     let subContainer: ManagedSubContainerMember?
-
-    var isManaged: Bool {
-        provide != nil || subContainer != nil
-    }
 }
 
 private final class DirectManagedMemberCollector: SyntaxVisitor {
@@ -265,58 +241,79 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
     ) -> SyntaxVisitorContinueKind {
         defer { sourceOrder += 1 }
 
-        if let attribute = findInnoDIAttribute(
+        let provideAttributes = matchingInnoDIAttributes(
             named: "Provide",
             in: node.attributes
-        ) {
-            let arguments = parseProvideArguments(attribute)
-            for binding in node.bindings {
-                guard let identifier = binding.pattern.as(
-                    IdentifierPatternSyntax.self
-                ) else {
-                    continue
-                }
-                let factory = arguments.factoryExpr
-                    ?? arguments.asyncFactoryExpr
-                let references = factory
-                    .flatMap { dependencyReferences(in: $0) }
-                    ?? []
-                members.append(
-                    DirectManagedMember(
-                        provide: ManagedProvideMember(
-                            sourceOrder: sourceOrder,
-                            name: identifier.identifier.text,
-                            scope: arguments.scope,
-                            factory: arguments.factoryExpr,
-                            asyncFactory: arguments.asyncFactoryExpr,
-                            typeExpression: arguments.typeExpr,
-                            initializer: binding.initializer?.value,
-                            withDependencies: arguments.dependencies,
-                            withDependenciesAreValid:
-                                !arguments.dependenciesParseState.isInvalid,
-                            references: references
-                        ),
-                        subContainer: nil
-                    )
-                )
-            }
+        )
+        let subContainerAttributes = matchingInnoDIAttributes(
+            named: "SubContainer",
+            in: node.attributes
+        )
+        guard !provideAttributes.isEmpty || !subContainerAttributes.isEmpty else {
             return .skipChildren
         }
 
-        if let attribute = findInnoDIAttribute(
-            named: "SubContainer",
-            in: node.attributes
-        ) {
-            let arguments = parseSubContainerArguments(attribute)
-            members.append(
-                DirectManagedMember(
-                    provide: nil,
-                    subContainer: ManagedSubContainerMember(
-                        scope: arguments.scope
-                    )
+        let canAttachProvide = provideAttributes.count == 1
+            && subContainerAttributes.isEmpty
+            && canAttachGeneratedProvideAccessor(to: node)
+        let canAttachSubContainer = subContainerAttributes.count == 1
+            && canAttachGeneratedSubContainerAccessor(to: node)
+        let hasExactlyOneManagedRole =
+            (provideAttributes.count == 1 && subContainerAttributes.isEmpty)
+            || (subContainerAttributes.count == 1
+                && provideAttributes.isEmpty)
+
+        var provide: ManagedProvideMember?
+        if canAttachProvide,
+           let attribute = provideAttributes.first {
+            let arguments = parseProvideArguments(attribute)
+            if isLocallyValidProvideConfiguration(
+                declaration: node,
+                arguments: arguments
+            ),
+               let scope = arguments.scope,
+               let binding = node.bindings.first,
+               let identifier = binding.pattern.as(
+                   IdentifierPatternSyntax.self
+               ) {
+                let factory = arguments.factoryExpr
+                    ?? arguments.asyncFactoryExpr
+                provide = ManagedProvideMember(
+                    sourceOrder: sourceOrder,
+                    name: identifier.identifier.text,
+                    scope: scope,
+                    factory: arguments.factoryExpr,
+                    asyncFactory: arguments.asyncFactoryExpr,
+                    withDependencies: arguments.dependencies,
+                    references: factory.flatMap {
+                        dependencyReferences(in: $0)
+                    } ?? []
                 )
-            )
+            }
         }
+
+        var subContainer: ManagedSubContainerMember?
+        if hasExactlyOneManagedRole,
+           canAttachSubContainer,
+           let attribute = subContainerAttributes.first {
+            let arguments = parseSubContainerArguments(attribute)
+            if isLocallyValidSubContainerConfiguration(arguments),
+               let scope = arguments.scope {
+                subContainer = ManagedSubContainerMember(scope: scope)
+            }
+        }
+
+        members.append(
+            DirectManagedMember(
+                emitsGeneratedAccessorAttribute:
+                    canAttachProvide || canAttachSubContainer,
+                isLocallyViableForContainerGeneration:
+                    hasExactlyOneManagedRole
+                        && (provide != nil || subContainer != nil),
+                provide: provide,
+                subContainer: subContainer
+            )
+        )
         return .skipChildren
     }
 
@@ -353,6 +350,22 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
     ) -> SyntaxVisitorContinueKind { .skipChildren }
 }
 
+private func matchingInnoDIAttributes(
+    named name: String,
+    in attributes: AttributeListSyntax
+) -> [AttributeSyntax] {
+    attributes.compactMap { element in
+        guard let attribute = element.as(AttributeSyntax.self),
+              matchesInnoDIAttribute(
+                named: name,
+                attributeName: attribute.attributeName
+              ) else {
+            return nil
+        }
+        return attribute
+    }
+}
+
 private func dependencyReferences(
     in expression: ExprSyntax
 ) -> [ManagedDependencyReference]? {
@@ -385,13 +398,6 @@ private func dependencyReferences(
             return ManagedDependencyReference(name: name, kind: kind)
         }
     }
-}
-
-private func isAsyncClosure(_ expression: ExprSyntax) -> Bool {
-    expression.as(ClosureExprSyntax.self)?
-        .signature?
-        .effectSpecifiers?
-        .asyncSpecifier != nil
 }
 
 private func emitsUnresolvedFallback(

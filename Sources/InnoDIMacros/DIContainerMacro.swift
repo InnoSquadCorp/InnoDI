@@ -286,14 +286,7 @@ extension DIContainerMacro: MemberAttributeMacro {
 private func canAttachGeneratedSubContainerAccessor(
     to declaration: VariableDeclSyntax
 ) -> Bool {
-    guard isSupportedSubContainerStoredProperty(declaration),
-          let binding = declaration.bindings.first,
-          let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-          !isEscapedInnoDIIdentifier(identifier.identifier),
-          binding.typeAnnotation != nil else {
-        return false
-    }
-    return true
+    InnoDICore.canAttachGeneratedSubContainerAccessor(to: declaration)
 }
 
 private func subContainerMemberValidationRecovery(
@@ -309,7 +302,7 @@ private func subContainerMemberValidationRecovery(
         return true
     }
     let arguments = parseSubContainerArguments(attribute)
-    if arguments.scope == nil {
+    if !InnoDICore.isLocallyValidSubContainerConfiguration(arguments) {
         return true
     }
     if options.mainActor,
