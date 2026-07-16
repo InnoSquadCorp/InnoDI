@@ -35,6 +35,7 @@ Before dispatching the `Release Gate` workflow:
    - `Tools/check-no-fatalerror-in-macros.sh`
    - `Tools/check-ci-validation-opt-out.sh`
    - `Tools/check-docs-code-blocks.sh`
+   - `Tools/check-docs-local-links.sh`
    - `Tools/check-localized-readme-sync.sh`
 7. Validate the Apple Privacy Manifests bundled with the embedded products:
    - `plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy`
@@ -206,6 +207,8 @@ standalone release assets.
 - Added the public `InnoDI-DependencyGraph` executable product and stabilized
   graph JSON schema v2 around module-qualified node identities, explicit
   target scope, and explicit root-pruning metadata.
+- Added a tracked-Markdown local-link gate so moved or removed documentation
+  targets fail pull-request and release validation before DocC publication.
 
 ### Breaking and Behavior Changes
 
@@ -225,6 +228,12 @@ standalone release assets.
   cache salt is now v7 so a workspace cannot reuse a green result produced
   before target-topology signatures and the target-scoped full-source
   generated-qualifier preflight existed.
+- **Contract-restoring behavior correction:** Generated module-qualifier
+  preflight now validates only support qualifiers actually emitted by locally
+  viable managed members. A valid async `@Provide` peer keeps its `Swift` and
+  `_Concurrency` checks even when an invalid container-owned sibling suppresses
+  member-body generation; `mainActor: true` still retains its explicit `Swift`
+  requirement.
 - **Intentional breaking change:** Targets that declare an InnoDI container or
   a standalone `@DIEnvironmentBridge` must attach
   `InnoDIDAGValidationPlugin`. Its target-scoped full-source pass extends

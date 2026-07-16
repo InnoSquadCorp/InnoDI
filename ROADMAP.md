@@ -277,7 +277,7 @@ true before the next minor release can promote them.
 | Phase | Meaning |
 |---|---|
 | `skeleton` | Macro/runtime stub exists; not enabled in any example or stable test. |
-| `stage-2` | Functional drop in 4.x; at least one example or runtime test exercises it; generated shape may still change. |
+| `stage-2` | Functional opt-in drop; at least one example or runtime test exercises it; generated shape may still change. |
 | `pre-GA` | Behavior frozen on `main`; only doc, diagnostic, and naming polish remain; promotion candidate for the next minor. |
 | `GA` | Public API; SemVer applies to behavior and to generated symbol shape. |
 

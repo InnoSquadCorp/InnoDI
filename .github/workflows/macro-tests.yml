@@ -57,6 +57,8 @@ jobs:
         run: Tools/check-ci-validation-opt-out.sh
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
+      - name: Validate local documentation links
+        run: Tools/check-docs-local-links.sh
       - name: Validate localized README structural sync
         # Strict mode: localized READMEs must match the English canonical
         # structure (swift fence count + H2 header count). Set
