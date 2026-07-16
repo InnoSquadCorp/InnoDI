@@ -26,6 +26,33 @@ struct ReleaseCandidateScriptTests {
         #expect(result.output.contains("Release candidate metadata validated"))
     }
 
+    @Test("Alternate breaking or behavior heading is accepted")
+    func alternateBreakingHeadingIsAccepted() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [
+                (fixture.version, ReleaseCandidateScriptFixture.alternateReleaseBody),
+            ]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode == 0)
+    }
+
+    @Test("Release metadata accepts CRLF line endings")
+    func crlfReleaseMetadataIsAccepted() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.convertReleasingToCRLF()
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode == 0)
+    }
+
     @Test(
         "Only stable unprefixed SemVer without leading zeroes is accepted",
         arguments: [
@@ -100,7 +127,9 @@ struct ReleaseCandidateScriptTests {
         defer { fixture.remove() }
         try fixture.writeReleasing(
             latestVersion: "4.3.0",
-            sections: [(fixture.version, "- Ready")]
+            sections: [
+                (fixture.version, ReleaseCandidateScriptFixture.canonicalReleaseBody),
+            ]
         )
 
         let result = try fixture.run()
@@ -116,13 +145,50 @@ struct ReleaseCandidateScriptTests {
         try fixture.writeReleasing(
             latestVersion: fixture.version,
             currentDevelopmentTrain: fixture.version,
-            sections: [(fixture.version, "- Ready")]
+            sections: [
+                (fixture.version, ReleaseCandidateScriptFixture.canonicalReleaseBody),
+            ]
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
         #expect(result.output.contains("current unreleased train"))
+    }
+
+    @Test("Release candidates cannot retain an Unreleased section")
+    func unreleasedSectionIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [
+                (fixture.version, ReleaseCandidateScriptFixture.canonicalReleaseBody),
+                ("Unreleased", ReleaseCandidateScriptFixture.canonicalReleaseBody),
+            ]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("cannot contain a '## Unreleased' section"))
+    }
+
+    @Test("Candidate release section is required")
+    func missingReleaseSectionIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [
+                ("4.3.0", ReleaseCandidateScriptFixture.canonicalReleaseBody),
+            ]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one '## \(fixture.version)' section"))
     }
 
     @Test("Candidate release section must be unique")
@@ -159,6 +225,348 @@ struct ReleaseCandidateScriptTests {
 
         #expect(result.exitCode != 0)
         #expect(result.output.contains("must be nonempty"))
+    }
+
+    @Test("Highlights subsection is required")
+    func missingHighlightsIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one '### Highlights' subsection"))
+    }
+
+    @Test("Highlights subsection must be unique")
+    func duplicateHighlightsIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - First highlight.
+
+                ### Highlights
+
+                - Duplicate highlight.
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one '### Highlights' subsection"))
+    }
+
+    @Test("Highlights subsection requires substantive content")
+    func emptyHighlightsIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("'### Highlights' must contain non-placeholder content"))
+    }
+
+    @Test("Placeholder release-note content is rejected")
+    func placeholderContentIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Ready
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("'### Highlights' must contain non-placeholder content"))
+    }
+
+    @Test("Breaking or behavior changes subsection is required")
+    func missingBreakingChangesIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one breaking or behavior changes subsection"))
+    }
+
+    @Test("Breaking or behavior changes subsection must be unique")
+    func duplicateBreakingChangesIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Breaking and Behavior Changes
+
+                - First behavior change.
+
+                ### Breaking and Behavior Changes
+
+                - Duplicate behavior change.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one breaking or behavior changes subsection"))
+    }
+
+    @Test("Both accepted breaking headings cannot appear together")
+    func bothBreakingHeadingsAreRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Breaking and Behavior Changes
+
+                - First behavior change.
+
+                ### Breaking or Behavior Changes
+
+                - Duplicate behavior change.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one breaking or behavior changes subsection"))
+    }
+
+    @Test("Breaking or behavior changes requires substantive content")
+    func emptyBreakingChangesIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Breaking and Behavior Changes
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("breaking or behavior changes subsection must contain non-placeholder content"))
+    }
+
+    @Test("Upgrade actions subsection is required")
+    func missingUpgradeActionsIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one '### Upgrade Actions' subsection"))
+    }
+
+    @Test("Upgrade actions subsection must be unique")
+    func duplicateUpgradeActionsIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+
+                - First upgrade action.
+
+                ### Upgrade Actions
+
+                - Duplicate upgrade action.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one '### Upgrade Actions' subsection"))
+    }
+
+    @Test("Upgrade actions subsection requires substantive content")
+    func emptyUpgradeActionsIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                - Added validation.
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("'### Upgrade Actions' must contain non-placeholder content"))
+    }
+
+    @Test("Required headings in another release section do not count")
+    func headingsInOtherReleaseSectionsDoNotCount() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [
+                (fixture.version, "- Candidate summary without required subsections."),
+                ("4.3.0", ReleaseCandidateScriptFixture.canonicalReleaseBody),
+            ]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("exactly one '### Highlights' subsection (found 0)"))
+    }
+
+    @Test("Unknown third-level headings end the active release subsection")
+    func unknownHeadingCannotDonateContent() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeReleasing(
+            latestVersion: fixture.version,
+            sections: [(fixture.version, """
+                ### Highlights
+
+                ### Internal Notes
+
+                - This detail belongs to the unknown subsection.
+
+                ### Breaking and Behavior Changes
+
+                - Validation is now strict.
+
+                ### Upgrade Actions
+
+                - Complete the release notes.
+                """)]
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("'### Highlights' must contain non-placeholder content"))
     }
 
     @Test("Every README dependency must use the candidate version")
@@ -213,6 +621,34 @@ private struct ReleaseCandidateScriptResult {
 }
 
 private struct ReleaseCandidateScriptFixture {
+    static let canonicalReleaseBody = """
+        ### Highlights
+
+        - Added strict release-note validation.
+
+        ### Breaking and Behavior Changes
+
+        - Release candidates now require structured notes.
+
+        ### Upgrade Actions
+
+        - Complete every required subsection before publication.
+        """
+
+    static let alternateReleaseBody = """
+        ### Highlights
+
+        - Added strict release-note validation.
+
+        ### Breaking or Behavior Changes
+
+        - Release candidates now require structured notes.
+
+        ### Upgrade Actions
+
+        - Complete every required subsection before publication.
+        """
+
     static let readmeNames = [
         "README.md",
         "README.ko.md",
@@ -242,7 +678,7 @@ private struct ReleaseCandidateScriptFixture {
             try Self.writeReleasing(
                 at: rootURL,
                 latestVersion: version,
-                sections: [(version, "- Release candidate is ready")]
+                sections: [(version, Self.canonicalReleaseBody)]
             )
             for readmeName in Self.readmeNames {
                 try Self.writeReadme(
@@ -369,6 +805,18 @@ private struct ReleaseCandidateScriptFixture {
             at: rootURL,
             named: name,
             dependencyVersions: dependencyVersions
+        )
+    }
+
+    func convertReleasingToCRLF() throws {
+        let releasingURL = rootURL.appendingPathComponent("RELEASING.md")
+        let document = try String(contentsOf: releasingURL, encoding: .utf8)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n", with: "\r\n")
+        try document.write(
+            to: releasingURL,
+            atomically: true,
+            encoding: .utf8
         )
     }
 
