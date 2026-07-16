@@ -1,3 +1,2 @@
 Declaration 'Swift' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.
 Declaration 'SwiftUI' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.
-Declaration 'InnoDISwiftUI' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.

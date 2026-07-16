@@ -3,23 +3,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "EnvironmentBridgeTargetNameShadowConsumer",
-    platforms: [
-        .macOS(.v14)
-    ],
+    name: "GeneratedQualifierUsageSensitiveCollisionsConsumer",
+    platforms: [.macOS(.v14)],
     dependencies: [
         .package(path: "{{INNODI_PACKAGE_PATH}}")
     ],
     targets: [
+        .target(name: "ShadowKit"),
         .executableTarget(
             name: "FixtureApp",
             dependencies: [
+                "ShadowKit",
                 .product(
                     name: "InnoDI",
                     package: "{{INNODI_PACKAGE_IDENTITY}}"
-                ),
-                .product(
-                    name: "InnoDISwiftUI",
+                )
+            ],
+            plugins: [
+                .plugin(
+                    name: "InnoDIDAGValidationPlugin",
                     package: "{{INNODI_PACKAGE_IDENTITY}}"
                 )
             ]

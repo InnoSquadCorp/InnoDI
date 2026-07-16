@@ -1,0 +1,27 @@
+import InnoDI
+import ShadowKit
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input) var value: Int
+}
+
+@DIContainer(validateDAG: false)
+struct StorageAliasContainer {
+    @Provide(.input) var value: Int
+
+    @Provide(factory: { (_storage_value: Int) in _storage_value })
+    var copy: Int
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        let _: ShadowKit.Swift = .init()
+        let _: ShadowKit.InnoDI = .init()
+        let container = AppContainer(value: 42)
+        precondition(container.value == 42)
+        let storageAlias = StorageAliasContainer(value: 43)
+        precondition(storageAlias.copy == 43)
+    }
+}

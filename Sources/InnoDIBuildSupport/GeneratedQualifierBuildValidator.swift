@@ -87,12 +87,12 @@ package enum GeneratedQualifierBuildValidator {
             let sameTargetShadows = shadows.filter {
                 targetScopeKey($0.targetID) == targetScopeKey(site.targetID)
             }
-            for shadow in sameTargetShadows where site.isAffected(by: shadow) {
+            for shadow in sameTargetShadows {
                 guard let lookupScope = lookupScope(
                     of: shadow,
                     from: site,
                     resolvedExtensionOwners: resolvedExtensionOwners
-                ) else {
+                ), site.isAffected(by: shadow, lookupScope: lookupScope) else {
                     continue
                 }
                 appendPendingIssue(
@@ -135,13 +135,16 @@ package enum GeneratedQualifierBuildValidator {
                                 shadow,
                                 resolvedExtensionOwners: resolvedExtensionOwners
                               ),
-                              site.isAffected(by: shadow) else {
+                              site.isAffected(
+                                by: shadow,
+                                lookupScope: .visibleDependency
+                              ) else {
                             continue
                         }
                         appendPendingIssue(
                             shadow: shadow,
                             site: site,
-                            lookupScope: "visible-dependency",
+                            lookupScope: .visibleDependency,
                             pending: &pending
                         )
                     }
@@ -182,12 +185,20 @@ private enum QualifierSiteContext: Equatable {
     case local(context: String)
 }
 
+private enum QualifierLookupScope: String {
+    case sameTargetTopLevel = "same-target-top-level"
+    case enclosingNominalMember = "enclosing-nominal-member"
+    case matchingExtensionMember = "matching-extension-member"
+    case visibleDependency = "visible-dependency"
+    case inheritedSuperclassMember = "inherited-superclass-member"
+}
+
 private struct QualifierMacroSite {
     let kind: QualifierMacroKind
     let declarationName: String
     let targetPath: String?
     let enclosingNominalPaths: [String]
-    let isContainer: Bool
+    let usage: GeneratedQualifierUsage
     let context: QualifierSiteContext
     let sourceIdentity: String
     let filePath: String
@@ -202,36 +213,33 @@ private struct QualifierMacroSite {
         lookupOwnerPaths
     }
 
-    func isAffected(by shadow: QualifierShadowDeclaration) -> Bool {
-        switch kind {
-        case .container:
-            if shadow.name == "InnoDI" {
+    func isAffected(
+        by shadow: QualifierShadowDeclaration,
+        lookupScope: QualifierLookupScope
+    ) -> Bool {
+        let requirements: Set<GeneratedQualifierRequirement>
+        switch lookupScope {
+        case .sameTargetTopLevel, .visibleDependency:
+            requirements = usage.memberBodies.union(
+                usage.fileScopeExtensions
+            )
+        case .enclosingNominalMember, .matchingExtensionMember,
+             .inheritedSuperclassMember:
+            requirements = usage.memberBodies
+        }
+        return requirements.contains { requirement in
+            guard requirement.name == shadow.name else { return false }
+            switch requirement.namespace {
+            case .typeOnly:
+                return shadow.namespace == .type
+            case .typeOrValue:
                 return true
             }
-            return shadow.namespace == .type
-                && ["Swift", "_Concurrency"].contains(shadow.name)
-        case .environmentBridge:
-            guard shadow.namespace == .type else { return false }
-            let bridgeOwnedNames: Set<String> = isContainer
-                ? ["SwiftUI", "InnoDISwiftUI"]
-                : ["Swift", "SwiftUI", "InnoDISwiftUI"]
-            return bridgeOwnedNames.contains(shadow.name)
         }
     }
 
-    func isAffectedByInheritedShadow(
-        _ shadow: QualifierShadowDeclaration
-    ) -> Bool {
-        switch kind {
-        case .container:
-            return isAffected(by: shadow)
-        case .environmentBridge:
-            guard shadow.namespace == .type else { return false }
-            let bridgeOwnedNames: Set<String> = isContainer
-                ? ["SwiftUI"]
-                : ["Swift", "SwiftUI"]
-            return bridgeOwnedNames.contains(shadow.name)
-        }
+    var hasInheritedQualifierRequirements: Bool {
+        !usage.memberBodies.isEmpty
     }
 }
 
@@ -527,7 +535,7 @@ private final class QualifierFileCollector: SyntaxVisitor {
                     kind: .environmentBridge,
                     declarationName: reference.displayPath,
                     targetPath: nil,
-                    isContainer: false,
+                    usage: .environmentBridge(isContainer: false),
                     context: .extensionContext,
                     attribute: attribute
                 )
@@ -850,7 +858,7 @@ private final class QualifierFileCollector: SyntaxVisitor {
                     kind: .container,
                     declarationName: name,
                     targetPath: path,
-                    isContainer: true,
+                    usage: .container(declaration: node),
                     context: .supported,
                     attribute: attribute
                 )
@@ -884,7 +892,9 @@ private final class QualifierFileCollector: SyntaxVisitor {
                     kind: .environmentBridge,
                     declarationName: name,
                     targetPath: path,
-                    isContainer: containerAttribute != nil,
+                    usage: .environmentBridge(
+                        isContainer: containerAttribute != nil
+                    ),
                     context: context,
                     attribute: attribute
                 )
@@ -899,7 +909,7 @@ private final class QualifierFileCollector: SyntaxVisitor {
         kind: QualifierMacroKind,
         declarationName: String,
         targetPath: String?,
-        isContainer: Bool,
+        usage: GeneratedQualifierUsage,
         context: QualifierSiteContext,
         attribute: AttributeSyntax
     ) -> QualifierMacroSite {
@@ -911,7 +921,7 @@ private final class QualifierFileCollector: SyntaxVisitor {
                 if case .nominal(let path) = scope { return path }
                 return nil
             },
-            isContainer: isContainer,
+            usage: usage,
             context: context,
             sourceIdentity: sourceFile.sourceIdentity,
             filePath: sourceFile.filePath,
@@ -1157,7 +1167,7 @@ private func qualifierSiteSortOrder(
 private func appendPendingIssue(
     shadow: QualifierShadowDeclaration,
     site: QualifierMacroSite,
-    lookupScope: String,
+    lookupScope: QualifierLookupScope,
     pending: inout [PendingQualifierIssueKey: PendingQualifierIssue]
 ) {
     let code: String
@@ -1181,7 +1191,7 @@ private func appendPendingIssue(
     let key = PendingQualifierIssueKey(code: code, shadowID: shadow.id)
     let siteIdentity = "\(site.sourceIdentity)#\(site.location.line):\(site.location.column)#\(site.kind.rawValue)"
     if var existing = pending[key] {
-        existing.lookupScopes.insert(lookupScope)
+        existing.lookupScopes.insert(lookupScope.rawValue)
         existing.sitesByIdentity[siteIdentity] = site
         pending[key] = existing
     } else {
@@ -1189,7 +1199,7 @@ private func appendPendingIssue(
             code: code,
             message: message,
             shadow: shadow,
-            lookupScopes: [lookupScope],
+            lookupScopes: [lookupScope.rawValue],
             sitesByIdentity: [siteIdentity: site]
         )
     }
@@ -1199,7 +1209,7 @@ private func lookupScope(
     of shadow: QualifierShadowDeclaration,
     from site: QualifierMacroSite,
     resolvedExtensionOwners: [String: String]
-) -> String? {
+) -> QualifierLookupScope? {
     if let declaredPath = shadow.declaredPath?.joined(separator: "."),
        site.macroCoveredDeclarationPaths.contains(declaredPath) {
         return nil
@@ -1210,14 +1220,14 @@ private func lookupScope(
                 || shadow.sourceIdentity == site.sourceIdentity else {
             return nil
         }
-        return "same-target-top-level"
+        return .sameTargetTopLevel
     case .nominal(let path):
         guard site.lookupOwnerPaths.contains(path),
               path != site.targetPath else {
             // Direct target members remain owned by the attached macro.
             return nil
         }
-        return "enclosing-nominal-member"
+        return .enclosingNominalMember
     case .extension(let id):
         guard let owner = resolvedExtensionOwners[id],
               site.lookupOwnerPaths.contains(owner),
@@ -1225,7 +1235,7 @@ private func lookupScope(
                 || shadow.sourceIdentity == site.sourceIdentity else {
             return nil
         }
-        return "matching-extension-member"
+        return .matchingExtensionMember
     case .local:
         return nil
     }
@@ -1448,6 +1458,10 @@ private func appendInheritedQualifierIssues(
         PendingInheritanceIssueKey: PendingInheritanceIssue
     ]
 ) {
+    guard site.hasInheritedQualifierRequirements else {
+        return
+    }
+
     let startingClasses = nominalDeclarations
         .filter { declaration in
             declaration.kind == .class
@@ -1506,13 +1520,16 @@ private func appendInheritedQualifierIssues(
                             manifest: manifest,
                             siteExposures: siteExposures
                           ),
-                          site.isAffectedByInheritedShadow(shadow) else {
+                          site.isAffected(
+                            by: shadow,
+                            lookupScope: .inheritedSuperclassMember
+                          ) else {
                         continue
                     }
                     appendPendingIssue(
                         shadow: shadow,
                         site: site,
-                        lookupScope: "inherited-superclass-member",
+                        lookupScope: .inheritedSuperclassMember,
                         pending: &pendingQualifier
                     )
                 }

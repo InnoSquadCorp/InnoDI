@@ -7,8 +7,8 @@ import Testing
 
 @Suite("Generated qualifier full-source preflight")
 struct GeneratedQualifierBuildValidatorTests {
-    @Test("Container qualifiers include same-target top-level declarations")
-    func containerTopLevelShadowsAreRejected() {
+    @Test("Plain containers ignore unused same-target qualifier shadows")
+    func plainContainerTopLevelShadowsAreAllowed() {
         let snapshot = makeSnapshot([
             .init(
                 path: "Sources/App/Container.swift",
@@ -33,16 +33,119 @@ struct GeneratedQualifierBuildValidatorTests {
             snapshot: snapshot
         )
 
-        #expect(report.issues.count == 3)
-        #expect(Set(report.issues.map(\.code)) == [
-            "container.reserved-module-name",
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("Container qualifier checks follow emitted feature support")
+    func containerFeatureQualifierShadowsAreRejected() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                @DIContainer(mainActor: true)
+                struct AppContainer {
+                    @Provide(.transient, factory: { 42 })
+                    var dependency: Int
+
+                    @Provide(factory: { (dependency: Provider<Int>) in
+                        dependency()
+                    })
+                    var value: Int
+
+                    @Provide(asyncFactory: { () async -> String in "ready" })
+                    var asyncValue: String
+                }
+                """
+            ),
+            .init(
+                path: "Sources/App/Shadows.swift",
+                source: """
+                struct Swift {}
+                enum _Concurrency {}
+                let InnoDI = 0
+                """
+            ),
         ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.count == 3)
         #expect(Set(report.issues.compactMap { $0.metadata["qualifier"] }) == [
             "InnoDI", "Swift", "_Concurrency",
         ])
         #expect(report.issues.allSatisfy {
             $0.metadata["lookupScopes"] == "same-target-top-level"
         })
+    }
+
+    @Test("Hierarchy extension qualifiers require a type namespace")
+    func hierarchyQualifierNamespaceIsTypeOnly() {
+        for (shadow, expectedCount) in [
+            ("let InnoDI = 0", 0),
+            ("struct InnoDI {}", 1),
+        ] {
+            let snapshot = makeSnapshot([
+                .init(
+                    path: "Sources/App/Container.swift",
+                    source: """
+                    @DIComponent
+                    @DIContainer
+                    struct AppContainer {
+                        @Provide(.input) var value: Int
+                    }
+                    """
+                ),
+                .init(
+                    path: "Sources/App/Shadow.swift",
+                    source: shadow
+                ),
+            ])
+
+            let report = GeneratedQualifierBuildValidator.validate(
+                snapshot: snapshot
+            )
+
+            #expect(
+                report.issues.count == expectedCount,
+                Comment(rawValue: shadow)
+            )
+        }
+    }
+
+    @Test("Extension-only qualifiers ignore member and inheritance lookup")
+    func hierarchyQualifierDoesNotInspectMemberScopes() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                class FeatureHost: ExternalBase {
+                    struct InnoDI {}
+
+                    @DIComponent
+                    @DIContainer
+                    struct Container {
+                        @Provide(.input) var value: Int
+                    }
+                }
+                """
+            ),
+            .init(
+                path: "Sources/App/Extensions.swift",
+                source: """
+                extension FeatureHost.Container {
+                    typealias InnoDI = Int
+                }
+                """
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.isEmpty)
     }
 
     @Test("Container qualifiers include enclosing and matching extension members")
@@ -52,10 +155,18 @@ struct GeneratedQualifierBuildValidatorTests {
                 path: "Sources/App/Container.swift",
                 source: """
                 struct FeatureHost {
-                    @DIContainer
+                    @DIContainer(mainActor: true)
                     struct AppContainer {
-                        struct Swift {}
-                        @Provide(.input) var value: Int
+                        @Provide(.transient, factory: { 1 })
+                        var dependency: Int
+
+                        @Provide(factory: { (dependency: Provider<Int>) in
+                            dependency()
+                        })
+                        var value: Int
+
+                        @Provide(asyncFactory: { () async -> Int in 2 })
+                        var asyncValue: Int
                     }
 
                     struct Swift {}
@@ -116,9 +227,18 @@ struct GeneratedQualifierBuildValidatorTests {
                 .init(
                     path: "Sources/App/Container.swift",
                     source: """
-                    @DIContainer
+                    @DIContainer(mainActor: true)
                     struct AppContainer {
-                        @Provide(.input) var value: Int
+                        @Provide(.transient, factory: { 1 })
+                        var dependency: Int
+
+                        @Provide(factory: { (dependency: Provider<Int>) in
+                            dependency()
+                        })
+                        var value: Int
+
+                        @Provide(asyncFactory: { () async -> String in "" })
+                        var asyncValue: String
                     }
                     """,
                     targetID: appID
@@ -209,13 +329,45 @@ struct GeneratedQualifierBuildValidatorTests {
             snapshot: snapshot
         )
 
-        #expect(report.issues.count == 4)
+        #expect(report.issues.count == 3)
         #expect(Set(report.issues.map(\.code)) == [
             "swiftui.environment-bridge-reserved-module-name",
         ])
         #expect(Set(report.issues.compactMap { $0.metadata["qualifier"] }) == [
-            "InnoDISwiftUI", "Swift", "SwiftUI",
+            "Swift", "SwiftUI",
         ])
+    }
+
+    @Test("Bridge extension qualifier checks only file-scope visibility")
+    func bridgeExtensionQualifierScopeIsRespected() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Bridge.swift",
+                source: """
+                struct Host {
+                    @DIEnvironmentBridge([])
+                    struct Bridge {}
+
+                    struct InnoDISwiftUI {}
+                }
+                """
+            ),
+            .init(
+                path: "Sources/App/Shadows.swift",
+                source: "struct InnoDISwiftUI {}"
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.count == 1)
+        #expect(report.issues.first?.metadata["qualifier"] == "InnoDISwiftUI")
+        #expect(
+            report.issues.first?.metadata["lookupScopes"]
+                == "same-target-top-level"
+        )
     }
 
     @Test("Bridge qualifiers include inherited superclass members")
@@ -249,8 +401,8 @@ struct GeneratedQualifierBuildValidatorTests {
         })
     }
 
-    @Test("Container qualifiers include an enclosing class superclass")
-    func nestedContainerSuperclassShadowsAreRejected() {
+    @Test("Plain containers ignore unused inherited qualifier shadows")
+    func plainNestedContainerSuperclassShadowsAreAllowed() {
         let snapshot = makeSnapshot([
             .init(
                 path: "Sources/App/Container.swift",
@@ -265,6 +417,44 @@ struct GeneratedQualifierBuildValidatorTests {
                     @DIContainer
                     struct Container {
                         @Provide(.input) var value: Int
+                    }
+                }
+                """
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("Emitted container qualifiers include an enclosing superclass")
+    func featureContainerSuperclassShadowsAreRejected() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                class BaseHost {
+                    struct Swift {}
+                    struct _Concurrency {}
+                    static let InnoDI = 0
+                }
+
+                final class FeatureHost: BaseHost {
+                    @DIContainer(mainActor: true)
+                    struct Container {
+                        @Provide(.transient, factory: { 1 })
+                        var dependency: Int
+
+                        @Provide(factory: { (dependency: Provider<Int>) in
+                            dependency()
+                        })
+                        var value: Int
+
+                        @Provide(asyncFactory: { () async -> Int in 2 })
+                        var asyncValue: Int
                     }
                 }
                 """
@@ -724,9 +914,12 @@ struct GeneratedQualifierBuildValidatorTests {
                     import struct ShadowKit.Swift
                     import SamePackageKit
 
-                    @DIContainer
+                    @DIContainer(mainActor: true)
                     struct AppContainer {
                         @Provide(.input) var value: Int
+
+                        @Provide(asyncFactory: { () async -> Int in 1 })
+                        var asyncValue: Int
                     }
                     """,
                     targetID: appID
@@ -842,9 +1035,12 @@ struct GeneratedQualifierBuildValidatorTests {
                     import HiddenSPIKit
                     @_spi(OtherGroup) import MismatchedSPIKit
 
-                    @DIContainer
+                    @DIContainer(mainActor: true)
                     struct AppContainer {
                         @Provide(.input) var value: Int
+
+                        @Provide(asyncFactory: { () async -> Int in 1 })
+                        var asyncValue: Int
                     }
                     """,
                     targetID: appID
@@ -1044,7 +1240,7 @@ struct GeneratedQualifierBuildValidatorTests {
                     .init(
                         path: "Sources/App/Container.swift",
                         source: """
-                        @DIContainer
+                        @DIContainer(mainActor: true)
                         struct AppContainer {
                             @Provide(.input) var value: Int
                         }
@@ -1150,9 +1346,13 @@ struct GeneratedQualifierBuildValidatorTests {
                         source: """
                         \(scenario.appImport)
 
-                        @DIContainer
+                        @DIContainer(
+                            validateDAG: false,
+                            mainActor: true
+                        )
                         struct AppContainer {
-                            @Provide(.input) var value: Int
+                            @Provide(factory: { missing in missing })
+                            var value: Int
                         }
                         """,
                         targetID: appID
@@ -1197,9 +1397,10 @@ struct GeneratedQualifierBuildValidatorTests {
             .init(
                 path: "Sources/App/Container.swift",
                 source: """
-                @DIContainer
+                @DIContainer(validateDAG: false)
                 struct AppContainer {
-                    @Provide(.input) var value: Int
+                    @Provide(factory: { missing in missing })
+                    var value: Int
                 }
                 """
             ),
@@ -1217,6 +1418,71 @@ struct GeneratedQualifierBuildValidatorTests {
         #expect(report.issues.first?.metadata["qualifier"] == "InnoDI")
     }
 
+    @Test("Resolved sync storage aliases do not require the InnoDI runtime qualifier")
+    func storageAliasesDoNotCreateFallbackQualifierIssues() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                @DIContainer(validateDAG: false)
+                struct AppContainer {
+                    @Provide(.input) var value: Int
+
+                    @Provide(factory: {
+                        (_storage_value: Int) in _storage_value
+                    })
+                    var copy: Int
+
+                    @Provide(
+                        .shared,
+                        Service.self,
+                        with: [\\Self._storage_value]
+                    )
+                    var service: Service
+                }
+
+                let InnoDI = 0
+                """
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("Conditional managed members do not create qualifier issues")
+    func conditionalManagedMembersDoNotCreateQualifierIssues() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                @DIContainer
+                struct AppContainer {
+                #if DEBUG
+                    @Provide(asyncFactory: { () async -> Int in 1 })
+                    var value: Int
+
+                    @SubContainer(scope: .transient) var child: Child
+                #endif
+                }
+
+                struct Swift {}
+                struct _Concurrency {}
+                let InnoDI = 0
+                """
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
     @Test("Root-path loading catches cross-file shadows without a manifest")
     func rootPathValidationDoesNotReturnFalseGreen() throws {
         let rootURL = FileManager.default.temporaryDirectory
@@ -1230,7 +1496,7 @@ struct GeneratedQualifierBuildValidatorTests {
         )
         defer { try? FileManager.default.removeItem(at: rootURL) }
         try """
-        @DIContainer
+        @DIContainer(mainActor: true)
         struct AppContainer {
             @Provide(.input) var value: Int
         }
