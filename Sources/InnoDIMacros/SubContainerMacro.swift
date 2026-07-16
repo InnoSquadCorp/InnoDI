@@ -340,7 +340,10 @@ private func extractPeerInfo(
     // When `scope:` is missing we stay silent here: `DIContainerParser` sees
     // the same attribute and routes the error through the container-level
     // validator, which attaches the diagnostic to the attribute node.
-    guard let scope = args.scope else { return nil }
+    guard InnoDICore.isLocallyValidSubContainerConfiguration(args),
+          let scope = args.scope else {
+        return nil
+    }
 
     // Prefer lexical expansion context when SwiftSyntaxMacros provides it,
     // then fall back to walking out from the attribute and declaration nodes.

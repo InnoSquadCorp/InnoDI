@@ -304,61 +304,16 @@ struct ProvideMemberModel {
     /// Derived diagnostics must not treat a provider whose own construction
     /// contract is already invalid as a usable effect source.
     var hasLocallyValidConstructionConfiguration: Bool {
-        guard let identifier = bindingSyntax.pattern.as(IdentifierPatternSyntax.self),
-              !isEscapedInnoDIIdentifier(identifier.identifier),
-              !isOpaqueSomeType(type),
-              !isImplicitlyUnwrappedOptionalType(type),
-              !escapingParseState.isInvalid,
-              !withDependenciesParseState.isInvalid else {
-            return false
-        }
-
-        let constructionSourceCount = [
-            factory != nil,
-            asyncFactory != nil,
-            typeExpr != nil,
-            initializer != nil,
-        ].filter { $0 }.count
-
-        switch scope {
-        case .input:
-            guard constructionSourceCount == 0,
-                  (!escapingInput || supportsExplicitEscapingInput(type)),
-                  !withDependenciesParseState.hasArgument else {
-                return false
-            }
-        case .shared, .transient:
-            guard !escapingInput else { return false }
-            guard constructionSourceCount == 1 else { return false }
-            if withDependenciesParseState.hasArgument, typeExpr == nil {
-                return false
-            }
-        }
-
-        if let asyncFactory, !isAsyncClosureExpression(asyncFactory) {
-            return false
-        }
-        if let factory,
-           isAsyncClosureExpression(factory)
-            || factoryExpressionContainsAwait(factory)
-            || isThrowingClosureExpression(factory)
-            || factoryExpressionContainsPlainTry(factory) {
-            return false
-        }
-        if closureHasWildcard {
-            return false
-        }
-        if !duplicateClosureParameterReferences(
-            in: closureParameterReferences
-        ).isEmpty {
-            return false
-        }
-        if closureParameterReferences.contains(where: {
-            isEscapedInnoDIIdentifier($0.token)
-        }) {
-            return false
-        }
-        return true
+        InnoDICore.isLocallyValidProvideConstruction(
+            binding: bindingSyntax,
+            scope: scope,
+            factory: factory,
+            asyncFactory: asyncFactory,
+            typeExpression: typeExpr,
+            escaping: escapingInput,
+            escapingParseState: escapingParseState,
+            withDependenciesParseState: withDependenciesParseState
+        )
     }
 
     /// Closure parameter names whose written type is `Lazy<T>` and therefore

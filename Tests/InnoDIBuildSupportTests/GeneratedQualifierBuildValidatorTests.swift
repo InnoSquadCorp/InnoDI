@@ -1483,6 +1483,75 @@ struct GeneratedQualifierBuildValidatorTests {
         #expect(report.issues.isEmpty)
     }
 
+    @Test("Invalid managed members do not create phantom qualifier issues")
+    func invalidManagedMembersDoNotCreateQualifierIssues() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(asyncFactory: { 1 })
+                    var invalidAsync: Int
+
+                    @SubContainer(
+                        scope: .transient,
+                        with: [\\.value],
+                        bindings: [(child: \\.value, parent: \\.value)]
+                    )
+                    var invalidChild: Child
+                }
+
+                struct Swift {}
+                enum _Concurrency {}
+                let InnoDI = 0
+                """
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.isEmpty)
+    }
+
+    @Test("Valid async peers keep qualifiers when a container sibling is invalid")
+    func validAsyncPeerQualifiersSurviveInvalidSibling() {
+        let snapshot = makeSnapshot([
+            .init(
+                path: "Sources/App/Container.swift",
+                source: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(asyncFactory: { () async -> Int in 1 })
+                    var asyncValue: Int
+
+                    @SubContainer(
+                        scope: .transient,
+                        with: [\\.value],
+                        bindings: [(child: \\.value, parent: \\.value)]
+                    )
+                    var invalidChild: Child
+                }
+
+                struct Swift {}
+                enum _Concurrency {}
+                let InnoDI = 0
+                """
+            ),
+        ])
+
+        let report = GeneratedQualifierBuildValidator.validate(
+            snapshot: snapshot
+        )
+
+        #expect(report.issues.count == 2)
+        #expect(Set(report.issues.compactMap {
+            $0.metadata["qualifier"]
+        }) == ["Swift", "_Concurrency"])
+    }
+
     @Test("Root-path loading catches cross-file shadows without a manifest")
     func rootPathValidationDoesNotReturnFalseGreen() throws {
         let rootURL = FileManager.default.temporaryDirectory
