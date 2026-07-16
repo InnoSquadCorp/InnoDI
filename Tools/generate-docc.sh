@@ -6,9 +6,17 @@ cd "$ROOT_DIR"
 
 OUTPUT_DIR="${1:-$ROOT_DIR/.build/docc/InnoDI}"
 TARGET="${2:-InnoDI}"
+DOCC_PLUGIN_VERSION="1.5.0"
+DOCS_RESOLVED_PATH="$ROOT_DIR/Tools/docc/Package.resolved"
 INDEX_HTML_PATH="$OUTPUT_DIR/index.html"
 INDEX_JSON_PATH="$OUTPUT_DIR/index/index.json"
 NOT_FOUND_HTML_PATH="$OUTPUT_DIR/404.html"
+
+if [[ ! -s "$DOCS_RESOLVED_PATH" ]]; then
+  echo "DocC dependency lock is missing or empty: $DOCS_RESOLVED_PATH" >&2
+  exit 1
+fi
+
 DOCS_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/innodi-docc.XXXXXX")"
 DOCS_PACKAGE_DIR="$DOCS_WORK_DIR/package"
 DOCS_MANIFEST_PATH="$DOCS_PACKAGE_DIR/Package.swift"
@@ -27,14 +35,17 @@ rsync -a \
   --exclude '*.lproj/' \
   "$ROOT_DIR/" "$DOCS_PACKAGE_DIR/"
 
-python3 - "$DOCS_MANIFEST_PATH" <<'PY'
+cp "$DOCS_RESOLVED_PATH" "$DOCS_PACKAGE_DIR/Package.resolved"
+
+python3 - "$DOCS_MANIFEST_PATH" "$DOCC_PLUGIN_VERSION" <<'PY'
 import pathlib
 import re
 import sys
 
 manifest_path = pathlib.Path(sys.argv[1])
+docc_plugin_version = sys.argv[2]
 text = manifest_path.read_text()
-dependency_line = '        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0"),\n'
+dependency_line = f'        .package(url: "https://github.com/swiftlang/swift-docc-plugin", exact: "{docc_plugin_version}"),\n'
 
 if "swift-docc-plugin" in text:
     raise SystemExit(0)
@@ -54,6 +65,7 @@ PY
 echo "[docc] Generating DocC for target '$TARGET' -> $OUTPUT_DIR"
 swift package \
   --package-path "$DOCS_PACKAGE_DIR" \
+  --disable-automatic-resolution \
   --allow-writing-to-directory "$OUTPUT_DIR" \
   generate-documentation \
   --target "$TARGET" \
