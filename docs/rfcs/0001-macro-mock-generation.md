@@ -1,10 +1,10 @@
 # RFC 0001 — Macro-driven mock generation
 
-- **Status**: Accepted (experimental); shipping in 4.x as opt-in
+- **Status**: Accepted (experimental); available on `main` as opt-in
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
-- **Last updated**: 2026-05-06
-- **Target release**: 4.x experimental; GA only after the published criteria
+- **Last updated**: 2026-07-17
+- **Target release**: Experimental until the published GA criteria
   pass (not a 5.0 blocker)
 
 ## Initial answers to open questions
@@ -12,7 +12,7 @@
 | Question | Answer |
 |---|---|
 | Generic protocols | Synthesize a generic mock class; preserves callability and matches user expectations. |
-| Generic methods | Supported in the experimental 4.x drop with erased handler closures and preserved generic clauses. |
+| Generic methods | Supported in the experimental implementation with erased handler closures and preserved generic clauses. |
 | Associated types | Require explicit pinning via `@GenerateMock(associatedTypes: ...)` until cross-module resolution lands in SwiftSyntax. |
 | Actor protocols | Out-of-scope for the initial drop. Track in a follow-up RFC; users can manually implement actor mocks for now. |
 | Mutation tracking | Provide an opt-in `reset()` helper; default behavior records all calls without bound. |
@@ -26,9 +26,10 @@ implementation. The generated type captures every call for assertion and plugs
 into the existing `Overrides` builder so tests can replace a production binding
 with its mock in a single line.
 
-In the 4.x experimental implementation, generated mocks are intentionally not
-`Sendable` by default because call arrays, result slots, and handlers are plain
-mutable state. Lock-backed strict-sendable mocks remain a follow-up option.
+In the current experimental implementation, generated mocks are intentionally
+not `Sendable` by default because call arrays, result slots, and handlers are
+plain mutable state. Lock-backed strict-sendable mocks remain a follow-up
+option.
 
 Not in scope for this RFC: runtime mocking (swizzling, proxy objects),
 partial mocks that fall back to the real implementation, or anything that

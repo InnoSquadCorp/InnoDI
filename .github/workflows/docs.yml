@@ -25,6 +25,8 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.3"
+      - name: Validate local documentation links
+        run: Tools/check-docs-local-links.sh
       - name: Generate DocC
         run: Tools/generate-docc.sh
       - name: Package DocC Artifact

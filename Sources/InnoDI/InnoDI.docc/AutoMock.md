@@ -2,9 +2,9 @@
 
 `@GenerateMock` (RFC 0001) synthesizes a call-recording mock peer for a
 protocol so tests can plug into the existing `Overrides` builder without
-hand-writing the mock body. The attribute is shipping in 4.x as
-**experimental** and remains so in InnoDI 5.0. Its generated shape may evolve
-until RFC 0001's dedicated GA criteria pass.
+hand-writing the mock body. The attribute is available as an
+**experimental** opt-in and remains experimental in InnoDI 5.0. Its generated
+shape may evolve until RFC 0001's dedicated GA criteria pass.
 
 ## Usage
 
@@ -136,7 +136,7 @@ validation.
 * `@GenerateMock` is an experimental opt-in API. The attribute is
   stable; the *generated* member shape (storage names, helper struct
   names, recorded-call internals) is **not yet stable** and may change
-  between 4.x releases. Pin the generated names through `Overrides`
+  before GA. Pin the generated names through `Overrides`
   builder slots rather than reaching into the synthesized internals.
 * The `bundleWithOverrides:` and `sendable: .strict` parameters from RFC
   0001 are reserved for the next stage. Treat the current macro as the
@@ -144,6 +144,6 @@ validation.
 
 ## See Also
 
-- [RFC 0001 — Macro-driven mock generation](../../docs/rfcs/0001-macro-mock-generation.md)
+- [RFC 0001 — Macro-driven mock generation](https://github.com/InnoSquadCorp/InnoDI/blob/main/docs/rfcs/0001-macro-mock-generation.md)
 - <doc:DiagnosticsGuide>
 - <doc:Validation>
