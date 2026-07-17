@@ -810,7 +810,12 @@ private func packageIdentityInfo(packageRootURL: URL) -> (escapedRepoPath: Strin
     return (escapedRepoPath, identity)
 }
 
-private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 180
+// Fresh consumer packages rebuild SwiftSyntax outside the root package's build
+// directory. On GitHub's macos-26 runners that cold build can exceed three
+// minutes when this suite overlaps other external-consumer suites, even though
+// compiler output is still making progress. Keep the timeout below the CI job
+// limit while allowing a cold, resource-contended build to finish.
+private let strictConcurrencyBuildTimeoutSeconds: TimeInterval = 600
 private let strictConcurrencyTerminationGracePeriodSeconds: TimeInterval = 5
 private let strictConcurrencyHardKillGracePeriodSeconds: TimeInterval = 2
 
