@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Measure time-to-first-binary for an InnoDI-consuming target after clearing
-# both the SPM scratch directory and the user-level SwiftPM cache. Unlike
-# `consumer-benchmark.yml`, which runs against a pre-warmed runner, this
-# script forces a from-scratch swift-syntax + macro plugin compilation so
-# the dominant cost surface is observable.
+# both the SPM scratch directory and the user-level SwiftPM cache. This is the
+# single source of truth for root-package and synthetic-consumer build cost:
+# it forces a from-scratch swift-syntax + macro plugin compilation so the
+# dominant cost surface is reproducible instead of depending on hosted-runner
+# cache state.
 #
 # Usage:
 #   Tools/cold-build-benchmark.sh --target root [--config release]

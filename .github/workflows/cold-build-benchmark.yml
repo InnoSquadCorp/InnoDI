@@ -2,10 +2,10 @@ name: Cold Build Benchmark
 
 on:
   schedule:
-    # Mondays at 04:00 UTC — paired with consumer-benchmark.yml at 03:00
-    # but with explicit cache eviction to expose swift-syntax cold-start
-    # cost. Splitting them keeps the regression signal isolated.
-    - cron: "0 4 * * 1"
+    # Mondays at 03:00 UTC. This is the single build-cost benchmark: explicit
+    # cache eviction keeps root and consumer results reproducible without a
+    # second workflow whose hosted-runner cache state cannot be guaranteed.
+    - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
       bindings:
@@ -16,9 +16,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cold-build-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cold-build:
     runs-on: macos-26
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -53,3 +58,4 @@ jobs:
         with:
           name: cold-build-${{ matrix.scenario }}
           path: .build-metrics/
+          retention-days: 14
