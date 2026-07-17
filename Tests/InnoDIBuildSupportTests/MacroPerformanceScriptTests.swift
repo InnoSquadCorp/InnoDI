@@ -148,6 +148,37 @@ struct MacroPerformanceScriptTests {
         #expect((object["samples_ms"] as? [Any])?.count == 2)
     }
 
+    @Test("Explicit output writes a reusable report without mutating the baseline")
+    func outputWritesReusableReport() throws {
+        let fixture = try MacroPerformanceScriptFixture(
+            swiftVersion: fakeSwiftVersion
+        )
+        defer { fixture.remove() }
+        try fixture.writeBaseline(swiftVersion: fakeSwiftVersion)
+        let originalBaseline = try Data(contentsOf: fixture.baselineURL)
+
+        let result = try fixture.run(
+            arguments: [
+                "--iterations", "2",
+                "--baseline", fixture.baselineURL.path,
+                "--output", fixture.reportURL.path,
+                "--enforce",
+            ]
+        )
+
+        #expect(result.exitCode == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("report written"))
+        #expect(try Data(contentsOf: fixture.baselineURL) == originalBaseline)
+
+        let data = try Data(contentsOf: fixture.reportURL)
+        let object = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        #expect(object["swift_version"] as? String == fakeSwiftVersion)
+        #expect(object["mean_ms"] as? Double == 10.0)
+        #expect((object["samples_ms"] as? [Any])?.count == 2)
+    }
+
     @Test("Invalid in-process samples never create a baseline")
     func invalidSamplesDoNotCreateBaseline() throws {
         let fixture = try MacroPerformanceScriptFixture(
@@ -208,6 +239,7 @@ private struct MacroPerformanceScriptResult {
 private struct MacroPerformanceScriptFixture {
     let rootURL: URL
     let baselineURL: URL
+    let reportURL: URL
     let markerURL: URL
     let fakeBinURL: URL
     let swiftVersion: String
@@ -266,6 +298,7 @@ private struct MacroPerformanceScriptFixture {
 
         self.rootURL = rootURL
         self.baselineURL = rootURL.appendingPathComponent("baseline.json")
+        self.reportURL = rootURL.appendingPathComponent("reports/current.json")
         self.markerURL = rootURL.appendingPathComponent("measurement.marker")
         self.fakeBinURL = fakeBinURL
         self.swiftVersion = swiftVersion

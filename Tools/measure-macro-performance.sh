@@ -9,6 +9,7 @@ DEFAULT_IN_PROCESS_FILTER="MacroPerformanceBenchmark"
 DEFAULT_SUBPROCESS_FILTER="InnoDIMacrosTests"
 FILTER=""
 BASELINE_FILE="Tools/macro-performance-baseline.json"
+REPORT_FILE=""
 THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
 EXPLICIT_REPORT_ONLY=0
@@ -38,6 +39,7 @@ Options:
   --filter <TEST_FILTER>  Swift test filter for --subprocess mode
                           (default: InnoDIMacrosTests)
   --baseline <PATH>       Baseline JSON path (default: Tools/macro-performance-baseline.json)
+  --output <PATH>         Write the current measurement JSON to PATH
   --threshold <PCT>       Allowed regression percentage (default: 20)
   --update-baseline       Create or overwrite the baseline with current measurements
   --in-process            Use the in-process SwiftSyntax benchmark (default)
@@ -76,6 +78,11 @@ while [[ $# -gt 0 ]]; do
     --baseline)
       require_option_value "--baseline" "$BASELINE_FILE" "${2:-}"
       BASELINE_FILE="$2"
+      shift 2
+      ;;
+    --output)
+      require_option_value "--output" "$REPORT_FILE" "${2:-}"
+      REPORT_FILE="$2"
       shift 2
       ;;
     --threshold)
@@ -367,6 +374,12 @@ JSON
 )"
 
 echo "[macro-perf] summary: mean=${mean_ms}ms min=${min_ms}ms max=${max_ms}ms stdev=${stdev_ms}ms"
+
+if [[ -n "$REPORT_FILE" ]]; then
+  mkdir -p "$(dirname "$REPORT_FILE")"
+  printf '%s\n' "$report_json" > "$REPORT_FILE"
+  echo "[macro-perf] report written: $REPORT_FILE"
+fi
 
 if [[ "$UPDATE_BASELINE" -eq 1 ]]; then
   mkdir -p "$(dirname "$BASELINE_FILE")"
