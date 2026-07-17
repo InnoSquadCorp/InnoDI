@@ -9,12 +9,21 @@ struct ExternalConsumerContractTests {
     func compilePassFixturesBuild() throws {
         let fixtures = try externalConsumerFixtures(expectation: .pass)
         #expect(!fixtures.isEmpty)
+        // Every materialized package has its own package root, but the InnoDI
+        // dependency graph is identical. A per-test scratch directory lets
+        // SwiftPM reuse dependency products while still replanning each
+        // fixture's manifest and sources.
+        let scratchPath = makeExternalConsumerScratchPath(label: "pass")
+        defer { try? FileManager.default.removeItem(at: scratchPath) }
 
         for fixture in fixtures {
             let materializedURL = try materializeExternalConsumerFixture(fixture)
             defer { try? FileManager.default.removeItem(at: materializedURL) }
 
-            let result = try runStrictConcurrencyBuild(packageURL: materializedURL)
+            let result = try runStrictConcurrencyBuild(
+                packageURL: materializedURL,
+                scratchPath: scratchPath
+            )
             let output = result.stdout + "\n" + result.stderr
 
             if result.timedOut || result.exitCode != 0 {
@@ -25,7 +34,10 @@ struct ExternalConsumerContractTests {
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
 
             guard !result.timedOut, result.exitCode == 0 else { continue }
-            let execution = try runExternalConsumerExecutable(packageURL: materializedURL)
+            let execution = try runExternalConsumerExecutable(
+                packageURL: materializedURL,
+                scratchPath: scratchPath
+            )
             let executionOutput = execution.stdout + "\n" + execution.stderr
             if execution.timedOut || execution.exitCode != 0 {
                 Issue.record("Fixture '\(fixture.name)' failed at runtime:\n\(executionOutput)")
@@ -65,12 +77,20 @@ struct ExternalConsumerContractTests {
     func compileFailFixturesEmitExpectedDiagnostics() throws {
         let fixtures = try externalConsumerFixtures(expectation: .fail)
         #expect(!fixtures.isEmpty)
+        // Keep pass and fail products isolated from one another. Within this
+        // serialized matrix, sharing the scratch directory avoids rebuilding
+        // SwiftSyntax for every diagnostic fixture.
+        let scratchPath = makeExternalConsumerScratchPath(label: "fail")
+        defer { try? FileManager.default.removeItem(at: scratchPath) }
 
         for fixture in fixtures {
             let materializedURL = try materializeExternalConsumerFixture(fixture)
             defer { try? FileManager.default.removeItem(at: materializedURL) }
 
-            let result = try runStrictConcurrencyBuild(packageURL: materializedURL)
+            let result = try runStrictConcurrencyBuild(
+                packageURL: materializedURL,
+                scratchPath: scratchPath
+            )
             let output = result.stdout + "\n" + result.stderr
             let expectedDiagnostics = try expectedDiagnostics(for: fixture)
 
@@ -391,6 +411,13 @@ private func materializeExternalConsumerFixture(
 
     didFinishMaterializing = true
     return destinationURL
+}
+
+private func makeExternalConsumerScratchPath(label: String) -> URL {
+    FileManager.default.temporaryDirectory.appendingPathComponent(
+        "InnoDI-ExternalConsumer-Scratch-\(label)-\(UUID().uuidString)",
+        isDirectory: true
+    )
 }
 
 private func expectedDiagnostics(
