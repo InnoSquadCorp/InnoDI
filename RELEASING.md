@@ -51,6 +51,9 @@ Before dispatching the `Release Gate` workflow:
    and reject warnings originating from an InnoDI source file.
 9. Enforce the checked-in macro-performance baseline:
    - `Tools/measure-macro-performance.sh --enforce`
+   - The baseline is hardware-sensitive. Refresh it only from a successful
+     `Perf History` run on the same `macos-26` / Xcode 26.6 image used by CI;
+     do not replace it with a developer-machine measurement.
 10. Generate DocC:
     - `Tools/generate-docc.sh`
     - package `.build/docc/InnoDI` with
