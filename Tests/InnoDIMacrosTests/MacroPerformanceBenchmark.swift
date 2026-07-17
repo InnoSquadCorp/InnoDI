@@ -67,9 +67,13 @@ struct MacroPerformanceBenchmark {
     func measureExpansion() throws {
         let rawIterations = Int(ProcessInfo.processInfo.environment["INNODI_MACRO_BENCH_ITERATIONS"] ?? "50") ?? 50
         let iterations = max(1, rawIterations)
-        let warmupIterations = max(1, iterations / 10)
+        let warmupIterations = Self.warmupIterationCount(for: iterations)
 
-        // Warmup to stabilize cache / JIT paths.
+        // A three-expansion warmup was not enough on GitHub's macos-26
+        // runners: one observed run took more than twenty expansions to
+        // converge from 78 ms to 43 ms. Warm at least one complete default
+        // measurement window so the enforced mean represents steady-state
+        // macro work instead of runner startup and cache population.
         for _ in 0..<warmupIterations {
             runOne()
         }
@@ -118,6 +122,17 @@ struct MacroPerformanceBenchmark {
         } else {
             print(report)
         }
+    }
+
+    @Test("Warmup covers at least one complete measurement window")
+    func warmupCoversMeasurementWindow() {
+        #expect(Self.warmupIterationCount(for: 1) == 30)
+        #expect(Self.warmupIterationCount(for: 30) == 30)
+        #expect(Self.warmupIterationCount(for: 50) == 50)
+    }
+
+    private static func warmupIterationCount(for iterations: Int) -> Int {
+        max(30, iterations)
     }
 
     private func runOne() {
