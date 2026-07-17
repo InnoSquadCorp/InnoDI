@@ -177,9 +177,14 @@ struct CIWorkflowHardeningTests {
 
     @Test("Cold benchmark persists visible metrics and fails on missing artifacts")
     func coldBuildMetricsAreRequired() throws {
+        let root = packageRootURL()
         let workflow = try String(
-            contentsOf: packageRootURL()
+            contentsOf: root
                 .appendingPathComponent(".github/workflows/cold-build-benchmark.yml"),
+            encoding: .utf8
+        )
+        let benchmarkScript = try String(
+            contentsOf: root.appendingPathComponent("Tools/cold-build-benchmark.sh"),
             encoding: .utf8
         )
 
@@ -187,6 +192,7 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("path: build/benchmarks/"))
         #expect(workflow.contains("if-no-files-found: error"))
         #expect(!workflow.contains(".build-metrics"))
+        #expect(benchmarkScript.contains("\"$BINDINGS\" 1>&2"))
     }
 
     @Test("Standalone performance history workflow is manual recovery only")
