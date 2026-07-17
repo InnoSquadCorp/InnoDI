@@ -1982,7 +1982,7 @@ struct ValidationCoordinatorTests {
         defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
 
         try """
-        @DIContainer
+        @DIContainer(mainActor: true)
         struct AppContainer {
             @Provide(.input) var value: Int
         }
