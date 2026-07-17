@@ -108,7 +108,7 @@ else
     SCENARIO="synthetic-consumer-${BINDINGS}"
     mkdir -p "$ROOT_DIR/Tools/.synthetic"
     swift "$ROOT_DIR/Tools/generate-synthetic-consumer.swift" \
-        "$ROOT_DIR/Tools/.synthetic/SyntheticConsumer" "$BINDINGS"
+        "$ROOT_DIR/Tools/.synthetic/SyntheticConsumer" "$BINDINGS" 1>&2
 fi
 
 clear_caches "$PACKAGE_DIR"
