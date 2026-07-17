@@ -1162,7 +1162,9 @@ private func runSwiftProcess(
     let termination = DispatchSemaphore(value: 0)
     process.terminationHandler = { _ in termination.signal() }
     try process.run()
-    let timedOut = termination.wait(timeout: .now() + 180) == .timedOut
+    let timedOut = termination.wait(
+        timeout: .now() + migrationSwiftProcessTimeoutSeconds
+    ) == .timedOut
     if timedOut, process.isRunning {
         process.terminate()
         _ = termination.wait(timeout: .now() + 5)
@@ -1176,3 +1178,10 @@ private func runSwiftProcess(
         timedOut: timedOut
     )
 }
+
+// This public-consumer contract performs a cold SwiftSyntax and macro build in
+// a separate SwiftPM scratch directory. GitHub's macos-26 runners can take more
+// than three minutes when other external-consumer suites are active, despite
+// continuing to emit compiler progress. Match the established cold-build
+// allowance used by StrictConcurrencyBuildTests.
+private let migrationSwiftProcessTimeoutSeconds: TimeInterval = 600
