@@ -77,8 +77,9 @@ Before dispatching the `Release Gate` workflow:
     - enable immutable releases for the repository
     - add an active branch ruleset with no bypass actors or exclusions that
       covers exactly `refs/heads/main` (or `refs/heads/*`) and prevents
-      non-fast-forward updates and deletion; store its numeric ID in the
-      repository variable `RELEASE_MAIN_RULESET_ID`
+      non-fast-forward updates and deletion while still allowing ordinary
+      creation and fast-forward updates; store its numeric ID in the repository
+      variable `RELEASE_MAIN_RULESET_ID`
     - add an active tag ruleset with no bypass actors or exclusions that covers
       stable SemVer tags, prevents update and deletion, and does not prevent
       creation; store its numeric ID in `RELEASE_TAG_RULESET_ID`

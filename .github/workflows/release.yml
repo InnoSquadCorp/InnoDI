@@ -488,8 +488,10 @@ jobs:
                 or . == "refs/heads/*")
               and ([.rules[].type] | index("non_fast_forward") != null)
               and ([.rules[].type] | index("deletion") != null)
+              and ([.rules[].type] | index("update") == null)
+              and ([.rules[].type] | index("creation") == null)
             ' <<< "$MAIN_RULESET" >/dev/null; then
-            echo "Main ruleset $RELEASE_MAIN_RULESET_ID does not enforce monotonic main history." >&2
+            echo "Main ruleset $RELEASE_MAIN_RULESET_ID must preserve fast-forward updates while rejecting deletion and history rewrites." >&2
             jq '{id, name, target, enforcement, bypass_actors, conditions, rules: [.rules[].type]}' \
               <<< "$MAIN_RULESET" >&2
             exit 1

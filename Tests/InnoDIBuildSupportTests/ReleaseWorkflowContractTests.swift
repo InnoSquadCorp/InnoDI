@@ -317,6 +317,8 @@ struct ReleaseWorkflowContractTests {
         #expect(policyCheck.contains(". == \"refs/heads/*\""))
         #expect(policyCheck.contains("index(\"non_fast_forward\") != null"))
         #expect(policyCheck.contains("index(\"deletion\") != null"))
+        #expect(policyCheck.contains("index(\"update\") == null"))
+        #expect(policyCheck.contains("index(\"creation\") == null"))
     }
 
     @Test("Release environment requires reviewed main-only deployment")
