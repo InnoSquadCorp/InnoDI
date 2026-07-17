@@ -85,6 +85,33 @@ struct CIWorkflowHardeningTests {
         #expect(!topLevelPermissions.contains("id-token: write"))
         #expect(deployJob.contains("    permissions:\n      pages: write\n      id-token: write"))
     }
+
+    @Test("Renamed-checkout CI uses representative contracts instead of repeating full matrices")
+    func pathIdentityJobStaysTargeted() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let jobStart = try #require(workflow.range(of: "  path-identity:\n"))
+        let job = workflow[jobStart.lowerBound...]
+
+        #expect(job.contains("    timeout-minutes: 30"))
+        #expect(job.contains("INNODI_EXTERNAL_FIXTURE: basic-container"))
+        #expect(
+            job.contains(
+                "--filter StrictConcurrencyBuildTests.swiftUIMainActorRootBuildsUnderStrictConcurrency"
+            )
+        )
+        #expect(
+            job.contains(
+                "--filter ExternalConsumerContractTests.compilePassFixturesBuild"
+            )
+        )
+        #expect(!job.contains("--filter StrictConcurrencyBuildTests\n"))
+        #expect(!job.contains("--filter ExternalConsumerContractTests\n"))
+        #expect(job.contains("swift build --scratch-path \"$scratch_path\""))
+    }
 }
 
 private struct CIWorkflowFixture {
