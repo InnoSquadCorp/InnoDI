@@ -189,6 +189,7 @@ jobs:
 
   path-identity:
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -199,13 +200,19 @@ jobs:
         uses: ./not-innodi/.github/actions/select-xcode
         with:
           version: "26.6"
-      - name: Run Strict Concurrency Fixture
+      - name: Run representative renamed-checkout contracts
+        working-directory: not-innodi
+        env:
+          # One fixture is sufficient here because every external-consumer
+          # manifest is materialized through the same package-identity helper.
+          # The complete pass/fail matrix already runs in the primary jobs.
+          INNODI_EXTERNAL_FIXTURE: basic-container
+        run: |
+          swift test --filter StrictConcurrencyBuildTests.swiftUIMainActorRootBuildsUnderStrictConcurrency
+          swift test --filter ExternalConsumerContractTests.compilePassFixturesBuild
+      - name: Build examples from the renamed checkout
         working-directory: not-innodi
         run: |
-          swift test --filter StrictConcurrencyBuildTests
-          swift test --filter ExternalConsumerContractTests
-      - name: Build Examples
-        working-directory: not-innodi
-        run: |
-          (cd Examples/SwiftUIExample && swift build)
-          (cd Examples/PreviewInjectionExample && swift build)
+          scratch_path="$RUNNER_TEMP/innodi-path-identity-examples"
+          (cd Examples/SwiftUIExample && swift build --scratch-path "$scratch_path")
+          (cd Examples/PreviewInjectionExample && swift build --scratch-path "$scratch_path")
