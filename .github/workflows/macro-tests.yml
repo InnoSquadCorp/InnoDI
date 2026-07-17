@@ -113,12 +113,15 @@ jobs:
           (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
           (cd Examples/PreviewInjectionExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
       - name: Macro Performance Check
+        id: macro_performance
         run: |
           Tools/measure-macro-performance.sh \
             --enforce \
             --output build/macro-performance-report.json
       - name: Upload Macro Performance Report
-        if: always()
+        # Preserve the report when measurement itself fails, but do not turn an
+        # earlier test/build failure into a second missing-artifact failure.
+        if: ${{ always() && steps.macro_performance.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: macro-performance-report

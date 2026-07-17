@@ -130,6 +130,12 @@ struct CIWorkflowHardeningTests {
 
         #expect(measurementCount == 1)
         #expect(workflow.contains("--output build/macro-performance-report.json"))
+        #expect(workflow.contains("        id: macro_performance"))
+        #expect(
+            workflow.contains(
+                "if: ${{ always() && steps.macro_performance.outcome != 'skipped' }}"
+            )
+        )
         #expect(
             workflow.contains(
                 "--current-report build/macro-performance-report.json"
