@@ -6,12 +6,17 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   macro-tests:
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
         with:
@@ -36,7 +41,7 @@ jobs:
             cat coverage/summary.md
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Coverage Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage
           path: |
@@ -55,6 +60,8 @@ jobs:
         run: Tools/check-no-fatalerror-in-macros.sh
       - name: Validate CI keeps build validation enabled
         run: Tools/check-ci-validation-opt-out.sh
+      - name: Validate pinned CI dependencies and permissions
+        run: Tools/check-ci-action-pins.sh
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
       - name: Validate local documentation links
@@ -81,7 +88,7 @@ jobs:
             Tools/report-validate-dag-escape-hatches.sh
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Escape Hatch Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: escape-hatch-report
           path: build/escape-hatch-report.json
@@ -96,7 +103,7 @@ jobs:
             swift run --quiet InnoDI-DeferredAliasScan --root . --json build/deferred-aliases.json
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Deferred-Wrapper Alias Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: deferred-aliases-report
           path: build/deferred-aliases.json
@@ -116,7 +123,7 @@ jobs:
         run: Tools/check-performance-trend.sh
       - name: Upload Performance Trend Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: perf-trend-report
           path: build/perf-trend-report.json
@@ -128,7 +135,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Select Xcode 26.2
         uses: ./.github/actions/select-xcode
         with:
@@ -144,7 +153,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Select Xcode 26.3
         uses: ./.github/actions/select-xcode
         with:
@@ -180,8 +191,9 @@ jobs:
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          persist-credentials: false
           path: not-innodi
       - name: Select Xcode 26.3
         uses: ./not-innodi/.github/actions/select-xcode
