@@ -175,6 +175,20 @@ struct CIWorkflowHardeningTests {
         #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
     }
 
+    @Test("Cold benchmark persists visible metrics and fails on missing artifacts")
+    func coldBuildMetricsAreRequired() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/cold-build-benchmark.yml"),
+            encoding: .utf8
+        )
+
+        #expect(workflow.contains("build/benchmarks/cold-${{ matrix.scenario }}.json"))
+        #expect(workflow.contains("path: build/benchmarks/"))
+        #expect(workflow.contains("if-no-files-found: error"))
+        #expect(!workflow.contains(".build-metrics"))
+    }
+
     @Test("Standalone performance history workflow is manual recovery only")
     func performanceHistoryWorkflowDoesNotRunOnMainPush() throws {
         let workflow = try String(

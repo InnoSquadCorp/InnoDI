@@ -44,18 +44,19 @@ jobs:
           BINDINGS: ${{ github.event.inputs.bindings || '100' }}
         run: |
           set -euo pipefail
-          mkdir -p .build-metrics
+          mkdir -p build/benchmarks
           if [[ "${{ matrix.scenario }}" == "consumer" ]]; then
             Tools/cold-build-benchmark.sh --target consumer --bindings "$BINDINGS" \
-              | tee ".build-metrics/cold-${{ matrix.scenario }}.json"
+              | tee "build/benchmarks/cold-${{ matrix.scenario }}.json"
           else
             Tools/cold-build-benchmark.sh --target root \
-              | tee ".build-metrics/cold-${{ matrix.scenario }}.json"
+              | tee "build/benchmarks/cold-${{ matrix.scenario }}.json"
           fi
       - name: Upload cold build metrics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cold-build-${{ matrix.scenario }}
-          path: .build-metrics/
+          path: build/benchmarks/
+          if-no-files-found: error
           retention-days: 14
