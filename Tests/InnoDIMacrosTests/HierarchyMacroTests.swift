@@ -383,11 +383,11 @@ struct HierarchyMacroTests {
         #expect(peers.count == 1)
         #expect(members.count == 1)
         #expect(extensions.count == 1)
-        #expect(dependencies.attributes.trimmedDescription == "@Swift.MainActor")
-        #expect(initializer.attributes.trimmedDescription == "@Swift.MainActor")
+        #expect(dependencies.attributes.trimmedDescription == "@_Concurrency.MainActor")
+        #expect(initializer.attributes.trimmedDescription == "@_Concurrency.MainActor")
         #expect(
             initializer.signature.parameterClause.parameters.last?.type.trimmedDescription
-                == "@Swift.MainActor (inout Overrides) -> Void"
+                == "@_Concurrency.MainActor (inout Overrides) -> Void"
         )
         #expect(
             mountableConformance.type.trimmedDescription

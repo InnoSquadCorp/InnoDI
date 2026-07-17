@@ -1125,7 +1125,9 @@ private func makeEnvironmentBridgeHelperDecl(
     return FunctionDeclSyntax(
         attributes: AttributeListSyntax([
             .attribute(
-                AttributeSyntax(attributeName: TypeSyntax(stringLiteral: "Swift.MainActor"))
+                AttributeSyntax(
+                    attributeName: TypeSyntax(stringLiteral: "_Concurrency.MainActor")
+                )
             )
         ]),
         modifiers: accessLevel,
@@ -1203,7 +1205,7 @@ private func makeShadowSafeEnvironmentBridgeHelperDecl(
         attributes: AttributeListSyntax([
             .attribute(
                 AttributeSyntax(
-                    attributeName: TypeSyntax(stringLiteral: "Swift.MainActor")
+                    attributeName: TypeSyntax(stringLiteral: "_Concurrency.MainActor")
                 )
             )
         ]),

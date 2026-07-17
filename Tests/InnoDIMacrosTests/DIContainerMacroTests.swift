@@ -3393,7 +3393,7 @@ struct DIContainerMacroTests {
         )
 
         #expect(result.diagnostics.isEmpty)
-        #expect(result.expansion.contains("@Swift.MainActor"))
+        #expect(result.expansion.contains("@_Concurrency.MainActor"))
         #expect(result.expansion.contains("_Concurrency.Task<Int, Swift.Never>"))
     }
 
@@ -3792,7 +3792,7 @@ struct DIContainerMacroTests {
         let peerText = peers.map(\.description).joined(separator: "\n")
 
         #expect(context.diagnostics.isEmpty)
-        #expect(peerText.contains("@Swift.MainActor"))
+        #expect(peerText.contains("@_Concurrency.MainActor"))
         #expect(peerText.contains("_innoDISubBuild_child"))
     }
 

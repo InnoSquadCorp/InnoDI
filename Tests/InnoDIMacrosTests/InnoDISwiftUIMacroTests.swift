@@ -37,7 +37,7 @@ struct InnoDISwiftUIMacroTests {
                         }
                     }
 
-                    @Swift.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                    @_Concurrency.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
                         Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
@@ -71,7 +71,7 @@ struct InnoDISwiftUIMacroTests {
                         }
                     }
 
-                    @Swift.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                    @_Concurrency.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
                         Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
@@ -105,7 +105,7 @@ struct InnoDISwiftUIMacroTests {
                         }
                     }
 
-                    @Swift.MainActor public func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                    @_Concurrency.MainActor public func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
                         Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
@@ -332,7 +332,7 @@ struct InnoDISwiftUIMacroTests {
                         }
                     }
 
-                    @Swift.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
+                    @_Concurrency.MainActor func _innoDIEnvironmentBridgeModifier() -> _InnoDIEnvironmentBridgeModifier {
                         Self._InnoDIEnvironmentBridgeModifier(container: self)
                     }
                 }
@@ -658,7 +658,7 @@ struct InnoDISwiftUIMacroTests {
         #expect(result.expansion.contains("fileprivate func body"))
         #expect(
             result.expansion.contains(
-                "@Swift.MainActor fileprivate func _innoDIEnvironmentBridgeModifier()"
+                "@_Concurrency.MainActor fileprivate func _innoDIEnvironmentBridgeModifier()"
             )
         )
         #expect(!result.expansion.contains("\n        private func body"))

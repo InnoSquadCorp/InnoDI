@@ -1,11 +1,11 @@
 
 public struct AppContainer {
-    @Swift.MainActor @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: AppConfig
-    @Swift.MainActor @InnoDI._InnoDISubContainerAccessor(recovery: false)
+    @_Concurrency.MainActor @InnoDI._InnoDIProvideAccessor(recovery: false) public var config: AppConfig
+    @_Concurrency.MainActor @InnoDI._InnoDISubContainerAccessor(recovery: false)
     public var feature: FeatureContainer
 
     // MARK: - Initialization
-    @Swift.MainActor public init(config: AppConfig, feature: FeatureContainer? = nil, featureOverrides: (@Swift.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil) {
+    @_Concurrency.MainActor public init(config: AppConfig, feature: FeatureContainer? = nil, featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil) {
         self._storage_config = config
         if let direct = feature {
             self._storage_sub_feature = direct
@@ -19,45 +19,45 @@ public struct AppContainer {
     }
 
     // MARK: - SwiftUI Feature Roots
-    @Swift.MainActor public func featureRootView() -> FeatureRootScene {
+    @_Concurrency.MainActor public func featureRootView() -> FeatureRootScene {
         .init(container: feature)
     }
 
     // MARK: - Overrides Builder
-    @Swift.MainActor public struct Overrides {
+    @_Concurrency.MainActor public struct Overrides {
         public var feature: FeatureContainer? = nil
-        public var featureOverrides: (@Swift.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil
+        public var featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil
     }
 
     public typealias _InnoDIMountOverrides = Overrides
 
     // MARK: - Convenience Init with Overrides
-    @Swift.MainActor public init(config: AppConfig, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void) {
+    @_Concurrency.MainActor public init(config: AppConfig, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void) {
         var _innoDIOverrides = Self.Overrides()
         _innoDIApplyOverrides(&_innoDIOverrides)
         self.init(config: config, feature: _innoDIOverrides.feature, featureOverrides: _innoDIOverrides.featureOverrides)
     }
 
     // MARK: - withOverrides
-    @Swift.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) -> OperationResult) -> OperationResult {
+    @_Concurrency.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) -> OperationResult) -> OperationResult {
         let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
         return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    @Swift.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
+    @_Concurrency.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
         let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
         return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    @Swift.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) async -> OperationResult) async -> OperationResult {
+    @_Concurrency.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async -> OperationResult) async -> OperationResult {
         let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
         return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    @Swift.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @Swift.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @Swift.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
+    @_Concurrency.MainActor public static func withOverrides<OperationResult>(config: AppConfig, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
         let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
         return try await _innoDIOperation(_innoDIContainer)
     }

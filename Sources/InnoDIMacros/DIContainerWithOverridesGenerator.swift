@@ -70,7 +70,7 @@ private func makeWithOverridesMethod(
     // operation: (Self) [async] [throws] -> OperationResult
     var operationTypeDescription: String
     if model.options.mainActor {
-        operationTypeDescription = "@Swift.MainActor (Self) "
+        operationTypeDescription = "@_Concurrency.MainActor (Self) "
     } else if isAsync {
         operationTypeDescription = "nonisolated(nonsending) (Self) "
     } else {
