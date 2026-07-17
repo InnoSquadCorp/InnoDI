@@ -213,15 +213,16 @@ ordered by user-facing trust risk first.
        skips them intentionally.
 
 4. Macro dependency and consumer build cost
-   - Status: measured, not refactored.
+   - Status: measured; benchmark infrastructure consolidated.
    - Problem: `InnoDI` intentionally depends on the macro target, and the macro
      target depends on SwiftSyntax. This is the expected cost of early
      validation, but it is still the main adoption tradeoff versus runtime-only
      tools such as Factory or Swinject.
    - Recommended next step:
      - Keep `Tools/measure-macro-performance.sh --enforce` in release gates.
-     - Use the weekly consumer benchmark before considering package splitting
-       or package traits. Do not split targets without measured consumer-build
+     - Use the single weekly cold-build benchmark for both the root package and
+       a 100-binding synthetic consumer before considering package splitting or
+       package traits. Do not split targets without measured consumer-build
        benefit.
    - Completion criteria:
      - Any package-surface split must include before/after consumer build time,
