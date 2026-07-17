@@ -3,7 +3,15 @@ import Foundation
 /// Cycle detection output, including whether any branch was skipped because
 /// it reached the configured depth limit.
 public struct DependencyCycleDetectionResult: Equatable, Sendable {
+    /// Deterministic cycle witnesses discovered by DFS.
+    ///
+    /// This is intentionally not an enumeration of every elementary cycle:
+    /// the number of elementary cycles can grow exponentially with graph
+    /// size. When `truncatedByDepthLimit` is `false`, an empty array proves
+    /// that the graph is acyclic; a non-empty array proves that it is cyclic.
     public let cycles: [[String]]
+
+    /// Whether the depth bound prevented a complete DAG validation.
     public let truncatedByDepthLimit: Bool
 
     public init(cycles: [[String]], truncatedByDepthLimit: Bool) {
@@ -19,11 +27,11 @@ public struct DependencyCycleDetectionResult: Equatable, Sendable {
 ///   graphs cannot blow the native call stack.
 /// - Neighbors are visited in sorted order to keep the reported cycle list
 ///   stable across runs.
-/// - Each distinct elementary cycle is reported once, keyed by the
-///   lexicographically smallest rotation of its core path.
-/// - The linear-in-cycle-length canonical rotation relies on cycles over
-///   distinct nodes — which is an invariant of elementary cycles in a
-///   dependency graph.
+/// - Each DFS back edge produces a cycle witness. Witnesses are deduplicated
+///   and rotated to the lexicographically smallest representation.
+/// - Witnesses are deliberately non-exhaustive. Enumerating every elementary
+///   cycle can require exponential time and memory, while DAG validation only
+///   needs a proof that at least one cycle exists.
 /// - Reports whether any traversal branch was abandoned because it exceeded
 ///   the configured depth limit.
 ///
@@ -33,8 +41,9 @@ public struct DependencyCycleDetectionResult: Equatable, Sendable {
 ///   - depthLimit: Maximum explicit-stack depth before a traversal branch is
 ///     abandoned. Defaults to 4096 — far beyond the depth of any realistic
 ///     DI graph but cheap enough to bound adversarial input.
-/// - Returns: Unique cycle paths plus truncation metadata. Each cycle is
-///   returned as `A -> ... -> A`.
+/// - Returns: Deterministic cycle witnesses plus truncation metadata. Each
+///   witness is returned as `A -> ... -> A`. If the result is not truncated,
+///   `cycles.isEmpty` is equivalent to the graph being acyclic.
 public func analyzeDependencyCycles(
     adjacency: [String: [String]],
     depthLimit: Int = 4096
@@ -110,10 +119,11 @@ public func analyzeDependencyCycles(
                 }
 
                 let cycleCore = Array(pathStack[startIndex...])
-                let cycle = cycleCore + [neighbor]
-                let canonical = canonicalCycleString(cycleCore)
-                if seenCanonical.insert(canonical).inserted {
-                    cycles.append(cycle)
+                let canonicalCore = canonicalCycleCore(cycleCore)
+                let canonicalKey = canonicalCore.joined(separator: "->")
+                if seenCanonical.insert(canonicalKey).inserted,
+                   let firstNode = canonicalCore.first {
+                    cycles.append(canonicalCore + [firstNode])
                 }
 
             case .visited:
@@ -151,7 +161,9 @@ public func analyzeDependencyCycles(
 
 /// Deterministic cycle detection on directed graphs.
 ///
-/// - Returns: Unique cycle paths. Each cycle is returned as `A -> ... -> A`.
+/// - Returns: Non-exhaustive cycle witnesses. Each witness is returned as
+///   `A -> ... -> A`. An empty result proves the graph is acyclic only when
+///   the corresponding analysis would not be truncated by `depthLimit`.
 public func detectDependencyCycles(
     adjacency: [String: [String]],
     depthLimit: Int = 4096
@@ -164,16 +176,15 @@ private enum VisitState {
     case visited
 }
 
-/// Returns the lexicographically smallest rotation of the cycle core joined
-/// with `->`.
+/// Returns the lexicographically smallest rotation of the cycle core.
 ///
-/// Elementary cycles in a dependency graph contain no repeated nodes, so the
-/// minimum rotation is anchored at the smallest node id — a single linear
-/// scan identifies it in O(n). If the cycle ever contained repeats (not
-/// expected for DI graphs), this still produces a canonical ordering via tie
-/// breaking on subsequent elements.
-private func canonicalCycleString(_ cycleCore: [String]) -> String {
-    guard !cycleCore.isEmpty else { return "" }
+/// DFS cycle witnesses contain no repeated internal nodes, so the minimum
+/// rotation is anchored at the smallest node id — a single linear scan
+/// identifies it in O(n). If a witness ever contained repeats (not expected
+/// for DI graphs), this still produces a canonical ordering via tie breaking
+/// on subsequent elements.
+private func canonicalCycleCore(_ cycleCore: [String]) -> [String] {
+    guard !cycleCore.isEmpty else { return [] }
     let size = cycleCore.count
 
     var minIndex = 0
@@ -201,5 +212,5 @@ private func canonicalCycleString(_ cycleCore: [String]) -> String {
     for offset in 0..<size {
         rotated.append(cycleCore[(minIndex + offset) % size])
     }
-    return rotated.joined(separator: "->")
+    return rotated
 }
