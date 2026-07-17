@@ -259,6 +259,9 @@ ordered by user-facing trust risk first.
 4. Toolchain compatibility hardening
    - Keep SwiftSyntax, DocC, and build-plugin behavior stable across new Swift
      and Xcode toolchains without weakening the documented validation contract.
+   - Keep `Tools/public-api-baseline.json` aligned only through reviewed SemVer
+     changes; PR and release workflows compare compiler-emitted symbol graphs
+     for `InnoDI`, `InnoDISwiftUI`, and public SwiftUI extensions.
    - Continue narrowing the non-fatal Swift compiler-plugin JSON decode log
      tracked in `docs/internal/macro-plugin-json-investigation.md`.
 5. Example and onboarding quality

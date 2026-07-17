@@ -38,6 +38,11 @@ Before dispatching the `Release Gate` workflow:
    - `Tools/check-docs-code-blocks.sh`
    - `Tools/check-docs-local-links.sh`
    - `Tools/check-localized-readme-sync.sh`
+   - `Tools/check-public-api.py`
+   - Refresh `Tools/public-api-baseline.json` with
+     `Tools/check-public-api.py --update` only after reviewing an intentional
+     SemVer-visible change. The baseline covers both library products,
+     including public macros and extensions on SwiftUI types.
 7. Validate the Apple Privacy Manifests bundled with the embedded products:
    - `plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy`
    - `plutil -lint Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy`

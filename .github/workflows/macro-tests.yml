@@ -73,6 +73,10 @@ jobs:
         # window when the next major version restructures the canonical
         # README. The release gate is already strict.
         run: Tools/check-localized-readme-sync.sh
+      - name: Validate public API baseline
+        # Compiler-emitted symbol graphs cover macro declarations, runtime
+        # wrappers, SwiftUI protocols, and public SwiftUI extensions.
+        run: Tools/check-public-api.py
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Report Build-Validation Escape Hatches

@@ -242,6 +242,7 @@ jobs:
           Tools/check-docs-code-blocks.sh
           Tools/check-docs-local-links.sh
           Tools/check-localized-readme-sync.sh
+          Tools/check-public-api.py
           plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy
           plutil -lint Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy
 
