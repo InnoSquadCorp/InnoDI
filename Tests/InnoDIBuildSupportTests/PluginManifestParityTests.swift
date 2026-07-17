@@ -16,7 +16,7 @@ struct PluginManifestParityTests {
         #expect(source.contains("permissions:\n  contents: read"))
         #expect(
             source.components(
-                separatedBy: "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5"
+                separatedBy: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
             ).count - 1 == 3
         )
         #expect(
