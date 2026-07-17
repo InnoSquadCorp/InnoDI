@@ -113,14 +113,26 @@ jobs:
           (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
           (cd Examples/PreviewInjectionExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
       - name: Macro Performance Check
-        run: Tools/measure-macro-performance.sh --enforce
+        run: |
+          Tools/measure-macro-performance.sh \
+            --enforce \
+            --output build/macro-performance-report.json
+      - name: Upload Macro Performance Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macro-performance-report
+          path: build/macro-performance-report.json
+          if-no-files-found: error
       - name: Macro Performance Trend
         # Compares the current measurement against the rolling median of
         # the last entries on `perf-history`. Catches gradual creep that a
         # single-baseline `--enforce` gate misses. The script exits 0
         # silently when perf-history is empty or unreachable, so this
         # step is safe to land before the first append happens.
-        run: Tools/check-performance-trend.sh
+        run: |
+          Tools/check-performance-trend.sh \
+            --current-report build/macro-performance-report.json
       - name: Upload Performance Trend Report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -216,3 +228,35 @@ jobs:
           scratch_path="$RUNNER_TEMP/innodi-path-identity-examples"
           (cd Examples/SwiftUIExample && swift build --scratch-path "$scratch_path")
           (cd Examples/PreviewInjectionExample && swift build --scratch-path "$scratch_path")
+
+  append-perf-history:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - macro-tests
+      - swift-62-compatibility
+      - apple-platform-builds
+      - path-identity
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: perf-history
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Download validated macro performance report
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: macro-performance-report
+          path: build/performance
+      - name: Append macro performance history
+        env:
+          GIT_USER_NAME: github-actions[bot]
+          GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          Tools/append-performance-history.sh \
+            --report build/performance/macro-performance-report.json

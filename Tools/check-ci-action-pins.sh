@@ -11,7 +11,8 @@ usage() {
 Usage: Tools/check-ci-action-pins.sh [--root <path>]
 
 Checks workflow permissions, full-SHA external action pins, and checkout
-credential persistence. Only perf-history.yml may persist checkout credentials.
+credential persistence. Only the reviewed performance-history writer jobs may
+persist checkout credentials.
 EOF
 }
 
@@ -102,11 +103,7 @@ def top_level_permissions(lines: list[str]) -> dict[str, str] | None:
 for workflow_path in workflow_files:
     lines = workflow_path.read_text(encoding="utf-8").splitlines()
     permissions = top_level_permissions(lines)
-    expected_permissions = (
-        {"contents": "write"}
-        if workflow_path.name == "perf-history.yml"
-        else {"contents": "read"}
-    )
+    expected_permissions = {"contents": "read"}
     if permissions != expected_permissions:
         failures.append(
             (
@@ -130,6 +127,14 @@ for workflow_path in workflow_files:
             "recovery-state": {"contents": "read"},
             "release-gate": {"contents": "read"},
             "publish-release": {"contents": "write"},
+        }
+    elif workflow_path.name == "macro-tests.yml":
+        expected_job_permissions = {
+            "append-perf-history": {"contents": "write"},
+        }
+    elif workflow_path.name == "perf-history.yml":
+        expected_job_permissions = {
+            "append-perf-history": {"contents": "write"},
         }
 
     current_job: str | None = None
@@ -179,7 +184,21 @@ for workflow_path in workflow_files:
 
 for source_path in workflow_files + action_files:
     lines = source_path.read_text(encoding="utf-8").splitlines()
+    current_job: str | None = None
+    in_jobs = False
     for index, line in enumerate(lines):
+        if line == "jobs:":
+            in_jobs = True
+            continue
+        if in_jobs:
+            if line and not line.startswith((" ", "\t", "#")):
+                in_jobs = False
+                current_job = None
+            else:
+                job = job_pattern.match(line)
+                if job is not None:
+                    current_job = job.group(1)
+
         match = uses_pattern.match(line)
         if match is None:
             continue
@@ -223,8 +242,14 @@ for source_path in workflow_files + action_files:
             if persistence is not None:
                 persistence_values.append(persistence.group(1))
 
+        credential_writers = {
+            ("macro-tests.yml", "append-perf-history"),
+            ("perf-history.yml", "append-perf-history"),
+        }
         expected_persistence = (
-            "true" if source_path.name == "perf-history.yml" else "false"
+            "true"
+            if (source_path.name, current_job) in credential_writers
+            else "false"
         )
         if persistence_values != [expected_persistence]:
             failures.append(

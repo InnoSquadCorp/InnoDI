@@ -1,22 +1,18 @@
 name: Perf History
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   append-perf-history:
-    # Appends a single macro-performance entry to the `perf-history`
-    # branch on every push to `main`. The branch is the time series
-    # `Tools/check-performance-trend.sh` reads when computing the rolling
-    # median that PRs are compared against. Pinned `concurrency` keeps a
-    # busy main from interleaving appends.
+    # Manual recovery path for rebuilding an entry. Normal main pushes reuse
+    # the gated report in macro-tests.yml and append it from an Ubuntu job.
     runs-on: macos-26
+    permissions:
+      contents: write
     concurrency:
       group: perf-history
       cancel-in-progress: false

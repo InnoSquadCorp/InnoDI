@@ -112,6 +112,51 @@ struct CIWorkflowHardeningTests {
         #expect(!job.contains("--filter ExternalConsumerContractTests\n"))
         #expect(job.contains("swift build --scratch-path \"$scratch_path\""))
     }
+
+    @Test("Main CI measures macro performance once and appends history on Ubuntu")
+    func macroPerformanceMeasurementIsReused() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let measurementCount = workflow.components(
+            separatedBy: "Tools/measure-macro-performance.sh"
+        ).count - 1
+        let appendStart = try #require(
+            workflow.range(of: "  append-perf-history:\n")
+        )
+        let appendJob = workflow[appendStart.lowerBound...]
+
+        #expect(measurementCount == 1)
+        #expect(workflow.contains("--output build/macro-performance-report.json"))
+        #expect(
+            workflow.contains(
+                "--current-report build/macro-performance-report.json"
+            )
+        )
+        #expect(appendJob.contains("    runs-on: ubuntu-latest"))
+        #expect(appendJob.contains("      contents: write"))
+        #expect(appendJob.contains("--report build/performance/macro-performance-report.json"))
+    }
+
+    @Test("Standalone performance history workflow is manual recovery only")
+    func performanceHistoryWorkflowDoesNotRunOnMainPush() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/perf-history.yml"),
+            encoding: .utf8
+        )
+        let triggerStart = try #require(workflow.range(of: "on:\n"))
+        let permissionsStart = try #require(workflow.range(of: "\npermissions:\n"))
+        let triggers = workflow[
+            triggerStart.lowerBound..<permissionsStart.lowerBound
+        ]
+
+        #expect(triggers.contains("workflow_dispatch:"))
+        #expect(!triggers.contains("push:"))
+        #expect(workflow.contains("    permissions:\n      contents: write"))
+    }
 }
 
 private struct CIWorkflowFixture {
