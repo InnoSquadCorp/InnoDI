@@ -243,7 +243,7 @@ struct TypeExpressionNamesContainer {
 
 @main
 struct FixtureApp {
-    @Swift.MainActor
+    @_Concurrency.MainActor
     static func main() async {
         let bridgeValueNames = BridgeValueNames(Swift: 1, SwiftUI: 2)
         precondition(bridgeValueNames.Swift + bridgeValueNames.SwiftUI == 3)

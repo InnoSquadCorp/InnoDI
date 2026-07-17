@@ -178,7 +178,7 @@ internal func subContainerBuildClosurePeerDecl(
                 ? AttributeListSyntax.Element.attribute(
                     AttributeSyntax(
                         attributeName: TypeSyntax(
-                            stringLiteral: "Swift.MainActor "
+                            stringLiteral: "_Concurrency.MainActor "
                         )
                     )
                 )

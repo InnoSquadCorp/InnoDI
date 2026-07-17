@@ -203,7 +203,7 @@ struct GeneratedSymbolCollisionTests {
         #expect(managedRecoveryAttributeCount(in: result.expansion) == 4)
         #expect(
             result.expansion.components(
-                separatedBy: "@Swift.MainActor"
+                separatedBy: "@_Concurrency.MainActor"
             ).count - 1 == 4
         )
     }
