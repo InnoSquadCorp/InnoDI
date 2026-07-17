@@ -20,6 +20,10 @@ set -euo pipefail
 # detached or the commit is not yet pushed; in CI the commit must exist
 # upstream so the trend script's `git log` can resolve it.
 #
+# Options:
+#   --report PATH  Reuse an existing validated measurement instead of running
+#                  the benchmark again.
+#
 # Required environment:
 #   GIT_USER_NAME, GIT_USER_EMAIL  — used for the perf-history commit
 #   GITHUB_TOKEN                   — needed to push back to origin in CI
@@ -33,33 +37,64 @@ INDEX_FILE="history/index.json"
 
 GIT_USER_NAME="${GIT_USER_NAME:-innodi-bot}"
 GIT_USER_EMAIL="${GIT_USER_EMAIL:-innodi-bot@users.noreply.github.com}"
+SOURCE_REPORT=""
+
+usage() {
+    cat <<'EOF'
+Usage: Tools/append-performance-history.sh [--report <report.json>]
+
+Without --report the script measures macro performance before appending it.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --report)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "--report requires a path" >&2
+                exit 2
+            fi
+            SOURCE_REPORT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
 
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
     echo "::error::not inside a git repository" >&2
     exit 1
 fi
 
+# 1. Reuse the report produced by the gated macro job when supplied. Manual
+#    callers retain the previous isolated-measurement behavior.
+TMP_BASELINE=$(mktemp -t innodi-perf-XXXXXXXX.json)
+trap 'rm -f "$TMP_BASELINE"' EXIT
+
+if [[ -n "$SOURCE_REPORT" ]]; then
+    cp "$SOURCE_REPORT" "$TMP_BASELINE"
+    echo "[append-perf] reusing macro performance report: $SOURCE_REPORT"
+else
+    echo "[append-perf] measuring macro performance ..."
+    Tools/measure-macro-performance.sh \
+        --baseline "$TMP_BASELINE" \
+        --update-baseline
+fi
+
+python3 Tools/validate-macro-performance-report.py "$TMP_BASELINE" >/dev/null
+
 current_sha=$(git rev-parse HEAD)
 short_sha=$(git rev-parse --short=12 HEAD)
 commit_iso=$(git show -s --format=%cI "$current_sha")
 date_part=$(echo "$commit_iso" | cut -c1-10)
-
-# 1. Run an isolated measurement that writes its JSON to a temp baseline.
-#    `--update-baseline` makes measure-macro-performance.sh write the report
-#    without comparing against an existing baseline, which is exactly what
-#    we need for history append.
-TMP_BASELINE=$(mktemp -t innodi-perf-XXXXXXXX.json)
-trap 'rm -f "$TMP_BASELINE"' EXIT
-
-echo "[append-perf] measuring macro performance ..."
-Tools/measure-macro-performance.sh \
-    --baseline "$TMP_BASELINE" \
-    --update-baseline
-
-if [[ ! -s "$TMP_BASELINE" ]]; then
-    echo "::error::measurement produced no JSON at $TMP_BASELINE" >&2
-    exit 1
-fi
 
 # 2. Decorate the report with the commit SHA so trend checks can join.
 ENRICHED=$(mktemp -t innodi-perf-enriched-XXXXXXXX.json)

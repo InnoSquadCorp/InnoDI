@@ -34,6 +34,39 @@ set -euo pipefail
 #       current run are ignored — keeps the trend honest across
 #       toolchain bumps without requiring history reset.
 
+usage() {
+    cat <<'EOF'
+Usage: Tools/check-performance-trend.sh [--current-report <report.json>]
+
+Without --current-report the script measures macro performance itself.
+Pass the report emitted by measure-macro-performance.sh --output to reuse an
+already enforced measurement.
+EOF
+}
+
+CURRENT_REPORT=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --current-report)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "--current-report requires a path" >&2
+                exit 2
+            fi
+            CURRENT_REPORT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
@@ -43,20 +76,22 @@ THRESHOLD_PCT="${INNODI_TREND_THRESHOLD_PCT:-10}"
 MIN_SAMPLES="${INNODI_TREND_MIN_SAMPLES:-5}"
 REQUIRE_SAME_TOOLCHAIN="${INNODI_TREND_REQUIRE_SAME_TOOLCHAIN:-1}"
 
-# 1. Run a fresh measurement into a temp baseline. We only care about the
-#    JSON shape; the script itself does not run the comparison this time.
+# 1. Reuse an enforced report when supplied. Standalone callers retain the
+#    previous behavior and run a fresh measurement into a temporary file.
 TMP_BASELINE=$(mktemp -t innodi-perf-trend-XXXXXXXX.json)
 trap 'rm -f "$TMP_BASELINE"' EXIT
 
-echo "[trend] measuring macro performance for trend comparison ..."
-Tools/measure-macro-performance.sh \
-    --baseline "$TMP_BASELINE" \
-    --update-baseline >/dev/null
-
-if [[ ! -s "$TMP_BASELINE" ]]; then
-    echo "::error::measurement produced no JSON" >&2
-    exit 1
+if [[ -n "$CURRENT_REPORT" ]]; then
+    cp "$CURRENT_REPORT" "$TMP_BASELINE"
+    echo "[trend] reusing macro performance report: $CURRENT_REPORT"
+else
+    echo "[trend] measuring macro performance for trend comparison ..."
+    Tools/measure-macro-performance.sh \
+        --baseline "$TMP_BASELINE" \
+        --update-baseline >/dev/null
 fi
+
+python3 Tools/validate-macro-performance-report.py "$TMP_BASELINE" >/dev/null
 
 # 2. Try to fetch perf-history. Treat any failure as "no history yet" and
 #    short-circuit with a friendly message.
