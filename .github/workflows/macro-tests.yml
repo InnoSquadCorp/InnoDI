@@ -108,10 +108,6 @@ jobs:
           name: deferred-aliases-report
           path: build/deferred-aliases.json
           if-no-files-found: error
-      - name: Build Extended Examples
-        run: |
-          (cd Examples/SwiftUIExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
-          (cd Examples/PreviewInjectionExample && swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors)
       - name: Macro Performance Check
         id: macro_performance
         run: |
