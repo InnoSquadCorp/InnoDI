@@ -9,10 +9,44 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+if [ "${1:-}" = "--root" ]; then
+    if [ -z "${2:-}" ] || [ -n "${3:-}" ]; then
+        echo "Usage: $0 [--root <package-root>]" >&2
+        exit 2
+    fi
+    root_dir="$2"
+elif [ "$#" -ne 0 ]; then
+    echo "Usage: $0 [--root <package-root>]" >&2
+    exit 2
+fi
+
+cd "$root_dir"
 
 # Collect every `fatalError(` occurrence under Sources/InnoDIMacros/...
-matches="$(rg -n -U --glob '*.swift' 'fatalError\s*\(' Sources/InnoDIMacros/ || true)"
+if command -v rg >/dev/null 2>&1; then
+    if matches="$(rg -n -U --glob '*.swift' 'fatalError\s*\(' Sources/InnoDIMacros/)"; then
+        :
+    else
+        status=$?
+        if [ "$status" -ne 1 ]; then
+            echo "❌ Failed to scan Sources/InnoDIMacros/ with rg (exit $status)." >&2
+            exit 2
+        fi
+        matches=""
+    fi
+else
+    if matches="$(grep -R -n -E --include='*.swift' 'fatalError[[:space:]]*\(' Sources/InnoDIMacros/)"; then
+        :
+    else
+        status=$?
+        if [ "$status" -ne 1 ]; then
+            echo "❌ Failed to scan Sources/InnoDIMacros/ with grep (exit $status)." >&2
+            exit 2
+        fi
+        matches=""
+    fi
+fi
 
 if [ -z "$matches" ]; then
     echo "✅ No fatalError calls found in Sources/InnoDIMacros/ (good)."
