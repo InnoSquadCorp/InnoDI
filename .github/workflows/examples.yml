@@ -34,10 +34,10 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-      - name: Select Xcode 26.3
+      - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.3"
+          version: "26.6"
       - name: Build and Test SampleApp
         run: |
           cd Examples/SampleApp
@@ -55,10 +55,10 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-      - name: Select Xcode 26.3
+      - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.3"
+          version: "26.6"
       - name: Build and Test SwiftUIExample
         run: |
           cd Examples/SwiftUIExample
@@ -72,10 +72,10 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-      - name: Select Xcode 26.3
+      - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.3"
+          version: "26.6"
       - name: Build and Test PreviewInjectionExample
         run: |
           cd Examples/PreviewInjectionExample

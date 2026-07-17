@@ -6,7 +6,7 @@ description: >-
 
 inputs:
   version:
-    description: Supported Xcode version (26.2 or 26.3)
+    description: Supported Xcode version (26.2 or 26.6)
     required: true
 
 runs:
@@ -23,11 +23,11 @@ runs:
           26.2)
             EXPECTED_SWIFT_VERSION="Apple Swift version 6.2"
             ;;
-          26.3)
+          26.6)
             EXPECTED_SWIFT_VERSION="Apple Swift version 6.3"
             ;;
           *)
-            echo "Unsupported Xcode version: $XCODE_VERSION (expected 26.2 or 26.3)."
+            echo "Unsupported Xcode version: $XCODE_VERSION (expected 26.2 or 26.6)."
             exit 1
             ;;
         esac

@@ -25,7 +25,7 @@ body:
     attributes:
       label: Swift toolchain
       description: Output of `swift --version` (one line is enough).
-      placeholder: "Apple Swift version 6.3 (swiftlang-6.3.0...) Target: arm64-apple-macosx14.0"
+      placeholder: "Apple Swift version 6.3.3 (swiftlang-6.3.3...) Target: arm64-apple-macosx26.0"
     validations:
       required: true
 
@@ -33,7 +33,7 @@ body:
     id: xcode-version
     attributes:
       label: Xcode version (if applicable)
-      placeholder: "Xcode 26.3 (Build 16E140)"
+      placeholder: "Xcode 26.6 (Build 17F113)"
 
   - type: dropdown
     id: platform

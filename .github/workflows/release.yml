@@ -211,10 +211,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Select Xcode 26.3
+      - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.3"
+          version: "26.6"
 
       - name: Revalidate candidate checkout
         env:
