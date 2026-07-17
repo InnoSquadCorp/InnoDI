@@ -34,6 +34,7 @@ Before dispatching the `Release Gate` workflow:
 6. Run the repository contract guards:
    - `Tools/check-no-fatalerror-in-macros.sh`
    - `Tools/check-ci-validation-opt-out.sh`
+   - `Tools/check-ci-action-pins.sh`
    - `Tools/check-docs-code-blocks.sh`
    - `Tools/check-docs-local-links.sh`
    - `Tools/check-localized-readme-sync.sh`
@@ -209,6 +210,9 @@ standalone release assets.
   target scope, and explicit root-pruning metadata.
 - Added a tracked-Markdown local-link gate so moved or removed documentation
   targets fail pull-request and release validation before DocC publication.
+- Pinned every external GitHub Action to a full commit SHA, disabled persisted
+  checkout credentials outside the dedicated performance-history writer, and
+  scoped Pages write/identity permissions to the deploy job.
 
 ### Breaking and Behavior Changes
 

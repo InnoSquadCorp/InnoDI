@@ -238,6 +238,7 @@ jobs:
           set -euo pipefail
           Tools/check-no-fatalerror-in-macros.sh
           Tools/check-ci-validation-opt-out.sh
+          Tools/check-ci-action-pins.sh
           Tools/check-docs-code-blocks.sh
           Tools/check-docs-local-links.sh
           Tools/check-localized-readme-sync.sh
