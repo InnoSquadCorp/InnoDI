@@ -5,12 +5,18 @@ Iterative DFS over an adjacency list with a configurable depth cap.
 ## Overview
 
 `analyzeDependencyCycles(adjacency:depthLimit:)` powers both the
-per-container macro validator and the global DAG CLI. It returns every
-distinct elementary cycle in the graph plus a `truncatedByDepthLimit`
-flag, keyed by the lexicographically smallest rotation of the cycle core
-so callers get a stable, deduplicated list across runs. The older
+per-container macro validator and the global DAG CLI. It returns a
+deterministic set of DFS cycle witnesses plus a `truncatedByDepthLimit`
+flag. Each witness is rotated to the lexicographically smallest form so
+callers get stable, deduplicated diagnostics across runs. The older
 `detectDependencyCycles(adjacency:depthLimit:)` API remains as a
 cycle-list-only convenience wrapper.
+
+The witness list is deliberately non-exhaustive. A directed graph can
+contain exponentially many elementary cycles, while DAG validation only
+needs one valid witness to reject a cyclic graph. When analysis is not
+truncated, an empty witness list proves the graph is acyclic and a
+non-empty list proves it is cyclic.
 
 ### Determinism
 
@@ -30,8 +36,8 @@ lowering it is useful primarily in tests that exercise the fallback.
 
 ### Canonical rotation
 
-Elementary cycles in a dependency graph never repeat a node, so the
-smallest-node anchor produces the unique canonical rotation in O(n).
+Cycle witnesses never repeat an internal node, so the smallest-node
+anchor produces the unique canonical rotation in O(n).
 A tie-breaking path is retained for the rare degenerate case where two
 nodes share an id — it keeps canonicalization idempotent even there.
 
