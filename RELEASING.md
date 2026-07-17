@@ -46,7 +46,7 @@ Before dispatching the `Release Gate` workflow:
      `NSPrivacyCollectedDataTypes`, and `NSPrivacyAccessedAPITypes` still
      match the actual SDK behavior — adding any Required Reason API to the
      runtime targets requires a corresponding manifest entry.
-8. With Xcode 26.3 selected, build `InnoDISwiftUI` for the generic macOS, iOS,
+8. With Xcode 26.6 selected, build `InnoDISwiftUI` for the generic macOS, iOS,
    watchOS, tvOS, and visionOS destinations under complete strict concurrency,
    and reject warnings originating from an InnoDI source file.
 9. Enforce the checked-in macro-performance baseline:

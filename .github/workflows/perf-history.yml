@@ -32,10 +32,10 @@ jobs:
           # checkout also persists credentials so the append script can
           # `git push origin perf-history`.
           persist-credentials: true
-      - name: Select Xcode 26.3
+      - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.3"
+          version: "26.6"
       - name: Append macro-perf entry
         env:
           GIT_USER_NAME: github-actions[bot]
