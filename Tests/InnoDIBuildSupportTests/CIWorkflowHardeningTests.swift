@@ -146,6 +146,35 @@ struct CIWorkflowHardeningTests {
         #expect(appendJob.contains("--report build/performance/macro-performance-report.json"))
     }
 
+    @Test("Main CI leaves example builds to the path-filtered example matrix")
+    func mainCIDoesNotDuplicateExampleBuilds() throws {
+        let root = packageRootURL().appendingPathComponent(".github/workflows")
+        let mainWorkflow = try String(
+            contentsOf: root.appendingPathComponent("macro-tests.yml"),
+            encoding: .utf8
+        )
+        let exampleWorkflow = try String(
+            contentsOf: root.appendingPathComponent("examples.yml"),
+            encoding: .utf8
+        )
+        let mainJobStart = try #require(mainWorkflow.range(of: "  macro-tests:\n"))
+        let nextJobStart = try #require(
+            mainWorkflow.range(of: "\n  swift-62-compatibility:\n")
+        )
+        let mainJob = mainWorkflow[
+            mainJobStart.lowerBound..<nextJobStart.lowerBound
+        ]
+
+        #expect(!mainJob.contains("Build Extended Examples"))
+        #expect(!mainJob.contains("cd Examples/SwiftUIExample"))
+        #expect(!mainJob.contains("cd Examples/PreviewInjectionExample"))
+        #expect(exampleWorkflow.contains("      - 'Examples/**'"))
+        #expect(exampleWorkflow.contains("      - 'Sources/**'"))
+        #expect(exampleWorkflow.contains("      - 'Package.swift'"))
+        #expect(exampleWorkflow.contains("Build and Test SwiftUIExample"))
+        #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
+    }
+
     @Test("Standalone performance history workflow is manual recovery only")
     func performanceHistoryWorkflowDoesNotRunOnMainPush() throws {
         let workflow = try String(
