@@ -16,8 +16,8 @@ struct ValidationCoordinatorTests {
             fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIDAGValidationPlugin",
             isDirectory: true
         )
-        let prebuiltPluginOutput = URL(
-            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/InnoDIPrebuiltDAGValidationPlugin",
+        let alternatePluginOutput = URL(
+            fileURLWithPath: "/tmp/build/plugins/outputs/Consumer/FeatureA/AlternateValidationPlugin",
             isDirectory: true
         )
         let outputsNamedTargetOutput = URL(
@@ -30,7 +30,7 @@ struct ValidationCoordinatorTests {
         )
         for pluginWorkDirectory in [
             sourcePluginOutput,
-            prebuiltPluginOutput,
+            alternatePluginOutput,
             outputsNamedTargetOutput,
             nestedPluginOutput,
         ] {

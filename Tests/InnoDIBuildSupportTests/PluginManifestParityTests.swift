@@ -54,8 +54,8 @@ struct PluginManifestParityTests {
         }
     }
 
-    @Test("Source and prebuilt plugins share one manifest contract")
-    func sourceAndPrebuiltPluginsStayAligned() throws {
+    @Test("Source plugin uses the workspace-analysis manifest contract")
+    func sourcePluginUsesWorkspaceManifest() throws {
         let rootURL = packageRootURL()
         let source = try String(
             contentsOf: rootURL.appendingPathComponent(
@@ -63,29 +63,18 @@ struct PluginManifestParityTests {
             ),
             encoding: .utf8
         )
-        let prebuilt = try String(
-            contentsOf: rootURL.appendingPathComponent(
-                "InnoDIValidationTools/Plugins/"
-                    + "InnoDIPrebuiltDAGValidationPlugin/plugin.swift"
-            ),
-            encoding: .utf8
-        )
-        let normalizedPrebuilt = prebuilt
-            .replacingOccurrences(
-                of: "InnoDIPrebuiltDAGValidationPlugin",
-                with: "InnoDIDAGValidationPlugin"
-            )
-            .replacingOccurrences(
-                of: "InnoDIPrebuiltDAGValidationCoordinator",
-                with: "InnoDI-DAGValidationCoordinator"
-            )
-            .replacingOccurrences(of: " (prebuilt)", with: "")
-
-        #expect(normalizedPrebuilt == source)
         #expect(source.contains("--analysis-manifest"))
         #expect(source.contains("--state-dir"))
         #expect(source.contains("innodi-dag-validation-state"))
         #expect(!source.contains("\"--root\""))
         #expect(source.contains("workspace-analysis.json"))
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: rootURL
+                    .appendingPathComponent("InnoDIValidationTools")
+                    .path
+            ),
+            "5.0 must not ship an unusable companion-package placeholder"
+        )
     }
 }

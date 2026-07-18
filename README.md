@@ -192,13 +192,6 @@ syntactic index, not a replacement for Swift's type checker.
 )
 ```
 
-`InnoDIValidationTools` is currently an unpublished companion-package scaffold.
-Its checked-in artifact is an intentional fail-safe placeholder, not a usable
-prebuilt validator. Consumers must not depend on it until a public release
-publishes and verifies the real artifact. After that release, attach either the
-source plugin above or the prebuilt plugin, never both; unsupported hosts and
-local package development should keep using the source plugin.
-
 ## Quick Start
 
 <!-- innodi:compile -->

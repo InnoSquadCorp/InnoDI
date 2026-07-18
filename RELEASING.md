@@ -66,13 +66,7 @@ Before dispatching the `Release Gate` workflow:
       when manually checking reproducibility; the workflow performs this step
       twice-tested with normalized archive metadata
 11. Decide whether any artifact or schema contract changed and update the
-    contract notes below. If publishing the optional prebuilt validation
-    plugin, prepare and verify its companion package artifact before the core
-    candidate is pushed:
-    - `(cd InnoDIValidationTools && Tools/prepare-release-artifact.sh --tag <tag> --source-path ../ --output-dir Artifacts)`
-    - verify a synthetic consumer can build with `InnoDIPrebuiltDAGValidationPlugin`
-    - publish `InnoDIValidationTools` with the same tag only after this core
-      release succeeds
+    contract notes below.
 12. For public-discovery releases, confirm the pre-publication Swift Package
     Index inputs:
     - repository is public
@@ -226,6 +220,9 @@ standalone release assets.
 - Pinned every external GitHub Action to a full commit SHA, disabled persisted
   checkout credentials outside the dedicated performance-history writer, and
   scoped Pages write/identity permissions to the deploy job.
+- Removed the unpublished `InnoDIValidationTools` placeholder package. It was
+  not a usable product and did not reduce the macro-only consumer build floor;
+  RFC 0005 keeps prebuilt validator publication out of the 5.0 contract.
 
 ### Breaking and Behavior Changes
 

@@ -181,13 +181,6 @@ type checker를 대신하는 semantic index가 아니라 보수적인 syntactic 
 )
 ```
 
-`InnoDIValidationTools`는 현재 공개되지 않은 companion package scaffold입니다.
-체크인된 artifact는 의도적으로 실패하는 fail-safe placeholder이며 사용할 수 있는
-prebuilt validator가 아닙니다. 실제 artifact를 게시하고 검증한 public release 전에는
-consumer dependency에 추가하면 안 됩니다. 공개 후에는 위의 source plugin 또는
-prebuilt plugin 중 하나만 연결하고, 둘 다 연결하지 마세요. unsupported hosts와
-local package development에서는 source plugin을 계속 사용해야 합니다.
-
 ## 빠른 시작
 
 <!-- innodi:compile -->

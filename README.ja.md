@@ -189,14 +189,6 @@ Swift type checker の代替ではなく、保守的な syntactic index です�
 )
 ```
 
-`InnoDIValidationTools` は現在 unpublished の companion package scaffold です。
-checked-in artifact は意図的に失敗する fail-safe placeholder であり、利用可能な
-prebuilt validator ではありません。実際の artifact を公開して検証した public
-release までは consumer dependency に追加しないでください。公開後は上記の
-source plugin か prebuilt plugin のどちらか一方だけを attach し、両方は attach
-しないでください。unsupported hosts と local package development では source
-plugin を使い続けてください。
-
 ## クイックスタート
 
 <!-- innodi:compile -->
