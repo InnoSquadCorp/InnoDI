@@ -31,12 +31,19 @@ jobs:
           - scenario: root-xcode-26.6
             target: root
             xcode: "26.6"
+            expected_swift_syntax_mode: ""
           - scenario: consumer-xcode-26.5
             target: consumer
             xcode: "26.5"
+            # Compatibility observation: Swift 6.3.2 has no matching 603.0.2
+            # prebuilt and therefore compiles SwiftSyntax from source.
+            expected_swift_syntax_mode: ""
           - scenario: consumer-xcode-26.6
             target: consumer
             xcode: "26.6"
+            # This is the build-economy contract for the primary consumer
+            # toolchain. Regressing to a source build must fail visibly.
+            expected_swift_syntax_mode: prebuilt
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -57,6 +64,18 @@ jobs:
             --bindings "$BINDINGS" \
             --build-log "build/benchmarks/cold-${{ matrix.scenario }}.log" \
             | tee "build/benchmarks/cold-${{ matrix.scenario }}.json"
+      - name: Verify expected SwiftSyntax mode
+        if: matrix.expected_swift_syntax_mode != ''
+        env:
+          EXPECTED_SWIFT_SYNTAX_MODE: ${{ matrix.expected_swift_syntax_mode }}
+          METRICS_PATH: build/benchmarks/cold-${{ matrix.scenario }}.json
+        run: |
+          set -euo pipefail
+          actual="$(jq -r '.swift_syntax_mode' "$METRICS_PATH")"
+          if [[ "$actual" != "$EXPECTED_SWIFT_SYNTAX_MODE" ]]; then
+            echo "Expected SwiftSyntax mode '$EXPECTED_SWIFT_SYNTAX_MODE', found '$actual'." >&2
+            exit 1
+          fi
       - name: Upload cold build metrics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
