@@ -115,9 +115,9 @@ change rather than a flag flip. Reviewer questions:
    the validator would have caught?
 
 A repository-level rule (CODEOWNERS approval, PR template checkbox, or a
-custom lint rule) keeps the answers visible at review time. The
-`Tools/InnoDILintRules/` package ships an `innodi_validate_dag_in_production`
-rule once that follow-up lands.
+custom lint rule) keeps the answers visible at review time. The shipped
+`Tools/InnoDILintRules/` package provides the
+`innodi_validate_dag_in_production` rule for that policy check.
 
 ## See Also
 
