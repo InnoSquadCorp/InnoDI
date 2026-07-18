@@ -51,7 +51,7 @@ if "swift-docc-plugin" in text:
     raise SystemExit(0)
 
 pattern = re.compile(
-    r"(dependencies:\s*\[\n(?:\s*\.package\(url: \"https://github\.com/swiftlang/swift-syntax\.git\", from: \"602\.0\.0\"\),\n)?)",
+    r"(dependencies:\s*\[\n(?:\s*\.package\(url: \"https://github\.com/swiftlang/swift-syntax\.git\", exact: \"603\.0\.2\"\),\n)?)",
     re.MULTILINE,
 )
 match = pattern.search(text)

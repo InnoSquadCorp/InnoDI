@@ -5,12 +5,22 @@ import Testing
 struct DocCToolchainContractTests {
     @Test("DocC generation uses the checked-in exact dependency graph")
     func generatorUsesCheckedInExactDependencyGraph() throws {
+        let root = packageRootURL()
         let source = try String(
-            contentsOf: packageRootURL()
-                .appendingPathComponent("Tools/generate-docc.sh"),
+            contentsOf: root.appendingPathComponent("Tools/generate-docc.sh"),
+            encoding: .utf8
+        )
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
             encoding: .utf8
         )
 
+        #expect(
+            manifest.contains(
+                #".package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2")"#
+            )
+        )
+        #expect(!manifest.contains("603.0.1"))
         #expect(source.contains(#"DOCC_PLUGIN_VERSION="1.5.0""#))
         #expect(
             source.contains(
@@ -29,6 +39,7 @@ struct DocCToolchainContractTests {
             )
         )
         #expect(source.contains(#"exact: "{docc_plugin_version}""#))
+        #expect(source.contains(#"swift-syntax\.git\", exact: \"603\.0\.2\""#))
         #expect(source.contains("--disable-automatic-resolution"))
         #expect(source.contains(#"--allow-writing-to-directory "$OUTPUT_DIR""#))
         #expect(!source.contains(#"from: "1.4.0""#))
@@ -49,7 +60,7 @@ struct DocCToolchainContractTests {
         #expect(resolved.version == 3)
         #expect(
             resolved.originHash
-                == "785e5f2396e0b39752078131839cbfbe01eefd130d046a693d967bb346439d8e"
+                == "8abd2d2bd3b65148be10d6988a158f723070727f13ece23ac698ca62876ad0a7"
         )
         #expect(
             Set(pins.keys) == [
@@ -74,8 +85,8 @@ struct DocCToolchainContractTests {
         let swiftSyntax = try #require(pins["swift-syntax"])
         #expect(swiftSyntax.kind == "remoteSourceControl")
         #expect(swiftSyntax.location == "https://github.com/swiftlang/swift-syntax.git")
-        #expect(swiftSyntax.state.revision == "9de99a78f099e59caf2b2beec65a4c45d54b2081")
-        #expect(swiftSyntax.state.version == "603.0.1")
+        #expect(swiftSyntax.state.revision == "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1")
+        #expect(swiftSyntax.state.version == "603.0.2")
     }
 }
 
