@@ -20,6 +20,7 @@ struct MacroExpansionDumpScriptTests {
             encoding: .utf8
         )
         #expect(artifact.contains("// Swift version 6.3 (fake)"))
+        #expect(!artifact.contains("fake version metadata"))
         #expect(artifact.contains("// MARK: - @__swiftmacro_Test_One.swift"))
         #expect(artifact.contains("struct GeneratedOne {}"))
         #expect(artifact.contains("// MARK: - @__swiftmacro_Test_Two.swift"))
@@ -127,6 +128,7 @@ private struct MacroExpansionDumpFixture {
         set -euo pipefail
         if [[ "${1:-}" == "--version" ]]; then
             echo "Swift version 6.3 (fake)"
+            echo "fake version metadata"
             exit 0
         fi
         printf '%s\\n' "$@" > "${INNODI_FAKE_SWIFT_ARGUMENTS_PATH:?}"

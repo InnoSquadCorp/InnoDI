@@ -245,6 +245,9 @@ struct CIWorkflowHardeningTests {
         #expect(benchmarkScript.contains("\"$BINDINGS\" 1>&2"))
         #expect(benchmarkScript.contains("\"swift_syntax_mode\""))
         #expect(benchmarkScript.contains("badResponseStatusCode(404)"))
+        #expect(benchmarkScript.contains("SWIFT_VERSION_OUTPUT=$(swift --version 2>/dev/null)"))
+        #expect(benchmarkScript.contains("XCODE_VERSION_OUTPUT=$(xcodebuild -version 2>/dev/null)"))
+        #expect(!benchmarkScript.contains("--version 2>/dev/null | head"))
     }
 
     @Test("Remote consumer smoke resolves and runs the exact published main SHA")
