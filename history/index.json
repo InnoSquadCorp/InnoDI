@@ -1,20 +1,6 @@
 {
   "entries": [
     {
-      "path": "history/macro-performance/2026-05-08-1c9ba8beb8bf.json",
-      "commit": "1c9ba8beb8bf9024b564ceb226bcb6e72f3f690f",
-      "commit_at": "2026-05-08T11:23:30+09:00",
-      "swift_version": "Apple Swift version 6.2.4 (swiftlang-6.2.4.1.4 clang-1700.6.4.2)",
-      "mode": "in-process",
-      "filter": "MacroPerformanceBenchmark",
-      "iterations": 30,
-      "mean_ms": 51.44,
-      "median_ms": null,
-      "min_ms": 47.948,
-      "max_ms": 62.292,
-      "stdev_ms": 4.02
-    },
-    {
       "path": "history/macro-performance/2026-05-08-30b42b66335c.json",
       "commit": "30b42b66335cfcfe74e57bc025d858d388b6edf0",
       "commit_at": "2026-05-08T09:13:23+09:00",
@@ -57,18 +43,18 @@
       "stdev_ms": 2.42
     },
     {
-      "path": "history/macro-performance/2026-05-12-2f7f934fd3b7.json",
-      "commit": "2f7f934fd3b782b6bc941933359b91ae817ba329",
-      "commit_at": "2026-05-12T23:04:54+09:00",
+      "path": "history/macro-performance/2026-05-08-1c9ba8beb8bf.json",
+      "commit": "1c9ba8beb8bf9024b564ceb226bcb6e72f3f690f",
+      "commit_at": "2026-05-08T11:23:30+09:00",
       "swift_version": "Apple Swift version 6.2.4 (swiftlang-6.2.4.1.4 clang-1700.6.4.2)",
       "mode": "in-process",
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
-      "mean_ms": 57.381,
+      "mean_ms": 51.44,
       "median_ms": null,
-      "min_ms": 43.546,
-      "max_ms": 82.98,
-      "stdev_ms": 9.687
+      "min_ms": 47.948,
+      "max_ms": 62.292,
+      "stdev_ms": 4.02
     },
     {
       "path": "history/macro-performance/2026-05-12-46010554087a.json",
@@ -85,18 +71,18 @@
       "stdev_ms": 9.234
     },
     {
-      "path": "history/macro-performance/2026-07-17-61aeb0c12247.json",
-      "commit": "61aeb0c122473bde21e153937c87856b2e0edaad",
-      "commit_at": "2026-07-17T19:28:59+09:00",
-      "swift_version": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
+      "path": "history/macro-performance/2026-05-12-2f7f934fd3b7.json",
+      "commit": "2f7f934fd3b782b6bc941933359b91ae817ba329",
+      "commit_at": "2026-05-12T23:04:54+09:00",
+      "swift_version": "Apple Swift version 6.2.4 (swiftlang-6.2.4.1.4 clang-1700.6.4.2)",
       "mode": "in-process",
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
-      "mean_ms": 54.703,
+      "mean_ms": 57.381,
       "median_ms": null,
-      "min_ms": 37.296,
-      "max_ms": 100.688,
-      "stdev_ms": 15.723
+      "min_ms": 43.546,
+      "max_ms": 82.98,
+      "stdev_ms": 9.687
     },
     {
       "path": "history/macro-performance/2026-07-17-6dc2e2948602.json",
@@ -155,18 +141,18 @@
       "stdev_ms": 18.435
     },
     {
-      "path": "history/macro-performance/2026-07-18-50644443c227.json",
-      "commit": "50644443c2277085f06f9e59d07ac60906b00734",
-      "commit_at": "2026-07-18T11:16:36+09:00",
+      "path": "history/macro-performance/2026-07-17-61aeb0c12247.json",
+      "commit": "61aeb0c122473bde21e153937c87856b2e0edaad",
+      "commit_at": "2026-07-17T19:28:59+09:00",
       "swift_version": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
       "mode": "in-process",
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
-      "mean_ms": 34.326,
+      "mean_ms": 54.703,
       "median_ms": null,
-      "min_ms": 33.597,
-      "max_ms": 36.13,
-      "stdev_ms": 0.639
+      "min_ms": 37.296,
+      "max_ms": 100.688,
+      "stdev_ms": 15.723
     },
     {
       "path": "history/macro-performance/2026-07-18-9a0807e9c185.json",
@@ -211,18 +197,18 @@
       "stdev_ms": 3.375
     },
     {
-      "path": "history/macro-performance/2026-07-19-b2360890cf3b.json",
-      "commit": "b2360890cf3b55fa2f52f1dd5ab19d25f8ed9348",
-      "commit_at": "2026-07-19T07:25:09+09:00",
+      "path": "history/macro-performance/2026-07-18-50644443c227.json",
+      "commit": "50644443c2277085f06f9e59d07ac60906b00734",
+      "commit_at": "2026-07-18T11:16:36+09:00",
       "swift_version": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
       "mode": "in-process",
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
-      "mean_ms": 36.98,
-      "median_ms": 37.079,
-      "min_ms": 34.278,
-      "max_ms": 38.687,
-      "stdev_ms": 0.836
+      "mean_ms": 34.326,
+      "median_ms": null,
+      "min_ms": 33.597,
+      "max_ms": 36.13,
+      "stdev_ms": 0.639
     },
     {
       "path": "history/macro-performance/2026-07-19-f26f4aa47dad.json",
@@ -237,6 +223,34 @@
       "min_ms": 34.774,
       "max_ms": 47.639,
       "stdev_ms": 3.811
+    },
+    {
+      "path": "history/macro-performance/2026-07-19-b2360890cf3b.json",
+      "commit": "b2360890cf3b55fa2f52f1dd5ab19d25f8ed9348",
+      "commit_at": "2026-07-19T07:25:09+09:00",
+      "swift_version": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
+      "mode": "in-process",
+      "filter": "MacroPerformanceBenchmark",
+      "iterations": 30,
+      "mean_ms": 36.98,
+      "median_ms": 37.079,
+      "min_ms": 34.278,
+      "max_ms": 38.687,
+      "stdev_ms": 0.836
+    },
+    {
+      "path": "history/macro-performance/2026-07-19-9e27b8aa40a5.json",
+      "commit": "9e27b8aa40a58902548ac2b7ced9a49a5aca6724",
+      "commit_at": "2026-07-19T07:46:29+09:00",
+      "swift_version": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
+      "mode": "in-process",
+      "filter": "MacroPerformanceBenchmark",
+      "iterations": 30,
+      "mean_ms": 34.404,
+      "median_ms": 33.947,
+      "min_ms": 33.714,
+      "max_ms": 37.061,
+      "stdev_ms": 0.883
     }
   ]
 }
