@@ -196,9 +196,10 @@ jobs:
           path: build/macro-performance-report.json
           if-no-files-found: error
       - name: Macro Performance Trend
-        # Compares the current measurement against the rolling median of
-        # the last entries on `perf-history`. Catches gradual creep that a
-        # single-baseline `--enforce` gate misses. The script exits 0
+        # Compares the current lower envelope against the rolling median of
+        # recent lower envelopes on `perf-history`. Catches gradual creep that
+        # a single-baseline `--enforce` gate misses without promoting shared
+        # runner scheduling noise to a product regression. The script exits 0
         # silently when perf-history is empty or unreachable, so this
         # step is safe to land before the first append happens.
         run: |

@@ -5,6 +5,7 @@
   "filter": "MacroPerformanceBenchmark",
   "iterations": 30,
   "mean_ms": 44.258,
+  "median_ms": 43.960,
   "min_ms": 39.655,
   "max_ms": 49.499,
   "stdev_ms": 2.559,

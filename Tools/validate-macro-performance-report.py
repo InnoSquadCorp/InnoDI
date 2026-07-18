@@ -52,6 +52,7 @@ def finite_number(key: str, *, positive: bool) -> float:
 
 
 mean_ms = finite_number("mean_ms", positive=True)
+median_ms = finite_number("median_ms", positive=True)
 min_ms = finite_number("min_ms", positive=True)
 max_ms = finite_number("max_ms", positive=True)
 stdev_ms = finite_number("stdev_ms", positive=False)
@@ -71,12 +72,14 @@ for index, value in enumerate(samples):
 
 expected = {
     "mean_ms": statistics.fmean(normalized_samples),
+    "median_ms": statistics.median(normalized_samples),
     "min_ms": min(normalized_samples),
     "max_ms": max(normalized_samples),
     "stdev_ms": statistics.stdev(normalized_samples) if iterations > 1 else 0.0,
 }
 actual = {
     "mean_ms": mean_ms,
+    "median_ms": median_ms,
     "min_ms": min_ms,
     "max_ms": max_ms,
     "stdev_ms": stdev_ms,

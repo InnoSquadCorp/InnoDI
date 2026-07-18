@@ -173,6 +173,7 @@ for path in sorted(glob.glob(os.path.join(history_dir, "*.json"))):
         "filter": data.get("filter"),
         "iterations": data.get("iterations"),
         "mean_ms": data.get("mean_ms"),
+        "median_ms": data.get("median_ms"),
         "min_ms": data.get("min_ms"),
         "max_ms": data.get("max_ms"),
         "stdev_ms": data.get("stdev_ms"),

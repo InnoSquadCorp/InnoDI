@@ -170,6 +170,7 @@ private struct MacroPerformanceReportReuseFixture {
           "filter": "MacroPerformanceBenchmark",
           "iterations": 2,
           "mean_ms": \(meanMS),
+          "median_ms": 11.0,
           "min_ms": 10.0,
           "max_ms": 12.0,
           "stdev_ms": 1.414,

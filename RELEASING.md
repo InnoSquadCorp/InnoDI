@@ -56,6 +56,11 @@ Before dispatching the `Release Gate` workflow:
    and reject warnings originating from an InnoDI source file.
 9. Enforce the checked-in macro-performance baseline:
    - `Tools/measure-macro-performance.sh --enforce`
+   - The 20% gate compares the fastest valid sample (`min_ms`) so shared-runner
+     scheduling delay cannot masquerade as a macro regression. The report still
+     records median, mean, maximum, standard deviation, and all raw samples for
+     variance diagnosis. A real expansion slowdown raises every sample,
+     including the lower envelope.
    - The baseline is hardware-sensitive. Refresh it only from a successful
      `Perf History` run on the same `macos-26` / Xcode 26.6 image used by CI;
      do not replace it with a developer-machine measurement.
@@ -639,8 +644,8 @@ standalone release assets.
   records one macro-performance entry per push to `main` via the
   `Perf History` workflow + `Tools/append-performance-history.sh`. The
   PR workflow runs `Tools/check-performance-trend.sh`, which compares
-  the current measurement against the rolling median of the last
-  entries (default window 7, threshold 10%, same-toolchain filter on)
+  the current lower envelope against the rolling median of recent
+  lower envelopes (default window 7, threshold 20%, same-toolchain filter on)
   and uploads `perf-trend-report.json` as an artifact. The pinned
   `Tools/macro-performance-baseline.json` gate stays in place; the
   trend gate runs alongside it to catch gradual creep under-threshold

@@ -258,10 +258,10 @@ preflight_baseline_compatibility() {
     exit 1
   fi
 
-  local baseline_mean
-  baseline_mean="$(read_json_number mean_ms "$BASELINE_FILE")"
-  if ! is_positive_number "$baseline_mean"; then
-    echo "[macro-perf] baseline mean_ms must be a finite positive number in $BASELINE_FILE" >&2
+  local baseline_min
+  baseline_min="$(read_json_number min_ms "$BASELINE_FILE")"
+  if ! is_positive_number "$baseline_min"; then
+    echo "[macro-perf] baseline min_ms must be a finite positive number in $BASELINE_FILE" >&2
     exit 1
   fi
 }
@@ -350,6 +350,7 @@ done
 
 samples_lines="$(printf '%s\n' "${samples[@]}")"
 mean_ms="$(printf '%s\n' "$samples_lines" | awk '{sum += $1} END { printf "%.3f", sum / NR }')"
+median_ms="$(printf '%s\n' "$samples_lines" | sort -n | awk '{ values[NR] = $1 } END { if (NR % 2 == 1) { printf "%.3f", values[(NR + 1) / 2] } else { printf "%.3f", (values[NR / 2] + values[NR / 2 + 1]) / 2.0 } }')"
 min_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 < min { min = $1 } END { printf "%.3f", min }')"
 max_ms="$(printf '%s\n' "$samples_lines" | awk 'NR == 1 || $1 > max { max = $1 } END { printf "%.3f", max }')"
 stdev_ms="$(printf '%s\n' "$samples_lines" | awk -v mean="$mean_ms" '{sum += ($1 - mean)^2} END { if (NR <= 1) { printf "%.3f", 0.0 } else { printf "%.3f", sqrt(sum / (NR - 1)) } }')"
@@ -365,6 +366,7 @@ report_json="$(cat <<JSON
   "filter": "${FILTER}",
   "iterations": ${ITERATIONS},
   "mean_ms": ${mean_ms},
+  "median_ms": ${median_ms},
   "min_ms": ${min_ms},
   "max_ms": ${max_ms},
   "stdev_ms": ${stdev_ms},
@@ -373,7 +375,7 @@ report_json="$(cat <<JSON
 JSON
 )"
 
-echo "[macro-perf] summary: mean=${mean_ms}ms min=${min_ms}ms max=${max_ms}ms stdev=${stdev_ms}ms"
+echo "[macro-perf] summary: median=${median_ms}ms mean=${mean_ms}ms min=${min_ms}ms max=${max_ms}ms stdev=${stdev_ms}ms"
 
 if [[ -n "$REPORT_FILE" ]]; then
   mkdir -p "$(dirname "$REPORT_FILE")"
@@ -388,16 +390,20 @@ if [[ "$UPDATE_BASELINE" -eq 1 ]]; then
   exit 0
 fi
 
-baseline_mean="$(read_json_number mean_ms "$BASELINE_FILE")"
+baseline_min="$(read_json_number min_ms "$BASELINE_FILE")"
 
-if ! is_positive_number "$baseline_mean"; then
-  echo "[macro-perf] baseline mean_ms must be a finite positive number in $BASELINE_FILE" >&2
+if ! is_positive_number "$baseline_min"; then
+  echo "[macro-perf] baseline min_ms must be a finite positive number in $BASELINE_FILE" >&2
   exit 1
 fi
 
-regression_pct="$(awk -v current="$mean_ms" -v baseline="$baseline_mean" 'BEGIN { printf "%.2f", ((current - baseline) / baseline) * 100.0 }')"
+# A shared runner can add arbitrary scheduling delay, but it cannot make a
+# completed expansion execute faster than its uncontended lower envelope.
+# Gate on the fastest valid sample and retain the full distribution above for
+# diagnosing contention and variance.
+regression_pct="$(awk -v current="$min_ms" -v baseline="$baseline_min" 'BEGIN { printf "%.2f", ((current - baseline) / baseline) * 100.0 }')"
 
-echo "[macro-perf] baseline mean=${baseline_mean}ms, current mean=${mean_ms}ms, delta=${regression_pct}%"
+echo "[macro-perf] baseline min=${baseline_min}ms, current min=${min_ms}ms, delta=${regression_pct}%"
 
 is_regression="$(awk -v delta="$regression_pct" -v threshold="$THRESHOLD_PERCENT" 'BEGIN { print (delta > threshold) ? 1 : 0 }')"
 if [[ "$is_regression" -eq 1 ]]; then
