@@ -170,17 +170,6 @@ package struct GeneratedQualifierUsage {
     }
 }
 
-private enum ManagedDependencyKind: Equatable {
-    case hard
-    case lazy
-    case provider
-}
-
-private struct ManagedDependencyReference {
-    let name: String
-    let kind: ManagedDependencyKind
-}
-
 private struct ManagedProvideMember {
     let sourceOrder: Int
     let name: String
@@ -188,13 +177,13 @@ private struct ManagedProvideMember {
     let factory: ExprSyntax?
     let asyncFactory: ExprSyntax?
     let withDependencies: [String]
-    let references: [ManagedDependencyReference]
+    let references: [FactoryDependencyReference]
 
     var isAsync: Bool {
         asyncFactory != nil
     }
 
-    func supports(_ dependencyKind: ManagedDependencyKind) -> Bool {
+    func supports(_ dependencyKind: FactoryDependencyKind) -> Bool {
         switch dependencyKind {
         case .hard:
             return true
@@ -286,7 +275,7 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
                     asyncFactory: arguments.asyncFactoryExpr,
                     withDependencies: arguments.dependencies,
                     references: factory.flatMap {
-                        dependencyReferences(in: $0)
+                        managedFactoryDependencyReferences(in: $0)
                     } ?? []
                 )
             }
@@ -366,40 +355,6 @@ private func matchingInnoDIAttributes(
     }
 }
 
-private func dependencyReferences(
-    in expression: ExprSyntax
-) -> [ManagedDependencyReference]? {
-    guard let closure = expression.as(ClosureExprSyntax.self),
-          let parameterClause = closure.signature?.parameterClause else {
-        return expression.is(ClosureExprSyntax.self) ? [] : nil
-    }
-
-    switch parameterClause {
-    case .simpleInput(let parameters):
-        return parameters.compactMap { parameter in
-            let name = parameter.name.text
-            guard name != "_" else { return nil }
-            return ManagedDependencyReference(name: name, kind: .hard)
-        }
-    case .parameterClause(let clause):
-        return clause.parameters.compactMap { parameter in
-            let token = parameter.secondName ?? parameter.firstName
-            let name = token.text
-            guard name != "_" else { return nil }
-            let kind: ManagedDependencyKind
-            switch deferredDependencyWrapperKind(for: parameter.type) {
-            case .lazy:
-                kind = .lazy
-            case .provider:
-                kind = .provider
-            case .none:
-                kind = .hard
-            }
-            return ManagedDependencyReference(name: name, kind: kind)
-        }
-    }
-}
-
 private func emitsUnresolvedFallback(
     inputNames: Set<String>,
     syncShared: [ManagedProvideMember],
@@ -448,7 +403,7 @@ private func emitsUnresolvedFallback(
 }
 
 private func dependencyRequiresFallback(
-    _ reference: ManagedDependencyReference,
+    _ reference: FactoryDependencyReference,
     availableNames: Set<String>,
     deferredTargetNames: Set<String>,
     validTargetsByName: [String: ManagedProvideMember],
