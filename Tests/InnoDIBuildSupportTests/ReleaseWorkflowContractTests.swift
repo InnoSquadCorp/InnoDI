@@ -333,7 +333,7 @@ struct ReleaseWorkflowContractTests {
         #expect(workflow.contains("    environment: release"))
         #expect(policyCheck.contains("repos/$GITHUB_REPOSITORY/environments/release"))
         #expect(policyCheck.contains("$environment.name == \"release\""))
-        #expect(!policyCheck.contains("can_admins_bypass"))
+        #expect(policyCheck.contains("$environment.can_admins_bypass == false"))
         #expect(policyCheck.contains("select(.type == \"required_reviewers\")"))
         #expect(policyCheck.contains("$requiredReviewerRules | length == 1"))
         #expect(
@@ -341,7 +341,13 @@ struct ReleaseWorkflowContractTests {
                 "$requiredReviewerRules[0].prevent_self_review == true"
             )
         )
-        #expect(policyCheck.contains("type == \"array\" and length > 0"))
+        #expect(policyCheck.contains("type == \"array\" and length >= 2"))
+        #expect(
+            policyCheck.contains(
+                "[$requiredReviewerRules[0].reviewers[].reviewer.login]"
+            )
+        )
+        #expect(policyCheck.contains("unique | length >= 2"))
         #expect(policyCheck.contains("protected_branches: false"))
         #expect(policyCheck.contains("custom_branch_policies: true"))
         #expect(
