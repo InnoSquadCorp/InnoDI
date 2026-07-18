@@ -215,6 +215,8 @@ struct CIWorkflowHardeningTests {
         #expect(exampleWorkflow.contains("      - 'Package.swift'"))
         #expect(exampleWorkflow.contains("Build and Test SwiftUIExample"))
         #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
+        #expect(exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.6"))
+        #expect(!exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.5"))
         #expect(
             exampleWorkflow.components(
                 separatedBy: "if: github.event_name != 'pull_request'"
@@ -238,6 +240,9 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("build/benchmarks/cold-${{ matrix.scenario }}.json"))
         #expect(workflow.contains("scenario: consumer-xcode-26.5"))
         #expect(workflow.contains("scenario: consumer-xcode-26.6"))
+        #expect(workflow.contains("expected_swift_syntax_mode: prebuilt"))
+        #expect(workflow.contains("Verify expected SwiftSyntax mode"))
+        #expect(workflow.contains("actual=\"$(jq -r '.swift_syntax_mode' \"$METRICS_PATH\")\""))
         #expect(workflow.contains("--build-log \"build/benchmarks/cold-${{ matrix.scenario }}.log\""))
         #expect(workflow.contains("path: build/benchmarks/"))
         #expect(workflow.contains("if-no-files-found: error"))
@@ -270,7 +275,7 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
         #expect(workflow.contains("cancel-in-progress: true"))
-        #expect(workflow.contains("version: \"26.5\""))
+        #expect(workflow.contains("version: \"26.6\""))
         #expect(fixture.contains("revision: \"{{INNODI_REVISION}}\""))
         #expect(fixture.contains("https://github.com/InnoSquadCorp/InnoDI.git"))
         #expect(!fixture.contains(".package(path:"))

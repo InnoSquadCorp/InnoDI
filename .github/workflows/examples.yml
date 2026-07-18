@@ -34,14 +34,13 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: Select prebuilt-compatible Xcode 26.5
-        # The primary consumer feedback lane uses the available SwiftSyntax
-        # prebuilt. Extended examples and exhaustive package tests below stay
-        # on Xcode 26.6, so this latency optimization does not weaken the
-        # latest-toolchain contract.
+      - name: Select prebuilt-compatible Xcode 26.6
+        # SwiftSyntax 603.0.2 has a matching prebuilt on Swift 6.3.3. Keep the
+        # representative consumer lane on that toolchain so pull-request
+        # feedback does not pay the SwiftSyntax source-build tax.
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.5"
+          version: "26.6"
       - name: Build and Test SampleApp
         run: |
           cd Examples/SampleApp
