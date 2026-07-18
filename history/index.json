@@ -9,6 +9,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 51.44,
+      "median_ms": null,
       "min_ms": 47.948,
       "max_ms": 62.292,
       "stdev_ms": 4.02
@@ -22,6 +23,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 55.434,
+      "median_ms": null,
       "min_ms": 52.752,
       "max_ms": 59.546,
       "stdev_ms": 1.942
@@ -35,6 +37,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 41.12,
+      "median_ms": null,
       "min_ms": 39.772,
       "max_ms": 46.657,
       "stdev_ms": 1.687
@@ -48,6 +51,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 42.171,
+      "median_ms": null,
       "min_ms": 41.138,
       "max_ms": 53.877,
       "stdev_ms": 2.42
@@ -61,6 +65,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 57.381,
+      "median_ms": null,
       "min_ms": 43.546,
       "max_ms": 82.98,
       "stdev_ms": 9.687
@@ -74,6 +79,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 74.367,
+      "median_ms": null,
       "min_ms": 60.771,
       "max_ms": 101.491,
       "stdev_ms": 9.234
@@ -87,6 +93,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 54.703,
+      "median_ms": null,
       "min_ms": 37.296,
       "max_ms": 100.688,
       "stdev_ms": 15.723
@@ -100,6 +107,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 44.258,
+      "median_ms": null,
       "min_ms": 39.655,
       "max_ms": 49.499,
       "stdev_ms": 2.559
@@ -113,6 +121,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 38.282,
+      "median_ms": null,
       "min_ms": 37.728,
       "max_ms": 40.467,
       "stdev_ms": 0.646
@@ -126,6 +135,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 50.846,
+      "median_ms": null,
       "min_ms": 40.985,
       "max_ms": 64.676,
       "stdev_ms": 7.223
@@ -139,6 +149,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 77.875,
+      "median_ms": null,
       "min_ms": 51.759,
       "max_ms": 115.464,
       "stdev_ms": 18.435
@@ -152,6 +163,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 34.326,
+      "median_ms": null,
       "min_ms": 33.597,
       "max_ms": 36.13,
       "stdev_ms": 0.639
@@ -165,6 +177,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 49.837,
+      "median_ms": null,
       "min_ms": 36.646,
       "max_ms": 75.624,
       "stdev_ms": 9.644
@@ -178,6 +191,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 34.922,
+      "median_ms": null,
       "min_ms": 33.532,
       "max_ms": 40.943,
       "stdev_ms": 1.959
@@ -191,9 +205,24 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 42.112,
+      "median_ms": null,
       "min_ms": 38.043,
       "max_ms": 51.184,
       "stdev_ms": 3.375
+    },
+    {
+      "path": "history/macro-performance/2026-07-19-b2360890cf3b.json",
+      "commit": "b2360890cf3b55fa2f52f1dd5ab19d25f8ed9348",
+      "commit_at": "2026-07-19T07:25:09+09:00",
+      "swift_version": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
+      "mode": "in-process",
+      "filter": "MacroPerformanceBenchmark",
+      "iterations": 30,
+      "mean_ms": 36.98,
+      "median_ms": 37.079,
+      "min_ms": 34.278,
+      "max_ms": 38.687,
+      "stdev_ms": 0.836
     },
     {
       "path": "history/macro-performance/2026-07-19-f26f4aa47dad.json",
@@ -204,6 +233,7 @@
       "filter": "MacroPerformanceBenchmark",
       "iterations": 30,
       "mean_ms": 38.099,
+      "median_ms": null,
       "min_ms": 34.774,
       "max_ms": 47.639,
       "stdev_ms": 3.811
