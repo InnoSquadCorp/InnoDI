@@ -4,7 +4,8 @@
 # single source of truth for root-package and synthetic-consumer build cost:
 # it forces a from-scratch swift-syntax + macro plugin compilation so the
 # dominant cost surface is reproducible instead of depending on hosted-runner
-# cache state.
+# cache state. The report distinguishes a SwiftSyntax prebuilt from a source
+# fallback so a toolchain publishing gap is not misdiagnosed as InnoDI work.
 #
 # Usage:
 #   Tools/cold-build-benchmark.sh --target root [--config release]
@@ -22,6 +23,7 @@ TARGET="root"
 CONFIG="release"
 BINDINGS="100"
 KEEP_USER_CACHE=0
+BUILD_LOG_PATH=""
 
 usage() {
     cat <<USAGE
@@ -32,6 +34,7 @@ Options:
   --config <debug|release>     Build configuration (default: release)
   --bindings <N>               Synthetic consumer @Provide count (default: 100)
   --keep-user-cache            Skip wiping ~/Library/Caches/org.swift.swiftpm
+  --build-log <path>           Preserve the underlying Swift build log
   --help                       Show this help
 USAGE
 }
@@ -53,6 +56,10 @@ while [[ $# -gt 0 ]]; do
         --keep-user-cache)
             KEEP_USER_CACHE=1
             shift
+            ;;
+        --build-log)
+            BUILD_LOG_PATH="${2:?--build-log requires a value}"
+            shift 2
             ;;
         --help)
             usage
@@ -113,16 +120,43 @@ fi
 
 clear_caches "$PACKAGE_DIR"
 
+if [[ -z "$BUILD_LOG_PATH" ]]; then
+    TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/innodi-cold-build.XXXXXX")"
+    trap 'rm -rf "$TEMP_DIR"' EXIT
+    BUILD_LOG_PATH="$TEMP_DIR/build.log"
+elif [[ "$BUILD_LOG_PATH" != /* ]]; then
+    BUILD_LOG_PATH="$(pwd -P)/$BUILD_LOG_PATH"
+fi
+mkdir -p "$(dirname "$BUILD_LOG_PATH")"
+
 START=$(now_ns)
-swift build --package-path "$PACKAGE_DIR" -c "$CONFIG" 1>&2
+swift build --package-path "$PACKAGE_DIR" -c "$CONFIG" 2>&1 \
+    | tee "$BUILD_LOG_PATH" >&2
 END=$(now_ns)
 
 ELAPSED_MS=$(awk -v s="$START" -v e="$END" 'BEGIN { printf "%.3f", (e - s) / 1000000.0 }')
 SWIFT_VERSION=$(swift --version 2>/dev/null | head -n 1)
+XCODE_VERSION=$(xcodebuild -version 2>/dev/null | head -n 1)
 
-printf '{"scenario":"%s","config":"%s","elapsed_ms":%s,"swift_version":"%s","timestamp":"%s"}\n' \
+PREBUILT_ARCHIVE="$(
+    find "$PACKAGE_DIR/.build/prebuilts/swift-syntax" \
+        -type f -name 'libMacroSupport.a' -print -quit 2>/dev/null || true
+)"
+if grep -E -q '(^|\] )(Compiling|Emitting module) SwiftSyntax( |$)' "$BUILD_LOG_PATH"; then
+    SWIFT_SYNTAX_MODE="source"
+elif [[ -n "$PREBUILT_ARCHIVE" ]]; then
+    SWIFT_SYNTAX_MODE="prebuilt"
+elif grep -q 'badResponseStatusCode(404)' "$BUILD_LOG_PATH"; then
+    SWIFT_SYNTAX_MODE="prebuilt-unavailable"
+else
+    SWIFT_SYNTAX_MODE="not-observed"
+fi
+
+printf '{"scenario":"%s","config":"%s","elapsed_ms":%s,"swift_syntax_mode":"%s","xcode_version":"%s","swift_version":"%s","timestamp":"%s"}\n' \
     "$SCENARIO" \
     "$CONFIG" \
     "$ELAPSED_MS" \
+    "$SWIFT_SYNTAX_MODE" \
+    "${XCODE_VERSION//\"/}" \
     "${SWIFT_VERSION//\"/}" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

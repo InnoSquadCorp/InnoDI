@@ -236,10 +236,15 @@ struct CIWorkflowHardeningTests {
         )
 
         #expect(workflow.contains("build/benchmarks/cold-${{ matrix.scenario }}.json"))
+        #expect(workflow.contains("scenario: consumer-xcode-26.5"))
+        #expect(workflow.contains("scenario: consumer-xcode-26.6"))
+        #expect(workflow.contains("--build-log \"build/benchmarks/cold-${{ matrix.scenario }}.log\""))
         #expect(workflow.contains("path: build/benchmarks/"))
         #expect(workflow.contains("if-no-files-found: error"))
         #expect(!workflow.contains(".build-metrics"))
         #expect(benchmarkScript.contains("\"$BINDINGS\" 1>&2"))
+        #expect(benchmarkScript.contains("\"swift_syntax_mode\""))
+        #expect(benchmarkScript.contains("badResponseStatusCode(404)"))
     }
 
     @Test("Remote consumer smoke resolves and runs the exact published main SHA")
@@ -262,6 +267,7 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
         #expect(workflow.contains("cancel-in-progress: true"))
+        #expect(workflow.contains("version: \"26.5\""))
         #expect(fixture.contains("revision: \"{{INNODI_REVISION}}\""))
         #expect(fixture.contains("https://github.com/InnoSquadCorp/InnoDI.git"))
         #expect(!fixture.contains(".package(path:"))

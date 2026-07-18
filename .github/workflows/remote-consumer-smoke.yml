@@ -34,10 +34,13 @@ jobs:
           sparse-checkout: |
             .github/actions/select-xcode
             Tests/RemoteConsumerSmoke
-      - name: Select Xcode 26.6
+      - name: Select prebuilt-compatible Xcode 26.5
+        # Xcode 26.6 remains the exhaustive compiler/release gate. This
+        # consumer lane uses the SwiftSyntax prebuilt published for 26.5 so
+        # remote package proof does not pay an avoidable source-build tax.
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.6"
+          version: "26.5"
       - name: Confirm the revision is the published main tip
         env:
           INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
