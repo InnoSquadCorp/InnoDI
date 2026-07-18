@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-echo "error: InnoDIPrebuiltDAGValidationCoordinator placeholder artifact is not a release binary." >&2
-echo "Run InnoDIValidationTools/Tools/prepare-release-artifact.sh to build a local artifact bundle, or use a released InnoDIValidationTools tag." >&2
-exit 2

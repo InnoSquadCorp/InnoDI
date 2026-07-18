@@ -193,14 +193,6 @@ site в struct / enum или source-visible adapter либо сделайте su
 )
 ```
 
-`InnoDIValidationTools` сейчас является неопубликованным scaffold сопутствующего
-package. Checked-in artifact — это fail-safe placeholder, который намеренно
-завершается ошибкой, а не пригодный к использованию prebuilt validator. Consumers
-не должны добавлять эту dependency, пока public release не опубликует и не
-проверит настоящий artifact. После такого release подключайте либо source plugin
-выше, либо prebuilt plugin, но никогда оба; unsupported hosts и local package
-development должны продолжать использовать source plugin.
-
 ## Быстрый старт
 
 <!-- innodi:compile -->

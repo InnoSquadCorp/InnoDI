@@ -176,12 +176,6 @@ Swift type checker。
 )
 ```
 
-`InnoDIValidationTools` 目前是尚未发布的配套 package scaffold。仓库中已提交的
-artifact 是会有意失败的 fail-safe placeholder，并不是可用的 prebuilt validator。
-在 public release 发布并验证真实 artifact 之前，consumer 不得依赖该 package。
-正式发布后，只挂载上面的 source plugin 或 prebuilt plugin 之一，不能同时挂载；
-unsupported hosts 和 local package development 应继续使用 source plugin。
-
 ## 快速开始
 
 <!-- innodi:compile -->

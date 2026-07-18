@@ -196,14 +196,6 @@ reemplazo del type checker de Swift.
 )
 ```
 
-`InnoDIValidationTools` es actualmente un scaffold de paquete complementario no
-publicado. El artifact incluido en el repositorio es un placeholder fail-safe
-que falla intencionalmente, no un validador prebuilt utilizable. Los consumers
-no deben depender de ese package hasta que un public release publique y
-verifique el artifact real. Despues de ese release, adjunta el source plugin
-anterior o el prebuilt plugin, nunca ambos; los hosts no soportados y el
-desarrollo local de paquetes deben seguir usando el source plugin.
-
 ## Inicio rapido
 
 <!-- innodi:compile -->

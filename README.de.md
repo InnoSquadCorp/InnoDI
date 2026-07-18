@@ -198,14 +198,6 @@ den Swift Type Checker.
 )
 ```
 
-`InnoDIValidationTools` ist derzeit ein unveroeffentlichtes Companion-Package-
-Scaffold. Das eingecheckte Artefakt ist ein absichtlich fehlschlagender
-Fail-Safe-Placeholder und kein nutzbarer prebuilt Validator. Consumer duerfen
-erst davon abhaengen, wenn ein Public Release das echte Artefakt veroeffentlicht
-und verifiziert hat. Danach darf entweder das source plugin oben oder das
-prebuilt plugin angehaengt werden, niemals beide; unsupported hosts und lokale
-Paketentwicklung sollten weiter das source plugin verwenden.
-
 ## Schnellstart
 
 <!-- innodi:compile -->

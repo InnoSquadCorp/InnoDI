@@ -253,9 +253,11 @@ ordered by user-facing trust risk first.
    - Evaluate whether `Lazy<T>` needs a lighter-weight surface such as a property-wrapper form, and whether the three built-in scopes need finer-grained lifetime variants for server-side or multi-window workloads.
 3. CLI and validation polish
    - Add stronger `--help` coverage, more usage tests, and sharper diagnostics around graph collection, fix-its, and release artifacts.
-   - Keep the prebuilt validation-tools package as an unpublished scaffold.
-     Reconsider it only after source-build cost is measured and a companion
-     release can prove source/prebuilt parity in synthetic consumers.
+   - The unpublished prebuilt validation-tools scaffold was removed from the
+     5.0 tree after measurement showed it did not reduce the macro-only
+     consumer build floor. Reconsider a separate companion repository only
+     after source/prebuilt parity and independent release operations can be
+     continuously proven.
 4. Toolchain compatibility hardening
    - Keep SwiftSyntax, DocC, and build-plugin behavior stable across new Swift
      and Xcode toolchains without weakening the documented validation contract.
