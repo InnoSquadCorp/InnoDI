@@ -1,0 +1,31 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "InnoDIRemoteConsumerSmoke",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(
+            url: "https://github.com/InnoSquadCorp/InnoDI.git",
+            revision: "{{INNODI_REVISION}}"
+        )
+    ],
+    targets: [
+        .executableTarget(
+            name: "MacroOnlyApp",
+            dependencies: [
+                .product(name: "InnoDI", package: "InnoDI")
+            ]
+        ),
+        .executableTarget(
+            name: "ValidatedApp",
+            dependencies: [
+                .product(name: "InnoDI", package: "InnoDI")
+            ],
+            plugins: [
+                .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+            ]
+        ),
+    ]
+)

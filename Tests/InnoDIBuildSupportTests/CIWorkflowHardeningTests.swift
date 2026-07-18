@@ -242,6 +242,32 @@ struct CIWorkflowHardeningTests {
         #expect(benchmarkScript.contains("\"$BINDINGS\" 1>&2"))
     }
 
+    @Test("Remote consumer smoke resolves and runs the exact published main SHA")
+    func remoteConsumerSmokeUsesExactRevision() throws {
+        let root = packageRootURL()
+        let workflow = try String(
+            contentsOf: root
+                .appendingPathComponent(".github/workflows/remote-consumer-smoke.yml"),
+            encoding: .utf8
+        )
+        let fixture = try String(
+            contentsOf: root
+                .appendingPathComponent("Tests/RemoteConsumerSmoke/Package.swift.fixture"),
+            encoding: .utf8
+        )
+
+        #expect(workflow.contains("INNODI_REVISION: ${{ github.sha }}"))
+        #expect(workflow.contains("git ls-remote \"$INNODI_REPOSITORY_URL\" refs/heads/main"))
+        #expect(workflow.contains("Package.resolved"))
+        #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
+        #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
+        #expect(workflow.contains("cancel-in-progress: true"))
+        #expect(fixture.contains("revision: \"{{INNODI_REVISION}}\""))
+        #expect(fixture.contains("https://github.com/InnoSquadCorp/InnoDI.git"))
+        #expect(!fixture.contains(".package(path:"))
+        #expect(fixture.contains("InnoDIDAGValidationPlugin"))
+    }
+
     @Test("Standalone performance history workflow is manual recovery only")
     func performanceHistoryWorkflowDoesNotRunOnMainPush() throws {
         let workflow = try String(
