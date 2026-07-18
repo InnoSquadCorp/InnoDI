@@ -178,6 +178,10 @@ for path in sorted(glob.glob(os.path.join(history_dir, "*.json"))):
         "max_ms": data.get("max_ms"),
         "stdev_ms": data.get("stdev_ms"),
     })
+# Multiple commits can land on the same UTC date, so file-name ordering falls
+# back to the SHA and is not chronological. Keep the index explicitly ordered
+# by commit time; path is only a deterministic tie-breaker.
+entries.sort(key=lambda entry: (entry.get("commit_at") or "", entry["path"]))
 os.makedirs(os.path.dirname(index_file), exist_ok=True)
 with open(index_file, "w") as fh:
     json.dump({"entries": entries}, fh, indent=2)
