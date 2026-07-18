@@ -9,12 +9,12 @@ struct ExternalConsumerContractTests {
     func compilePassFixturesBuild() throws {
         let fixtures = try externalConsumerFixtures(expectation: .pass)
         #expect(!fixtures.isEmpty)
-        // Every materialized package has its own package root, but the InnoDI
-        // dependency graph is identical. A per-test scratch directory lets
-        // SwiftPM reuse dependency products while still replanning each
-        // fixture's manifest and sources.
-        let scratchPath = makeExternalConsumerScratchPath(label: "pass")
-        defer { try? FileManager.default.removeItem(at: scratchPath) }
+        // Macro-only consumers can use SwiftSyntax's prebuilt, while a DAG
+        // plugin consumer also builds non-macro SwiftSyntax clients from
+        // source. Keep those build graphs isolated without rebuilding each
+        // profile for every fixture.
+        let scratchRoot = makeExternalConsumerScratchPath(label: "pass")
+        defer { try? FileManager.default.removeItem(at: scratchRoot) }
 
         for fixture in fixtures {
             let materializedURL = try materializeExternalConsumerFixture(fixture)
@@ -22,7 +22,10 @@ struct ExternalConsumerContractTests {
 
             let result = try runStrictConcurrencyBuild(
                 packageURL: materializedURL,
-                scratchPath: scratchPath
+                scratchPath: externalConsumerScratchPath(
+                    for: fixture,
+                    under: scratchRoot
+                )
             )
             let output = result.stdout + "\n" + result.stderr
 
@@ -36,7 +39,10 @@ struct ExternalConsumerContractTests {
             guard !result.timedOut, result.exitCode == 0 else { continue }
             let execution = try runExternalConsumerExecutable(
                 packageURL: materializedURL,
-                scratchPath: scratchPath
+                scratchPath: externalConsumerScratchPath(
+                    for: fixture,
+                    under: scratchRoot
+                )
             )
             let executionOutput = execution.stdout + "\n" + execution.stderr
             if execution.timedOut || execution.exitCode != 0 {
@@ -77,11 +83,11 @@ struct ExternalConsumerContractTests {
     func compileFailFixturesEmitExpectedDiagnostics() throws {
         let fixtures = try externalConsumerFixtures(expectation: .fail)
         #expect(!fixtures.isEmpty)
-        // Keep pass and fail products isolated from one another. Within this
-        // serialized matrix, sharing the scratch directory avoids rebuilding
-        // SwiftSyntax for every diagnostic fixture.
-        let scratchPath = makeExternalConsumerScratchPath(label: "fail")
-        defer { try? FileManager.default.removeItem(at: scratchPath) }
+        // Keep pass and fail products isolated from one another, and also keep
+        // prebuilt-eligible macro consumers separate from full-source plugin
+        // consumers. Each profile still reuses its dependency products.
+        let scratchRoot = makeExternalConsumerScratchPath(label: "fail")
+        defer { try? FileManager.default.removeItem(at: scratchRoot) }
 
         for fixture in fixtures {
             let materializedURL = try materializeExternalConsumerFixture(fixture)
@@ -89,7 +95,10 @@ struct ExternalConsumerContractTests {
 
             let result = try runStrictConcurrencyBuild(
                 packageURL: materializedURL,
-                scratchPath: scratchPath
+                scratchPath: externalConsumerScratchPath(
+                    for: fixture,
+                    under: scratchRoot
+                )
             )
             let output = result.stdout + "\n" + result.stderr
             let expectedDiagnostics = try expectedDiagnostics(for: fixture)
@@ -206,6 +215,26 @@ struct ExternalConsumerContractTests {
             "External consumer templates must use .swift.fixture names"
         )
     }
+
+    @Test("External fixture scratch separates macro-only and plugin graphs")
+    func externalFixtureScratchSeparatesBuildProfiles() throws {
+        let macroOnly = try externalConsumerFixture(
+            named: "basic-container",
+            expectation: .pass
+        )
+        let plugin = try externalConsumerFixture(
+            named: "generated-qualifier-usage-sensitive-shadows",
+            expectation: .pass
+        )
+        let scratchRoot = URL(fileURLWithPath: "/tmp/innodi-external-scratch-test")
+
+        #expect(macroOnly.scratchProfile == .macroOnly)
+        #expect(plugin.scratchProfile == .dagPlugin)
+        #expect(
+            externalConsumerScratchPath(for: macroOnly, under: scratchRoot)
+                != externalConsumerScratchPath(for: plugin, under: scratchRoot)
+        )
+    }
 }
 
 private enum ExternalConsumerExpectation: String {
@@ -218,6 +247,12 @@ private struct ExternalConsumerFixture {
     let name: String
     let sourceURL: URL
     let expectation: ExternalConsumerExpectation
+    let scratchProfile: ExternalConsumerScratchProfile
+}
+
+private enum ExternalConsumerScratchProfile: String {
+    case macroOnly = "macro-only"
+    case dagPlugin = "dag-plugin"
 }
 
 private enum ExternalConsumerFixtureError: Error, CustomStringConvertible {
@@ -293,11 +328,12 @@ private func externalConsumerFixtures(
         throw ExternalConsumerFixtureError.emptyExpectation(expectation.rawValue)
     }
 
-    return fixtureURLs.map { url in
+    return try fixtureURLs.map { url in
         ExternalConsumerFixture(
             name: url.lastPathComponent,
             sourceURL: url,
-            expectation: expectation
+            expectation: expectation,
+            scratchProfile: try externalConsumerScratchProfile(for: url)
         )
     }
 }
@@ -322,8 +358,22 @@ private func externalConsumerFixture(
     return ExternalConsumerFixture(
         name: name,
         sourceURL: sourceURL,
-        expectation: expectation
+        expectation: expectation,
+        scratchProfile: try externalConsumerScratchProfile(for: sourceURL)
     )
+}
+
+private func externalConsumerScratchProfile(
+    for fixtureSourceURL: URL
+) throws -> ExternalConsumerScratchProfile {
+    let manifestURL = fixtureSourceURL.appendingPathComponent("Package.swift.fixture")
+    guard FileManager.default.fileExists(atPath: manifestURL.path(percentEncoded: false)) else {
+        throw ExternalConsumerFixtureError.missingMaterializedFile(
+            manifestURL.path(percentEncoded: false)
+        )
+    }
+    let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
+    return manifest.contains("InnoDIDAGValidationPlugin") ? .dagPlugin : .macroOnly
 }
 
 private func materializeExternalConsumerFixture(
@@ -418,6 +468,13 @@ private func makeExternalConsumerScratchPath(label: String) -> URL {
         "InnoDI-ExternalConsumer-Scratch-\(label)-\(UUID().uuidString)",
         isDirectory: true
     )
+}
+
+private func externalConsumerScratchPath(
+    for fixture: ExternalConsumerFixture,
+    under root: URL
+) -> URL {
+    root.appendingPathComponent(fixture.scratchProfile.rawValue, isDirectory: true)
 }
 
 private func expectedDiagnostics(
