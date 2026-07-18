@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Measure time-to-first-binary for an InnoDI-consuming target after clearing
 # both the SPM scratch directory and the user-level SwiftPM cache. This is the
-# single source of truth for root-package and synthetic-consumer build cost:
-# it forces a from-scratch swift-syntax + macro plugin compilation so the
-# dominant cost surface is reproducible instead of depending on hosted-runner
-# cache state. The report distinguishes a SwiftSyntax prebuilt from a source
-# fallback so a toolchain publishing gap is not misdiagnosed as InnoDI work.
+# single source of truth for root-package and synthetic-consumer build cost.
+# Explicit cache eviction keeps results comparable across hosted runners.
+#
+# SwiftPM may use its SwiftSyntax prebuilt when the package graph is eligible.
+# The report records whether that happened or SwiftSyntax fell back to source,
+# so toolchain and package-graph costs remain distinguishable.
 #
 # Usage:
 #   Tools/cold-build-benchmark.sh --target root [--config release]
@@ -135,8 +136,13 @@ swift build --package-path "$PACKAGE_DIR" -c "$CONFIG" 2>&1 \
 END=$(now_ns)
 
 ELAPSED_MS=$(awk -v s="$START" -v e="$END" 'BEGIN { printf "%.3f", (e - s) / 1000000.0 }')
-SWIFT_VERSION=$(swift --version 2>/dev/null | head -n 1)
-XCODE_VERSION=$(xcodebuild -version 2>/dev/null | head -n 1)
+# Avoid an early-closing `head` pipeline here. Some Swift drivers abort on a
+# broken stdout pipe, and `pipefail` would turn a successful build into a
+# benchmark failure while collecting metadata.
+SWIFT_VERSION_OUTPUT=$(swift --version 2>/dev/null)
+SWIFT_VERSION=${SWIFT_VERSION_OUTPUT%%$'\n'*}
+XCODE_VERSION_OUTPUT=$(xcodebuild -version 2>/dev/null)
+XCODE_VERSION=${XCODE_VERSION_OUTPUT%%$'\n'*}
 
 PREBUILT_ARCHIVE="$(
     find "$PACKAGE_DIR/.build/prebuilts/swift-syntax" \

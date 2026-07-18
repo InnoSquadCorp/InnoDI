@@ -131,7 +131,8 @@ if ! "${BUILD_COMMAND[@]}" >"$BUILD_LOG" 2>&1; then
     exit 1
 fi
 
-SWIFT_VERSION="$($SWIFT_EXECUTABLE --version 2>/dev/null | head -n 1)"
+SWIFT_VERSION_OUTPUT="$($SWIFT_EXECUTABLE --version 2>/dev/null)"
+SWIFT_VERSION="${SWIFT_VERSION_OUTPUT%%$'\n'*}"
 if ! awk -v swift_version="$SWIFT_VERSION" '
     BEGIN {
         state = 0
