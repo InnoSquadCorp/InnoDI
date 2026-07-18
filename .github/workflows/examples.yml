@@ -49,6 +49,10 @@ jobs:
           swift run --skip-build SampleApp
 
   swiftui-example:
+    # SampleApp is the representative PR consumer. The larger examples stay
+    # exhaustive main/scheduled gates so a source edit does not trigger three
+    # independent cold macro builds before review feedback is available.
+    if: github.event_name != 'pull_request'
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -66,6 +70,7 @@ jobs:
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
   preview-injection-example:
+    if: github.event_name != 'pull_request'
     runs-on: macos-26
     steps:
       - name: Checkout
