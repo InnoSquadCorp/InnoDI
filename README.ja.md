@@ -548,6 +548,20 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+consumer target でマクロが生成した Swift コードを確認するには：
+
+```bash
+Tools/dump-macro-expansions.sh \
+  --package-path /path/to/ConsumerPackage \
+  --target App
+```
+
+InnoDI の checkout からスクリプトを実行し、`--package-path` を consumer に
+向けます。隔離した scratch build を使い、結果を既定で consumer の
+`.build/innodi/macro-expansions.swift` にまとめ、`Sources/` や `Tests/` への
+出力は拒否します。通常の build cache は変更しません。宣言を一つだけ確認
+する場合は、Xcode の **Expand Macro** が最速です。
+
 リリースノートとアップグレードノートは [RELEASING.md](RELEASING.md) にあります。
 
 ## サンプル

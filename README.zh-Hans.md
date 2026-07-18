@@ -511,6 +511,20 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+检查 consumer target 中由宏生成的 Swift 代码：
+
+```bash
+Tools/dump-macro-expansions.sh \
+  --package-path /path/to/ConsumerPackage \
+  --target App
+```
+
+请从 InnoDI checkout 运行脚本，并让 `--package-path` 指向 consumer。脚本使用
+隔离的 scratch build，默认把合并结果写入 consumer 的
+`.build/innodi/macro-expansions.swift`，并拒绝写入 `Sources/` 或 `Tests/`。
+consumer 的常规 build cache 不会被修改。只检查一个声明时，Xcode 的
+**Expand Macro** 仍然最快。
+
 发布说明与升级说明统一放在 [RELEASING.md](RELEASING.md)。
 
 ## 示例
