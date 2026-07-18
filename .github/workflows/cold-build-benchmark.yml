@@ -27,31 +27,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario:
-          - root
-          - consumer
+        include:
+          - scenario: root-xcode-26.6
+            target: root
+            xcode: "26.6"
+          - scenario: consumer-xcode-26.5
+            target: consumer
+            xcode: "26.5"
+          - scenario: consumer-xcode-26.6
+            target: consumer
+            xcode: "26.6"
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: Select Xcode 26.6
+      - name: Select Xcode ${{ matrix.xcode }}
         uses: ./.github/actions/select-xcode
         with:
-          version: "26.6"
+          version: ${{ matrix.xcode }}
       - name: Run cold build benchmark
         env:
           BINDINGS: ${{ github.event.inputs.bindings || '100' }}
         run: |
           set -euo pipefail
           mkdir -p build/benchmarks
-          if [[ "${{ matrix.scenario }}" == "consumer" ]]; then
-            Tools/cold-build-benchmark.sh --target consumer --bindings "$BINDINGS" \
-              | tee "build/benchmarks/cold-${{ matrix.scenario }}.json"
-          else
-            Tools/cold-build-benchmark.sh --target root \
-              | tee "build/benchmarks/cold-${{ matrix.scenario }}.json"
-          fi
+          Tools/cold-build-benchmark.sh \
+            --target "${{ matrix.target }}" \
+            --bindings "$BINDINGS" \
+            --build-log "build/benchmarks/cold-${{ matrix.scenario }}.log" \
+            | tee "build/benchmarks/cold-${{ matrix.scenario }}.json"
       - name: Upload cold build metrics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
