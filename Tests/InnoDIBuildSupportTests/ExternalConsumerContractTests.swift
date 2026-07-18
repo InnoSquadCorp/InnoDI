@@ -9,10 +9,10 @@ struct ExternalConsumerContractTests {
     func compilePassFixturesBuild() throws {
         let fixtures = try externalConsumerFixtures(expectation: .pass)
         #expect(!fixtures.isEmpty)
-        // Macro-only consumers can use SwiftSyntax's prebuilt, while a DAG
-        // plugin consumer also builds non-macro SwiftSyntax clients from
-        // source. Keep those build graphs isolated without rebuilding each
-        // profile for every fixture.
+        // A macro-only consumer can use SwiftSyntax's prebuilt on matching
+        // toolchains, while a DAG plugin consumer also builds non-macro
+        // SwiftSyntax clients from source. The profile helper isolates those
+        // incompatible graphs but coalesces older source-only toolchains.
         let scratchRoot = makeExternalConsumerScratchPath(label: "pass")
         defer { try? FileManager.default.removeItem(at: scratchRoot) }
 
@@ -83,9 +83,9 @@ struct ExternalConsumerContractTests {
     func compileFailFixturesEmitExpectedDiagnostics() throws {
         let fixtures = try externalConsumerFixtures(expectation: .fail)
         #expect(!fixtures.isEmpty)
-        // Keep pass and fail products isolated from one another, and also keep
-        // prebuilt-eligible macro consumers separate from full-source plugin
-        // consumers. Each profile still reuses its dependency products.
+        // Keep pass and fail products isolated from one another. Within each
+        // matrix, the profile helper separates prebuilt and full-source graphs
+        // only when the selected compiler can actually use the prebuilt.
         let scratchRoot = makeExternalConsumerScratchPath(label: "fail")
         defer { try? FileManager.default.removeItem(at: scratchRoot) }
 
@@ -216,8 +216,8 @@ struct ExternalConsumerContractTests {
         )
     }
 
-    @Test("External fixture scratch separates macro-only and plugin graphs")
-    func externalFixtureScratchSeparatesBuildProfiles() throws {
+    @Test("External fixture scratch follows the SwiftSyntax build mode")
+    func externalFixtureScratchFollowsBuildMode() throws {
         let macroOnly = try externalConsumerFixture(
             named: "basic-container",
             expectation: .pass
@@ -228,12 +228,21 @@ struct ExternalConsumerContractTests {
         )
         let scratchRoot = URL(fileURLWithPath: "/tmp/innodi-external-scratch-test")
 
-        #expect(macroOnly.scratchProfile == .macroOnly)
-        #expect(plugin.scratchProfile == .dagPlugin)
+        #if compiler(>=6.3.3)
+        #expect(macroOnly.scratchProfile == .macroOnlyPrebuilt)
+        #expect(plugin.scratchProfile == .dagPluginSource)
         #expect(
             externalConsumerScratchPath(for: macroOnly, under: scratchRoot)
                 != externalConsumerScratchPath(for: plugin, under: scratchRoot)
         )
+        #else
+        #expect(macroOnly.scratchProfile == .sharedSource)
+        #expect(plugin.scratchProfile == .sharedSource)
+        #expect(
+            externalConsumerScratchPath(for: macroOnly, under: scratchRoot)
+                == externalConsumerScratchPath(for: plugin, under: scratchRoot)
+        )
+        #endif
     }
 }
 
@@ -251,8 +260,9 @@ private struct ExternalConsumerFixture {
 }
 
 private enum ExternalConsumerScratchProfile: String {
-    case macroOnly = "macro-only"
-    case dagPlugin = "dag-plugin"
+    case sharedSource = "shared-source"
+    case macroOnlyPrebuilt = "macro-only-prebuilt"
+    case dagPluginSource = "dag-plugin-source"
 }
 
 private enum ExternalConsumerFixtureError: Error, CustomStringConvertible {
@@ -373,7 +383,18 @@ private func externalConsumerScratchProfile(
         )
     }
     let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
-    return manifest.contains("InnoDIDAGValidationPlugin") ? .dagPlugin : .macroOnly
+    #if compiler(>=6.3.3)
+    // SwiftSyntax 603.0.2 first has a matching Apple prebuilt on Swift 6.3.3.
+    // A DAG plugin loads non-macro SwiftSyntax clients and therefore remains a
+    // source graph; do not let its products contaminate macro-only fixtures.
+    return manifest.contains("InnoDIDAGValidationPlugin")
+        ? .dagPluginSource
+        : .macroOnlyPrebuilt
+    #else
+    // Swift 6.2 and 6.3.2 compile both graphs from source, so sharing avoids a
+    // second cold SwiftSyntax build without mixing binary modes.
+    return .sharedSource
+    #endif
 }
 
 private func materializeExternalConsumerFixture(
