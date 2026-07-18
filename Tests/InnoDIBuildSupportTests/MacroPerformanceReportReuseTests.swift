@@ -50,6 +50,21 @@ struct MacroPerformanceReportReuseTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.gitMetadataMarkerURL.path))
         #expect(!FileManager.default.fileExists(atPath: fixture.swiftMarkerURL.path))
     }
+
+    @Test("Performance history is indexed by commit time rather than SHA")
+    func historyIndexUsesCommitTime() throws {
+        let script = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent("Tools/append-performance-history.sh"),
+            encoding: .utf8
+        )
+
+        #expect(
+            script.contains(
+                #"entries.sort(key=lambda entry: (entry.get("commit_at") or "", entry["path"]))"#
+            )
+        )
+    }
 }
 
 private struct MacroPerformanceReportReuseResult {

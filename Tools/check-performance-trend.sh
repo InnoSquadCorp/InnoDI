@@ -146,9 +146,9 @@ def comparison_ms(entry):
         return None
     return float(value)
 
-# index.json is already sorted by file name (ISO-prefixed) so the last N
-# entries are the most recent. Filter out entries with mode/filter
-# mismatches in case a future change splits the time series.
+# index.json is sorted by commit_at (with path as a deterministic tie-breaker),
+# so the last N comparable entries are the most recent. Filter out entries with
+# mode/filter mismatches in case a future change splits the time series.
 entries = [
     e for e in entries
     if e.get("mode") == current.get("mode")
