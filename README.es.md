@@ -591,6 +591,20 @@ Validar el DAG global:
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
+Inspeccionar el Swift generado por las macros para un target consumidor:
+
+```bash
+Tools/dump-macro-expansions.sh \
+  --package-path /path/to/ConsumerPackage \
+  --target App
+```
+
+Ejecuta el script desde un checkout de InnoDI y apunta `--package-path` al
+consumidor. Usa un scratch build aislado, escribe el resultado combinado en
+`.build/innodi/macro-expansions.swift` del consumidor y rechaza salidas dentro
+de `Sources/` o `Tests/`. La cache normal del consumidor no se modifica. En
+Xcode, **Expand Macro** sigue siendo la vía más rápida para una sola declaración.
+
 Generar DocC:
 
 ```bash

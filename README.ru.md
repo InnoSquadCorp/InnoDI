@@ -562,6 +562,20 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+Проверить Swift-код, созданный макросами для consumer target:
+
+```bash
+Tools/dump-macro-expansions.sh \
+  --package-path /path/to/ConsumerPackage \
+  --target App
+```
+
+Запускайте скрипт из checkout InnoDI, указав consumer в `--package-path`.
+Изолированный scratch build по умолчанию записывает общий результат в
+`.build/innodi/macro-expansions.swift` consumer-пакета и запрещает вывод в
+`Sources/` или `Tests/`. Обычный build cache consumer-пакета не меняется. Для
+одной декларации быстрее использовать **Expand Macro** в Xcode.
+
 Release notes и upgrade notes находятся в [RELEASING.md](RELEASING.md).
 
 ## Примеры

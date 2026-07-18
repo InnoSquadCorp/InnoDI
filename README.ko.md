@@ -561,6 +561,21 @@ global DAG 검증:
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
+consumer target에서 매크로가 생성한 Swift 코드 확인:
+
+```bash
+Tools/dump-macro-expansions.sh \
+  --package-path /path/to/ConsumerPackage \
+  --target App
+```
+
+InnoDI checkout에서 스크립트를 실행하고 `--package-path`로 consumer를
+지정하세요. 별도 scratch build를 사용해 전체 결과를 기본적으로 consumer의
+`.build/innodi/macro-expansions.swift`에 기록하며, 생성 조각이 `Sources/`나
+`Tests/`에 들어가는 것은 차단합니다. consumer의 일반 build cache는 건드리지
+않습니다. 선언 하나만 볼 때는 Xcode의 **Expand Macro**가 가장 빠르고, 이
+명령은 target 전체를 리뷰 가능한 artifact로 남길 때 사용합니다.
+
 DocC 생성:
 
 ```bash

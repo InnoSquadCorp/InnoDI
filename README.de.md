@@ -574,6 +574,21 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+Von Makros erzeugten Swift-Code fur ein Consumer-Target prufen:
+
+```bash
+Tools/dump-macro-expansions.sh \
+  --package-path /path/to/ConsumerPackage \
+  --target App
+```
+
+Fuhren Sie das Skript aus einem InnoDI-Checkout aus und setzen Sie
+`--package-path` auf den Consumer. Ein isolierter Scratch-Build schreibt das
+Gesamtergebnis standardmassig nach `.build/innodi/macro-expansions.swift` und
+verweigert Ausgaben unter `Sources/` oder `Tests/`. Der normale Build-Cache des
+Consumers bleibt unverandert. Fur eine einzelne Deklaration ist **Expand Macro**
+in Xcode weiterhin der schnellste Weg.
+
 Release- und Upgrade-Notizen stehen in [RELEASING.md](RELEASING.md).
 
 ## Beispiele
