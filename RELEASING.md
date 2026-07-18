@@ -223,9 +223,19 @@ standalone release assets.
 - Removed the unpublished `InnoDIValidationTools` placeholder package. It was
   not a usable product and did not reduce the macro-only consumer build floor;
   RFC 0005 keeps prebuilt validator publication out of the 5.0 contract.
+- Updated the exact swift-syntax pin to `603.0.2`. Apple Swift 6.3 provides a
+  matching MacroSupport prebuilt for this patch, while the prior `603.0.1`
+  pin fell back to compiling SwiftSyntax from source for every cold consumer
+  build.
 
 ### Breaking and Behavior Changes
 
+- **Build dependency compatibility change:** InnoDI now resolves swift-syntax
+  exactly at `603.0.2` so Swift 6.3 consumers can use the toolchain-provided
+  MacroSupport prebuilt without giving up SwiftSyntax 603 syntax support. A
+  consumer that directly pins swift-syntax to `603.0.1` must remove that
+  unnecessary direct dependency or align it to `603.0.2` before adopting
+  InnoDI 5.0.
 - **Intentional breaking change:** `@DIContainer` and `@DIComponent` now accept only effectively non-generic
   `struct` declarations at file scope or inside non-generic nominal
   declarations. Direct non-struct or generic declarations, declarations in an
@@ -345,6 +355,9 @@ standalone release assets.
 
 ### Upgrade Actions
 
+- Remove a direct consumer dependency on swift-syntax when it exists only to
+  constrain InnoDI transitively. If the consumer implements its own macros,
+  align that package graph to swift-syntax `603.0.2` before resolving 5.0.
 - Run the migration tool from the consumer package or workspace root, then
   review the diff and confirm a clean final check:
   ```sh
