@@ -2,7 +2,7 @@ import SwiftSyntax
 
 /// Syntax-derived nominal type reference used by build validators and the DAG
 /// CLI before Swift's type checker is available.
-package struct SemanticTypeReference: Codable, Equatable, Sendable {
+package struct SemanticTypeReference: Codable, Equatable, Hashable, Sendable {
     package let displayPath: String
     package let components: [String]
 
