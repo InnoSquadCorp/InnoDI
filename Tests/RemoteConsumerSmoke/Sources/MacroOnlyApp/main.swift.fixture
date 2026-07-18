@@ -1,0 +1,18 @@
+import InnoDI
+
+struct Service: Sendable {
+    let value: Int
+}
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var seed: Int
+
+    @Provide(.shared, factory: { (seed: Int) in Service(value: seed) })
+    var service: Service
+}
+
+let container = AppContainer(seed: 42)
+precondition(container.service.value == 42)
+print("macro-only remote consumer OK")

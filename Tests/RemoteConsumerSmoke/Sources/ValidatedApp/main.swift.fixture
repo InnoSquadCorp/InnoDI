@@ -1,0 +1,18 @@
+import InnoDI
+
+struct Service: Sendable {
+    let value: Int
+}
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var seed: Int
+
+    @Provide(.shared, factory: { (seed: Int) in Service(value: seed) })
+    var service: Service
+}
+
+let container = AppContainer(seed: 43)
+precondition(container.service.value == 43)
+print("DAG-plugin remote consumer OK")

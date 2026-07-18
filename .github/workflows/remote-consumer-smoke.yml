@@ -1,0 +1,113 @@
+name: Remote Consumer Smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Package.swift'
+      - 'Package.resolved'
+      - 'Sources/**'
+      - 'Plugins/**'
+      - 'Tests/RemoteConsumerSmoke/**'
+      - '.github/actions/select-xcode/**'
+      - '.github/workflows/remote-consumer-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-consumer-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-revision-consumer:
+    name: Exact-SHA macro and plugin consumer
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout smoke fixture only
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/select-xcode
+            Tests/RemoteConsumerSmoke
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Confirm the revision is the published main tip
+        env:
+          INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
+          INNODI_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          remote_main="$(git ls-remote "$INNODI_REPOSITORY_URL" refs/heads/main | awk '{print $1}')"
+          if [[ "$remote_main" != "$INNODI_REVISION" ]]; then
+            echo "Expected remote main $INNODI_REVISION, found ${remote_main:-<missing>}." >&2
+            exit 1
+          fi
+      - name: Materialize a fresh remote consumer
+        env:
+          INNODI_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/innodi-remote-consumer"
+          mkdir -p "$consumer"
+          while IFS= read -r -d '' fixture; do
+            relative="${fixture#Tests/RemoteConsumerSmoke/}"
+            destination="$consumer/${relative%.fixture}"
+            mkdir -p "$(dirname "$destination")"
+            sed "s/{{INNODI_REVISION}}/$INNODI_REVISION/g" "$fixture" > "$destination"
+          done < <(find Tests/RemoteConsumerSmoke -type f -name '*.fixture' -print0)
+          if grep -R -n -E '{{INNODI_[A-Z_]+}}' "$consumer"; then
+            echo "Remote consumer has unresolved template placeholders." >&2
+            exit 1
+          fi
+          printf 'INNODI_REMOTE_CONSUMER=%s\n' "$consumer" >> "$GITHUB_ENV"
+      - name: Resolve the exact remote revision
+        env:
+          INNODI_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          swift package --package-path "$INNODI_REMOTE_CONSUMER" resolve
+          python3 - "$INNODI_REMOTE_CONSUMER/Package.resolved" "$INNODI_REVISION" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          resolved = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          revision = sys.argv[2]
+          pins = [
+              pin for pin in resolved.get("pins", [])
+              if pin.get("identity", "").lower() == "innodi"
+          ]
+          if len(pins) != 1:
+              raise SystemExit(f"expected one InnoDI pin, found {len(pins)}")
+          actual = pins[0].get("state", {}).get("revision")
+          if actual != revision:
+              raise SystemExit(f"expected InnoDI revision {revision}, found {actual}")
+          print(f"Resolved InnoDI at exact revision {actual}")
+          PY
+      - name: Build and run macro-first and plugin consumers
+        run: |
+          set -euo pipefail
+          swift build \
+            --package-path "$INNODI_REMOTE_CONSUMER" \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+          swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build MacroOnlyApp
+          swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build ValidatedApp
+      - name: Record consumer proof
+        env:
+          INNODI_REVISION: ${{ github.sha }}
+        run: |
+          {
+            echo "## Remote consumer proof"
+            echo
+            echo "- exact revision: \`$INNODI_REVISION\`"
+            echo "- macro-only consumer: built and ran"
+            echo "- DAG-plugin consumer: built and ran"
+          } >> "$GITHUB_STEP_SUMMARY"
