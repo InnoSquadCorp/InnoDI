@@ -25,7 +25,7 @@ struct PublicAPIContractTests {
         #expect(symbolCount > 0)
     }
 
-    @Test("PR and release workflows enforce the same baseline")
+    @Test("PR, main, and release workflows enforce the same baseline")
     func workflowParity() throws {
         let root = packageRootURL()
         let macroTests = try String(
@@ -38,7 +38,7 @@ struct PublicAPIContractTests {
         )
 
         #expect(
-            macroTests.components(separatedBy: "Tools/check-public-api.py").count - 1 == 1
+            macroTests.components(separatedBy: "Tools/check-public-api.py").count - 1 == 2
         )
         #expect(
             release.components(separatedBy: "Tools/check-public-api.py").count - 1 == 1

@@ -51,7 +51,7 @@ soft-rollout window for canonical restructures.
 
 ## Code Coverage
 
-The PR workflow runs `swift test --enable-code-coverage` once and feeds the
+The `main` workflow runs `swift test --enable-code-coverage` once and feeds the
 profile data into `Tools/collect-coverage.sh`, which exports a per-module
 rollup. The rollup appears in the workflow run's step summary and is
 uploaded as an `actions/upload-artifact` artifact named `coverage`. Locally:
@@ -69,14 +69,23 @@ fixtures or third-party code.
 
 ## Macro Performance Trend
 
-`Tools/measure-macro-performance.sh --enforce` continues to compare each
-PR against the pinned baseline JSON in
-`Tools/macro-performance-baseline.json`. Alongside that, the PR pipeline
+`Tools/measure-macro-performance.sh --enforce` compares every validated
+`main` revision against the pinned baseline JSON in
+`Tools/macro-performance-baseline.json`. Alongside that, the `main` pipeline
 also runs `Tools/check-performance-trend.sh`, which compares the current
 measurement against the rolling median of the last entries on the
 `perf-history` branch. The dual gate is intentional: the pinned baseline
 catches single-PR regressions, while the trend gate catches gradual
 creep that under-threshold PRs accumulate over time.
+
+PRs use a separate 30-minute fast lane. It keeps all in-process unit,
+macro-expansion, graph, runtime, migration, documentation, public-API, and DAG
+contracts, but defers contracts that spawn clean external SwiftPM builds to
+`main`. PRs build one representative example; the two extended examples run
+on `main`, their weekly schedule, and manual dispatch. The exhaustive lane also
+retains coverage, Swift 6.2 compatibility, Apple-platform builds, path-identity
+checks, and performance tracking. This split changes feedback latency, not
+release coverage.
 
 The `Perf History` workflow runs on every push to `main` and uses
 `Tools/append-performance-history.sh` to append one

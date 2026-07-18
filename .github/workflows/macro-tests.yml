@@ -10,7 +10,75 @@ permissions:
   contents: read
 
 jobs:
+  fast-tests:
+    name: Fast PR contracts
+    if: github.event_name == 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Run in-process test contracts
+        # Consumer, strict-concurrency, and one migration smoke contract spawn
+        # clean SwiftPM builds. They remain exhaustive main gates below;
+        # repeating them on every PR dominated feedback time without adding
+        # local semantic coverage. All in-process unit, macro-expansion, graph,
+        # runtime, migration, and release-contract tests still run here with
+        # production diagnostics.
+        run: >-
+          swift test
+          -Xswiftc -strict-concurrency=complete
+          -Xswiftc -warnings-as-errors
+          --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
+          --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+      - name: Validate macro synthesis and CI policy
+        run: |
+          Tools/check-no-fatalerror-in-macros.sh
+          Tools/check-ci-validation-opt-out.sh
+          Tools/check-ci-action-pins.sh
+      - name: Validate documentation contracts
+        run: |
+          Tools/check-docs-code-blocks.sh
+          Tools/check-docs-local-links.sh
+          Tools/check-localized-readme-sync.sh
+      - name: Validate public API and Global DAG
+        run: |
+          Tools/check-public-api.py
+          swift run InnoDI-DependencyGraph --root . --validate-dag
+      - name: Report Build-Validation Escape Hatches
+        env:
+          INNODI_ESCAPE_HATCH_JSON: build/escape-hatch-report.json
+        run: |
+          {
+            Tools/report-validate-dag-escape-hatches.sh
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Escape Hatch Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: escape-hatch-report
+          path: build/escape-hatch-report.json
+          if-no-files-found: error
+      - name: Report Deferred-Wrapper Alias Findings
+        run: |
+          {
+            swift run --quiet InnoDI-DeferredAliasScan --root . --json build/deferred-aliases.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Deferred-Wrapper Alias Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deferred-aliases-report
+          path: build/deferred-aliases.json
+          if-no-files-found: error
+
   macro-tests:
+    name: Exhaustive main contracts
+    if: github.event_name == 'push'
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -146,6 +214,7 @@ jobs:
 
   swift-62-compatibility:
     name: Swift 6.2 compatibility
+    if: github.event_name == 'push'
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -164,6 +233,7 @@ jobs:
 
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)
+    if: github.event_name == 'push'
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -203,6 +273,7 @@ jobs:
           done
 
   path-identity:
+    if: github.event_name == 'push'
     runs-on: macos-26
     timeout-minutes: 30
     steps:

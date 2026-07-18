@@ -11,6 +11,48 @@ struct CIWorkflowHardeningTests {
         #expect(result.output.contains("pinned external action use(s)"))
     }
 
+    @Test("PR and main validation have explicit latency budgets")
+    func validationLanesStaySeparated() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
+        let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
+        let compatibilityStart = try #require(
+            workflow.range(of: "  swift-62-compatibility:\n")
+        )
+        let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
+        let exhaustiveJob = workflow[
+            exhaustiveStart.lowerBound..<compatibilityStart.lowerBound
+        ]
+
+        #expect(fastJob.contains("name: Fast PR contracts"))
+        #expect(fastJob.contains("if: github.event_name == 'pull_request'"))
+        #expect(fastJob.contains("timeout-minutes: 30"))
+        #expect(
+            fastJob.contains(
+                "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
+            )
+        )
+        #expect(
+            fastJob.contains(
+                "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
+            )
+        )
+        #expect(fastJob.contains("Tools/check-public-api.py"))
+        #expect(fastJob.contains("--validate-dag"))
+        #expect(!fastJob.contains("--enable-code-coverage"))
+        #expect(!fastJob.contains("Tools/measure-macro-performance.sh"))
+
+        #expect(exhaustiveJob.contains("name: Exhaustive main contracts"))
+        #expect(exhaustiveJob.contains("if: github.event_name == 'push'"))
+        #expect(exhaustiveJob.contains("--enable-code-coverage"))
+        #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
+        #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
+    }
+
     @Test("Mutable action revisions are rejected")
     func mutableActionRevisionFails() throws {
         let fixture = try CIWorkflowFixture(
@@ -173,6 +215,11 @@ struct CIWorkflowHardeningTests {
         #expect(exampleWorkflow.contains("      - 'Package.swift'"))
         #expect(exampleWorkflow.contains("Build and Test SwiftUIExample"))
         #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
+        #expect(
+            exampleWorkflow.components(
+                separatedBy: "if: github.event_name != 'pull_request'"
+            ).count - 1 == 2
+        )
     }
 
     @Test("Cold benchmark persists visible metrics and fails on missing artifacts")
