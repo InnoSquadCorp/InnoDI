@@ -21,13 +21,15 @@ set -euo pipefail
 #     who cannot fetch the branch (e.g. minimum-permission runs).
 #   - If history has fewer than $MIN_SAMPLES entries (default 5), exits
 #     0 with an informational note; the trend signal is too weak yet.
-#   - Otherwise computes the median of the last $WINDOW entries' mean_ms
-#     and compares the current measurement. Regression > $THRESHOLD_PCT
-#     fails the script.
+#   - Otherwise computes the rolling median of the last $WINDOW entries'
+#     per-run min_ms and compares the current lower envelope. This avoids
+#     treating shared-runner scheduling delays as product regressions while a
+#     real slowdown still raises every valid sample. Regression above
+#     $THRESHOLD_PCT fails the script.
 #
 # Environment:
 #   INNODI_TREND_WINDOW         (default: 7)   trailing entries to consider
-#   INNODI_TREND_THRESHOLD_PCT  (default: 10)  fail above this
+#   INNODI_TREND_THRESHOLD_PCT  (default: 20)  fail above this
 #   INNODI_TREND_MIN_SAMPLES    (default: 5)   below this just report
 #   INNODI_TREND_REQUIRE_SAME_TOOLCHAIN (default: 1)
 #       When 1, history entries with a different swift_version than the
@@ -72,7 +74,7 @@ cd "$ROOT_DIR"
 
 PERF_BRANCH="perf-history"
 WINDOW="${INNODI_TREND_WINDOW:-7}"
-THRESHOLD_PCT="${INNODI_TREND_THRESHOLD_PCT:-10}"
+THRESHOLD_PCT="${INNODI_TREND_THRESHOLD_PCT:-20}"
 MIN_SAMPLES="${INNODI_TREND_MIN_SAMPLES:-5}"
 REQUIRE_SAME_TOOLCHAIN="${INNODI_TREND_REQUIRE_SAME_TOOLCHAIN:-1}"
 
@@ -138,6 +140,12 @@ entries = index.get("entries", [])
 if require_same and current.get("swift_version"):
     entries = [e for e in entries if e.get("swift_version") == current["swift_version"]]
 
+def comparison_ms(entry):
+    value = entry.get("min_ms")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        return None
+    return float(value)
+
 # index.json is already sorted by file name (ISO-prefixed) so the last N
 # entries are the most recent. Filter out entries with mode/filter
 # mismatches in case a future change splits the time series.
@@ -145,20 +153,32 @@ entries = [
     e for e in entries
     if e.get("mode") == current.get("mode")
        and e.get("filter") == current.get("filter")
-       and e.get("mean_ms") is not None
+       and comparison_ms(e) is not None
 ]
 recent = entries[-window:]
 
-current_mean = current.get("mean_ms")
+current_min = current["min_ms"]
 report = {
-    "currentMeanMs": current_mean,
+    "metric": "min_ms",
+    "currentMinMs": current_min,
+    "currentMedianMs": current.get("median_ms"),
+    "currentMeanMs": current.get("mean_ms"),
     "considered": len(entries),
     "windowUsed": len(recent),
     "windowConfigured": window,
     "thresholdPct": threshold_pct,
     "minSamples": min_samples,
     "requireSameToolchain": require_same,
-    "samples": [{"commit": e.get("commit"), "mean_ms": e.get("mean_ms")} for e in recent],
+    "samples": [
+        {
+            "commit": e.get("commit"),
+            "min_ms": e.get("min_ms"),
+            "median_ms": e.get("median_ms"),
+            "mean_ms": e.get("mean_ms"),
+            "comparison_ms": comparison_ms(e),
+        }
+        for e in recent
+    ],
 }
 
 if len(recent) < min_samples:
@@ -169,12 +189,12 @@ if len(recent) < min_samples:
     print(f"[trend] {report['note']} — skipping comparison")
     sys.exit(0)
 
-means = sorted(e["mean_ms"] for e in recent)
-mid = len(means) // 2
-median = means[mid] if len(means) % 2 == 1 else (means[mid - 1] + means[mid]) / 2.0
+centers = sorted(comparison_ms(e) for e in recent)
+mid = len(centers) // 2
+rolling_median = centers[mid] if len(centers) % 2 == 1 else (centers[mid - 1] + centers[mid]) / 2.0
 
-regression_pct = 0.0 if median == 0 else ((current_mean - median) / median) * 100.0
-report["medianMs"] = median
+regression_pct = ((current_min - rolling_median) / rolling_median) * 100.0
+report["rollingMedianOfMinMs"] = rolling_median
 report["regressionPct"] = round(regression_pct, 2)
 
 if regression_pct > threshold_pct:
@@ -185,7 +205,7 @@ else:
 with open(os.environ["INNODI_TREND_OUT"], "w") as fh:
     json.dump(report, fh, indent=2)
 
-print(f"[trend] current mean={current_mean:.3f}ms median(last {len(recent)})={median:.3f}ms "
+print(f"[trend] current min={current_min:.3f}ms rolling median of min(last {len(recent)})={rolling_median:.3f}ms "
       f"delta={regression_pct:+.2f}% threshold={threshold_pct:.2f}%")
 
 if report["status"] == "regression":

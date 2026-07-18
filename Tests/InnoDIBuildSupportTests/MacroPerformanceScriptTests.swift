@@ -91,13 +91,13 @@ struct MacroPerformanceScriptTests {
         #expect(!fixture.measurementWasInvoked)
     }
 
-    @Test("Enforcement rejects a non-positive baseline mean before measurement")
-    func enforceRejectsZeroBaselineMean() throws {
+    @Test("Enforcement rejects a non-positive baseline minimum before measurement")
+    func enforceRejectsZeroBaselineMinimum() throws {
         let fixture = try MacroPerformanceScriptFixture(
             swiftVersion: fakeSwiftVersion
         )
         defer { fixture.remove() }
-        try fixture.writeBaseline(swiftVersion: fakeSwiftVersion, meanMS: "0")
+        try fixture.writeBaseline(swiftVersion: fakeSwiftVersion, minMS: "0")
 
         let result = try fixture.run(
             arguments: [
@@ -108,7 +108,7 @@ struct MacroPerformanceScriptTests {
         )
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("baseline mean_ms must be a finite positive number"))
+        #expect(result.output.contains("baseline min_ms must be a finite positive number"))
         #expect(!fixture.measurementWasInvoked)
     }
 
@@ -145,6 +145,7 @@ struct MacroPerformanceScriptTests {
         #expect(object["swift_version"] as? String == fakeSwiftVersion)
         #expect(object["iterations"] as? Int == 2)
         #expect(object["mean_ms"] as? Double == 11.5)
+        #expect(object["median_ms"] as? Double == 11.5)
         #expect((object["samples_ms"] as? [Any])?.count == 2)
     }
 
@@ -176,7 +177,70 @@ struct MacroPerformanceScriptTests {
         )
         #expect(object["swift_version"] as? String == fakeSwiftVersion)
         #expect(object["mean_ms"] as? Double == 10.0)
+        #expect(object["median_ms"] as? Double == 10.0)
         #expect((object["samples_ms"] as? [Any])?.count == 2)
+    }
+
+    @Test("Enforcement ignores upward latency noise but retains its telemetry")
+    func enforcementUsesLowerEnvelopeForLatencyNoise() throws {
+        let fixture = try MacroPerformanceScriptFixture(
+            swiftVersion: fakeSwiftVersion,
+            reportJSON: """
+                {
+                  "iterations": 4,
+                  "samples_ms": [10.0, 10.0, 10.0, 100.0]
+                }
+                """
+        )
+        defer { fixture.remove() }
+        try fixture.writeBaseline(swiftVersion: fakeSwiftVersion)
+
+        let result = try fixture.run(
+            arguments: [
+                "--iterations", "4",
+                "--baseline", fixture.baselineURL.path,
+                "--output", fixture.reportURL.path,
+                "--enforce",
+            ]
+        )
+
+        #expect(result.exitCode == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("baseline min=10.0ms, current min=10.000ms"))
+
+        let data = try Data(contentsOf: fixture.reportURL)
+        let object = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        #expect(object["median_ms"] as? Double == 10.0)
+        #expect(object["mean_ms"] as? Double == 32.5)
+        #expect(object["max_ms"] as? Double == 100.0)
+    }
+
+    @Test("Enforcement rejects a slowdown present in every sample")
+    func enforcementRejectsConsistentSlowdown() throws {
+        let fixture = try MacroPerformanceScriptFixture(
+            swiftVersion: fakeSwiftVersion,
+            reportJSON: """
+                {
+                  "iterations": 3,
+                  "samples_ms": [13.0, 14.0, 15.0]
+                }
+                """
+        )
+        defer { fixture.remove() }
+        try fixture.writeBaseline(swiftVersion: fakeSwiftVersion)
+
+        let result = try fixture.run(
+            arguments: [
+                "--iterations", "3",
+                "--baseline", fixture.baselineURL.path,
+                "--enforce",
+            ]
+        )
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("current min=13.000ms, delta=30.00%"))
+        #expect(result.output.contains("regression exceeded threshold (20%)"))
     }
 
     @Test("Invalid in-process samples never create a baseline")
@@ -309,7 +373,12 @@ private struct MacroPerformanceScriptFixture {
         FileManager.default.fileExists(atPath: markerURL.path)
     }
 
-    func writeBaseline(swiftVersion: String?, meanMS: String = "10.0") throws {
+    func writeBaseline(
+        swiftVersion: String?,
+        meanMS: String = "10.0",
+        medianMS: String = "10.0",
+        minMS: String = "10.0"
+    ) throws {
         var entries = [
             #""updated_at": "2026-01-01T00:00:00Z""#,
         ]
@@ -321,7 +390,8 @@ private struct MacroPerformanceScriptFixture {
             #""filter": "MacroPerformanceBenchmark""#,
             #""iterations": 2"#,
             #""mean_ms": \#(meanMS)"#,
-            #""min_ms": 10.0"#,
+            #""median_ms": \#(medianMS)"#,
+            #""min_ms": \#(minMS)"#,
             #""max_ms": 10.0"#,
             #""stdev_ms": 0.0"#,
             #""samples_ms": [10.0, 10.0]"#,
