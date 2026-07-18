@@ -89,16 +89,20 @@ Before dispatching the `Release Gate` workflow:
       stable SemVer tags, prevents update and deletion, and does not prevent
       creation; store its numeric ID in `RELEASE_TAG_RULESET_ID`
     - configure the `release` environment with exactly one required-reviewer
-      rule, at least one reviewer, self-review prevention, and exactly one
-      custom deployment branch policy named `main`
-    - disallow administrator bypass in the environment settings where the
-      repository plan permits it; GitHub's environment REST response does not
-      expose that setting, so the workflow cannot verify it automatically
+      rule, at least two distinct reviewer accounts, self-review prevention,
+      disabled administrator bypass, and exactly one custom deployment branch
+      policy named `main`; each reviewer must accept repository access before
+      GitHub will retain them in the environment rule
     - store `RELEASE_ADMIN_TOKEN` only in that environment; use a fine-grained
       token limited to this repository with `Administration: read` and
       `Actions: read` so the workflow can verify immutable-release, ruleset,
       and environment policy without granting it an additional release-write
-      credential
+      credential; create it from a dedicated release-policy reader account,
+      set a short expiry, then store it without copying it into repository or
+      organization secrets:
+      `gh secret set --repo InnoSquadCorp/InnoDI --env release RELEASE_ADMIN_TOKEN`
+    - confirm `gh secret list --repo InnoSquadCorp/InnoDI --env release` shows
+      `RELEASE_ADMIN_TOKEN`; GitHub never returns the value, only its presence
     The workflow fails closed before publication when the environment secret
     or either ruleset variable is missing, a policy does not match the contract,
     or repository release immutability is disabled. GitHub does not expose one

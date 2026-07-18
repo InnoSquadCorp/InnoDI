@@ -432,17 +432,20 @@ jobs:
                 | select(.type == "required_reviewers")] as $requiredReviewerRules
             | $environment.name == "release"
               and ($environment.protection_rules | type == "array")
+              and ($environment.can_admins_bypass == false)
               and ($requiredReviewerRules | length == 1)
               and ($requiredReviewerRules[0].prevent_self_review == true)
               and ($requiredReviewerRules[0].reviewers
-                | type == "array" and length > 0)
+                | type == "array" and length >= 2)
+              and ([$requiredReviewerRules[0].reviewers[].reviewer.login]
+                | unique | length >= 2)
               and ($environment.deployment_branch_policy == {
                 protected_branches: false,
                 custom_branch_policies: true
               })
           ' <<< "$RELEASE_ENVIRONMENT" >/dev/null; then
-            echo "The release environment must require a non-self approval." >&2
-            jq '{name, protection_rules, deployment_branch_policy}' \
+            echo "The release environment must disable admin bypass and provide at least two distinct non-self reviewers." >&2
+            jq '{name, can_admins_bypass, protection_rules, deployment_branch_policy}' \
               <<< "$RELEASE_ENVIRONMENT" >&2
             exit 1
           fi
