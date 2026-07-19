@@ -65,9 +65,11 @@ package enum CustomInitBuildValidator {
             for initializer in record.initializers {
                 issues.append(
                     ValidationIssue(
-                        code: "container.custom-init-unsupported",
+                        code: MacroBuildDiagnosticContract
+                            .containerCustomInitUnsupportedCode,
                         severity: .error,
-                        message: "@DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring.",
+                        message: MacroBuildDiagnosticContract
+                            .containerCustomInitUnsupportedMessage,
                         location: ValidationIssueLocation(
                             filePath: record.filePath,
                             line: initializer.line,

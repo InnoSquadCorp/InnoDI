@@ -539,7 +539,8 @@ extension SimpleDiagnostic {
 
     static func containerCustomInitUnsupported() -> Self {
         Self(
-            "@DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring.",
+            MacroBuildDiagnosticContract
+                .containerCustomInitUnsupportedMessage,
             code: .containerCustomInitUnsupported
         )
     }
@@ -617,7 +618,9 @@ extension SimpleDiagnostic {
 
     static func subInvalidBindings(memberName: String) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' requires bindings: to be a literal array of (child:parent:) key-path tuples.",
+            MacroBuildDiagnosticContract.subInvalidBindingsMessage(
+                memberName: memberName
+            ),
             code: .subInvalidBindings
         )
     }
@@ -635,7 +638,11 @@ extension SimpleDiagnostic {
         childContainerName: String
     ) -> Self {
         Self(
-            "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching .input member.",
+            MacroBuildDiagnosticContract.subUnknownChildInputMessage(
+                memberName: memberName,
+                childInputName: childInputName,
+                childContainerName: childContainerName
+            ),
             code: .subUnknownChildInput
         )
     }
