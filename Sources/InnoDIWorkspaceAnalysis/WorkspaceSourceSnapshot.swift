@@ -421,22 +421,11 @@ private func workspacePathMatchesSkipToken(_ path: String) -> Bool {
     return false
 }
 
+/// External-path identities are display/cache labels, not persisted contract
+/// artifacts, so routing them through the shared `StableHasher` (a one-time
+/// respelling of `__external__/<hash>/` prefixes) is safe.
 private func stableWorkspacePathHash(_ path: String) -> String {
-    var highState: UInt64 = 14_695_981_039_346_656_037
-    var lowState: UInt64 = 1_099_511_628_211
-
-    for byte in path.utf8 {
-        highState ^= UInt64(byte)
-        highState = highState &* 1_099_511_628_211
-
-        lowState ^= UInt64(byte) &+ 0x9e37_79b9_7f4a_7c15
-        lowState = lowState &* 1_099_511_628_211
-    }
-
-    return paddedHex(highState) + paddedHex(lowState)
-}
-
-private func paddedHex(_ value: UInt64) -> String {
-    let hex = String(value, radix: 16)
-    return String(repeating: "0", count: max(0, 16 - hex.count)) + hex
+    var hasher = StableHasher()
+    hasher.combine(path)
+    return hasher.finalize()
 }
