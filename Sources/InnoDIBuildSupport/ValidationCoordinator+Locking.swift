@@ -138,6 +138,37 @@ internal func releaseLock(descriptor: Int32, at url: URL) {
     close(descriptor)
 }
 
+/// Reports whether the shared-run directory at `directoryURL` currently has a
+/// live coordinator holding its `lock` file.
+///
+/// The probe opens the existing lock file (never creating one) and attempts a
+/// non-blocking shared `flock`. A holder that acquired the lock via
+/// `acquireLock(at:)` keeps `LOCK_EX` on the descriptor for the entire
+/// validation run, so the shared probe fails with `EWOULDBLOCK` exactly while
+/// the run is live. A crashed holder's `flock` is released by the kernel, so
+/// its leftover lock file probes as unheld and the directory stays prunable.
+///
+/// Unexpected probe failures are treated as "held": wrongly skipping a prune
+/// only leaves a directory for a later pass, while wrongly pruning a live
+/// holder deletes artifacts mid-write.
+internal func isSharedRunLockCurrentlyHeld(inDirectory directoryURL: URL) -> Bool {
+    let lockPath = directoryURL
+        .appendingPathComponent("lock")
+        .path(percentEncoded: false)
+    let descriptor = open(lockPath, O_RDWR)
+    if descriptor < 0 {
+        return errno != ENOENT
+    }
+    defer { close(descriptor) }
+
+    if flock(descriptor, LOCK_SH | LOCK_NB) != 0 {
+        return true
+    }
+
+    flock(descriptor, LOCK_UN)
+    return false
+}
+
 internal func recoverStaleLockIfNeeded(
     at url: URL,
     staleLockAgeSeconds: TimeInterval,
