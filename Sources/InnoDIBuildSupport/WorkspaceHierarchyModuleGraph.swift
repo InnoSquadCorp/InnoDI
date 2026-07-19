@@ -17,6 +17,31 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
         swiftPMProducts: [WorkspaceSwiftPMProductRecord],
         cachedFilePaths: [String] = []
     ) {
+        var cached: [String: String] = [:]
+        cached.reserveCapacity(cachedFilePaths.count)
+        for filePath in cachedFilePaths {
+            if let record = Self.bestModuleRecord(forFilePath: filePath, modules: modules) {
+                cached[filePath] = record.moduleID
+            }
+        }
+        self.init(
+            modules: modules,
+            swiftPMProducts: swiftPMProducts,
+            moduleIDByCachedFilePath: cached
+        )
+    }
+
+    /// Designated initializer taking precomputed file→module ownership.
+    ///
+    /// Manifest-mode callers already know exact, uniquely-owned file paths
+    /// per target (the validated manifest rejects duplicate source
+    /// ownership), so they pass the ownership map directly instead of
+    /// paying the per-file glob-specificity scan across every module.
+    init(
+        modules: [WorkspaceModuleRecord],
+        swiftPMProducts: [WorkspaceSwiftPMProductRecord],
+        moduleIDByCachedFilePath: [String: String]
+    ) {
         self.modules = modules
         self.swiftPMProducts = swiftPMProducts
         self.modulesByID = Dictionary(uniqueKeysWithValues: modules.map { ($0.moduleID, $0) })
@@ -27,22 +52,20 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
                 productName: $0.productName
             )
         }
+        self.moduleIDByCachedFilePath = moduleIDByCachedFilePath
+    }
 
-        var cached: [String: String] = [:]
-        cached.reserveCapacity(cachedFilePaths.count)
-        for filePath in cachedFilePaths {
+    func cachingPathMatches(for filePaths: [String]) -> WorkspaceModuleGraphSnapshot {
+        var cached = moduleIDByCachedFilePath
+        for filePath in filePaths.sorted() where cached[filePath] == nil {
             if let record = Self.bestModuleRecord(forFilePath: filePath, modules: modules) {
                 cached[filePath] = record.moduleID
             }
         }
-        self.moduleIDByCachedFilePath = cached
-    }
-
-    func cachingPathMatches(for filePaths: [String]) -> WorkspaceModuleGraphSnapshot {
-        WorkspaceModuleGraphSnapshot(
+        return WorkspaceModuleGraphSnapshot(
             modules: modules,
             swiftPMProducts: swiftPMProducts,
-            cachedFilePaths: filePaths.sorted()
+            moduleIDByCachedFilePath: cached
         )
     }
 
@@ -357,12 +380,17 @@ enum ModuleGraphProvider {
         }
         .sorted { $0.moduleID < $1.moduleID }
 
+        var ownership: [String: String] = [:]
+        for target in manifest.targets {
+            for source in target.sources {
+                ownership[source.filePath] = target.id.rawValue
+            }
+        }
+
         return WorkspaceModuleGraphSnapshot(
             modules: modules,
             swiftPMProducts: [],
-            cachedFilePaths: manifest.targets.flatMap { target in
-                target.sources.map(\.filePath)
-            }
+            moduleIDByCachedFilePath: ownership
         )
     }
 
