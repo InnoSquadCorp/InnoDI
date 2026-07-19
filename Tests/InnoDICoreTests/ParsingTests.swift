@@ -11,6 +11,71 @@ import Testing
 
 struct ParsingTests {
     @Test
+    func managedMemberSemanticsOwnRoleMatchingAndArgumentParsing() throws {
+        let provide = try #require(
+            firstVarDecl(
+                in: "struct C { @InnoDI.Provide(.input) var service: Service }"
+            )
+        )
+        let provideSemantics = parseManagedMemberSemantics(provide.attributes)
+
+        #expect(provideSemantics.hasAnyRole)
+        #expect(provideSemantics.hasExactlyOneRole)
+        #expect(!provideSemantics.hasConflictingRoles)
+        switch provideSemantics.uniqueRole {
+        case .provide(_, let arguments):
+            #expect(arguments.scope == .input)
+        default:
+            Issue.record("Expected one parsed @Provide role")
+        }
+
+        let subContainer = try #require(
+            firstVarDecl(
+                in: "struct C { @SubContainer(scope: .transient) var child: ChildContainer }"
+            )
+        )
+        let subContainerSemantics = parseManagedMemberSemantics(
+            subContainer.attributes
+        )
+        switch subContainerSemantics.uniqueRole {
+        case .subContainer(_, let arguments):
+            #expect(arguments.scope == .transient)
+        default:
+            Issue.record("Expected one parsed @SubContainer role")
+        }
+    }
+
+    @Test
+    func managedMemberSemanticsFailClosedForDuplicatesAndConflicts() throws {
+        let conflicting = try #require(
+            firstVarDecl(
+                in: "struct C { @Provide(.input) @SubContainer(scope: .shared) var child: Child }"
+            )
+        )
+        let conflict = parseManagedMemberSemantics(conflicting.attributes)
+        #expect(conflict.hasAnyRole)
+        #expect(conflict.hasConflictingRoles)
+        #expect(!conflict.hasExactlyOneRole)
+
+        let duplicate = try #require(
+            firstVarDecl(
+                in: "struct C { @Provide(.input) @InnoDI.Provide(.input) var value: Value }"
+            )
+        )
+        let duplicates = parseManagedMemberSemantics(duplicate.attributes)
+        #expect(duplicates.provideAttributes.count == 2)
+        #expect(!duplicates.hasConflictingRoles)
+        #expect(!duplicates.hasExactlyOneRole)
+
+        let lookalike = try #require(
+            firstVarDecl(
+                in: "struct C { @Other.Provide(.input) var ignored: Value }"
+            )
+        )
+        #expect(!parseManagedMemberSemantics(lookalike.attributes).hasAnyRole)
+    }
+
+    @Test
     func parseDIContainerAttribute() {
         let source = """
         @DIContainer(root: true, validateDAG: false, mainActor: true)

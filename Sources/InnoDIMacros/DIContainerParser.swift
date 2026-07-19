@@ -184,10 +184,10 @@ struct DIContainerParser {
                 continue
             }
 
-            let provideAttributes = findInnoDIAttributes(
-                named: "Provide",
-                in: varDecl.attributes
+            let managedSemantics = parseManagedMemberSemantics(
+                varDecl.attributes
             )
+            let provideAttributes = managedSemantics.provideAttributes
             if provideAttributes.count > 1 {
                 // The second public @Provide peer owns the one global
                 // diagnostic, including outside a container. The parser only
@@ -202,10 +202,7 @@ struct DIContainerParser {
             // conflict diagnostic and skip the property entirely — the
             // codegen pathway for each attribute is mutually exclusive.
             let provideAttribute = provideAttributes.first
-            let subContainerAttributes = findInnoDIAttributes(
-                named: "SubContainer",
-                in: varDecl.attributes
-            )
+            let subContainerAttributes = managedSemantics.subContainerAttributes
             if subContainerAttributes.count > 1 {
                 hadErrors = true
                 continue
@@ -292,7 +289,10 @@ struct DIContainerParser {
                     hadErrors = true
                     continue
                 }
-                let subArgs = InnoDICore.parseSubContainerArguments(subAttribute)
+                guard let subArgs = managedSemantics.subContainerArguments else {
+                    hadErrors = true
+                    continue
+                }
                 let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
                 let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
                 let invalidBindingReferences = extractInvalidSubContainerBindingReferences(from: subAttribute)
@@ -386,7 +386,10 @@ struct DIContainerParser {
                 continue
             }
 
-            let parseResult = InnoDICore.parseProvideArguments(attribute)
+            guard let parseResult = managedSemantics.provideArguments else {
+                hadErrors = true
+                continue
+            }
             let withDependencyReferences = extractWithDependencyReferences(
                 from: attribute,
                 requiringCanonicalProvidePath: true

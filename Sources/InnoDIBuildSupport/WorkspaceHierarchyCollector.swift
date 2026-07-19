@@ -114,8 +114,11 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
             return .skipChildren
         }
 
-        if let provideAttribute = findInnoDIAttribute(named: "Provide", in: node.attributes) {
-            let provideArguments = parseProvideArguments(provideAttribute)
+        let managedSemantics = parseManagedMemberSemantics(node.attributes)
+
+        if let provideAttribute = managedSemantics.provideAttributes.first {
+            let provideArguments = managedSemantics.provideArguments
+                ?? parseProvideArguments(provideAttribute)
             containerBuilders[currentContainerPath, default: WorkspaceHierarchyContainerBuilder(
                 path: currentContainerPath,
                 filePath: filePath,
@@ -128,7 +131,7 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
             }
         }
 
-        if let subContainerAttribute = findInnoDIAttribute(named: "SubContainer", in: node.attributes),
+        if let subContainerAttribute = managedSemantics.subContainerAttributes.first,
            let childType = binding.type {
             let bindingParseState = extractSubContainerBindings(from: subContainerAttribute)
             var builder = containerBuilders[currentContainerPath, default: WorkspaceHierarchyContainerBuilder(
