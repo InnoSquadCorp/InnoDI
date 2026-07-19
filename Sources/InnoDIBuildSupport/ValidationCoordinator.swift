@@ -536,17 +536,17 @@ package enum ValidationCoordinator {
         )
 
         let signatureCollectionStartTime = validationNow()
-        let signatureCollection: ValidationSignatureCollectionResult
+        let signatureCollectionOutput: ValidationSignatureCollectionOutput
         if unsafeFilesystemOutcome != nil {
             if let analysisManifest {
-                signatureCollection = try collectValidationSignatureWithMetrics(
+                signatureCollectionOutput = try collectValidationSignatureOutput(
                     validated: analysisManifest,
                     stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: false,
                     useManifestCache: false
                 )
             } else {
-                signatureCollection = try collectValidationSignatureWithMetrics(
+                signatureCollectionOutput = try collectValidationSignatureOutput(
                     rootPath: rootPath,
                     stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: false,
@@ -554,7 +554,7 @@ package enum ValidationCoordinator {
                 )
             }
         } else {
-            signatureCollection = try await collectValidationSignatureWithSharedCacheLock(
+            signatureCollectionOutput = try await collectValidationSignatureWithSharedCacheLock(
                 rootPath: rootPath,
                 analysisManifest: analysisManifest,
                 stateDirectoryURL: stateDirectoryURL,
@@ -563,6 +563,7 @@ package enum ValidationCoordinator {
                 runtime: runtime
             )
         }
+        let signatureCollection = signatureCollectionOutput.result
         let signature = signatureCollection.signature
         let sharedRunKey = sharedRunCacheKey(for: signature)
         let signatureCollectionMilliseconds = validationElapsedMilliseconds(since: signatureCollectionStartTime)
@@ -666,11 +667,13 @@ package enum ValidationCoordinator {
             let workspaceSnapshot: WorkspaceSourceSnapshot
             if let analysisManifest {
                 workspaceSnapshot = try loadWorkspaceSourceSnapshot(
-                    validated: analysisManifest
+                    validated: analysisManifest,
+                    reusingParsedSources: signatureCollectionOutput.parsedSources
                 )
             } else {
                 workspaceSnapshot = try loadWorkspaceSourceSnapshot(
-                    rootPath: rootPath
+                    rootPath: rootPath,
+                    reusingParsedSources: signatureCollectionOutput.parsedSources
                 )
             }
             let aliasReport = DeferredWrapperAliasBuildValidator.validate(snapshot: workspaceSnapshot)
@@ -912,20 +915,20 @@ package enum ValidationCoordinator {
         stateDirectoryPath: String,
         lockPolicy: ValidationCoordinatorLockPolicy,
         runtime: ValidationCoordinatorRuntime
-    ) async throws -> ValidationSignatureCollectionResult {
+    ) async throws -> ValidationSignatureCollectionOutput {
         func collectSignature(
             persistManifestUpdates: Bool = true,
             useManifestCache: Bool = true
-        ) throws -> ValidationSignatureCollectionResult {
+        ) throws -> ValidationSignatureCollectionOutput {
             if let analysisManifest {
-                return try collectValidationSignatureWithMetrics(
+                return try collectValidationSignatureOutput(
                     validated: analysisManifest,
                     stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: persistManifestUpdates,
                     useManifestCache: useManifestCache
                 )
             }
-            return try collectValidationSignatureWithMetrics(
+            return try collectValidationSignatureOutput(
                 rootPath: rootPath,
                 stateDirectoryPath: stateDirectoryPath,
                 persistManifestUpdates: persistManifestUpdates,

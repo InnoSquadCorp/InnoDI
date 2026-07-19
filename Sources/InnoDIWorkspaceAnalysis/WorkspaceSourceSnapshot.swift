@@ -135,12 +135,32 @@ package enum WorkspaceSourceSnapshotError: LocalizedError {
 
 package func loadWorkspaceSourceSnapshot(
     rootPath: String,
-    onFileReadError: ((String, URL, Error) -> Void)? = nil
+    onFileReadError: ((String, URL, Error) -> Void)? = nil,
+    reusingParsedSources: [String: SourceFileSyntax] = [:]
 ) throws -> WorkspaceSourceSnapshot {
     let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
     let sourceFiles = try discoverWorkspaceSourceFiles(rootPath: rootPath)
-    let outcomes = try loadWorkspaceSourcesInParallel(count: sourceFiles.count) { index in
-        let relativePath = sourceFiles[index]
+
+    // Trees the signature collector already parsed (keyed by the same
+    // workspace-relative path) are assembled serially; only the remainder
+    // pays read + parse, in parallel.
+    var slots = [WorkspaceSourceFile?](repeating: nil, count: sourceFiles.count)
+    var pendingIndices: [Int] = []
+    for (index, relativePath) in sourceFiles.enumerated() {
+        if let syntax = reusingParsedSources[relativePath] {
+            slots[index] = WorkspaceSourceFile(
+                relativePath: relativePath,
+                fileURL: rootURL.appendingPathComponent(relativePath),
+                syntax: syntax
+            )
+        } else {
+            pendingIndices.append(index)
+        }
+    }
+
+    let frozenPendingIndices = pendingIndices
+    let outcomes = try loadWorkspaceSourcesInParallel(count: frozenPendingIndices.count) { pendingIndex in
+        let relativePath = sourceFiles[frozenPendingIndices[pendingIndex]]
         let fileURL = rootURL.appendingPathComponent(relativePath)
         do {
             let source = try String(contentsOf: fileURL, encoding: .utf8)
@@ -156,20 +176,31 @@ package func loadWorkspaceSourceSnapshot(
         }
     }
 
-    var files: [WorkspaceSourceFile] = []
-    files.reserveCapacity(sourceFiles.count)
     // Read-error callbacks replay serially in discovery order so callers
     // never observe them from a concurrent context.
-    for (index, outcome) in outcomes.enumerated() {
+    var failedIndices: Set<Int> = []
+    for (pendingIndex, outcome) in outcomes.enumerated() {
+        let index = pendingIndices[pendingIndex]
         switch outcome {
         case .parsed(let file):
-            files.append(file)
+            slots[index] = file
         case .readFailed(let error):
             guard let onFileReadError else {
                 throw error
             }
+            failedIndices.insert(index)
             let relativePath = sourceFiles[index]
             onFileReadError(relativePath, rootURL.appendingPathComponent(relativePath), error)
+        }
+    }
+
+    var files: [WorkspaceSourceFile] = []
+    files.reserveCapacity(sourceFiles.count)
+    for (index, slot) in slots.enumerated() {
+        if let slot {
+            files.append(slot)
+        } else if !failedIndices.contains(index) {
+            throw WorkspaceParallelSourceLoadError()
         }
     }
 
@@ -191,8 +222,15 @@ package func loadWorkspaceSourceSnapshot(
 /// `ValidatedWorkspaceAnalysisManifest` overload used by callers that already
 /// proved the manifest contract, so the per-source availability stats in
 /// `validated()` are not repeated per pipeline stage.
+///
+/// `reusingParsedSources` carries trees an earlier pipeline stage (signature
+/// collection) already parsed, keyed by target-qualified source identity.
+/// Matching sources skip both the file read and the parse, which also means
+/// the live run validates exactly the content the signature was computed
+/// from.
 package func loadWorkspaceSourceSnapshot(
-    validated: ValidatedWorkspaceAnalysisManifest
+    validated: ValidatedWorkspaceAnalysisManifest,
+    reusingParsedSources: [String: SourceFileSyntax] = [:]
 ) throws -> WorkspaceSourceSnapshot {
     let manifest = validated.manifest
     let rootURL = URL(fileURLWithPath: manifest.rootPackageDirectory)
@@ -201,8 +239,27 @@ package func loadWorkspaceSourceSnapshot(
     let jobs = manifest.targets.flatMap { target in
         target.sources.map { source in (targetID: target.id, source: source) }
     }
-    let outcomes = try loadWorkspaceSourcesInParallel(count: jobs.count) { index in
-        let job = jobs[index]
+
+    var slots = [WorkspaceSourceFile?](repeating: nil, count: jobs.count)
+    var pendingIndices: [Int] = []
+    for (index, job) in jobs.enumerated() {
+        let identity = job.source.identity(in: job.targetID)
+        if let syntax = reusingParsedSources[identity] {
+            slots[index] = WorkspaceSourceFile(
+                relativePath: job.source.logicalPath,
+                fileURL: URL(fileURLWithPath: job.source.filePath),
+                syntax: syntax,
+                targetID: job.targetID,
+                origin: job.source.origin
+            )
+        } else {
+            pendingIndices.append(index)
+        }
+    }
+
+    let frozenPendingIndices = pendingIndices
+    let outcomes = try loadWorkspaceSourcesInParallel(count: frozenPendingIndices.count) { pendingIndex in
+        let job = jobs[frozenPendingIndices[pendingIndex]]
         let fileURL = URL(fileURLWithPath: job.source.filePath)
         do {
             let contents = try String(contentsOf: fileURL, encoding: .utf8)
@@ -220,15 +277,22 @@ package func loadWorkspaceSourceSnapshot(
         }
     }
 
-    var files: [WorkspaceSourceFile] = []
-    files.reserveCapacity(jobs.count)
-    for outcome in outcomes {
+    for (pendingIndex, outcome) in outcomes.enumerated() {
         switch outcome {
         case .parsed(let file):
-            files.append(file)
+            slots[pendingIndices[pendingIndex]] = file
         case .readFailed(let error):
             throw error
         }
+    }
+
+    var files: [WorkspaceSourceFile] = []
+    files.reserveCapacity(jobs.count)
+    for slot in slots {
+        guard let slot else {
+            throw WorkspaceParallelSourceLoadError()
+        }
+        files.append(slot)
     }
 
     return WorkspaceSourceSnapshot(
