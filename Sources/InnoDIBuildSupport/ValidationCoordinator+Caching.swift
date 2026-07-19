@@ -95,7 +95,8 @@ internal func pruneSharedRunDirectories(keepingDirectoryName directoryName: Stri
         let values = try? entry.resourceValues(forKeys: [.isDirectoryKey])
         guard values?.isDirectory == true,
               entry.lastPathComponent != directoryName,
-              isPrunableSharedRunDirectoryName(entry.lastPathComponent) else {
+              isPrunableSharedRunDirectoryName(entry.lastPathComponent),
+              !isSharedRunLockCurrentlyHeld(inDirectory: entry) else {
             continue
         }
         try? fileManager.removeItem(at: entry)

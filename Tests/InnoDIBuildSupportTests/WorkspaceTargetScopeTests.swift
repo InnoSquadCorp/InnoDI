@@ -2,6 +2,12 @@ import Foundation
 import InnoDIWorkspaceAnalysis
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @testable import InnoDIBuildSupport
 
 @Suite("Target-scoped workspace analysis")
@@ -345,6 +351,59 @@ struct WorkspaceTargetScopeTests {
                 atPath: rootURL.appendingPathComponent(name).path
             ))
         }
+    }
+
+    @Test("Cache pruning skips shared-run directories with a live lock holder")
+    func pruningSkipsLiveLockHolders() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "innodi-prune-lock-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+
+        let currentName = "shared-run-v7-" + String(repeating: "a", count: 32)
+        let heldName = "shared-run-v7-" + String(repeating: "d", count: 32)
+        let releasedName = "shared-run-v7-" + String(repeating: "e", count: 32)
+        for name in [currentName, heldName, releasedName] {
+            try FileManager.default.createDirectory(
+                at: rootURL.appendingPathComponent(name),
+                withIntermediateDirectories: true
+            )
+        }
+
+        let heldLockURL = rootURL
+            .appendingPathComponent(heldName)
+            .appendingPathComponent("lock")
+        let heldDescriptor = try #require(try acquireLock(at: heldLockURL))
+        defer { releaseLock(descriptor: heldDescriptor, at: heldLockURL) }
+
+        let releasedLockURL = rootURL
+            .appendingPathComponent(releasedName)
+            .appendingPathComponent("lock")
+        let releasedDescriptor = try #require(try acquireLock(at: releasedLockURL))
+        // Close without removing the lock file, simulating a crashed holder
+        // whose flock the kernel already released.
+        close(releasedDescriptor)
+
+        try pruneSharedRunDirectories(
+            keepingDirectoryName: currentName,
+            in: rootURL
+        )
+
+        #expect(FileManager.default.fileExists(
+            atPath: rootURL.appendingPathComponent(currentName).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: rootURL.appendingPathComponent(heldName).path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: rootURL.appendingPathComponent(releasedName).path
+        ))
     }
 
     @Test("Coordinator validates only the authoritative target snapshot")
