@@ -235,6 +235,11 @@ standalone release assets.
 
 ### Breaking and Behavior Changes
 
+- **`InnoDI-DependencyGraph` exit-code change:** a workspace that contains no
+  `@DIContainer` now exits with code `4` instead of `1`, so scripted callers
+  can distinguish an empty-but-healthy project from a genuine failure. Exit
+  codes `0` (success), `1` (failure), `2` (I/O error), and `3` (DAG validation
+  failure) are unchanged.
 - **Build dependency compatibility change:** InnoDI now resolves swift-syntax
   exactly at `603.0.2` so Swift 6.3.3/Xcode 26.6 consumers can use the
   toolchain-provided MacroSupport prebuilt without giving up SwiftSyntax 603

@@ -3,6 +3,8 @@ import InnoDIDependencyGraphCore
 import InnoDIWorkspaceAnalysis
 import Testing
 
+@testable import InnoDIDependencyGraphCLI
+
 @Suite("DependencyGraph CLI Integration")
 struct DependencyGraphCLITests {
     @Test("Unsupported nested containers block outer graph usage collection")
@@ -17,6 +19,33 @@ struct DependencyGraphCLITests {
 
         #expect(analysis.nodes.map(\.displayName).sorted() == ["Child", "Parent"])
         #expect(analysis.edges.isEmpty)
+    }
+
+    @Test("A workspace without containers exits with the dedicated no-containers code")
+    func workspaceWithoutContainersUsesDedicatedExitCode() throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "InnoDI-CLI-No-Containers-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        try FileManager.default.createDirectory(
+            at: fixtureURL,
+            withIntermediateDirectories: true
+        )
+        try Data("struct PlainType {}\n".utf8).write(
+            to: fixtureURL.appendingPathComponent("Plain.swift")
+        )
+
+        let result = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "ascii",
+        ])
+
+        #expect(result.exitCode == ExitCode.noContainers)
+        #expect(result.exitCode != ExitCode.failure)
+        #expect(result.stderr.contains("No @DIContainer found in project."))
     }
 
     @Test("Unsupported container declarations fail render and validation preflight")
