@@ -99,6 +99,9 @@ internal func pruneSharedRunDirectories(keepingDirectoryName directoryName: Stri
               !isSharedRunLockCurrentlyHeld(inDirectory: entry) else {
             continue
         }
+        // A holder acquiring the lock between the probe and this removal
+        // remains possible without a global lock; the outcome stays
+        // fail-closed (spurious revalidation), never stale data.
         try? fileManager.removeItem(at: entry)
     }
 }

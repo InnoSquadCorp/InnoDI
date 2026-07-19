@@ -19,7 +19,7 @@
 
 /// Strict keyword set for generated-name and alias validation, including
 /// contextual keywords.
-public let swiftReservedKeywords: Set<String> = [
+package let swiftReservedKeywords: Set<String> = [
     "associatedtype", "actor", "any", "as", "await", "break", "case", "catch",
     "class", "continue", "default", "defer", "deinit", "do", "else", "enum",
     "extension", "fallthrough", "false", "fileprivate", "for", "func", "guard",
@@ -33,7 +33,7 @@ public let swiftReservedKeywords: Set<String> = [
 /// Words that cannot appear as a plain (unescaped) property identifier.
 /// Used to filter fix-it rename candidates: suggesting one of these as a raw
 /// spelling would produce code that still needs backticks.
-public let swiftEscapeRequiredKeywords: Set<String> = [
+package let swiftEscapeRequiredKeywords: Set<String> = [
     "associatedtype", "class", "deinit", "enum", "extension", "fileprivate",
     "func", "import", "init", "inout", "internal", "let", "open",
     "operator", "private", "precedencegroup", "protocol", "public", "rethrows",
