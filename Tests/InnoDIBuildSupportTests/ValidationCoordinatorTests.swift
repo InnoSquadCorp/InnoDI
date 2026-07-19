@@ -1113,6 +1113,14 @@ struct ValidationCoordinatorTests {
         #expect(outcome.result.stderr.contains("sub.unknown-child-input"))
         #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
         #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(
+            outcome.metricsArtifact.issues.first?.message
+                == MacroBuildDiagnosticContract.subUnknownChildInputMessage(
+                    memberName: "feature",
+                    childInputName: "missing",
+                    childContainerName: "FeatureContainer"
+                )
+        )
         #expect(outcome.metricsArtifact.issues.first?.metadata["childContainerPath"] == "FeatureContainer")
         #expect(runner.invocationCount == 0)
     }
@@ -1165,6 +1173,12 @@ struct ValidationCoordinatorTests {
         #expect(outcome.result.stderr.contains("sub.invalid-bindings"))
         #expect(outcome.metricsArtifact.reasonCodes.contains(.liveRunSemanticFailure))
         #expect(outcome.metricsArtifact.issues.count == 1)
+        #expect(
+            outcome.metricsArtifact.issues.first?.message
+                == MacroBuildDiagnosticContract.subInvalidBindingsMessage(
+                    memberName: "feature"
+                )
+        )
         #expect(outcome.metricsArtifact.issues.first?.metadata["subContainerMemberName"] == "feature")
         #expect(runner.invocationCount == 0)
     }
@@ -2304,7 +2318,13 @@ struct ValidationCoordinatorTests {
         #expect(outcome.metricsArtifact.issues.count == 1)
         #expect(
             outcome.metricsArtifact.issues.first?.code
-                == "container.custom-init-unsupported"
+                == MacroBuildDiagnosticContract
+                    .containerCustomInitUnsupportedCode
+        )
+        #expect(
+            outcome.metricsArtifact.issues.first?.message
+                == MacroBuildDiagnosticContract
+                    .containerCustomInitUnsupportedMessage
         )
         #expect(outcome.result.stderr.contains("extension"))
         #expect(runner.invocationCount == 0)

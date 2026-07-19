@@ -130,9 +130,15 @@ package enum ContainerSemanticBuildValidator {
             for binding in subContainer.bindings where !childContainer.inputMembers.contains(binding.childInputName) {
                 issues.append(
                     ValidationIssue(
-                        code: "sub.unknown-child-input",
+                        code: MacroBuildDiagnosticContract
+                            .subUnknownChildInputCode,
                         severity: .error,
-                        message: "@SubContainer on '\(subContainer.memberName)' binds child input '\(binding.childInputName)', but '\(childContainer.displayName)' does not declare a matching .input member.",
+                        message: MacroBuildDiagnosticContract
+                            .subUnknownChildInputMessage(
+                                memberName: subContainer.memberName,
+                                childInputName: binding.childInputName,
+                                childContainerName: childContainer.displayName
+                            ),
                         location: binding.childLocation,
                         notes: [
                             ValidationIssueNote(
@@ -626,9 +632,11 @@ private func makeInvalidBindingsIssue(
     location: ValidationIssueLocation
 ) -> ValidationIssue {
     ValidationIssue(
-        code: "sub.invalid-bindings",
+        code: MacroBuildDiagnosticContract.subInvalidBindingsCode,
         severity: .error,
-        message: "@SubContainer on '\(subContainer.memberName)' requires bindings: to be a literal array of (child:parent:) key-path tuples.",
+        message: MacroBuildDiagnosticContract.subInvalidBindingsMessage(
+            memberName: subContainer.memberName
+        ),
         location: location,
         notes: [],
         remediation: "Use bindings: [(child: \\.childInput, parent: \\.parentMember)] or remove bindings: to use implicit same-name wiring.",

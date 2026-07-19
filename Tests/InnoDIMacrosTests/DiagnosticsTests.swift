@@ -7,6 +7,46 @@ import InnoDICore
 
 @Suite("InnoDI Diagnostic IDs")
 struct DiagnosticsTests {
+    @Test("Macro diagnostics retain the shared build-validator contract")
+    func macroDiagnosticsRetainSharedBuildValidatorContract() {
+        #expect(
+            InnoDIDiagnosticCode.containerCustomInitUnsupported.rawValue
+                == MacroBuildDiagnosticContract
+                    .containerCustomInitUnsupportedCode
+        )
+        #expect(
+            SimpleDiagnostic.containerCustomInitUnsupported().message
+                == MacroBuildDiagnosticContract
+                    .containerCustomInitUnsupportedMessage
+        )
+        #expect(
+            InnoDIDiagnosticCode.subInvalidBindings.rawValue
+                == MacroBuildDiagnosticContract.subInvalidBindingsCode
+        )
+        #expect(
+            SimpleDiagnostic.subInvalidBindings(memberName: "feature").message
+                == MacroBuildDiagnosticContract.subInvalidBindingsMessage(
+                    memberName: "feature"
+                )
+        )
+        #expect(
+            InnoDIDiagnosticCode.subUnknownChildInput.rawValue
+                == MacroBuildDiagnosticContract.subUnknownChildInputCode
+        )
+        #expect(
+            SimpleDiagnostic.subUnknownChildInput(
+                memberName: "feature",
+                childInputName: "config",
+                childContainerName: "FeatureContainer"
+            ).message
+                == MacroBuildDiagnosticContract.subUnknownChildInputMessage(
+                    memberName: "feature",
+                    childInputName: "config",
+                    childContainerName: "FeatureContainer"
+                )
+        )
+    }
+
     @Test("Diagnostics guide lists every diagnostic code")
     func diagnosticsGuideListsEveryDiagnosticCode() throws {
         let testDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
