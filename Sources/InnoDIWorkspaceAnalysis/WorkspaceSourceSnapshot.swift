@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 import SwiftParser
 import SwiftSyntax
@@ -138,29 +139,38 @@ package func loadWorkspaceSourceSnapshot(
 ) throws -> WorkspaceSourceSnapshot {
     let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
     let sourceFiles = try discoverWorkspaceSourceFiles(rootPath: rootPath)
+    let outcomes = try loadWorkspaceSourcesInParallel(count: sourceFiles.count) { index in
+        let relativePath = sourceFiles[index]
+        let fileURL = rootURL.appendingPathComponent(relativePath)
+        do {
+            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            return .parsed(
+                WorkspaceSourceFile(
+                    relativePath: relativePath,
+                    fileURL: fileURL,
+                    syntax: Parser.parse(source: source)
+                )
+            )
+        } catch {
+            return .readFailed(error)
+        }
+    }
+
     var files: [WorkspaceSourceFile] = []
     files.reserveCapacity(sourceFiles.count)
-
-    for relativePath in sourceFiles {
-        let fileURL = rootURL.appendingPathComponent(relativePath)
-        let source: String
-        do {
-            source = try String(contentsOf: fileURL, encoding: .utf8)
-        } catch {
-            if let onFileReadError {
-                onFileReadError(relativePath, fileURL, error)
-                continue
+    // Read-error callbacks replay serially in discovery order so callers
+    // never observe them from a concurrent context.
+    for (index, outcome) in outcomes.enumerated() {
+        switch outcome {
+        case .parsed(let file):
+            files.append(file)
+        case .readFailed(let error):
+            guard let onFileReadError else {
+                throw error
             }
-            throw error
+            let relativePath = sourceFiles[index]
+            onFileReadError(relativePath, rootURL.appendingPathComponent(relativePath), error)
         }
-        let syntax = Parser.parse(source: source)
-        files.append(
-            WorkspaceSourceFile(
-                relativePath: relativePath,
-                fileURL: fileURL,
-                syntax: syntax
-            )
-        )
     }
 
     return WorkspaceSourceSnapshot(rootPath: rootPath, rootURL: rootURL, files: files)
@@ -188,21 +198,36 @@ package func loadWorkspaceSourceSnapshot(
     let rootURL = URL(fileURLWithPath: manifest.rootPackageDirectory)
         .resolvingSymlinksInPath()
         .standardizedFileURL
-    var files: [WorkspaceSourceFile] = []
-
-    for target in manifest.targets {
-        for source in target.sources {
-            let fileURL = URL(fileURLWithPath: source.filePath)
+    let jobs = manifest.targets.flatMap { target in
+        target.sources.map { source in (targetID: target.id, source: source) }
+    }
+    let outcomes = try loadWorkspaceSourcesInParallel(count: jobs.count) { index in
+        let job = jobs[index]
+        let fileURL = URL(fileURLWithPath: job.source.filePath)
+        do {
             let contents = try String(contentsOf: fileURL, encoding: .utf8)
-            files.append(
+            return .parsed(
                 WorkspaceSourceFile(
-                    relativePath: source.logicalPath,
+                    relativePath: job.source.logicalPath,
                     fileURL: fileURL,
                     syntax: Parser.parse(source: contents),
-                    targetID: target.id,
-                    origin: source.origin
+                    targetID: job.targetID,
+                    origin: job.source.origin
                 )
             )
+        } catch {
+            return .readFailed(error)
+        }
+    }
+
+    var files: [WorkspaceSourceFile] = []
+    files.reserveCapacity(jobs.count)
+    for outcome in outcomes {
+        switch outcome {
+        case .parsed(let file):
+            files.append(file)
+        case .readFailed(let error):
+            throw error
         }
     }
 
@@ -213,6 +238,56 @@ package func loadWorkspaceSourceSnapshot(
         primaryTargetID: manifest.primaryTargetID,
         analysisManifest: manifest
     )
+}
+
+private enum WorkspaceSourceLoadOutcome {
+    case parsed(WorkspaceSourceFile)
+    case readFailed(Error)
+}
+
+private struct WorkspaceParallelSourceLoadError: LocalizedError {
+    var errorDescription: String? {
+        "Parallel workspace source loading finished without an outcome for every file; " +
+        "this is an InnoDI internal inconsistency — please file a bug."
+    }
+}
+
+/// Runs `load` for every index concurrently and returns outcomes in input
+/// order.
+///
+/// Reading and parsing workspace sources is per-file independent and
+/// CPU-bound, so cold snapshot loads scale with core count instead of running
+/// serially. Determinism is preserved because callers consume outcomes by
+/// input index: the surfaced error is always the first failing input, exactly
+/// as the previous serial loop reported it.
+private func loadWorkspaceSourcesInParallel(
+    count: Int,
+    load: @Sendable (Int) -> WorkspaceSourceLoadOutcome
+) throws -> [WorkspaceSourceLoadOutcome] {
+    guard count > 0 else {
+        return []
+    }
+
+    var slots = [WorkspaceSourceLoadOutcome?](repeating: nil, count: count)
+    slots.withUnsafeMutableBufferPointer { buffer in
+        // Safety: every iteration writes exactly one distinct element, so no
+        // two threads ever touch the same memory location, and
+        // `concurrentPerform` joins all iterations before the buffer scope
+        // ends.
+        nonisolated(unsafe) let base = buffer.baseAddress
+        DispatchQueue.concurrentPerform(iterations: count) { index in
+            base?.advanced(by: index).pointee = load(index)
+        }
+    }
+
+    let outcomes = slots.compactMap { $0 }
+    guard outcomes.count == count else {
+        // Every iteration writes exactly one slot, so this cannot happen; the
+        // guard keeps the loaders fail-closed rather than silently narrowing
+        // scope if that invariant is ever broken.
+        throw WorkspaceParallelSourceLoadError()
+    }
+    return outcomes
 }
 
 /// Discovers Swift source files that participate in workspace-wide validation.
