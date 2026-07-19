@@ -1,147 +1,236 @@
-import Foundation
 import InnoDITestSupport
 import SwiftDiagnostics
-import SwiftParser
-import SwiftSyntax
 import SwiftSyntaxMacros
 import Testing
 
 @testable import InnoDIMacros
 
-/// Covers the mechanical fix-its attached to diagnostics whose repair is a
-/// single unambiguous text edit: `some` → `any`, `T!` → `T?`,
-/// `private` → `fileprivate`, and duplicate-attribute removal.
+/// Covers unambiguous, single-edit repairs end to end: the diagnostic must
+/// advertise the edit, SwiftSyntax must apply it to the original source, and
+/// expanding the repaired source must produce no follow-up diagnostic.
 @Suite("Mechanical fix-its")
 struct MechanicalFixItTests {
-    private func containerDiagnostics(
-        expanding source: String
-    ) throws -> [Diagnostic] {
-        let parsed = Parser.parse(source: source)
-        guard let decl = parsed.statements.first?.item.as(StructDeclSyntax.self),
-              let attribute = decl.attributes.first?.as(AttributeSyntax.self) else {
-            Issue.record("Fixture should parse to an attributed struct")
-            return []
-        }
-        let context = TestMacroExpansionContext()
-        _ = try DIContainerMacro.expansion(
-            of: attribute,
-            providingMembersOf: decl,
-            in: context
+    private static let macros: [String: any Macro.Type] = [
+        "DIContainer": DIContainerMacro.self,
+        "Provide": ProvideMacro.self,
+        "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
+        "SubContainer": SubContainerMacro.self,
+        "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
+    ]
+
+    @Test("Opaque provider type repair applies some→any and re-expands")
+    func opaqueTypeRepairAppliesAndReexpands() {
+        assertRepair(
+            originalSource: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: ServiceImpl())
+                    var service: some ServiceProtocol
+                }
+                """,
+            expandedSource: """
+                struct AppContainer {
+                    var service: some ServiceProtocol
+                }
+                """,
+            diagnostic: DiagnosticSpec(
+                id: messageID(.provideOpaqueTypeUnsupported),
+                message: "@Provide member 'service' cannot use an opaque 'some' property type because generated storage and Overrides require a stable optional type. Expose an existential 'any Protocol' instead.",
+                line: 4,
+                column: 18,
+                fixIts: [FixItSpec(message: "Replace 'some' with 'any'")]
+            ),
+            applying: "Replace 'some' with 'any'",
+            fixedSource: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: ServiceImpl())
+                    var service: any ServiceProtocol
+                }
+                """
         )
-        return context.diagnostics
+    }
+
+    @Test("Implicitly unwrapped provider repair applies !→? and re-expands")
+    func iuoTypeRepairAppliesAndReexpands() {
+        assertRepair(
+            originalSource: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: ServiceImpl())
+                    var service: ServiceImpl!
+                }
+                """,
+            expandedSource: """
+                struct AppContainer {
+                    var service: ServiceImpl!
+                }
+                """,
+            diagnostic: DiagnosticSpec(
+                id: messageID(.provideIUOTypeUnsupported),
+                message: "@Provide member 'service' cannot use an implicitly unwrapped optional type. Replace 'T!' with explicit 'T' or 'T?' so generated storage and sibling wiring have one unambiguous optionality contract.",
+                line: 4,
+                column: 18,
+                fixIts: [FixItSpec(message: "Replace '!' with '?'")]
+            ),
+            applying: "Replace '!' with '?'",
+            fixedSource: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: ServiceImpl())
+                    var service: ServiceImpl?
+                }
+                """
+        )
+    }
+
+    @Test("Private container repair applies fileprivate and re-expands")
+    func privateContainerRepairAppliesAndReexpands() {
+        assertRepair(
+            originalSource: """
+                @DIContainer
+                private struct AppContainer {
+                    @Provide(.input)
+                    var config: AppConfig
+                }
+                """,
+            expandedSource: """
+                private struct AppContainer {
+                    var config: AppConfig
+                }
+                """,
+            diagnostic: DiagnosticSpec(
+                id: messageID(.containerPrivateAccessUnsupported),
+                message: "@DIContainer 'AppContainer' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace.",
+                line: 2,
+                column: 1,
+                fixIts: [
+                    FixItSpec(message: "Replace 'private' with 'fileprivate'")
+                ]
+            ),
+            applying: "Replace 'private' with 'fileprivate'",
+            fixedSource: """
+                @DIContainer
+                fileprivate struct AppContainer {
+                    @Provide(.input)
+                    var config: AppConfig
+                }
+                """
+        )
+    }
+
+    @Test("Duplicate @Provide repair removes one attribute and re-expands")
+    func duplicateProvideRepairAppliesAndReexpands() {
+        assertRepair(
+            originalSource: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: ServiceImpl())
+                    /// Service dependency.
+                    @Provide(.shared, factory: ServiceImpl())
+                    var service: ServiceImpl
+                }
+                """,
+            expandedSource: """
+                struct AppContainer {
+                    /// Service dependency.
+                    var service: ServiceImpl
+                }
+                """,
+            diagnostic: DiagnosticSpec(
+                id: messageID(.provideDuplicateAttribute),
+                message: "@Provide member 'service' declares @Provide more than once. Keep exactly one @Provide attribute on each dependency property.",
+                line: 5,
+                column: 5,
+                fixIts: [
+                    FixItSpec(message: "Remove the duplicate @Provide attribute")
+                ]
+            ),
+            applying: "Remove the duplicate @Provide attribute",
+            fixedSource: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.shared, factory: ServiceImpl())
+                    /// Service dependency.
+                    var service: ServiceImpl
+                }
+                """
+        )
+    }
+
+    @Test("Duplicate @SubContainer repair removes one attribute and re-expands")
+    func duplicateSubContainerRepairAppliesAndReexpands() {
+        assertRepair(
+            originalSource: """
+                @DIContainer
+                struct AppContainer {
+                    @SubContainer(scope: .shared)
+                    @SubContainer(scope: .shared)
+                    var feature: FeatureContainer
+                }
+                """,
+            expandedSource: """
+                struct AppContainer {
+                    var feature: FeatureContainer
+                }
+                """,
+            diagnostic: DiagnosticSpec(
+                id: messageID(.subDuplicateAttribute),
+                message: "@SubContainer member 'feature' declares @SubContainer more than once. Keep exactly one @SubContainer attribute on each child-container property.",
+                line: 4,
+                column: 5,
+                fixIts: [
+                    FixItSpec(
+                        message: "Remove the duplicate @SubContainer attribute"
+                    )
+                ]
+            ),
+            applying: "Remove the duplicate @SubContainer attribute",
+            fixedSource: """
+                @DIContainer
+                struct AppContainer {
+                    @SubContainer(scope: .shared)
+                    var feature: FeatureContainer
+                }
+                """
+        )
+    }
+
+    private func assertRepair(
+        originalSource: String,
+        expandedSource: String,
+        diagnostic: DiagnosticSpec,
+        applying fixItMessage: String,
+        fixedSource: String,
+        fileID: StaticString = #fileID,
+        filePath: StaticString = #filePath,
+        line: UInt = #line,
+        column: UInt = #column
+    ) {
+        assertMacroExpansionInline(
+            originalSource,
+            expandedSource: expandedSource,
+            diagnostics: [diagnostic],
+            macros: Self.macros,
+            applyFixIts: [fixItMessage],
+            fixedSource: fixedSource,
+            fileID: fileID,
+            filePath: filePath,
+            line: line,
+            column: column
+        )
+
+        let repaired = expandMacroSource(fixedSource, macros: Self.macros)
+        #expect(
+            repaired.diagnostics.isEmpty,
+            "Repaired source emitted diagnostics: \(repaired.diagnostics)"
+        )
     }
 
     private func messageID(_ code: InnoDIDiagnosticCode) -> MessageID {
         MessageID(
             domain: "InnoDI.\(code.category.rawValue)",
             id: code.rawValue
-        )
-    }
-
-    private func replacementTexts(of diagnostic: Diagnostic) -> [String] {
-        diagnostic.fixIts.flatMap(\.changes).compactMap { change in
-            if case let .replaceText(_, replacementText, _) = change {
-                return replacementText
-            }
-            return nil
-        }
-    }
-
-    @Test("Opaque provider type offers a some→any replacement")
-    func opaqueTypeOffersAnyReplacement() throws {
-        let diagnostics = try containerDiagnostics(
-            expanding: """
-                @DIContainer
-                struct AppContainer {
-                    @Provide(.shared, factory: ServiceImpl())
-                    var service: some ServiceProtocol
-                }
-                """
-        )
-        guard let diagnostic = diagnostics.first(where: {
-            $0.diagnosticID == messageID(.provideOpaqueTypeUnsupported)
-        }) else {
-            Issue.record("Expected provide.opaque-type-unsupported diagnostic")
-            return
-        }
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(diagnostic.fixIts.first?.message.message == "Replace 'some' with 'any'")
-        #expect(replacementTexts(of: diagnostic) == ["any"])
-    }
-
-    @Test("Implicitly unwrapped provider type offers a !→? replacement")
-    func iuoTypeOffersOptionalReplacement() throws {
-        let diagnostics = try containerDiagnostics(
-            expanding: """
-                @DIContainer
-                struct AppContainer {
-                    @Provide(.shared, factory: ServiceImpl())
-                    var service: ServiceImpl!
-                }
-                """
-        )
-        guard let diagnostic = diagnostics.first(where: {
-            $0.diagnosticID == messageID(.provideIUOTypeUnsupported)
-        }) else {
-            Issue.record("Expected provide.iuo-type-unsupported diagnostic")
-            return
-        }
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(diagnostic.fixIts.first?.message.message == "Replace '!' with '?'")
-        #expect(replacementTexts(of: diagnostic) == ["?"])
-    }
-
-    @Test("Private container offers a fileprivate replacement")
-    func privateContainerOffersFileprivateReplacement() throws {
-        let diagnostics = try containerDiagnostics(
-            expanding: """
-                @DIContainer
-                private struct AppContainer {
-                    @Provide(.input)
-                    var config: AppConfig
-                }
-                """
-        )
-        guard let diagnostic = diagnostics.first(where: {
-            $0.diagnosticID == messageID(.containerPrivateAccessUnsupported)
-        }) else {
-            Issue.record("Expected container.private-access-unsupported diagnostic")
-            return
-        }
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(replacementTexts(of: diagnostic) == ["fileprivate"])
-    }
-
-    @Test("Duplicate @Provide offers an attribute-removal fix-it")
-    func duplicateProvideOffersRemoval() throws {
-        let source = """
-            @Provide(.shared, factory: ServiceImpl())
-            @Provide(.shared, factory: ServiceImpl())
-            var service: ServiceImpl
-            """
-        let parsed = Parser.parse(source: source)
-        guard let varDecl = parsed.statements.first?.item.as(VariableDeclSyntax.self),
-              let attribute = varDecl.attributes.dropFirst().first?.as(AttributeSyntax.self) else {
-            Issue.record("Fixture should parse to a doubly-attributed var")
-            return
-        }
-        let context = TestMacroExpansionContext()
-        _ = try ProvideMacro.expansion(
-            of: attribute,
-            providingPeersOf: varDecl,
-            in: context
-        )
-        guard let diagnostic = context.diagnostics.first(where: {
-            $0.diagnosticID == messageID(.provideDuplicateAttribute)
-        }) else {
-            Issue.record("Expected provide.duplicate-attribute diagnostic")
-            return
-        }
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(replacementTexts(of: diagnostic) == [""])
-        #expect(
-            diagnostic.fixIts.first?.message.message
-                == "Remove the duplicate @Provide attribute"
         )
     }
 }

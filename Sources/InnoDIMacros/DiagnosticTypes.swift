@@ -291,19 +291,24 @@ internal func makeTextReplacementFixIt(
     )
 }
 
-/// Removes `syntax` together with its trailing trivia, leaving any leading
-/// trivia (doc comments, indentation) in place. Used by duplicate-attribute
-/// fix-its where deleting the redundant attribute is the whole fix.
+/// Removes `syntax` and the whitespace before the next token while leaving
+/// the removed syntax's leading trivia (including comments and indentation)
+/// in place. The next token therefore occupies the attribute's former column
+/// instead of being separated by an empty line.
 internal func makeRemovalFixIt(
     removing syntax: some SyntaxProtocol,
     message: String,
     code: InnoDIDiagnosticCode
 ) -> FixIt {
-    FixIt(
+    let removalEnd = syntax.lastToken(viewMode: .sourceAccurate)?
+        .nextToken(viewMode: .sourceAccurate)?
+        .positionAfterSkippingLeadingTrivia
+        ?? syntax.endPosition
+    return FixIt(
         message: SimpleFixIt(message, code: code, suffix: "remove"),
         changes: [
             .replaceText(
-                range: syntax.positionAfterSkippingLeadingTrivia..<syntax.endPosition,
+                range: syntax.positionAfterSkippingLeadingTrivia..<removalEnd,
                 with: "",
                 in: Syntax(syntax.root)
             )
