@@ -55,6 +55,49 @@ struct WorkspaceTargetScopeTests {
         )
     }
 
+    @Test("Manifest snapshots reuse syntax retained by signature collection")
+    func manifestSnapshotReusesSignatureSyntax() throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+
+        let manifest = try ValidatedWorkspaceAnalysisManifest(
+            validating: makeValidManifest(fixture: fixture)
+        )
+        let stateURL = fixture.rootURL.appendingPathComponent(
+            "signature-reuse-state",
+            isDirectory: true
+        )
+        let output = try collectValidationSignatureOutput(
+            validated: manifest,
+            stateDirectoryPath: stateURL.path
+        )
+        let appIdentity = try #require(
+            manifest.manifest.primaryTarget?.sources.first?.identity(
+                in: fixture.appID
+            )
+        )
+        let retainedSource = try #require(output.parsedSources[appIdentity])
+        let retainedDescription = retainedSource.description
+
+        try Data("struct RewrittenAfterSignature {}\n".utf8).write(
+            to: fixture.appSourceURL,
+            options: .atomic
+        )
+        let snapshot = try loadWorkspaceSourceSnapshot(
+            validated: manifest,
+            reusingParsedSources: output.parsedSources
+        )
+        let appSource = try #require(
+            snapshot.sourceFile(sourceIdentity: appIdentity)
+        )
+
+        #expect(appSource.syntax.description == retainedDescription)
+        #expect(
+            appSource.syntax.description.contains("RewrittenAfterSignature")
+                == false
+        )
+    }
+
     @Test("Manifest module topology is authoritative and target-stable")
     func manifestModuleGraphUsesResolvedTargetEdges() throws {
         let fixture = try ManifestFixture()

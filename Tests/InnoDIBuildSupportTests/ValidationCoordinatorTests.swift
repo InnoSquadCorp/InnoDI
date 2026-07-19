@@ -453,6 +453,47 @@ struct ValidationCoordinatorTests {
         #expect(third.metrics.astReparseCount == 0)
     }
 
+    @Test("Signature output retains only syntax trees parsed by the current collection")
+    func signatureOutputRetainsCurrentReparses() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let parser = MockValidationSyntaxParser()
+        let collector = ValidationSignatureCollector(
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            parser: parser
+        )
+
+        let first = try collector.collectOutput(
+            rootPath: fixture.rootURL.path(percentEncoded: false)
+        )
+        #expect(first.result.metrics.astReparseCount == 1)
+        #expect(first.parsedSources.keys.sorted() == ["Feature.swift"])
+
+        let second = try collector.collectOutput(
+            rootPath: fixture.rootURL.path(percentEncoded: false)
+        )
+        #expect(second.result.metrics.metadataCacheHitCount == 1)
+        #expect(second.result.metrics.astReparseCount == 0)
+        #expect(second.parsedSources.isEmpty)
+
+        try "struct Feature { let value = 2 }\n".write(
+            to: fixture.rootURL.appendingPathComponent("Feature.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let third = try collector.collectOutput(
+            rootPath: fixture.rootURL.path(percentEncoded: false)
+        )
+        #expect(third.result.metrics.astReparseCount == 1)
+        #expect(third.parsedSources.keys.sorted() == ["Feature.swift"])
+        #expect(
+            third.parsedSources["Feature.swift"]?.description.contains(
+                "let value = 2"
+            ) == true
+        )
+    }
+
     @Test("One-shot signature collection ignores existing AST digest manifests")
     func oneShotSignatureCollectionIgnoresExistingManifestCache() throws {
         let fixture = try makeFixture()

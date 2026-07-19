@@ -137,6 +137,43 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         persistManifestUpdates: Bool = true,
         useManifestCache: Bool = true
     ) throws -> ValidationSignatureCollectionResult {
+        try collectOutput(
+            validated: validated,
+            persistManifestUpdates: persistManifestUpdates,
+            useManifestCache: useManifestCache
+        ).result
+    }
+
+    /// Retaining variant used by the coordinator so a live validation run can
+    /// reuse the trees this collection already parsed.
+    func collectOutput(
+        rootPath: String,
+        persistManifestUpdates: Bool = true,
+        useManifestCache: Bool = true
+    ) throws -> ValidationSignatureCollectionOutput {
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let sources = try discoverValidationSourceFiles(rootPath: rootPath)
+            .map { relativePath in
+                ValidationSignatureSource(
+                    cacheKey: relativePath,
+                    fileURL: rootURL.appendingPathComponent(relativePath)
+                )
+            }
+        return try collectOutput(
+            sources: sources,
+            signatureScopeRecords: [],
+            persistManifestUpdates: persistManifestUpdates,
+            useManifestCache: useManifestCache
+        )
+    }
+
+    /// Retaining variant used by the coordinator so a live validation run can
+    /// reuse the trees this collection already parsed.
+    func collectOutput(
+        validated: ValidatedWorkspaceAnalysisManifest,
+        persistManifestUpdates: Bool = true,
+        useManifestCache: Bool = true
+    ) throws -> ValidationSignatureCollectionOutput {
         let manifest = validated.manifest
         let sources = manifest.targets.flatMap { target in
             target.sources.map { source in
@@ -146,7 +183,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
                 )
             }
         }
-        return try collectWithMetrics(
+        return try collectOutput(
             sources: sources,
             signatureScopeRecords: manifestSignatureScopeRecords(manifest),
             persistManifestUpdates: persistManifestUpdates,
@@ -160,6 +197,20 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         persistManifestUpdates: Bool,
         useManifestCache: Bool
     ) throws -> ValidationSignatureCollectionResult {
+        try collectOutput(
+            sources: sources,
+            signatureScopeRecords: signatureScopeRecords,
+            persistManifestUpdates: persistManifestUpdates,
+            useManifestCache: useManifestCache
+        ).result
+    }
+
+    private func collectOutput(
+        sources: [ValidationSignatureSource],
+        signatureScopeRecords: [String],
+        persistManifestUpdates: Bool,
+        useManifestCache: Bool
+    ) throws -> ValidationSignatureCollectionOutput {
         let fileManager = FileManager.default
         let stateDirectoryURL = URL(fileURLWithPath: stateDirectoryPath, isDirectory: true)
         if persistManifestUpdates {
@@ -183,6 +234,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         var metadataCacheHitCount = 0
         var contentHashReuseCount = 0
         var astReparseCount = 0
+        var parsedSources: [String: SourceFileSyntax] = [:]
         var reasonCodes: Set<ValidationReasonCode> = []
         var newFiles: [String] = []
         var deletedFiles: [String] = []
@@ -240,6 +292,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             let sourceText = String(decoding: data, as: UTF8.self)
             let syntax = parser.parse(source: sourceText)
             let digest = normalizedDigest(for: syntax)
+            parsedSources[cacheKey] = syntax
             astReparseCount += 1
             reparsedFiles.append(cacheKey)
             reasonCodes.insert(.cacheMissContentChanged)
@@ -272,23 +325,42 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             )
         }
 
-        return ValidationSignatureCollectionResult(
-            signature: hasher.finalize(),
-            metrics: ValidationSignatureMetrics(
-                scannedFileCount: sourceKeys.count,
-                metadataCacheHitCount: metadataCacheHitCount,
-                contentHashReuseCount: contentHashReuseCount,
-                astReparseCount: astReparseCount
+        return ValidationSignatureCollectionOutput(
+            result: ValidationSignatureCollectionResult(
+                signature: hasher.finalize(),
+                metrics: ValidationSignatureMetrics(
+                    scannedFileCount: sourceKeys.count,
+                    metadataCacheHitCount: metadataCacheHitCount,
+                    contentHashReuseCount: contentHashReuseCount,
+                    astReparseCount: astReparseCount
+                ),
+                reasonCodes: reasonCodes.sorted { $0.rawValue < $1.rawValue },
+                fileChanges: ValidationFileChangeDetails(
+                    newFiles: newFiles.sorted(),
+                    deletedFiles: deletedFiles,
+                    reparsedFiles: reparsedFiles.sorted(),
+                    contentHashReusedFiles: contentHashReusedFiles.sorted()
+                )
             ),
-            reasonCodes: reasonCodes.sorted { $0.rawValue < $1.rawValue },
-            fileChanges: ValidationFileChangeDetails(
-                newFiles: newFiles.sorted(),
-                deletedFiles: deletedFiles,
-                reparsedFiles: reparsedFiles.sorted(),
-                contentHashReusedFiles: contentHashReusedFiles.sorted()
-            )
+            parsedSources: parsedSources
         )
     }
+}
+
+/// Signature-collection result plus the syntax trees the collector had to
+/// parse to compute AST digests.
+///
+/// The trees exist so a subsequent live validation run can reuse them instead
+/// of re-reading and re-parsing the same files — on a cold cache that is
+/// every workspace source. This wrapper stays outside the Codable metrics
+/// contract because syntax trees are in-memory state, not artifact data.
+struct ValidationSignatureCollectionOutput {
+    let result: ValidationSignatureCollectionResult
+    /// Trees keyed by the collector's cache key: the target-qualified source
+    /// identity in manifest mode, or the workspace-relative path in root
+    /// mode. Only files on the reparse path appear here; metadata and
+    /// content-hash cache hits never parse.
+    let parsedSources: [String: SourceFileSyntax]
 }
 
 /// Convenience entry point used by callers that only need the final signature.
@@ -372,6 +444,40 @@ func collectValidationSignatureWithMetrics(
         parser: LiveValidationSyntaxParser()
     )
     .collectWithMetrics(
+        validated: validated,
+        persistManifestUpdates: persistManifestUpdates,
+        useManifestCache: useManifestCache
+    )
+}
+
+func collectValidationSignatureOutput(
+    rootPath: String,
+    stateDirectoryPath: String,
+    persistManifestUpdates: Bool = true,
+    useManifestCache: Bool = true
+) throws -> ValidationSignatureCollectionOutput {
+    try ValidationSignatureCollector(
+        stateDirectoryPath: stateDirectoryPath,
+        parser: LiveValidationSyntaxParser()
+    )
+    .collectOutput(
+        rootPath: rootPath,
+        persistManifestUpdates: persistManifestUpdates,
+        useManifestCache: useManifestCache
+    )
+}
+
+func collectValidationSignatureOutput(
+    validated: ValidatedWorkspaceAnalysisManifest,
+    stateDirectoryPath: String,
+    persistManifestUpdates: Bool = true,
+    useManifestCache: Bool = true
+) throws -> ValidationSignatureCollectionOutput {
+    try ValidationSignatureCollector(
+        stateDirectoryPath: stateDirectoryPath,
+        parser: LiveValidationSyntaxParser()
+    )
+    .collectOutput(
         validated: validated,
         persistManifestUpdates: persistManifestUpdates,
         useManifestCache: useManifestCache
