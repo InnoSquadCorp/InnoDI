@@ -1603,10 +1603,18 @@ struct ValidationCoordinatorTests {
                 _ = allowRecovery.wait(timeout: .now() + .seconds(1))
             }
         )
+        // Marks the moment the contender enters a coordinator wait loop: its
+        // first backoff sleep can only happen after it observed the lock
+        // state A is holding, which is the readiness point the test needs
+        // before letting A's recovery proceed.
+        let contenderReachedBackoff = LockedFlag()
         let runtimeB = ValidationCoordinatorRuntime(
             monotonicNow: validationNow,
             currentDate: Date.init,
-            sleep: validationSleep,
+            sleep: { interval in
+                contenderReachedBackoff.markTrue()
+                try await validationSleep(interval)
+            },
             currentProcessID: { 2002 },
             processExists: { [2001, 2002].contains($0) }
         )
@@ -1645,7 +1653,14 @@ struct ValidationCoordinatorTests {
                 )
             }
 
-            try await Task.sleep(for: .milliseconds(50))
+            for _ in 0..<100 {
+                if contenderReachedBackoff.isSet {
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+
+            #expect(contenderReachedBackoff.isSet)
             allowRecovery.signal()
 
             var collected: [ValidationExecutionOutcome] = []
