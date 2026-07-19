@@ -37,11 +37,9 @@ func extractFeatureRootReferences(
                 continue
             }
             guard let rootViewTypeName = parseFeatureRootTypeName(from: argument.expression) else {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(argument.expression),
-                        message: SimpleDiagnostic.swiftUIFeatureRootInvalidRoot()
-                    )
+                context.emit(
+                    SimpleDiagnostic.swiftUIFeatureRootInvalidRoot(),
+                    at: Syntax(argument.expression)
                 )
                 hadErrors = true
                 continue
@@ -57,11 +55,9 @@ func extractFeatureRootReferences(
 
         case "featureRoots":
             guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(argument.expression),
-                        message: SimpleDiagnostic.swiftUIFeatureRootInvalidRoot()
-                    )
+                context.emit(
+                    SimpleDiagnostic.swiftUIFeatureRootInvalidRoot(),
+                    at: Syntax(argument.expression)
                 )
                 hadErrors = true
                 continue
@@ -73,23 +69,19 @@ func extractFeatureRootReferences(
                     propertyName: propertyName
                 )
                 if let invalidRootAnchor = parsed.invalidRootAnchor {
-                    context.diagnose(
-                        Diagnostic(
-                            node: invalidRootAnchor,
-                            message: SimpleDiagnostic.swiftUIFeatureRootInvalidRoot()
-                        )
+                    context.emit(
+                        SimpleDiagnostic.swiftUIFeatureRootInvalidRoot(),
+                        at: invalidRootAnchor
                     )
                     hadErrors = true
                     continue
                 }
                 if let invalidAliasText = parsed.invalidAliasText {
-                    context.diagnose(
-                        Diagnostic(
-                            node: parsed.aliasAnchor ?? Syntax(element.expression),
-                            message: SimpleDiagnostic.swiftUIFeatureRootInvalidAlias(
-                                alias: invalidAliasText
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.swiftUIFeatureRootInvalidAlias(
+                            alias: invalidAliasText
+                        ),
+                        at: parsed.aliasAnchor ?? Syntax(element.expression)
                     )
                     hadErrors = true
                     continue
@@ -107,13 +99,11 @@ func extractFeatureRootReferences(
     let defaultRoots = roots.filter { $0.alias == nil }
     if defaultRoots.count > 1 {
         for root in defaultRoots.dropFirst() {
-            context.diagnose(
-                Diagnostic(
-                    node: root.anchorSyntax,
-                    message: SimpleDiagnostic.swiftUIFeatureRootDuplicateDefault(
-                        propertyName: propertyName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.swiftUIFeatureRootDuplicateDefault(
+                    propertyName: propertyName
+                ),
+                at: root.anchorSyntax
             )
         }
         hadErrors = true
@@ -125,13 +115,11 @@ func extractFeatureRootReferences(
     var seenHelpers: Set<String> = []
     for root in roots {
         if !seenHelpers.insert(root.helperName).inserted {
-            context.diagnose(
-                Diagnostic(
-                    node: root.anchorSyntax,
-                    message: SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(
-                        helperName: root.helperName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(
+                    helperName: root.helperName
+                ),
+                at: root.anchorSyntax
             )
             hadErrors = true
         }
@@ -140,13 +128,11 @@ func extractFeatureRootReferences(
             existingSubContainers: existingSubContainers,
             in: declaration
         ) {
-            context.diagnose(
-                Diagnostic(
-                    node: root.anchorSyntax,
-                    message: SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(
-                        helperName: root.helperName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(
+                    helperName: root.helperName
+                ),
+                at: root.anchorSyntax
             )
             hadErrors = true
         }

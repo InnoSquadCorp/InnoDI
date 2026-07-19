@@ -25,11 +25,9 @@ public struct GenerateMockMacro: PeerMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let protocolDecl = declaration.as(ProtocolDeclSyntax.self) else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.generateMockRequiresProtocol()
-                )
+            context.emit(
+                SimpleDiagnostic.generateMockRequiresProtocol(),
+                at: Syntax(node)
             )
             return []
         }
@@ -44,13 +42,11 @@ public struct GenerateMockMacro: PeerMacro {
         if protocolDecl.memberBlock.members.isEmpty {
             // Empty protocol — emit the skeleton note so consumers can still
             // confirm the macro plugin sees the attribute.
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.generateMockExperimentalSkeleton(
-                        protocolName: protocolDecl.name.text
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.generateMockExperimentalSkeleton(
+                    protocolName: protocolDecl.name.text
+                ),
+                at: Syntax(node)
             )
         }
 
@@ -86,13 +82,11 @@ public struct GenerateMockMacro: PeerMacro {
         }
 
         if !unsupportedMembers.isEmpty {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.generateMockUnsupportedMember(
-                        memberNames: unsupportedMembers
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.generateMockUnsupportedMember(
+                    memberNames: unsupportedMembers
+                ),
+                at: Syntax(node)
             )
             // Do not synthesize a partial mock that still conforms to the
             // protocol; that would turn a scoped warning into a compiler error

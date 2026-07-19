@@ -64,7 +64,10 @@ internal func diagnoseIncompatibleDependencyEffects(
                 dependencyName: reference.name
             )
         }
-        context.diagnose(Diagnostic(node: reference.node, message: message))
+        context.emit(
+            message,
+            at: reference.node
+        )
     }
 
     for reference in member.withDependencyReferences
@@ -84,15 +87,13 @@ internal func diagnoseIncompatibleDependencyEffects(
         }
 
         diagnosedNames.insert(reference.name)
-        context.diagnose(
-            Diagnostic(
-                node: Syntax(reference.anchorExpression),
-                message: SimpleDiagnostic.provideWithDependencyRequiresSynchronousProvider(
-                    memberName: member.name,
-                    dependencyName: reference.name,
-                    providerThrows: providerThrows
-                )
-            )
+        context.emit(
+            SimpleDiagnostic.provideWithDependencyRequiresSynchronousProvider(
+                memberName: member.name,
+                dependencyName: reference.name,
+                providerThrows: providerThrows
+            ),
+            at: Syntax(reference.anchorExpression)
         )
     }
 

@@ -35,29 +35,27 @@ public struct DIContainerMacro: MemberMacro {
         let userDefinedInitializers = DIContainerParser.userDefinedInitializers(in: decl)
         if !userDefinedInitializers.isEmpty {
             for initializer in userDefinedInitializers {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(initializer),
-                        message: SimpleDiagnostic.containerCustomInitUnsupported(),
-                        notes: [
-                            Note(
-                                node: Syntax(attribute),
-                                message: SimpleNote(
-                                    "The synthesized container initializer already covers .input members and optional dependency overrides.",
-                                    code: .containerCustomInitUnsupported,
-                                    suffix: "synthesized-init"
-                                )
-                            ),
-                            Note(
-                                node: Syntax(initializer),
-                                message: SimpleNote(
-                                    "Remove this custom initializer, or remove @DIContainer and wire the container manually.",
-                                    code: .containerCustomInitUnsupported,
-                                    suffix: "manual-wiring"
-                                )
+                context.emit(
+                    SimpleDiagnostic.containerCustomInitUnsupported(),
+                    at: Syntax(initializer),
+                    notes: [
+                        Note(
+                            node: Syntax(attribute),
+                            message: SimpleNote(
+                                "The synthesized container initializer already covers .input members and optional dependency overrides.",
+                                code: .containerCustomInitUnsupported,
+                                suffix: "synthesized-init"
                             )
-                        ]
-                    )
+                        ),
+                        Note(
+                            node: Syntax(initializer),
+                            message: SimpleNote(
+                                "Remove this custom initializer, or remove @DIContainer and wire the container manually.",
+                                code: .containerCustomInitUnsupported,
+                                suffix: "manual-wiring"
+                            )
+                        )
+                    ]
                 )
             }
             return []
@@ -78,11 +76,9 @@ public struct DIContainerMacro: MemberMacro {
 
         do {
             if let conflict = DIContainerParser.findOverridesNameConflict(in: decl) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(conflict.node),
-                        message: SimpleDiagnostic.containerOverridesNameConflict(kind: conflict.kind)
-                    )
+                context.emit(
+                    SimpleDiagnostic.containerOverridesNameConflict(kind: conflict.kind),
+                    at: Syntax(conflict.node)
                 )
                 return [
                     try DIContainerCodeGenerator.generateInit(for: model),
@@ -99,11 +95,9 @@ public struct DIContainerMacro: MemberMacro {
                 )
             )
         } catch let error as CodegenInvariantError {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
-                )
+            context.emit(
+                SimpleDiagnostic.internalCodegenInvariant(description: error.description),
+                at: Syntax(attribute)
             )
             return []
         }
@@ -137,13 +131,11 @@ extension DIContainerMacro: MemberAttributeMacro {
             let memberName = variable.bindings.first?
                 .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                 ?? "<unknown>"
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(manuallyAttachedAccessor),
-                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
-                        memberName: memberName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                    memberName: memberName
+                ),
+                at: Syntax(manuallyAttachedAccessor)
             )
             return []
         }
@@ -155,13 +147,11 @@ extension DIContainerMacro: MemberAttributeMacro {
             let memberName = variable.bindings.first?
                 .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                 ?? "<unknown>"
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(manuallyAttachedAccessor),
-                    message: SimpleDiagnostic.subGeneratedAccessorManualAttachment(
-                        memberName: memberName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.subGeneratedAccessorManualAttachment(
+                    memberName: memberName
+                ),
+                at: Syntax(manuallyAttachedAccessor)
             )
             return []
         }

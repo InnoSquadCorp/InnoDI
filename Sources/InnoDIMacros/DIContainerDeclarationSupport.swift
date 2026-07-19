@@ -44,56 +44,46 @@ extension DIContainerDeclarationSupport {
         case .supported:
             return
         case let .unsupportedKind(name, kind):
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.containerUnsupportedDeclarationKind(
-                        name: name,
-                        kind: kind
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.containerUnsupportedDeclarationKind(
+                    name: name,
+                    kind: kind
+                ),
+                at: Syntax(attribute)
             )
         case let .privateAccess(name):
             let anchor = declaration.modifiers.first(where: {
                 $0.name.text == "private"
             }).map(Syntax.init) ?? Syntax(attribute)
-            context.diagnose(
-                Diagnostic(
-                    node: anchor,
-                    message: SimpleDiagnostic.containerPrivateAccessUnsupported(
-                        name: name
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.containerPrivateAccessUnsupported(
+                    name: name
+                ),
+                at: anchor
             )
         case let .generic(name, contextName):
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.containerGenericUnsupported(
-                        name: name,
-                        contextName: contextName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.containerGenericUnsupported(
+                    name: name,
+                    contextName: contextName
+                ),
+                at: Syntax(attribute)
             )
         case let .unverifiableEnclosingContext(name, extendedType):
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.containerUnverifiableEnclosingContext(
-                        name: name,
-                        extendedType: extendedType
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.containerUnverifiableEnclosingContext(
+                    name: name,
+                    extendedType: extendedType
+                ),
+                at: Syntax(attribute)
             )
         case let .localDeclaration(name, localContext):
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.containerLocalDeclarationUnsupported(
-                        name: name,
-                        context: localContext
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.containerLocalDeclarationUnsupported(
+                    name: name,
+                    context: localContext
+                ),
+                at: Syntax(attribute)
             )
         }
     }

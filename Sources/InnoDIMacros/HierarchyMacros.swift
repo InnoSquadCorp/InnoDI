@@ -17,11 +17,9 @@ extension DIComponentMacro: PeerMacro {
         }
 
         guard hasHierarchyAttribute(named: "DIContainer", in: declGroup.attributes) else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.componentRequiresContainer()
-                )
+            context.emit(
+                SimpleDiagnostic.componentRequiresContainer(),
+                at: Syntax(node)
             )
             return []
         }
@@ -30,13 +28,11 @@ extension DIComponentMacro: PeerMacro {
             return []
         }
         guard !isEscapedInnoDIIdentifier(targetName) else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(targetName),
-                    message: SimpleDiagnostic.componentEscapedTargetUnsupported(
-                        name: unescapedInnoDIIdentifierName(targetName)
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.componentEscapedTargetUnsupported(
+                    name: unescapedInnoDIIdentifierName(targetName)
+                ),
+                at: Syntax(targetName)
             )
             return []
         }
@@ -114,11 +110,9 @@ extension DIComponentMacro: MemberMacro {
         }
 
         if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.componentOverridesBuilderRequired()
-                )
+            context.emit(
+                SimpleDiagnostic.componentOverridesBuilderRequired(),
+                at: Syntax(node)
             )
             return []
         }
@@ -236,11 +230,9 @@ extension DIHierarchyRootMacro: ExtensionMacro {
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.hierarchyRootRequiresContainer()
-                )
+            context.emit(
+                SimpleDiagnostic.hierarchyRootRequiresContainer(),
+                at: Syntax(node)
             )
             return []
         }
