@@ -4,16 +4,43 @@ Thanks for contributing.
 
 ## Before Opening a PR
 
-Please keep these checks green:
+These commands mirror what the PR gate actually runs, so a green local pass
+means a green fast lane:
 
 ```bash
-swift test
-swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-(cd Examples/SwiftUIExample && swift build && swift test)
-(cd Examples/PreviewInjectionExample && swift build && swift test)
+# Test suite, exactly as the PR fast lane runs it (the skipped suites are
+# clean-build consumer contracts that remain exhaustive main gates)
+swift test \
+  -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
+  --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+  --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+
+# Macro synthesis and CI policy guards
+Tools/check-no-fatalerror-in-macros.sh
+Tools/check-ci-validation-opt-out.sh
+Tools/check-ci-action-pins.sh
+
+# Documentation contracts
+Tools/check-docs-code-blocks.sh
+Tools/check-docs-local-links.sh
+Tools/check-localized-readme-sync.sh
+
+# Public API contract and global DAG validation
+Tools/check-public-api.py
 swift run InnoDI-DependencyGraph --root . --validate-dag
+
+# DocC (the docs workflow builds this on every PR)
 Tools/generate-docc.sh
+
+# The example project the PR gate builds
+(cd Examples/SampleApp && swift build && swift test && swift run SampleApp)
 ```
+
+Pushes to `main` additionally run the unskipped `swift test` suite, the
+`SwiftUIExample` and `PreviewInjectionExample` builds, the five-platform
+build matrix, and the remote-consumer smoke test. Running those locally is
+optional; do it when your change touches build support, packaging, or the
+examples.
 
 ## Documentation Contract
 
