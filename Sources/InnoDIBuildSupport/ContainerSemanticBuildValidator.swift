@@ -382,8 +382,11 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
             return .skipChildren
         }
 
-        if let provideAttribute = findInnoDIAttribute(named: "Provide", in: node.attributes) {
-            let provideArguments = parseProvideArguments(provideAttribute)
+        let managedSemantics = parseManagedMemberSemantics(node.attributes)
+
+        if let provideAttribute = managedSemantics.provideAttributes.first {
+            let provideArguments = managedSemantics.provideArguments
+                ?? parseProvideArguments(provideAttribute)
             if provideArguments.scope == .input {
                 containerBuilders[currentContainerPath, default: SemanticContainerBuilder(
                     path: currentContainerPath,
@@ -402,9 +405,10 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
             )
         }
 
-        if let subContainerAttribute = findInnoDIAttribute(named: "SubContainer", in: node.attributes),
+        if let subContainerAttribute = managedSemantics.subContainerAttributes.first,
            let childType = binding.type {
-            let subArguments = parseSubContainerArguments(subContainerAttribute)
+            let subArguments = managedSemantics.subContainerArguments
+                ?? parseSubContainerArguments(subContainerAttribute)
             let bindingParseState = extractBindingValidationRecords(from: subContainerAttribute)
             if subArguments.bindingsParseState.hasArgument {
                 subContainers.append(

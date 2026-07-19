@@ -230,15 +230,10 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
     ) -> SyntaxVisitorContinueKind {
         defer { sourceOrder += 1 }
 
-        let provideAttributes = matchingInnoDIAttributes(
-            named: "Provide",
-            in: node.attributes
-        )
-        let subContainerAttributes = matchingInnoDIAttributes(
-            named: "SubContainer",
-            in: node.attributes
-        )
-        guard !provideAttributes.isEmpty || !subContainerAttributes.isEmpty else {
+        let managedSemantics = parseManagedMemberSemantics(node.attributes)
+        let provideAttributes = managedSemantics.provideAttributes
+        let subContainerAttributes = managedSemantics.subContainerAttributes
+        guard managedSemantics.hasAnyRole else {
             return .skipChildren
         }
 
@@ -247,15 +242,11 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
             && canAttachGeneratedProvideAccessor(to: node)
         let canAttachSubContainer = subContainerAttributes.count == 1
             && canAttachGeneratedSubContainerAccessor(to: node)
-        let hasExactlyOneManagedRole =
-            (provideAttributes.count == 1 && subContainerAttributes.isEmpty)
-            || (subContainerAttributes.count == 1
-                && provideAttributes.isEmpty)
+        let hasExactlyOneManagedRole = managedSemantics.hasExactlyOneRole
 
         var provide: ManagedProvideMember?
         if canAttachProvide,
-           let attribute = provideAttributes.first {
-            let arguments = parseProvideArguments(attribute)
+           let arguments = managedSemantics.provideArguments {
             if isLocallyValidProvideConfiguration(
                 declaration: node,
                 arguments: arguments
@@ -284,8 +275,7 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
         var subContainer: ManagedSubContainerMember?
         if hasExactlyOneManagedRole,
            canAttachSubContainer,
-           let attribute = subContainerAttributes.first {
-            let arguments = parseSubContainerArguments(attribute)
+           let arguments = managedSemantics.subContainerArguments {
             if isLocallyValidSubContainerConfiguration(arguments),
                let scope = arguments.scope {
                 subContainer = ManagedSubContainerMember(scope: scope)
@@ -337,22 +327,6 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
     override func visit(
         _ node: FunctionDeclSyntax
     ) -> SyntaxVisitorContinueKind { .skipChildren }
-}
-
-private func matchingInnoDIAttributes(
-    named name: String,
-    in attributes: AttributeListSyntax
-) -> [AttributeSyntax] {
-    attributes.compactMap { element in
-        guard let attribute = element.as(AttributeSyntax.self),
-              matchesInnoDIAttribute(
-                named: name,
-                attributeName: attribute.attributeName
-              ) else {
-            return nil
-        }
-        return attribute
-    }
 }
 
 private func emitsUnresolvedFallback(
