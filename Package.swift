@@ -99,6 +99,7 @@ let package = Package(
         .target(
             name: "InnoDIMigrationCore",
             dependencies: [
+                "InnoDICore",
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]

@@ -204,13 +204,3 @@ internal func enclosingDeclModifiers(containing syntax: Syntax) -> DeclModifierL
     return nil
 }
 
-private let swiftReservedKeywords: Set<String> = [
-    "associatedtype", "actor", "any", "as", "await", "break", "case", "catch",
-    "class", "continue", "default", "defer", "deinit", "do", "else", "enum",
-    "extension", "fallthrough", "false", "fileprivate", "for", "func", "guard",
-    "if", "import", "in", "init", "inout", "internal", "is", "isolated", "let",
-    "macro", "nil", "nonisolated", "open", "operator", "package", "precedencegroup",
-    "private", "protocol", "public", "repeat", "rethrows", "return", "self",
-    "Self", "some", "static", "struct", "subscript", "super", "switch", "throw",
-    "throws", "true", "try", "typealias", "var", "where", "while"
-]
