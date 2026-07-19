@@ -1665,13 +1665,19 @@ struct ValidationCoordinatorTests {
             delay: 0.2
         )
         let policy = ValidationCoordinatorLockPolicy(
-            // maxWaitSeconds is a bail-out, not a measured behavior: this
-            // test asserts recovery serialization, and any wait budget the
-            // contender can exhaust while the holder's live run is starved
-            // flakes the run. A CI runner executing the full parallel suite
-            // has stretched this test past 45 wall-clock seconds, so the
-            // budget must dwarf worst-case starvation, not approximate it.
-            maxWaitSeconds: 300,
+            // This test asserts recovery serialization, never timeout
+            // behavior, so the contender's wait budget must be impossible
+            // to exhaust: CI runners executing the full parallel suite have
+            // starved this test past 45 wall-clock seconds and expired every
+            // finite budget tried so far (1s, 30s). Termination is still
+            // guaranteed because the holder's own pause is bounded and its
+            // live run always completes.
+            //
+            // A shared manual clock was considered and rejected: with two
+            // real POSIX-lock contenders, instant virtual sleeps make the
+            // contender spin through its virtual budget while the holder is
+            // parked, reintroducing exactly this race in virtual time.
+            maxWaitSeconds: .infinity,
             staleLockAgeSeconds: 0.1,
             initialBackoffSeconds: 0.01,
             maxBackoffSeconds: 0.05
