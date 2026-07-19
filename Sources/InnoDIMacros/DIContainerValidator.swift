@@ -54,10 +54,10 @@ struct DIContainerValidator {
             memberByName: memberByName,
             context: context
         ) || hadErrors
-        hadErrors = validateDeferredWrapperAliases(
+        validateDeferredWrapperAliases(
             model: model,
             context: context
-        ) || hadErrors
+        )
         return !hadErrors
     }
 
@@ -845,12 +845,12 @@ struct DIContainerValidator {
     }
 
     /// Warns when factory closure parameters spell `Lazy`/`Provider`
-    /// through a same-file typealias.
+    /// through a same-file typealias. Warning-only: this check never fails
+    /// validation, so it does not participate in error accumulation.
     private static func validateDeferredWrapperAliases(
         model: DIContainerExpansionModel,
         context: some MacroExpansionContext
-    ) -> Bool {
-        var hadErrors = false
+    ) {
         // Warn when a closure parameter uses a typealias that
         // aliases `Lazy<T>` or `Provider<T>`. The macro resolves deferred
         // wrapper kinds from written syntax, so typealiased spellings fall
@@ -898,6 +898,5 @@ struct DIContainerValidator {
                 }
             }
         }
-        return hadErrors
     }
 }
