@@ -237,11 +237,11 @@ standalone release assets.
 
 - **Validation cache digests changed:** the stable hasher behind AST digests,
   raw content hashes, and shared-run cache keys now mixes 8-byte blocks
-  instead of single bytes, cutting hashing cost on large files roughly
-  eightfold. All digests change, so the AST digest manifest version moved to
-  `5` and the shared-run cache key prefix to `shared-run-v8`. The first build
-  after upgrading revalidates once and repopulates both caches; no action is
-  required.
+  instead of single bytes while preserving one digest for a byte sequence
+  regardless of `combine` call boundaries. All digests change, so the AST
+  digest manifest version moved to `6` and the shared-run cache key prefix to
+  `shared-run-v9`. The first build after upgrading revalidates once and
+  repopulates both caches; no action is required.
 - **`InnoDI-DependencyGraph` exit-code change:** a workspace that contains no
   `@DIContainer` now exits with code `4` instead of `1`, so scripted callers
   can distinguish an empty-but-healthy project from a genuine failure. Exit

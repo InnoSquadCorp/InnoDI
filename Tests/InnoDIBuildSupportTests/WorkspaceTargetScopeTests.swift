@@ -264,7 +264,7 @@ struct WorkspaceTargetScopeTests {
         #expect(first.metrics.scannedFileCount == 4)
         #expect(first.fileChanges.newFiles == manifest.sourceIdentities)
         #expect(firstPersisted.files.keys.sorted() == manifest.sourceIdentities)
-        #expect(firstPersisted.version == 5)
+        #expect(firstPersisted.version == ValidationDigestManifest.currentVersion)
 
         let stale = ValidationDigestManifest(
             version: 3,
@@ -360,11 +360,11 @@ struct WorkspaceTargetScopeTests {
         #expect(appState.deletingLastPathComponent().lastPathComponent == "targets")
         #expect(appState.lastPathComponent.count == 32)
 
-        let currentName = "shared-run-v7-" + String(repeating: "a", count: 32)
-        let staleVersionName = "shared-run-v6-" + String(
-            repeating: "b",
-            count: 32
+        let currentName = sharedRunCacheKey(
+            for: String(repeating: "a", count: 32)
         )
+        let staleVersionName = "shared-run-v\(sharedRunCacheVersion - 1)-" +
+            String(repeating: "b", count: 32)
         let legacyName = String(repeating: "c", count: 32)
         let preservedNames = ["targets", "unrelated-directory"]
         for name in [currentName, staleVersionName, legacyName]
@@ -409,9 +409,15 @@ struct WorkspaceTargetScopeTests {
             withIntermediateDirectories: true
         )
 
-        let currentName = "shared-run-v7-" + String(repeating: "a", count: 32)
-        let heldName = "shared-run-v7-" + String(repeating: "d", count: 32)
-        let releasedName = "shared-run-v7-" + String(repeating: "e", count: 32)
+        let currentName = sharedRunCacheKey(
+            for: String(repeating: "a", count: 32)
+        )
+        let heldName = sharedRunCacheKey(
+            for: String(repeating: "d", count: 32)
+        )
+        let releasedName = sharedRunCacheKey(
+            for: String(repeating: "e", count: 32)
+        )
         for name in [currentName, heldName, releasedName] {
             try FileManager.default.createDirectory(
                 at: rootURL.appendingPathComponent(name),
