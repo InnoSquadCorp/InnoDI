@@ -264,7 +264,7 @@ struct WorkspaceTargetScopeTests {
         #expect(first.metrics.scannedFileCount == 4)
         #expect(first.fileChanges.newFiles == manifest.sourceIdentities)
         #expect(firstPersisted.files.keys.sorted() == manifest.sourceIdentities)
-        #expect(firstPersisted.version == 4)
+        #expect(firstPersisted.version == 5)
 
         let stale = ValidationDigestManifest(
             version: 3,

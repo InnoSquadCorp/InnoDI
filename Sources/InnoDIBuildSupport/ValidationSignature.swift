@@ -53,7 +53,7 @@ struct ValidationFileDigestRecord: Codable, Equatable, Sendable {
 /// This is the durable source of truth for the three-stage cache flow:
 /// metadata fingerprint -> raw content hash -> normalized AST digest.
 struct ValidationDigestManifest: Codable, Equatable, Sendable {
-    static let currentVersion = 4
+    static let currentVersion = 5
 
     let version: Int
     let files: [String: ValidationFileDigestRecord]

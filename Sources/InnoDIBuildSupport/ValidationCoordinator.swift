@@ -279,7 +279,7 @@ package enum BootIDProvider {
 // context validation. Keep validator behavior in the cache salt so an
 // unchanged workspace cannot reuse a result produced before that fail-closed
 // preflight existed.
-package let sharedRunCacheVersion = 7
+package let sharedRunCacheVersion = 8
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
