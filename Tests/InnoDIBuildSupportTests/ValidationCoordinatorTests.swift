@@ -136,6 +136,30 @@ struct ValidationCoordinatorTests {
         #expect(strictLoadFailed)
     }
 
+    @Test("Parallel workspace snapshots preserve deterministic discovery order")
+    func parallelWorkspaceSnapshotPreservesDiscoveryOrder() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let expectedPaths = (0..<128).map {
+            String(format: "Source-%03d.swift", $0)
+        }
+        for (index, relativePath) in expectedPaths.reversed().enumerated() {
+            try "struct Source\(index) {}\n".write(
+                to: rootURL.appendingPathComponent(relativePath),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let snapshot = try loadWorkspaceSourceSnapshot(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(snapshot.files.map(\.relativePath) == expectedPaths)
+        #expect(snapshot.files.allSatisfy { !$0.syntax.statements.isEmpty })
+    }
+
     @Test("Workspace snapshots reject missing and non-directory roots")
     func workspaceSnapshotRejectsInvalidRoots() throws {
         let missingRootURL = FileManager.default.temporaryDirectory
