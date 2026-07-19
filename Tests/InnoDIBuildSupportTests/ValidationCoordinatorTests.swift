@@ -1666,10 +1666,12 @@ struct ValidationCoordinatorTests {
         )
         let policy = ValidationCoordinatorLockPolicy(
             // maxWaitSeconds is a bail-out, not a measured behavior: this
-            // test asserts recovery serialization, and a small wait budget
-            // lets CPU-starved CI runs time out the contender while the
-            // holder's live run is still in flight.
-            maxWaitSeconds: 30,
+            // test asserts recovery serialization, and any wait budget the
+            // contender can exhaust while the holder's live run is starved
+            // flakes the run. A CI runner executing the full parallel suite
+            // has stretched this test past 45 wall-clock seconds, so the
+            // budget must dwarf worst-case starvation, not approximate it.
+            maxWaitSeconds: 300,
             staleLockAgeSeconds: 0.1,
             initialBackoffSeconds: 0.01,
             maxBackoffSeconds: 0.05
