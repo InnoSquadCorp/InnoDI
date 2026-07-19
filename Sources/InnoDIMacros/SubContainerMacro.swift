@@ -44,13 +44,11 @@ extension SubContainerMacro: PeerMacro {
         if subContainerAttributes.count > 1 {
             if let diagnosticOwner = subContainerAttributes.dropFirst().first,
                hasSameSubContainerSourceLocation(node, diagnosticOwner, in: context) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(diagnosticOwner),
-                        message: SimpleDiagnostic.subDuplicateAttribute(
-                            memberName: memberName?.text ?? "<unknown>"
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.subDuplicateAttribute(
+                        memberName: memberName?.text ?? "<unknown>"
+                    ),
+                    at: Syntax(diagnosticOwner)
                 )
             }
             return []
@@ -64,25 +62,21 @@ extension SubContainerMacro: PeerMacro {
         }
 
         if let memberName, isEscapedInnoDIIdentifier(memberName) {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(memberName),
-                    message: SimpleDiagnostic.subEscapedPropertyIdentifier(
-                        memberName: unescapedInnoDIIdentifierName(memberName)
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.subEscapedPropertyIdentifier(
+                    memberName: unescapedInnoDIIdentifierName(memberName)
+                ),
+                at: Syntax(memberName)
             )
             return []
         }
 
         if membership == .none {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.subRequiresDirectContainerMember(
-                        memberName: memberName?.text ?? "<unknown>"
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.subRequiresDirectContainerMember(
+                    memberName: memberName?.text ?? "<unknown>"
+                ),
+                at: Syntax(node)
             )
         }
 
@@ -161,13 +155,11 @@ extension InnoDISubContainerAccessorMacro: AccessorMacro {
             in: variable.attributes
         ) else {
             if !isDirectMemberOfSupportedDIContainer(declaration, in: context) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(node),
-                        message: SimpleDiagnostic.subGeneratedAccessorManualAttachment(
-                            memberName: identifier.text
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.subGeneratedAccessorManualAttachment(
+                        memberName: identifier.text
+                    ),
+                    at: Syntax(node)
                 )
             }
             return [failedDIValidationRecoveryAccessor(message: "Invalid generated @SubContainer accessor owner")]

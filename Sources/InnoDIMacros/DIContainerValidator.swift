@@ -23,25 +23,23 @@ struct DIContainerValidator {
         let dagValidationEnabled = model.options.validateDAG
 
         for collision in generatedPeerSymbolCollisions(in: model) {
-            context.diagnose(
-                Diagnostic(
-                    node: collision.conflictingAnchor,
-                    message: SimpleDiagnostic.containerGeneratedSymbolCollision(
-                        conflictingMemberName: collision.conflictingMemberName,
-                        generatedName: collision.generatedName,
-                        firstMemberName: collision.firstMemberName
-                    ),
-                    notes: [
-                        Note(
-                            node: collision.firstAnchor,
-                            message: SimpleNote(
-                                "The first claim for generated support symbol '\(collision.generatedName)' comes from managed member '\(collision.firstMemberName)' here.",
-                                code: .containerGeneratedSymbolCollision,
-                                suffix: "first-claim"
-                            )
+            context.emit(
+                SimpleDiagnostic.containerGeneratedSymbolCollision(
+                    conflictingMemberName: collision.conflictingMemberName,
+                    generatedName: collision.generatedName,
+                    firstMemberName: collision.firstMemberName
+                ),
+                at: collision.conflictingAnchor,
+                notes: [
+                    Note(
+                        node: collision.firstAnchor,
+                        message: SimpleNote(
+                            "The first claim for generated support symbol '\(collision.generatedName)' comes from managed member '\(collision.firstMemberName)' here.",
+                            code: .containerGeneratedSymbolCollision,
+                            suffix: "first-claim"
                         )
-                    ]
-                )
+                    )
+                ]
             )
             hadErrors = true
         }
@@ -51,16 +49,14 @@ struct DIContainerValidator {
                 isEscapedInnoDIIdentifier($0.token)
             }
             for reference in escapedFactoryParameters {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(reference.token),
-                        message: SimpleDiagnostic.provideEscapedFactoryParameter(
-                            memberName: member.name,
-                            parameterName: unescapedInnoDIIdentifierName(
-                                reference.token
-                            )
+                context.emit(
+                    SimpleDiagnostic.provideEscapedFactoryParameter(
+                        memberName: member.name,
+                        parameterName: unescapedInnoDIIdentifierName(
+                            reference.token
                         )
-                    )
+                    ),
+                    at: Syntax(reference.token)
                 )
                 hadErrors = true
             }
@@ -69,24 +65,22 @@ struct DIContainerValidator {
                 for duplicate in duplicateClosureParameterReferences(
                     in: member.closureParameterReferences
                 ) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(duplicate.duplicate.token),
-                            message: SimpleDiagnostic.provideDuplicateFactoryParameter(
-                                memberName: member.name,
-                                parameterName: duplicate.duplicate.name
-                            ),
-                            notes: [
-                                Note(
-                                    node: Syntax(duplicate.first.token),
-                                    message: SimpleNote(
-                                        "The first factory parameter named '\(duplicate.first.name)' is declared here.",
-                                        code: .provideDuplicateFactoryParameter,
-                                        suffix: "first-declaration"
-                                    )
+                    context.emit(
+                        SimpleDiagnostic.provideDuplicateFactoryParameter(
+                            memberName: member.name,
+                            parameterName: duplicate.duplicate.name
+                        ),
+                        at: Syntax(duplicate.duplicate.token),
+                        notes: [
+                            Note(
+                                node: Syntax(duplicate.first.token),
+                                message: SimpleNote(
+                                    "The first factory parameter named '\(duplicate.first.name)' is declared here.",
+                                    code: .provideDuplicateFactoryParameter,
+                                    suffix: "first-declaration"
                                 )
-                            ]
-                        )
+                            )
+                        ]
                     )
                     hadErrors = true
                 }
@@ -105,25 +99,21 @@ struct DIContainerValidator {
                 && constructionSourceCount > 1
 
             if isOpaqueSomeType(member.type) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(member.type),
-                        message: SimpleDiagnostic.provideOpaqueTypeUnsupported(
-                            memberName: member.name
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideOpaqueTypeUnsupported(
+                        memberName: member.name
+                    ),
+                    at: Syntax(member.type)
                 )
                 hadErrors = true
             }
 
             if isImplicitlyUnwrappedOptionalType(member.type) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(member.type),
-                        message: SimpleDiagnostic.provideIUOTypeUnsupported(
-                            memberName: member.name
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideIUOTypeUnsupported(
+                        memberName: member.name
+                    ),
+                    at: Syntax(member.type)
                 )
                 hadErrors = true
             }
@@ -139,58 +129,61 @@ struct DIContainerValidator {
                         memberName: member.name
                     )
                 }
-                context.diagnose(Diagnostic(node: Syntax(member.attribute), message: message))
+                context.emit(
+                    message,
+                    at: Syntax(member.attribute)
+                )
                 hadErrors = true
             } else if member.scope != .input,
                       member.withDependenciesParseState.hasArgument,
                       member.typeExpr == nil {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(member.attribute),
-                        message: SimpleDiagnostic.provideWithRequiresTypeConstruction(
-                            memberName: member.name
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideWithRequiresTypeConstruction(
+                        memberName: member.name
+                    ),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
 
             if member.closureHasWildcard {
-                context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.transientFactoryUnnamedParameters())
+                context.emit(
+                    SimpleDiagnostic.transientFactoryUnnamedParameters(),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
 
             if member.scope == .shared && !hasFactory {
-                context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideSharedFactoryRequired())
+                context.emit(
+                    SimpleDiagnostic.provideSharedFactoryRequired(),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
 
             if member.scope == .transient && !hasFactory {
-                context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideTransientFactoryRequired())
+                context.emit(
+                    SimpleDiagnostic.provideTransientFactoryRequired(),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
 
             if member.scope == .input && hasInputConfiguration {
-                context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideInputInvalidConfiguration())
+                context.emit(
+                    SimpleDiagnostic.provideInputInvalidConfiguration(),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
 
             if member.scope != .input && member.escapingInput {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(member.attribute),
-                        message: SimpleDiagnostic.provideEscapingInvalidScope(
-                            memberName: member.name
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideEscapingInvalidScope(
+                        memberName: member.name
+                    ),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
@@ -198,13 +191,11 @@ struct DIContainerValidator {
             if member.scope == .input,
                member.escapingInput,
                !supportsExplicitEscapingInput(member.type) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(member.type),
-                        message: SimpleDiagnostic.provideEscapingNonFunctionType(
-                            memberName: member.name
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideEscapingNonFunctionType(
+                        memberName: member.name
+                    ),
+                    at: Syntax(member.type)
                 )
                 hadErrors = true
             }
@@ -213,8 +204,9 @@ struct DIContainerValidator {
                 && member.factory == nil
                 && member.typeExpr == nil
                 && member.initializer == nil {
-                context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideAsyncFactoryInvalidScope())
+                context.emit(
+                    SimpleDiagnostic.provideAsyncFactoryInvalidScope(),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
@@ -222,29 +214,26 @@ struct DIContainerValidator {
             if !hasConstructionSourceConflict,
                let asyncFactory = member.asyncFactory,
                !isAsyncClosureExpression(asyncFactory) {
-                context.diagnose(
-                    Diagnostic(node: Syntax(member.attribute), message: SimpleDiagnostic.provideAsyncFactoryMustBeAsync())
+                context.emit(
+                    SimpleDiagnostic.provideAsyncFactoryMustBeAsync(),
+                    at: Syntax(member.attribute)
                 )
                 hadErrors = true
             }
 
             if !hasConstructionSourceConflict, let factory = member.factory {
                 if isAsyncClosureExpression(factory) || factoryExpressionContainsAwait(factory) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(factory),
-                            message: SimpleDiagnostic.provideFactoryMustBeSync(memberName: member.name)
-                        )
+                    context.emit(
+                        SimpleDiagnostic.provideFactoryMustBeSync(memberName: member.name),
+                        at: Syntax(factory)
                     )
                     hadErrors = true
                 }
 
                 if isThrowingClosureExpression(factory) || factoryExpressionContainsPlainTry(factory) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(factory),
-                            message: SimpleDiagnostic.provideFactoryMustNotThrow(memberName: member.name)
-                        )
+                    context.emit(
+                        SimpleDiagnostic.provideFactoryMustNotThrow(memberName: member.name),
+                        at: Syntax(factory)
                     )
                     hadErrors = true
                 }
@@ -282,14 +271,12 @@ struct DIContainerValidator {
                 if !lazyNames.isEmpty {
                     for closure in sharedClosures {
                         for callSite in collectDirectDeferredEagerCalls(in: closure, dependencyNames: lazyNames) {
-                            context.diagnose(
-                                Diagnostic(
-                                    node: callSite.node,
-                                    message: SimpleDiagnostic.provideLazyEagerCall(
-                                        memberName: member.name,
-                                        dependencyName: callSite.dependencyName
-                                    )
-                                )
+                            context.emit(
+                                SimpleDiagnostic.provideLazyEagerCall(
+                                    memberName: member.name,
+                                    dependencyName: callSite.dependencyName
+                                ),
+                                at: callSite.node
                             )
                             hadErrors = true
                         }
@@ -300,14 +287,12 @@ struct DIContainerValidator {
                 if !providerNames.isEmpty {
                     for closure in sharedClosures {
                         for callSite in collectDirectDeferredEagerCalls(in: closure, dependencyNames: providerNames) {
-                            context.diagnose(
-                                Diagnostic(
-                                    node: callSite.node,
-                                    message: SimpleDiagnostic.provideProviderEagerCall(
-                                        memberName: member.name,
-                                        dependencyName: callSite.dependencyName
-                                    )
-                                )
+                            context.emit(
+                                SimpleDiagnostic.provideProviderEagerCall(
+                                    memberName: member.name,
+                                    dependencyName: callSite.dependencyName
+                                ),
+                                at: callSite.node
                             )
                             hadErrors = true
                         }
@@ -324,14 +309,12 @@ struct DIContainerValidator {
                 if let softReference = softClosureReferences[dependency],
                    let referencedMember,
                    !referencedMember.supportsLazySoftTarget {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(softReference.token),
-                            message: SimpleDiagnostic.provideLazyUnsupportedTarget(
-                                memberName: member.name,
-                                dependencyName: dependency
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.provideLazyUnsupportedTarget(
+                            memberName: member.name,
+                            dependencyName: dependency
+                        ),
+                        at: Syntax(softReference.token)
                     )
                     hadErrors = true
                     continue
@@ -340,15 +323,13 @@ struct DIContainerValidator {
                 if let providerReference = providerClosureReferences[dependency],
                    let referencedMember,
                    referencedMember.scope != .transient {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(providerReference.token),
-                            message: SimpleDiagnostic.provideProviderNonTransientTarget(
-                                memberName: member.name,
-                                dependencyName: dependency,
-                                targetScope: referencedMember.scope
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.provideProviderNonTransientTarget(
+                            memberName: member.name,
+                            dependencyName: dependency,
+                            targetScope: referencedMember.scope
+                        ),
+                        at: Syntax(providerReference.token)
                     )
                     hadErrors = true
                     continue
@@ -358,14 +339,12 @@ struct DIContainerValidator {
                    let referencedMember,
                    referencedMember.scope == .transient,
                    referencedMember.isAsyncFactory {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(providerReference.token),
-                            message: SimpleDiagnostic.provideProviderUnsupportedTarget(
-                                memberName: member.name,
-                                dependencyName: dependency
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.provideProviderUnsupportedTarget(
+                            memberName: member.name,
+                            dependencyName: dependency
+                        ),
+                        at: Syntax(providerReference.token)
                     )
                     hadErrors = true
                     continue
@@ -483,23 +462,19 @@ struct DIContainerValidator {
                         continue
                     }
 
-                    context.diagnose(
-                        Diagnostic(
-                            node: nodeSyntax,
-                            message: SimpleDiagnostic.containerDependencyCycle(path: cycle.joined(separator: " -> "))
-                        )
+                    context.emit(
+                        SimpleDiagnostic.containerDependencyCycle(path: cycle.joined(separator: " -> ")),
+                        at: nodeSyntax
                     )
                     hadErrors = true
                 }
             }
             if cycleResult.truncatedByDepthLimit, let firstMember = model.members.first {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(firstMember.attribute),
-                        message: SimpleDiagnostic.containerDependencyCycle(
-                            path: "cycle detection truncated at depth limit before validation completed"
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.containerDependencyCycle(
+                        path: "cycle detection truncated at depth limit before validation completed"
+                    ),
+                    at: Syntax(firstMember.attribute)
                 )
                 hadErrors = true
             }
@@ -519,26 +494,22 @@ struct DIContainerValidator {
                 || (entry.namespace == .type
                     && ["Swift", "_Concurrency"].contains(entry.name))
             if shadowsGeneratedModuleQualifier {
-                context.diagnose(
-                    Diagnostic(
-                        node: entry.anchor,
-                        message: SimpleDiagnostic.containerReservedModuleName(
-                            memberName: entry.name
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.containerReservedModuleName(
+                        memberName: entry.name
+                    ),
+                    at: entry.anchor
                 )
                 hadErrors = true
                 continue
             }
             for prefix in reservedGeneratedMemberPrefixes where entry.name.hasPrefix(prefix) {
-                context.diagnose(
-                    Diagnostic(
-                        node: entry.anchor,
-                        message: SimpleDiagnostic.containerReservedNamePrefix(
-                            memberName: entry.name,
-                            reservedPrefix: prefix
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.containerReservedNamePrefix(
+                        memberName: entry.name,
+                        reservedPrefix: prefix
+                    ),
+                    at: entry.anchor
                 )
                 hadErrors = true
                 break
@@ -549,15 +520,13 @@ struct DIContainerValidator {
             for: declaration,
             lexicalContext: context.lexicalContext
         ) {
-            context.diagnose(
-                Diagnostic(
-                    node: generatedNameDiagnosticAnchor(
-                        for: entry,
-                        attachedTo: declaration
-                    ),
-                    message: SimpleDiagnostic.containerReservedModuleName(
-                        memberName: entry.name
-                    )
+            context.emit(
+                SimpleDiagnostic.containerReservedModuleName(
+                    memberName: entry.name
+                ),
+                at: generatedNameDiagnosticAnchor(
+                    for: entry,
+                    attachedTo: declaration
                 )
             )
             hadErrors = true
@@ -583,35 +552,29 @@ struct DIContainerValidator {
         for sub in model.subContainerMembers {
             let generatedOverrideName = sub.overrideClosureName
             if reservedMemberNames.contains(generatedOverrideName) {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(sub.bindingSyntax.pattern),
-                        message: SimpleDiagnostic.subOverridesNameConflict(
-                            memberName: sub.name,
-                            generatedName: generatedOverrideName
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.subOverridesNameConflict(
+                        memberName: sub.name,
+                        generatedName: generatedOverrideName
+                    ),
+                    at: Syntax(sub.bindingSyntax.pattern)
                 )
                 hadErrors = true
             }
 
             let hasBindingWiringConflict = sub.hasWithDependencies && sub.hasBindingsArgument
             if hasBindingWiringConflict {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subBindingsConflictsWithWith(memberName: sub.name)
-                    )
+                context.emit(
+                    SimpleDiagnostic.subBindingsConflictsWithWith(memberName: sub.name),
+                    at: Syntax(sub.attribute)
                 )
                 hadErrors = true
             }
 
             if !hasBindingWiringConflict, sub.hasInvalidBindings {
-                context.diagnose(
-                    Diagnostic(
-                        node: sub.invalidBindingAnchorExpression.map(Syntax.init) ?? Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subInvalidBindings(memberName: sub.name)
-                    )
+                context.emit(
+                    SimpleDiagnostic.subInvalidBindings(memberName: sub.name),
+                    at: sub.invalidBindingAnchorExpression.map(Syntax.init) ?? Syntax(sub.attribute)
                 )
                 hadErrors = true
                 continue
@@ -620,14 +583,12 @@ struct DIContainerValidator {
             var seenChildInputs: Set<String> = []
             for binding in sub.explicitBindings {
                 if !seenChildInputs.insert(binding.childInputName).inserted {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(binding.childKeyPath),
-                            message: SimpleDiagnostic.subDuplicateChildBinding(
-                                memberName: sub.name,
-                                childInputName: binding.childInputName
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subDuplicateChildBinding(
+                            memberName: sub.name,
+                            childInputName: binding.childInputName
+                        ),
+                        at: Syntax(binding.childKeyPath)
                     )
                     hadErrors = true
                 }
@@ -636,21 +597,17 @@ struct DIContainerValidator {
             // scope: is required and must parse as `.shared` / `.transient`.
             if sub.scope == nil {
                 if let scopeExpression = sub.scopeExpressionSyntax {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(scopeExpression),
-                            message: SimpleDiagnostic.subUnknownScope(
-                                memberName: sub.name,
-                                scopeName: sub.scopeName ?? scopeExpression.trimmedDescription
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subUnknownScope(
+                            memberName: sub.name,
+                            scopeName: sub.scopeName ?? scopeExpression.trimmedDescription
+                        ),
+                        at: Syntax(scopeExpression)
                     )
                 } else {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(sub.attribute),
-                            message: SimpleDiagnostic.subScopeRequired(memberName: sub.name)
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subScopeRequired(memberName: sub.name),
+                        at: Syntax(sub.attribute)
                     )
                 }
                 hadErrors = true
@@ -659,14 +616,12 @@ struct DIContainerValidator {
 
             if !hasBindingWiringConflict,
                let invalidLabel = sub.invalidSameNameWiringLabel {
-                context.diagnose(
-                    Diagnostic(
-                        node: sub.sameNameWiringExpressionSyntax.map(Syntax.init) ?? Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subInvalidSameNameWiring(
-                            memberName: sub.name,
-                            label: invalidLabel
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.subInvalidSameNameWiring(
+                        memberName: sub.name,
+                        label: invalidLabel
+                    ),
+                    at: sub.sameNameWiringExpressionSyntax.map(Syntax.init) ?? Syntax(sub.attribute)
                 )
                 hadErrors = true
                 continue
@@ -676,14 +631,12 @@ struct DIContainerValidator {
             // the parent. `with:` diagnostics point at the keypath element.
             for parentName in sub.parentDependencies {
                 if !knownParentMemberNames.contains(parentName) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: sub.parentReferenceSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute),
-                            message: SimpleDiagnostic.subUnknownParentMember(
-                                memberName: sub.name,
-                                parentMemberName: parentName
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subUnknownParentMember(
+                            memberName: sub.name,
+                            parentMemberName: parentName
+                        ),
+                        at: sub.parentReferenceSyntax(for: parentName).map(Syntax.init) ?? Syntax(sub.attribute)
                     )
                     hadErrors = true
                 }
@@ -692,14 +645,12 @@ struct DIContainerValidator {
             for binding in sub.explicitBindings {
                 let parentName = binding.parentMemberName
                 if !knownParentMemberNames.contains(parentName) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(binding.parentKeyPath),
-                            message: SimpleDiagnostic.subUnknownParentMember(
-                                memberName: sub.name,
-                                parentMemberName: parentName
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subUnknownParentMember(
+                            memberName: sub.name,
+                            parentMemberName: parentName
+                        ),
+                        at: Syntax(binding.parentKeyPath)
                     )
                     hadErrors = true
                 }
@@ -714,14 +665,12 @@ struct DIContainerValidator {
                     autoWireParentMemberNames: model.members.map(\.name)
                ) {
                 let parentCandidates = model.members.map(\.name)
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(sub.attribute),
-                        message: SimpleDiagnostic.subAutoWiringAmbiguous(memberName: sub.name),
-                        fixIts: makeSubAutoWiringAmbiguousFixIts(
-                            attribute: sub.attribute,
-                            parentMemberNames: parentCandidates
-                        )
+                context.emit(
+                    SimpleDiagnostic.subAutoWiringAmbiguous(memberName: sub.name),
+                    at: Syntax(sub.attribute),
+                    fixIts: makeSubAutoWiringAmbiguousFixIts(
+                        attribute: sub.attribute,
+                        parentMemberNames: parentCandidates
                     )
                 )
                 hadErrors = true
@@ -756,14 +705,12 @@ struct DIContainerValidator {
                     let diagnosticNode = sub.parentBindingKeyPathSyntax(for: parentName).map(Syntax.init)
                         ?? sub.parentReferenceSyntax(for: parentName).map(Syntax.init)
                         ?? Syntax(sub.attribute)
-                    context.diagnose(
-                        Diagnostic(
-                            node: diagnosticNode,
-                            message: SimpleDiagnostic.subSharedParentMustNotBeTransient(
-                                memberName: sub.name,
-                                parentMemberName: parentName
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subSharedParentMustNotBeTransient(
+                            memberName: sub.name,
+                            parentMemberName: parentName
+                        ),
+                        at: diagnosticNode
                     )
                     hadErrors = true
                 }
@@ -797,24 +744,20 @@ struct DIContainerValidator {
                             .trimmedDescription ?? reference.name
                         switch aliasedKind {
                         case .lazy:
-                            context.diagnose(
-                                Diagnostic(
-                                    node: Syntax(reference.token),
-                                    message: SimpleDiagnostic.provideLazyAliased(
-                                        parameterName: reference.name,
-                                        aliasName: aliasName
-                                    )
-                                )
+                            context.emit(
+                                SimpleDiagnostic.provideLazyAliased(
+                                    parameterName: reference.name,
+                                    aliasName: aliasName
+                                ),
+                                at: Syntax(reference.token)
                             )
                         case .provider:
-                            context.diagnose(
-                                Diagnostic(
-                                    node: Syntax(reference.token),
-                                    message: SimpleDiagnostic.provideProviderAliased(
-                                        parameterName: reference.name,
-                                        aliasName: aliasName
-                                    )
-                                )
+                            context.emit(
+                                SimpleDiagnostic.provideProviderAliased(
+                                    parameterName: reference.name,
+                                    aliasName: aliasName
+                                ),
+                                at: Syntax(reference.token)
                             )
                         }
                     }

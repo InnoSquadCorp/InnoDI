@@ -165,12 +165,10 @@ private func validateEnvironmentBridge(
         lexicalContext: context.lexicalContext
     ) {
         if emitDiagnostics {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic
-                        .swiftUIEnvironmentBridgeExtensionContextUnsupported()
-                )
+            context.emit(
+                SimpleDiagnostic
+                    .swiftUIEnvironmentBridgeExtensionContextUnsupported(),
+                at: Syntax(attribute)
             )
         }
         return EnvironmentBridgeValidationResult(mappings: nil)
@@ -180,15 +178,13 @@ private func validateEnvironmentBridge(
         declaration
     ) {
         if emitDiagnostics {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic
-                        .swiftUIEnvironmentBridgeUnsupportedDeclarationKind(
-                            name: unsupported.name,
-                            kind: unsupported.kind
-                        )
-                )
+            context.emit(
+                SimpleDiagnostic
+                    .swiftUIEnvironmentBridgeUnsupportedDeclarationKind(
+                        name: unsupported.name,
+                        kind: unsupported.kind
+                    ),
+                at: Syntax(attribute)
             )
         }
         return EnvironmentBridgeValidationResult(mappings: nil)
@@ -199,14 +195,12 @@ private func validateEnvironmentBridge(
         lexicalContext: context.lexicalContext
     ) {
         if emitDiagnostics {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic
-                        .swiftUIEnvironmentBridgePrivateNestedTarget(
-                            name: privateLookupComponent
-                        )
-                )
+            context.emit(
+                SimpleDiagnostic
+                    .swiftUIEnvironmentBridgePrivateNestedTarget(
+                        name: privateLookupComponent
+                    ),
+                at: Syntax(attribute)
             )
         }
         return EnvironmentBridgeValidationResult(mappings: nil)
@@ -214,12 +208,10 @@ private func validateEnvironmentBridge(
 
     if environmentBridgeHasParameterPack(declaration) {
         if emitDiagnostics {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic
-                        .swiftUIEnvironmentBridgeParameterPackUnsupported()
-                )
+            context.emit(
+                SimpleDiagnostic
+                    .swiftUIEnvironmentBridgeParameterPackUnsupported(),
+                at: Syntax(attribute)
             )
         }
         return EnvironmentBridgeValidationResult(mappings: nil)
@@ -251,15 +243,13 @@ private func validateEnvironmentBridge(
         : generatedNameConflicts
     if emitDiagnostics {
         for conflict in bridgeOwnedConflicts {
-            context.diagnose(
-                Diagnostic(
-                    node: generatedNameDiagnosticAnchor(
-                        for: conflict,
-                        attachedTo: declaration
-                    ),
-                    message: SimpleDiagnostic.swiftUIEnvironmentBridgeReservedModuleName(
-                        declarationName: conflict.name
-                    )
+            context.emit(
+                SimpleDiagnostic.swiftUIEnvironmentBridgeReservedModuleName(
+                    declarationName: conflict.name
+                ),
+                at: generatedNameDiagnosticAnchor(
+                    for: conflict,
+                    attachedTo: declaration
                 )
             )
         }
@@ -271,11 +261,9 @@ private func validateEnvironmentBridge(
                 : SimpleDiagnostic.swiftUIEnvironmentBridgeGeneratedHelperNameConflict(
                     memberName: conflict.name
                 )
-            context.diagnose(
-                Diagnostic(
-                    node: conflict.anchor,
-                    message: message
-                )
+            context.emit(
+                message,
+                at: conflict.anchor
             )
         }
     }
@@ -289,11 +277,9 @@ private func validateEnvironmentBridge(
           let firstArgument = arguments.first,
           let arrayExpr = firstArgument.expression.as(ArrayExprSyntax.self) else {
         if emitDiagnostics {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidArguments()
-                )
+            context.emit(
+                SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidArguments(),
+                at: Syntax(attribute)
             )
         }
         return EnvironmentBridgeValidationResult(mappings: nil)
@@ -310,11 +296,9 @@ private func validateEnvironmentBridge(
     for element in arrayExpr.elements {
         guard let tupleExpr = element.expression.as(TupleExprSyntax.self) else {
             if emitDiagnostics {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(element.expression),
-                        message: SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidKeyPath(label: "member")
-                    )
+                context.emit(
+                    SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidKeyPath(label: "member"),
+                    at: Syntax(element.expression)
                 )
             }
             hadErrors = true
@@ -333,11 +317,9 @@ private func validateEnvironmentBridge(
             case "member":
                 guard let parsedMemberName = stringLiteralValue(tupleElement.expression) else {
                     if emitDiagnostics {
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(tupleElement.expression),
-                                message: SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidKeyPath(label: "member")
-                            )
+                        context.emit(
+                            SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidKeyPath(label: "member"),
+                            at: Syntax(tupleElement.expression)
                         )
                     }
                     hadErrors = true
@@ -347,11 +329,9 @@ private func validateEnvironmentBridge(
             case "environment":
                 guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self) else {
                     if emitDiagnostics {
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(tupleElement.expression),
-                                message: SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidKeyPath(label: "environment")
-                            )
+                        context.emit(
+                            SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidKeyPath(label: "environment"),
+                            at: Syntax(tupleElement.expression)
                         )
                     }
                     hadErrors = true
@@ -361,12 +341,10 @@ private func validateEnvironmentBridge(
                     keyPath
                 ) else {
                     if emitDiagnostics {
-                        context.diagnose(
-                            Diagnostic(
-                                node: Syntax(tupleElement.expression),
-                                message: SimpleDiagnostic
-                                    .swiftUIEnvironmentBridgeInvalidEnvironmentKeyPath()
-                            )
+                        context.emit(
+                            SimpleDiagnostic
+                                .swiftUIEnvironmentBridgeInvalidEnvironmentKeyPath(),
+                            at: Syntax(tupleElement.expression)
                         )
                     }
                     hadErrors = true
@@ -385,11 +363,9 @@ private func validateEnvironmentBridge(
 
         guard let memberInfo = membersByName[memberName] else {
             if emitDiagnostics {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(element.expression),
-                        message: SimpleDiagnostic.swiftUIEnvironmentBridgeUnknownMember(memberName: memberName)
-                    )
+                context.emit(
+                    SimpleDiagnostic.swiftUIEnvironmentBridgeUnknownMember(memberName: memberName),
+                    at: Syntax(element.expression)
                 )
             }
             hadErrors = true
@@ -398,11 +374,9 @@ private func validateEnvironmentBridge(
 
         if memberInfo.isAsyncProvide {
             if emitDiagnostics {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(element.expression),
-                        message: SimpleDiagnostic.swiftUIEnvironmentBridgeAsyncMember(memberName: memberName)
-                    )
+                context.emit(
+                    SimpleDiagnostic.swiftUIEnvironmentBridgeAsyncMember(memberName: memberName),
+                    at: Syntax(element.expression)
                 )
             }
             hadErrors = true
@@ -411,11 +385,9 @@ private func validateEnvironmentBridge(
 
         guard seenMembers.insert(memberName).inserted else {
             if emitDiagnostics {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(element.expression),
-                        message: SimpleDiagnostic.swiftUIEnvironmentBridgeDuplicateMember(memberName: memberName)
-                    )
+                context.emit(
+                    SimpleDiagnostic.swiftUIEnvironmentBridgeDuplicateMember(memberName: memberName),
+                    at: Syntax(element.expression)
                 )
             }
             hadErrors = true

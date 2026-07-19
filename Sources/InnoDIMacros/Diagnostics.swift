@@ -12,6 +12,30 @@
 import InnoDICore
 import SwiftDiagnostics
 import SwiftSyntax
+import SwiftSyntaxMacros
+
+extension MacroExpansionContext {
+    /// Emits `message` anchored at `node`.
+    ///
+    /// Every validation site otherwise repeats the same
+    /// `diagnose(Diagnostic(node:message:))` wrapping; sites that need
+    /// `position:` or `highlights:` keep constructing `Diagnostic` directly.
+    func emit(
+        _ message: some DiagnosticMessage,
+        at node: some SyntaxProtocol,
+        notes: [Note] = [],
+        fixIts: [FixIt] = []
+    ) {
+        diagnose(
+            Diagnostic(
+                node: node,
+                message: message,
+                notes: notes,
+                fixIts: fixIts
+            )
+        )
+    }
+}
 
 enum InnoDIDiagnosticCategory: String {
     case usage

@@ -122,23 +122,19 @@ struct DIContainerParser {
         }
 
         if options.mainActor, let conflictingActor = detectConflictingGlobalActor(in: decl.attributes) {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(decl),
-                    message: SimpleDiagnostic.containerMainActorConflict(actorName: conflictingActor)
-                )
+            context.emit(
+                SimpleDiagnostic.containerMainActorConflict(actorName: conflictingActor),
+                at: Syntax(decl)
             )
             hadErrors = true
         }
 
         for member in unmanagedStoredContainerMembers(in: decl) {
-            context.diagnose(
-                Diagnostic(
-                    node: member.anchor,
-                    message: SimpleDiagnostic.containerUnmanagedStoredProperty(
-                        memberName: member.name
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.containerUnmanagedStoredProperty(
+                    memberName: member.name
+                ),
+                at: member.anchor
             )
             hadErrors = true
         }
@@ -147,13 +143,11 @@ struct DIContainerParser {
             let memberName = conditionalMember.declaration.bindings.first?
                 .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                 ?? "<unknown>"
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(conditionalMember.attribute),
-                    message: SimpleDiagnostic.provideConditionalDeclarationUnsupported(
-                        memberName: memberName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideConditionalDeclarationUnsupported(
+                    memberName: memberName
+                ),
+                at: Syntax(conditionalMember.attribute)
             )
             hadErrors = true
         }
@@ -162,13 +156,11 @@ struct DIContainerParser {
             let memberName = conditionalMember.declaration.bindings.first?
                 .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                 ?? "<unknown>"
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(conditionalMember.attribute),
-                    message: SimpleDiagnostic.subConditionalDeclarationUnsupported(
-                        memberName: memberName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.subConditionalDeclarationUnsupported(
+                    memberName: memberName
+                ),
+                at: Syntax(conditionalMember.attribute)
             )
             hadErrors = true
         }
@@ -234,13 +226,11 @@ struct DIContainerParser {
                 if let conflictingActor = detectConflictingGlobalActor(
                     in: varDecl.attributes
                 ) {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(varDecl),
-                            message: SimpleDiagnostic.containerMainActorConflict(
-                                actorName: conflictingActor
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.containerMainActorConflict(
+                            actorName: conflictingActor
+                        ),
+                        at: Syntax(varDecl)
                     )
                     hadErrors = true
                     continue
@@ -250,13 +240,11 @@ struct DIContainerParser {
                     let memberName = varDecl.bindings.first?
                         .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                         ?? "<unknown>"
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(varDecl),
-                            message: SimpleDiagnostic.containerMainActorNonisolatedMember(
-                                memberName: memberName
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.containerMainActorNonisolatedMember(
+                            memberName: memberName
+                        ),
+                        at: Syntax(varDecl)
                     )
                     hadErrors = true
                     continue
@@ -267,11 +255,9 @@ struct DIContainerParser {
                 let memberName = varDecl.bindings.first?
                     .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                     ?? "<unknown>"
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(subAttribute),
-                        message: SimpleDiagnostic.subConflictsWithProvide(memberName: memberName)
-                    )
+                context.emit(
+                    SimpleDiagnostic.subConflictsWithProvide(memberName: memberName),
+                    at: Syntax(subAttribute)
                 )
                 hadErrors = true
                 continue
@@ -295,13 +281,11 @@ struct DIContainerParser {
                     continue
                 }
                 guard isSupportedSubContainerStoredProperty(varDecl) else {
-                    context.diagnose(
-                        Diagnostic(
-                            node: Syntax(subAttribute),
-                            message: SimpleDiagnostic.subRequiresDirectContainerMember(
-                                memberName: validatedBinding.identifier.identifier.text
-                            )
-                        )
+                    context.emit(
+                        SimpleDiagnostic.subRequiresDirectContainerMember(
+                            memberName: validatedBinding.identifier.identifier.text
+                        ),
+                        at: Syntax(subAttribute)
                     )
                     // Fail the model before hidden support or container init
                     // code can reference missing peers.
@@ -409,23 +393,19 @@ struct DIContainerParser {
             )
             var memberHadErrors = false
             if parseResult.escapingParseState.isInvalid {
-                context.diagnose(
-                    Diagnostic(
-                        node: extractArgumentExpression(label: "escaping", from: attribute).map(Syntax.init) ?? Syntax(attribute),
-                        message: SimpleDiagnostic.provideBoolLiteralRequired(label: "escaping")
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideBoolLiteralRequired(label: "escaping"),
+                    at: extractArgumentExpression(label: "escaping", from: attribute).map(Syntax.init) ?? Syntax(attribute)
                 )
                 memberHadErrors = true
             }
             if parseResult.dependenciesParseState.isInvalid {
-                context.diagnose(
-                    Diagnostic(
-                        node: extractArgumentExpression(label: "with", from: attribute).map(Syntax.init) ?? Syntax(attribute),
-                        message: SimpleDiagnostic.provideInvalidWithDependencies(
-                            memberName: memberName,
-                            expectedRoot: "Self"
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideInvalidWithDependencies(
+                        memberName: memberName,
+                        expectedRoot: "Self"
+                    ),
+                    at: extractArgumentExpression(label: "with", from: attribute).map(Syntax.init) ?? Syntax(attribute)
                 )
                 memberHadErrors = true
             }
@@ -501,23 +481,21 @@ private func diagnoseDuplicateManagedMemberName(
         return false
     }
 
-    context.diagnose(
-        Diagnostic(
-            node: Syntax(identifier),
-            message: SimpleDiagnostic.containerDuplicateMemberName(
-                memberName: memberName
-            ),
-            notes: [
-                Note(
-                    node: Syntax(firstIdentifier),
-                    message: SimpleNote(
-                        "The first managed dependency member named '\(memberName)' is declared here.",
-                        code: .containerDuplicateMemberName,
-                        suffix: "first-declaration"
-                    )
+    context.emit(
+        SimpleDiagnostic.containerDuplicateMemberName(
+            memberName: memberName
+        ),
+        at: Syntax(identifier),
+        notes: [
+            Note(
+                node: Syntax(firstIdentifier),
+                message: SimpleNote(
+                    "The first managed dependency member named '\(memberName)' is declared here.",
+                    code: .containerDuplicateMemberName,
+                    suffix: "first-declaration"
                 )
-            ]
-        )
+            )
+        ]
     )
     return true
 }
@@ -600,22 +578,25 @@ private func validateBindingForAttribute(
     context: some MacroExpansionContext
 ) -> ValidatedVariableBinding? {
     guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
-        context.diagnose(
-            Diagnostic(node: Syntax(varDecl), message: kind.singleBindingDiagnostic)
+        context.emit(
+            kind.singleBindingDiagnostic,
+            at: Syntax(varDecl)
         )
         return nil
     }
 
     guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-        context.diagnose(
-            Diagnostic(node: Syntax(binding.pattern), message: kind.namedPropertyDiagnostic)
+        context.emit(
+            kind.namedPropertyDiagnostic,
+            at: Syntax(binding.pattern)
         )
         return nil
     }
 
     guard let typeAnnotation = binding.typeAnnotation else {
-        context.diagnose(
-            Diagnostic(node: Syntax(binding.pattern), message: kind.explicitTypeDiagnostic)
+        context.emit(
+            kind.explicitTypeDiagnostic,
+            at: Syntax(binding.pattern)
         )
         return nil
     }
@@ -721,11 +702,9 @@ private func diagnoseInvalidContainerBoolArguments(
     ]
     var hadErrors = false
     for item in states where item.state.isInvalid {
-        context.diagnose(
-            Diagnostic(
-                node: extractArgumentExpression(label: item.label, from: attribute).map(Syntax.init) ?? Syntax(attribute),
-                message: SimpleDiagnostic.containerBoolLiteralRequired(label: item.label)
-            )
+        context.emit(
+            SimpleDiagnostic.containerBoolLiteralRequired(label: item.label),
+            at: extractArgumentExpression(label: item.label, from: attribute).map(Syntax.init) ?? Syntax(attribute)
         )
         hadErrors = true
     }

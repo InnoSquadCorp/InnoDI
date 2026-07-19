@@ -38,11 +38,9 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
         in context: some MacroExpansionContext
     ) throws -> ExprSyntax {
         guard let containerExpression = node.arguments.first?.expression else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.previewWithContainerMissingContainerExpression()
-                )
+            context.emit(
+                SimpleDiagnostic.previewWithContainerMissingContainerExpression(),
+                at: Syntax(node)
             )
             return "()"
         }
@@ -51,22 +49,18 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
             ?? node.arguments.dropFirst().first?.expression.as(ClosureExprSyntax.self)
 
         guard let previewClosure else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: SimpleDiagnostic.previewWithContainerMissingTrailingClosure()
-                )
+            context.emit(
+                SimpleDiagnostic.previewWithContainerMissingTrailingClosure(),
+                at: Syntax(node)
             )
             return "()"
         }
 
         guard let signature = previewClosure.signature,
               signature.declaresExactlyOneParameter else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(previewClosure),
-                    message: SimpleDiagnostic.previewWithContainerMissingContainerParameter()
-                )
+            context.emit(
+                SimpleDiagnostic.previewWithContainerMissingContainerParameter(),
+                at: Syntax(previewClosure)
             )
             return "()"
         }

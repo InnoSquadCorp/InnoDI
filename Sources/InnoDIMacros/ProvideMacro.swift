@@ -36,13 +36,11 @@ public struct ProvideMacro: PeerMacro {
                 let memberName = varDecl.bindings.first?
                     .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
                     ?? "<unknown>"
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(diagnosticOwner),
-                        message: SimpleDiagnostic.provideDuplicateAttribute(
-                            memberName: memberName
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideDuplicateAttribute(
+                        memberName: memberName
+                    ),
+                    at: Syntax(diagnosticOwner)
                 )
             }
             return []
@@ -58,11 +56,9 @@ public struct ProvideMacro: PeerMacro {
         let parseResult = parseProvideArguments(attribute)
         if parseResult.scope == nil {
             if let name = parseResult.scopeName {
-                context.diagnose(
-                    Diagnostic(
-                        node: parseResult.scopeExpr.map(Syntax.init) ?? Syntax(attribute),
-                        message: SimpleDiagnostic.provideUnknownScope(name)
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideUnknownScope(name),
+                    at: parseResult.scopeExpr.map(Syntax.init) ?? Syntax(attribute)
                 )
             }
             return []
@@ -72,13 +68,11 @@ public struct ProvideMacro: PeerMacro {
            let identifier = varDecl.bindings.first?
             .pattern.as(IdentifierPatternSyntax.self)?.identifier,
            isEscapedInnoDIIdentifier(identifier) {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(identifier),
-                    message: SimpleDiagnostic.provideEscapedPropertyIdentifier(
-                        memberName: unescapedInnoDIIdentifierName(identifier)
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideEscapedPropertyIdentifier(
+                    memberName: unescapedInnoDIIdentifierName(identifier)
+                ),
+                at: Syntax(identifier)
             )
             return []
         }
@@ -87,13 +81,11 @@ public struct ProvideMacro: PeerMacro {
             .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
             ?? "<unknown>"
         if membership == .none {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.provideRequiresDirectContainerMember(
-                        memberName: fallbackMemberName
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideRequiresDirectContainerMember(
+                    memberName: fallbackMemberName
+                ),
+                at: Syntax(attribute)
             )
             return []
         }
@@ -146,13 +138,11 @@ public struct ProvideMacro: PeerMacro {
                 // diagnostic or collide with a source property wrapper.
                 return []
             }
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.provideRequiresDirectContainerMember(
-                        memberName: identifier.identifier.text
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideRequiresDirectContainerMember(
+                    memberName: identifier.identifier.text
+                ),
+                at: Syntax(attribute)
             )
             return []
         }
@@ -297,13 +287,11 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
         guard let variable = declaration.as(VariableDeclSyntax.self),
               let binding = variable.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self) else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
-                        memberName: "<unknown>"
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                    memberName: "<unknown>"
+                ),
+                at: Syntax(attribute)
             )
             return [
                 failedDIValidationRecoveryAccessor(
@@ -344,13 +332,11 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
                     )
                 ]
             }
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
-                        memberName: identifier.identifier.text
-                    )
-                )
+            context.emit(
+                SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                    memberName: identifier.identifier.text
+                ),
+                at: Syntax(attribute)
             )
             return [
                 failedDIValidationRecoveryAccessor(
@@ -365,13 +351,11 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
         let membership = directDIContainerMembership(declaration, in: context)
         guard isInstanceMember, membership == .supported else {
             if membership == .none {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(attribute),
-                        message: SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
-                            memberName: identifier.identifier.text
-                        )
-                    )
+                context.emit(
+                    SimpleDiagnostic.provideGeneratedAccessorManualAttachment(
+                        memberName: identifier.identifier.text
+                    ),
+                    at: Syntax(attribute)
                 )
             }
             return [
@@ -554,11 +538,9 @@ private func makeTransientProvideAccessors(
     ) {
         if enclosingContainerInfo?.validateDAG == false,
            let diagnostic = resolutionFailure.diagnostic(memberName: memberName) {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(attribute),
-                    message: diagnostic
-                )
+            context.emit(
+                diagnostic,
+                at: Syntax(attribute)
             )
         }
         return []
@@ -572,11 +554,9 @@ private func makeTransientProvideAccessors(
         if let closure = asyncFactory.as(ClosureExprSyntax.self) {
             let parsedArguments = parseClosureParameterNames(closure)
             if parsedArguments.hasWildcard {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(closure),
-                        message: SimpleDiagnostic.transientFactoryUnnamedParameters()
-                    )
+                context.emit(
+                    SimpleDiagnostic.transientFactoryUnnamedParameters(),
+                    at: Syntax(closure)
                 )
                 return []
             }
@@ -624,11 +604,9 @@ private func makeTransientProvideAccessors(
         if let closure = factory.as(ClosureExprSyntax.self) {
             let parsedArguments = parseClosureParameterNames(closure)
             if parsedArguments.hasWildcard {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(closure),
-                        message: SimpleDiagnostic.transientFactoryUnnamedParameters()
-                    )
+                context.emit(
+                    SimpleDiagnostic.transientFactoryUnnamedParameters(),
+                    at: Syntax(closure)
                 )
                 return []
             }
@@ -674,11 +652,9 @@ private func makeTransientProvideAccessors(
     } else if let initializer = binding.initializer?.value {
         createExpr = initializer
     } else {
-        context.diagnose(
-            Diagnostic(
-                node: Syntax(attribute),
-                message: SimpleDiagnostic.provideTransientFactoryRequired()
-            )
+        context.emit(
+            SimpleDiagnostic.provideTransientFactoryRequired(),
+            at: Syntax(attribute)
         )
         return []
     }
@@ -705,11 +681,9 @@ private func handleCodegenInvariant(
     attribute: AttributeSyntax,
     context: some MacroExpansionContext
 ) -> [AccessorDeclSyntax] {
-    context.diagnose(
-        Diagnostic(
-            node: Syntax(attribute),
-            message: SimpleDiagnostic.internalCodegenInvariant(description: error.description)
-        )
+    context.emit(
+        SimpleDiagnostic.internalCodegenInvariant(description: error.description),
+        at: Syntax(attribute)
     )
     return []
 }
