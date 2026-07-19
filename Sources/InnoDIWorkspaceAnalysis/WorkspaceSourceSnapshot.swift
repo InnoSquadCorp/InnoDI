@@ -316,6 +316,37 @@ private struct WorkspaceParallelSourceLoadError: LocalizedError {
     }
 }
 
+/// Lock-isolated result storage shared by `concurrentPerform` workers.
+///
+/// `@unchecked Sendable` is intentionally confined to this one synchronization
+/// boundary: every read and write of `slots` holds `lock`, and the array is
+/// returned only after `concurrentPerform` has joined every worker. No caller
+/// receives the mutable storage itself.
+private final class WorkspaceSourceOutcomeBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var slots: [WorkspaceSourceLoadOutcome?]
+
+    init(count: Int) {
+        slots = [WorkspaceSourceLoadOutcome?](repeating: nil, count: count)
+    }
+
+    func store(_ outcome: WorkspaceSourceLoadOutcome, at index: Int) {
+        lock.withLock {
+            slots[index] = outcome
+        }
+    }
+
+    func outcomes() throws -> [WorkspaceSourceLoadOutcome] {
+        try lock.withLock {
+            let outcomes = slots.compactMap { $0 }
+            guard outcomes.count == slots.count else {
+                throw WorkspaceParallelSourceLoadError()
+            }
+            return outcomes
+        }
+    }
+}
+
 /// Runs `load` for every index concurrently and returns outcomes in input
 /// order.
 ///
@@ -332,26 +363,11 @@ private func loadWorkspaceSourcesInParallel(
         return []
     }
 
-    var slots = [WorkspaceSourceLoadOutcome?](repeating: nil, count: count)
-    slots.withUnsafeMutableBufferPointer { buffer in
-        // Safety: every iteration writes exactly one distinct element, so no
-        // two threads ever touch the same memory location, and
-        // `concurrentPerform` joins all iterations before the buffer scope
-        // ends.
-        nonisolated(unsafe) let base = buffer.baseAddress
-        DispatchQueue.concurrentPerform(iterations: count) { index in
-            base?.advanced(by: index).pointee = load(index)
-        }
+    let buffer = WorkspaceSourceOutcomeBuffer(count: count)
+    DispatchQueue.concurrentPerform(iterations: count) { index in
+        buffer.store(load(index), at: index)
     }
-
-    let outcomes = slots.compactMap { $0 }
-    guard outcomes.count == count else {
-        // Every iteration writes exactly one slot, so this cannot happen; the
-        // guard keeps the loaders fail-closed rather than silently narrowing
-        // scope if that invariant is ever broken.
-        throw WorkspaceParallelSourceLoadError()
-    }
-    return outcomes
+    return try buffer.outcomes()
 }
 
 /// Discovers Swift source files that participate in workspace-wide validation.
