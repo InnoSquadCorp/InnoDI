@@ -533,41 +533,5 @@ private func persistManifest(_ manifest: ValidationDigestManifest, to url: URL) 
     try data.write(to: url, options: .atomic)
 }
 
-struct StableHasher {
-    private var highState: UInt64 = 14_695_981_039_346_656_037
-    private var lowState: UInt64 = 1_099_511_628_211
-
-    mutating func combine(_ value: String) {
-        for byte in value.utf8 {
-            combine(byte)
-        }
-    }
-
-    mutating func combine(_ data: Data) {
-        for byte in data {
-            combine(byte)
-        }
-    }
-
-    func finalize() -> String {
-        paddedHex(highState) + paddedHex(lowState)
-    }
-
-    private mutating func combine(_ byte: UInt8) {
-        highState ^= UInt64(byte)
-        highState &*= 1_099_511_628_211
-
-        lowState &+= UInt64(byte) &* 0x9e37_79b9_7f4a_7c15
-        lowState ^= lowState >> 33
-        lowState &*= 0xff51_afd7_ed55_8ccd
-        lowState ^= lowState >> 33
-    }
-
-    private func paddedHex(_ value: UInt64) -> String {
-        let raw = String(value, radix: 16)
-        guard raw.count < 16 else {
-            return raw
-        }
-        return String(repeating: "0", count: 16 - raw.count) + raw
-    }
-}
+// `StableHasher` moved to `InnoDIWorkspaceAnalysis/StableHasher.swift` so the
+// signature pipeline and external-path identities share one implementation.
