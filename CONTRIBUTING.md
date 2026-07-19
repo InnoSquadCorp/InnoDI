@@ -42,6 +42,13 @@ build matrix, and the remote-consumer smoke test. Running those locally is
 optional; do it when your change touches build support, packaging, or the
 examples.
 
+External-consumer contracts keep compatible dependency products in
+`.build/external-consumer-contracts` so pass, fail, signature, and CLI fixtures
+do not rebuild SwiftSyntax from scratch. SwiftPM still rebuilds each disposable
+consumer root and separates macro-prebuilt from plugin-source graphs. Use
+`swift package clean` for a cold run, or set `INNODI_EXTERNAL_SCRATCH_PATH` to
+an isolated absolute path when comparing clean-build timings.
+
 ## Documentation Contract
 
 If behavior changes, update the docs in the same change.

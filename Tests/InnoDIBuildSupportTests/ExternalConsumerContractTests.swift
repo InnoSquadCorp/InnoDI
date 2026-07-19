@@ -13,8 +13,7 @@ struct ExternalConsumerContractTests {
         // toolchains, while a DAG plugin consumer also builds non-macro
         // SwiftSyntax clients from source. The profile helper isolates those
         // incompatible graphs but coalesces older source-only toolchains.
-        let scratchRoot = makeExternalConsumerScratchPath(label: "pass")
-        defer { try? FileManager.default.removeItem(at: scratchRoot) }
+        let scratchRoot = externalConsumerScratchRoot()
 
         for fixture in fixtures {
             let materializedURL = try materializeExternalConsumerFixture(fixture)
@@ -64,7 +63,14 @@ struct ExternalConsumerContractTests {
         defer { try? FileManager.default.removeItem(at: materializedURL) }
 
         let result = try runExternalDependencyGraphExecutable(
-            packageURL: materializedURL
+            packageURL: materializedURL,
+            // Running the CLI loads non-macro SwiftSyntax clients even though
+            // this fixture's app target is macro-only. Keep that source graph
+            // out of the matching-toolchain prebuilt scratch.
+            scratchPath: externalConsumerScratchPath(
+                for: .dagPluginSource,
+                under: externalConsumerScratchRoot()
+            )
         )
         let output = result.stdout + "\n" + result.stderr
 
@@ -83,11 +89,10 @@ struct ExternalConsumerContractTests {
     func compileFailFixturesEmitExpectedDiagnostics() throws {
         let fixtures = try externalConsumerFixtures(expectation: .fail)
         #expect(!fixtures.isEmpty)
-        // Keep pass and fail products isolated from one another. Within each
-        // matrix, the profile helper separates prebuilt and full-source graphs
-        // only when the selected compiler can actually use the prebuilt.
-        let scratchRoot = makeExternalConsumerScratchPath(label: "fail")
-        defer { try? FileManager.default.removeItem(at: scratchRoot) }
+        // SwiftPM invalidates each materialized root target while retaining
+        // compatible dependency products. The profile helper still separates
+        // prebuilt and full-source SwiftSyntax graphs.
+        let scratchRoot = externalConsumerScratchRoot()
 
         for fixture in fixtures {
             let materializedURL = try materializeExternalConsumerFixture(fixture)
@@ -132,7 +137,13 @@ struct ExternalConsumerContractTests {
         let materializedURL = try materializeExternalConsumerFixture(fixture)
         defer { try? FileManager.default.removeItem(at: materializedURL) }
 
-        let result = try runStrictConcurrencyBuild(packageURL: materializedURL)
+        let result = try runStrictConcurrencyBuild(
+            packageURL: materializedURL,
+            scratchPath: externalConsumerScratchPath(
+                for: fixture,
+                under: externalConsumerScratchRoot()
+            )
+        )
         let output = result.stdout + "\n" + result.stderr
 
         if result.timedOut || result.exitCode == 0 {
@@ -227,6 +238,20 @@ struct ExternalConsumerContractTests {
             expectation: .pass
         )
         let scratchRoot = URL(fileURLWithPath: "/tmp/innodi-external-scratch-test")
+        let defaultRoot = externalConsumerScratchRoot(environment: [:])
+        let overriddenRoot = externalConsumerScratchRoot(
+            environment: ["INNODI_EXTERNAL_SCRATCH_PATH": "/tmp/custom-innodi-scratch"]
+        )
+
+        #expect(
+            defaultRoot == packageRootURL()
+                .appendingPathComponent(".build", isDirectory: true)
+                .appendingPathComponent("external-consumer-contracts", isDirectory: true)
+        )
+        #expect(
+            overriddenRoot
+                == URL(fileURLWithPath: "/tmp/custom-innodi-scratch", isDirectory: true)
+        )
 
         #if compiler(>=6.3.3)
         #expect(macroOnly.scratchProfile == .macroOnlyPrebuilt)
@@ -484,18 +509,36 @@ private func materializeExternalConsumerFixture(
     return destinationURL
 }
 
-private func makeExternalConsumerScratchPath(label: String) -> URL {
-    FileManager.default.temporaryDirectory.appendingPathComponent(
-        "InnoDI-ExternalConsumer-Scratch-\(label)-\(UUID().uuidString)",
-        isDirectory: true
-    )
+/// A stable scratch root lets independent contract tests and repeated local
+/// invocations reuse SwiftPM-validated dependency products. The materialized
+/// consumer roots remain disposable, so their own sources are always checked.
+/// `swift package clean` removes the default cache when a true cold run is
+/// required; CI can also supply an isolated absolute override.
+private func externalConsumerScratchRoot(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+) -> URL {
+    if let override = environment[
+        "INNODI_EXTERNAL_SCRATCH_PATH"
+    ], !override.isEmpty {
+        return URL(fileURLWithPath: override, isDirectory: true)
+    }
+    return packageRootURL()
+        .appendingPathComponent(".build", isDirectory: true)
+        .appendingPathComponent("external-consumer-contracts", isDirectory: true)
 }
 
 private func externalConsumerScratchPath(
     for fixture: ExternalConsumerFixture,
     under root: URL
 ) -> URL {
-    root.appendingPathComponent(fixture.scratchProfile.rawValue, isDirectory: true)
+    externalConsumerScratchPath(for: fixture.scratchProfile, under: root)
+}
+
+private func externalConsumerScratchPath(
+    for profile: ExternalConsumerScratchProfile,
+    under root: URL
+) -> URL {
+    root.appendingPathComponent(profile.rawValue, isDirectory: true)
 }
 
 private func expectedDiagnostics(
