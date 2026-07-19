@@ -275,11 +275,10 @@ package enum BootIDProvider {
     }
 }
 
-// Version 7 adds target-scoped full-source qualifier and environment-bridge
-// context validation. Keep validator behavior in the cache salt so an
-// unchanged workspace cannot reuse a result produced before that fail-closed
-// preflight existed.
-package let sharedRunCacheVersion = 8
+// Version 9 preserves byte-stream hashing semantics across `combine` call
+// boundaries. Keep validator and digest behavior in the cache salt so an
+// unchanged workspace cannot reuse a result produced by an older contract.
+package let sharedRunCacheVersion = 9
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"

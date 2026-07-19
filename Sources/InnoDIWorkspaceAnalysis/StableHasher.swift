@@ -9,10 +9,11 @@
 //
 //  Bytes are mixed in 8-byte little-endian blocks (MurmurHash3-style
 //  per-lane mixing over two independent 64-bit lanes) instead of one
-//  multiply per byte: raw file contents dominate hashing work, and the
-//  block loop cuts that cost roughly eightfold. Changing the mixing
-//  changes every digest, so bumps of `ValidationDigestManifest`'s and the
-//  shared-run cache's versions must accompany any edit here.
+//  multiply per byte. A partial block is retained across `combine` calls,
+//  so a byte sequence has one digest regardless of how callers chunk it.
+//  Changing the mixing changes every digest, so bumps of
+//  `ValidationDigestManifest`'s and the shared-run cache's versions must
+//  accompany any edit here.
 //
 //  Keep exactly one implementation: earlier per-target copies drifted into
 //  different low-state mixing, which is precisely the class of bug a
@@ -25,6 +26,8 @@ package struct StableHasher {
     private var highState: UInt64 = 14_695_981_039_346_656_037
     private var lowState: UInt64 = 0x9E37_79B9_7F4A_7C15
     private var combinedByteCount: UInt64 = 0
+    private var pendingWord: UInt64 = 0
+    private var pendingByteCount = 0
 
     package init() {}
 
@@ -43,8 +46,13 @@ package struct StableHasher {
 
     /// Returns the 32-hex-character digest of everything combined so far.
     package func finalize() -> String {
-        var high = highState ^ combinedByteCount
-        var low = lowState ^ combinedByteCount
+        var high = highState
+        var low = lowState
+        if pendingByteCount > 0 {
+            Self.mix(pendingWord, highState: &high, lowState: &low)
+        }
+        high ^= combinedByteCount
+        low ^= combinedByteCount
         high = Self.finalMix(high &+ low)
         low = Self.finalMix(low ^ high)
         return paddedHex(high) + paddedHex(low)
@@ -54,7 +62,25 @@ package struct StableHasher {
         combinedByteCount &+= UInt64(bytes.count)
 
         var offset = 0
-        let blockEnd = bytes.count - bytes.count % 8
+        while pendingByteCount > 0,
+              pendingByteCount < 8,
+              offset < bytes.count {
+            pendingWord |= UInt64(bytes[offset]) << UInt64(pendingByteCount * 8)
+            pendingByteCount += 1
+            offset += 1
+        }
+
+        if pendingByteCount == 8 {
+            Self.mix(
+                pendingWord,
+                highState: &highState,
+                lowState: &lowState
+            )
+            pendingWord = 0
+            pendingByteCount = 0
+        }
+
+        let blockEnd = bytes.count - (bytes.count - offset) % 8
         while offset < blockEnd {
             let word = UInt64(
                 littleEndian: bytes.loadUnaligned(
@@ -62,26 +88,22 @@ package struct StableHasher {
                     as: UInt64.self
                 )
             )
-            mix(word)
+            Self.mix(word, highState: &highState, lowState: &lowState)
             offset += 8
         }
 
-        if offset < bytes.count {
-            var tail: UInt64 = 0
-            var shift = UInt64(0)
-            while offset < bytes.count {
-                tail |= UInt64(bytes[offset]) << shift
-                shift += 8
-                offset += 1
-            }
-            // Total length is folded in at finalize time, so a zero-padded
-            // tail cannot collide with a full block of the same value across
-            // different input lengths.
-            mix(tail)
+        while offset < bytes.count {
+            pendingWord |= UInt64(bytes[offset]) << UInt64(pendingByteCount * 8)
+            pendingByteCount += 1
+            offset += 1
         }
     }
 
-    private mutating func mix(_ word: UInt64) {
+    private static func mix(
+        _ word: UInt64,
+        highState: inout UInt64,
+        lowState: inout UInt64
+    ) {
         var high = word &* 0x87C3_7B91_1142_53D5
         high = (high << 31) | (high >> 33)
         high &*= 0x4CF5_AD43_2745_937F
