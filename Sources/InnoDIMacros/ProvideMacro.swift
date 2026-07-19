@@ -40,7 +40,14 @@ public struct ProvideMacro: PeerMacro {
                     SimpleDiagnostic.provideDuplicateAttribute(
                         memberName: memberName
                     ),
-                    at: Syntax(diagnosticOwner)
+                    at: Syntax(diagnosticOwner),
+                    fixIts: [
+                        makeRemovalFixIt(
+                            removing: diagnosticOwner,
+                            message: "Remove the duplicate @Provide attribute",
+                            code: .provideDuplicateAttribute
+                        )
+                    ]
                 )
             }
             return []

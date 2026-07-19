@@ -52,14 +52,29 @@ extension DIContainerDeclarationSupport {
                 at: Syntax(attribute)
             )
         case let .privateAccess(name):
-            let anchor = declaration.modifiers.first(where: {
+            let privateModifier = declaration.modifiers.first(where: {
                 $0.name.text == "private"
-            }).map(Syntax.init) ?? Syntax(attribute)
+            })
+            let anchor = privateModifier.map(Syntax.init) ?? Syntax(attribute)
+            var fixIts: [FixIt] = []
+            // Only a bare `private` becomes `fileprivate` mechanically; a
+            // detailed modifier such as `private(set)` needs a human call.
+            if let privateModifier, privateModifier.detail == nil {
+                fixIts.append(
+                    makeTextReplacementFixIt(
+                        replacing: privateModifier.name,
+                        with: "fileprivate",
+                        message: "Replace 'private' with 'fileprivate'",
+                        code: .containerPrivateAccessUnsupported
+                    )
+                )
+            }
             context.emit(
                 SimpleDiagnostic.containerPrivateAccessUnsupported(
                     name: name
                 ),
-                at: anchor
+                at: anchor,
+                fixIts: fixIts
             )
         case let .generic(name, contextName):
             context.emit(
