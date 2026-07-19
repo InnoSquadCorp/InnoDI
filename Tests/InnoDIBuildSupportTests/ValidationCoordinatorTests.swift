@@ -1586,7 +1586,11 @@ struct ValidationCoordinatorTests {
             delay: 0.2
         )
         let policy = ValidationCoordinatorLockPolicy(
-            maxWaitSeconds: 1,
+            // maxWaitSeconds is a bail-out, not a measured behavior: this
+            // test asserts recovery serialization, and a small wait budget
+            // lets CPU-starved CI runs time out the contender while the
+            // holder's live run is still in flight.
+            maxWaitSeconds: 30,
             staleLockAgeSeconds: 0.1,
             initialBackoffSeconds: 0.01,
             maxBackoffSeconds: 0.05
@@ -1600,7 +1604,11 @@ struct ValidationCoordinatorTests {
             processExists: { [2001, 2002].contains($0) },
             beforeStaleLockRemoval: { _ in
                 recoveryPointReached.markTrue()
-                _ = allowRecovery.wait(timeout: .now() + .seconds(1))
+                // Generous bail-out only: the test signals as soon as the
+                // contender reaches its wait loop. A short timeout here lets
+                // a CPU-starved CI runner break the intended interleaving by
+                // resuming recovery before the contender ever runs.
+                _ = allowRecovery.wait(timeout: .now() + .seconds(60))
             }
         )
         // Marks the moment the contender enters a coordinator wait loop: its
@@ -1632,7 +1640,11 @@ struct ValidationCoordinatorTests {
                 )
             }
 
-            for _ in 0..<100 {
+            // The 60-second ceilings below are pure bail-outs; both loops
+            // normally exit within milliseconds. Parallel CI runs have
+            // starved this suite for minutes, so a ~1-second readiness
+            // window flakes even though the interleaving itself is sound.
+            for _ in 0..<6000 {
                 if recoveryPointReached.isSet {
                     break
                 }
@@ -1653,7 +1665,7 @@ struct ValidationCoordinatorTests {
                 )
             }
 
-            for _ in 0..<100 {
+            for _ in 0..<6000 {
                 if contenderReachedBackoff.isSet {
                     break
                 }
