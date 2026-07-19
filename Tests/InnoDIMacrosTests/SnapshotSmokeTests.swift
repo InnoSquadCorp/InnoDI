@@ -95,24 +95,21 @@ struct SnapshotSmokeTests {
 /// All tests write into `FileManager.default.temporaryDirectory` and clean
 /// up in `defer`, so the real `__Snapshots__` tree is never touched.
 ///
-/// This suite runs serialized because `isSnapshotRecordModeEnabled()` reads a
-/// process-global environment variable that other snapshot tests also consult
-/// at runtime.
-@Suite("Snapshot storage helpers", .serialized)
+/// Record-mode detection is exercised through the injectable `environment`
+/// parameter rather than `setenv`: mutating the process environment here
+/// would race the parallel snapshot suites that consult
+/// `isSnapshotRecordModeEnabled()` at runtime.
+@Suite("Snapshot storage helpers")
 struct SnapshotStorageTests {
     @Test("Record-mode detection follows the env var")
     func recordModeTogglesWithEnvVar() throws {
-        let original = ProcessInfo.processInfo.environment[innoDISnapshotRecordEnvVar]
-        defer { restoreEnvVar(innoDISnapshotRecordEnvVar, to: original) }
-
-        setenv(innoDISnapshotRecordEnvVar, "1", 1)
-        #expect(isSnapshotRecordModeEnabled())
-
-        setenv(innoDISnapshotRecordEnvVar, "0", 1)
-        #expect(!isSnapshotRecordModeEnabled())
-
-        unsetenv(innoDISnapshotRecordEnvVar)
-        #expect(!isSnapshotRecordModeEnabled())
+        #expect(isSnapshotRecordModeEnabled(
+            environment: [innoDISnapshotRecordEnvVar: "1"]
+        ))
+        #expect(!isSnapshotRecordModeEnabled(
+            environment: [innoDISnapshotRecordEnvVar: "0"]
+        ))
+        #expect(!isSnapshotRecordModeEnabled(environment: [:]))
     }
 
     @Test("writeSnapshot creates intermediate directories and roundtrips through readSnapshot")
@@ -180,12 +177,4 @@ private func makeTempDir() throws -> URL {
         .appendingPathComponent("InnoDI-SnapshotStorageTests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
-}
-
-private func restoreEnvVar(_ name: String, to value: String?) {
-    if let value {
-        setenv(name, value, 1)
-    } else {
-        unsetenv(name)
-    }
 }

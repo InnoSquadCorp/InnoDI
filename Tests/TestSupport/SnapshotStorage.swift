@@ -18,8 +18,16 @@ public let innoDISnapshotRecordEnvVar = "INNODI_RECORD_SNAPSHOTS"
 ///
 /// Callers should also force-record when the snapshot file does not yet exist,
 /// so a fresh test can bootstrap its baseline on first run.
-public func isSnapshotRecordModeEnabled() -> Bool {
-    ProcessInfo.processInfo.environment[innoDISnapshotRecordEnvVar] == "1"
+///
+/// Record mode is decided by the environment the test process was launched
+/// with (`Tools/record-*.sh` export the variable before `swift test`). The
+/// `environment` parameter exists so tests can exercise the decision without
+/// mutating process-global state via `setenv`, which would race the parallel
+/// snapshot suites that consult this function at runtime.
+public func isSnapshotRecordModeEnabled(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+) -> Bool {
+    environment[innoDISnapshotRecordEnvVar] == "1"
 }
 
 /// Resolves the on-disk URL for a snapshot named `snapshot` from the
