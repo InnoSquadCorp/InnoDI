@@ -9,7 +9,6 @@ struct DIContainerValidator {
         declaration: some DeclGroupSyntax,
         context: some MacroExpansionContext
     ) -> Bool {
-        var hadErrors = false
         let resolutionContext = DependencyResolutionContext(members: model.members)
         let memberByName = Dictionary(
             model.members.map { ($0.name, $0) },
@@ -22,6 +21,52 @@ struct DIContainerValidator {
         )
         let dagValidationEnabled = model.options.validateDAG
 
+        var hadErrors = false
+        hadErrors = validateGeneratedSymbolCollisions(
+            model: model,
+            context: context
+        ) || hadErrors
+        hadErrors = validateManagedMembers(
+            model: model,
+            resolutionContext: resolutionContext,
+            memberByName: memberByName,
+            dagValidationEnabled: dagValidationEnabled,
+            context: context
+        ) || hadErrors
+        hadErrors = validateDependencyCycles(
+            model: model,
+            resolutionContext: resolutionContext,
+            memberByName: memberByName,
+            locallyValidMemberNames: locallyValidMemberNames,
+            dagValidationEnabled: dagValidationEnabled,
+            context: context
+        ) || hadErrors
+        hadErrors = validateReservedDeclarationNames(
+            declaration: declaration,
+            context: context
+        ) || hadErrors
+        hadErrors = validateReservedQualifierScopes(
+            declaration: declaration,
+            context: context
+        ) || hadErrors
+        hadErrors = validateSubContainerMembers(
+            model: model,
+            memberByName: memberByName,
+            context: context
+        ) || hadErrors
+        hadErrors = validateDeferredWrapperAliases(
+            model: model,
+            context: context
+        ) || hadErrors
+        return !hadErrors
+    }
+
+    /// Rejects managed members whose generated support symbols collide.
+    private static func validateGeneratedSymbolCollisions(
+        model: DIContainerExpansionModel,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         for collision in generatedPeerSymbolCollisions(in: model) {
             context.emit(
                 SimpleDiagnostic.containerGeneratedSymbolCollision(
@@ -43,7 +88,21 @@ struct DIContainerValidator {
             )
             hadErrors = true
         }
+        return hadErrors
+    }
 
+    /// Per-member declaration checks: factory parameter spelling, property
+    /// type shape, construction-source configuration, scope and effect
+    /// compatibility, deferred-wrapper usage, and declaration-order
+    /// dependency availability.
+    private static func validateManagedMembers(
+        model: DIContainerExpansionModel,
+        resolutionContext: DependencyResolutionContext,
+        memberByName: [String: ProvideMemberModel],
+        dagValidationEnabled: Bool,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         for (index, member) in model.members.enumerated() {
             let escapedFactoryParameters = member.closureParameterReferences.filter {
                 isEscapedInnoDIIdentifier($0.token)
@@ -455,7 +514,19 @@ struct DIContainerValidator {
             }
 
         }
+        return hadErrors
+    }
 
+    /// Local hard-edge cycle detection over locally valid members.
+    private static func validateDependencyCycles(
+        model: DIContainerExpansionModel,
+        resolutionContext: DependencyResolutionContext,
+        memberByName: [String: ProvideMemberModel],
+        locallyValidMemberNames: Set<String>,
+        dagValidationEnabled: Bool,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         if dagValidationEnabled {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
@@ -505,7 +576,16 @@ struct DIContainerValidator {
                 hadErrors = true
             }
         }
+        return hadErrors
+    }
 
+    /// Rejects direct declarations that shadow generated module qualifiers
+    /// or reserved generated-member prefixes.
+    private static func validateReservedDeclarationNames(
+        declaration: some DeclGroupSyntax,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         // Reserved-name collision check.
         //
         // The macro synthesizes private storage and helper bindings using a
@@ -541,7 +621,16 @@ struct DIContainerValidator {
                 break
             }
         }
+        return hadErrors
+    }
 
+    /// Rejects enclosing-scope declarations that shadow generated
+    /// module-qualifier lookups.
+    private static func validateReservedQualifierScopes(
+        declaration: some DeclGroupSyntax,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         for entry in reservedGeneratedQualifierScopeDeclarations(
             for: declaration,
             lexicalContext: context.lexicalContext
@@ -557,7 +646,17 @@ struct DIContainerValidator {
             )
             hadErrors = true
         }
+        return hadErrors
+    }
 
+    /// `@SubContainer` member checks: scope spelling, wiring-form conflicts,
+    /// parent-member references, and auto-wiring ambiguity.
+    private static func validateSubContainerMembers(
+        model: DIContainerExpansionModel,
+        memberByName: [String: ProvideMemberModel],
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         // Sub-container validation.
         //
         // The parser has already rejected properties carrying both
@@ -742,7 +841,16 @@ struct DIContainerValidator {
                 }
             }
         }
+        return hadErrors
+    }
 
+    /// Warns when factory closure parameters spell `Lazy`/`Provider`
+    /// through a same-file typealias.
+    private static func validateDeferredWrapperAliases(
+        model: DIContainerExpansionModel,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = false
         // Warn when a closure parameter uses a typealias that
         // aliases `Lazy<T>` or `Provider<T>`. The macro resolves deferred
         // wrapper kinds from written syntax, so typealiased spellings fall
@@ -790,7 +898,6 @@ struct DIContainerValidator {
                 }
             }
         }
-
-        return !hadErrors
+        return hadErrors
     }
 }
