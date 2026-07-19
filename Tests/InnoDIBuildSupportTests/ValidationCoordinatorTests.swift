@@ -1656,28 +1656,40 @@ struct ValidationCoordinatorTests {
             to: lockURL
         )
 
-        let recoveryPointReached = LockedFlag()
+        let recoveryPointReached = OneShotAsyncSignal()
+        let contenderReachedBackoff = OneShotAsyncSignal()
+        let allowContenderRetry = OneShotAsyncSignal()
         let allowRecovery = DispatchSemaphore(value: 0)
+        let watchdogFired = LockedFlag()
+        let watchdog = DispatchWorkItem {
+            watchdogFired.markTrue()
+            recoveryPointReached.signal()
+            contenderReachedBackoff.signal()
+            allowRecovery.signal()
+            allowContenderRetry.signal()
+        }
+        DispatchQueue.global().asyncAfter(
+            deadline: .now() + .seconds(10),
+            execute: watchdog
+        )
+        defer {
+            watchdog.cancel()
+            allowRecovery.signal()
+            allowContenderRetry.signal()
+        }
+
         let runner = MockValidationRunner(
             results: [
                 ValidationCommandResult(exitCode: 0, stdout: "DAG validation passed.\n", stderr: "")
-            ],
-            delay: 0.2
+            ]
         )
         let policy = ValidationCoordinatorLockPolicy(
-            // This test asserts recovery serialization, never timeout
-            // behavior, so the contender's wait budget must be impossible
-            // to exhaust: CI runners executing the full parallel suite have
-            // starved this test past 45 wall-clock seconds and expired every
-            // finite budget tried so far (1s, 30s). Termination is still
-            // guaranteed because the holder's own pause is bounded and its
-            // live run always completes.
-            //
-            // A shared manual clock was considered and rejected: with two
-            // real POSIX-lock contenders, instant virtual sleeps make the
-            // contender spin through its virtual budget while the holder is
-            // parked, reintroducing exactly this race in virtual time.
-            maxWaitSeconds: .infinity,
+            // The contender is suspended at its first backoff until the
+            // holder finishes, so scheduler starvation cannot consume the
+            // budget before the intended interleaving is established. Keep
+            // the SUT timeout finite; the independent watchdog above only
+            // releases test gates if orchestration regresses.
+            maxWaitSeconds: 1,
             staleLockAgeSeconds: 0.1,
             initialBackoffSeconds: 0.01,
             maxBackoffSeconds: 0.05
@@ -1690,85 +1702,58 @@ struct ValidationCoordinatorTests {
             currentProcessID: { 2001 },
             processExists: { [2001, 2002].contains($0) },
             beforeStaleLockRemoval: { _ in
-                recoveryPointReached.markTrue()
-                // Generous bail-out only: the test signals as soon as the
-                // contender reaches its wait loop. A short timeout here lets
-                // a CPU-starved CI runner break the intended interleaving by
-                // resuming recovery before the contender ever runs.
-                _ = allowRecovery.wait(timeout: .now() + .seconds(60))
+                recoveryPointReached.signal()
+                allowRecovery.wait()
             }
         )
         // Marks the moment the contender enters a coordinator wait loop: its
         // first backoff sleep can only happen after it observed the lock
         // state A is holding, which is the readiness point the test needs
         // before letting A's recovery proceed.
-        let contenderReachedBackoff = LockedFlag()
         let runtimeB = ValidationCoordinatorRuntime(
             monotonicNow: validationNow,
             currentDate: Date.init,
-            sleep: { interval in
-                contenderReachedBackoff.markTrue()
-                try await validationSleep(interval)
+            sleep: { _ in
+                contenderReachedBackoff.signal()
+                await allowContenderRetry.wait()
             },
             currentProcessID: { 2002 },
             processExists: { [2001, 2002].contains($0) }
         )
 
-            let outcomes = try await withThrowingTaskGroup(of: ValidationExecutionOutcome.self) { group in
-            group.addTask {
-                try await ValidationCoordinator.coordinate(
-                    rootPath: fixture.rootURL.path(percentEncoded: false),
-                    toolPath: "/usr/bin/true",
-                    stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
-                    outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
-                    runner: runner,
-                    lockPolicy: policy,
-                    runtime: runtimeA
-                )
-            }
-
-            // The 60-second ceilings below are pure bail-outs; both loops
-            // normally exit within milliseconds. Parallel CI runs have
-            // starved this suite for minutes, so a ~1-second readiness
-            // window flakes even though the interleaving itself is sound.
-            for _ in 0..<6000 {
-                if recoveryPointReached.isSet {
-                    break
-                }
-                try await Task.sleep(for: .milliseconds(10))
-            }
-
-            #expect(recoveryPointReached.isSet)
-
-            group.addTask {
-                try await ValidationCoordinator.coordinate(
-                    rootPath: fixture.rootURL.path(percentEncoded: false),
-                    toolPath: "/usr/bin/true",
-                    stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
-                    outputDirectoryPath: fixture.outputBURL.path(percentEncoded: false),
-                    runner: runner,
-                    lockPolicy: policy,
-                    runtime: runtimeB
-                )
-            }
-
-            for _ in 0..<6000 {
-                if contenderReachedBackoff.isSet {
-                    break
-                }
-                try await Task.sleep(for: .milliseconds(10))
-            }
-
-            #expect(contenderReachedBackoff.isSet)
-            allowRecovery.signal()
-
-            var collected: [ValidationExecutionOutcome] = []
-            for try await result in group {
-                collected.append(result)
-            }
-            return collected
+        let holder = Task {
+            try await ValidationCoordinator.coordinate(
+                rootPath: fixture.rootURL.path(percentEncoded: false),
+                toolPath: "/usr/bin/true",
+                stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+                outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+                runner: runner,
+                lockPolicy: policy,
+                runtime: runtimeA
+            )
         }
+        await recoveryPointReached.wait()
 
+        let contender = Task {
+            try await ValidationCoordinator.coordinate(
+                rootPath: fixture.rootURL.path(percentEncoded: false),
+                toolPath: "/usr/bin/true",
+                stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+                outputDirectoryPath: fixture.outputBURL.path(percentEncoded: false),
+                runner: runner,
+                lockPolicy: policy,
+                runtime: runtimeB
+            )
+        }
+        await contenderReachedBackoff.wait()
+
+        allowRecovery.signal()
+        let holderOutcome = try await holder.value
+        allowContenderRetry.signal()
+        let contenderOutcome = try await contender.value
+        let outcomes = [holderOutcome, contenderOutcome]
+
+        #expect(watchdogFired.isSet == false)
         #expect(outcomes.count == 2)
         #expect(runner.invocationCount == 1)
         #expect(outcomes.contains { !$0.wasCached })
@@ -2740,6 +2725,41 @@ private final class LockedFlag: @unchecked Sendable {
         lock.lock()
         value = true
         lock.unlock()
+    }
+}
+
+private final class OneShotAsyncSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isSignaled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if isSignaled {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            waiters.append(continuation)
+            lock.unlock()
+        }
+    }
+
+    func signal() {
+        lock.lock()
+        guard isSignaled == false else {
+            lock.unlock()
+            return
+        }
+        isSignaled = true
+        let currentWaiters = waiters
+        waiters.removeAll(keepingCapacity: false)
+        lock.unlock()
+
+        for waiter in currentWaiters {
+            waiter.resume()
+        }
     }
 }
 
