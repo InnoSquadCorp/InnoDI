@@ -268,3 +268,45 @@ struct SimpleFixIt: FixItMessage {
         self.fixItID = MessageID(domain: "InnoDI.\(code.category.rawValue)", id: "\(code.rawValue).fixit.\(suffix)")
     }
 }
+
+/// Replaces exactly the trivia-stripped text of `syntax` with `replacement`.
+/// Shared by the mechanical fix-its (`some` → `any`, `T!` → `T?`,
+/// `private` → `fileprivate`) so they all edit source the same way.
+internal func makeTextReplacementFixIt(
+    replacing syntax: some SyntaxProtocol,
+    with replacement: String,
+    message: String,
+    code: InnoDIDiagnosticCode,
+    suffix: String = "replace"
+) -> FixIt {
+    FixIt(
+        message: SimpleFixIt(message, code: code, suffix: suffix),
+        changes: [
+            .replaceText(
+                range: syntax.positionAfterSkippingLeadingTrivia..<syntax.endPositionBeforeTrailingTrivia,
+                with: replacement,
+                in: Syntax(syntax.root)
+            )
+        ]
+    )
+}
+
+/// Removes `syntax` together with its trailing trivia, leaving any leading
+/// trivia (doc comments, indentation) in place. Used by duplicate-attribute
+/// fix-its where deleting the redundant attribute is the whole fix.
+internal func makeRemovalFixIt(
+    removing syntax: some SyntaxProtocol,
+    message: String,
+    code: InnoDIDiagnosticCode
+) -> FixIt {
+    FixIt(
+        message: SimpleFixIt(message, code: code, suffix: "remove"),
+        changes: [
+            .replaceText(
+                range: syntax.positionAfterSkippingLeadingTrivia..<syntax.endPosition,
+                with: "",
+                in: Syntax(syntax.root)
+            )
+        ]
+    )
+}

@@ -48,7 +48,14 @@ extension SubContainerMacro: PeerMacro {
                     SimpleDiagnostic.subDuplicateAttribute(
                         memberName: memberName?.text ?? "<unknown>"
                     ),
-                    at: Syntax(diagnosticOwner)
+                    at: Syntax(diagnosticOwner),
+                    fixIts: [
+                        makeRemovalFixIt(
+                            removing: diagnosticOwner,
+                            message: "Remove the duplicate @SubContainer attribute",
+                            code: .subDuplicateAttribute
+                        )
+                    ]
                 )
             }
             return []

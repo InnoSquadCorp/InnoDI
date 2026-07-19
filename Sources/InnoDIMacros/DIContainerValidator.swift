@@ -99,21 +99,47 @@ struct DIContainerValidator {
                 && constructionSourceCount > 1
 
             if isOpaqueSomeType(member.type) {
+                var fixIts: [FixIt] = []
+                if let someType = member.type.as(SomeOrAnyTypeSyntax.self) {
+                    fixIts.append(
+                        makeTextReplacementFixIt(
+                            replacing: someType.someOrAnySpecifier,
+                            with: "any",
+                            message: "Replace 'some' with 'any'",
+                            code: .provideOpaqueTypeUnsupported
+                        )
+                    )
+                }
                 context.emit(
                     SimpleDiagnostic.provideOpaqueTypeUnsupported(
                         memberName: member.name
                     ),
-                    at: Syntax(member.type)
+                    at: Syntax(member.type),
+                    fixIts: fixIts
                 )
                 hadErrors = true
             }
 
             if isImplicitlyUnwrappedOptionalType(member.type) {
+                var fixIts: [FixIt] = []
+                if let iuoType = member.type.as(
+                    ImplicitlyUnwrappedOptionalTypeSyntax.self
+                ) {
+                    fixIts.append(
+                        makeTextReplacementFixIt(
+                            replacing: iuoType.exclamationMark,
+                            with: "?",
+                            message: "Replace '!' with '?'",
+                            code: .provideIUOTypeUnsupported
+                        )
+                    )
+                }
                 context.emit(
                     SimpleDiagnostic.provideIUOTypeUnsupported(
                         memberName: member.name
                     ),
-                    at: Syntax(member.type)
+                    at: Syntax(member.type),
+                    fixIts: fixIts
                 )
                 hadErrors = true
             }
