@@ -489,10 +489,12 @@ package enum ValidationCoordinator {
         lockPolicy: ValidationCoordinatorLockPolicy = .default,
         runtime: ValidationCoordinatorRuntime = .live
     ) async throws -> ValidationExecutionOutcome {
-        let manifest = try manifest.validated()
+        let validatedManifest = try ValidatedWorkspaceAnalysisManifest(
+            validating: manifest
+        )
         return try await coordinateResolved(
-            rootPath: manifest.rootPackageDirectory,
-            analysisManifest: manifest,
+            rootPath: validatedManifest.manifest.rootPackageDirectory,
+            analysisManifest: validatedManifest,
             toolPath: nil,
             stateDirectoryPath: stateDirectoryPath,
             outputDirectoryPath: outputDirectoryPath,
@@ -507,7 +509,7 @@ package enum ValidationCoordinator {
         Runner: ValidationCommandRunning
     >(
         rootPath: String,
-        analysisManifest: WorkspaceAnalysisManifest?,
+        analysisManifest: ValidatedWorkspaceAnalysisManifest?,
         toolPath: String?,
         stateDirectoryPath: String,
         outputDirectoryPath: String,
@@ -538,7 +540,7 @@ package enum ValidationCoordinator {
         if unsafeFilesystemOutcome != nil {
             if let analysisManifest {
                 signatureCollection = try collectValidationSignatureWithMetrics(
-                    manifest: analysisManifest,
+                    validated: analysisManifest,
                     stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: false,
                     useManifestCache: false
@@ -664,7 +666,7 @@ package enum ValidationCoordinator {
             let workspaceSnapshot: WorkspaceSourceSnapshot
             if let analysisManifest {
                 workspaceSnapshot = try loadWorkspaceSourceSnapshot(
-                    manifest: analysisManifest
+                    validated: analysisManifest
                 )
             } else {
                 workspaceSnapshot = try loadWorkspaceSourceSnapshot(
@@ -719,7 +721,7 @@ package enum ValidationCoordinator {
                     let moduleGraph: WorkspaceModuleGraphSnapshot
                     if let analysisManifest {
                         moduleGraph = try ModuleGraphProvider.snapshot(
-                            manifest: analysisManifest
+                            validated: analysisManifest
                         )
                     } else {
                         moduleGraph = try ModuleGraphProvider.snapshot(
@@ -905,7 +907,7 @@ package enum ValidationCoordinator {
     /// hit metadata-only cache paths instead of doing duplicate AST work.
     private static func collectValidationSignatureWithSharedCacheLock(
         rootPath: String,
-        analysisManifest: WorkspaceAnalysisManifest?,
+        analysisManifest: ValidatedWorkspaceAnalysisManifest?,
         stateDirectoryURL: URL,
         stateDirectoryPath: String,
         lockPolicy: ValidationCoordinatorLockPolicy,
@@ -917,7 +919,7 @@ package enum ValidationCoordinator {
         ) throws -> ValidationSignatureCollectionResult {
             if let analysisManifest {
                 return try collectValidationSignatureWithMetrics(
-                    manifest: analysisManifest,
+                    validated: analysisManifest,
                     stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: persistManifestUpdates,
                     useManifestCache: useManifestCache

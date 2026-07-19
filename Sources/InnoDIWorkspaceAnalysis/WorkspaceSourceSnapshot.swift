@@ -173,7 +173,18 @@ package func loadWorkspaceSourceSnapshot(
 package func loadWorkspaceSourceSnapshot(
     manifest: WorkspaceAnalysisManifest
 ) throws -> WorkspaceSourceSnapshot {
-    let manifest = try manifest.validated()
+    try loadWorkspaceSourceSnapshot(
+        validated: ValidatedWorkspaceAnalysisManifest(validating: manifest)
+    )
+}
+
+/// `ValidatedWorkspaceAnalysisManifest` overload used by callers that already
+/// proved the manifest contract, so the per-source availability stats in
+/// `validated()` are not repeated per pipeline stage.
+package func loadWorkspaceSourceSnapshot(
+    validated: ValidatedWorkspaceAnalysisManifest
+) throws -> WorkspaceSourceSnapshot {
+    let manifest = validated.manifest
     let rootURL = URL(fileURLWithPath: manifest.rootPackageDirectory)
         .resolvingSymlinksInPath()
         .standardizedFileURL

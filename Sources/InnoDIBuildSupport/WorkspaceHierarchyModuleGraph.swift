@@ -324,7 +324,17 @@ enum ModuleGraphProvider {
     static func snapshot(
         manifest: WorkspaceAnalysisManifest
     ) throws -> WorkspaceModuleGraphSnapshot {
-        let manifest = try manifest.validated()
+        try snapshot(
+            validated: ValidatedWorkspaceAnalysisManifest(validating: manifest)
+        )
+    }
+
+    /// `ValidatedWorkspaceAnalysisManifest` overload used by callers that
+    /// already proved the manifest contract once for this invocation.
+    static func snapshot(
+        validated: ValidatedWorkspaceAnalysisManifest
+    ) throws -> WorkspaceModuleGraphSnapshot {
+        let manifest = validated.manifest
         let modules = manifest.targets.map { target in
             WorkspaceModuleRecord(
                 moduleID: target.id.rawValue,

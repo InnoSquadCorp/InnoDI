@@ -123,7 +123,21 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         persistManifestUpdates: Bool = true,
         useManifestCache: Bool = true
     ) throws -> ValidationSignatureCollectionResult {
-        let manifest = try manifest.validated()
+        try collectWithMetrics(
+            validated: ValidatedWorkspaceAnalysisManifest(validating: manifest),
+            persistManifestUpdates: persistManifestUpdates,
+            useManifestCache: useManifestCache
+        )
+    }
+
+    /// `ValidatedWorkspaceAnalysisManifest` overload used by callers that
+    /// already proved the manifest contract once for this invocation.
+    func collectWithMetrics(
+        validated: ValidatedWorkspaceAnalysisManifest,
+        persistManifestUpdates: Bool = true,
+        useManifestCache: Bool = true
+    ) throws -> ValidationSignatureCollectionResult {
+        let manifest = validated.manifest
         let sources = manifest.targets.flatMap { target in
             target.sources.map { source in
                 ValidationSignatureSource(
@@ -342,6 +356,23 @@ func collectValidationSignatureWithMetrics(
     )
     .collectWithMetrics(
         manifest: manifest,
+        persistManifestUpdates: persistManifestUpdates,
+        useManifestCache: useManifestCache
+    )
+}
+
+func collectValidationSignatureWithMetrics(
+    validated: ValidatedWorkspaceAnalysisManifest,
+    stateDirectoryPath: String,
+    persistManifestUpdates: Bool = true,
+    useManifestCache: Bool = true
+) throws -> ValidationSignatureCollectionResult {
+    try ValidationSignatureCollector(
+        stateDirectoryPath: stateDirectoryPath,
+        parser: LiveValidationSyntaxParser()
+    )
+    .collectWithMetrics(
+        validated: validated,
         persistManifestUpdates: persistManifestUpdates,
         useManifestCache: useManifestCache
     )

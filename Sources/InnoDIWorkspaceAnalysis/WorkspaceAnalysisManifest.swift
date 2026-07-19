@@ -188,6 +188,29 @@ package struct WorkspaceAnalysisTarget: Codable, Equatable, Sendable {
     }
 }
 
+/// Proof token that a manifest passed the full `validated()` contract.
+///
+/// `validated()` stats every declared source file and re-runs target-cycle
+/// and reachability checks, so the pipeline should prove the contract once
+/// per coordinator invocation. APIs that accept this type trust the proof
+/// and skip re-validation; the only way to construct it is the throwing
+/// validating initializer.
+package struct ValidatedWorkspaceAnalysisManifest: Equatable, Sendable {
+    /// The canonicalized manifest returned by `validated()`.
+    package let manifest: WorkspaceAnalysisManifest
+
+    package init(
+        validating manifest: WorkspaceAnalysisManifest,
+        validateSourceAvailability: Bool = true,
+        fileManager: FileManager = .default
+    ) throws {
+        self.manifest = try manifest.validated(
+            validateSourceAvailability: validateSourceAvailability,
+            fileManager: fileManager
+        )
+    }
+}
+
 package struct WorkspaceAnalysisManifest: Codable, Equatable, Sendable {
     package static let currentSchemaVersion = 1
     package static let swiftPMBuildSystem = "swiftpm"
