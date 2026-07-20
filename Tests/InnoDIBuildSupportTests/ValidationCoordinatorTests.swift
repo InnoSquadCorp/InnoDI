@@ -1659,21 +1659,8 @@ struct ValidationCoordinatorTests {
         let recoveryPointReached = OneShotAsyncSignal()
         let contenderReachedBackoff = OneShotAsyncSignal()
         let allowContenderRetry = OneShotAsyncSignal()
-        let allowRecovery = DispatchSemaphore(value: 0)
-        let watchdogFired = LockedFlag()
-        let watchdog = DispatchWorkItem {
-            watchdogFired.markTrue()
-            recoveryPointReached.signal()
-            contenderReachedBackoff.signal()
-            allowRecovery.signal()
-            allowContenderRetry.signal()
-        }
-        DispatchQueue.global().asyncAfter(
-            deadline: .now() + .seconds(10),
-            execute: watchdog
-        )
+        let allowRecovery = OneShotAsyncSignal()
         defer {
-            watchdog.cancel()
             allowRecovery.signal()
             allowContenderRetry.signal()
         }
@@ -1686,9 +1673,7 @@ struct ValidationCoordinatorTests {
         let policy = ValidationCoordinatorLockPolicy(
             // The contender is suspended at its first backoff until the
             // holder finishes, so scheduler starvation cannot consume the
-            // budget before the intended interleaving is established. Keep
-            // the SUT timeout finite; the independent watchdog above only
-            // releases test gates if orchestration regresses.
+            // budget before the intended interleaving is established.
             maxWaitSeconds: 1,
             staleLockAgeSeconds: 0.1,
             initialBackoffSeconds: 0.01,
@@ -1703,7 +1688,7 @@ struct ValidationCoordinatorTests {
             processExists: { [2001, 2002].contains($0) },
             beforeStaleLockRemoval: { _ in
                 recoveryPointReached.signal()
-                allowRecovery.wait()
+                await allowRecovery.wait()
             }
         )
         // Marks the moment the contender enters a coordinator wait loop: its
@@ -1753,7 +1738,6 @@ struct ValidationCoordinatorTests {
         let contenderOutcome = try await contender.value
         let outcomes = [holderOutcome, contenderOutcome]
 
-        #expect(watchdogFired.isSet == false)
         #expect(outcomes.count == 2)
         #expect(runner.invocationCount == 1)
         #expect(outcomes.contains { !$0.wasCached })
@@ -2648,7 +2632,7 @@ private func makeTestRuntime(
     clock: ManualValidationCoordinatorClock,
     currentPID: Int32,
     activePIDs: Set<Int32>,
-    beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
+    beforeStaleLockRemoval: @escaping @Sendable (URL) async -> Void = { _ in }
 ) -> ValidationCoordinatorRuntime {
     ValidationCoordinatorRuntime(
         monotonicNow: { clock.monotonicNow },
@@ -2708,23 +2692,6 @@ private final class ManualValidationCoordinatorClock: @unchecked Sendable {
         lock.unlock()
 
         onSleep?(interval)
-    }
-}
-
-private final class LockedFlag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value = false
-
-    var isSet: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return value
-    }
-
-    func markTrue() {
-        lock.lock()
-        value = true
-        lock.unlock()
     }
 }
 

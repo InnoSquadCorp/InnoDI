@@ -6,7 +6,7 @@ import Testing
 @Suite("Lock metadata boot-id semantics")
 struct LockBootIDTests {
     @Test("Mismatching bootID forces stale recovery even when the PID is still alive")
-    func staleRecoveryOnBootIDMismatch() throws {
+    func staleRecoveryOnBootIDMismatch() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("innodi-lock-boot-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -34,7 +34,7 @@ struct LockBootIDTests {
             beforeStaleLockRemoval: { _ in }
         )
 
-        let recovered = try recoverStaleLockIfNeeded(
+        let recovered = try await recoverStaleLockIfNeeded(
             at: lockURL,
             staleLockAgeSeconds: 60,
             runtime: runtime
@@ -45,7 +45,7 @@ struct LockBootIDTests {
     }
 
     @Test("Matching bootID with a live PID keeps the lock")
-    func holdRespectsMatchingBootID() throws {
+    func holdRespectsMatchingBootID() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("innodi-lock-boot-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -69,7 +69,7 @@ struct LockBootIDTests {
             beforeStaleLockRemoval: { _ in }
         )
 
-        let recovered = try recoverStaleLockIfNeeded(
+        let recovered = try await recoverStaleLockIfNeeded(
             at: lockURL,
             staleLockAgeSeconds: 60,
             runtime: runtime
@@ -80,7 +80,7 @@ struct LockBootIDTests {
     }
 
     @Test("Matching bootID with a dead PID recovers the lock")
-    func matchingBootIDWithDeadPIDRecoversLock() throws {
+    func matchingBootIDWithDeadPIDRecoversLock() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("innodi-lock-boot-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -104,7 +104,7 @@ struct LockBootIDTests {
             beforeStaleLockRemoval: { _ in }
         )
 
-        let recovered = try recoverStaleLockIfNeeded(
+        let recovered = try await recoverStaleLockIfNeeded(
             at: lockURL,
             staleLockAgeSeconds: 60,
             runtime: runtime
@@ -115,7 +115,7 @@ struct LockBootIDTests {
     }
 
     @Test("Legacy v1 metadata (no bootID) still falls back to PID-only liveness")
-    func v1MetadataFallback() throws {
+    func v1MetadataFallback() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("innodi-lock-boot-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -140,7 +140,7 @@ struct LockBootIDTests {
             beforeStaleLockRemoval: { _ in }
         )
 
-        let recovered = try recoverStaleLockIfNeeded(
+        let recovered = try await recoverStaleLockIfNeeded(
             at: lockURL,
             staleLockAgeSeconds: 60,
             runtime: runtime

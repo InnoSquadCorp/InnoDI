@@ -197,7 +197,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
     /// implementation reads `sysctl kern.boottime` on Darwin and
     /// `/proc/stat btime` on Linux.
     package let currentBootID: @Sendable () -> Int64?
-    package let beforeStaleLockRemoval: @Sendable (URL) -> Void
+    package let beforeStaleLockRemoval: @Sendable (URL) async -> Void
 
     package init(
         monotonicNow: @escaping @Sendable () -> TimeInterval,
@@ -206,7 +206,7 @@ package struct ValidationCoordinatorRuntime: Sendable {
         currentProcessID: @escaping @Sendable () -> Int32,
         processExists: @escaping @Sendable (Int32) -> Bool,
         currentBootID: @escaping @Sendable () -> Int64? = BootIDProvider.live,
-        beforeStaleLockRemoval: @escaping @Sendable (URL) -> Void = { _ in }
+        beforeStaleLockRemoval: @escaping @Sendable (URL) async -> Void = { _ in }
     ) {
         self.monotonicNow = monotonicNow
         self.currentDate = currentDate
@@ -681,7 +681,7 @@ package enum ValidationCoordinator {
                 return try collectSignature()
             }
 
-            if try recoverStaleLockIfNeeded(
+            if try await recoverStaleLockIfNeeded(
                 at: lockURL,
                 staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
                 runtime: runtime
