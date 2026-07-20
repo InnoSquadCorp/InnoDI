@@ -3,6 +3,11 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
+private enum DIContainerMemberParseResult<Value> {
+    case success(Value)
+    case failure
+}
+
 struct DIContainerParser {
     struct OverridesNameConflict {
         let node: any SyntaxProtocol
@@ -111,59 +116,11 @@ struct DIContainerParser {
         var members: [ProvideMemberModel] = []
         var subContainerMembers: [SubContainerMemberModel] = []
         var firstManagedIdentifierByName: [String: TokenSyntax] = [:]
-        var hadErrors = false
-
-        if diagnoseInvalidContainerBoolArguments(
+        var hadErrors = diagnoseContainerPreflight(
             options: options,
             declaration: decl,
             context: context
-        ) {
-            hadErrors = true
-        }
-
-        if options.mainActor, let conflictingActor = detectConflictingGlobalActor(in: decl.attributes) {
-            context.emit(
-                SimpleDiagnostic.containerMainActorConflict(actorName: conflictingActor),
-                at: Syntax(decl)
-            )
-            hadErrors = true
-        }
-
-        for member in unmanagedStoredContainerMembers(in: decl) {
-            context.emit(
-                SimpleDiagnostic.containerUnmanagedStoredProperty(
-                    memberName: member.name
-                ),
-                at: member.anchor
-            )
-            hadErrors = true
-        }
-
-        for conditionalMember in conditionallyCompiledProvideMembers(in: decl) {
-            let memberName = conditionalMember.declaration.bindings.first?
-                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
-                ?? "<unknown>"
-            context.emit(
-                SimpleDiagnostic.provideConditionalDeclarationUnsupported(
-                    memberName: memberName
-                ),
-                at: Syntax(conditionalMember.attribute)
-            )
-            hadErrors = true
-        }
-
-        for conditionalMember in conditionallyCompiledSubContainerMembers(in: decl) {
-            let memberName = conditionalMember.declaration.bindings.first?
-                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
-                ?? "<unknown>"
-            context.emit(
-                SimpleDiagnostic.subConditionalDeclarationUnsupported(
-                    memberName: memberName
-                ),
-                at: Syntax(conditionalMember.attribute)
-            )
-            hadErrors = true
-        }
+        )
 
         for (sourceOrder, member) in decl.memberBlock.members.enumerated() {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else {
@@ -261,86 +218,21 @@ struct DIContainerParser {
             }
 
             if let subAttribute = subContainerAttribute {
-                guard let validatedBinding = validateBindingForAttribute(
-                    varDecl,
-                    kind: .subContainer,
-                    context: context
-                ) else {
-                    hadErrors = true
-                    continue
-                }
-                if isEscapedInnoDIIdentifier(
-                    validatedBinding.identifier.identifier
-                ) {
-                    // Public @SubContainer owns the single escaped-name
-                    // diagnostic. Hidden child support is never attached.
-                    hadErrors = true
-                    continue
-                }
-                guard isSupportedSubContainerStoredProperty(varDecl) else {
-                    context.emit(
-                        SimpleDiagnostic.subRequiresDirectContainerMember(
-                            memberName: validatedBinding.identifier.identifier.text
-                        ),
-                        at: Syntax(subAttribute)
-                    )
-                    // Fail the model before hidden support or container init
-                    // code can reference missing peers.
-                    hadErrors = true
-                    continue
-                }
-                guard let subArgs = managedSemantics.subContainerArguments else {
-                    hadErrors = true
-                    continue
-                }
-                let parentDependencyReferences = extractWithDependencyReferences(from: subAttribute)
-                let bindingReferences = extractSubContainerBindingReferences(from: subAttribute)
-                let invalidBindingReferences = extractInvalidSubContainerBindingReferences(from: subAttribute)
-                let memberName = validatedBinding.identifier.identifier.text
-                if diagnoseDuplicateManagedMemberName(
-                    memberName,
-                    identifier: validatedBinding.identifier.identifier,
+                switch parseSubContainerMember(
+                    variable: varDecl,
+                    attribute: subAttribute,
+                    semantics: managedSemantics,
+                    sourceOrder: sourceOrder,
+                    existingSubContainers: subContainerMembers,
+                    declaration: decl,
                     firstIdentifierByName: &firstManagedIdentifierByName,
                     context: context
                 ) {
+                case .success(let member):
+                    subContainerMembers.append(member)
+                case .failure:
                     hadErrors = true
-                    continue
                 }
-                let featureRoots = extractFeatureRootReferences(
-                    from: subAttribute,
-                    propertyName: memberName,
-                    existingSubContainers: subContainerMembers,
-                    declaration: decl,
-                    context: context
-                )
-                if featureRoots.hadErrors {
-                    hadErrors = true
-                    continue
-                }
-                subContainerMembers.append(
-                    SubContainerMemberModel(
-                        sourceOrder: sourceOrder,
-                        name: memberName,
-                        type: validatedBinding.typeAnnotation.type,
-                        scope: subArgs.scope,
-                        scopeName: subArgs.scopeName,
-                        scopeExpressionSyntax: extractArgumentExpression(label: "scope", from: subAttribute),
-                        parentDependencies: subArgs.dependencies,
-                        hasWithDependencies: subArgs.hasWithDependencies,
-                        sameNameWiring: subArgs.sameNameWiring,
-                        sameNameWiringExpressionSyntax: sameNameWiringExpressionSyntax(
-                            for: subArgs.sameNameWiring,
-                            in: subAttribute
-                        ),
-                        explicitBindings: bindingReferences,
-                        invalidBindingReferences: invalidBindingReferences,
-                        bindingsParseState: subArgs.bindingsParseState,
-                        parentDependencyReferences: parentDependencyReferences,
-                        featureRoots: featureRoots.roots,
-                        attribute: subAttribute,
-                        bindingSyntax: validatedBinding.binding
-                    )
-                )
                 continue
             }
 
@@ -348,116 +240,19 @@ struct DIContainerParser {
                 continue
             }
 
-            guard let validatedBinding = validateBindingForAttribute(
-                varDecl,
-                kind: .provide,
-                context: context
-            ) else {
-                hadErrors = true
-                continue
-            }
-
-            // Public `@Provide` owns the single declaration-shape diagnostic.
-            // Validate binding arity/name/type first so those established,
-            // more-specific diagnostics remain reachable without attaching an
-            // accessor to an unsafe declaration.
-            guard isSupportedProvideStoredProperty(varDecl) else {
-                hadErrors = true
-                continue
-            }
-
-            if isEscapedInnoDIIdentifier(
-                validatedBinding.identifier.identifier
-            ) {
-                // The public @Provide peer owns the single diagnostic while
-                // the member-attribute recovery bit suppresses hidden storage.
-                hadErrors = true
-                continue
-            }
-
-            let memberName = validatedBinding.identifier.identifier.text
-            if diagnoseDuplicateManagedMemberName(
-                memberName,
-                identifier: validatedBinding.identifier.identifier,
+            switch parseProvideMember(
+                variable: varDecl,
+                attribute: attribute,
+                semantics: managedSemantics,
+                sourceOrder: sourceOrder,
                 firstIdentifierByName: &firstManagedIdentifierByName,
                 context: context
             ) {
+            case .success(let member):
+                members.append(member)
+            case .failure:
                 hadErrors = true
-                continue
             }
-
-            guard let parseResult = managedSemantics.provideArguments else {
-                hadErrors = true
-                continue
-            }
-            let withDependencyReferences = extractWithDependencyReferences(
-                from: attribute,
-                requiringCanonicalProvidePath: true
-            )
-            var memberHadErrors = false
-            if parseResult.escapingParseState.isInvalid {
-                context.emit(
-                    SimpleDiagnostic.provideBoolLiteralRequired(label: "escaping"),
-                    at: extractArgumentExpression(label: "escaping", from: attribute).map(Syntax.init) ?? Syntax(attribute)
-                )
-                memberHadErrors = true
-            }
-            if parseResult.dependenciesParseState.isInvalid {
-                context.emit(
-                    SimpleDiagnostic.provideInvalidWithDependencies(
-                        memberName: memberName,
-                        expectedRoot: "Self"
-                    ),
-                    at: extractArgumentExpression(label: "with", from: attribute).map(Syntax.init) ?? Syntax(attribute)
-                )
-                memberHadErrors = true
-            }
-            if memberHadErrors {
-                hadErrors = true
-                continue
-            }
-            guard let scope = parseResult.scope else {
-                // `ProvideMacro` owns the terminal unknown-scope diagnostic so
-                // standalone uses and container members share one path without
-                // duplicate errors. The container parser still fails closed
-                // and omits the invalid member from generated scaffolding.
-                hadErrors = true
-                continue
-            }
-
-            let closureParameterList: ClosureParameterList
-            if let closure = parseResult.factoryExpr?.as(ClosureExprSyntax.self) {
-                closureParameterList = parseClosureParameterNames(closure)
-            } else if let asyncClosure = parseResult.asyncFactoryExpr?.as(ClosureExprSyntax.self) {
-                closureParameterList = parseClosureParameterNames(asyncClosure)
-            } else {
-                closureParameterList = ClosureParameterList(names: [], references: [], hasWildcard: false)
-            }
-
-            let initializerExpr = validatedBinding.binding.initializer?.value
-            members.append(
-                ProvideMemberModel(
-                    sourceOrder: sourceOrder,
-                    name: memberName,
-                    type: validatedBinding.typeAnnotation.type,
-                    scope: scope,
-                    factory: parseResult.factoryExpr,
-                    asyncFactory: parseResult.asyncFactoryExpr,
-                    asyncFactoryIsThrowing: parseResult.asyncFactoryIsThrowing,
-                    typeExpr: parseResult.typeExpr,
-                    initializer: initializerExpr,
-                    escapingInput: parseResult.escaping,
-                    escapingParseState: parseResult.escapingParseState,
-                    withDependencies: parseResult.dependencies,
-                    withDependenciesParseState: parseResult.dependenciesParseState,
-                    withDependencyReferences: withDependencyReferences,
-                    closureDependencies: closureParameterList.names,
-                    closureParameterReferences: closureParameterList.references,
-                    closureHasWildcard: closureParameterList.hasWildcard,
-                    attribute: attribute,
-                    bindingSyntax: validatedBinding.binding
-                )
-            )
         }
 
         if hadErrors {
@@ -469,6 +264,288 @@ struct DIContainerParser {
             accessLevel: accessLevel,
             members: members,
             subContainerMembers: subContainerMembers
+        )
+    }
+
+    // MARK: - Container preflight
+
+    private static func diagnoseContainerPreflight(
+        options: DIContainerAttributeInfo,
+        declaration: some DeclGroupSyntax,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        var hadErrors = diagnoseInvalidContainerBoolArguments(
+            options: options,
+            declaration: declaration,
+            context: context
+        )
+
+        if options.mainActor,
+           let conflictingActor = detectConflictingGlobalActor(
+            in: declaration.attributes
+           ) {
+            context.emit(
+                SimpleDiagnostic.containerMainActorConflict(
+                    actorName: conflictingActor
+                ),
+                at: Syntax(declaration)
+            )
+            hadErrors = true
+        }
+
+        for member in unmanagedStoredContainerMembers(in: declaration) {
+            context.emit(
+                SimpleDiagnostic.containerUnmanagedStoredProperty(
+                    memberName: member.name
+                ),
+                at: member.anchor
+            )
+            hadErrors = true
+        }
+
+        for conditionalMember in conditionallyCompiledProvideMembers(
+            in: declaration
+        ) {
+            let memberName = conditionalMember.declaration.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.emit(
+                SimpleDiagnostic.provideConditionalDeclarationUnsupported(
+                    memberName: memberName
+                ),
+                at: Syntax(conditionalMember.attribute)
+            )
+            hadErrors = true
+        }
+
+        for conditionalMember in conditionallyCompiledSubContainerMembers(
+            in: declaration
+        ) {
+            let memberName = conditionalMember.declaration.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                ?? "<unknown>"
+            context.emit(
+                SimpleDiagnostic.subConditionalDeclarationUnsupported(
+                    memberName: memberName
+                ),
+                at: Syntax(conditionalMember.attribute)
+            )
+            hadErrors = true
+        }
+        return hadErrors
+    }
+
+    // MARK: - SubContainer member parsing
+
+    private static func parseSubContainerMember(
+        variable: VariableDeclSyntax,
+        attribute: AttributeSyntax,
+        semantics: ManagedMemberSemantics,
+        sourceOrder: Int,
+        existingSubContainers: [SubContainerMemberModel],
+        declaration: some DeclGroupSyntax,
+        firstIdentifierByName: inout [String: TokenSyntax],
+        context: some MacroExpansionContext
+    ) -> DIContainerMemberParseResult<SubContainerMemberModel> {
+        guard let validatedBinding = validateBindingForAttribute(
+            variable,
+            kind: .subContainer,
+            context: context
+        ) else {
+            return .failure
+        }
+        if isEscapedInnoDIIdentifier(
+            validatedBinding.identifier.identifier
+        ) {
+            // Public @SubContainer owns the single escaped-name diagnostic.
+            // Hidden child support is never attached.
+            return .failure
+        }
+        guard isSupportedSubContainerStoredProperty(variable) else {
+            context.emit(
+                SimpleDiagnostic.subRequiresDirectContainerMember(
+                    memberName: validatedBinding.identifier.identifier.text
+                ),
+                at: Syntax(attribute)
+            )
+            // Fail before hidden child support or generated init code can
+            // reference peers that the declaration cannot safely own.
+            return .failure
+        }
+        guard let arguments = semantics.subContainerArguments else {
+            return .failure
+        }
+
+        let memberName = validatedBinding.identifier.identifier.text
+        if diagnoseDuplicateManagedMemberName(
+            memberName,
+            identifier: validatedBinding.identifier.identifier,
+            firstIdentifierByName: &firstIdentifierByName,
+            context: context
+        ) {
+            return .failure
+        }
+        let featureRoots = extractFeatureRootReferences(
+            from: attribute,
+            propertyName: memberName,
+            existingSubContainers: existingSubContainers,
+            declaration: declaration,
+            context: context
+        )
+        guard !featureRoots.hadErrors else {
+            return .failure
+        }
+
+        return .success(
+            SubContainerMemberModel(
+                sourceOrder: sourceOrder,
+                name: memberName,
+                type: validatedBinding.typeAnnotation.type,
+                scope: arguments.scope,
+                scopeName: arguments.scopeName,
+                scopeExpressionSyntax: extractArgumentExpression(
+                    label: "scope",
+                    from: attribute
+                ),
+                parentDependencies: arguments.dependencies,
+                hasWithDependencies: arguments.hasWithDependencies,
+                sameNameWiring: arguments.sameNameWiring,
+                sameNameWiringExpressionSyntax: sameNameWiringExpressionSyntax(
+                    for: arguments.sameNameWiring,
+                    in: attribute
+                ),
+                explicitBindings: extractSubContainerBindingReferences(
+                    from: attribute
+                ),
+                invalidBindingReferences:
+                    extractInvalidSubContainerBindingReferences(
+                        from: attribute
+                    ),
+                bindingsParseState: arguments.bindingsParseState,
+                parentDependencyReferences: extractWithDependencyReferences(
+                    from: attribute
+                ),
+                featureRoots: featureRoots.roots,
+                attribute: attribute,
+                bindingSyntax: validatedBinding.binding
+            )
+        )
+    }
+
+    // MARK: - Provide member parsing
+
+    private static func parseProvideMember(
+        variable: VariableDeclSyntax,
+        attribute: AttributeSyntax,
+        semantics: ManagedMemberSemantics,
+        sourceOrder: Int,
+        firstIdentifierByName: inout [String: TokenSyntax],
+        context: some MacroExpansionContext
+    ) -> DIContainerMemberParseResult<ProvideMemberModel> {
+        guard let validatedBinding = validateBindingForAttribute(
+            variable,
+            kind: .provide,
+            context: context
+        ) else {
+            return .failure
+        }
+
+        // Public @Provide owns the declaration-shape diagnostic. Binding
+        // arity/name/type remains first so its more precise diagnostics stay
+        // reachable without attaching an accessor to unsafe syntax.
+        guard isSupportedProvideStoredProperty(variable),
+              !isEscapedInnoDIIdentifier(
+                validatedBinding.identifier.identifier
+              ) else {
+            return .failure
+        }
+
+        let memberName = validatedBinding.identifier.identifier.text
+        if diagnoseDuplicateManagedMemberName(
+            memberName,
+            identifier: validatedBinding.identifier.identifier,
+            firstIdentifierByName: &firstIdentifierByName,
+            context: context
+        ) {
+            return .failure
+        }
+        guard let arguments = semantics.provideArguments else {
+            return .failure
+        }
+
+        var hadArgumentErrors = false
+        if arguments.escapingParseState.isInvalid {
+            context.emit(
+                SimpleDiagnostic.provideBoolLiteralRequired(
+                    label: "escaping"
+                ),
+                at: extractArgumentExpression(
+                    label: "escaping",
+                    from: attribute
+                ).map(Syntax.init) ?? Syntax(attribute)
+            )
+            hadArgumentErrors = true
+        }
+        if arguments.dependenciesParseState.isInvalid {
+            context.emit(
+                SimpleDiagnostic.provideInvalidWithDependencies(
+                    memberName: memberName,
+                    expectedRoot: "Self"
+                ),
+                at: extractArgumentExpression(
+                    label: "with",
+                    from: attribute
+                ).map(Syntax.init) ?? Syntax(attribute)
+            )
+            hadArgumentErrors = true
+        }
+        guard !hadArgumentErrors,
+              let scope = arguments.scope else {
+            // ProvideMacro owns the terminal unknown-scope diagnostic; this
+            // parser only fails closed so invalid members cannot reach codegen.
+            return .failure
+        }
+
+        let closureParameters: ClosureParameterList
+        if let closure = arguments.factoryExpr?.as(ClosureExprSyntax.self) {
+            closureParameters = parseClosureParameterNames(closure)
+        } else if let closure = arguments.asyncFactoryExpr?.as(
+            ClosureExprSyntax.self
+        ) {
+            closureParameters = parseClosureParameterNames(closure)
+        } else {
+            closureParameters = ClosureParameterList(
+                names: [],
+                references: [],
+                hasWildcard: false
+            )
+        }
+
+        return .success(
+            ProvideMemberModel(
+                sourceOrder: sourceOrder,
+                name: memberName,
+                type: validatedBinding.typeAnnotation.type,
+                scope: scope,
+                factory: arguments.factoryExpr,
+                asyncFactory: arguments.asyncFactoryExpr,
+                asyncFactoryIsThrowing: arguments.asyncFactoryIsThrowing,
+                typeExpr: arguments.typeExpr,
+                initializer: validatedBinding.binding.initializer?.value,
+                escapingInput: arguments.escaping,
+                escapingParseState: arguments.escapingParseState,
+                withDependencies: arguments.dependencies,
+                withDependenciesParseState: arguments.dependenciesParseState,
+                withDependencyReferences: extractWithDependencyReferences(
+                    from: attribute,
+                    requiringCanonicalProvidePath: true
+                ),
+                closureDependencies: closureParameters.names,
+                closureParameterReferences: closureParameters.references,
+                closureHasWildcard: closureParameters.hasWildcard,
+                attribute: attribute,
+                bindingSyntax: validatedBinding.binding
+            )
         )
     }
 }

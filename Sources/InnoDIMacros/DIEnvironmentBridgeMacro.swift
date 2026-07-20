@@ -160,6 +160,43 @@ private func validateEnvironmentBridge(
     context: some MacroExpansionContext,
     emitDiagnostics: Bool
 ) -> EnvironmentBridgeValidationResult {
+    guard validateEnvironmentBridgeDeclaration(
+        attribute: attribute,
+        declaration: declaration,
+        context: context,
+        emitDiagnostics: emitDiagnostics
+    ) else {
+        return EnvironmentBridgeValidationResult(mappings: nil)
+    }
+
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+          let firstArgument = arguments.first,
+          let arrayExpr = firstArgument.expression.as(ArrayExprSyntax.self) else {
+        if emitDiagnostics {
+            context.emit(
+                SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidArguments(),
+                at: Syntax(attribute)
+            )
+        }
+        return EnvironmentBridgeValidationResult(mappings: nil)
+    }
+
+    return parseEnvironmentBridgeMappings(
+        arrayExpr,
+        declaration: declaration,
+        context: context,
+        emitDiagnostics: emitDiagnostics
+    )
+}
+
+// MARK: - Declaration preflight
+
+private func validateEnvironmentBridgeDeclaration(
+    attribute: AttributeSyntax,
+    declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext,
+    emitDiagnostics: Bool
+) -> Bool {
     if isDeclarationInExtensionLookupScope(
         declaration,
         lexicalContext: context.lexicalContext
@@ -171,7 +208,7 @@ private func validateEnvironmentBridge(
                 at: Syntax(attribute)
             )
         }
-        return EnvironmentBridgeValidationResult(mappings: nil)
+        return false
     }
 
     if let unsupported = unsupportedEnvironmentBridgeDeclaration(
@@ -187,7 +224,7 @@ private func validateEnvironmentBridge(
                 at: Syntax(attribute)
             )
         }
-        return EnvironmentBridgeValidationResult(mappings: nil)
+        return false
     }
 
     if let privateLookupComponent = privateNestedEnvironmentBridgeLookupComponent(
@@ -203,7 +240,7 @@ private func validateEnvironmentBridge(
                 at: Syntax(attribute)
             )
         }
-        return EnvironmentBridgeValidationResult(mappings: nil)
+        return false
     }
 
     if environmentBridgeHasParameterPack(declaration) {
@@ -214,7 +251,7 @@ private func validateEnvironmentBridge(
                 at: Syntax(attribute)
             )
         }
-        return EnvironmentBridgeValidationResult(mappings: nil)
+        return false
     }
 
     let qualifierConflicts = environmentBridgeQualifierConflicts(
@@ -261,34 +298,27 @@ private func validateEnvironmentBridge(
                 : SimpleDiagnostic.swiftUIEnvironmentBridgeGeneratedHelperNameConflict(
                     memberName: conflict.name
                 )
-            context.emit(
-                message,
-                at: conflict.anchor
-            )
+            context.emit(message, at: conflict.anchor)
         }
     }
-    if hasCoreContainerConflict
-        || !qualifierConflicts.isEmpty
-        || !generatedNameConflicts.isEmpty {
-        return EnvironmentBridgeValidationResult(mappings: nil)
-    }
+    return !hasCoreContainerConflict
+        && qualifierConflicts.isEmpty
+        && generatedNameConflicts.isEmpty
+}
 
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
-          let firstArgument = arguments.first,
-          let arrayExpr = firstArgument.expression.as(ArrayExprSyntax.self) else {
-        if emitDiagnostics {
-            context.emit(
-                SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidArguments(),
-                at: Syntax(attribute)
-            )
+// MARK: - Mapping parsing
+
+private func parseEnvironmentBridgeMappings(
+    _ arrayExpr: ArrayExprSyntax,
+    declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext,
+    emitDiagnostics: Bool
+) -> EnvironmentBridgeValidationResult {
+    let membersByName = Dictionary(
+        uniqueKeysWithValues: containerMemberInfos(in: declaration).map {
+            ($0.name, $0)
         }
-        return EnvironmentBridgeValidationResult(mappings: nil)
-    }
-
-    var membersByName: [String: EnvironmentBridgeContainerMemberInfo] = [:]
-    for memberInfo in containerMemberInfos(in: declaration) {
-        membersByName[memberInfo.name] = memberInfo
-    }
+    )
     var seenMembers: Set<String> = []
     var mappings: [EnvironmentBridgeMappingInfo] = []
     var hadErrors = false
