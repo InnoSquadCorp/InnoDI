@@ -49,6 +49,7 @@ package enum GeneratedQualifierBuildValidator {
         }
 
         let shadows = scanResults.flatMap(\.shadows)
+        let qualifierIndex = QualifierValidationIndex(shadows: shadows)
         let extensions = scanResults.flatMap(\.extensions)
         let nominalDeclarations = scanResults.flatMap(\.nominalDeclarations)
         let typeAliases = scanResults.flatMap(\.typeAliases)
@@ -84,10 +85,14 @@ package enum GeneratedQualifierBuildValidator {
             PendingInheritanceIssueKey: PendingInheritanceIssue
         ] = [:]
         for site in supportedSites {
-            let sameTargetShadows = shadows.filter {
-                targetScopeKey($0.targetID) == targetScopeKey(site.targetID)
-            }
-            for shadow in sameTargetShadows {
+            let visibleQualifierNames = qualifierNames(
+                requiredBy: site,
+                lookupScope: .sameTargetTopLevel
+            )
+            for shadow in qualifierIndex.shadows(
+                targetID: site.targetID,
+                names: visibleQualifierNames
+            ) {
                 guard let lookupScope = lookupScope(
                     of: shadow,
                     from: site,
@@ -124,8 +129,10 @@ package enum GeneratedQualifierBuildValidator {
                           let siteTarget = manifest.target(id: siteTargetID) else {
                         continue
                     }
-                    for shadow in shadows
-                        where shadow.targetID == exposure.targetID {
+                    for shadow in qualifierIndex.shadows(
+                        targetID: exposure.targetID,
+                        names: visibleQualifierNames
+                    ) {
                         guard shadow.isVisibleFromDependency(
                                 samePackage: dependencyTarget.packageIdentity
                                     == siteTarget.packageIdentity,
@@ -157,7 +164,7 @@ package enum GeneratedQualifierBuildValidator {
                 for: site,
                 nominalDeclarations: nominalDeclarations,
                 typeAliases: typeAliases,
-                shadows: shadows,
+                qualifierIndex: qualifierIndex,
                 resolvedExtensionOwners: resolvedExtensionOwners,
                 manifest: manifest,
                 importsBySourceIdentity: importsBySourceIdentity,
@@ -172,6 +179,59 @@ package enum GeneratedQualifierBuildValidator {
         issues.append(contentsOf: pendingInheritance.values.map(\.issue))
         return ValidationIssueReport(issues: sortedIssues(issues))
     }
+}
+
+private struct QualifierValidationIndex {
+    private struct ShadowKey: Hashable {
+        let targetScope: String
+        let name: String
+    }
+
+    private let shadowsByTargetAndName: [
+        ShadowKey: [QualifierShadowDeclaration]
+    ]
+
+    init(shadows: [QualifierShadowDeclaration]) {
+        shadowsByTargetAndName = Dictionary(
+            grouping: shadows,
+            by: {
+                ShadowKey(
+                    targetScope: targetScopeKey($0.targetID),
+                    name: $0.name
+                )
+            }
+        )
+    }
+
+    func shadows(
+        targetID: WorkspaceTargetID?,
+        names: Set<String>
+    ) -> [QualifierShadowDeclaration] {
+        let targetScope = targetScopeKey(targetID)
+        return names.sorted().flatMap { name in
+            shadowsByTargetAndName[
+                ShadowKey(targetScope: targetScope, name: name),
+                default: []
+            ]
+        }
+    }
+}
+
+private func qualifierNames(
+    requiredBy site: QualifierMacroSite,
+    lookupScope: QualifierLookupScope
+) -> Set<String> {
+    let requirements: Set<GeneratedQualifierRequirement>
+    switch lookupScope {
+    case .sameTargetTopLevel, .visibleDependency:
+        requirements = site.usage.memberBodies.union(
+            site.usage.fileScopeExtensions
+        )
+    case .enclosingNominalMember, .matchingExtensionMember,
+         .inheritedSuperclassMember:
+        requirements = site.usage.memberBodies
+    }
+    return Set(requirements.map(\.name))
 }
 
 private struct PendingQualifierIssueKey: Hashable {
@@ -546,7 +606,7 @@ private func appendInheritedQualifierIssues(
     for site: QualifierMacroSite,
     nominalDeclarations: [QualifierNominalDeclaration],
     typeAliases: [TargetScopedTypeAlias],
-    shadows: [QualifierShadowDeclaration],
+    qualifierIndex: QualifierValidationIndex,
     resolvedExtensionOwners: [String: String],
     manifest: WorkspaceAnalysisManifest?,
     importsBySourceIdentity: [String: [QualifierImportEntry]],
@@ -564,6 +624,10 @@ private func appendInheritedQualifierIssues(
     guard site.hasInheritedQualifierRequirements else {
         return
     }
+    let inheritedQualifierNames = qualifierNames(
+        requiredBy: site,
+        lookupScope: .inheritedSuperclassMember
+    )
 
     let startingClasses = nominalDeclarations
         .filter { declaration in
@@ -610,8 +674,10 @@ private func appendInheritedQualifierIssues(
                     // superclass chain to inspect.
                     break inheritanceChain
                 }
-                for shadow in shadows
-                    where shadow.targetID == inheritedDeclaration.targetID {
+                for shadow in qualifierIndex.shadows(
+                    targetID: inheritedDeclaration.targetID,
+                    names: inheritedQualifierNames
+                ) {
                     guard isInheritedMember(
                             shadow,
                             of: inheritedDeclaration,
