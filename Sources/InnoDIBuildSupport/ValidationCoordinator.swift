@@ -563,338 +563,65 @@ package enum ValidationCoordinator {
             )
         }
         let signatureCollection = signatureCollectionOutput.result
-        let signature = signatureCollection.signature
-        let sharedRunKey = sharedRunCacheKey(for: signature)
-        let signatureCollectionMilliseconds = validationElapsedMilliseconds(since: signatureCollectionStartTime)
-
-        func finalizeOutcome(
-            result: ValidationCommandResult,
-            wasCached: Bool,
-            sharedRunRecord: SharedValidationRunRecord
-        ) throws -> ValidationExecutionOutcome {
-            try writeStamp(signature: signature, result: result, to: outputDirectoryURL)
-            let combinedReasonCodes = Array(
-                Set(signatureCollection.reasonCodes + sharedRunRecord.reasonCodes)
-            )
-            .sorted { $0.rawValue < $1.rawValue }
-
-            let artifact = ValidationMetricsArtifact(
-                signature: signature,
-                wasCached: wasCached,
-                resultExitCode: result.exitCode,
-                reasonCodes: combinedReasonCodes,
-                signatureMetrics: signatureCollection.metrics,
-                fileChanges: signatureCollection.fileChanges,
-                invocationMetrics: ValidationInvocationMetrics(
-                    signatureCollectionMilliseconds: signatureCollectionMilliseconds,
-                    totalCoordinatorMilliseconds: validationElapsedMilliseconds(since: coordinatorStartTime)
-                ),
-                liveRunMetrics: sharedRunRecord.liveRunMetrics,
-                issues: sharedRunRecord.issues,
-                humanSummarySource: "dag-validation-summary.md"
-            )
-            try persistMetricsArtifact(
-                artifact,
-                to: outputDirectoryURL.appendingPathComponent("dag-validation-metrics.json")
-            )
-            try persistSummaryReport(
-                ValidationLogging.renderMarkdownSummary(for: artifact),
-                to: outputDirectoryURL.appendingPathComponent("dag-validation-summary.md")
-            )
-
-            let verboseSummary = verboseLoggingEnabled ? ValidationLogging.renderSummary(for: artifact) : nil
-            return ValidationExecutionOutcome(
-                result: result,
-                wasCached: wasCached,
-                signature: signature,
-                metricsArtifact: artifact,
-                verboseSummary: verboseSummary
-            )
-        }
+        let outcomeWriter = ValidationOutcomeWriter(
+            signatureCollection: signatureCollection,
+            signatureCollectionMilliseconds: validationElapsedMilliseconds(
+                since: signatureCollectionStartTime
+            ),
+            coordinatorStartTime: coordinatorStartTime,
+            outputDirectory: outputDirectoryURL,
+            verboseLoggingEnabled: verboseLoggingEnabled
+        )
 
         if let unsafeFilesystemOutcome {
-            return try finalizeOutcome(
+            return try outcomeWriter.finalize(
                 result: unsafeFilesystemOutcome.result,
                 wasCached: false,
                 sharedRunRecord: unsafeFilesystemOutcome.record
             )
         }
 
-        let sharedRunDirectory = stateDirectoryURL.appendingPathComponent(sharedRunKey, isDirectory: true)
-        try fileManager.createDirectory(at: sharedRunDirectory, withIntermediateDirectories: true)
-        try pruneSharedRunDirectories(keepingDirectoryName: sharedRunKey, in: stateDirectoryURL)
+        let sharedRunKey = sharedRunCacheKey(
+            for: signatureCollection.signature
+        )
+        let paths = ValidationSharedRunPaths(
+            stateDirectory: stateDirectoryURL,
+            sharedRunKey: sharedRunKey
+        )
+        try fileManager.createDirectory(
+            at: paths.directory,
+            withIntermediateDirectories: true
+        )
+        try pruneSharedRunDirectories(
+            keepingDirectoryName: sharedRunKey,
+            in: stateDirectoryURL
+        )
 
-        let resultURL = sharedRunDirectory.appendingPathComponent("result.json")
-        let sharedRunRecordURL = sharedRunDirectory.appendingPathComponent("validation-metrics.json")
-        let sharedSummaryURL = sharedRunDirectory.appendingPathComponent("validation-summary.md")
-        let lockURL = sharedRunDirectory.appendingPathComponent("lock")
-
-        if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
-            resultURL: resultURL,
-            sharedRunRecordURL: sharedRunRecordURL
-        ) {
-            return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
-        }
-
-        func executeLockedValidation(
-            descriptor lockDescriptor: Int32,
-            recoveredStaleLock: Bool
-        ) throws -> ValidationExecutionOutcome {
-            let lockMetadata = ValidationCoordinatorLockMetadata(
-                pid: runtime.currentProcessID(),
-                createdAt: runtime.currentDate().timeIntervalSince1970,
-                bootID: runtime.currentBootID()
-            )
-
-            do {
-                try persistLockMetadata(lockMetadata, descriptor: lockDescriptor, path: lockURL.path(percentEncoded: false))
-            } catch {
-                releaseLock(descriptor: lockDescriptor, at: lockURL)
-                throw error
-            }
-            defer { releaseLock(descriptor: lockDescriptor, at: lockURL) }
-
-            if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
-                resultURL: resultURL,
-                sharedRunRecordURL: sharedRunRecordURL
-            ) {
-                return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
-            }
-
-            let result: ValidationCommandResult
-            let customInitStartTime = validationNow()
-            let workspaceSnapshot: WorkspaceSourceSnapshot
-            if let analysisManifest {
-                workspaceSnapshot = try loadWorkspaceSourceSnapshot(
-                    validated: analysisManifest,
-                    reusingParsedSources: signatureCollectionOutput.parsedSources
-                )
-            } else {
-                workspaceSnapshot = try loadWorkspaceSourceSnapshot(
-                    rootPath: rootPath,
-                    reusingParsedSources: signatureCollectionOutput.parsedSources
-                )
-            }
-            let aliasReport = DeferredWrapperAliasBuildValidator.validate(snapshot: workspaceSnapshot)
-            let customInitValidation = try CustomInitBuildValidator.validate(snapshot: workspaceSnapshot)
-            let customInitFailure = customInitValidation.asCommandResult()
-            let customInitValidationMilliseconds = validationElapsedMilliseconds(since: customInitStartTime)
-
-            let semanticValidationMilliseconds: Double
-            let hierarchyValidationMilliseconds: Double
-            let dagValidationMilliseconds: Double
-            var liveRunReasonCodes: [ValidationReasonCode] = recoveredStaleLock
-                ? [.staleLockRecovered]
-                : []
-            let issues: [ValidationIssue]
-            if let customInitFailure {
-                result = customInitFailure
-                semanticValidationMilliseconds = 0
-                hierarchyValidationMilliseconds = 0
-                dagValidationMilliseconds = 0
-                liveRunReasonCodes.append(.liveRunCustomInitFailure)
-                issues = customInitValidation.issues
-            } else {
-                let semanticValidationStartTime = validationNow()
-                let qualifierValidation = GeneratedQualifierBuildValidator
-                    .validate(snapshot: workspaceSnapshot)
-                let semanticValidation: ValidationIssueReport
-                if qualifierValidation.hasFailures {
-                    semanticValidation = qualifierValidation
-                } else {
-                    let containerValidation = try ContainerSemanticBuildValidator
-                        .validate(snapshot: workspaceSnapshot)
-                    semanticValidation = ValidationIssueReport(
-                        issues: qualifierValidation.issues
-                            + containerValidation.issues
-                    )
-                }
-                let semanticFailure = semanticValidation.asCommandResult()
-                semanticValidationMilliseconds = validationElapsedMilliseconds(since: semanticValidationStartTime)
-
-                if let semanticFailure {
-                    result = semanticFailure
-                    hierarchyValidationMilliseconds = 0
-                    dagValidationMilliseconds = 0
-                    liveRunReasonCodes.append(.liveRunSemanticFailure)
-                    issues = semanticValidation.issues
-                } else {
-                    let hierarchyValidationStartTime = validationNow()
-                    let moduleGraph: WorkspaceModuleGraphSnapshot
-                    if let analysisManifest {
-                        moduleGraph = try ModuleGraphProvider.snapshot(
-                            validated: analysisManifest
-                        )
-                    } else {
-                        moduleGraph = try ModuleGraphProvider.snapshot(
-                            rootPath: rootPath
-                        )
-                    }
-                    let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(
-                        snapshot: workspaceSnapshot,
-                        moduleGraph: moduleGraph
-                    )
-                    let hierarchyFailure = hierarchyValidation.asCommandResult()
-                    hierarchyValidationMilliseconds = validationElapsedMilliseconds(since: hierarchyValidationStartTime)
-
-                    if let hierarchyFailure {
-                        result = hierarchyFailure
-                        dagValidationMilliseconds = 0
-                        liveRunReasonCodes.append(.liveRunSemanticValidation)
-                        liveRunReasonCodes.append(.liveRunHierarchyFailure)
-                        issues = semanticValidation.issues + hierarchyValidation.issues
-                    } else {
-                        let dagValidationStartTime = validationNow()
-                        result = try runner.runValidationTool(
-                            toolPath: toolPath,
-                            rootPath: rootPath,
-                            snapshot: workspaceSnapshot
-                        )
-                        dagValidationMilliseconds = validationElapsedMilliseconds(since: dagValidationStartTime)
-                        liveRunReasonCodes.append(.liveRunSemanticValidation)
-                        liveRunReasonCodes.append(.liveRunHierarchyValidation)
-                        liveRunReasonCodes.append(.liveRunDAGValidation)
-                        issues = semanticValidation.issues + hierarchyValidation.issues
-                    }
-                }
-            }
-
-            let sharedRunRecord = SharedValidationRunRecord(
-                liveRunMetrics: ValidationLiveRunMetrics(
-                    customInitValidationMilliseconds: customInitValidationMilliseconds,
-                    semanticValidationMilliseconds: semanticValidationMilliseconds,
-                    hierarchyValidationMilliseconds: hierarchyValidationMilliseconds,
-                    dagValidationMilliseconds: dagValidationMilliseconds
-                ),
-                reasonCodes: liveRunReasonCodes,
-                issues: issues + aliasReport.issues
-            )
-            try persistSharedRunRecord(sharedRunRecord, to: sharedRunRecordURL)
-            try persistResult(result, to: resultURL)
-            let sharedArtifact = ValidationMetricsArtifact(
-                signature: signature,
-                wasCached: false,
-                resultExitCode: result.exitCode,
-                reasonCodes: Array(Set(signatureCollection.reasonCodes + liveRunReasonCodes)).sorted { $0.rawValue < $1.rawValue },
-                signatureMetrics: signatureCollection.metrics,
-                fileChanges: signatureCollection.fileChanges,
-                invocationMetrics: ValidationInvocationMetrics(
-                    signatureCollectionMilliseconds: signatureCollectionMilliseconds,
-                    totalCoordinatorMilliseconds: validationElapsedMilliseconds(since: coordinatorStartTime)
-                ),
-                liveRunMetrics: sharedRunRecord.liveRunMetrics,
-                issues: issues + aliasReport.issues,
-                humanSummarySource: "validation-summary.md"
-            )
-            try persistSummaryReport(
-                ValidationLogging.renderMarkdownSummary(for: sharedArtifact),
-                to: sharedSummaryURL
-            )
-
-            return try finalizeOutcome(result: result, wasCached: false, sharedRunRecord: sharedRunRecord)
-        }
-
-        func acquireAndExecuteLiveValidation(recoveredStaleLock: Bool) throws -> ValidationExecutionOutcome? {
-            guard let lockDescriptor = try acquireLock(at: lockURL) else {
-                return nil
-            }
-
-            return try executeLockedValidation(
-                descriptor: lockDescriptor,
-                recoveredStaleLock: recoveredStaleLock
+        if let cachedRun = paths.loadCachedRun() {
+            return try outcomeWriter.finalize(
+                result: cachedRun.result,
+                wasCached: true,
+                sharedRunRecord: cachedRun.record
             )
         }
 
-        let lockAcquisitionDeadline = runtime.monotonicNow() + lockPolicy.maxWaitSeconds
-        var backoffSeconds = lockPolicy.initialBackoffSeconds
-        var recoveredStaleLock = false
-
-        while runtime.monotonicNow() < lockAcquisitionDeadline {
-            if let outcome = try acquireAndExecuteLiveValidation(recoveredStaleLock: recoveredStaleLock) {
-                return outcome
-            }
-
-            if try recoverStaleLockIfNeeded(
-                at: lockURL,
-                staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
-                runtime: runtime
-            ) {
-                recoveredStaleLock = true
-                backoffSeconds = lockPolicy.initialBackoffSeconds
-                continue
-            }
-
-            if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
-                resultURL: resultURL,
-                sharedRunRecordURL: sharedRunRecordURL
-            ) {
-                return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
-            }
-
-            let remainingWait = lockAcquisitionDeadline - runtime.monotonicNow()
-            guard remainingWait > 0 else {
-                break
-            }
-
-            let delaySeconds = min(backoffSeconds, remainingWait)
-            try await runtime.sleep(delaySeconds)
-            backoffSeconds = min(backoffSeconds * 2, lockPolicy.maxBackoffSeconds)
-        }
-
-        if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
-            resultURL: resultURL,
-            sharedRunRecordURL: sharedRunRecordURL
-        ) {
-            return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
-        }
-
-        if try recoverStaleLockIfNeeded(
-            at: lockURL,
-            staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
+        let executor = ValidationLockedRunExecutor(
+            rootPath: rootPath,
+            analysisManifest: analysisManifest,
+            toolPath: toolPath,
+            runner: runner,
+            runtime: runtime,
+            signatureCollectionOutput: signatureCollectionOutput,
+            paths: paths,
+            outcomeWriter: outcomeWriter
+        )
+        return try await ValidationSharedRunResolver(
+            executor: executor,
+            outcomeWriter: outcomeWriter,
+            paths: paths,
+            lockPolicy: lockPolicy,
             runtime: runtime
-        ) {
-            recoveredStaleLock = true
-        }
-
-        if let (cachedResult, sharedRunRecord) = loadCachedSharedRun(
-            resultURL: resultURL,
-            sharedRunRecordURL: sharedRunRecordURL
-        ) {
-            return try finalizeOutcome(result: cachedResult, wasCached: true, sharedRunRecord: sharedRunRecord)
-        }
-
-        if let outcome = try acquireAndExecuteLiveValidation(recoveredStaleLock: recoveredStaleLock) {
-            return outcome
-        }
-
-        let timeoutReasonCodes: [ValidationReasonCode] = recoveredStaleLock
-            ? [.staleLockRecovered, .lockContentionTimeout]
-            : [.lockContentionTimeout]
-        let timeoutRecord = SharedValidationRunRecord(
-            liveRunMetrics: ValidationLiveRunMetrics(
-                customInitValidationMilliseconds: 0,
-                semanticValidationMilliseconds: 0,
-                hierarchyValidationMilliseconds: 0,
-                dagValidationMilliseconds: 0
-            ),
-            reasonCodes: timeoutReasonCodes,
-            issues: []
-        )
-        let timeoutResult = ValidationCommandResult(
-            exitCode: 1,
-            stdout: "",
-            stderr: lockTimeoutDiagnosticMessage(
-                lockURL: lockURL,
-                lockPolicy: lockPolicy,
-                recoveredStaleLock: recoveredStaleLock,
-                runtime: runtime
-            )
-        )
-        return try finalizeOutcome(
-            result: timeoutResult,
-            wasCached: false,
-            sharedRunRecord: timeoutRecord
-        )
+        ).resolve()
     }
 
     /// Serializes access to the AST digest manifest used by signature
