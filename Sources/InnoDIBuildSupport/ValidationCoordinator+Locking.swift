@@ -173,7 +173,7 @@ internal func recoverStaleLockIfNeeded(
     at url: URL,
     staleLockAgeSeconds: TimeInterval,
     runtime: ValidationCoordinatorRuntime
-) throws -> Bool {
+) async throws -> Bool {
     let fileManager = FileManager.default
     let path = url.path(percentEncoded: false)
 
@@ -201,7 +201,7 @@ internal func recoverStaleLockIfNeeded(
            let currentBootID = runtime.currentBootID(),
            lockedBootID != currentBootID
         {
-            runtime.beforeStaleLockRemoval(url)
+            await runtime.beforeStaleLockRemoval(url)
             try? fileManager.removeItem(at: url)
             return fileManager.fileExists(atPath: path) == false
         }
@@ -209,7 +209,7 @@ internal func recoverStaleLockIfNeeded(
         guard runtime.processExists(metadata.pid) == false else {
             return false
         }
-        runtime.beforeStaleLockRemoval(url)
+        await runtime.beforeStaleLockRemoval(url)
         try? fileManager.removeItem(at: url)
         return fileManager.fileExists(atPath: path) == false
     }
@@ -221,7 +221,7 @@ internal func recoverStaleLockIfNeeded(
         return false
     }
 
-    runtime.beforeStaleLockRemoval(url)
+    await runtime.beforeStaleLockRemoval(url)
     try? fileManager.removeItem(at: url)
     return fileManager.fileExists(atPath: path) == false
 }

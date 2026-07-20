@@ -396,7 +396,7 @@ struct ValidationSharedRunResolver<Runner: ValidationCommandRunning> {
                 return outcome
             }
 
-            if try recoverStaleLockIfNeeded(
+            if try await recoverStaleLockIfNeeded(
                 at: paths.lock,
                 staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
                 runtime: runtime
@@ -427,7 +427,7 @@ struct ValidationSharedRunResolver<Runner: ValidationCommandRunning> {
         if let cachedOutcome = try finalizeCachedRun() {
             return cachedOutcome
         }
-        if try recoverStaleLockIfNeeded(
+        if try await recoverStaleLockIfNeeded(
             at: paths.lock,
             staleLockAgeSeconds: lockPolicy.staleLockAgeSeconds,
             runtime: runtime
