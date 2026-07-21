@@ -231,7 +231,16 @@ jobs:
         run: swift test
 
       - name: Run strict concurrency test suite
-        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+        run: >-
+          swift test
+          -Xswiftc -strict-concurrency=complete
+          -Xswiftc -warnings-as-errors
+          --enable-code-coverage
+
+      - name: Enforce package and module coverage floors
+        run: |
+          Tools/collect-coverage.sh
+          python3 Tools/check-coverage-floor.py
 
       - name: Validate repository contracts
         run: |

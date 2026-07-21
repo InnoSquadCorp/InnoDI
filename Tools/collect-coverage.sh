@@ -15,9 +15,8 @@ set -euo pipefail
 # swift-syntax) are excluded so the reported coverage tracks the library
 # surface, not snapshot fixtures or third-party code.
 #
-# This script is informational. CI publishes the artifacts and the PR
-# comment, but does not gate merges on coverage thresholds — the goal is
-# visibility into per-module gaps rather than a hard enforcement number.
+# CI publishes these artifacts and then runs `check-coverage-floor.py` so
+# package/module regressions fail independently of artifact generation.
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -167,7 +166,7 @@ with open(os.path.join(out_dir, "summary.md"), "w") as fh:
         )
     fh.write(
         "\n_Tests, examples, swift-syntax, and other dependencies are excluded._ "
-        "Coverage is informational; merges are not gated on these numbers.\n"
+        "Checked-in package and module floors gate main and releases.\n"
     )
 
 print(f"Per-module rollup: {len(result_modules)} modules, {total_files} files")
