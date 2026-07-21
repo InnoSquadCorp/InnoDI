@@ -192,6 +192,21 @@ syntactic index, not a replacement for Swift's type checker.
 )
 ```
 
+As of 5.1, the same product also conforms to the native Xcode build-tool plugin
+API. Native Xcode projects and Tuist-generated projects can attach the package
+plugin directly to each container target. For a Tuist workspace, the plugin
+discovers the workspace root and validates all production Swift sources so
+cross-project container references are included in the source DAG.
+
+The Xcode plugin API does not expose Tuist's complete cross-project target
+dependency topology. The 5.1 fallback therefore preserves full-source DAG and
+declaration validation but cannot prove every module-edge hierarchy rule from
+Xcode alone; keep a topology-aware SwiftPM or CI hierarchy check when
+`@DIComponent` / `@DIHierarchyRoot` module relationships are a release gate.
+Xcode validation intentionally declares no output files because
+multi-destination variants share a plugin work directory, so Xcode may report
+that the validation command runs during every build.
+
 ## Quick Start
 
 <!-- innodi:compile -->

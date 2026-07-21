@@ -44,6 +44,17 @@ source container 中显式表达。
 以及已导入 dependency target 中可见的 `public` / `package` qualifier shadow，并在
 Swift 编译前拒绝 bridge 的 direct-extension attachment 和 standalone local target。
 
+从 5.1 开始，该 package plugin 也实现 `XcodeBuildToolPlugin`。请在原生 Xcode
+project 或 Tuist 生成的 project 中，把它直接附加到每个 container target。对于
+Tuist workspace，它会发现 workspace root 并构建一个 production-source snapshot，
+让跨 project container 引用继续参与 source-level validation。
+
+Xcode plugin API 不会公开 Tuist 完整的跨 project target dependency topology。
+因此 Tuist fallback 会验证完整 source DAG 和 declaration contract，但依赖精确
+target graph 的 module-edge hierarchy 规则仍需 topology-aware SwiftPM 或 CI check。
+multi-destination variant 可能共享 plugin work directory，所以 Xcode command 不声明
+output，Xcode 可能在每次 build 时调度 validation。
+
 对于 class bridge，或嵌套在 class 中的 container/bridge，preflight 会把第一个
 inherited type 作为潜在 superclass 继续追踪。经过的每个 class 和 typealias 都必须在
 workspace snapshot 中 source-visible。仅存在于 SDK 或 binary、无法解析或解析结果

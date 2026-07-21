@@ -198,6 +198,21 @@ den Swift Type Checker.
 )
 ```
 
+Ab 5.1 unterstuetzt dasselbe Product auch die native Xcode Build-Tool-Plugin-
+API. Native Xcode-Projekte und von Tuist erzeugte Projekte koennen das Package-
+Plugin direkt an jedes Container-Target binden. In Tuist-Workspaces erkennt das
+Plugin den Workspace-Root und validiert alle Production-Swift-Sources, damit
+projektuebergreifende Container-Referenzen im Source-DAG enthalten sind.
+
+Die Xcode-Plugin-API stellt Tuists vollstaendige projektuebergreifende Target-
+Dependency-Topologie nicht bereit. Der 5.1-Fallback bewahrt daher Full-Source-
+DAG- und Declaration-Validation, kann aber nicht jede Module-Edge-Hierarchy-
+Regel allein aus Xcode beweisen. Wenn `@DIComponent` / `@DIHierarchyRoot`-
+Modulbeziehungen ein Release Gate sind, behalten Sie einen topology-aware
+SwiftPM- oder CI-Hierarchy-Check bei. Da Multi-Destination-Varianten dasselbe
+Plugin Work Directory teilen, werden keine Output Files deklariert; Xcode kann
+daher melden, dass der Validation Command bei jedem Build laeuft.
+
 ## Schnellstart
 
 <!-- innodi:compile -->

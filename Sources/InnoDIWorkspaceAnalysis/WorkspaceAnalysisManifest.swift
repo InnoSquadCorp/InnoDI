@@ -25,6 +25,13 @@ package struct WorkspaceTargetID:
         Self(rawValue: "swiftpm:\(packageIdentity):\(moduleName)")
     }
 
+    package static func xcode(
+        projectIdentity: String,
+        moduleName: String
+    ) -> Self {
+        Self(rawValue: "xcode:\(projectIdentity):\(moduleName)")
+    }
+
     package static func < (lhs: Self, rhs: Self) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
@@ -239,6 +246,7 @@ package struct ValidatedWorkspaceAnalysisManifest: Equatable, Sendable {
 package struct WorkspaceAnalysisManifest: Codable, Equatable, Sendable {
     package static let currentSchemaVersion = 1
     package static let swiftPMBuildSystem = "swiftpm"
+    package static let xcodeBuildSystem = "xcode"
     package static let targetVisibleDependencyScope =
         "primaryTargetWithVisibleDependencies"
 

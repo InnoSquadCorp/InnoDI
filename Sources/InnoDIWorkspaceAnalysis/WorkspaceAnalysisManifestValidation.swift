@@ -15,7 +15,9 @@ extension WorkspaceAnalysisManifest {
                 schemaVersion
             )
         }
-        guard buildSystem == Self.swiftPMBuildSystem else {
+        guard [Self.swiftPMBuildSystem, Self.xcodeBuildSystem].contains(
+            buildSystem
+        ) else {
             throw WorkspaceAnalysisManifestError.unsupportedBuildSystem(
                 buildSystem
             )
@@ -106,6 +108,7 @@ extension WorkspaceAnalysisManifest {
 
             try validateTarget(
                 target,
+                buildSystem: buildSystem,
                 knownTargetIDs: knownTargetIDs,
                 validateSourceAvailability: validateSourceAvailability,
                 fileManager: fileManager,
@@ -145,6 +148,7 @@ extension WorkspaceAnalysisManifest {
 
 private func validateTarget(
     _ target: WorkspaceAnalysisTarget,
+    buildSystem: String,
     knownTargetIDs: Set<WorkspaceTargetID>,
     validateSourceAvailability: Bool,
     fileManager: FileManager,
@@ -170,10 +174,23 @@ private func validateTarget(
             target.moduleName
         )
     }
-    let expectedID = WorkspaceTargetID.swiftPM(
-        packageIdentity: target.packageIdentity,
-        moduleName: target.moduleName
-    )
+    let expectedID: WorkspaceTargetID
+    switch buildSystem {
+    case WorkspaceAnalysisManifest.swiftPMBuildSystem:
+        expectedID = .swiftPM(
+            packageIdentity: target.packageIdentity,
+            moduleName: target.moduleName
+        )
+    case WorkspaceAnalysisManifest.xcodeBuildSystem:
+        expectedID = .xcode(
+            projectIdentity: target.packageIdentity,
+            moduleName: target.moduleName
+        )
+    default:
+        throw WorkspaceAnalysisManifestError.unsupportedBuildSystem(
+            buildSystem
+        )
+    }
     guard target.id == expectedID else {
         throw WorkspaceAnalysisManifestError.nonCanonicalTargetID(
             actual: target.id,

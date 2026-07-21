@@ -181,6 +181,20 @@ type checker를 대신하는 semantic index가 아니라 보수적인 syntactic 
 )
 ```
 
+5.1부터 같은 product가 네이티브 Xcode build-tool plugin API도 지원합니다.
+네이티브 Xcode project와 Tuist가 생성한 project는 package plugin을 각 container
+target에 직접 연결할 수 있습니다. Tuist workspace에서는 plugin이 workspace root를
+찾아 모든 production Swift source를 검증하므로 교차 project container 참조도 source
+DAG에 포함됩니다.
+
+Xcode plugin API는 Tuist의 전체 교차 project target dependency topology를 제공하지
+않습니다. 따라서 5.1 fallback은 full-source DAG와 declaration 검증을 보존하지만
+Xcode만으로 모든 module-edge hierarchy 규칙을 증명할 수는 없습니다.
+`@DIComponent` / `@DIHierarchyRoot` module 관계가 release gate라면 topology-aware
+SwiftPM 또는 CI hierarchy 검증을 유지하세요. multi-destination variant가 같은 plugin
+work directory를 공유하므로 Xcode 검증은 output file을 선언하지 않으며, 그 결과
+Xcode가 매 build마다 validation command를 실행한다고 표시할 수 있습니다.
+
 ## 빠른 시작
 
 <!-- innodi:compile -->

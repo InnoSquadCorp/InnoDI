@@ -50,6 +50,19 @@ qualifier shadows с доступом `public` или `package` в импорт�
 targets. Он также отклоняет direct-extension attachments и standalone local
 bridge targets до компиляции Swift.
 
+Начиная с 5.1 этот package plugin также реализует `XcodeBuildToolPlugin`.
+Подключайте его непосредственно к каждому container target в нативном Xcode
+project или project, созданном Tuist. В Tuist workspace он находит workspace
+root и создает единый production-source snapshot, чтобы cross-project container
+references оставались видимыми для source-level validation.
+
+Xcode plugin API не предоставляет полную cross-project target dependency
+topology Tuist. Поэтому Tuist fallback проверяет полный source DAG и declaration
+contracts, но правила module-edge hierarchy, зависящие от точного target graph,
+по-прежнему требуют topology-aware SwiftPM или CI check. Multi-destination
+variants могут использовать общий plugin work directory, поэтому Xcode commands
+не объявляют outputs и Xcode может планировать validation при каждом build.
+
 Для class bridge или container/bridge, вложенного в class, preflight рассматривает
 первый inherited type как потенциальный superclass. Все пройденные class и
 typealias должны быть source-visible в snapshot workspace. Первый inherited type,

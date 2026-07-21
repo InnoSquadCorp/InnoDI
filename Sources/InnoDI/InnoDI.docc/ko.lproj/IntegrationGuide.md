@@ -48,6 +48,18 @@ generated qualifier shadow, 현재 target에서 보이는 imported dependency ta
 `public` 또는 `package` qualifier shadow, bridge의 direct-extension attachment와
 standalone local target을 Swift compile 전에 차단합니다.
 
+5.1부터 이 package plugin은 `XcodeBuildToolPlugin`도 지원합니다. 네이티브 Xcode
+project 또는 Tuist가 생성한 project의 모든 container target에 직접 연결하세요.
+Tuist workspace에서는 workspace root를 찾고 하나의 production-source snapshot을
+만들어 교차 project container 참조를 source-level validation에 포함합니다.
+
+Xcode plugin API는 Tuist의 전체 교차 project target dependency topology를 제공하지
+않습니다. 따라서 Tuist fallback은 full source DAG와 declaration contract를 검증하지만,
+정확한 target graph에 의존하는 module-edge hierarchy 규칙은 topology-aware SwiftPM
+또는 CI 검증이 추가로 필요합니다. multi-destination variant가 하나의 plugin work
+directory를 공유할 수 있어 Xcode command는 output을 선언하지 않으며, Xcode가 매
+build마다 validation을 schedule할 수 있습니다.
+
 Class bridge 또는 class 안에 중첩된 container/bridge는 첫 inherited type을
 잠재적인 superclass로 따라갑니다. 따라가는 모든 class와 typealias는 workspace
 snapshot에서 source-visible해야 합니다. SDK·binary에만 있거나 해소되지 않거나

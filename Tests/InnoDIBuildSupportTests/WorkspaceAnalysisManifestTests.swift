@@ -154,13 +154,72 @@ struct WorkspaceAnalysisManifestTests {
             from: replacingManifest(manifest, schemaVersion: 99)
         )
         expectManifestError(
-            .unsupportedBuildSystem("xcode"),
-            from: replacingManifest(manifest, buildSystem: "xcode")
+            .unsupportedBuildSystem("bazel"),
+            from: replacingManifest(manifest, buildSystem: "bazel")
         )
         expectManifestError(
             .unsupportedAnalysisScope("workspace"),
             from: replacingManifest(manifest, analysisScope: "workspace")
         )
+    }
+
+    @Test("Xcode manifests use Xcode-scoped target identities")
+    func acceptsXcodeManifestEnvelope() throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+        let manifest = makeValidManifest(fixture: fixture)
+        let xcodeTargets = manifest.targets.map { target in
+            replacingTarget(
+                target,
+                id: .xcode(
+                    projectIdentity: target.packageIdentity,
+                    moduleName: target.moduleName
+                )
+            )
+        }
+        let xcodePrimaryID = WorkspaceTargetID.xcode(
+            projectIdentity: "root-package",
+            moduleName: "App"
+        )
+        let rewrittenTargets = xcodeTargets.map { target in
+            WorkspaceAnalysisTarget(
+                id: target.id,
+                packageIdentity: target.packageIdentity,
+                packageDisplayName: target.packageDisplayName,
+                packageDirectory: target.packageDirectory,
+                targetName: target.targetName,
+                moduleName: target.moduleName,
+                kind: target.kind,
+                role: target.role,
+                sources: target.sources,
+                dependencies: target.dependencies.map { dependency in
+                    WorkspaceAnalysisDependency(
+                        kind: dependency.kind,
+                        name: dependency.name,
+                        packageIdentity: dependency.packageIdentity,
+                        targetIDs: dependency.targetIDs.map { dependencyID in
+                            let sourceTarget = manifest.targets.first {
+                                $0.id == dependencyID
+                            }!
+                            return .xcode(
+                                projectIdentity: sourceTarget.packageIdentity,
+                                moduleName: sourceTarget.moduleName
+                            )
+                        }
+                    )
+                }
+            )
+        }
+
+        let validated = try replacingManifest(
+            manifest,
+            buildSystem: WorkspaceAnalysisManifest.xcodeBuildSystem,
+            primaryTargetID: xcodePrimaryID,
+            targets: rewrittenTargets
+        ).validated()
+
+        #expect(validated.buildSystem == "xcode")
+        #expect(validated.primaryTargetID == xcodePrimaryID)
     }
 
     @Test("Primary and target identities fail closed")

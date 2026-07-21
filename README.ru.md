@@ -193,6 +193,21 @@ site в struct / enum или source-visible adapter либо сделайте su
 )
 ```
 
+Начиная с 5.1 тот же product поддерживает нативный Xcode build-tool plugin API.
+Нативные Xcode projects и проекты, созданные Tuist, могут подключать package
+plugin непосредственно к каждому container target. В Tuist workspace plugin
+находит workspace root и проверяет все production Swift sources, включая
+cross-project container references в source DAG.
+
+Xcode plugin API не предоставляет полную cross-project target dependency
+topology Tuist. Поэтому fallback 5.1 сохраняет full-source DAG и declaration
+validation, но один Xcode не может доказать все module-edge hierarchy rules.
+Если module relations `@DIComponent` / `@DIHierarchyRoot` являются release gate,
+сохраните topology-aware SwiftPM или CI hierarchy check. Multi-destination
+variants используют общий plugin work directory, поэтому output files не
+объявляются и Xcode может сообщать, что validation command запускается при
+каждом build.
+
 ## Быстрый старт
 
 <!-- innodi:compile -->

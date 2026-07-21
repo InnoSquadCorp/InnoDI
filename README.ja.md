@@ -189,6 +189,20 @@ Swift type checker の代替ではなく、保守的な syntactic index です�
 )
 ```
 
+5.1 から、同じ product が native Xcode build-tool plugin API にも対応します。
+native Xcode project と Tuist 生成 project は package plugin を各 container target
+へ直接追加できます。Tuist workspace では workspace root を検出し、production
+Swift source 全体を検証するため、cross-project container reference も source DAG
+に含まれます。
+
+Xcode plugin API は Tuist の完全な cross-project target dependency topology を公開
+しません。そのため 5.1 fallback は full-source DAG と declaration validation を
+維持しますが、Xcode だけですべての module-edge hierarchy rule を証明できません。
+`@DIComponent` / `@DIHierarchyRoot` の module relation が release gate の場合は、
+topology-aware な SwiftPM または CI hierarchy check を維持してください。
+multi-destination variant が同じ plugin work directory を共有するため output file は
+宣言せず、Xcode が validation command を毎 build 実行すると表示する場合があります。
+
 ## クイックスタート
 
 <!-- innodi:compile -->
