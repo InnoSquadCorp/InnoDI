@@ -241,12 +241,30 @@ struct ReleaseWorkflowContractTests {
             from: "  release-compatibility:",
             to: "  exact-revision-consumer:"
         )
+        let selectXcodeAction = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(
+                    ".github/actions/select-xcode/action.yml"
+                ),
+            encoding: .utf8
+        )
 
         #expect(compatibilityJob.contains("scenario: swift-6.2"))
         #expect(compatibilityJob.contains("xcode: \"26.2\""))
         #expect(compatibilityJob.contains("scenario: xcode-26.5"))
         #expect(compatibilityJob.contains("xcode: \"26.5\""))
         #expect(compatibilityJob.contains("ref: ${{ inputs.commit_sha }}"))
+        #expect(
+            compatibilityJob.contains(
+                "uses: ./.github/actions/select-xcode"
+            )
+        )
+        #expect(
+            selectXcodeAction.contains(
+                "EXPECTED_SWIFT_VERSION=\"Apple Swift version 6.2\""
+            )
+        )
+        #expect(!compatibilityJob.contains("grep -Eq '^Swift version"))
         #expect(compatibilityJob.contains("--filter StrictConcurrencyBuildTests"))
         #expect(compatibilityJob.contains("--filter ExternalConsumerContractTests"))
     }
