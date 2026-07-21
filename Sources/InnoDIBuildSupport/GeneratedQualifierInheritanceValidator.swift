@@ -156,7 +156,6 @@ func appendInheritedQualifierIssues(
                           isInheritedShadowVisible(
                             shadow,
                             from: site,
-                            manifest: manifest,
                             targetIndex: targetIndex,
                             siteExposures: siteExposures
                           ),
@@ -241,14 +240,12 @@ private func resolveFirstInheritance(
         from: declaration,
         declarations: nominalDeclarations,
         exposures: exposures,
-        manifest: manifest,
         targetIndex: targetIndex
     )
     let visibleAliases = visibleInheritanceAliases(
         from: declaration,
         aliases: typeAliases,
         exposures: exposures,
-        manifest: manifest,
         targetIndex: targetIndex
     )
     let declarationsByResolutionPath = Dictionary(
@@ -330,7 +327,6 @@ private func visibleInheritanceNominals(
     from declaration: QualifierNominalDeclaration,
     declarations: [QualifierNominalDeclaration],
     exposures: Set<DependencyExposure>,
-    manifest: WorkspaceAnalysisManifest?,
     targetIndex: WorkspaceAnalysisTargetIndex?
 ) -> [VisibleInheritanceNominal] {
     var result: [VisibleInheritanceNominal] = []
@@ -353,11 +349,11 @@ private func visibleInheritanceNominals(
             continue
         }
 
-        guard let manifest,
+        guard let targetIndex,
               let candidateTargetID = candidate.targetID,
               let declarationTargetID = declaration.targetID,
-              let candidateTarget = targetIndex?.target(id: candidateTargetID),
-              let declarationTarget = targetIndex?.target(id: declarationTargetID),
+              let candidateTarget = targetIndex.target(id: candidateTargetID),
+              let declarationTarget = targetIndex.target(id: declarationTargetID),
               exposures.contains(where: { exposure in
                   exposure.targetID == candidateTargetID
                       && dependencyExposure(
@@ -390,7 +386,6 @@ private func visibleInheritanceAliases(
     from declaration: QualifierNominalDeclaration,
     aliases: [TargetScopedTypeAlias],
     exposures: Set<DependencyExposure>,
-    manifest: WorkspaceAnalysisManifest?,
     targetIndex: WorkspaceAnalysisTargetIndex?
 ) -> [VisibleInheritanceAlias] {
     var result: [VisibleInheritanceAlias] = []
@@ -413,11 +408,11 @@ private func visibleInheritanceAliases(
             continue
         }
 
-        guard let manifest,
+        guard let targetIndex,
               let candidateTargetID = alias.targetID,
               let declarationTargetID = declaration.targetID,
-              let candidateTarget = targetIndex?.target(id: candidateTargetID),
-              let declarationTarget = targetIndex?.target(id: declarationTargetID),
+              let candidateTarget = targetIndex.target(id: candidateTargetID),
+              let declarationTarget = targetIndex.target(id: declarationTargetID),
               exposures.contains(where: { exposure in
                   exposure.targetID == candidateTargetID
                       && dependencyExposure(
@@ -528,7 +523,6 @@ private func isInheritedMember(
 private func isInheritedShadowVisible(
     _ shadow: QualifierShadowDeclaration,
     from site: QualifierMacroSite,
-    manifest: WorkspaceAnalysisManifest?,
     targetIndex: WorkspaceAnalysisTargetIndex?,
     siteExposures: Set<DependencyExposure>
 ) -> Bool {
@@ -543,11 +537,11 @@ private func isInheritedShadowVisible(
         }
     }
 
-    guard let manifest,
+    guard let targetIndex,
           let shadowTargetID = shadow.targetID,
           let siteTargetID = site.targetID,
-          let shadowTarget = targetIndex?.target(id: shadowTargetID),
-          let siteTarget = targetIndex?.target(id: siteTargetID) else {
+          let shadowTarget = targetIndex.target(id: shadowTargetID),
+          let siteTarget = targetIndex.target(id: siteTargetID) else {
         return false
     }
     let matchingExposures = siteExposures.filter {
