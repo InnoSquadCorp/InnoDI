@@ -306,10 +306,18 @@ struct ReleaseWorkflowContractTests {
 
         #expect(stageJob.contains("git -C \"$REPOSITORY_DIR\" tag -a \"$VERSION\" \"$EXPECTED_SHA\""))
         #expect(stageJob.contains("verify_release_payload true false true"))
+        #expect(stageJob.contains("wait_for_release_visibility"))
+        #expect(stageJob.contains("if [[ \"$attempt\" != \"5\" ]]; then sleep 2; fi"))
         #expect(tagConsumerJob.contains("exact: \\\"$INNODI_VERSION\\\""))
         #expect(tagConsumerJob.contains("state.get(\"version\")"))
         #expect(tagConsumerJob.contains("state.get(\"revision\")"))
         #expect(tagConsumerJob.contains("swift build --package-path \"$INNODI_TAG_CONSUMER\" -c release"))
+        #expect(publishJob.contains("releases?per_page=100"))
+        #expect(
+            publishJob.contains(
+                "[.[][] | select(.tag_name == $version)] | length"
+            )
+        )
         #expect(publishJob.contains("--field draft=false"))
     }
 
@@ -505,7 +513,7 @@ struct ReleaseWorkflowContractTests {
         let workflow = try workflow
 
         #expect(workflow.contains("repos/$GITHUB_REPOSITORY/releases/tags/$VERSION"))
-        #expect(workflow.components(separatedBy: "--paginate --slurp").count - 1 == 2)
+        #expect(workflow.components(separatedBy: "--paginate --slurp").count - 1 == 3)
         #expect(workflow.contains("select(.tag_name == $version)"))
         #expect(workflow.contains("gh release create \"$VERSION\""))
         #expect(workflow.contains("--draft"))
