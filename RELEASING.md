@@ -4,6 +4,8 @@ This document is the single release source of truth for InnoDI.
 
 Latest stable public release: `5.0.0`
 
+Current development train: `5.1.0` (unreleased)
+
 `main` accumulates release work as independently green commits. During a
 development train, keep README installation snippets on the latest stable
 release. When the release operator is ready to publish, land one final
@@ -202,6 +204,8 @@ The release workflow publishes these assets to the GitHub Release:
 Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
+
+## Unreleased
 
 ## 5.0.0
 
