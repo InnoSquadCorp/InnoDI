@@ -105,118 +105,17 @@ package enum ContainerSemanticBuildValidator {
         let wrapperDeclarationsByPath = Dictionary(uniqueKeysWithValues: wrapperDeclarations.map { ($0.path, $0) })
         let wrapperAliasesByPath = Dictionary(uniqueKeysWithValues: wrapperAliases.map { ($0.path, $0) })
 
-        var issues: [ValidationIssue] = []
-
-        for subContainer in subContainers {
-            if let invalidBindingsLocation = subContainer.invalidBindingsLocation {
-                issues.append(makeInvalidBindingsIssue(for: subContainer, location: invalidBindingsLocation))
-                continue
-            }
-
-            guard let childReference = subContainer.childReference else {
-                continue
-            }
-
-            let resolution = semanticResolver.resolvePath(
-                for: childReference,
-                candidatePaths: containerCandidatePaths
-            )
-            guard resolution.state == .resolved,
-                  let childPath = resolution.resolvedPath,
-                  let childContainer = containerInputsByPath[childPath] else {
-                continue
-            }
-
-            for binding in subContainer.bindings where !childContainer.inputMembers.contains(binding.childInputName) {
-                issues.append(
-                    ValidationIssue(
-                        code: MacroBuildDiagnosticContract
-                            .subUnknownChildInputCode,
-                        severity: .error,
-                        message: MacroBuildDiagnosticContract
-                            .subUnknownChildInputMessage(
-                                memberName: subContainer.memberName,
-                                childInputName: binding.childInputName,
-                                childContainerName: childContainer.displayName
-                            ),
-                        location: binding.childLocation,
-                        notes: [
-                            ValidationIssueNote(
-                                message: "child container '\(childContainer.path)' is declared here.",
-                                location: childContainer.location
-                            )
-                        ],
-                        remediation: "Rename the child keypath in bindings:, or add a matching @Provide(.input) member to '\(childContainer.displayName)'.",
-                        metadata: [
-                            "childContainerPath": childContainer.path,
-                            "parentContainerPath": subContainer.parentContainerPath
-                        ]
-                    )
-                )
-            }
-        }
-
-        for parameter in wrapperParameters {
-            if let aliasKind = resolveWrapperAliasKind(
-                for: parameter.headReference.displayPath,
-                aliasesByPath: wrapperAliasesByPath
-            ) {
-                let aliasRecord = wrapperAliasesByPath[parameter.headReference.displayPath]
-                issues.append(
-                    ValidationIssue(
-                        code: "provide.deferred-wrapper-alias-unsupported",
-                        severity: .error,
-                        message: "Factory parameter '\(parameter.parameterName)' for '\(parameter.memberName)' uses wrapper alias '\(parameter.headReference.displayPath)'. Wrapper aliases are not supported; spell `InnoDI.\(aliasKind.rawValue)<T>` directly.",
-                        location: parameter.location,
-                        notes: aliasRecord.map {
-                            [
-                                ValidationIssueNote(
-                                    message: "alias '\($0.path)' is declared here.",
-                                    location: $0.location
-                                )
-                            ]
-                        } ?? [],
-                        remediation: "Replace the alias use with `InnoDI.\(aliasKind.rawValue)<...>` in the factory parameter type annotation.",
-                        metadata: [
-                            "wrapperKind": aliasKind.rawValue,
-                            "writtenHead": parameter.headReference.displayPath
-                        ]
-                    )
-                )
-                continue
-            }
-
-            guard let writtenWrapperKind = parameter.writtenWrapperKind else {
-                continue
-            }
-
-            if canonicalWrapperKind(for: parameter.headReference) != nil {
-                continue
-            }
-
-            if let exactLocalWrapper = wrapperDeclarationsByPath[parameter.headReference.displayPath],
-               exactLocalWrapper.wrapperKind == writtenWrapperKind {
-                issues.append(
-                    ValidationIssue(
-                        code: "provide.deferred-wrapper-qualification-required",
-                        severity: .error,
-                        message: "Factory parameter '\(parameter.parameterName)' for '\(parameter.memberName)' must spell `InnoDI.\(writtenWrapperKind.rawValue)<T>` explicitly. `\(parameter.headReference.displayPath)` resolves to a same-module declaration and is ambiguous for macro expansion.",
-                        location: parameter.location,
-                        notes: [
-                            ValidationIssueNote(
-                                message: "same-module declaration '\(exactLocalWrapper.path)' is defined here.",
-                                location: exactLocalWrapper.location
-                            )
-                        ],
-                        remediation: "Replace `\(parameter.headReference.displayPath)<...>` with `InnoDI.\(writtenWrapperKind.rawValue)<...>` at the factory parameter site.",
-                        metadata: [
-                            "wrapperKind": writtenWrapperKind.rawValue,
-                            "writtenHead": parameter.headReference.displayPath
-                        ]
-                    )
-                )
-            }
-        }
+        var issues = validateSubContainerBindings(
+            subContainers,
+            semanticResolver: semanticResolver,
+            containerInputsByPath: containerInputsByPath,
+            containerCandidatePaths: containerCandidatePaths
+        )
+        issues.append(contentsOf: validateDeferredWrapperParameters(
+            wrapperParameters,
+            wrapperDeclarationsByPath: wrapperDeclarationsByPath,
+            wrapperAliasesByPath: wrapperAliasesByPath
+        ))
 
         issues.sort {
             if $0.location.filePath != $1.location.filePath { return $0.location.filePath < $1.location.filePath }
@@ -228,21 +127,21 @@ package enum ContainerSemanticBuildValidator {
     }
 }
 
-private struct SemanticContainerRecord: Equatable {
+struct SemanticContainerRecord: Equatable {
     let path: String
     let displayName: String
     let location: ValidationIssueLocation
     let inputMembers: Set<String>
 }
 
-private struct SubContainerBindingValidationRecord: Equatable {
+struct SubContainerBindingValidationRecord: Equatable {
     let childInputName: String
     let parentMemberName: String
     let childLocation: ValidationIssueLocation
     let parentLocation: ValidationIssueLocation
 }
 
-private struct SemanticSubContainerRecord: Equatable {
+struct SemanticSubContainerRecord: Equatable {
     let parentContainerPath: String
     let memberName: String
     let childReference: SemanticTypeReference?
@@ -250,7 +149,7 @@ private struct SemanticSubContainerRecord: Equatable {
     let invalidBindingsLocation: ValidationIssueLocation?
 }
 
-private struct DeferredWrapperParameterRecord: Equatable {
+struct DeferredWrapperParameterRecord: Equatable {
     let memberName: String
     let parameterName: String
     let writtenWrapperKind: DeferredDependencyWrapperKind?
@@ -258,13 +157,13 @@ private struct DeferredWrapperParameterRecord: Equatable {
     let location: ValidationIssueLocation
 }
 
-private struct WrapperDeclarationRecord: Equatable {
+struct WrapperDeclarationRecord: Equatable {
     let path: String
     let wrapperKind: DeferredDependencyWrapperKind
     let location: ValidationIssueLocation
 }
 
-private struct WrapperAliasRecord: Equatable {
+struct WrapperAliasRecord: Equatable {
     let path: String
     let targetHeadReference: SemanticTypeReference
     let location: ValidationIssueLocation
@@ -627,26 +526,6 @@ private struct SemanticContainerBuilder {
     var inputMembers: Set<String> = []
 }
 
-private func makeInvalidBindingsIssue(
-    for subContainer: SemanticSubContainerRecord,
-    location: ValidationIssueLocation
-) -> ValidationIssue {
-    ValidationIssue(
-        code: MacroBuildDiagnosticContract.subInvalidBindingsCode,
-        severity: .error,
-        message: MacroBuildDiagnosticContract.subInvalidBindingsMessage(
-            memberName: subContainer.memberName
-        ),
-        location: location,
-        notes: [],
-        remediation: "Use bindings: [(child: \\.childInput, parent: \\.parentMember)] or remove bindings: to use implicit same-name wiring.",
-        metadata: [
-            "parentContainerPath": subContainer.parentContainerPath,
-            "subContainerMemberName": subContainer.memberName
-        ]
-    )
-}
-
 private struct ValidatedVariableBinding {
     let name: String
     let type: TypeSyntax?
@@ -677,7 +556,7 @@ private func directWrapperKind(named name: String) -> DeferredDependencyWrapperK
     DeferredDependencyWrapperKind(rawValue: name)
 }
 
-private func canonicalWrapperKind(for reference: SemanticTypeReference) -> DeferredDependencyWrapperKind? {
+func canonicalWrapperKind(for reference: SemanticTypeReference) -> DeferredDependencyWrapperKind? {
     guard reference.components.count == 2, reference.components.first == "InnoDI",
           let last = reference.components.last else {
         return nil
@@ -685,17 +564,7 @@ private func canonicalWrapperKind(for reference: SemanticTypeReference) -> Defer
     return DeferredDependencyWrapperKind(rawValue: last)
 }
 
-private func wrapperKindCandidate(for reference: SemanticTypeReference) -> DeferredDependencyWrapperKind? {
-    if let canonical = canonicalWrapperKind(for: reference) {
-        return canonical
-    }
-    guard let last = reference.components.last else {
-        return nil
-    }
-    return DeferredDependencyWrapperKind(rawValue: last)
-}
-
-private func resolveWrapperAliasKind(
+func resolveWrapperAliasKind(
     for path: String,
     aliasesByPath: [String: WrapperAliasRecord],
     visited: Set<String> = []
