@@ -137,7 +137,7 @@ visionOS SwiftPM автоматически упаковывает манифе�
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.1.0")
 ]
 ```
 
