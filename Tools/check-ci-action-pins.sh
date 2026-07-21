@@ -128,6 +128,8 @@ for workflow_path in workflow_files:
             "release-gate": {"contents": "read"},
             "release-compatibility": {"contents": "read"},
             "exact-revision-consumer": {"contents": "read"},
+            "stage-release": {"contents": "write"},
+            "exact-tag-consumer": {"contents": "read"},
             "publish-release": {"contents": "write"},
         }
     elif workflow_path.name == "macro-tests.yml":

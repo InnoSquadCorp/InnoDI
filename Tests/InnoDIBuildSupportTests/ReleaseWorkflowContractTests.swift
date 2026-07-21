@@ -50,7 +50,7 @@ struct ReleaseWorkflowContractTests {
         }
 
         #expect(!workflow.contains("persist-credentials: true"))
-        #expect(workflow.components(separatedBy: "persist-credentials: false").count - 1 == 5)
+        #expect(workflow.components(separatedBy: "persist-credentials: false").count - 1 == 6)
     }
 
     @Test("Validation steps cannot access release credentials")
@@ -61,7 +61,7 @@ struct ReleaseWorkflowContractTests {
             from: "      - name: Validate local release candidate",
             to: "      - name: Validate remote release anchor"
         )
-        let publishValidator = try section(
+        let stageValidator = try section(
             in: workflow,
             from: "      - name: Revalidate candidate and artifacts without credentials",
             to: "      - name: Require immutable release and tag policies"
@@ -79,18 +79,25 @@ struct ReleaseWorkflowContractTests {
         let policyCheck = try section(
             in: workflow,
             from: "      - name: Require immutable release and tag policies",
-            to: "      - name: Converge annotated tag and immutable release"
+            to: "      - name: Stage annotated tag and draft release"
         )
-        let converge = workflow[try #require(
-            workflow.range(of: "      - name: Converge annotated tag and immutable release")
-        ).lowerBound...]
+        let stageJob = try section(
+            in: workflow,
+            from: "  stage-release:",
+            to: "  exact-tag-consumer:"
+        )
+        let exactTagJob = try section(
+            in: workflow,
+            from: "  exact-tag-consumer:",
+            to: "  publish-release:"
+        )
         let publishJob = workflow[try #require(
             workflow.range(of: "  publish-release:")
         ).lowerBound...]
 
         #expect(try credentialIdentifiers(in: preflightValidator) == [])
         #expect(try credentialIdentifiers(in: remoteAnchor) == [])
-        #expect(try credentialIdentifiers(in: publishValidator) == [])
+        #expect(try credentialIdentifiers(in: stageValidator) == [])
         #expect(
             try credentialIdentifiers(in: releaseLookup) == [
                 "GH_TOKEN",
@@ -105,17 +112,18 @@ struct ReleaseWorkflowContractTests {
             ]
         )
         #expect(
-            try credentialIdentifiers(in: converge) == [
-                "GH_TOKEN",
-                "github.token",
-            ]
-        )
-        #expect(
-            try credentialIdentifiers(in: publishJob) == [
+            try credentialIdentifiers(in: stageJob) == [
                 "GH_TOKEN",
                 "RELEASE_ADMIN_TOKEN",
                 "github.token",
                 "secrets.RELEASE_ADMIN_TOKEN",
+            ]
+        )
+        #expect(try credentialIdentifiers(in: exactTagJob) == [])
+        #expect(
+            try credentialIdentifiers(in: publishJob) == [
+                "GH_TOKEN",
+                "github.token",
             ]
         )
         #expect(releaseLookup.contains("repos/$GITHUB_REPOSITORY/releases/tags/$VERSION"))
@@ -151,6 +159,16 @@ struct ReleaseWorkflowContractTests {
         let revisionConsumerJob = try section(
             in: workflow,
             from: "  exact-revision-consumer:",
+            to: "  stage-release:"
+        )
+        let stageJob = try section(
+            in: workflow,
+            from: "  stage-release:",
+            to: "  exact-tag-consumer:"
+        )
+        let exactTagJob = try section(
+            in: workflow,
+            from: "  exact-tag-consumer:",
             to: "  publish-release:"
         )
         let publishJob = workflow[try #require(
@@ -167,7 +185,7 @@ struct ReleaseWorkflowContractTests {
         #expect(try credentialIdentifiers(in: compatibilityJob) == [])
         #expect(try credentialIdentifiers(in: revisionConsumerJob) == [])
 
-        for credentialedJob in [recoveryStateJob, publishJob] {
+        for credentialedJob in [recoveryStateJob, stageJob, publishJob] {
             #expect(!credentialedJob.contains("Tools/"))
             #expect(!credentialedJob.contains("uses: ./"))
             #expect(!credentialedJob.contains("run: swift"))
@@ -177,10 +195,12 @@ struct ReleaseWorkflowContractTests {
         #expect(!recoveryStateJob.contains("actions/checkout"))
         #expect(recoveryStateJob.contains(stableSemVerPattern))
         #expect(recoveryStateJob.contains("[[ ! \"$VERSION\" =~ $STABLE_SEMVER_PATTERN ]]"))
-        #expect(publishJob.contains(stableSemVerPattern))
-        #expect(publishJob.contains(fullSHAPattern))
-        #expect(publishJob.contains("[[ ! \"$VERSION\" =~ $STABLE_SEMVER_PATTERN ]]"))
-        #expect(publishJob.contains("[[ ! \"$EXPECTED_SHA\" =~ $FULL_SHA_PATTERN ]]"))
+        for writeJob in [stageJob, publishJob] {
+            #expect(writeJob.contains(stableSemVerPattern))
+            #expect(writeJob.contains(fullSHAPattern))
+            #expect(writeJob.contains("[[ ! \"$VERSION\" =~ $STABLE_SEMVER_PATTERN ]]"))
+            #expect(writeJob.contains("[[ ! \"$EXPECTED_SHA\" =~ $FULL_SHA_PATTERN ]]"))
+        }
         #expect(
             try credentialIdentifiers(in: recoveryStateJob) == [
                 "GH_TOKEN",
@@ -188,19 +208,29 @@ struct ReleaseWorkflowContractTests {
             ]
         )
         #expect(
-            try credentialIdentifiers(in: publishJob) == [
+            try credentialIdentifiers(in: stageJob) == [
                 "GH_TOKEN",
                 "RELEASE_ADMIN_TOKEN",
                 "github.token",
                 "secrets.RELEASE_ADMIN_TOKEN",
             ]
         )
+        #expect(try credentialIdentifiers(in: exactTagJob) == [])
+        #expect(
+            try credentialIdentifiers(in: publishJob) == [
+                "GH_TOKEN",
+                "github.token",
+            ]
+        )
         #expect(releaseGateJob.contains("needs: recovery-state"))
         #expect(compatibilityJob.contains("needs: recovery-state"))
         #expect(revisionConsumerJob.contains("needs: recovery-state"))
-        #expect(publishJob.contains("      - recovery-state"))
-        #expect(publishJob.contains("      - release-compatibility"))
-        #expect(publishJob.contains("      - exact-revision-consumer"))
+        #expect(stageJob.contains("      - recovery-state"))
+        #expect(stageJob.contains("      - release-compatibility"))
+        #expect(stageJob.contains("      - exact-revision-consumer"))
+        #expect(exactTagJob.contains("needs: stage-release"))
+        #expect(publishJob.contains("      - stage-release"))
+        #expect(publishJob.contains("      - exact-tag-consumer"))
     }
 
     @Test("Release publication includes legacy toolchain compatibility")
@@ -227,7 +257,7 @@ struct ReleaseWorkflowContractTests {
         let consumerJob = try section(
             in: workflow,
             from: "  exact-revision-consumer:",
-            to: "  publish-release:"
+            to: "  stage-release:"
         )
 
         #expect(consumerJob.contains("ref: ${{ inputs.commit_sha }}"))
@@ -237,6 +267,32 @@ struct ReleaseWorkflowContractTests {
         #expect(consumerJob.contains("swift package --package-path \"$INNODI_REMOTE_CONSUMER\" resolve"))
         #expect(consumerJob.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(consumerJob.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
+    }
+
+    @Test("Immutable publication waits for an exact-version consumer")
+    func exactTagConsumerPrecedesPublication() throws {
+        let workflow = try workflow
+        let stageJob = try section(
+            in: workflow,
+            from: "  stage-release:",
+            to: "  exact-tag-consumer:"
+        )
+        let tagConsumerJob = try section(
+            in: workflow,
+            from: "  exact-tag-consumer:",
+            to: "  publish-release:"
+        )
+        let publishJob = workflow[try #require(
+            workflow.range(of: "  publish-release:")
+        ).lowerBound...]
+
+        #expect(stageJob.contains("git -C \"$REPOSITORY_DIR\" tag -a \"$VERSION\" \"$EXPECTED_SHA\""))
+        #expect(stageJob.contains("verify_release_payload true false true"))
+        #expect(tagConsumerJob.contains("exact: \\\"$INNODI_VERSION\\\""))
+        #expect(tagConsumerJob.contains("state.get(\"version\")"))
+        #expect(tagConsumerJob.contains("state.get(\"revision\")"))
+        #expect(tagConsumerJob.contains("swift build --package-path \"$INNODI_TAG_CONSUMER\" -c release"))
+        #expect(publishJob.contains("--field draft=false"))
     }
 
     @Test("Tag publication requires monotonic main ancestry")
@@ -281,28 +337,29 @@ struct ReleaseWorkflowContractTests {
     @Test("Write-token job never executes candidate-owned code")
     func publishJobIsolatesCandidateCheckout() throws {
         let workflow = try workflow
-        let publishJob = workflow[try #require(
-            workflow.range(of: "  publish-release:")
-        ).lowerBound...]
+        let stageJob = try section(
+            in: workflow,
+            from: "  stage-release:",
+            to: "  exact-tag-consumer:"
+        )
         let unscopedGitPattern = try NSRegularExpression(
             pattern: #"(?m)^\s+git (?!-C \"\$REPOSITORY_DIR\")"#
         )
         let candidateExecutablePattern = try NSRegularExpression(
             pattern: #"(?m)^\s+(?:\./)?release-repository/"#
         )
-        let publishSource = String(publishJob)
+        let publishSource = String(stageJob)
         let range = NSRange(publishSource.startIndex..., in: publishSource)
 
-        #expect(publishJob.contains("path: release-repository"))
-        #expect(publishJob.contains("path: release-assets"))
-        #expect(publishJob.contains("REPOSITORY_DIR: release-repository"))
-        #expect(!publishJob.contains("Tools/"))
-        #expect(!publishJob.contains("swift"))
-        #expect(!publishJob.contains("uses: ./"))
-        #expect(!publishJob.contains("release-repository/"))
-        #expect(publishJob.contains("gh release verify --help >/dev/null"))
-        #expect(publishJob.contains("gh release verify-asset --help >/dev/null"))
-        for line in publishJob.split(separator: "\n")
+        #expect(stageJob.contains("path: release-repository"))
+        #expect(stageJob.contains("path: release-assets"))
+        #expect(stageJob.contains("REPOSITORY_DIR: release-repository"))
+        #expect(!stageJob.contains("Tools/"))
+        #expect(!stageJob.contains("swift"))
+        #expect(!stageJob.contains("uses: ./"))
+        #expect(!stageJob.contains("release-repository/"))
+        #expect(!stageJob.contains("gh release verify"))
+        for line in stageJob.split(separator: "\n")
         where line.contains("$REPOSITORY_DIR") {
             #expect(line.contains("git -C \"$REPOSITORY_DIR\""))
         }
@@ -316,7 +373,7 @@ struct ReleaseWorkflowContractTests {
         let policyCheck = try section(
             in: workflow,
             from: "      - name: Require immutable release and tag policies",
-            to: "      - name: Converge annotated tag and immutable release"
+            to: "      - name: Stage annotated tag and draft release"
         )
 
         #expect(policyCheck.contains("RELEASE_TAG_RULESET_ID: ${{ vars.RELEASE_TAG_RULESET_ID }}"))
@@ -339,7 +396,7 @@ struct ReleaseWorkflowContractTests {
         let policyCheck = try section(
             in: workflow,
             from: "      - name: Require immutable release and tag policies",
-            to: "      - name: Converge annotated tag and immutable release"
+            to: "      - name: Stage annotated tag and draft release"
         )
 
         #expect(
@@ -379,7 +436,7 @@ struct ReleaseWorkflowContractTests {
         let policyCheck = try section(
             in: workflow,
             from: "      - name: Require immutable release and tag policies",
-            to: "      - name: Converge annotated tag and immutable release"
+            to: "      - name: Stage annotated tag and draft release"
         )
 
         #expect(workflow.contains("    environment: release"))
@@ -420,7 +477,7 @@ struct ReleaseWorkflowContractTests {
         #expect(!workflow.contains("tar -C .build/docc -czf"))
         #expect(!workflow.contains("verify_release_payload false true false"))
         #expect(
-            workflow.components(separatedBy: "verify_release_payload false true true").count - 1 == 3
+            workflow.components(separatedBy: "verify_release_payload false true true").count - 1 == 2
         )
         #expect(workflow.contains("for asset in innodi-docc.tar.gz release-notes.md SHA256SUMS"))
     }
@@ -437,7 +494,7 @@ struct ReleaseWorkflowContractTests {
         #expect(workflow.contains("gh release upload \"$VERSION\""))
         #expect(workflow.contains("--clobber"))
         #expect(workflow.contains("verify_release_payload true false true"))
-        #expect(workflow.contains("FINAL_REMOTE_PEELED_SHA"))
+        #expect(workflow.components(separatedBy: "inspect_remote_tag").count - 1 >= 6)
         #expect(workflow.contains("api --method PATCH"))
         #expect(workflow.contains("repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"))
         #expect(workflow.contains("--field draft=false"))
