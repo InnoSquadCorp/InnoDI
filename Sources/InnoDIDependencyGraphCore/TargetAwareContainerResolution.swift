@@ -120,6 +120,7 @@ struct TargetAwareContainerResolutionIndex {
         let directDependencyTargetIDs: [WorkspaceTargetID]
         let allNodeIDsBySemanticPath: [String: [String]]
         let eligibleNodeIDsBySemanticPath: [String: [String]]
+        let allSemanticPathsBySuffix: [String: [String]]
         let aliases: [TargetAwareContainerAlias]
         let exportedImports: TargetAwareSourceImports
     }
@@ -154,13 +155,17 @@ struct TargetAwareContainerResolutionIndex {
             let eligibleNodes = validateDAG
                 ? nodes.filter(\.validateDAG)
                 : nodes
+            let allNodeIDsBySemanticPath = Self.idsBySemanticPath(nodes)
             targets[target.id] = IndexedTarget(
                 id: target.id,
                 moduleName: target.moduleName,
                 directDependencyTargetIDs: target.directDependencyTargetIDs,
-                allNodeIDsBySemanticPath: Self.idsBySemanticPath(nodes),
+                allNodeIDsBySemanticPath: allNodeIDsBySemanticPath,
                 eligibleNodeIDsBySemanticPath: Self.idsBySemanticPath(
                     eligibleNodes
+                ),
+                allSemanticPathsBySuffix: Self.pathsBySuffix(
+                    allNodeIDsBySemanticPath.keys
                 ),
                 aliases: (aliasesByTargetID[target.id] ?? []).sorted {
                     if $0.record.path != $1.record.path {
@@ -719,9 +724,9 @@ struct TargetAwareContainerResolutionIndex {
             if useSuffixFallback {
                 paths = suffixMatches(
                     for: candidate.reference.components,
-                    candidatePaths: Set(
-                        target.allNodeIDsBySemanticPath.keys
-                    )
+                    candidatePathsBySuffix: target.allSemanticPathsBySuffix,
+                    candidateIDsByExactPath:
+                        target.allNodeIDsBySemanticPath
                 )
             } else if target.allNodeIDsBySemanticPath[
                 candidate.reference.displayPath
@@ -792,27 +797,31 @@ struct TargetAwareContainerResolutionIndex {
 
     private func suffixMatches(
         for components: [String],
-        candidatePaths: Set<String>
+        candidatePathsBySuffix: [String: [String]],
+        candidateIDsByExactPath: [String: [String]]
     ) -> [String] {
         guard !components.isEmpty else {
             return []
         }
-        return candidatePaths.filter { path in
-            let candidateComponents = path.split(separator: ".")
-                .map(String.init)
-            if candidateComponents.count >= components.count {
-                return Array(
-                    candidateComponents.suffix(components.count)
-                ) == components
-            }
-            guard candidateComponents.count > 1 else {
-                return false
-            }
-            return Array(
-                components.suffix(candidateComponents.count)
-            ) == candidateComponents
+
+        var matches = Set(
+            candidatePathsBySuffix[components.joined(separator: ".")] ?? []
+        )
+        guard components.count > 2 else {
+            return matches.sorted()
         }
-        .sorted()
+
+        // Preserve the conservative reverse-suffix rule: a shorter candidate
+        // can match only when its complete multi-component path is a suffix
+        // of the longer reference. Single-component candidates never match.
+        for suffixLength in 2..<components.count {
+            let candidatePath = components.suffix(suffixLength)
+                .joined(separator: ".")
+            if candidateIDsByExactPath[candidatePath] != nil {
+                matches.insert(candidatePath)
+            }
+        }
+        return matches.sorted()
     }
 
     private func candidateIdentity(
@@ -844,6 +853,23 @@ struct TargetAwareContainerResolutionIndex {
     ) -> [String: [String]] {
         Dictionary(grouping: nodes, by: \.semanticPath)
             .mapValues { uniqueSortedStrings($0.map(\.id)) }
+    }
+
+    private static func pathsBySuffix<C: Collection>(
+        _ paths: C
+    ) -> [String: [String]] where C.Element == String {
+        var result: [String: [String]] = [:]
+        for path in paths.sorted() {
+            let components = path.split(separator: ".")
+            guard !components.isEmpty else {
+                continue
+            }
+            for startIndex in components.indices {
+                let suffix = components[startIndex...].joined(separator: ".")
+                result[suffix, default: []].append(path)
+            }
+        }
+        return result
     }
 }
 
