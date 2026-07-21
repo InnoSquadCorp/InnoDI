@@ -1,4 +1,5 @@
 import Foundation
+import InnoDITestSupport
 @testable import InnoDIMigrationCore
 import Testing
 
@@ -1142,40 +1143,19 @@ private func runSwiftProcess(
     packageURL: URL,
     arguments: [String]
 ) throws -> MigrationProcessResult {
-    let logURL = packageURL.appendingPathComponent(
-        "swift-command-\(UUID().uuidString).log"
-    )
-    FileManager.default.createFile(
-        atPath: logURL.path(percentEncoded: false),
-        contents: nil
-    )
-    let logHandle = try FileHandle(forWritingTo: logURL)
-    defer { try? logHandle.close() }
-
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = arguments
     process.currentDirectoryURL = innoDIPackageRootURL()
-    process.standardOutput = logHandle
-    process.standardError = logHandle
 
-    let termination = DispatchSemaphore(value: 0)
-    process.terminationHandler = { _ in termination.signal() }
-    try process.run()
-    let timedOut = termination.wait(
-        timeout: .now() + migrationSwiftProcessTimeoutSeconds
-    ) == .timedOut
-    if timedOut, process.isRunning {
-        process.terminate()
-        _ = termination.wait(timeout: .now() + 5)
-    }
-
-    try logHandle.synchronize()
-    let output = try String(contentsOf: logURL, encoding: .utf8)
+    let result = try runCapturedProcess(
+        process,
+        timeoutSeconds: migrationSwiftProcessTimeoutSeconds
+    )
     return MigrationProcessResult(
-        exitCode: process.isRunning ? -1 : process.terminationStatus,
-        output: output,
-        timedOut: timedOut
+        exitCode: result.exitCode,
+        output: result.combinedOutput,
+        timedOut: result.timedOut
     )
 }
 

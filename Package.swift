@@ -181,6 +181,7 @@ let package = Package(
             dependencies: [
                 "InnoDI-Migrate",
                 "InnoDIMigrationCore",
+                "InnoDITestSupport",
             ]
         ),
         .testTarget(
