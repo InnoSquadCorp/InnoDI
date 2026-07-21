@@ -139,7 +139,7 @@ Fuge InnoDI zu `Package.swift` hinzu:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.3.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.0.0")
 ]
 ```
 
