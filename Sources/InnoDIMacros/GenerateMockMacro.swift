@@ -50,18 +50,16 @@ public struct GenerateMockMacro: PeerMacro {
             )
         }
 
-        let overloadCounts = Dictionary(
-            grouping: protocolDecl.memberBlock.members.compactMap { member in
-                member.decl.as(FunctionDeclSyntax.self)?.name.text
-            },
-            by: { $0 }
-        ).mapValues(\.count)
+        let functionNames = plannedFunctionNames(in: protocolDecl)
+        var functionIndex = 0
 
         for member in protocolDecl.memberBlock.members {
             if let function = member.decl.as(FunctionDeclSyntax.self) {
+                let names = functionNames[functionIndex]
+                functionIndex += 1
                 if let rendered = renderFunctionMock(
                     function: function,
-                    isOverloaded: (overloadCounts[function.name.text] ?? 0) > 1
+                    names: names
                 ) {
                     bodyLines.append(rendered.snippet)
                     usesNotStubbedError = usesNotStubbedError || rendered.usesNotStubbedError
@@ -162,11 +160,29 @@ private struct MockFunctionNames {
     let resultProperty: String
     let thrownErrorProperty: String
     let handlerProperty: String
+
+    func generatedValueNames(for function: FunctionDeclSyntax) -> Set<String> {
+        let isGeneric = function.genericParameterClause != nil
+        let isThrowing = function.signature.effectSpecifiers?.throwsClause != nil
+        let returnsVoid = isVoidReturnType(
+            function.signature.returnClause?.type.trimmedDescription
+        )
+
+        var names: Set<String> = [callsProperty]
+        if isGeneric {
+            names.insert(handlerProperty)
+        } else if !returnsVoid {
+            names.insert(isThrowing ? resultProperty : returnProperty)
+        } else if isThrowing {
+            names.insert(thrownErrorProperty)
+        }
+        return names
+    }
 }
 
 private func renderFunctionMock(
     function: FunctionDeclSyntax,
-    isOverloaded: Bool
+    names: MockFunctionNames
 ) -> RenderedFunctionMock? {
     if hasAnyModifier(function.modifiers, named: ["static", "class"]) {
         return nil
@@ -176,14 +192,14 @@ private func renderFunctionMock(
     }
     let isGeneric = function.genericParameterClause != nil
     if isGeneric {
-        return renderGenericFunctionMock(function: function, forceQualifiedNames: isOverloaded)
+        return renderGenericFunctionMock(function: function, names: names)
     }
-    return renderTypedFunctionMock(function: function, forceQualifiedNames: isOverloaded)
+    return renderTypedFunctionMock(function: function, names: names)
 }
 
 private func renderTypedFunctionMock(
     function: FunctionDeclSyntax,
-    forceQualifiedNames: Bool
+    names: MockFunctionNames
 ) -> RenderedFunctionMock? {
     let signature = function.signature
     let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
@@ -202,12 +218,6 @@ private func renderTypedFunctionMock(
         return nil
     }
     let parametersRendered = parameters.map { $0.trimmedDescription }.joined(separator: ", ")
-    let names = makeFunctionNames(
-        baseName: baseName,
-        parameters: parameters,
-        forceQualifiedNames: forceQualifiedNames
-    )
-
     var effectSpecifierTokens: [String] = []
     if isAsync { effectSpecifierTokens.append("async") }
     if isThrowing { effectSpecifierTokens.append("throws") }
@@ -276,7 +286,7 @@ private func renderTypedFunctionMock(
 
 private func renderGenericFunctionMock(
     function: FunctionDeclSyntax,
-    forceQualifiedNames: Bool
+    names: MockFunctionNames
 ) -> RenderedFunctionMock? {
     let signature = function.signature
     let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
@@ -290,12 +300,6 @@ private func renderGenericFunctionMock(
     let parametersRendered = parameters.map { $0.trimmedDescription }.joined(separator: ", ")
     let returnTypeRendered = signature.returnClause?.type.trimmedDescription ?? "Void"
     let returnsVoid = isVoidReturnType(signature.returnClause?.type.trimmedDescription)
-    let names = makeFunctionNames(
-        baseName: baseName,
-        parameters: parameters,
-        forceQualifiedNames: true
-    )
-
     var effectSpecifierTokens: [String] = []
     if isAsync { effectSpecifierTokens.append("async") }
     if isThrowing { effectSpecifierTokens.append("throws") }
@@ -442,7 +446,11 @@ private func makeFunctionNames(
         stem = base
     }
 
-    return MockFunctionNames(
+    return makeFunctionNames(stem: stem)
+}
+
+private func makeFunctionNames(stem: String) -> MockFunctionNames {
+    MockFunctionNames(
         stem: stem,
         callStructName: "\(stem.capitalizedFirst)Call",
         callsProperty: "\(stem)Calls",
@@ -451,6 +459,61 @@ private func makeFunctionNames(
         thrownErrorProperty: "\(stem)ThrownError",
         handlerProperty: "\(stem)Handler"
     )
+}
+
+private func plannedFunctionNames(
+    in protocolDecl: ProtocolDeclSyntax
+) -> [MockFunctionNames] {
+    let functions = protocolDecl.memberBlock.members.compactMap {
+        $0.decl.as(FunctionDeclSyntax.self)
+    }
+    let overloadCounts = Dictionary(
+        grouping: functions.map { $0.name.text },
+        by: { $0 }
+    ).mapValues(\.count)
+    let declaredValueNames = Set(
+        protocolDecl.memberBlock.members.flatMap { member -> [String] in
+            guard let variable = member.decl.as(VariableDeclSyntax.self) else {
+                return []
+            }
+            return variable.bindings.compactMap {
+                $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+            }
+        }
+    )
+    let candidates = functions.map { function in
+        makeFunctionNames(
+            baseName: function.name.text,
+            parameters: function.signature.parameterClause.parameters,
+            forceQualifiedNames: function.genericParameterClause != nil
+                || (overloadCounts[function.name.text] ?? 0) > 1
+        )
+    }
+    let stemCounts = Dictionary(
+        grouping: candidates.map(\.stem),
+        by: { $0 }
+    ).mapValues(\.count)
+
+    return zip(functions, candidates).map { function, candidate in
+        let collidesWithFunction = (stemCounts[candidate.stem] ?? 0) > 1
+        let collidesWithProperty = !candidate
+            .generatedValueNames(for: function)
+            .isDisjoint(with: declaredValueNames)
+        guard collidesWithFunction || collidesWithProperty else {
+            return candidate
+        }
+
+        let signatureIdentity = [
+            function.name.text,
+            function.genericParameterClause?.trimmedDescription ?? "",
+            function.signature.trimmedDescription,
+            function.genericWhereClause?.trimmedDescription ?? "",
+        ].joined(separator: "|")
+        return makeFunctionNames(
+            stem: candidate.stem
+                + signatureIdentity.stableIdentifierSuffix.capitalizedFirst
+        )
+    }
 }
 
 private func effectInvocationPrefix(isAsync: Bool, isThrowing: Bool) -> String {
