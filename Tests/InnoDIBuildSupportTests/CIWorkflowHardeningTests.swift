@@ -65,8 +65,7 @@ struct CIWorkflowHardeningTests {
 
         #expect(exhaustiveJob.contains("name: Exhaustive main contracts"))
         #expect(exhaustiveJob.contains("if: github.event_name == 'push'"))
-        #expect(exhaustiveJob.contains("--enable-code-coverage"))
-        #expect(exhaustiveJob.contains("Tools/check-coverage-floor.py"))
+        #expect(exhaustiveJob.contains("Tools/run-coverage-gate.sh"))
         #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
     }

@@ -21,14 +21,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ARCH=$(uname -m)
-case "$ARCH" in
-    arm64) ARCH_DIR="arm64-apple-macosx";;
-    x86_64) ARCH_DIR="x86_64-apple-macosx";;
-    *) echo "::error::unsupported architecture '$ARCH' for coverage collection" >&2; exit 1;;
-esac
-
-BUILD_DIR=".build/$ARCH_DIR/debug"
+if [[ -n "${INNODI_COVERAGE_BUILD_DIR:-}" ]]; then
+    BUILD_DIR="$INNODI_COVERAGE_BUILD_DIR"
+else
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        arm64) ARCH_DIR="arm64-apple-macosx";;
+        x86_64) ARCH_DIR="x86_64-apple-macosx";;
+        *) echo "::error::unsupported architecture '$ARCH' for coverage collection" >&2; exit 1;;
+    esac
+    BUILD_DIR=".build/$ARCH_DIR/debug"
+fi
 PROFDATA="$BUILD_DIR/codecov/default.profdata"
 XCTEST_BUNDLE="$BUILD_DIR/InnoDIPackageTests.xctest"
 

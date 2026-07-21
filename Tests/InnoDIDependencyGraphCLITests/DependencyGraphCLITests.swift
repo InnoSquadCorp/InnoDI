@@ -464,6 +464,70 @@ struct DependencyGraphCLITests {
         )
     }
 
+    @Test("Lock diagnosis reports valid and unreadable lock metadata")
+    func lockDiagnosisReportsDiscoveredMetadata() throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "InnoDI-CLI-Lock-Diagnosis-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        let scratchURL = fixtureURL.appendingPathComponent(
+            ".innodi-state",
+            isDirectory: true
+        )
+        let validLockURL = scratchURL
+            .appendingPathComponent("a-signature", isDirectory: true)
+            .appendingPathComponent("lock")
+        let invalidLockURL = scratchURL
+            .appendingPathComponent("b-signature", isDirectory: true)
+            .appendingPathComponent("lock")
+        try FileManager.default.createDirectory(
+            at: validLockURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: invalidLockURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+
+        try #"{"pid":4321,"createdAt":946684800,"bootID":99}"#.write(
+            to: validLockURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        try "not-json".write(
+            to: invalidLockURL,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let relativeResult = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--diagnose-lock", ".innodi-state",
+        ])
+        let absoluteResult = try runCLI([
+            "--diagnose-lock", scratchURL.path(percentEncoded: false),
+        ])
+
+        #expect(relativeResult.exitCode == ExitCode.success)
+        #expect(relativeResult.stdout.contains("Lock files: 2 found"))
+        #expect(relativeResult.stdout.contains("holder pid:  4321"))
+        #expect(relativeResult.stdout.contains("boot id:     99"))
+        #expect(relativeResult.stdout.contains("metadata:    <unavailable"))
+        #expect(
+            relativeResult.stdout.contains(
+                scratchURL.path(percentEncoded: false)
+            )
+        )
+        #expect(absoluteResult.exitCode == ExitCode.success)
+        #expect(
+            absoluteResult.stdout.contains(
+                scratchURL.path(percentEncoded: false)
+            )
+        )
+    }
+
     @Test("--output - writes DAG validation messages to stdout")
     func outputDashWritesValidationMessageToStdout() throws {
         let fixtureURL = try makeFixtureProject()

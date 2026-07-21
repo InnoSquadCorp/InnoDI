@@ -227,20 +227,21 @@ jobs:
             --commit-sha "$EXPECTED_SHA"
           swift package dump-package >/dev/null
 
-      - name: Run main test suite
-        run: swift test
+      - name: Run clean coverage gate
+        id: coverage
+        run: Tools/run-coverage-gate.sh
 
-      - name: Run strict concurrency test suite
-        run: >-
-          swift test
-          -Xswiftc -strict-concurrency=complete
-          -Xswiftc -warnings-as-errors
-          --enable-code-coverage
-
-      - name: Enforce package and module coverage floors
-        run: |
-          Tools/collect-coverage.sh
-          python3 Tools/check-coverage-floor.py
+      - name: Upload coverage diagnostics
+        if: ${{ always() && hashFiles('coverage/summary.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-coverage-${{ inputs.version }}
+          path: |
+            coverage/lcov.info
+            coverage/report.txt
+            coverage/summary.json
+            coverage/summary.md
+          if-no-files-found: error
 
       - name: Validate repository contracts
         run: |
