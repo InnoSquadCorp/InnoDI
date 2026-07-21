@@ -51,6 +51,19 @@ visible qualifier shadows with `public` or `package` access in imported
 dependency targets, and direct-extension or standalone-local bridge targets
 before Swift compilation.
 
+Starting in 5.1, this package plugin also conforms to
+`XcodeBuildToolPlugin`. Attach it directly to every container target in a
+native Xcode project or a Tuist-generated project. For Tuist workspaces, it
+discovers the workspace root and builds one production-source snapshot so
+cross-project container references remain visible to source-level validation.
+
+The Xcode plugin API does not expose Tuist's complete cross-project target
+dependency topology. The Tuist fallback therefore validates the full source DAG
+and declaration contracts, but module-edge hierarchy rules that depend on the
+exact target graph still require a topology-aware SwiftPM or CI check. Xcode
+commands declare no outputs because multi-destination variants can share one
+plugin work directory, so Xcode may schedule the validation on every build.
+
 For a class bridge, or a container/bridge nested in a class, the preflight also
 follows the first inherited type as the potential superclass. Every traversed
 class and typealias must be source-visible in the workspace snapshot. An

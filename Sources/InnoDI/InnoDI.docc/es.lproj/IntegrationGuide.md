@@ -52,6 +52,20 @@ inspeccionar. Tambien rechaza direct-extension attachments y bridge targets
 locales standalone antes de la
 compilacion de Swift.
 
+Desde 5.1, este package plugin tambien implementa `XcodeBuildToolPlugin`.
+Adjuntelo directamente a cada container target en proyectos Xcode nativos o
+generados por Tuist. En workspaces Tuist detecta el workspace root y construye
+un unico snapshot de sources de produccion para que las referencias entre
+proyectos sigan visibles para la validacion source-level.
+
+La API de plugins de Xcode no expone la topologia completa de dependencias entre
+targets de Tuist. El fallback de Tuist valida el source DAG completo y los
+declaration contracts, pero las reglas de module-edge hierarchy que dependen del
+target graph exacto aun requieren un check topology-aware de SwiftPM o CI. Las
+variantes multi-destination pueden compartir un plugin work directory, por lo
+que los commands Xcode no declaran outputs y Xcode puede programar la validacion
+en cada build.
+
 Para un bridge de clase, o un container/bridge anidado en una clase, el
 preflight sigue el primer tipo heredado como posible superclase. Cada clase y
 typealias recorrido debe ser visible como source en el snapshot del workspace.

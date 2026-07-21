@@ -371,7 +371,7 @@ enum ModuleGraphProvider {
                 sourcePatterns: target.sources.map(\.filePath),
                 dependencyRefs: [],
                 swiftPMPackageDependencies: [],
-                buildSystem: WorkspaceAnalysisManifest.swiftPMBuildSystem,
+                buildSystem: manifest.buildSystem,
                 directDependencyModuleIDs: Set(
                     target.directDependencyTargetIDs.map(\.rawValue)
                 )

@@ -46,6 +46,19 @@ shadow、import 済み dependency target で可視な `public` / `package` quali
 shadow を拒否し、bridge の direct-extension attachment と standalone local target
 も Swift compile 前に遮断します。
 
+5.1 から、この package plugin は `XcodeBuildToolPlugin` にも対応します。native
+Xcode project または Tuist 生成 project の各 container target へ直接追加して
+ください。Tuist workspace では workspace root を検出し、ひとつの
+production-source snapshot を構築するため、cross-project container reference も
+source-level validation の対象になります。
+
+Xcode plugin API は Tuist の完全な cross-project target dependency topology を
+公開しません。そのため Tuist fallback は full source DAG と declaration contract
+を検証しますが、正確な target graph に依存する module-edge hierarchy rule には
+topology-aware な SwiftPM または CI check が必要です。multi-destination variant
+が同じ plugin work directory を共有できるため output は宣言せず、Xcode が毎
+build validation を schedule する場合があります。
+
 class bridge、または class 内に nested された container/bridge では、preflight は
 最初の inherited type を superclass 候補として追跡します。追跡する class と
 typealias はすべて workspace snapshot で source-visible である必要があります。

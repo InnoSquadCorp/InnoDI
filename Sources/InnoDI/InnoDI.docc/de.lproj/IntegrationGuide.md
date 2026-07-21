@@ -54,6 +54,20 @@ Attached Macros nicht sehen koennen. Er lehnt auch direkte Extension-Attachments
 und standalone lokale Bridge-Targets vor der
 Swift-Kompilierung ab.
 
+Ab 5.1 implementiert dieses Package-Plugin auch `XcodeBuildToolPlugin`. Binden
+Sie es in nativen Xcode-Projekten oder von Tuist erzeugten Projekten direkt an
+jedes Container-Target. In Tuist-Workspaces erkennt es den Workspace-Root und
+erstellt einen Production-Source-Snapshot, damit projektuebergreifende
+Container-Referenzen fuer die Source-Level-Validation sichtbar bleiben.
+
+Die Xcode-Plugin-API stellt Tuists vollstaendige projektuebergreifende Target-
+Dependency-Topologie nicht bereit. Der Tuist-Fallback validiert deshalb den
+vollstaendigen Source-DAG und Declaration Contracts; Module-Edge-Hierarchy-
+Regeln, die den exakten Target-Graph benoetigen, erfordern weiterhin einen
+topology-aware SwiftPM- oder CI-Check. Multi-Destination-Varianten koennen ein
+Plugin Work Directory teilen, daher deklarieren Xcode Commands keine Outputs
+und Xcode kann die Validation bei jedem Build planen.
+
 Bei einer Class-Bridge oder einem in einer Klasse verschachtelten Container bzw.
 einer Bridge folgt der Preflight dem ersten geerbten Typ als potenzieller
 Superklasse. Jede durchlaufene Klasse und jeder Typealias muss im Workspace

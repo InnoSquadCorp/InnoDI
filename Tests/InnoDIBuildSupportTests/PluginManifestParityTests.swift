@@ -68,13 +68,21 @@ struct PluginManifestParityTests {
         #expect(source.contains("innodi-dag-validation-state"))
         #expect(!source.contains("\"--root\""))
         #expect(source.contains("workspace-analysis.json"))
+        #expect(source.contains("import XcodeProjectPlugin"))
+        #expect(source.contains("XcodeBuildToolPlugin"))
+        #expect(source.contains("buildSystem: \"xcode\""))
+        #expect(source.contains("findTuistWorkspaceRoot"))
+        #expect(source.contains("tuistWorkspaceSources"))
+        #expect(source.contains("dependencies: []"))
+        #expect(source.contains("declaresOutputs: false"))
+        #expect(source.contains("module-edge hierarchy validation"))
         #expect(
             !FileManager.default.fileExists(
                 atPath: rootURL
                     .appendingPathComponent("InnoDIValidationTools")
                     .path
             ),
-            "5.0 must not ship an unusable companion-package placeholder"
+            "5.1 must not ship an unusable companion-package placeholder"
         )
     }
 }

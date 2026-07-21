@@ -207,6 +207,35 @@ standalone release assets.
 
 ## Unreleased
 
+### Highlights
+
+- Added native Xcode build-tool plugin support to
+  `InnoDIDAGValidationPlugin`, allowing native Xcode and Tuist-generated
+  targets to run the same build-time coordinator used by SwiftPM consumers.
+- Added a Tuist workspace fallback that discovers the workspace root and
+  validates all production Swift sources, preserving cross-project container
+  references in the source DAG.
+- Extended workspace-analysis manifest validation and module-graph diagnostics
+  to accept the additive `xcode` build-system identity namespace.
+
+### Breaking and Behavior Changes
+
+- Xcode validation commands intentionally declare no output files because
+  multi-destination variants can share one plugin work directory. Xcode may
+  therefore schedule the validation command during every build.
+- The Xcode plugin API does not expose Tuist's complete cross-project target
+  dependency topology. The Tuist fallback validates the full source DAG and
+  declaration contracts, but module-edge hierarchy rules that depend on the
+  exact target graph still require a topology-aware SwiftPM or CI check.
+
+### Upgrade Actions
+
+- Native Xcode and Tuist consumers should attach
+  `InnoDIDAGValidationPlugin` to every target that declares an InnoDI container
+  or standalone `@DIEnvironmentBridge`.
+- Keep a topology-aware hierarchy check in SwiftPM or CI when cross-module
+  `@DIComponent` / `@DIHierarchyRoot` relationships are a release gate.
+
 ## 5.0.0
 
 ### Highlights

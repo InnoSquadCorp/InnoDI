@@ -196,6 +196,21 @@ reemplazo del type checker de Swift.
 )
 ```
 
+Desde 5.1, el mismo product tambien implementa la API nativa de build-tool
+plugins de Xcode. Los proyectos Xcode nativos y los generados por Tuist pueden
+adjuntar el package plugin directamente a cada container target. En un
+workspace Tuist, el plugin detecta el workspace root y valida todos los sources
+Swift de produccion para incluir referencias cross-project en el source DAG.
+
+La API de plugins de Xcode no expone la topologia completa de dependencias entre
+targets de Tuist. Por eso, el fallback de 5.1 conserva el full-source DAG y la
+validacion de declarations, pero Xcode por si solo no puede demostrar todas las
+reglas de module-edge hierarchy. Mantenga un check topology-aware en SwiftPM o
+CI cuando las relaciones de modulo `@DIComponent` / `@DIHierarchyRoot` sean un
+release gate. Las variantes multi-destination comparten el plugin work
+directory, por lo que no se declaran output files y Xcode puede indicar que el
+validation command se ejecuta en cada build.
+
 ## Inicio rapido
 
 <!-- innodi:compile -->

@@ -176,6 +176,18 @@ Swift type checker。
 )
 ```
 
+从 5.1 开始，同一 product 也实现原生 Xcode build-tool plugin API。原生 Xcode
+project 和 Tuist 生成的 project 可以把 package plugin 直接附加到每个 container
+target。对于 Tuist workspace，plugin 会发现 workspace root 并验证全部 production
+Swift source，因此跨 project 的 container 引用也会进入 source DAG。
+
+Xcode plugin API 不会公开 Tuist 完整的跨 project target dependency topology。因此
+5.1 fallback 会保留 full-source DAG 和 declaration validation，但仅靠 Xcode 无法
+证明全部 module-edge hierarchy 规则。如果 `@DIComponent` / `@DIHierarchyRoot` 的
+module 关系属于 release gate，请继续使用 topology-aware 的 SwiftPM 或 CI hierarchy
+check。multi-destination variant 会共享 plugin work directory，所以验证命令不会声明
+output file；Xcode 可能会提示该 validation command 在每次 build 中运行。
+
 ## 快速开始
 
 <!-- innodi:compile -->
