@@ -327,11 +327,146 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  release-compatibility:
+    name: Release compatibility (${{ matrix.scenario }})
+    needs: recovery-state
+    runs-on: macos-26
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: swift-6.2
+            xcode: "26.2"
+          - scenario: xcode-26.5
+            xcode: "26.5"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+      - name: Select Xcode ${{ matrix.xcode }}
+        uses: ./.github/actions/select-xcode
+        with:
+          version: ${{ matrix.xcode }}
+      - name: Verify selected compatibility toolchain
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          set -euo pipefail
+          swift --version
+          xcodebuild -version
+          if [[ "$SCENARIO" == "swift-6.2" ]] \
+            && ! swift --version | grep -Eq '^Swift version 6\.2([. ]|$)'; then
+            echo "The Swift 6.2 release lane selected a different compiler." >&2
+            exit 1
+          fi
+      - name: Run strict external compatibility contracts
+        run: |
+          set -euo pipefail
+          swift test \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --filter StrictConcurrencyBuildTests
+          swift test \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --filter ExternalConsumerContractTests
+
+  exact-revision-consumer:
+    name: Remote exact-revision release consumer
+    needs: recovery-state
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact smoke fixture
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/select-xcode
+            Tests/RemoteConsumerSmoke
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Confirm exact candidate is the remote main tip
+        env:
+          INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
+          INNODI_REVISION: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          remote_main="$(git ls-remote "$INNODI_REPOSITORY_URL" refs/heads/main | awk '{print $1}')"
+          if [[ "$remote_main" != "$INNODI_REVISION" ]]; then
+            echo "Expected remote main $INNODI_REVISION, found ${remote_main:-<missing>}." >&2
+            exit 1
+          fi
+      - name: Materialize a fresh exact-revision consumer
+        env:
+          INNODI_REVISION: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/innodi-release-revision-consumer"
+          mkdir -p "$consumer"
+          while IFS= read -r -d '' fixture; do
+            relative="${fixture#Tests/RemoteConsumerSmoke/}"
+            destination="$consumer/${relative%.fixture}"
+            mkdir -p "$(dirname "$destination")"
+            sed "s/{{INNODI_REVISION}}/$INNODI_REVISION/g" "$fixture" > "$destination"
+          done < <(find Tests/RemoteConsumerSmoke -type f -name '*.fixture' -print0)
+          if grep -R -n -E '{{INNODI_[A-Z_]+}}' "$consumer"; then
+            echo "Remote consumer has unresolved template placeholders." >&2
+            exit 1
+          fi
+          printf 'INNODI_REMOTE_CONSUMER=%s\n' "$consumer" >> "$GITHUB_ENV"
+      - name: Resolve and verify the exact remote revision
+        env:
+          INNODI_REVISION: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          swift package --package-path "$INNODI_REMOTE_CONSUMER" resolve
+          python3 - "$INNODI_REMOTE_CONSUMER/Package.resolved" "$INNODI_REVISION" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          resolved = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          expected_revision = sys.argv[2]
+          pins = [
+              pin for pin in resolved.get("pins", [])
+              if pin.get("identity", "").lower() == "innodi"
+          ]
+          if len(pins) != 1:
+              raise SystemExit(f"expected one InnoDI pin, found {len(pins)}")
+          actual_revision = pins[0].get("state", {}).get("revision")
+          if actual_revision != expected_revision:
+              raise SystemExit(
+                  f"expected InnoDI revision {expected_revision}, found {actual_revision}"
+              )
+          PY
+      - name: Build and run macro-first and plugin consumers
+        run: |
+          set -euo pipefail
+          swift build \
+            --package-path "$INNODI_REMOTE_CONSUMER" \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+          swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build MacroOnlyApp
+          swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build ValidatedApp
+
   publish-release:
     name: Create immutable tag and GitHub Release
     needs:
       - recovery-state
       - release-gate
+      - release-compatibility
+      - exact-revision-consumer
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: release

@@ -50,7 +50,7 @@ struct ReleaseWorkflowContractTests {
         }
 
         #expect(!workflow.contains("persist-credentials: true"))
-        #expect(workflow.components(separatedBy: "persist-credentials: false").count - 1 == 3)
+        #expect(workflow.components(separatedBy: "persist-credentials: false").count - 1 == 5)
     }
 
     @Test("Validation steps cannot access release credentials")
@@ -141,6 +141,16 @@ struct ReleaseWorkflowContractTests {
         let releaseGateJob = try section(
             in: workflow,
             from: "  release-gate:",
+            to: "  release-compatibility:"
+        )
+        let compatibilityJob = try section(
+            in: workflow,
+            from: "  release-compatibility:",
+            to: "  exact-revision-consumer:"
+        )
+        let revisionConsumerJob = try section(
+            in: workflow,
+            from: "  exact-revision-consumer:",
             to: "  publish-release:"
         )
         let publishJob = workflow[try #require(
@@ -154,6 +164,8 @@ struct ReleaseWorkflowContractTests {
         #expect(releaseGateJob.contains("swift test"))
         #expect(try credentialIdentifiers(in: preflightJob) == [])
         #expect(try credentialIdentifiers(in: releaseGateJob) == [])
+        #expect(try credentialIdentifiers(in: compatibilityJob) == [])
+        #expect(try credentialIdentifiers(in: revisionConsumerJob) == [])
 
         for credentialedJob in [recoveryStateJob, publishJob] {
             #expect(!credentialedJob.contains("Tools/"))
@@ -184,7 +196,47 @@ struct ReleaseWorkflowContractTests {
             ]
         )
         #expect(releaseGateJob.contains("needs: recovery-state"))
+        #expect(compatibilityJob.contains("needs: recovery-state"))
+        #expect(revisionConsumerJob.contains("needs: recovery-state"))
         #expect(publishJob.contains("      - recovery-state"))
+        #expect(publishJob.contains("      - release-compatibility"))
+        #expect(publishJob.contains("      - exact-revision-consumer"))
+    }
+
+    @Test("Release publication includes legacy toolchain compatibility")
+    func legacyToolchainCompatibilityIsRequired() throws {
+        let workflow = try workflow
+        let compatibilityJob = try section(
+            in: workflow,
+            from: "  release-compatibility:",
+            to: "  exact-revision-consumer:"
+        )
+
+        #expect(compatibilityJob.contains("scenario: swift-6.2"))
+        #expect(compatibilityJob.contains("xcode: \"26.2\""))
+        #expect(compatibilityJob.contains("scenario: xcode-26.5"))
+        #expect(compatibilityJob.contains("xcode: \"26.5\""))
+        #expect(compatibilityJob.contains("ref: ${{ inputs.commit_sha }}"))
+        #expect(compatibilityJob.contains("--filter StrictConcurrencyBuildTests"))
+        #expect(compatibilityJob.contains("--filter ExternalConsumerContractTests"))
+    }
+
+    @Test("Release publication requires a remote exact-revision consumer")
+    func exactRevisionConsumerIsRequired() throws {
+        let workflow = try workflow
+        let consumerJob = try section(
+            in: workflow,
+            from: "  exact-revision-consumer:",
+            to: "  publish-release:"
+        )
+
+        #expect(consumerJob.contains("ref: ${{ inputs.commit_sha }}"))
+        #expect(consumerJob.contains("Tests/RemoteConsumerSmoke"))
+        #expect(consumerJob.contains("{{INNODI_REVISION}}"))
+        #expect(consumerJob.contains("INNODI_REVISION: ${{ inputs.commit_sha }}"))
+        #expect(consumerJob.contains("swift package --package-path \"$INNODI_REMOTE_CONSUMER\" resolve"))
+        #expect(consumerJob.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
+        #expect(consumerJob.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
     }
 
     @Test("Tag publication requires monotonic main ancestry")

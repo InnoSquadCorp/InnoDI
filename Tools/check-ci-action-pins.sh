@@ -126,6 +126,8 @@ for workflow_path in workflow_files:
         expected_job_permissions = {
             "recovery-state": {"contents": "read"},
             "release-gate": {"contents": "read"},
+            "release-compatibility": {"contents": "read"},
+            "exact-revision-consumer": {"contents": "read"},
             "publish-release": {"contents": "write"},
         }
     elif workflow_path.name == "macro-tests.yml":
