@@ -236,6 +236,80 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("var fetchPageIntReturnValue: String?"))
     }
 
+    @Test("GenerateMock disambiguates overloads whose normalized type stems collide")
+    func generateMockDisambiguatesNormalizedOverloadStems() throws {
+        let source = """
+        @GenerateMock
+        protocol API {
+            func fetch(_ value: Int) -> String
+            func fetch(_ value: [Int]) -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(
+            decl.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+        let callProperties = peer.split(separator: "\n")
+            .map(String.init)
+            .filter {
+                $0.contains("private(set) var fetchUnlabeledInt")
+                    && $0.contains("Calls:")
+            }
+
+        #expect(callProperties.count == 2)
+        #expect(Set(callProperties).count == 2)
+        #expect(peer.contains("func fetch(_ value: Int) -> String"))
+        #expect(peer.contains("func fetch(_ value: [Int]) -> String"))
+    }
+
+    @Test("GenerateMock disambiguates helpers from protocol property names")
+    func generateMockDisambiguatesHelperAndPropertyNames() throws {
+        let source = """
+        @GenerateMock
+        protocol API {
+            var fetchCalls: Int { get set }
+            func fetch()
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(
+            decl.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = peers.first?.description ?? ""
+
+        #expect(peer.contains("var fetchCalls: Int {"))
+        #expect(!peer.contains("private(set) var fetchCalls:"))
+        #expect(
+            peer.split(separator: "\n").contains {
+                $0.contains("private(set) var fetch")
+                    && $0.contains("Calls:")
+            }
+        )
+    }
+
     @Test("GenerateMock qualifies not-stubbed selectors for throwing overloads")
     func generateMockQualifiesNotStubbedSelectorsForThrowingOverloads() throws {
         let source = """
