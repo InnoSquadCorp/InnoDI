@@ -9,9 +9,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-SWIFT_PACKAGE_ARGUMENTS=()
+SWIFT_PACKAGE_ARGUMENTS=(--package-path "$ROOT_DIR")
 if [[ -n "${INNODI_COVERAGE_SCRATCH_PATH:-}" ]]; then
-    SWIFT_PACKAGE_ARGUMENTS=(
+    SWIFT_PACKAGE_ARGUMENTS+=(
         --scratch-path "$INNODI_COVERAGE_SCRATCH_PATH"
     )
 fi
