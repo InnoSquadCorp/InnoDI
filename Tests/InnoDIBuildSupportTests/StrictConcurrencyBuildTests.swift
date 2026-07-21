@@ -3,6 +3,12 @@ import Testing
 import InnoDIBuildSupport
 import InnoDITestSupport
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @Suite("Strict concurrency build integration", .serialized, .tags(.slow))
 struct StrictConcurrencyBuildTests {
     @Test("Deferred wrappers build under strict concurrency inside a non-Sendable container")
@@ -448,13 +454,13 @@ struct StrictConcurrencyBuildTests {
         )
     }
 
-    @Test("Timeout path avoids blocking on descendants that keep pipes open")
-    func timeoutPathAvoidsBlockingPipeDrain() throws {
+    @Test("Timeout path terminates descendants that keep pipes open")
+    func timeoutPathTerminatesDescendants() throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [
             "-c",
-            "trap '' TERM; sleep 5 & echo started; wait"
+            "trap '' TERM; sleep 30 & echo child=$!; wait"
         ]
         process.currentDirectoryURL = packageRootURL()
 
@@ -466,8 +472,23 @@ struct StrictConcurrencyBuildTests {
         )
 
         #expect(result.timedOut)
-        #expect(result.stdout.contains("started"))
+        let childProcessID = result.stdout
+            .split(whereSeparator: \.isNewline)
+            .first(where: { $0.hasPrefix("child=") })
+            .flatMap { Int32($0.dropFirst("child=".count)) }
+        let capturedChildProcessID = try #require(childProcessID)
+        #expect(waitForProcessExit(capturedChildProcessID))
     }
+}
+
+private func waitForProcessExit(_ processID: Int32) -> Bool {
+    for _ in 0..<100 {
+        if kill(processID, 0) == -1, errno == ESRCH {
+            return true
+        }
+        usleep(10_000)
+    }
+    return kill(processID, 0) == -1 && errno == ESRCH
 }
 
 typealias StrictConcurrencyBuildResult = CapturedProcessResult
