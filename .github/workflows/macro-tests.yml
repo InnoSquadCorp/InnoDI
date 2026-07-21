@@ -102,11 +102,11 @@ jobs:
         # build run.
         run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage
       - name: Collect Code Coverage
-        # Coverage is informational — surfaced in the workflow step summary
-        # and uploaded as an artifact, but not a merge gate. The PR template
-        # asks reviewers to scan the per-module table for unexpected drops.
+        # The collector produces review artifacts; the checked-in package and
+        # per-module floors then fail this exhaustive main gate on regressions.
         run: |
           Tools/collect-coverage.sh
+          python3 Tools/check-coverage-floor.py
           {
             echo "## Code coverage"
             echo
