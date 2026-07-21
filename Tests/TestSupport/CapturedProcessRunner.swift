@@ -35,10 +35,11 @@ public struct CapturedProcessResult: Sendable {
 
 /// Runs a subprocess while draining stdout and stderr concurrently.
 ///
-/// On timeout the runner first requests graceful termination, then sends
-/// `SIGKILL` after the grace period. It intentionally skips a blocking final
-/// pipe drain on that path because descendants may still hold inherited pipe
-/// descriptors open.
+/// On timeout the runner snapshots the subprocess tree, requests graceful
+/// termination from descendants before their parent, then sends `SIGKILL` to
+/// survivors after the grace period. It intentionally skips a blocking final
+/// pipe drain on that path because an unobservable descendant may still hold
+/// an inherited pipe descriptor open.
 public func runCapturedProcess(
     _ process: Process,
     timeoutSeconds: TimeInterval,
@@ -65,16 +66,45 @@ public func runCapturedProcess(
         terminationSemaphore,
         timeoutSeconds: timeoutSeconds
     )
-    if timedOut, process.isRunning {
-        process.terminate()
-        if !waitForTermination(
-            terminationSemaphore,
-            timeoutSeconds: terminationGraceSeconds
-        ), process.isRunning {
-            _ = kill(process.processIdentifier, SIGKILL)
+    if timedOut {
+        var processTree = CapturedProcessTree(
+            rootProcessID: process.processIdentifier
+        )
+        processTree.sendToDescendants(SIGTERM)
+        if process.isRunning {
+            process.terminate()
+        }
+
+        let gracefulDeadline = capturedProcessDeadline(
+            after: terminationGraceSeconds
+        )
+        if process.isRunning {
             _ = waitForTermination(
                 terminationSemaphore,
-                timeoutSeconds: hardKillGraceSeconds
+                deadline: gracefulDeadline
+            )
+        }
+        _ = processTree.waitForDescendantsToExit(
+            deadline: gracefulDeadline
+        )
+
+        processTree.refresh()
+        if process.isRunning || processTree.hasRunningDescendants {
+            processTree.sendToDescendants(SIGKILL)
+            if process.isRunning {
+                _ = kill(process.processIdentifier, SIGKILL)
+            }
+            let hardKillDeadline = capturedProcessDeadline(
+                after: hardKillGraceSeconds
+            )
+            if process.isRunning {
+                _ = waitForTermination(
+                    terminationSemaphore,
+                    deadline: hardKillDeadline
+                )
+            }
+            _ = processTree.waitForDescendantsToExit(
+                deadline: hardKillDeadline
             )
         }
     }
@@ -133,5 +163,15 @@ private func waitForTermination(
     _ semaphore: DispatchSemaphore,
     timeoutSeconds: TimeInterval
 ) -> Bool {
-    semaphore.wait(timeout: .now() + timeoutSeconds) == .success
+    waitForTermination(
+        semaphore,
+        deadline: capturedProcessDeadline(after: timeoutSeconds)
+    )
+}
+
+private func waitForTermination(
+    _ semaphore: DispatchSemaphore,
+    deadline: DispatchTime
+) -> Bool {
+    semaphore.wait(timeout: deadline) == .success
 }
