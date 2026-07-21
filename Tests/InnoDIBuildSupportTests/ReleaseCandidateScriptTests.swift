@@ -613,6 +613,36 @@ struct ReleaseCandidateScriptTests {
         #expect(result.exitCode != 0)
         #expect(result.output.contains("missing README variant: README.zh-Hans.md"))
     }
+
+    @Test("English migration guide cannot describe the candidate train as unreleased")
+    func unreleasedEnglishMigrationGuideIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeMigrationGuide(
+            named: "Sources/InnoDI/InnoDI.docc/MigrationGuide.md",
+            body: "## 4.x → 5.0 (unreleased)\n"
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("MigrationGuide.md still describes 5.0 as unreleased"))
+    }
+
+    @Test("Korean migration guide cannot describe the candidate train as unreleased")
+    func unreleasedKoreanMigrationGuideIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture()
+        defer { fixture.remove() }
+        try fixture.writeMigrationGuide(
+            named: "Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md",
+            body: "## 4.x → 5.0 (미출시)\n"
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("ko.lproj/MigrationGuide.md still describes 5.0 as 미출시"))
+    }
 }
 
 private struct ReleaseCandidateScriptResult {
@@ -687,6 +717,16 @@ private struct ReleaseCandidateScriptFixture {
                     dependencyVersions: [version]
                 )
             }
+            try Self.writeMigrationGuide(
+                at: rootURL,
+                named: "Sources/InnoDI/InnoDI.docc/MigrationGuide.md",
+                body: "## 4.x → \(Self.majorMinor(version))\n"
+            )
+            try Self.writeMigrationGuide(
+                at: rootURL,
+                named: "Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md",
+                body: "## 4.x → \(Self.majorMinor(version))\n"
+            )
 
             _ = try runCapturedCommand(
                 executable: "/usr/bin/env",
@@ -808,6 +848,10 @@ private struct ReleaseCandidateScriptFixture {
         )
     }
 
+    func writeMigrationGuide(named name: String, body: String) throws {
+        try Self.writeMigrationGuide(at: rootURL, named: name, body: body)
+    }
+
     func convertReleasingToCRLF() throws {
         let releasingURL = rootURL.appendingPathComponent("RELEASING.md")
         let document = try String(contentsOf: releasingURL, encoding: .utf8)
@@ -913,6 +957,23 @@ private struct ReleaseCandidateScriptFixture {
             atomically: true,
             encoding: .utf8
         )
+    }
+
+    private static func writeMigrationGuide(
+        at rootURL: URL,
+        named name: String,
+        body: String
+    ) throws {
+        let guideURL = rootURL.appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: guideURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try body.write(to: guideURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func majorMinor(_ version: String) -> String {
+        version.split(separator: ".").prefix(2).joined(separator: ".")
     }
 }
 

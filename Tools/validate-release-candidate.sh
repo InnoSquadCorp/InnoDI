@@ -331,4 +331,27 @@ for readme_name in "${README_FILES[@]}"; do
         fail "$readme_name must use the canonical InnoDI package URL with from: \"$VERSION\""
 done
 
+MAJOR_MINOR_VERSION="${VERSION%.*}"
+ENGLISH_MIGRATION_GUIDE="$ROOT_DIR/Sources/InnoDI/InnoDI.docc/MigrationGuide.md"
+KOREAN_MIGRATION_GUIDE="$ROOT_DIR/Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md"
+
+[[ -f "$ENGLISH_MIGRATION_GUIDE" ]] || \
+    fail "missing migration guide: Sources/InnoDI/InnoDI.docc/MigrationGuide.md"
+[[ -f "$KOREAN_MIGRATION_GUIDE" ]] || \
+    fail "missing migration guide: Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md"
+
+if awk -v version="$MAJOR_MINOR_VERSION" '
+    index($0, version) > 0 && tolower($0) ~ /unreleased/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$ENGLISH_MIGRATION_GUIDE"; then
+    fail "Sources/InnoDI/InnoDI.docc/MigrationGuide.md still describes $MAJOR_MINOR_VERSION as unreleased"
+fi
+
+if awk -v version="$MAJOR_MINOR_VERSION" '
+    index($0, version) > 0 && index($0, "미출시") > 0 { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$KOREAN_MIGRATION_GUIDE"; then
+    fail "Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md still describes $MAJOR_MINOR_VERSION as 미출시"
+fi
+
 echo "Release candidate metadata validated: version=$VERSION commit=$COMMIT_SHA root=$ROOT_DIR"
