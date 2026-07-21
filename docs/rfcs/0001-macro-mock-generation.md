@@ -201,7 +201,8 @@ RFC revisions.
 - [x] Actor-isolated protocols and requirements fail closed until an actor-safe
       mutable call-recording model is accepted
 - [x] Snapshot tests for the supported call shapes
-- [ ] Async / `throws` method shapes covered by snapshots end-to-end
+- [x] Async / `throws` method shapes covered by snapshots and a strict external
+      consumer ([`8a80f66`](https://github.com/InnoSquadCorp/InnoDI/commit/8a80f6646da8df146100750d58f2894d1adf5720))
 - [ ] Associated-type protocols (per RFC `Initial answers to open questions`,
       with `@GenerateMock(associatedTypes: ...)` syntax)
 - [ ] Actor-isolated protocols — currently *Out-of-scope for GA* and tracked
