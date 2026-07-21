@@ -328,6 +328,41 @@ struct WorkspaceAnalysisManifestTests {
             support: support,
             manifest: manifest
         )
+        let outsidePath = fixture.rootURL.deletingLastPathComponent()
+            .appendingPathComponent("Outside-\(UUID().uuidString).swift")
+            .path
+        expectSourceError(
+            .declaredSourceOutsidePackage(
+                target: fixture.appID,
+                filePath: outsidePath,
+                packageDirectory: fixture.rootPath
+            ),
+            source: WorkspaceAnalysisSource(
+                filePath: outsidePath,
+                logicalPath: "Sources/App/Outside.swift",
+                origin: .declared
+            ),
+            app: app,
+            feature: feature,
+            support: support,
+            manifest: manifest
+        )
+        expectSourceError(
+            .declaredSourceLogicalPathMismatch(
+                target: fixture.appID,
+                expected: appSource.logicalPath,
+                actual: "Sources/App/Renamed.swift"
+            ),
+            source: WorkspaceAnalysisSource(
+                filePath: appSource.filePath,
+                logicalPath: "Sources/App/Renamed.swift",
+                origin: .declared
+            ),
+            app: app,
+            feature: feature,
+            support: support,
+            manifest: manifest
+        )
 
         let repeatedIdentity = WorkspaceAnalysisSource(
             filePath: zSource.filePath,
@@ -355,7 +390,7 @@ struct WorkspaceAnalysisManifestTests {
             filePath: fixture.appSourceURL.deletingLastPathComponent().path
                 + "/./App.swift",
             logicalPath: "Sources/App/Alias.swift",
-            origin: .declared
+            origin: .generated
         )
         expectManifestError(
             .duplicateSourcePath(fixture.appID, appSource.filePath),
@@ -375,7 +410,7 @@ struct WorkspaceAnalysisManifestTests {
         let crossOwnedSource = WorkspaceAnalysisSource(
             filePath: appSource.filePath,
             logicalPath: "Sources/Feature/Feature.swift",
-            origin: .declared
+            origin: .generated
         )
         expectManifestError(
             .duplicateSourceOwnership(
@@ -394,7 +429,7 @@ struct WorkspaceAnalysisManifestTests {
         )
 
         let missingPath = fixture.rootURL
-            .appendingPathComponent("Missing.swift")
+            .appendingPathComponent("Sources/App/Missing.swift")
             .path
         expectSourceError(
             .unavailableSource(missingPath),
@@ -409,6 +444,55 @@ struct WorkspaceAnalysisManifestTests {
             manifest: manifest,
             validateSourceAvailability: true
         )
+    }
+
+    @Test("Decoded manifests enforce declared source path coherence")
+    func decodedManifestRejectsDeclaredLogicalPathMismatch() throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+        let manifest = makeValidManifest(fixture: fixture)
+        let app = try #require(manifest.primaryTarget)
+        let source = try #require(app.sources.first)
+        let malformed = replacingManifest(
+            manifest,
+            targets: manifest.targets.map { target in
+                guard target.id == app.id else {
+                    return target
+                }
+                return replacingTarget(
+                    target,
+                    sources: [
+                        WorkspaceAnalysisSource(
+                            filePath: source.filePath,
+                            logicalPath: "Sources/App/DecodedMismatch.swift",
+                            origin: .declared
+                        )
+                    ] + target.sources.dropFirst()
+                )
+            }
+        )
+        let manifestURL = fixture.rootURL.appendingPathComponent(
+            "decoded-mismatch.json"
+        )
+        try JSONEncoder().encode(malformed).write(to: manifestURL)
+
+        do {
+            _ = try loadWorkspaceAnalysisManifest(
+                at: manifestURL,
+                validateSourceAvailability: false
+            )
+            Issue.record("Expected decoded manifest path mismatch")
+        } catch let error as WorkspaceAnalysisManifestError {
+            #expect(
+                error == .declaredSourceLogicalPathMismatch(
+                    target: fixture.appID,
+                    expected: source.logicalPath,
+                    actual: "Sources/App/DecodedMismatch.swift"
+                )
+            )
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
 
     @Test("Invalid dependency closures fail closed")
