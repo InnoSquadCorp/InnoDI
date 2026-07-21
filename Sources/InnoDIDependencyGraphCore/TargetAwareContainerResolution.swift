@@ -137,7 +137,7 @@ struct TargetAwareContainerResolutionIndex {
     }
 
     private let targetsByID: [WorkspaceTargetID: IndexedTarget]
-    private let externalModuleNames: Set<String>
+    private let workspaceModuleNames: Set<String>
 
     init(
         manifest: WorkspaceAnalysisManifest,
@@ -178,7 +178,7 @@ struct TargetAwareContainerResolutionIndex {
             )
         }
         targetsByID = targets
-        externalModuleNames = Set(manifest.targets.map(\.moduleName))
+        workspaceModuleNames = Set(manifest.targets.map(\.moduleName))
     }
 
     func resolver(
@@ -216,6 +216,41 @@ struct TargetAwareContainerResolutionIndex {
         }
         defer { activeVisits.remove(visit) }
 
+        let candidates = expandedCandidates(
+            for: reference,
+            in: target,
+            sourceImports: sourceImports
+        )
+        if let localResolution = preferredLocalResolution(
+            for: reference,
+            candidates: candidates,
+            sourceImports: sourceImports,
+            in: target
+        ) {
+            return localResolution
+        }
+
+        if let dependencyResolution = resolveDependencyCandidates(
+            candidates,
+            from: target,
+            activeVisits: &activeVisits
+        ) {
+            return dependencyResolution
+        }
+
+        return .unresolved(
+            aliasExpansionTrace: uniqueSortedStrings(
+                candidates.flatMap(\.aliasExpansionTrace)
+            )
+        )
+    }
+
+    private func preferredLocalResolution(
+        for reference: SemanticTypeReference,
+        candidates: [ResolutionCandidate],
+        sourceImports: TargetAwareSourceImports,
+        in target: IndexedTarget
+    ) -> GraphContainerResolution? {
         let originalCandidate = ResolutionCandidate(
             reference: reference,
             sourceImports: sourceImports,
@@ -228,12 +263,6 @@ struct TargetAwareContainerResolutionIndex {
         ) {
             return exactNominal
         }
-
-        let candidates = expandedCandidates(
-            for: reference,
-            in: target,
-            sourceImports: sourceImports
-        )
 
         if let exact = localResolution(
             candidates: candidates,
@@ -248,17 +277,21 @@ struct TargetAwareContainerResolutionIndex {
                   let first = candidate.reference.components.first else {
                 return true
             }
-            return !externalModuleNames.contains(first)
+            return !workspaceModuleNames.contains(first)
                 && first != target.moduleName
         }
-        if let suffix = localResolution(
+        return localResolution(
             candidates: suffixCandidates,
             in: target,
             useSuffixFallback: true
-        ) {
-            return suffix
-        }
+        )
+    }
 
+    private func resolveDependencyCandidates(
+        _ candidates: [ResolutionCandidate],
+        from target: IndexedTarget,
+        activeVisits: inout Set<ResolutionVisit>
+    ) -> GraphContainerResolution? {
         var dependencyResolutions: [GraphContainerResolution] = []
         var ineligibleConditionalResolutions: [
             GraphContainerResolution
@@ -269,25 +302,15 @@ struct TargetAwareContainerResolutionIndex {
                 continue
             }
 
-            if candidate.reference.components.count > 1,
-               firstComponent == target.moduleName {
-                let stripped = semanticReference(
-                    components: Array(
-                        candidate.reference.components.dropFirst()
-                    )
-                )
-                let resolution = resolve(
-                    stripped,
-                    from: target.id,
-                    sourceImports: candidate.sourceImports,
-                    activeVisits: &activeVisits
-                )
-                if !resolution.allCandidateIDs.isEmpty {
-                    dependencyResolutions.append(
-                        resolution.withAliasExpansionTrace(
-                            candidate.aliasExpansionTrace
-                        )
-                    )
+            let selfQualified = resolveSelfQualifiedCandidate(
+                candidate,
+                firstComponent: firstComponent,
+                from: target,
+                activeVisits: &activeVisits
+            )
+            if selfQualified.wasHandled {
+                if let resolution = selfQualified.resolution {
+                    dependencyResolutions.append(resolution)
                 }
                 continue
             }
@@ -314,29 +337,15 @@ struct TargetAwareContainerResolutionIndex {
                 from: target,
                 sourceImports: candidate.sourceImports
             )
-            if candidate.reference.components.count > 1,
-               externalModuleNames.contains(firstComponent) {
-                let stripped = semanticReference(
-                    components: Array(
-                        candidate.reference.components.dropFirst()
-                    )
+            if let qualifiedResolutions = resolveWorkspaceQualifiedCandidate(
+                candidate,
+                firstComponent: firstComponent,
+                visibleDependencies: visibleDependencies,
+                activeVisits: &activeVisits
+            ) {
+                dependencyResolutions.append(
+                    contentsOf: qualifiedResolutions
                 )
-                for dependency in visibleDependencies
-                where dependency.moduleName == firstComponent {
-                    let resolution = resolve(
-                        stripped,
-                        from: dependency.id,
-                        sourceImports: .empty,
-                        activeVisits: &activeVisits
-                    )
-                    if !resolution.allCandidateIDs.isEmpty {
-                        dependencyResolutions.append(
-                            resolution.withAliasExpansionTrace(
-                                candidate.aliasExpansionTrace
-                            )
-                        )
-                    }
-                }
                 continue
             }
 
@@ -357,19 +366,77 @@ struct TargetAwareContainerResolutionIndex {
             }
         }
 
-        guard !dependencyResolutions.isEmpty else {
-            if !ineligibleConditionalResolutions.isEmpty {
-                return mergedResolution(
-                    ineligibleConditionalResolutions
+        if !dependencyResolutions.isEmpty {
+            return mergedResolution(dependencyResolutions)
+        }
+        guard !ineligibleConditionalResolutions.isEmpty else {
+            return nil
+        }
+        return mergedResolution(ineligibleConditionalResolutions)
+    }
+
+    private func resolveSelfQualifiedCandidate(
+        _ candidate: ResolutionCandidate,
+        firstComponent: String,
+        from target: IndexedTarget,
+        activeVisits: inout Set<ResolutionVisit>
+    ) -> (wasHandled: Bool, resolution: GraphContainerResolution?) {
+        guard candidate.reference.components.count > 1,
+              firstComponent == target.moduleName else {
+            return (false, nil)
+        }
+
+        let resolution = resolve(
+            semanticReference(
+                components: Array(candidate.reference.components.dropFirst())
+            ),
+            from: target.id,
+            sourceImports: candidate.sourceImports,
+            activeVisits: &activeVisits
+        )
+        guard !resolution.allCandidateIDs.isEmpty else {
+            return (true, nil)
+        }
+        return (
+            true,
+            resolution.withAliasExpansionTrace(
+                candidate.aliasExpansionTrace
+            )
+        )
+    }
+
+    private func resolveWorkspaceQualifiedCandidate(
+        _ candidate: ResolutionCandidate,
+        firstComponent: String,
+        visibleDependencies: [IndexedTarget],
+        activeVisits: inout Set<ResolutionVisit>
+    ) -> [GraphContainerResolution]? {
+        guard candidate.reference.components.count > 1,
+              workspaceModuleNames.contains(firstComponent) else {
+            return nil
+        }
+
+        let stripped = semanticReference(
+            components: Array(candidate.reference.components.dropFirst())
+        )
+        var resolutions: [GraphContainerResolution] = []
+        for dependency in visibleDependencies
+        where dependency.moduleName == firstComponent {
+            let resolution = resolve(
+                stripped,
+                from: dependency.id,
+                sourceImports: .empty,
+                activeVisits: &activeVisits
+            )
+            if !resolution.allCandidateIDs.isEmpty {
+                resolutions.append(
+                    resolution.withAliasExpansionTrace(
+                        candidate.aliasExpansionTrace
+                    )
                 )
             }
-            return .unresolved(
-                aliasExpansionTrace: uniqueSortedStrings(
-                    candidates.flatMap(\.aliasExpansionTrace)
-                )
-            )
         }
-        return mergedResolution(dependencyResolutions)
+        return resolutions
     }
 
     private func conditionalImportResolution(
@@ -476,7 +543,7 @@ struct TargetAwareContainerResolutionIndex {
                   let first = candidate.reference.components.first else {
                 return true
             }
-            return !externalModuleNames.contains(first)
+            return !workspaceModuleNames.contains(first)
                 && first != target.moduleName
         }
         return localResolution(
