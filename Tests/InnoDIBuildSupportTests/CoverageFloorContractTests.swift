@@ -91,6 +91,11 @@ struct CoverageFloorContractTests {
         #expect(coverageGate.contains("--enable-code-coverage"))
         #expect(coverageGate.contains("BUILD_DIR=\"$(swift build"))
         #expect(coverageGate.contains("--show-bin-path)\""))
+        #expect(
+            coverageGate.contains(
+                "SWIFT_PACKAGE_ARGUMENTS=(--package-path \"$ROOT_DIR\")"
+            )
+        )
         #expect(coverageGate.contains("INNODI_COVERAGE_SCRATCH_PATH"))
         #expect(coverageGate.contains("rm -rf \"$COVERAGE_PROFILE_DIR\""))
         #expect(
