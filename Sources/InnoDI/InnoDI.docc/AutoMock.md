@@ -88,6 +88,10 @@ when any of these appear, because that would generate a broken conformance:
 * Opaque `some` return types.
 * Associated types — hand-roll those mocks until the RFC settles on the
   pinning and cross-module resolution path.
+* Protocol inheritance other than `AnyObject`. Attached peer macros cannot
+  inspect inherited requirements across files or modules, so InnoDI fails
+  closed instead of emitting a mock with a potentially incomplete
+  conformance.
 
 If the protocol declares no members at all, the macro emits the
 informational `mock.experimental-skeleton` note so adopters can confirm

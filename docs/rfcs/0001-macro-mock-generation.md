@@ -194,6 +194,8 @@ RFC revisions.
       attachment)
 - [x] Top-level protocol synthesis with overload-qualified helper names
 - [x] Generic method requirements via erased handler closures
+- [x] Inherited protocols fail closed until inherited-requirement resolution
+      is available (`AnyObject` class bounds remain supported)
 - [x] Snapshot tests for the supported call shapes
 - [ ] Async / `throws` method shapes covered by snapshots end-to-end
 - [ ] Associated-type protocols (per RFC `Initial answers to open questions`,

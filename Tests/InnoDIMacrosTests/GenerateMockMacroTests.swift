@@ -174,6 +174,78 @@ struct GenerateMockMacroTests {
         )
     }
 
+    @Test("GenerateMock fails closed for inherited protocol requirements")
+    func generateMockRefusesInheritedProtocolRequirements() throws {
+        let source = """
+        protocol ParentAPI {
+            func parentValue() -> String
+        }
+
+        @GenerateMock
+        protocol ChildAPI: ParentAPI {
+            func childValue() -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(
+            parsed.statements.compactMap {
+                $0.item.as(ProtocolDeclSyntax.self)
+            }.last
+        )
+        let attr = try #require(
+            decl.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "mock.unsupported-member"
+                ) && $0.message.contains("ParentAPI inheritance")
+            }
+        )
+    }
+
+    @Test("GenerateMock permits an AnyObject class bound")
+    func generateMockPermitsAnyObjectClassBound() throws {
+        let source = """
+        @GenerateMock
+        protocol ClassBoundAPI: AnyObject {
+            func load() -> String
+        }
+        """
+
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(
+            decl.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.count == 1)
+        #expect(peers.first?.description.contains(
+            "final class ClassBoundAPIMock: ClassBoundAPI"
+        ) == true)
+        #expect(context.diagnostics.isEmpty)
+    }
+
     @Test("GenerateMock keeps property backing storage names unique after normalization")
     func generateMockKeepsPropertyBackingStorageNamesUnique() throws {
         let source = """
