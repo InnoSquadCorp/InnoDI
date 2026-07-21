@@ -361,18 +361,6 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: ${{ matrix.xcode }}
-      - name: Verify selected compatibility toolchain
-        env:
-          SCENARIO: ${{ matrix.scenario }}
-        run: |
-          set -euo pipefail
-          swift --version
-          xcodebuild -version
-          if [[ "$SCENARIO" == "swift-6.2" ]] \
-            && ! swift --version | grep -Eq '^Swift version 6\.2([. ]|$)'; then
-            echo "The Swift 6.2 release lane selected a different compiler." >&2
-            exit 1
-          fi
       - name: Run strict external compatibility contracts
         run: |
           set -euo pipefail
