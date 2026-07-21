@@ -460,8 +460,8 @@ jobs:
           swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build MacroOnlyApp
           swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build ValidatedApp
 
-  publish-release:
-    name: Create immutable tag and GitHub Release
+  stage-release:
+    name: Stage annotated tag and verified draft
     needs:
       - recovery-state
       - release-gate
@@ -530,9 +530,6 @@ jobs:
             echo "SHA256SUMS must contain exactly the two generated payload checksums." >&2
             exit 1
           fi
-
-          gh release verify --help >/dev/null
-          gh release verify-asset --help >/dev/null
 
       - name: Require immutable release and tag policies
         env:
@@ -663,7 +660,7 @@ jobs:
             exit 1
           fi
 
-      - name: Converge annotated tag and immutable release
+      - name: Stage annotated tag and draft release
         env:
           VERSION: ${{ inputs.version }}
           EXPECTED_SHA: ${{ inputs.commit_sha }}
@@ -676,8 +673,7 @@ jobs:
           RELEASE_JSON="$(mktemp)"
           RELEASE_ERROR="$(mktemp)"
           RELEASE_PAGES="$(mktemp)"
-          REMOTE_ASSET_DIR="$(mktemp -d)"
-          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR" "$RELEASE_PAGES"; rm -rf "$REMOTE_ASSET_DIR"' EXIT
+          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR" "$RELEASE_PAGES"' EXIT
 
           api() {
             gh api \
@@ -835,70 +831,6 @@ jobs:
             fi
           }
 
-          wait_for_immutable_release() {
-            local attempt
-            for attempt in 1 2 3 4 5; do
-              fetch_release
-              if [[ "$RELEASE_EXISTS" == "true" ]] \
-                && jq -e '.draft == false and .immutable == true' \
-                  "$RELEASE_JSON" >/dev/null; then
-                return 0
-              fi
-              if [[ "$attempt" != "5" ]]; then
-                sleep 5
-              fi
-            done
-            echo "Release $VERSION did not become immutable after publication." >&2
-            exit 1
-          }
-
-          verify_published_attestation() {
-            local attempt asset
-            for attempt in 1 2 3 4 5; do
-              if gh release verify "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null; then
-                rm -rf "$REMOTE_ASSET_DIR"
-                mkdir -p "$REMOTE_ASSET_DIR"
-                if gh release download "$VERSION" \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --dir "$REMOTE_ASSET_DIR"; then
-                  ATTESTED_ASSETS=true
-                  if ! cmp -s release-assets/release-notes.md \
-                    "$REMOTE_ASSET_DIR/release-notes.md"; then
-                    echo "Published release-notes.md differs from the validated release notes." >&2
-                    ATTESTED_ASSETS=false
-                  elif ! (
-                    cd "$REMOTE_ASSET_DIR"
-                    [[ "$(wc -l < SHA256SUMS | tr -d ' ')" == "2" ]]
-                    grep -Eq '^[0-9a-f]{64}  innodi-docc\.tar\.gz$' SHA256SUMS
-                    grep -Eq '^[0-9a-f]{64}  release-notes\.md$' SHA256SUMS
-                    sha256sum --check --strict SHA256SUMS
-                  ); then
-                    echo "Published SHA256SUMS does not validate the fixed release payloads." >&2
-                    ATTESTED_ASSETS=false
-                  fi
-
-                  if [[ "$ATTESTED_ASSETS" == "true" ]]; then
-                    for asset in innodi-docc.tar.gz release-notes.md SHA256SUMS; do
-                      if ! gh release verify-asset "$VERSION" "$REMOTE_ASSET_DIR/$asset" \
-                        --repo "$GITHUB_REPOSITORY" >/dev/null; then
-                        ATTESTED_ASSETS=false
-                        break
-                      fi
-                    done
-                  fi
-                  if [[ "$ATTESTED_ASSETS" == "true" ]]; then
-                    return 0
-                  fi
-                fi
-              fi
-              if [[ "$attempt" != "5" ]]; then
-                sleep 5
-              fi
-            done
-            echo "GitHub did not produce a valid immutable release attestation for $VERSION." >&2
-            exit 1
-          }
-
           inspect_remote_tag
           verify_expected_is_remote_main_ancestor
           if [[ "$REMOTE_TAG_EXISTS" == "false" ]]; then
@@ -942,7 +874,6 @@ jobs:
             && [[ "$(jq -r '.draft' "$RELEASE_JSON")" == "false" ]]; then
             verify_release_payload false true true
             inspect_remote_tag
-            verify_published_attestation
             echo "Immutable release $VERSION is already complete and exact."
             exit 0
           fi
@@ -971,7 +902,6 @@ jobs:
           if [[ "$(jq -r '.draft' "$RELEASE_JSON")" != "true" ]]; then
             verify_release_payload false true true
             inspect_remote_tag
-            verify_published_attestation
             echo "Immutable release $VERSION was completed by another publisher."
             exit 0
           fi
@@ -1009,20 +939,315 @@ jobs:
 
           fetch_release
           verify_release_payload true false true
-
-          # A draft does not lock its tag. Recheck the peeled target in the
-          # immediately preceding operation before publication makes it immutable.
           inspect_remote_tag
           verify_expected_is_remote_main_ancestor
-          FINAL_REMOTE_TAG="$(git -C "$REPOSITORY_DIR" ls-remote --exit-code origin \
-            "refs/tags/$VERSION^{}")"
-          FINAL_REMOTE_PEELED_SHA="$(printf '%s\n' "$FINAL_REMOTE_TAG" \
-            | awk -v ref="refs/tags/$VERSION^{}" '$2 == ref { print $1 }')"
-          if [[ "$FINAL_REMOTE_PEELED_SHA" != "$EXPECTED_SHA" ]]; then
-            echo "Tag $VERSION moved immediately before publication." >&2
+          echo "Annotated tag $VERSION and its verified draft are ready for exact-version consumption."
+
+  exact-tag-consumer:
+    name: Exact-version tag consumer
+    needs: stage-release
+    runs-on: macos-26
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact smoke fixture
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/select-xcode
+            Tests/RemoteConsumerSmoke
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Verify the annotated tag targets the candidate
+        env:
+          INNODI_VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+          INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
+        run: |
+          set -euo pipefail
+          remote_tags="$(git ls-remote --exit-code --tags "$INNODI_REPOSITORY_URL" \
+            "refs/tags/$INNODI_VERSION" "refs/tags/$INNODI_VERSION^{}")"
+          direct_count="$(printf '%s\n' "$remote_tags" \
+            | awk -v ref="refs/tags/$INNODI_VERSION" '$2 == ref { count += 1 } END { print count + 0 }')"
+          peeled_count="$(printf '%s\n' "$remote_tags" \
+            | awk -v ref="refs/tags/$INNODI_VERSION^{}" '$2 == ref { count += 1 } END { print count + 0 }')"
+          peeled_sha="$(printf '%s\n' "$remote_tags" \
+            | awk -v ref="refs/tags/$INNODI_VERSION^{}" '$2 == ref { print $1 }')"
+          if [[ "$direct_count" != "1" || "$peeled_count" != "1" \
+            || "$peeled_sha" != "$EXPECTED_SHA" ]]; then
+            echo "Tag $INNODI_VERSION is not one annotated tag targeting $EXPECTED_SHA." >&2
+            printf '%s\n' "$remote_tags" >&2
+            exit 1
+          fi
+      - name: Materialize a fresh exact-version consumer
+        env:
+          INNODI_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/innodi-exact-tag-consumer"
+          mkdir -p "$consumer"
+          while IFS= read -r -d '' fixture; do
+            relative="${fixture#Tests/RemoteConsumerSmoke/}"
+            destination="$consumer/${relative%.fixture}"
+            mkdir -p "$(dirname "$destination")"
+            sed "s/revision: \"{{INNODI_REVISION}}\"/exact: \"$INNODI_VERSION\"/g" \
+              "$fixture" > "$destination"
+          done < <(find Tests/RemoteConsumerSmoke -type f -name '*.fixture' -print0)
+          if grep -R -n -E '{{INNODI_[A-Z_]+}}' "$consumer"; then
+            echo "Exact-version consumer has unresolved template placeholders." >&2
+            exit 1
+          fi
+          printf 'INNODI_TAG_CONSUMER=%s\n' "$consumer" >> "$GITHUB_ENV"
+      - name: Resolve and verify the exact released version
+        env:
+          INNODI_VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          swift package --package-path "$INNODI_TAG_CONSUMER" resolve
+          python3 - "$INNODI_TAG_CONSUMER/Package.resolved" \
+            "$INNODI_VERSION" "$EXPECTED_SHA" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          resolved = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          expected_version = sys.argv[2]
+          expected_revision = sys.argv[3]
+          pins = [
+              pin for pin in resolved.get("pins", [])
+              if pin.get("identity", "").lower() == "innodi"
+          ]
+          if len(pins) != 1:
+              raise SystemExit(f"expected one InnoDI pin, found {len(pins)}")
+          state = pins[0].get("state", {})
+          if state.get("version") != expected_version:
+              raise SystemExit(
+                  f"expected InnoDI version {expected_version}, found {state.get('version')}"
+              )
+          if state.get("revision") != expected_revision:
+              raise SystemExit(
+                  f"expected InnoDI revision {expected_revision}, found {state.get('revision')}"
+              )
+          PY
+      - name: Build and run Debug and Release consumers
+        run: |
+          set -euo pipefail
+          swift build --package-path "$INNODI_TAG_CONSUMER" -c debug \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+          swift run --package-path "$INNODI_TAG_CONSUMER" -c debug --skip-build MacroOnlyApp
+          swift run --package-path "$INNODI_TAG_CONSUMER" -c debug --skip-build ValidatedApp
+          swift build --package-path "$INNODI_TAG_CONSUMER" -c release \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+          swift run --package-path "$INNODI_TAG_CONSUMER" -c release --skip-build MacroOnlyApp
+          swift run --package-path "$INNODI_TAG_CONSUMER" -c release --skip-build ValidatedApp
+
+  publish-release:
+    name: Publish immutable GitHub Release
+    needs:
+      - stage-release
+      - exact-tag-consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Download validated release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: innodi-release-${{ inputs.version }}
+          path: release-assets
+      - name: Publish verified draft as immutable release
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.commit_sha }}
+          GH_TOKEN: ${{ github.token }}
+          API_VERSION: "2026-03-10"
+          INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
+        run: |
+          set -euo pipefail
+
+          STABLE_SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          FULL_SHA_PATTERN='^[0-9a-f]{40}$'
+          if [[ ! "$VERSION" =~ $STABLE_SEMVER_PATTERN ]]; then
+            echo "version must be a stable, unprefixed semantic version without leading zeroes." >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_SHA" =~ $FULL_SHA_PATTERN ]]; then
+            echo "commit SHA must be exactly 40 lowercase hexadecimal characters." >&2
             exit 1
           fi
 
+          test -s release-assets/innodi-docc.tar.gz
+          test -s release-assets/release-notes.md
+          test -s release-assets/SHA256SUMS
+          (
+            cd release-assets
+            sha256sum --check --strict SHA256SUMS
+          )
+          if [[ "$(wc -l < release-assets/SHA256SUMS | tr -d ' ')" != "2" ]] \
+            || ! grep -Eq '^[0-9a-f]{64}  innodi-docc\.tar\.gz$' release-assets/SHA256SUMS \
+            || ! grep -Eq '^[0-9a-f]{64}  release-notes\.md$' release-assets/SHA256SUMS; then
+            echo "SHA256SUMS must contain exactly the two generated payload checksums." >&2
+            exit 1
+          fi
+
+          RELEASE_JSON="$(mktemp)"
+          RELEASE_ERROR="$(mktemp)"
+          REMOTE_ASSET_DIR="$(mktemp -d)"
+          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR"; rm -rf "$REMOTE_ASSET_DIR"' EXIT
+
+          api() {
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: $API_VERSION" \
+              "$@"
+          }
+
+          inspect_remote_tag() {
+            local remote_tags direct_count peeled_count peeled_sha
+            remote_tags="$(git ls-remote --exit-code --tags "$INNODI_REPOSITORY_URL" \
+              "refs/tags/$VERSION" "refs/tags/$VERSION^{}")"
+            direct_count="$(printf '%s\n' "$remote_tags" \
+              | awk -v ref="refs/tags/$VERSION" '$2 == ref { count += 1 } END { print count + 0 }')"
+            peeled_count="$(printf '%s\n' "$remote_tags" \
+              | awk -v ref="refs/tags/$VERSION^{}" '$2 == ref { count += 1 } END { print count + 0 }')"
+            peeled_sha="$(printf '%s\n' "$remote_tags" \
+              | awk -v ref="refs/tags/$VERSION^{}" '$2 == ref { print $1 }')"
+            if [[ "$direct_count" != "1" || "$peeled_count" != "1" \
+              || "$peeled_sha" != "$EXPECTED_SHA" ]]; then
+              echo "Tag $VERSION is not one annotated tag targeting $EXPECTED_SHA." >&2
+              printf '%s\n' "$remote_tags" >&2
+              exit 1
+            fi
+          }
+
+          fetch_release() {
+            : > "$RELEASE_JSON"
+            : > "$RELEASE_ERROR"
+            set +e
+            api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
+              > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
+            local status=$?
+            set -e
+            if [[ "$status" != "0" ]]; then
+              echo "Unable to inspect the staged release $VERSION:" >&2
+              cat "$RELEASE_ERROR" >&2
+              exit "$status"
+            fi
+          }
+
+          verify_release_payload() {
+            local expected_draft="$1"
+            local expected_immutable="$2"
+            local asset local_digest remote_digest
+            if ! jq -e \
+              --arg version "$VERSION" \
+              --argjson expected_draft "$expected_draft" \
+              --argjson expected_immutable "$expected_immutable" \
+              --rawfile notes release-assets/release-notes.md '
+                .tag_name == $version
+                and .name == ("InnoDI " + $version)
+                and .body == $notes
+                and .draft == $expected_draft
+                and .prerelease == false
+                and .immutable == $expected_immutable
+                and (if $expected_draft then .published_at == null else .published_at != null end)
+                and ([.assets[].name] | sort)
+                  == ["SHA256SUMS", "innodi-docc.tar.gz", "release-notes.md"]
+                and all(.assets[]; .state == "uploaded")
+                and all(.assets[];
+                  (.digest | type == "string" and startswith("sha256:")))
+              ' "$RELEASE_JSON" >/dev/null; then
+              echo "Release $VERSION metadata or assets differ from the staged candidate." >&2
+              jq '{id, tag_name, name, draft, prerelease, immutable, published_at, assets: [.assets[] | {name, state, digest}]}' \
+                "$RELEASE_JSON" >&2
+              exit 1
+            fi
+            for asset in innodi-docc.tar.gz release-notes.md SHA256SUMS; do
+              local_digest="sha256:$(sha256sum "release-assets/$asset" | awk '{ print $1 }')"
+              remote_digest="$(jq -er --arg asset "$asset" \
+                '.assets[] | select(.name == $asset) | .digest' "$RELEASE_JSON")"
+              if [[ "$remote_digest" != "$local_digest" ]]; then
+                echo "Release asset $asset digest mismatch." >&2
+                exit 1
+              fi
+            done
+          }
+
+          wait_for_immutable_release() {
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              fetch_release
+              if jq -e '.draft == false and .immutable == true' \
+                "$RELEASE_JSON" >/dev/null; then
+                return 0
+              fi
+              if [[ "$attempt" != "5" ]]; then sleep 5; fi
+            done
+            echo "Release $VERSION did not become immutable after publication." >&2
+            exit 1
+          }
+
+          verify_published_attestation() {
+            local attempt asset all_assets_valid
+            for attempt in 1 2 3 4 5; do
+              if gh release verify "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null; then
+                rm -rf "$REMOTE_ASSET_DIR"
+                mkdir -p "$REMOTE_ASSET_DIR"
+                if gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" \
+                  --dir "$REMOTE_ASSET_DIR"; then
+                  all_assets_valid=true
+                  if ! cmp -s release-assets/release-notes.md \
+                    "$REMOTE_ASSET_DIR/release-notes.md"; then
+                    all_assets_valid=false
+                  elif ! (
+                    cd "$REMOTE_ASSET_DIR"
+                    [[ "$(wc -l < SHA256SUMS | tr -d ' ')" == "2" ]]
+                    grep -Eq '^[0-9a-f]{64}  innodi-docc\.tar\.gz$' SHA256SUMS
+                    grep -Eq '^[0-9a-f]{64}  release-notes\.md$' SHA256SUMS
+                    sha256sum --check --strict SHA256SUMS
+                  ); then
+                    all_assets_valid=false
+                  fi
+                  if [[ "$all_assets_valid" == "true" ]]; then
+                    for asset in innodi-docc.tar.gz release-notes.md SHA256SUMS; do
+                      if ! gh release verify-asset "$VERSION" "$REMOTE_ASSET_DIR/$asset" \
+                        --repo "$GITHUB_REPOSITORY" >/dev/null; then
+                        all_assets_valid=false
+                        break
+                      fi
+                    done
+                  fi
+                  if [[ "$all_assets_valid" == "true" ]]; then return 0; fi
+                fi
+              fi
+              if [[ "$attempt" != "5" ]]; then sleep 5; fi
+            done
+            echo "GitHub did not produce a valid immutable release attestation for $VERSION." >&2
+            exit 1
+          }
+
+          gh release verify --help >/dev/null
+          gh release verify-asset --help >/dev/null
+          inspect_remote_tag
+          fetch_release
+          if jq -e '.draft == false and .immutable == true' "$RELEASE_JSON" >/dev/null; then
+            verify_release_payload false true
+            verify_published_attestation
+            echo "Immutable release $VERSION is already complete and exact."
+            exit 0
+          fi
+
+          verify_release_payload true false
+          inspect_remote_tag
           RELEASE_ID="$(jq -er '.id | select(type == "number")' "$RELEASE_JSON")"
           api --method PATCH \
             --raw-field tag_name="$VERSION" \
@@ -1035,6 +1260,6 @@ jobs:
             > "$RELEASE_JSON"
 
           wait_for_immutable_release
-          verify_release_payload false true true
+          verify_release_payload false true
           inspect_remote_tag
           verify_published_attestation
