@@ -196,6 +196,10 @@ RFC revisions.
 - [x] Generic method requirements via erased handler closures
 - [x] Inherited protocols fail closed until inherited-requirement resolution
       is available (`AnyObject` class bounds remain supported)
+- [x] Private/fileprivate protocol peers preserve the narrow access level;
+      public/package protocols intentionally keep an internal experimental mock
+- [x] Actor-isolated protocols and requirements fail closed until an actor-safe
+      mutable call-recording model is accepted
 - [x] Snapshot tests for the supported call shapes
 - [ ] Async / `throws` method shapes covered by snapshots end-to-end
 - [ ] Associated-type protocols (per RFC `Initial answers to open questions`,

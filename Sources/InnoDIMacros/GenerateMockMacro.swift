@@ -36,6 +36,9 @@ public struct GenerateMockMacro: PeerMacro {
         var bodyLines: [String] = []
         var unsupportedMembers: [String] = []
         var usesNotStubbedError = false
+        if let isolation = unsupportedMockIsolation(in: protocolDecl.attributes) {
+            unsupportedMembers.append(isolation)
+        }
         unsupportedMembers.append(
             contentsOf: unsupportedMockInheritance(in: protocolDecl)
         )
@@ -112,9 +115,10 @@ public struct GenerateMockMacro: PeerMacro {
             renderedBody = bodyJoined
         }
 
+        let accessPrefix = mockTypeAccessPrefix(for: protocolDecl)
         let mockDecl: DeclSyntax = """
         /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
-        final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
+        \(raw: accessPrefix)final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
             init() {}
 
         \(raw: renderedBody)
@@ -141,6 +145,33 @@ private func unsupportedMockInheritance(
         }
         return "\(inherited.type.trimmedDescription) inheritance"
     }
+}
+
+private func unsupportedMockIsolation(
+    in attributes: AttributeListSyntax?
+) -> String? {
+    if findStandardMainActorAttribute(in: attributes) != nil {
+        return "@MainActor isolation"
+    }
+    if let actorName = detectConflictingGlobalActor(in: attributes) {
+        return "@\(actorName) isolation"
+    }
+    return nil
+}
+
+private func mockTypeAccessPrefix(for protocolDecl: ProtocolDeclSyntax) -> String {
+    // A peer of a private/fileprivate protocol cannot legally expose a wider
+    // conformance. Keep all other generated mocks internal so this
+    // experimental macro does not expand a public package API implicitly.
+    for modifier in protocolDecl.modifiers {
+        switch modifier.name.text {
+        case "private", "fileprivate":
+            return "\(modifier.name.text) "
+        default:
+            continue
+        }
+    }
+    return ""
 }
 
 private func inheritedTypeBaseName(_ type: TypeSyntax) -> String? {
@@ -189,7 +220,10 @@ private func renderFunctionMock(
     function: FunctionDeclSyntax,
     names: MockFunctionNames
 ) -> RenderedFunctionMock? {
-    if hasAnyModifier(function.modifiers, named: ["static", "class"]) {
+    if unsupportedMockIsolation(in: function.attributes) != nil {
+        return nil
+    }
+    if function.modifiers.contains(where: { $0.name.text != "mutating" }) {
         return nil
     }
     if hasUnsupportedThrowsClause(function.signature) {
@@ -359,6 +393,9 @@ private func renderGenericFunctionMock(
 }
 
 private func renderVariableMock(variable: VariableDeclSyntax) -> String? {
+    if unsupportedMockIsolation(in: variable.attributes) != nil {
+        return nil
+    }
     guard variable.bindings.count == 1,
           let binding = variable.bindings.first,
           let typeAnnotation = binding.typeAnnotation,
@@ -526,12 +563,6 @@ private func effectInvocationPrefix(isAsync: Bool, isThrowing: Bool) -> String {
     if isThrowing { tokens.append("try") }
     if isAsync { tokens.append("await") }
     return tokens.isEmpty ? "" : tokens.joined(separator: " ") + " "
-}
-
-private func hasAnyModifier(_ modifiers: DeclModifierListSyntax, named names: Set<String>) -> Bool {
-    modifiers.contains { modifier in
-        names.contains(modifier.name.text)
-    }
 }
 
 private func hasUnsupportedThrowsClause(_ signature: FunctionSignatureSyntax) -> Bool {

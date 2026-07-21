@@ -653,4 +653,115 @@ struct GenerateMockMacroTests {
             }
         )
     }
+
+    @Test("GenerateMock preserves narrow protocol access without exporting public mocks")
+    func generateMockPreservesNarrowProtocolAccess() throws {
+        let cases = [
+            ("private", "private final class PrivateAPIMock"),
+            ("fileprivate", "fileprivate final class FileprivateAPIMock"),
+            ("public", "final class PublicAPIMock"),
+            ("package", "final class PackageAPIMock"),
+        ]
+
+        for (access, expectedDeclaration) in cases {
+            let protocolName = access.capitalized + "API"
+            let parsed = SwiftParser.Parser.parse(source: """
+            @GenerateMock
+            \(access) protocol \(protocolName) {
+                func load() -> String
+            }
+            """)
+            let decl = try #require(
+                parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+            )
+            let attr = try #require(
+                decl.attributes.first?.as(AttributeSyntax.self)
+            )
+
+            let context = TestMacroExpansionContext()
+            let peers = try GenerateMockMacro.expansion(
+                of: attr,
+                providingPeersOf: decl,
+                in: context
+            )
+            let peer = try #require(peers.first?.description)
+
+            #expect(peer.contains(expectedDeclaration))
+            if access == "public" || access == "package" {
+                #expect(!peer.contains("\(access) final class"))
+            }
+            #expect(context.diagnostics.isEmpty)
+        }
+    }
+
+    @Test("GenerateMock fails closed for actor-isolated protocols")
+    func generateMockRefusesActorIsolatedProtocols() throws {
+        for isolation in ["@MainActor", "@FixtureActor"] {
+            let parsed = SwiftParser.Parser.parse(source: """
+            \(isolation)
+            @GenerateMock
+            protocol IsolatedAPI {
+                func load() -> String
+            }
+            """)
+            let decl = try #require(
+                parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+            )
+            let attr = try #require(
+                decl.attributes.compactMap { $0.as(AttributeSyntax.self) }.first {
+                    $0.attributeName.trimmedDescription == "GenerateMock"
+                }
+            )
+
+            let context = TestMacroExpansionContext()
+            let peers = try GenerateMockMacro.expansion(
+                of: attr,
+                providingPeersOf: decl,
+                in: context
+            )
+
+            #expect(peers.isEmpty)
+            #expect(
+                context.diagnostics.contains {
+                    $0.diagnosticID == MessageID(
+                        domain: "InnoDI.validation",
+                        id: "mock.unsupported-member"
+                    ) && $0.message.contains("isolation")
+                }
+            )
+        }
+    }
+
+    @Test("GenerateMock fails closed for unsupported requirement modifiers")
+    func generateMockRefusesUnsupportedRequirementModifiers() throws {
+        let parsed = SwiftParser.Parser.parse(source: """
+        @GenerateMock
+        protocol IsolatedRequirementAPI {
+            nonisolated func load() -> String
+        }
+        """)
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(
+            decl.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(
+            context.diagnostics.contains {
+                $0.diagnosticID == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "mock.unsupported-member"
+                ) && $0.message.contains("load")
+            }
+        )
+    }
 }
