@@ -1,6 +1,4 @@
 import Foundation
-import Dispatch
-import Darwin
 import Testing
 import InnoDIBuildSupport
 import InnoDITestSupport
@@ -472,29 +470,7 @@ struct StrictConcurrencyBuildTests {
     }
 }
 
-struct StrictConcurrencyBuildResult {
-    let exitCode: Int32
-    let stdout: String
-    let stderr: String
-    let timedOut: Bool
-}
-
-private final class StrictConcurrencyDataSink: @unchecked Sendable {
-    private let lock = NSLock()
-    private var data = Data()
-
-    func append(_ newData: Data) {
-        lock.lock()
-        data.append(newData)
-        lock.unlock()
-    }
-
-    func snapshot() -> Data {
-        lock.lock()
-        defer { lock.unlock() }
-        return data
-    }
-}
+typealias StrictConcurrencyBuildResult = CapturedProcessResult
 
 func runStrictConcurrencyBuild(
     packageURL: URL,
@@ -600,72 +576,6 @@ func runExternalDependencyGraphExecutable(
         terminationGraceSeconds: strictConcurrencyTerminationGracePeriodSeconds,
         hardKillGraceSeconds: strictConcurrencyHardKillGracePeriodSeconds
     )
-}
-
-private func runCapturedProcess(
-    _ process: Process,
-    timeoutSeconds: TimeInterval,
-    terminationGraceSeconds: TimeInterval,
-    hardKillGraceSeconds: TimeInterval
-) throws -> StrictConcurrencyBuildResult {
-
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = stderrPipe
-
-    let stdoutSink = StrictConcurrencyDataSink()
-    let stderrSink = StrictConcurrencyDataSink()
-    installStrictConcurrencyReadHandler(on: stdoutPipe.fileHandleForReading, sink: stdoutSink)
-    installStrictConcurrencyReadHandler(on: stderrPipe.fileHandleForReading, sink: stderrSink)
-    let terminationSemaphore = DispatchSemaphore(value: 0)
-    process.terminationHandler = { _ in
-        terminationSemaphore.signal()
-    }
-
-    try process.run()
-    let timedOut = !waitForCapturedProcessTermination(
-        terminationSemaphore,
-        timeoutSeconds: timeoutSeconds
-    )
-    if timedOut && process.isRunning {
-        process.terminate()
-        if !waitForCapturedProcessTermination(
-            terminationSemaphore,
-            timeoutSeconds: terminationGraceSeconds
-        ) && process.isRunning {
-            _ = Darwin.kill(process.processIdentifier, SIGKILL)
-            _ = waitForCapturedProcessTermination(
-                terminationSemaphore,
-                timeoutSeconds: hardKillGraceSeconds
-            )
-        }
-    }
-
-    let stdoutHandle = stdoutPipe.fileHandleForReading
-    let stderrHandle = stderrPipe.fileHandleForReading
-    stdoutHandle.readabilityHandler = nil
-    stderrHandle.readabilityHandler = nil
-    if !timedOut {
-        stdoutSink.append(stdoutHandle.readDataToEndOfFile())
-        stderrSink.append(stderrHandle.readDataToEndOfFile())
-    }
-    stdoutHandle.closeFile()
-    stderrHandle.closeFile()
-
-    return StrictConcurrencyBuildResult(
-        exitCode: process.isRunning ? Int32(SIGKILL) : process.terminationStatus,
-        stdout: String(decoding: stdoutSink.snapshot(), as: UTF8.self),
-        stderr: String(decoding: stderrSink.snapshot(), as: UTF8.self),
-        timedOut: timedOut
-    )
-}
-
-private func waitForCapturedProcessTermination(
-    _ semaphore: DispatchSemaphore,
-    timeoutSeconds: TimeInterval
-) -> Bool {
-    semaphore.wait(timeout: .now() + timeoutSeconds) == .success
 }
 
 private func makeStrictConcurrencyFixture(
@@ -883,18 +793,4 @@ private func findFileSystemEntries(named name: String, under rootURL: URL, isDir
         }
     }
     return matches.sorted { $0.path < $1.path }
-}
-
-private func installStrictConcurrencyReadHandler(
-    on handle: FileHandle,
-    sink: StrictConcurrencyDataSink
-) {
-    handle.readabilityHandler = { readableHandle in
-        let data = readableHandle.availableData
-        if data.isEmpty {
-            readableHandle.readabilityHandler = nil
-            return
-        }
-        sink.append(data)
-    }
 }
