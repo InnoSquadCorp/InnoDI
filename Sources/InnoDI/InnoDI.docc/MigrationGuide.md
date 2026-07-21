@@ -17,11 +17,11 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 4.x → 5.0 (unreleased) | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
+| 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
-→ 4.1 operational hardening, then the unreleased 5.0 surface and older hops.
+→ 4.1 operational hardening, then the 5.0 surface and older hops.
 
 ---
 
@@ -210,7 +210,7 @@ Two additions that you don't have to use, but might want to:
 
 ---
 
-## 4.x → 5.0 (unreleased)
+## 4.x → 5.0
 
 5.0 restores the compiler and graph contracts before adding more macro
 surface. The originally paired wiring simplification has already landed, and

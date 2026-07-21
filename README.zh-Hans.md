@@ -122,7 +122,7 @@ dependency-graph CLI、宏插件）不会嵌入到用户应用中，因此不会
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.3.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.0.0")
 ]
 ```
 

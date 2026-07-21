@@ -16,10 +16,10 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
-| 4.x → 5.0 (미출시) | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
+| 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
-단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 미출시 5.0 surface와
+단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0 surface와
 이전 버전 hop — 으로 펼쳐집니다.
 
 ---
@@ -205,7 +205,7 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ---
 
-## 4.x → 5.0 (미출시)
+## 4.x → 5.0
 
 5.0은 매크로 surface를 더 늘리기 전에 compiler와 graph의 공개 계약을
 복구합니다. 원래 함께 계획했던 wiring 단순화는 이미 적용됐으며, major

@@ -134,7 +134,7 @@ visionOS アプリに InnoDI を埋め込む場合、SwiftPM が自動的にマ�
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "4.3.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.0.0")
 ]
 ```
 

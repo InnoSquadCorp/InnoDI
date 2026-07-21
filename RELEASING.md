@@ -2,17 +2,16 @@
 
 This document is the single release source of truth for InnoDI.
 
-Latest stable public release: `4.3.0`
+Latest stable public release: `5.0.0`
 
-Current development train: `5.0.0` (unreleased)
-
-`main` accumulates the 5.0 contract-hardening work as independently green
-commits. Keep README installation snippets on 4.3.0 during development. When
-the release operator is ready to publish, land one final release-candidate
-commit that renames `## Unreleased` to the exact stable version, updates the
-latest-stable metadata and every localized README installation reference, and
-then dispatch the SHA-bound release workflow immediately. The workflow validates
-that exact commit before it creates the immutable annotated tag.
+`main` accumulates release work as independently green commits. During a
+development train, keep README installation snippets on the latest stable
+release. When the release operator is ready to publish, land one final
+release-candidate commit that renames `## Unreleased` to the exact stable
+version, updates the latest-stable metadata and every localized README
+installation reference, and then dispatch the SHA-bound release workflow
+immediately. The workflow validates that exact commit before it creates the
+immutable annotated tag.
 
 ## Release Checklist
 
@@ -204,7 +203,7 @@ Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
 
-## Unreleased
+## 5.0.0
 
 ### Highlights
 
