@@ -126,7 +126,7 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.1.0")
 ]
 ```
 
