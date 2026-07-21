@@ -11,6 +11,23 @@ struct CIWorkflowHardeningTests {
         #expect(result.output.contains("pinned external action use(s)"))
     }
 
+    @Test("Macro validation cancels superseded runs for the same ref")
+    func macroValidationCancelsSupersededRuns() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let jobsStart = try #require(workflow.range(of: "\njobs:\n"))
+        let workflowPolicy = workflow[..<jobsStart.lowerBound]
+
+        #expect(
+            workflowPolicy.contains(
+                "concurrency:\n  group: macro-tests-${{ github.ref }}\n  cancel-in-progress: true"
+            )
+        )
+    }
+
     @Test("PR and main validation have explicit latency budgets")
     func validationLanesStaySeparated() throws {
         let workflow = try String(
