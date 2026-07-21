@@ -183,6 +183,16 @@ struct StrictConcurrencyBuildTests {
                 func makeHandler() -> @Sendable () -> Void
             }
 
+            @GenerateMock
+            private protocol PrivateAPI {
+                func privateValue() -> String
+            }
+
+            @GenerateMock
+            fileprivate protocol FileprivateAPI {
+                func fileprivateValue() -> String
+            }
+
             @main
             struct FixtureApp {
                 static func main() async throws {
@@ -210,6 +220,14 @@ struct StrictConcurrencyBuildTests {
                     eventFactory.makeHandlerReturnValue = {}
                     _ = eventFactory.makeEvent()
                     eventFactory.makeHandler()()
+
+                    let privateAPI = PrivateAPIMock()
+                    privateAPI.privateValueReturnValue = "private"
+                    _ = privateAPI.privateValue()
+
+                    let fileprivateAPI = FileprivateAPIMock()
+                    fileprivateAPI.fileprivateValueReturnValue = "fileprivate"
+                    _ = fileprivateAPI.fileprivateValue()
                 }
 
                 nonisolated static func exerciseGenericAPI() async throws {

@@ -68,6 +68,10 @@ For each supported protocol member the macro emits the following:
   boundary.
 * **`mutating` requirements** — supported through the generated `final class`
   mock; the synthesized method does not need to be marked `mutating`.
+* **Access level** — mocks for `private` and `fileprivate` protocols inherit
+  that narrow access so the generated conformance remains legal. Mocks for
+  internal, package, and public protocols remain internal while this API is
+  experimental; attaching the macro never expands a package's public API.
 * **Escaping closure arguments** — recorded with property-safe function types
   (`@escaping` / `@autoclosure` are removed from the call-record field while
   the conforming method keeps the original parameter spelling).
@@ -82,6 +86,11 @@ The first drop intentionally rejects the following requirements with a
 when any of these appear, because that would generate a broken conformance:
 
 * `static` and `class` requirements (RFC 0001 stage 4).
+* Actor-isolated protocols or individual requirements, including global-actor
+  attributes such as `@MainActor`. Mutable call recording does not yet have an
+  actor-safe generated shape.
+* Function requirement modifiers other than `mutating`, including
+  `nonisolated`, `borrowing`, and `consuming`.
 * `subscript` requirements (no stable lowering yet).
 * `inout` parameters (call-record storage would need a copy policy).
 * `rethrows` and typed `throws(ErrorType)` requirements.
