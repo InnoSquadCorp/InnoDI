@@ -646,7 +646,7 @@ func makeUnresolvedReferenceFixtureProject() throws -> URL {
     struct AppContainer {
         @Provide(.input)
         var config: String
-        
+
         @Provide(.shared, factory: { (config: String) in
             MissingFeatureContainer(config: config)
         })
