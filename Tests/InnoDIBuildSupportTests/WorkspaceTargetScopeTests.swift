@@ -204,10 +204,10 @@ struct WorkspaceTargetScopeTests {
 
         let app = try #require(firstManifest.primaryTarget)
         let feature = try #require(
-            firstManifest.target(id: first.featureID)
+            target(in: firstManifest, id: first.featureID)
         )
         let support = try #require(
-            firstManifest.target(id: first.supportID)
+            target(in: firstManifest, id: first.supportID)
         )
         let renamedDependencies = app.dependencies.map { dependency in
             guard dependency.name == "FeatureKit" else {
@@ -604,8 +604,8 @@ private func manifestWithSharedLogicalPath(
 ) throws -> WorkspaceAnalysisManifest {
     let manifest = makeValidManifest(fixture: fixture)
     let app = try #require(manifest.primaryTarget)
-    let feature = try #require(manifest.target(id: fixture.featureID))
-    let support = try #require(manifest.target(id: fixture.supportID))
+    let feature = try #require(target(in: manifest, id: fixture.featureID))
+    let support = try #require(target(in: manifest, id: fixture.supportID))
     let appSource = try #require(app.sources.first {
         $0.filePath == fixture.appSourceURL.path
     })

@@ -1708,7 +1708,10 @@ private func makeSnapshot(
             )
         },
         primaryTargetID: manifest?.primaryTargetID,
-        analysisManifest: manifest
+        analysisManifest: manifest,
+        analysisTargetIndex: manifest.map {
+            WorkspaceAnalysisTargetIndex(targets: $0.targets)
+        }
     )
 }
 

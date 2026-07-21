@@ -4,6 +4,26 @@ import Testing
 
 @Suite("Workspace analysis manifest")
 struct WorkspaceAnalysisManifestTests {
+    @Test("Validated manifests expose a constant-time target index")
+    func validatedTargetIndexResolvesCanonicalTargets() throws {
+        let fixture = try ManifestFixture()
+        defer { fixture.remove() }
+
+        let validated = try ValidatedWorkspaceAnalysisManifest(
+            validating: makeValidManifest(fixture: fixture)
+        )
+
+        #expect(
+            validated.targetIndex.target(id: fixture.featureID)?.moduleName
+                == "Feature"
+        )
+        #expect(
+            validated.targetIndex.target(
+                id: WorkspaceTargetID(rawValue: "swiftpm:missing:Missing")
+            ) == nil
+        )
+    }
+
     @Test("Encoding is canonical, deterministic, and schema-stable")
     func contractEncodingIsCanonicalAndDeterministic() throws {
         let fixture = try ManifestFixture()
@@ -149,8 +169,8 @@ struct WorkspaceAnalysisManifestTests {
         defer { fixture.remove() }
         let manifest = makeValidManifest(fixture: fixture)
         let app = try #require(manifest.primaryTarget)
-        let feature = try #require(manifest.target(id: fixture.featureID))
-        let support = try #require(manifest.target(id: fixture.supportID))
+        let feature = try #require(target(in: manifest, id: fixture.featureID))
+        let support = try #require(target(in: manifest, id: fixture.supportID))
 
         expectManifestError(
             .missingPrimaryTarget(fixture.appID),
@@ -263,8 +283,8 @@ struct WorkspaceAnalysisManifestTests {
         defer { fixture.remove() }
         let manifest = makeValidManifest(fixture: fixture)
         let app = try #require(manifest.primaryTarget)
-        let feature = try #require(manifest.target(id: fixture.featureID))
-        let support = try #require(manifest.target(id: fixture.supportID))
+        let feature = try #require(target(in: manifest, id: fixture.featureID))
+        let support = try #require(target(in: manifest, id: fixture.supportID))
         let appSource = try #require(app.sources.first {
             $0.logicalPath.hasSuffix("/App.swift")
         })
@@ -397,8 +417,8 @@ struct WorkspaceAnalysisManifestTests {
         defer { fixture.remove() }
         let manifest = makeValidManifest(fixture: fixture)
         let app = try #require(manifest.primaryTarget)
-        let feature = try #require(manifest.target(id: fixture.featureID))
-        let support = try #require(manifest.target(id: fixture.supportID))
+        let feature = try #require(target(in: manifest, id: fixture.featureID))
+        let support = try #require(target(in: manifest, id: fixture.supportID))
 
         func manifestWithDependencies(
             _ dependencies: [WorkspaceAnalysisDependency]
@@ -530,8 +550,8 @@ struct WorkspaceAnalysisManifestTests {
         defer { fixture.remove() }
         let manifest = makeValidManifest(fixture: fixture)
         let app = try #require(manifest.primaryTarget)
-        let feature = try #require(manifest.target(id: fixture.featureID))
-        let support = try #require(manifest.target(id: fixture.supportID))
+        let feature = try #require(target(in: manifest, id: fixture.featureID))
+        let support = try #require(target(in: manifest, id: fixture.supportID))
         let appToFeature = try #require(app.dependencies.first {
             $0.targetIDs.contains(fixture.featureID)
         })
@@ -866,6 +886,13 @@ func replacingTarget(
         sources: sources ?? target.sources,
         dependencies: dependencies ?? target.dependencies
     )
+}
+
+func target(
+    in manifest: WorkspaceAnalysisManifest,
+    id: WorkspaceTargetID
+) -> WorkspaceAnalysisTarget? {
+    WorkspaceAnalysisTargetIndex(targets: manifest.targets).target(id: id)
 }
 
 private func expectSourceError(
