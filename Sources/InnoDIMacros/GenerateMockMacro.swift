@@ -36,9 +36,9 @@ public struct GenerateMockMacro: PeerMacro {
         var bodyLines: [String] = []
         var unsupportedMembers: [String] = []
         var usesNotStubbedError = false
-        if inheritsSendable(protocolDecl) {
-            unsupportedMembers.append("Sendable inheritance")
-        }
+        unsupportedMembers.append(
+            contentsOf: unsupportedMockInheritance(in: protocolDecl)
+        )
         if protocolDecl.memberBlock.members.isEmpty {
             // Empty protocol — emit the skeleton note so consumers can still
             // confirm the macro plugin sees the attribute.
@@ -129,12 +129,17 @@ private struct RenderedFunctionMock {
     let usesNotStubbedError: Bool
 }
 
-private func inheritsSendable(_ protocolDecl: ProtocolDeclSyntax) -> Bool {
+private func unsupportedMockInheritance(
+    in protocolDecl: ProtocolDeclSyntax
+) -> [String] {
     guard let inheritanceClause = protocolDecl.inheritanceClause else {
-        return false
+        return []
     }
-    return inheritanceClause.inheritedTypes.contains { inherited in
-        inheritedTypeBaseName(inherited.type) == "Sendable"
+    return inheritanceClause.inheritedTypes.compactMap { inherited in
+        guard inheritedTypeBaseName(inherited.type) != "AnyObject" else {
+            return nil
+        }
+        return "\(inherited.type.trimmedDescription) inheritance"
     }
 }
 
