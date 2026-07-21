@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: macro-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   fast-tests:
     name: Fast PR contracts
