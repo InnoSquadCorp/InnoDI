@@ -435,6 +435,16 @@ package enum WorkspaceAnalysisManifestError: LocalizedError, Equatable {
     case invalidLogicalPath(String)
     case nonSwiftSource(String)
     case unavailableSource(String)
+    case declaredSourceOutsidePackage(
+        target: WorkspaceTargetID,
+        filePath: String,
+        packageDirectory: String
+    )
+    case declaredSourceLogicalPathMismatch(
+        target: WorkspaceTargetID,
+        expected: String,
+        actual: String
+    )
     case missingPrimaryTarget(WorkspaceTargetID)
     case invalidPrimaryTarget(WorkspaceTargetID)
     case primaryPackageMismatch(expected: String, actual: String)
@@ -498,6 +508,18 @@ package enum WorkspaceAnalysisManifestError: LocalizedError, Equatable {
             return "Workspace analysis source is not a Swift file: '\(path)'."
         case .unavailableSource(let path):
             return "Workspace analysis source is missing, unreadable, or not a regular file: '\(path)'."
+        case .declaredSourceOutsidePackage(
+            let target,
+            let filePath,
+            let packageDirectory
+        ):
+            return "Workspace declared source '\(filePath)' for target '\(target.rawValue)' is outside package directory '\(packageDirectory)'."
+        case .declaredSourceLogicalPathMismatch(
+            let target,
+            let expected,
+            let actual
+        ):
+            return "Workspace declared source for target '\(target.rawValue)' has logical path '\(actual)', expected '\(expected)'."
         case .missingPrimaryTarget(let id):
             return "Workspace analysis manifest has no primary target '\(id.rawValue)'."
         case .invalidPrimaryTarget(let id):
@@ -679,6 +701,28 @@ private func validateTarget(
         }
         ownedFilePaths[ownedPath] = target.id
 
+        if source.origin == .declared {
+            guard let expectedLogicalPath = packageRelativeManifestPath(
+                source.filePath,
+                packageDirectory: target.packageDirectory
+            ) else {
+                throw WorkspaceAnalysisManifestError
+                    .declaredSourceOutsidePackage(
+                        target: target.id,
+                        filePath: source.filePath,
+                        packageDirectory: target.packageDirectory
+                    )
+            }
+            guard source.logicalPath == expectedLogicalPath else {
+                throw WorkspaceAnalysisManifestError
+                    .declaredSourceLogicalPathMismatch(
+                        target: target.id,
+                        expected: expectedLogicalPath,
+                        actual: source.logicalPath
+                    )
+            }
+        }
+
         if validateSourceAvailability {
             var isDirectory = ObjCBool(false)
             guard fileManager.fileExists(
@@ -851,6 +895,24 @@ private func canonicalManifestPath(_ path: String) -> String {
         .standardizedFileURL
         .resolvingSymlinksInPath()
         .path
+}
+
+private func packageRelativeManifestPath(
+    _ filePath: String,
+    packageDirectory: String
+) -> String? {
+    let fileComponents = URL(fileURLWithPath: canonicalManifestPath(filePath))
+        .pathComponents
+    let packageComponents = URL(
+        fileURLWithPath: canonicalManifestPath(packageDirectory),
+        isDirectory: true
+    ).pathComponents
+    guard fileComponents.count > packageComponents.count,
+          fileComponents.starts(with: packageComponents) else {
+        return nil
+    }
+    return fileComponents.dropFirst(packageComponents.count)
+        .joined(separator: "/")
 }
 
 private func validateAvailablePackageDirectory(

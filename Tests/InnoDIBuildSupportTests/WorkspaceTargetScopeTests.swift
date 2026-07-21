@@ -606,13 +606,14 @@ private func manifestWithSharedLogicalPath(
     let app = try #require(manifest.primaryTarget)
     let feature = try #require(target(in: manifest, id: fixture.featureID))
     let support = try #require(target(in: manifest, id: fixture.supportID))
-    let appSource = try #require(app.sources.first {
-        $0.filePath == fixture.appSourceURL.path
-    })
     let appZSource = try #require(app.sources.first {
         $0.filePath == fixture.zSourceURL.path
     })
     let featureSource = try #require(feature.sources.first)
+    let sharedSourceURL = fixture.rootURL.appendingPathComponent(
+        "Sources/Shared.swift"
+    )
+    try Data(contentsOf: fixture.appSourceURL).write(to: sharedSourceURL)
 
     return replacingManifest(
         manifest,
@@ -621,7 +622,7 @@ private func manifestWithSharedLogicalPath(
                 app,
                 sources: [
                     WorkspaceAnalysisSource(
-                        filePath: appSource.filePath,
+                        filePath: sharedSourceURL.path,
                         logicalPath: "Sources/Shared.swift",
                         origin: .declared
                     ),
