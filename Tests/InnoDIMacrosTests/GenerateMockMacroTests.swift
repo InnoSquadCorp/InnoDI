@@ -43,6 +43,21 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("struct _InnoDIMockNotStubbed: Error"))
     }
 
+    @Test("GenerateMock snapshots non-generic async-throwing shapes")
+    func generateMockAsyncThrowingSnapshot() {
+        assertMacroExpansionSnapshot(
+            """
+            @GenerateMock
+            protocol AsyncService {
+                func fetch(id: String) async throws -> String
+                func refresh() async throws
+            }
+            """,
+            matches: "asyncThrowingShapes",
+            macros: Self.macros
+        )
+    }
+
     @Test("GenerateMock attached to an empty protocol emits the experimental skeleton note")
     func generateMockEmitsSkeletonNoteForEmptyProtocol() {
         assertMacroExpansionDiagnosticCodes(

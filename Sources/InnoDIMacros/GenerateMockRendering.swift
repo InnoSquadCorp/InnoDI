@@ -293,4 +293,3 @@ private func optionalStorageType(_ typeText: String) -> String {
     }
     return "\(typeText)?"
 }
-
