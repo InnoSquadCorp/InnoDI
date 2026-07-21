@@ -44,9 +44,67 @@ struct CoverageFloorContractTests {
             ),
             encoding: .utf8
         )
-        #expect(macroWorkflow.contains("Tools/check-coverage-floor.py"))
-        #expect(releaseWorkflow.contains("Tools/check-coverage-floor.py"))
-        #expect(releaseWorkflow.contains("--enable-code-coverage"))
+        #expect(macroWorkflow.contains("Tools/run-coverage-gate.sh"))
+        #expect(releaseWorkflow.contains("Tools/run-coverage-gate.sh"))
+    }
+
+    @Test("Main and release use one clean coverage contract")
+    func workflowsShareCleanCoverageContract() throws {
+        let root = packageRootURL()
+        let macroWorkflow = try String(
+            contentsOf: root.appendingPathComponent(
+                ".github/workflows/macro-tests.yml"
+            ),
+            encoding: .utf8
+        )
+        let releaseWorkflow = try String(
+            contentsOf: root.appendingPathComponent(
+                ".github/workflows/release.yml"
+            ),
+            encoding: .utf8
+        )
+        let coverageGate = try String(
+            contentsOf: root.appendingPathComponent(
+                "Tools/run-coverage-gate.sh"
+            ),
+            encoding: .utf8
+        )
+
+        #expect(
+            macroWorkflow.components(
+                separatedBy: "Tools/run-coverage-gate.sh"
+            ).count - 1 == 1
+        )
+        #expect(
+            releaseWorkflow.components(
+                separatedBy: "Tools/run-coverage-gate.sh"
+            ).count - 1 == 1
+        )
+        #expect(!releaseWorkflow.contains("- name: Run main test suite"))
+        #expect(
+            coverageGate.contains(
+                "swift test \"${SWIFT_PACKAGE_ARGUMENTS[@]}\""
+            )
+        )
+        #expect(coverageGate.contains("-Xswiftc -strict-concurrency=complete"))
+        #expect(coverageGate.contains("-Xswiftc -warnings-as-errors"))
+        #expect(coverageGate.contains("--enable-code-coverage"))
+        #expect(coverageGate.contains("BUILD_DIR=\"$(swift build"))
+        #expect(coverageGate.contains("--show-bin-path)\""))
+        #expect(coverageGate.contains("INNODI_COVERAGE_SCRATCH_PATH"))
+        #expect(coverageGate.contains("rm -rf \"$COVERAGE_PROFILE_DIR\""))
+        #expect(
+            coverageGate.contains(
+                "INNODI_COVERAGE_BUILD_DIR=\"$BUILD_DIR\" Tools/collect-coverage.sh"
+            )
+        )
+        #expect(coverageGate.contains("Tools/collect-coverage.sh"))
+        #expect(coverageGate.contains("Tools/check-coverage-floor.py"))
+
+        let diagnosticUploadCondition =
+            "if: ${{ always() && hashFiles('coverage/summary.json') != '' }}"
+        #expect(macroWorkflow.contains(diagnosticUploadCondition))
+        #expect(releaseWorkflow.contains(diagnosticUploadCondition))
     }
 
     @Test("Checker accepts floors and rejects module regressions")
