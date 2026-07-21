@@ -188,6 +188,26 @@ package struct WorkspaceAnalysisTarget: Codable, Equatable, Sendable {
     }
 }
 
+/// Constant-time target lookup built once for a validated manifest or source
+/// snapshot. Duplicate IDs are omitted so unvalidated test fixtures fail
+/// closed instead of selecting an arbitrary target.
+package struct WorkspaceAnalysisTargetIndex: Equatable, Sendable {
+    private let targetsByID: [WorkspaceTargetID: WorkspaceAnalysisTarget]
+
+    package init(targets: [WorkspaceAnalysisTarget]) {
+        targetsByID = Dictionary(grouping: targets, by: \.id)
+            .compactMapValues { matches in
+                matches.count == 1 ? matches[0] : nil
+            }
+    }
+
+    package func target(
+        id: WorkspaceTargetID
+    ) -> WorkspaceAnalysisTarget? {
+        targetsByID[id]
+    }
+}
+
 /// Proof token that a manifest passed the full `validated()` contract.
 ///
 /// `validated()` stats every declared source file and re-runs target-cycle
@@ -198,15 +218,20 @@ package struct WorkspaceAnalysisTarget: Codable, Equatable, Sendable {
 package struct ValidatedWorkspaceAnalysisManifest: Equatable, Sendable {
     /// The canonicalized manifest returned by `validated()`.
     package let manifest: WorkspaceAnalysisManifest
+    package let targetIndex: WorkspaceAnalysisTargetIndex
 
     package init(
         validating manifest: WorkspaceAnalysisManifest,
         validateSourceAvailability: Bool = true,
         fileManager: FileManager = .default
     ) throws {
-        self.manifest = try manifest.validated(
+        let canonicalManifest = try manifest.validated(
             validateSourceAvailability: validateSourceAvailability,
             fileManager: fileManager
+        )
+        self.manifest = canonicalManifest
+        self.targetIndex = WorkspaceAnalysisTargetIndex(
+            targets: canonicalManifest.targets
         )
     }
 }
@@ -245,12 +270,6 @@ package struct WorkspaceAnalysisManifest: Codable, Equatable, Sendable {
 
     package var primaryTarget: WorkspaceAnalysisTarget? {
         targets.first { $0.id == primaryTargetID }
-    }
-
-    package func target(
-        id: WorkspaceTargetID
-    ) -> WorkspaceAnalysisTarget? {
-        targets.first { $0.id == id }
     }
 
     package var sourceIdentities: [String] {
@@ -318,14 +337,15 @@ package struct WorkspaceAnalysisManifest: Codable, Equatable, Sendable {
         let canonicalTargets = targets
             .map { $0.normalized() }
             .sorted { $0.id < $1.id }
+        let canonicalTargetsByID = Dictionary(
+            uniqueKeysWithValues: canonicalTargets.map { ($0.id, $0) }
+        )
         let primaryRoleTargets = canonicalTargets.filter {
             $0.role == .primary
         }
         guard primaryRoleTargets.count == 1,
               primaryRoleTargets[0].id == primaryTargetID,
-              let primaryTarget = canonicalTargets.first(where: {
-                  $0.id == primaryTargetID
-              }) else {
+              let primaryTarget = canonicalTargetsByID[primaryTargetID] else {
             throw WorkspaceAnalysisManifestError.invalidPrimaryTarget(
                 primaryTargetID
             )
@@ -380,7 +400,7 @@ package struct WorkspaceAnalysisManifest: Codable, Equatable, Sendable {
 
         let reachableTargetIDs = reachableTargets(
             from: primaryTargetID,
-            targets: canonicalTargets
+            targetsByID: canonicalTargetsByID
         )
         if let unrelated = knownTargetIDs
             .subtracting(reachableTargetIDs)
@@ -726,13 +746,13 @@ private func validateTarget(
 
 private func reachableTargets(
     from primaryTargetID: WorkspaceTargetID,
-    targets: [WorkspaceAnalysisTarget]
+    targetsByID: [WorkspaceTargetID: WorkspaceAnalysisTarget]
 ) -> Set<WorkspaceTargetID> {
     var result: Set<WorkspaceTargetID> = [primaryTargetID]
     var pending = [primaryTargetID]
 
     while let current = pending.popLast() {
-        guard let target = targets.first(where: { $0.id == current }) else {
+        guard let target = targetsByID[current] else {
             continue
         }
         for dependencyID in target.directDependencyTargetIDs

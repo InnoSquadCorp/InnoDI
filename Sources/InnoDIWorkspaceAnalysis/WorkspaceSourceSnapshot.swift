@@ -66,6 +66,7 @@ package struct WorkspaceSourceSnapshot {
     /// Root-path callers intentionally keep this `nil` so their historical
     /// workspace-wide resolution behavior remains unchanged.
     package let analysisManifest: WorkspaceAnalysisManifest?
+    package let analysisTargetIndex: WorkspaceAnalysisTargetIndex?
 
     private let filesBySourceIdentity: [String: WorkspaceSourceFile]
     private let filesByRelativePath: [String: WorkspaceSourceFile]
@@ -75,13 +76,15 @@ package struct WorkspaceSourceSnapshot {
         rootURL: URL,
         files: [WorkspaceSourceFile],
         primaryTargetID: WorkspaceTargetID? = nil,
-        analysisManifest: WorkspaceAnalysisManifest? = nil
+        analysisManifest: WorkspaceAnalysisManifest? = nil,
+        analysisTargetIndex: WorkspaceAnalysisTargetIndex? = nil
     ) {
         self.rootPath = rootPath
         self.rootURL = rootURL
         self.files = files
         self.primaryTargetID = primaryTargetID
         self.analysisManifest = analysisManifest
+        self.analysisTargetIndex = analysisTargetIndex
         self.filesBySourceIdentity = Dictionary(
             grouping: files,
             by: \.sourceIdentity
@@ -300,7 +303,8 @@ package func loadWorkspaceSourceSnapshot(
         rootURL: rootURL,
         files: files,
         primaryTargetID: manifest.primaryTargetID,
-        analysisManifest: manifest
+        analysisManifest: manifest,
+        analysisTargetIndex: validated.targetIndex
     )
 }
 

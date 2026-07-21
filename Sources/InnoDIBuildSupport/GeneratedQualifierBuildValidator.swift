@@ -21,6 +21,7 @@ package enum GeneratedQualifierBuildValidator {
         snapshot: WorkspaceSourceSnapshot
     ) -> ValidationIssueReport {
         let manifest = snapshot.analysisManifest
+        let targetIndex = snapshot.analysisTargetIndex
         let moduleNamesByTargetID = Dictionary(
             uniqueKeysWithValues: (manifest?.targets ?? []).map {
                 ($0.id, $0.moduleName)
@@ -120,13 +121,14 @@ package enum GeneratedQualifierBuildValidator {
                         exportedImportsByTargetID: exportedImportsByTargetID
                     ),
                     manifest: manifest,
+                    targetIndex: targetIndex,
                     exportedImportsByTargetID: exportedImportsByTargetID
                 )
                 for exposure in siteExposures {
-                    guard let dependencyTarget = manifest.target(
+                    guard let dependencyTarget = targetIndex?.target(
                         id: exposure.targetID
                     ),
-                          let siteTarget = manifest.target(id: siteTargetID) else {
+                          let siteTarget = targetIndex?.target(id: siteTargetID) else {
                         continue
                     }
                     for shadow in qualifierIndex.shadows(
@@ -167,6 +169,7 @@ package enum GeneratedQualifierBuildValidator {
                 qualifierIndex: qualifierIndex,
                 resolvedExtensionOwners: resolvedExtensionOwners,
                 manifest: manifest,
+                targetIndex: targetIndex,
                 importsBySourceIdentity: importsBySourceIdentity,
                 exportedImportsByTargetID: exportedImportsByTargetID,
                 siteExposures: siteExposures,
@@ -474,9 +477,10 @@ func dependencyExposures(
     from siteTargetID: WorkspaceTargetID,
     sourceImports: [QualifierImportEntry],
     manifest: WorkspaceAnalysisManifest,
+    targetIndex: WorkspaceAnalysisTargetIndex?,
     exportedImportsByTargetID: [WorkspaceTargetID: [QualifierImportEntry]]
 ) -> Set<DependencyExposure> {
-    guard let siteTarget = manifest.target(id: siteTargetID) else {
+    guard let siteTarget = targetIndex?.target(id: siteTargetID) else {
         return []
     }
     let targetsByModuleName = Dictionary(
@@ -517,7 +521,7 @@ func dependencyExposures(
     while let exposure = pending.popLast() {
         // Selective imports do not inherit a dependency module's re-exports.
         guard exposure.declarationPath == nil,
-              let dependencyTarget = manifest.target(id: exposure.targetID) else {
+              let dependencyTarget = targetIndex?.target(id: exposure.targetID) else {
             continue
         }
         appendImports(
