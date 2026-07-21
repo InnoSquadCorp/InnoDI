@@ -785,6 +785,18 @@ jobs:
             fi
           }
 
+          wait_for_release_visibility() {
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              fetch_release
+              if [[ "$RELEASE_EXISTS" == "true" ]]; then
+                return 0
+              fi
+              if [[ "$attempt" != "5" ]]; then sleep 2; fi
+            done
+            return 1
+          }
+
           verify_release_payload() {
             local expected_draft="$1"
             local expected_immutable="$2"
@@ -889,8 +901,7 @@ jobs:
             if [[ "$CREATE_STATUS" != "0" ]]; then
               echo "Draft creation raced with another publisher; checking the exact release state." >&2
             fi
-            fetch_release
-            if [[ "$RELEASE_EXISTS" == "false" ]]; then
+            if ! wait_for_release_visibility; then
               echo "Unable to create or recover draft release $VERSION." >&2
               exit 1
             fi
@@ -1098,8 +1109,9 @@ jobs:
 
           RELEASE_JSON="$(mktemp)"
           RELEASE_ERROR="$(mktemp)"
+          RELEASE_PAGES="$(mktemp)"
           REMOTE_ASSET_DIR="$(mktemp -d)"
-          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR"; rm -rf "$REMOTE_ASSET_DIR"' EXIT
+          trap 'rm -f "$RELEASE_JSON" "$RELEASE_ERROR" "$RELEASE_PAGES"; rm -rf "$REMOTE_ASSET_DIR"' EXIT
 
           api() {
             gh api \
@@ -1129,16 +1141,43 @@ jobs:
           fetch_release() {
             : > "$RELEASE_JSON"
             : > "$RELEASE_ERROR"
+            : > "$RELEASE_PAGES"
             set +e
             api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
               > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
             local status=$?
             set -e
-            if [[ "$status" != "0" ]]; then
+
+            if [[ "$status" == "0" ]]; then
+              return 0
+            fi
+            if ! grep -q '(HTTP 404)' "$RELEASE_ERROR"; then
               echo "Unable to inspect the staged release $VERSION:" >&2
               cat "$RELEASE_ERROR" >&2
               exit "$status"
             fi
+
+            api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              > "$RELEASE_PAGES"
+            local match_count
+            match_count="$(jq --arg version "$VERSION" \
+              '[.[][] | select(.tag_name == $version)] | length' "$RELEASE_PAGES")"
+            case "$match_count" in
+              1)
+                jq --arg version "$VERSION" \
+                  '.[][] | select(.tag_name == $version)' "$RELEASE_PAGES" \
+                  > "$RELEASE_JSON"
+                ;;
+              0)
+                echo "Staged release $VERSION is not visible by tag or release listing." >&2
+                exit 1
+                ;;
+              *)
+                echo "GitHub returned multiple staged releases for exact tag $VERSION." >&2
+                exit 1
+                ;;
+            esac
           }
 
           verify_release_payload() {
