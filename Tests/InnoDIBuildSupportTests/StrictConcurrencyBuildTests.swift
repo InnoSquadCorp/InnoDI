@@ -166,6 +166,12 @@ struct StrictConcurrencyBuildTests {
             }
 
             @GenerateMock
+            protocol AsyncAPI {
+                func fetch(id: String) async throws -> String
+                func refresh() async throws
+            }
+
+            @GenerateMock
             protocol CallbackAPI {
                 mutating func bump(`repeat`: Int)
                 func observe(_ handler: @escaping @Sendable () -> Void)
@@ -207,6 +213,11 @@ struct StrictConcurrencyBuildTests {
                     _ = api.fetch(page: 1)
 
                     try await exerciseGenericAPI()
+
+                    let asyncAPI = AsyncAPIMock()
+                    asyncAPI.fetchResult = .success("async")
+                    _ = try await asyncAPI.fetch(id: "42")
+                    try await asyncAPI.refresh()
 
                     let callbacks = CallbackAPIMock()
                     callbacks.bump(repeat: 1)
