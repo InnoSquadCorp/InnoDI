@@ -302,6 +302,16 @@ conflation that makes assisted inputs hard to explain and extend.
 - Add graph explainability commands and migration reporting.
 - Prototype the child-owned factory in internal tests or an explicitly
   experimental public surface without deprecating 5.x declarations.
+- The underscored `Experimental` SPI prototype now partitions existing
+  `@Provide(.input)` members into static and assisted inputs and has a
+  cross-module runtime fixture proving that separate factory calls own
+  separate `.shared` storage. Its attribute and generated type names are not
+  candidates for source compatibility. Its temporary string-literal member
+  list is validated against direct inputs at compile time; it exists only to
+  avoid the self-referential key-path limitation of an attached type attribute
+  and is not the proposed 6.0 `@Input(.assisted)` syntax. A public pilot
+  container and any API exposing its generated factory must also be marked
+  `@_spi(Experimental)`; the external fixture verifies that boundary.
 - Pilot one InnoSample flow.
 
 ### Later 5.x — adoption runway

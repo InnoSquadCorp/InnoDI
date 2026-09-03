@@ -67,6 +67,33 @@ public macro DIContainer(
     mainActor: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
+@_spi(Experimental)
+@attached(member, names: named(_InnoDIAssistedFactoryPrototype))
+/// Experimental 5.2.x implementation probe for RFC 0006.
+///
+/// Stack this SPI-only macro on `@DIContainer` and identify the existing
+/// `@Provide(.input)` members whose values arrive when a feature is entered.
+/// This probe uses string literals such as `"route"` only because attached
+/// type attributes cannot form a key path rooted in the declaration they are
+/// creating. The macro validates every name against direct input declarations
+/// at compile time; it does not perform runtime lookup.
+/// The remaining input members become static values captured by the generated
+/// child-owned factory. Every factory call constructs a new container, so its
+/// shared storage and overrides remain isolated from other children.
+///
+/// The macro and generated type names are intentionally underscored. They are
+/// not covered by SemVer and will be replaced or removed before the accepted
+/// 6.0 spelling ships. Production packages should use this only for pinned
+/// pilot revisions, import it with `@_spi(Experimental) import InnoDI`, and
+/// mark any public container or factory exposing the generated type with the
+/// same SPI boundary.
+public macro _InnoDIAssistedFactoryPrototype(
+    assisted: [String]
+) = #externalMacro(
+    module: "InnoDIMacros",
+    type: "InnoDIAssistedFactoryPrototypeMacro"
+)
+
 @attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
 /// Declares a dependency on a direct, plain, stored instance `var` in the same
 /// supported struct annotated with `@DIContainer`. `let`, computed or observed

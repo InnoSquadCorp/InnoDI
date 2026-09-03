@@ -1,0 +1,25 @@
+@_spi(Experimental) import InnoDI
+
+public struct TrainingRepository {
+    public init() {}
+}
+
+public final class InstanceToken {
+    public init() {}
+}
+
+@_spi(Experimental)
+@_InnoDIAssistedFactoryPrototype(assisted: ["routineID"])
+@DIContainer
+public struct TrainingContainer {
+    @Provide(.input) public var repository: TrainingRepository
+    @Provide(.input) public var routineID: Int
+    @Provide(.shared, factory: InstanceToken()) public var token: InstanceToken
+}
+
+@_spi(Experimental)
+public func makeTrainingFactory(
+    repository: TrainingRepository
+) -> TrainingContainer._InnoDIAssistedFactoryPrototype {
+    .init(repository: repository)
+}

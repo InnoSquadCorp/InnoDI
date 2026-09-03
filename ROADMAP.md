@@ -282,6 +282,10 @@ Delivery order:
    includes `--why`, `--dependents`, `--unused`, schema-v2 `--diff`, and the
    source-free schema-v1 `InnoDI-Migrate --report` inventory.
 2. Prototype child-owned assisted factories without removing stable 5.x APIs.
+   An underscored SPI probe now partitions existing `.input` members into
+   factory-captured static values and call-time assisted values, with a
+   cross-module fixture proving per-child shared-storage isolation. Its source
+   and generated names remain explicitly outside the stable contract.
 3. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
 4. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.

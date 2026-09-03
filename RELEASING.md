@@ -220,6 +220,13 @@ standalone release assets.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
   and diagnostics without including original or migrated source bodies.
+- Added an underscored `Experimental` SPI assisted-factory probe for RFC 0006.
+  It lets pinned 5.2 pilot consumers exercise child-owned static/assisted input
+  partitioning and per-child lifetime isolation without freezing the 6.0 API
+  or removing any stable 5.x declaration. Its temporary string-literal member
+  list is compile-time validated and is not the proposed 6.0 input syntax.
+  Pilot declarations that expose the generated factory must remain inside the
+  same `Experimental` SPI boundary.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of
