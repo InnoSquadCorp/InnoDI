@@ -152,6 +152,38 @@ struct GraphQueryTests {
         }
     }
 
+    @Test("Query failures provide actionable CLI descriptions")
+    func queryFailureDescriptions() {
+        #expect(
+            GraphInspectionError.nodeNotFound(selector: "Missing").errorDescription
+                == "No container matches 'Missing'. Use an exact graph ID, semantic path, or display name."
+        )
+        #expect(
+            GraphInspectionError.ambiguousNode(
+                selector: "ServiceContainer",
+                candidates: ["FeatureA::ServiceContainer", "FeatureB::ServiceContainer"]
+            ).errorDescription
+                == "Container selector 'ServiceContainer' is ambiguous. Candidates: FeatureA::ServiceContainer, FeatureB::ServiceContainer"
+        )
+        #expect(
+            GraphInspectionError.noRoots.errorDescription
+                == "This query requires at least one explicit graph root."
+        )
+        #expect(
+            GraphInspectionError.unreachableFromRoots(selector: "PreviewContainer")
+                .errorDescription
+                == "Container 'PreviewContainer' is not reachable from any explicit graph root."
+        )
+        #expect(
+            GraphInspectionError.unsupportedSchema(
+                path: "graph-v2.json",
+                found: 2,
+                expected: 3
+            ).errorDescription
+                == "Graph document 'graph-v2.json' uses schema v2; --diff currently requires schema v3."
+        )
+    }
+
     @Test("Graph diff reports scope, node, and edge changes")
     func graphDiff() throws {
         let before = try graphDocument(

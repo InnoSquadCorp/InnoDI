@@ -60,6 +60,39 @@ struct InnoDIMigrationCoreTests {
         )
     }
 
+    @Test("CLI argument failures provide actionable descriptions")
+    func argumentErrorDescriptions() {
+        #expect(
+            MigrationArgumentError.duplicateOption("--report").description
+                == "Option may be specified only once: --report"
+        )
+        #expect(
+            MigrationArgumentError.missingOptionValue("--output").description
+                == "Missing value for option: --output"
+        )
+        #expect(MigrationArgumentError.missingRoot.description == "--root <path> is required.")
+        #expect(
+            MigrationArgumentError.missingMode.description
+                == "Exactly one of --check, --report, or --write is required."
+        )
+        #expect(
+            MigrationArgumentError.mutuallyExclusiveModes.description
+                == "--check, --report, and --write are mutually exclusive."
+        )
+        #expect(
+            MigrationArgumentError.outputRequiresReport.description
+                == "--output may be used only with --report."
+        )
+        #expect(
+            MigrationArgumentError.unexpectedArgument("Sources").description
+                == "Unexpected positional argument: Sources"
+        )
+        #expect(
+            MigrationArgumentError.unknownOption("--json").description
+                == "Unknown option: --json"
+        )
+    }
+
     @Test("Structured reports are deterministic and omit source bodies")
     func structuredReportIsDeterministicAndSourceFree() throws {
         let plan = MigrationPlan(
@@ -115,6 +148,22 @@ struct InnoDIMigrationCoreTests {
         #expect(report.status == .blocked)
         #expect(report.exitCode == 2)
         #expect(report.diagnostics.map(\.path) == ["Broken.swift"])
+    }
+
+    @Test("Structured reports classify an unchanged tree as clean")
+    func structuredReportClassifiesCleanTree() {
+        let report = MigrationReport(
+            plan: MigrationPlan(
+                scannedFileCount: 4,
+                changes: [],
+                diagnostics: []
+            )
+        )
+
+        #expect(report.status == .clean)
+        #expect(report.exitCode == 0)
+        #expect(!report.requiresChanges)
+        #expect(report.canWrite)
     }
 
     @Test("Concrete and stacked feature-root surfaces migrate idempotently")

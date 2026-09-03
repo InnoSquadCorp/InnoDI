@@ -230,7 +230,10 @@ standalone release assets.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of
-  SDK symbols re-exported by toolchain-specific SwiftUI symbol graphs.
+  SDK symbols re-exported by toolchain-specific SwiftUI symbol graphs. The
+  coverage collector now accepts both the combined package test bundle used by
+  earlier toolchains and Swift 6.4's per-target test bundles, including public
+  executable entry points without lowering any checked-in floor.
 
 ## 5.1.0
 
