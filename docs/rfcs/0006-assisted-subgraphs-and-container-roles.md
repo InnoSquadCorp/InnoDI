@@ -48,6 +48,26 @@ As of 2026-09-03:
   experimental surfaces. Neither is promoted merely because 6.0 is a major
   release.
 
+### Exact consumer adoption snapshot
+
+The following read-only snapshot used each consumer's fetched `origin/main`
+archive and the schema-v1 `InnoDI-Migrate --report` command from InnoDI commit
+`65086345f8ba00f04107ca74e70e15df496ff68c`. A clean report proves only that
+the current 5.x migration scanner found no required rewrite or blocker. It is
+not a substitute for resolving the experimental revision and building a pilot.
+
+| Consumer | Observed `origin/main` | Pinned InnoDI | Report | 6.0 implication |
+|---|---|---:|---|---|
+| InnoSample | `ee3d9409cb422635ff89e02f361e2693fa226e13` | `5.1.0` | `clean`; 175 Swift files, 0 changes, 0 diagnostics | First pilot candidate. Runtime `userID` and `assigneeID` values already enter through router/deep-link flows, so the pilot should introduce a dedicated detail child rather than reclassify the long-lived feature input bundle. |
+| Mulbyul Apple | `ce91b1ee280acaa65e629ccf00bc4aa5a975d7dc` | `5.1.0` | `clean`; 449 Swift files, 0 changes, 0 diagnostics | Second pilot candidate. `routineID` and `sessionID` are created at Training navigation/session boundaries; the existing shared `TrainingFeatureContainer` input remains static while a nested routine/session child owns the assisted value. |
+| BlPia Apple | `8404b2f81c6f4f4d7f43a5616c99722fb75714fc` | `3.0.1` | `blocked`; 158 Swift files, 7 `migrate.unqualified-ownership-ambiguous` diagnostics | Not a direct assisted-factory pilot. First qualify ownership and migrate the seven legacy `@Provide(concrete:)` sites onto the 5.x contract, then rerun the report and strict consumer build. |
+
+This closes the static inventory portion of the adoption gate. The InnoSample
+and Mulbyul rows remain unverified as runtime pilots until their exact package
+revision, build, and per-child lifetime assertions are recorded. BlPia remains
+blocked before that gate and must not be counted as a negative result for the
+assisted-factory design itself.
+
 ## Problem definition
 
 Static composition works well when every input is available at the application
@@ -286,13 +306,13 @@ conflation that makes assisted inputs hard to explain and extend.
 
 | Requirement | Acceptance criteria | Planned implementation | Evidence |
 |---|---|---|---|
-| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | TBD |
+| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: `AssistedFactoryPrototypeMacroTests` and the SPI external-consumer fixture cover child-owned signature generation; parent ownership remains TBD |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | TBD |
-| FR-600-003 | AC-600-001 | Generated child construction and overrides | TBD |
+| FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture creates two children and asserts distinct `.shared` identities |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | TBD |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | TBD |
-| FR-600-007 | AC-600-005 | Schema-v1 report groundwork landed; 6.0 rewrite rules remain TBD | `InnoDIMigrationCoreTests` report and external-consumer coverage |
+| FR-600-007 | AC-600-005 | Schema-v1 report groundwork landed; 6.0 rewrite rules remain TBD | `InnoDIMigrationCoreTests`, external-consumer coverage, and the exact InnoSample/Mulbyul/BlPia report snapshot above |
 
 ## Staged delivery
 

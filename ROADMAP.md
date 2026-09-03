@@ -291,6 +291,13 @@ Delivery order:
    strict-concurrency, consumer, and macro-performance gates pass.
 5. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
 
+The read-only static inventory for step 3 is now recorded in RFC 0006 against
+fetched `origin/main` SHAs: InnoSample and Mulbyul are clean on their pinned
+5.1.0 source, while BlPia is blocked at its 3.0.1-to-5.x migration boundary by
+seven ownership-ambiguous legacy `concrete:` sites. This does not mark the
+runtime pilots complete; exact experimental-revision builds and per-child
+lifetime assertions remain required.
+
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
 overrides retain their independent promotion gates.
