@@ -40,7 +40,7 @@ if [[ ! -f "$PROFDATA" ]]; then
     exit 1
 fi
 XCTEST_BUNDLES=()
-COVERAGE_EXECUTABLES=()
+USES_SPLIT_TEST_BUNDLES=0
 if [[ -d "$COMBINED_XCTEST_BUNDLE" ]]; then
     XCTEST_BUNDLES+=("$COMBINED_XCTEST_BUNDLE")
 else
@@ -49,10 +49,7 @@ else
     shopt -s nullglob
     XCTEST_BUNDLES=("$BUILD_DIR"/InnoDI*Tests.xctest)
     shopt -u nullglob
-    COVERAGE_EXECUTABLES=(
-        "$BUILD_DIR/InnoDI-DependencyGraph"
-        "$BUILD_DIR/InnoDI-Migrate"
-    )
+    USES_SPLIT_TEST_BUNDLES=1
 fi
 if [[ ${#XCTEST_BUNDLES[@]} -eq 0 ]]; then
     echo "::error::missing InnoDI test bundles under $BUILD_DIR" >&2
@@ -72,13 +69,17 @@ for XCTEST_BUNDLE in "${XCTEST_BUNDLES[@]}"; do
         COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
     fi
 done
-for BINARY in "${COVERAGE_EXECUTABLES[@]}"; do
-    if [[ ! -x "$BINARY" ]]; then
-        echo "::error::coverage executable not found: $BINARY" >&2
-        exit 1
-    fi
-    COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
-done
+if [[ "$USES_SPLIT_TEST_BUNDLES" -eq 1 ]]; then
+    for BINARY in \
+        "$BUILD_DIR/InnoDI-DependencyGraph" \
+        "$BUILD_DIR/InnoDI-Migrate"; do
+        if [[ ! -x "$BINARY" ]]; then
+            echo "::error::coverage executable not found: $BINARY" >&2
+            exit 1
+        fi
+        COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
+    done
+fi
 
 echo "Using ${#XCTEST_BUNDLES[@]} test coverage bundle(s)"
 
