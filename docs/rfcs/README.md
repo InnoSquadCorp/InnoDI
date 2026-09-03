@@ -16,6 +16,7 @@ before a PR lands.
 | 0003 | [Scoped TaskLocal overrides](0003-scoped-task-local-overrides.md) | Draft |
 | 0004 | [API surface simplification](0004-api-surface-simplification.md) | Draft (partially superseded) |
 | 0005 | [5.0 contract hardening](0005-5.0-contract-hardening.md) | Accepted |
+| 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | Draft |
 
 ## Conventions
 

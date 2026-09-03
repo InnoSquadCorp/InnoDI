@@ -207,6 +207,14 @@ standalone release assets.
 
 ## Unreleased
 
+### Highlights
+
+- Opened [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
+  for the staged 6.0 preparation train. The Draft keeps 5.x groundwork
+  additive while assisted child factories, input/lifetime separation, and
+  container-role consolidation are validated in real consumers before the
+  breaking surface is frozen.
+
 ## 5.1.0
 
 ### Highlights

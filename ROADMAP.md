@@ -269,6 +269,26 @@ ordered by user-facing trust risk first.
 5. Example and onboarding quality
    - Keep the SwiftUI examples, README set, and localized DocC aligned so new adopters can get to a working container and graph render quickly.
 
+## 6.0 Preparation Train
+
+[RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) defines
+the Draft direction for 6.0: child-owned assisted factories, separate input and
+provider-lifetime declarations, and explicit container roles. The 5.2.x train
+is limited to reversible groundwork while the RFC remains Draft.
+
+Delivery order:
+
+1. Add graph explainability and migration reporting on 5.x.
+2. Prototype child-owned assisted factories without removing stable 5.x APIs.
+3. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
+4. Accept and freeze the RFC only after diagnostics, graph schema, migration,
+   strict-concurrency, consumer, and macro-performance gates pass.
+5. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
+
+The train does not add runtime registration, an `@Injected` service locator,
+or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
+overrides retain their independent promotion gates.
+
 ## Experimental Features & Promotion Criteria
 
 InnoDI ships some surfaces as **experimental** before promoting them to the
