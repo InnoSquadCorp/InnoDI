@@ -5,4 +5,4 @@
 'MainActor' is not a member type of enum 'ShadowKit._Concurrency'
 'Task' is not a member type of enum 'ShadowKit._Concurrency'
 Factory parameter 'dependency' for 'value' cannot call Provider<T> during .shared construction. Store or forward the provider and invoke it only after the container has finished initializing.
-no 'async' operations occur within 'await' expression
+? no 'async' operations occur within 'await' expression
