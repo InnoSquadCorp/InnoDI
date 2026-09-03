@@ -217,6 +217,10 @@ standalone release assets.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v2 JSON artifacts.
+- Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
+  diagnostics now preserve exact toolchain-specific compiler output, while the
+  public API guard tracks only source-authored product declarations instead of
+  SDK symbols re-exported by toolchain-specific SwiftUI symbol graphs.
 
 ## 5.1.0
 

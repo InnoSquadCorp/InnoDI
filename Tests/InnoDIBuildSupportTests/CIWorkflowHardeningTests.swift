@@ -70,6 +70,32 @@ struct CIWorkflowHardeningTests {
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
     }
 
+    @Test("Main CI keeps an explicit Xcode 27 compatibility lane")
+    func xcode27CompatibilityLane() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let jobStart = try #require(
+            workflow.range(of: "  xcode-27-compatibility:\n")
+        )
+        let nextJobStart = try #require(
+            workflow.range(
+                of: "\n  apple-platform-builds:\n",
+                range: jobStart.upperBound..<workflow.endIndex
+            )
+        )
+        let job = workflow[jobStart.lowerBound..<nextJobStart.lowerBound]
+
+        #expect(job.contains("name: Xcode 27 compatibility preview"))
+        #expect(job.contains("runs-on: xcode-27"))
+        #expect(job.contains("Apple Swift version 6.4"))
+        #expect(job.contains("--filter StrictConcurrencyBuildTests"))
+        #expect(job.contains("--filter ExternalConsumerContractTests"))
+        #expect(job.contains("Tools/check-public-api.py"))
+    }
+
     @Test("Mutable action revisions are rejected")
     func mutableActionRevisionFails() throws {
         let fixture = try CIWorkflowFixture(

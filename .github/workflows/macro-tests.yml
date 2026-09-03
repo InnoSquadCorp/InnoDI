@@ -223,6 +223,32 @@ jobs:
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests
 
+  xcode-27-compatibility:
+    name: Xcode 27 compatibility preview
+    if: github.event_name == 'push'
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Verify Xcode 27 and Swift 6.4
+        run: |
+          set -euo pipefail
+          xcode_output="$(xcodebuild -version)"
+          swift_output="$(swift --version)"
+          [[ "$xcode_output" == Xcode\ 27* ]]
+          [[ "$swift_output" == *"Apple Swift version 6.4"* ]]
+          printf '%s\n' "$xcode_output"
+          printf '%s\n' "$swift_output"
+      - name: Run strict external compatibility contracts
+        run: |
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests
+      - name: Validate source-authored public API baseline
+        run: Tools/check-public-api.py
+
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)
     if: github.event_name == 'push'

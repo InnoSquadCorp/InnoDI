@@ -7,26 +7,22 @@
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
-          "target": "s:SH",
-          "targetFallback": "Swift.Hashable"
+          "target": "s:SH"
         },
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
-          "target": "s:SQ",
-          "targetFallback": "Swift.Equatable"
+          "target": "s:SQ"
         },
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI7DIScopeO",
-          "target": "s:SH",
-          "targetFallback": "Swift.Hashable"
+          "target": "s:SH"
         },
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI7DIScopeO",
-          "target": "s:SQ",
-          "targetFallback": "Swift.Equatable"
+          "target": "s:SQ"
         },
         {
           "kind": "memberOf",
@@ -92,64 +88,7 @@
       "symbols": [
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(peer, names: suffixed(Dependencies)) "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(member, names: named(init)) "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(extension, conformances: "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "_InnoDIComponentMountable"
-            },
-            {
-              "kind": "text",
-              "spelling": ", "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "_InnoDIMainActorComponentMountable"
-            },
-            {
-              "kind": "text",
-              "spelling": ", names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIComponent"
-            },
-            {
-              "kind": "text",
-              "spelling": "()"
-            }
-          ],
+          "declaration": "@attached(peer, names: suffixed(Dependencies)) @attached(member, names: named(init)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIComponent()",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DIComponentyycfm"
@@ -163,91 +102,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(memberAttribute) "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIContainer"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "root"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:Sb",
-              "spelling": "Bool"
-            },
-            {
-              "kind": "text",
-              "spelling": " = false, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "validateDAG"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:Sb",
-              "spelling": "Bool"
-            },
-            {
-              "kind": "text",
-              "spelling": " = true, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "mainActor"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:Sb",
-              "spelling": "Bool"
-            },
-            {
-              "kind": "text",
-              "spelling": " = false)"
-            }
-          ],
+          "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) macro DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DIContainer4root11validateDAG9mainActorySb_S2btcfm"
@@ -261,20 +116,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "struct"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "FeatureRoot"
-            }
-          ],
+          "declaration": "struct FeatureRoot",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV"
@@ -288,33 +130,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "let"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "alias"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:SS",
-              "spelling": "String"
-            },
-            {
-              "kind": "text",
-              "spelling": "?"
-            }
-          ],
+          "declaration": "let alias: String?",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV5aliasSSSgvp"
@@ -329,32 +145,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "let"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "rootView"
-            },
-            {
-              "kind": "text",
-              "spelling": ": any "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "Any"
-            },
-            {
-              "kind": "text",
-              "spelling": ".Type"
-            }
-          ],
+          "declaration": "let rootView: Any.Type",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV8rootViewypXpvp"
@@ -369,113 +160,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "init"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "rootView"
-            },
-            {
-              "kind": "text",
-              "spelling": ": any "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "Any"
-            },
-            {
-              "kind": "text",
-              "spelling": ".Type, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "as"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "alias"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:SS",
-              "spelling": "String"
-            },
-            {
-              "kind": "text",
-              "spelling": "? = nil)"
-            }
-          ],
-          "functionSignature": {
-            "parameters": [
-              {
-                "declarationFragments": [
-                  {
-                    "kind": "identifier",
-                    "spelling": "rootView"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ": any "
-                  },
-                  {
-                    "kind": "keyword",
-                    "spelling": "Any"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ".Type"
-                  }
-                ],
-                "name": "rootView"
-              },
-              {
-                "declarationFragments": [
-                  {
-                    "kind": "identifier",
-                    "spelling": "alias"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ": "
-                  },
-                  {
-                    "kind": "typeIdentifier",
-                    "preciseIdentifier": "s:SS",
-                    "spelling": "String"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": "?"
-                  }
-                ],
-                "internalName": "alias",
-                "name": "as"
-              }
-            ]
-          },
+          "declaration": "init(_ rootView: Any.Type, as alias: String? = nil)",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV_2asACypXp_SSSgtcfc"
@@ -490,32 +175,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(peer, names: suffixed(Mock)) "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "GenerateMock"
-            },
-            {
-              "kind": "text",
-              "spelling": "()"
-            }
-          ],
+          "declaration": "@attached(peer, names: suffixed(Mock)) macro GenerateMock()",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12GenerateMockyycfm"
@@ -529,141 +189,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(peer) "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "SubContainer"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "scope"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:6InnoDI17SubContainerScopeO",
-              "spelling": "SubContainerScope"
-            },
-            {
-              "kind": "text",
-              "spelling": ", "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "with"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "dependencies"
-            },
-            {
-              "kind": "text",
-              "spelling": ": ["
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:s10AnyKeyPathC",
-              "spelling": "AnyKeyPath"
-            },
-            {
-              "kind": "text",
-              "spelling": "] = [], "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "bindings"
-            },
-            {
-              "kind": "text",
-              "spelling": ": [(child"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:s10AnyKeyPathC",
-              "spelling": "AnyKeyPath"
-            },
-            {
-              "kind": "text",
-              "spelling": ", parent"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:s10AnyKeyPathC",
-              "spelling": "AnyKeyPath"
-            },
-            {
-              "kind": "text",
-              "spelling": ")] = [], "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "featureRoot"
-            },
-            {
-              "kind": "text",
-              "spelling": ": (any "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "Any"
-            },
-            {
-              "kind": "text",
-              "spelling": ".Type)? = nil, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "featureRoots"
-            },
-            {
-              "kind": "text",
-              "spelling": ": ["
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:6InnoDI11FeatureRootV",
-              "spelling": "FeatureRoot"
-            },
-            {
-              "kind": "text",
-              "spelling": "] = [])"
-            }
-          ],
+          "declaration": "@attached(peer) macro SubContainer(scope: SubContainerScope, with dependencies: [AnyKeyPath] = [], bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = [], featureRoot: Any.Type? = nil, featureRoots: [FeatureRoot] = [])",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12SubContainer5scope4with8bindings11featureRoot0H5RootsyAA0cD5ScopeO_Says10AnyKeyPathCGSayAK5child_AK6parenttGypXpSgSayAA07FeatureI0VGtcfm"
@@ -677,41 +203,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(extension, conformances: "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:6InnoDI21DIHierarchyRootMarkerP",
-              "spelling": "DIHierarchyRootMarker"
-            },
-            {
-              "kind": "text",
-              "spelling": ") "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIHierarchyRoot"
-            },
-            {
-              "kind": "text",
-              "spelling": "()"
-            }
-          ],
+          "declaration": "@attached(extension, conformances: DIHierarchyRootMarker) macro DIHierarchyRoot()",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI15DIHierarchyRootyycfm"
@@ -725,20 +217,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "enum"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "SubContainerScope"
-            }
-          ],
+          "declaration": "enum SubContainerScope",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17SubContainerScopeO"
@@ -752,20 +231,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "case"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "shared"
-            }
-          ],
+          "declaration": "case shared",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17SubContainerScopeO6sharedyA2CmF"
@@ -780,20 +246,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "case"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "transient"
-            }
-          ],
+          "declaration": "case transient",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17SubContainerScopeO9transientyA2CmF"
@@ -808,20 +261,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "protocol"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIHierarchyRootMarker"
-            }
-          ],
+          "declaration": "protocol DIHierarchyRootMarker",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIHierarchyRootMarkerP"
@@ -835,32 +275,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "struct"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "Lazy"
-            },
-            {
-              "kind": "text",
-              "spelling": "<"
-            },
-            {
-              "kind": "genericParameter",
-              "spelling": "T"
-            },
-            {
-              "kind": "text",
-              "spelling": ">"
-            }
-          ],
+          "declaration": "struct Lazy<T>",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI4LazyV"
@@ -883,36 +298,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "func"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "callAsFunction"
-            },
-            {
-              "kind": "text",
-              "spelling": "() -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "T"
-            }
-          ],
-          "functionSignature": {
-            "returns": [
-              {
-                "kind": "typeIdentifier",
-                "spelling": "T"
-              }
-            ]
-          },
+          "declaration": "func callAsFunction() -> T",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI4LazyV14callAsFunctionxyF"
@@ -936,69 +322,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "init"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "resolver"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@escaping "
-            },
-            {
-              "kind": "text",
-              "spelling": "() -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "T"
-            },
-            {
-              "kind": "text",
-              "spelling": ")"
-            }
-          ],
-          "functionSignature": {
-            "parameters": [
-              {
-                "declarationFragments": [
-                  {
-                    "kind": "identifier",
-                    "spelling": "resolver"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ": () -> "
-                  },
-                  {
-                    "kind": "typeIdentifier",
-                    "spelling": "T"
-                  }
-                ],
-                "name": "resolver"
-              }
-            ]
-          },
+          "declaration": "init(_ resolver: @escaping () -> T)",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI4LazyVyACyxGxyccfc"
@@ -1022,20 +346,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "enum"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIScope"
-            }
-          ],
+          "declaration": "enum DIScope",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO"
@@ -1049,20 +360,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "case"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "input"
-            }
-          ],
+          "declaration": "case input",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO5inputyA2CmF"
@@ -1077,20 +375,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "case"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "shared"
-            }
-          ],
+          "declaration": "case shared",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO6sharedyA2CmF"
@@ -1105,20 +390,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "case"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "transient"
-            }
-          ],
+          "declaration": "case transient",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO9transientyA2CmF"
@@ -1133,155 +405,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "Provide"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "scope"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:6InnoDI7DIScopeO",
-              "spelling": "DIScope"
-            },
-            {
-              "kind": "text",
-              "spelling": " = .shared, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "type"
-            },
-            {
-              "kind": "text",
-              "spelling": ": (any "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "Any"
-            },
-            {
-              "kind": "text",
-              "spelling": ".Type)? = nil, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "with"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "dependencies"
-            },
-            {
-              "kind": "text",
-              "spelling": ": ["
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:s10AnyKeyPathC",
-              "spelling": "AnyKeyPath"
-            },
-            {
-              "kind": "text",
-              "spelling": "] = [], "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "factory"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "Any"
-            },
-            {
-              "kind": "text",
-              "spelling": "? = nil, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "asyncFactory"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "Any"
-            },
-            {
-              "kind": "text",
-              "spelling": "? = nil, "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "escaping"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:Sb",
-              "spelling": "Bool"
-            },
-            {
-              "kind": "text",
-              "spelling": " = false)"
-            }
-          ],
+          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) macro Provide(_ scope: DIScope = .shared, _ type: Any.Type? = nil, with dependencies: [AnyKeyPath] = [], factory: Any? = nil, asyncFactory: Any? = nil, escaping: Bool = false)",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7Provide__4with7factory12asyncFactory8escapingyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGypSgAMSbtcfm"
@@ -1295,32 +419,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "struct"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "Provider"
-            },
-            {
-              "kind": "text",
-              "spelling": "<"
-            },
-            {
-              "kind": "genericParameter",
-              "spelling": "T"
-            },
-            {
-              "kind": "text",
-              "spelling": ">"
-            }
-          ],
+          "declaration": "struct Provider<T>",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI8ProviderV"
@@ -1343,36 +442,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "func"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "callAsFunction"
-            },
-            {
-              "kind": "text",
-              "spelling": "() -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "T"
-            }
-          ],
-          "functionSignature": {
-            "returns": [
-              {
-                "kind": "typeIdentifier",
-                "spelling": "T"
-              }
-            ]
-          },
+          "declaration": "func callAsFunction() -> T",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI8ProviderV14callAsFunctionxyF"
@@ -1396,69 +466,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "init"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "resolver"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@escaping "
-            },
-            {
-              "kind": "text",
-              "spelling": "() -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "T"
-            },
-            {
-              "kind": "text",
-              "spelling": ")"
-            }
-          ],
-          "functionSignature": {
-            "parameters": [
-              {
-                "declarationFragments": [
-                  {
-                    "kind": "identifier",
-                    "spelling": "resolver"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ": () -> "
-                  },
-                  {
-                    "kind": "typeIdentifier",
-                    "spelling": "T"
-                  }
-                ],
-                "name": "resolver"
-              }
-            ]
-          },
+          "declaration": "init(_ resolver: @escaping () -> T)",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI8ProviderVyACyxGxyccfc"
@@ -1487,6 +495,16 @@
       "module": "InnoDISwiftUI",
       "relationships": [
         {
+          "kind": "memberOf",
+          "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF",
+          "target": "s:7SwiftUI4ViewP"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF",
+          "target": "s:7SwiftUI4ViewP"
+        },
+        {
           "kind": "requirementOf",
           "source": "s:13InnoDISwiftUI21DIEnvironmentBridgingP0aD14BridgeModifierQa",
           "target": "s:13InnoDISwiftUI21DIEnvironmentBridgingP"
@@ -1495,91 +513,7 @@
       "symbols": [
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(member, names: named(_InnoDIEnvironmentBridgeModifier), named(_innoDIEnvironmentBridgeModifier)) "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@attached"
-            },
-            {
-              "kind": "text",
-              "spelling": "(extension, conformances: "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:13InnoDISwiftUI21DIEnvironmentBridgingP",
-              "spelling": "DIEnvironmentBridging"
-            },
-            {
-              "kind": "text",
-              "spelling": ") "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIEnvironmentBridge"
-            },
-            {
-              "kind": "text",
-              "spelling": "("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "mappings"
-            },
-            {
-              "kind": "text",
-              "spelling": ": [(member"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:SS",
-              "spelling": "String"
-            },
-            {
-              "kind": "text",
-              "spelling": ", environment"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:s10AnyKeyPathC",
-              "spelling": "AnyKeyPath"
-            },
-            {
-              "kind": "text",
-              "spelling": ")])"
-            }
-          ],
+          "declaration": "@attached(member, names: named(_InnoDIEnvironmentBridgeModifier), named(_innoDIEnvironmentBridgeModifier)) @attached(extension, conformances: DIEnvironmentBridging) macro DIEnvironmentBridge(_ mappings: [(member: String, environment: AnyKeyPath)])",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI19DIEnvironmentBridgeyySaySS6member_s10AnyKeyPathC11environmenttGcfm"
@@ -1593,116 +527,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@freestanding"
-            },
-            {
-              "kind": "text",
-              "spelling": "(expression) "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "macro"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "PreviewWithContainer"
-            },
-            {
-              "kind": "text",
-              "spelling": "<"
-            },
-            {
-              "kind": "genericParameter",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ", "
-            },
-            {
-              "kind": "genericParameter",
-              "spelling": "Result"
-            },
-            {
-              "kind": "text",
-              "spelling": ">("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "container"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "attribute",
-              "spelling": "@autoclosure "
-            },
-            {
-              "kind": "text",
-              "spelling": "() -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ", "
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "body"
-            },
-            {
-              "kind": "text",
-              "spelling": ": ("
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ") -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Result"
-            },
-            {
-              "kind": "text",
-              "spelling": ") -> "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Result"
-            }
-          ],
+          "declaration": "@freestanding(expression) macro PreviewWithContainer<Container, Result>(_ container: @autoclosure () -> Container, _ body: (Container) -> Result) -> Result",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20PreviewWithContaineryq_xyXK_q_xXEtcr0_lufm"
@@ -1730,33 +555,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@"
-            },
-            {
-              "kind": "attribute",
-              "preciseIdentifier": "s:ScM",
-              "spelling": "MainActor"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "protocol"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "DIEnvironmentBridging"
-            }
-          ],
+          "declaration": "@MainActor protocol DIEnvironmentBridging",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIEnvironmentBridgingP"
@@ -1770,29 +569,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "keyword",
-              "spelling": "associatedtype"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "InnoDIEnvironmentBridgeModifier"
-            },
-            {
-              "kind": "text",
-              "spelling": " : "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:7SwiftUI12ViewModifierP",
-              "spelling": "ViewModifier"
-            }
-          ],
+          "declaration": "associatedtype InnoDIEnvironmentBridgeModifier : ViewModifier",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIEnvironmentBridgingP0aD14BridgeModifierQa"
@@ -1804,171 +581,10 @@
             "DIEnvironmentBridging",
             "InnoDIEnvironmentBridgeModifier"
           ]
-        }
-      ]
-    },
-    {
-      "file": "InnoDISwiftUI@SwiftUICore.symbols.json",
-      "module": "InnoDISwiftUI",
-      "relationships": [
-        {
-          "kind": "memberOf",
-          "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF",
-          "target": "s:7SwiftUI4ViewP",
-          "targetFallback": "SwiftUICore.View"
         },
         {
-          "kind": "memberOf",
-          "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF",
-          "target": "s:7SwiftUI4ViewP",
-          "targetFallback": "SwiftUICore.View"
-        }
-      ],
-      "symbols": [
-        {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@"
-            },
-            {
-              "kind": "attribute",
-              "preciseIdentifier": "s:ScM",
-              "spelling": "MainActor"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "func"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "innodiServices"
-            },
-            {
-              "kind": "text",
-              "spelling": "<"
-            },
-            {
-              "kind": "genericParameter",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ">("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "from"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "container"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ") -> "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "some"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:7SwiftUI4ViewP",
-              "spelling": "View"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "where"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": " : "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:13InnoDISwiftUI21DIEnvironmentBridgingP",
-              "spelling": "DIEnvironmentBridging"
-            },
-            {
-              "kind": "text",
-              "spelling": "\n"
-            }
-          ],
-          "functionSignature": {
-            "parameters": [
-              {
-                "declarationFragments": [
-                  {
-                    "kind": "identifier",
-                    "spelling": "container"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ": "
-                  },
-                  {
-                    "kind": "typeIdentifier",
-                    "spelling": "Container"
-                  }
-                ],
-                "internalName": "container",
-                "name": "from"
-              }
-            ],
-            "returns": [
-              {
-                "kind": "keyword",
-                "spelling": "some"
-              },
-              {
-                "kind": "text",
-                "spelling": " "
-              },
-              {
-                "kind": "typeIdentifier",
-                "preciseIdentifier": "s:7SwiftUI4ViewP",
-                "spelling": "View"
-              }
-            ]
-          },
+          "declaration": "@MainActor func innodiServices<Container>(from container: Container) -> some View where Container : DIEnvironmentBridging",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF"
@@ -2004,147 +620,7 @@
         },
         {
           "accessLevel": "public",
-          "declarationFragments": [
-            {
-              "kind": "attribute",
-              "spelling": "@"
-            },
-            {
-              "kind": "attribute",
-              "preciseIdentifier": "s:ScM",
-              "spelling": "MainActor"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "func"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "identifier",
-              "spelling": "innodi"
-            },
-            {
-              "kind": "text",
-              "spelling": "<"
-            },
-            {
-              "kind": "genericParameter",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ">("
-            },
-            {
-              "kind": "externalParam",
-              "spelling": "_"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "internalParam",
-              "spelling": "container"
-            },
-            {
-              "kind": "text",
-              "spelling": ": "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": ") -> "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "some"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:7SwiftUI4ViewP",
-              "spelling": "View"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "keyword",
-              "spelling": "where"
-            },
-            {
-              "kind": "text",
-              "spelling": " "
-            },
-            {
-              "kind": "typeIdentifier",
-              "spelling": "Container"
-            },
-            {
-              "kind": "text",
-              "spelling": " : "
-            },
-            {
-              "kind": "typeIdentifier",
-              "preciseIdentifier": "s:13InnoDISwiftUI21DIEnvironmentBridgingP",
-              "spelling": "DIEnvironmentBridging"
-            },
-            {
-              "kind": "text",
-              "spelling": "\n"
-            }
-          ],
-          "functionSignature": {
-            "parameters": [
-              {
-                "declarationFragments": [
-                  {
-                    "kind": "identifier",
-                    "spelling": "container"
-                  },
-                  {
-                    "kind": "text",
-                    "spelling": ": "
-                  },
-                  {
-                    "kind": "typeIdentifier",
-                    "spelling": "Container"
-                  }
-                ],
-                "name": "container"
-              }
-            ],
-            "returns": [
-              {
-                "kind": "keyword",
-                "spelling": "some"
-              },
-              {
-                "kind": "text",
-                "spelling": " "
-              },
-              {
-                "kind": "typeIdentifier",
-                "preciseIdentifier": "s:7SwiftUI4ViewP",
-                "spelling": "View"
-              }
-            ]
-          },
+          "declaration": "@MainActor func innodi<Container>(_ container: Container) -> some View where Container : DIEnvironmentBridging",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF"
@@ -2181,5 +657,5 @@
       ]
     }
   ],
-  "schemaVersion": 1
+  "schemaVersion": 2
 }
