@@ -362,6 +362,11 @@ superclass에 shadow가 없다고 추측하지 않고
 accessor와 다른 property wrapper를 의도적으로 위조해 함께 붙이면 InnoDI의
 misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니다.
 
+쓰기 전에 machine-readable migration inventory를 만들려면
+`swift run InnoDI-Migrate --root . --report --output migration-report.json`을
+실행하세요. Schema-v1 리포트에는 경로와 진단만 포함되고 source 본문은 포함되지
+않으며, exit code는 `0`(clean), `1`(변경 필요), `2`(차단)입니다.
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,

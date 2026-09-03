@@ -246,12 +246,18 @@ scope에 선언된 같은 이름은 계속 예약됩니다.
 
 ```bash
 swift run InnoDI-Migrate --root . --check
+swift run InnoDI-Migrate --root . --report --output migration-report.json
 swift run InnoDI-Migrate --root . --write
 swift run InnoDI-Migrate --root . --check
 ```
 
 안전하게 자동 변경할 파일이 있으면 `--check`는 파일마다 `MIGRATE` record를
-출력하고 exit code `1`로 종료합니다. `--write`는 첫 atomic file replacement 전에
+출력하고 exit code `1`로 종료합니다. `--report`는 동일한 read-only preflight를
+실행한 뒤 deterministic schema-v1 JSON inventory를 표준 출력 또는 `--output`으로
+지정한 경로에 atomic하게 기록합니다. 리포트에는 상대 경로, 안정적인 code, count,
+status, diagnostic message만 포함하며 원본 또는 변환된 source 본문은 포함하지
+않습니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 첫
+atomic file replacement 전에
 전체 source tree를 parse하고 preflight하며 기존 UTF-8 BOM을 보존합니다. 소유권이
 모호한 attribute, 지원하지 않는 legacy argument, parse error, source symlink,
 동시에 변경된 source를 만나면 exit code `2`로 fail-closed합니다. Preflight

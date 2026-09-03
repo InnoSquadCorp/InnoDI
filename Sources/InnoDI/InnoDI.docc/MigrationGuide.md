@@ -253,12 +253,18 @@ Run the public migration executable before compiling the rest of the package:
 
 ```bash
 swift run InnoDI-Migrate --root . --check
+swift run InnoDI-Migrate --root . --report --output migration-report.json
 swift run InnoDI-Migrate --root . --write
 swift run InnoDI-Migrate --root . --check
 ```
 
 `--check` exits with `1` and prints one `MIGRATE` record per file when safe
-rewrites are pending. `--write` parses and preflights the complete source tree
+rewrites are pending. `--report` performs the same read-only preflight and emits
+a deterministic schema-v1 JSON inventory to standard output, or atomically to
+the path supplied with `--output`. The report contains relative paths, stable
+codes, counts, status, and diagnostic messages, but never original or migrated
+source bodies. Its exit codes are `0` for clean, `1` for changes required, and
+`2` for blocked. `--write` parses and preflights the complete source tree
 before its first atomic file replacement, then preserves an existing UTF-8
 byte-order mark. Ambiguous ownership, unsupported legacy arguments, parse
 errors, source symlinks, and concurrent source changes fail closed with exit

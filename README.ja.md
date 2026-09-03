@@ -367,6 +367,12 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
 場合、InnoDI の misuse diagnostic に加えて Swift 自身の structural diagnostic
 が発生することがあります。
 
+書き込み前に machine-readable な migration inventory を作成するには、
+`swift run InnoDI-Migrate --root . --report --output migration-report.json` を
+実行します。Schema-v1 report には path と diagnostic のみが含まれ、source
+本文は含まれません。Exit code は `0`（clean）、`1`（changes required）、
+`2`（blocked）です。
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,

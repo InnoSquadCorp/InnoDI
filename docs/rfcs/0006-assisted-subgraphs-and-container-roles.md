@@ -292,7 +292,7 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | TBD |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | TBD |
-| FR-600-007 | AC-600-005 | `InnoDI-Migrate` 6.0 migration rules | TBD |
+| FR-600-007 | AC-600-005 | Schema-v1 report groundwork landed; 6.0 rewrite rules remain TBD | `InnoDIMigrationCoreTests` report and external-consumer coverage |
 
 ## Staged delivery
 

@@ -279,8 +279,8 @@ is limited to reversible groundwork while the RFC remains Draft.
 Delivery order:
 
 1. Add graph explainability and migration reporting on 5.x. The 5.2 train now
-   includes `--why`, `--dependents`, `--unused`, and schema-v2 `--diff`;
-   migration reporting remains.
+   includes `--why`, `--dependents`, `--unused`, schema-v2 `--diff`, and the
+   source-free schema-v1 `InnoDI-Migrate --report` inventory.
 2. Prototype child-owned assisted factories without removing stable 5.x APIs.
 3. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
 4. Accept and freeze the RFC only after diagnostics, graph schema, migration,

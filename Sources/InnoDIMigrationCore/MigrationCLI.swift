@@ -4,11 +4,15 @@ public enum MigrationCLI {
     public static let usage = """
     Usage:
       InnoDI-Migrate --root <path> --check
+      InnoDI-Migrate --root <path> --report [--output <path>]
       InnoDI-Migrate --root <path> --write
 
     Options:
       --root <path>  Swift package or source-tree root (required)
       --check        Exit nonzero when migration is required
+      --report       Emit a schema-v1 JSON migration report without source bodies
+      --output <path>
+                     Write the report atomically (default: stdout; use - for stdout)
       --write        Apply all safe migrations after a full-tree preflight
       --help, -h     Show this help
     """
@@ -33,6 +37,13 @@ public enum MigrationCLI {
                 root: URL(fileURLWithPath: options.rootPath, isDirectory: true),
                 mode: options.mode
             )
+
+            if options.mode == .report {
+                let report = MigrationReport(plan: plan)
+                try emit(report: report, outputPath: options.outputPath)
+                return report.exitCode
+            }
+
             for diagnostic in plan.diagnostics {
                 fputs("\(diagnostic.rendered)\n", stderr)
             }
@@ -55,10 +66,35 @@ public enum MigrationCLI {
                 }
                 print("Migrated \(plan.changes.count) file(s).")
                 return 0
+            case .report:
+                preconditionFailure("Report mode returns before text rendering.")
             }
         } catch {
             fputs("Error: \(error)\n", stderr)
             return 2
+        }
+    }
+
+    private static func emit(
+        report: MigrationReport,
+        outputPath: String?
+    ) throws {
+        let data = try report.encodedJSON()
+        guard let outputPath, outputPath != "-" else {
+            FileHandle.standardOutput.write(data)
+            return
+        }
+
+        do {
+            try data.write(
+                to: URL(fileURLWithPath: outputPath),
+                options: .atomic
+            )
+        } catch {
+            throw MigrationError.cannotWriteReport(
+                path: outputPath,
+                reason: error.localizedDescription
+            )
         }
     }
 }

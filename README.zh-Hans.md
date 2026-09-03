@@ -343,6 +343,11 @@ optional `T!`，请分别迁移到
 并与另一个 property wrapper 组合，除了 InnoDI misuse diagnostic 外，Swift
 自身也可能发出 structural diagnostic。
 
+若要在写入前生成 machine-readable migration inventory，请运行
+`swift run InnoDI-Migrate --root . --report --output migration-report.json`。
+Schema-v1 report 只包含 path 和 diagnostic，不包含 source 正文；exit code 为
+`0`（clean）、`1`（需要更改）和 `2`（blocked）。
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,

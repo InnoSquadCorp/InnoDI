@@ -386,6 +386,11 @@ deliberately forged combination of the compiler-support accessor with another
 property wrapper can also receive Swift's own structural diagnostics in
 addition to InnoDI's misuse diagnostic.
 
+For a machine-readable migration inventory before any write, run
+`swift run InnoDI-Migrate --root . --report --output migration-report.json`.
+The schema-v1 report contains paths and diagnostics, never source bodies, and
+uses exit codes `0` (clean), `1` (changes required), and `2` (blocked).
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,

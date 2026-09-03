@@ -60,6 +60,7 @@ public enum MigrationError: Error, Sendable, Equatable, CustomStringConvertible 
     case invalidRoot(String)
     case cannotEnumerateRoot(path: String, reason: String)
     case cannotRead(path: String, reason: String)
+    case cannotWriteReport(path: String, reason: String)
     case cannotWrite(path: String, reason: String)
 
     public var description: String {
@@ -70,6 +71,8 @@ public enum MigrationError: Error, Sendable, Equatable, CustomStringConvertible 
             "Could not enumerate migration root \(path): \(reason)"
         case .cannotRead(let path, let reason):
             "Could not read \(path): \(reason)"
+        case .cannotWriteReport(let path, let reason):
+            "Could not write migration report \(path): \(reason)"
         case .cannotWrite(let path, let reason):
             "Could not write \(path): \(reason)"
         }
