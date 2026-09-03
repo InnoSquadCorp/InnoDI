@@ -517,6 +517,15 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+检查图包含路径、反向影响范围和未使用容器，并比较两个 JSON 图 artifact：
+
+```bash
+swift run InnoDI-DependencyGraph --root . --why FeatureContainer
+swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --unused
+swift run InnoDI-DependencyGraph --diff before.json after.json
+```
+
 检查 consumer target 中由宏生成的 Swift 代码：
 
 ```bash

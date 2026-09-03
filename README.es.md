@@ -598,6 +598,21 @@ Validar el DAG global:
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
+Explicar la inclusion, inspeccionar dependientes y buscar contenedores fuera
+de todas las raices explicitas:
+
+```bash
+swift run InnoDI-DependencyGraph --root . --why FeatureContainer
+swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --unused
+```
+
+Comparar dos artefactos JSON del grafo:
+
+```bash
+swift run InnoDI-DependencyGraph --diff before.json after.json
+```
+
 Inspeccionar el Swift generado por las macros para un target consumidor:
 
 ```bash

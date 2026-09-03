@@ -554,6 +554,16 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+グラフへの包含経路、逆方向の影響範囲、未使用コンテナを確認し、2 つの
+JSON グラフ artifact を比較します：
+
+```bash
+swift run InnoDI-DependencyGraph --root . --why FeatureContainer
+swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --unused
+swift run InnoDI-DependencyGraph --diff before.json after.json
+```
+
 consumer target でマクロが生成した Swift コードを確認するには：
 
 ```bash

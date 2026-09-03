@@ -23,12 +23,25 @@ enum GraphInput: Equatable {
     case analysisManifest(String)
 }
 
+enum GraphQuery: Equatable {
+    case why(String)
+    case dependents(String)
+    case unused
+}
+
+struct GraphDiffInput: Equatable {
+    let beforePath: String
+    let afterPath: String
+}
+
 struct ParsedArguments: Equatable {
     var input: GraphInput?
     var rootPruning: DependencyGraphRootPruning?
     var format: OutputFormat?
     var output: String?
     var validateDAG: Bool
+    var query: GraphQuery?
+    var diffInput: GraphDiffInput?
     /// When non-nil, the CLI runs the `--diagnose-lock` maintenance command.
     /// An empty string asks the caller to use `<root>/.build`.
     var diagnoseLockPath: String?
@@ -66,6 +79,9 @@ enum ArgumentsError: Error, Equatable {
     case formatWithValidation
     case jsonRequiresAnalysisManifest
     case incompatibleMaintenanceOption(option: String)
+    case incompatibleQueryOption(option: String)
+    case incompatibleDiffOption(option: String)
+    case diffRequiresTwoPaths
 }
 
 /// Pure-function argument parser. No process exit, no stderr writes — the
@@ -79,6 +95,9 @@ func parseArguments(
     var format: OutputFormat?
     var output: String?
     var validateDAG = false
+    var query: GraphQuery?
+    var queryOptionName: String?
+    var diffInput: GraphDiffInput?
     var diagnoseLockPath: String?
     var cacheStatsPath: String?
     var seenOptions: Set<String> = []
@@ -121,7 +140,9 @@ func parseArguments(
             || option == "--analysis-manifest"
             || option == "--root-pruning"
             || option == "--format"
-            || option == "--output" {
+            || option == "--output"
+            || option == "--why"
+            || option == "--dependents" {
             if let error = recordOption(option) {
                 return .failed(error)
             }
@@ -152,10 +173,65 @@ func parseArguments(
                 format = parsed
             case "--output":
                 output = value
+            case "--why", "--dependents":
+                if let queryOptionName {
+                    return .failed(
+                        .mutuallyExclusiveOptions(
+                            first: queryOptionName,
+                            second: option
+                        )
+                    )
+                }
+                queryOptionName = option
+                query = option == "--why" ? .why(value) : .dependents(value)
             default:
                 break
             }
             index += 2
+            continue
+        }
+
+        if option == "--unused" {
+            if let error = recordOption(option) {
+                return .failed(error)
+            }
+            if let queryOptionName {
+                return .failed(
+                    .mutuallyExclusiveOptions(
+                        first: queryOptionName,
+                        second: option
+                    )
+                )
+            }
+            queryOptionName = option
+            query = .unused
+            index += 1
+            continue
+        }
+
+        if option == "--diff" {
+            if let error = recordOption(option) {
+                return .failed(error)
+            }
+            if let queryOptionName {
+                return .failed(
+                    .mutuallyExclusiveOptions(
+                        first: queryOptionName,
+                        second: option
+                    )
+                )
+            }
+            guard index + 2 < args.count,
+                  !args[index + 1].hasPrefix("-"),
+                  !args[index + 2].hasPrefix("-") else {
+                return .failed(.diffRequiresTwoPaths)
+            }
+            queryOptionName = option
+            diffInput = GraphDiffInput(
+                beforePath: args[index + 1],
+                afterPath: args[index + 2]
+            )
+            index += 3
             continue
         }
 
@@ -235,6 +311,7 @@ func parseArguments(
             (format != nil, "--format"),
             (output != nil, "--output"),
             (validateDAG, "--validate-dag"),
+            (queryOptionName != nil, queryOptionName ?? "--query"),
         ] where isPresent {
             return .failed(.incompatibleMaintenanceOption(option: option))
         }
@@ -245,14 +322,63 @@ func parseArguments(
                 format: nil,
                 output: nil,
                 validateDAG: false,
+                query: nil,
+                diffInput: nil,
                 diagnoseLockPath: diagnoseLockPath,
                 cacheStatsPath: cacheStatsPath
             )
         )
     }
 
+    if let diffInput {
+        for (isPresent, option) in [
+            (rootPath != nil, "--root"),
+            (manifestPath != nil, "--analysis-manifest"),
+            (rootPruning != nil, "--root-pruning"),
+            (format != nil, "--format"),
+            (validateDAG, "--validate-dag"),
+        ] where isPresent {
+            return .failed(.incompatibleDiffOption(option: option))
+        }
+        return .parsed(
+            ParsedArguments(
+                input: nil,
+                rootPruning: nil,
+                format: nil,
+                output: output,
+                validateDAG: false,
+                query: nil,
+                diffInput: diffInput,
+                diagnoseLockPath: nil,
+                cacheStatsPath: nil
+            )
+        )
+    }
+
     guard let input else {
         return .failed(.missingGraphInput)
+    }
+    if query != nil {
+        for (isPresent, option) in [
+            (rootPruning != nil, "--root-pruning"),
+            (format != nil, "--format"),
+            (validateDAG, "--validate-dag"),
+        ] where isPresent {
+            return .failed(.incompatibleQueryOption(option: option))
+        }
+        return .parsed(
+            ParsedArguments(
+                input: input,
+                rootPruning: nil,
+                format: nil,
+                output: output,
+                validateDAG: false,
+                query: query,
+                diffInput: nil,
+                diagnoseLockPath: nil,
+                cacheStatsPath: nil
+            )
+        )
     }
     if validateDAG {
         if rootPruning != nil {
@@ -275,6 +401,8 @@ func parseArguments(
             format: format,
             output: output,
             validateDAG: validateDAG,
+            query: nil,
+            diffInput: nil,
             diagnoseLockPath: nil,
             cacheStatsPath: nil
         )
@@ -285,6 +413,8 @@ func usageText() -> String {
     """
     Usage: InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --root-pruning <all|roots> [--format <mermaid|dot|ascii|json>] [--output <file>]
            InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --validate-dag [--output <file>]
+           InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) (--why <container> | --dependents <container> | --unused) [--output <file>]
+           InnoDI-DependencyGraph --diff <before.json> <after.json> [--output <file>]
            InnoDI-DependencyGraph [--root <path>] --diagnose-lock [<scratch-path>]
            InnoDI-DependencyGraph [--root <path>] --cache-stats [<state-path>]
 
@@ -296,6 +426,10 @@ func usageText() -> String {
                                  JSON schema v2 requires --analysis-manifest
       --output <file>            Output file path (default: stdout; use - for stdout)
       --validate-dag             Validate the full selected target scope; cannot be pruned
+      --why <container>          Show a shortest root-to-container inclusion path
+      --dependents <container>   List direct and transitive dependents
+      --unused                   List containers unreachable from every explicit root
+      --diff <before> <after>    Compare two graph JSON v2 documents
       --diagnose-lock [path]     Inspect validation lock state (default: <root>/.build)
       --cache-stats [path]       Aggregate validation cache metrics
       --help, -h                 Show this help message
@@ -335,6 +469,12 @@ extension ArgumentsError {
             return "Error: JSON schema v2 requires --analysis-manifest <path>"
         case .incompatibleMaintenanceOption(let option):
             return "Error: Option \(option) is not supported with maintenance commands"
+        case .incompatibleQueryOption(let option):
+            return "Error: Option \(option) is not supported with graph query commands"
+        case .incompatibleDiffOption(let option):
+            return "Error: Option \(option) is not supported with --diff"
+        case .diffRequiresTwoPaths:
+            return "Error: --diff requires <before.json> and <after.json>"
         }
     }
 }

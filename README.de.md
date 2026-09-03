@@ -581,6 +581,16 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+Graph-Aufnahme erklaeren, Abhaengige untersuchen, ungenutzte Container finden
+und zwei JSON-Graphartefakte vergleichen:
+
+```bash
+swift run InnoDI-DependencyGraph --root . --why FeatureContainer
+swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --unused
+swift run InnoDI-DependencyGraph --diff before.json after.json
+```
+
 Von Makros erzeugten Swift-Code fur ein Consumer-Target prufen:
 
 ```bash

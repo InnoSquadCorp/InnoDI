@@ -569,6 +569,16 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 Tools/generate-docc.sh
 ```
 
+Проверить путь включения, обратное влияние и неиспользуемые контейнеры, а
+также сравнить два JSON-артефакта графа:
+
+```bash
+swift run InnoDI-DependencyGraph --root . --why FeatureContainer
+swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --unused
+swift run InnoDI-DependencyGraph --diff before.json after.json
+```
+
 Проверить Swift-код, созданный макросами для consumer target:
 
 ```bash

@@ -234,4 +234,88 @@ struct ArgumentsParsingTests {
             )
         )
     }
+
+    @Test("Graph queries use full graph input without render options")
+    func graphQueryOptions() {
+        guard case let .parsed(args, warnings) = parseArguments([
+            "--root", "/tmp/project",
+            "--why", "FeatureContainer",
+            "--output", "why.txt",
+        ]) else {
+            Issue.record("Expected parsed result")
+            return
+        }
+        #expect(args.input == .root("/tmp/project"))
+        #expect(args.query == .why("FeatureContainer"))
+        #expect(args.rootPruning == nil)
+        #expect(args.output == "why.txt")
+        #expect(warnings.isEmpty)
+
+        guard case let .parsed(unusedArgs, _) = parseArguments([
+            "--analysis-manifest", "/tmp/workspace.json",
+            "--unused",
+        ]) else {
+            Issue.record("Expected unused query")
+            return
+        }
+        #expect(unusedArgs.query == .unused)
+    }
+
+    @Test("Graph queries are mutually exclusive and reject render options")
+    func graphQueryConflicts() {
+        #expect(
+            parseArguments([
+                "--root", "/tmp/project",
+                "--why", "FeatureContainer",
+                "--dependents", "FeatureContainer",
+            ]) == .failed(
+                .mutuallyExclusiveOptions(
+                    first: "--why",
+                    second: "--dependents"
+                )
+            )
+        )
+        #expect(
+            parseArguments([
+                "--root", "/tmp/project",
+                "--unused",
+                "--format", "ascii",
+            ]) == .failed(.incompatibleQueryOption(option: "--format"))
+        )
+    }
+
+    @Test("Graph diff accepts two JSON paths and an output")
+    func graphDiffOptions() {
+        guard case let .parsed(args, warnings) = parseArguments([
+            "--diff", "before.json", "after.json",
+            "--output", "changes.txt",
+        ]) else {
+            Issue.record("Expected parsed result")
+            return
+        }
+        #expect(
+            args.diffInput
+                == GraphDiffInput(
+                    beforePath: "before.json",
+                    afterPath: "after.json"
+                )
+        )
+        #expect(args.input == nil)
+        #expect(args.output == "changes.txt")
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("Graph diff requires two paths and rejects graph input")
+    func graphDiffFailures() {
+        #expect(
+            parseArguments(["--diff", "before.json"])
+                == .failed(.diffRequiresTwoPaths)
+        )
+        #expect(
+            parseArguments([
+                "--diff", "before.json", "after.json",
+                "--root", "/tmp/project",
+            ]) == .failed(.incompatibleDiffOption(option: "--root"))
+        )
+    }
 }
