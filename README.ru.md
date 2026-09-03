@@ -379,6 +379,11 @@ unwrapped optional `T!`; используйте
 комбинация compiler-support accessor с другим property wrapper может получить
 структурные диагностики Swift в дополнение к диагностике misuse от InnoDI.
 
+Чтобы до записи получить machine-readable migration inventory, выполните
+`swift run InnoDI-Migrate --root . --report --output migration-report.json`.
+Report schema-v1 содержит пути и диагностики, но не source-код, и использует
+exit codes `0` (clean), `1` (требуются изменения) и `2` (blocked).
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,

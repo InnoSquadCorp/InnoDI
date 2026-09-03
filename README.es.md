@@ -394,6 +394,11 @@ deliberadamente falsificada del accessor de soporte del compilador con otro
 property wrapper tambien puede recibir diagnosticos estructurales de Swift,
 ademas del diagnostico de uso indebido de InnoDI.
 
+Para generar un inventario de migracion legible por maquinas antes de escribir,
+ejecuta `swift run InnoDI-Migrate --root . --report --output migration-report.json`.
+El reporte schema-v1 contiene rutas y diagnosticos, nunca cuerpos de source, y
+usa los codigos de salida `0` (clean), `1` (cambios requeridos) y `2` (blocked).
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,

@@ -21,6 +21,28 @@ struct InnoDIMigrationCoreTests {
                 == .options(MigrationOptions(rootPath: "/tmp/package", mode: .check))
         )
         #expect(
+            parseMigrationArguments([
+                "--root", "/tmp/package", "--report", "--output", "migration.json",
+            ])
+                == .options(
+                    MigrationOptions(
+                        rootPath: "/tmp/package",
+                        mode: .report,
+                        outputPath: "migration.json"
+                    )
+                )
+        )
+        #expect(
+            parseMigrationArguments([
+                "--root", "/tmp/package", "--check", "--output", "migration.json",
+            ])
+                == .failure(.outputRequiresReport)
+        )
+        #expect(
+            parseMigrationArguments(["--root", "/tmp/package", "--report", "--write"])
+                == .failure(.mutuallyExclusiveModes)
+        )
+        #expect(
             parseMigrationArguments(["--root", "/tmp/package", "--check", "--check"])
                 == .failure(.duplicateOption("--check"))
         )
@@ -36,6 +58,63 @@ struct InnoDIMigrationCoreTests {
             parseMigrationArguments(["--root", "/tmp/package", "--unknown"])
                 == .failure(.unknownOption("--unknown"))
         )
+    }
+
+    @Test("Structured reports are deterministic and omit source bodies")
+    func structuredReportIsDeterministicAndSourceFree() throws {
+        let plan = MigrationPlan(
+            scannedFileCount: 3,
+            changes: [
+                MigrationFileChange(
+                    path: "Sources/Z.swift",
+                    originalSource: "private-original-z",
+                    migratedSource: "private-migrated-z"
+                ),
+                MigrationFileChange(
+                    path: "Sources/A.swift",
+                    originalSource: "private-original-a",
+                    migratedSource: "private-migrated-a"
+                ),
+            ],
+            diagnostics: []
+        )
+        let report = MigrationReport(plan: plan)
+
+        #expect(report.schemaVersion == 1)
+        #expect(report.status == .changesRequired)
+        #expect(report.changeCount == 2)
+        #expect(report.diagnosticCount == 0)
+        #expect(report.changes.map(\.path) == ["Sources/A.swift", "Sources/Z.swift"])
+        #expect(report.exitCode == 1)
+
+        let first = try report.encodedJSON()
+        let second = try report.encodedJSON()
+        #expect(first == second)
+        let rendered = String(decoding: first, as: UTF8.self)
+        #expect(!rendered.contains("private-original"))
+        #expect(!rendered.contains("private-migrated"))
+        #expect(try JSONDecoder().decode(MigrationReport.self, from: first) == report)
+    }
+
+    @Test("Structured reports classify diagnostics as blocked")
+    func structuredReportClassifiesDiagnosticsAsBlocked() {
+        let report = MigrationReport(
+            plan: MigrationPlan(
+                scannedFileCount: 1,
+                changes: [],
+                diagnostics: [
+                    MigrationDiagnostic(
+                        code: "migrate.parse-error",
+                        path: "Broken.swift",
+                        message: "Invalid syntax."
+                    ),
+                ]
+            )
+        )
+
+        #expect(report.status == .blocked)
+        #expect(report.exitCode == 2)
+        #expect(report.diagnostics.map(\.path) == ["Broken.swift"])
     }
 
     @Test("Concrete and stacked feature-root surfaces migrate idempotently")
@@ -1008,6 +1087,25 @@ struct InnoDIMigrationCoreTests {
             Comment(rawValue: initialCheck.output)
         )
 
+        let fixtureURL = consumerRoot.appendingPathComponent("Sources/Fixture/Fixture.swift")
+        let sourceBeforeReport = try Data(contentsOf: fixtureURL)
+        let reportURL = consumerRoot.appendingPathComponent("migration-report.json")
+        let reportCommand = try runMigrationCommand(
+            packageURL: consumerRoot,
+            mode: "--report",
+            additionalArguments: ["--output", reportURL.path(percentEncoded: false)]
+        )
+        #expect(!reportCommand.timedOut, Comment(rawValue: reportCommand.output))
+        #expect(reportCommand.exitCode == 1, Comment(rawValue: reportCommand.output))
+        let report = try JSONDecoder().decode(
+            MigrationReport.self,
+            from: Data(contentsOf: reportURL)
+        )
+        #expect(report.status == .changesRequired)
+        #expect(report.changes.map(\.path) == ["Sources/Fixture/Fixture.swift"])
+        #expect(report.diagnostics.isEmpty)
+        #expect(try Data(contentsOf: fixtureURL) == sourceBeforeReport)
+
         let write = try runMigrationCommand(
             packageURL: consumerRoot,
             mode: "--write"
@@ -1029,7 +1127,7 @@ struct InnoDIMigrationCoreTests {
         #expect(finalCheck.exitCode == 0, Comment(rawValue: finalCheck.output))
 
         let migrated = try String(
-            contentsOf: consumerRoot.appendingPathComponent("Sources/Fixture/Fixture.swift"),
+            contentsOf: fixtureURL,
             encoding: .utf8
         )
         #expect(!migrated.contains("concrete:"))
@@ -1102,7 +1200,8 @@ private func escapedSwiftString(_ value: String) -> String {
 
 private func runMigrationCommand(
     packageURL: URL,
-    mode: String
+    mode: String,
+    additionalArguments: [String] = []
 ) throws -> MigrationProcessResult {
     try runSwiftProcess(
         packageURL: packageURL,
@@ -1115,7 +1214,7 @@ private func runMigrationCommand(
             "--root",
             packageURL.path(percentEncoded: false),
             mode,
-        ]
+        ] + additionalArguments
     )
 }
 

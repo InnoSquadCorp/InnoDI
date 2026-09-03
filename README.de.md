@@ -389,6 +389,12 @@ Migrieren Sie zu `any Protocol` beziehungsweise zu einem expliziten `T` oder
 und einem weiteren Property Wrapper kann zusätzlich zur InnoDI-Misuse-Diagnose
 auch strukturelle Swift-Diagnosen auslösen.
 
+Für ein maschinenlesbares Migration-Inventar vor jedem Schreibvorgang führen
+Sie `swift run InnoDI-Migrate --root . --report --output migration-report.json`
+aus. Der Schema-v1-Report enthält Pfade und Diagnosen, niemals Source-Inhalte,
+und verwendet die Exit-Codes `0` (clean), `1` (Änderungen erforderlich) und
+`2` (blocked).
+
 ```swift
 @Provide(
     _ scope: DIScope = .shared,
