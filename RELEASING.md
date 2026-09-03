@@ -214,6 +214,9 @@ standalone release assets.
   additive while assisted child factories, input/lifetime separation, and
   container-role consolidation are validated in real consumers before the
   breaking surface is frozen.
+- Added graph explainability commands: `--why` traces a shortest root path,
+  `--dependents` reports reverse impact, `--unused` finds containers outside
+  every rooted graph, and `--diff` compares two schema-v2 JSON artifacts.
 
 ## 5.1.0
 

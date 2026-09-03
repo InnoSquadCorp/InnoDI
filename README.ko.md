@@ -568,6 +568,21 @@ global DAG 검증:
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
+그래프 포함 경로와 역방향 영향 범위를 확인하고 명시적 루트에서 도달하지
+못하는 컨테이너 찾기:
+
+```bash
+swift run InnoDI-DependencyGraph --root . --why FeatureContainer
+swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --unused
+```
+
+target-scoped JSON 그래프 artifact 두 개 비교:
+
+```bash
+swift run InnoDI-DependencyGraph --diff before.json after.json
+```
+
 consumer target에서 매크로가 생성한 Swift 코드 확인:
 
 ```bash

@@ -44,6 +44,24 @@ package func runDependencyGraphCLI() -> Int32 {
         )
     }
 
+    if let diffInput = parsed.diffInput {
+        do {
+            let before = try loadGraphJSONDocument(at: diffInput.beforePath)
+            let after = try loadGraphJSONDocument(at: diffInput.afterPath)
+            return writeValidationResult(
+                DependencyGraphCommandResult(
+                    exitCode: ExitCode.success,
+                    stdout: renderGraphDiff(before: before, after: after),
+                    stderr: ""
+                ),
+                outputPath: outputPath
+            )
+        } catch {
+            fputs("Error comparing dependency graphs: \(error.localizedDescription)\n", stderr)
+            return ExitCode.failure
+        }
+    }
+
     guard let input = parsed.input else {
         fputs("Error: graph input was not resolved\n", stderr)
         return ExitCode.failure
@@ -105,6 +123,41 @@ package func runDependencyGraphCLI() -> Int32 {
             validateDependencyGraph(snapshot: snapshot),
             outputPath: outputPath
         )
+    }
+
+    if let query = parsed.query {
+        let graph = collectDependencyGraph(
+            snapshot: snapshot,
+            validateDAG: false
+        )
+        if let failure = graph.preflightFailure {
+            return writeValidationResult(failure, outputPath: outputPath)
+        }
+        guard !graph.nodes.isEmpty else {
+            return writeNoContainersMessage(outputPath: outputPath)
+        }
+        do {
+            let rendered = try renderGraphQuery(
+                query,
+                nodes: graph.nodes,
+                edges: graph.edges
+            )
+            return writeValidationResult(
+                DependencyGraphCommandResult(
+                    exitCode: ExitCode.success,
+                    stdout: rendered,
+                    stderr: ""
+                ),
+                outputPath: outputPath
+            )
+        } catch {
+            let result = DependencyGraphCommandResult(
+                exitCode: ExitCode.failure,
+                stdout: "",
+                stderr: "Error querying dependency graph: \(error.localizedDescription)\n"
+            )
+            return writeValidationResult(result, outputPath: outputPath)
+        }
     }
 
     guard let rootPruning = parsed.rootPruning else {
