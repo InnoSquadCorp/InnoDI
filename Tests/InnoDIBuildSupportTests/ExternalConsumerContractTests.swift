@@ -190,6 +190,9 @@ struct ExternalConsumerContractTests {
         let output = """
         /tmp/Fixture.swift:4:3: error: one macro diagnostic (from macro 'DIContainer')
         /tmp/Fixture.swift:4:3: error: one macro diagnostic (from macro 'DIContainer')
+        /tmp/Fixture.swift:6:3: error: three-phase macro diagnostic (from macro 'DIContainer')
+        /tmp/Fixture.swift:6:3: error: three-phase macro diagnostic (from macro 'DIContainer')
+        /tmp/Fixture.swift:6:3: error: three-phase macro diagnostic (from macro 'DIContainer')
         /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
         /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
         /tmp/Fixture.swift:5:3: error: duplicate macro diagnostic (from macro 'DIComponent')
@@ -201,6 +204,7 @@ struct ExternalConsumerContractTests {
         #expect(
             diagnosticMultiset(normalization.messages) == [
                 "one macro diagnostic": 1,
+                "three-phase macro diagnostic": 1,
                 "duplicate macro diagnostic": 2,
             ]
         )
@@ -632,12 +636,12 @@ private struct CompilerSourceErrorNormalization {
     let inconsistentPhaseCounts: [String: Int]
 }
 
-/// Attached-macro diagnostics identify their provenance, so paired frontend-phase
-/// copies can be normalized without conflating different producers. Structured
-/// plugin diagnostics preserve their raw multiplicity because each stable-code
-/// record is intentional. Raw Swift diagnostics collapse only identical copies at
-/// the same source location. That removes frontend-phase variance while preserving
-/// equal messages emitted for distinct declarations.
+/// Attached-macro diagnostics identify their provenance, so one-to-three
+/// frontend-phase copies can be normalized without conflating different producers.
+/// Structured plugin diagnostics preserve their raw multiplicity because each
+/// stable-code record is intentional. Raw Swift diagnostics collapse only identical
+/// copies at the same source location. That removes frontend-phase variance while
+/// preserving equal messages emitted for distinct declarations.
 private func normalizeCompilerSourceErrors(
     in output: String
 ) -> CompilerSourceErrorNormalization {
@@ -694,7 +698,7 @@ private func normalizeCompilerSourceErrors(
             semanticCount = 1
         case let .attachedMacro(name):
             switch rawCount {
-            case 1, 2:
+            case 1, 2, 3:
                 semanticCount = 1
             case let count where count.isMultiple(of: 2):
                 semanticCount = count / 2
