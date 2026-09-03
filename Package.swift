@@ -3,6 +3,18 @@
 import CompilerPluginSupport
 import PackageDescription
 
+// SwiftPM in the Xcode 27.0 preview reports DocC catalogs as unhandled target
+// inputs when compiler warnings are promoted to errors. Keep ordinary strict
+// builds warning-free on that toolchain. Tools/generate-docc.sh re-enables the
+// catalogs in its isolated documentation package before invoking DocC.
+func documentationCatalogBuildExcludes(_ catalog: String) -> [String] {
+    #if swift(>=6.4)
+    [catalog]
+    #else
+    []
+    #endif
+}
+
 let package = Package(
     name: "InnoDI",
     platforms: [
@@ -27,7 +39,8 @@ let package = Package(
             name: "InnoDICore",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax")
-            ]
+            ],
+            exclude: documentationCatalogBuildExcludes("InnoDICore.docc")
         ),
         .target(
             name: "InnoDIWorkspaceAnalysis",
@@ -50,6 +63,7 @@ let package = Package(
         .target(
             name: "InnoDI",
             dependencies: ["InnoDIMacros"],
+            exclude: documentationCatalogBuildExcludes("InnoDI.docc"),
             resources: [
                 .copy("PrivacyInfo.xcprivacy"),
             ]
