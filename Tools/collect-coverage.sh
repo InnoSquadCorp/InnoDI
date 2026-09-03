@@ -33,22 +33,54 @@ else
     BUILD_DIR=".build/$ARCH_DIR/debug"
 fi
 PROFDATA="$BUILD_DIR/codecov/default.profdata"
-XCTEST_BUNDLE="$BUILD_DIR/InnoDIPackageTests.xctest"
+COMBINED_XCTEST_BUNDLE="$BUILD_DIR/InnoDIPackageTests.xctest"
 
 if [[ ! -f "$PROFDATA" ]]; then
     echo "::error::missing $PROFDATA — run 'swift test --enable-code-coverage' first" >&2
     exit 1
 fi
-if [[ ! -d "$XCTEST_BUNDLE" ]]; then
-    echo "::error::missing $XCTEST_BUNDLE" >&2
+XCTEST_BUNDLES=()
+COVERAGE_EXECUTABLES=()
+if [[ -d "$COMBINED_XCTEST_BUNDLE" ]]; then
+    XCTEST_BUNDLES+=("$COMBINED_XCTEST_BUNDLE")
+else
+    # SwiftPM in Swift 6.4 emits one bundle per test target instead of the
+    # package-wide bundle used by earlier toolchains.
+    shopt -s nullglob
+    XCTEST_BUNDLES=("$BUILD_DIR"/InnoDI*Tests.xctest)
+    shopt -u nullglob
+    COVERAGE_EXECUTABLES=(
+        "$BUILD_DIR/InnoDI-DependencyGraph"
+        "$BUILD_DIR/InnoDI-Migrate"
+    )
+fi
+if [[ ${#XCTEST_BUNDLES[@]} -eq 0 ]]; then
+    echo "::error::missing InnoDI test bundles under $BUILD_DIR" >&2
     exit 1
 fi
 
-BINARY="$XCTEST_BUNDLE/Contents/MacOS/$(basename "$XCTEST_BUNDLE" .xctest)"
-if [[ ! -x "$BINARY" ]]; then
-    echo "::error::xctest binary not executable: $BINARY" >&2
-    exit 1
-fi
+COVERAGE_OBJECT_ARGUMENTS=()
+for XCTEST_BUNDLE in "${XCTEST_BUNDLES[@]}"; do
+    BINARY="$XCTEST_BUNDLE/Contents/MacOS/$(basename "$XCTEST_BUNDLE" .xctest)"
+    if [[ ! -x "$BINARY" ]]; then
+        echo "::error::xctest binary not executable: $BINARY" >&2
+        exit 1
+    fi
+    if [[ ${#COVERAGE_OBJECT_ARGUMENTS[@]} -eq 0 ]]; then
+        COVERAGE_OBJECT_ARGUMENTS+=("$BINARY")
+    else
+        COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
+    fi
+done
+for BINARY in "${COVERAGE_EXECUTABLES[@]}"; do
+    if [[ ! -x "$BINARY" ]]; then
+        echo "::error::coverage executable not found: $BINARY" >&2
+        exit 1
+    fi
+    COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
+done
+
+echo "Using ${#XCTEST_BUNDLES[@]} test coverage bundle(s)"
 
 OUT_DIR="${INNODI_COVERAGE_DIR:-coverage}"
 mkdir -p "$OUT_DIR"
@@ -57,20 +89,20 @@ mkdir -p "$OUT_DIR"
 IGNORE_REGEX='(Tests/|Examples/|\.build/|/usr/|swift-syntax|/CommandLineToolSupport/|checkouts/)'
 
 echo "Exporting lcov to $OUT_DIR/lcov.info"
-xcrun llvm-cov export "$BINARY" \
+xcrun llvm-cov export "${COVERAGE_OBJECT_ARGUMENTS[@]}" \
     -instr-profile="$PROFDATA" \
     --ignore-filename-regex="$IGNORE_REGEX" \
     --format=lcov > "$OUT_DIR/lcov.info"
 
 echo "Writing human-readable report to $OUT_DIR/report.txt"
-xcrun llvm-cov report "$BINARY" \
+xcrun llvm-cov report "${COVERAGE_OBJECT_ARGUMENTS[@]}" \
     -instr-profile="$PROFDATA" \
     --ignore-filename-regex="$IGNORE_REGEX" \
     > "$OUT_DIR/report.txt"
 
 echo "Computing per-module rollup"
 JSON_TMP="$OUT_DIR/.llvm-cov-export.json"
-xcrun llvm-cov export "$BINARY" \
+xcrun llvm-cov export "${COVERAGE_OBJECT_ARGUMENTS[@]}" \
     -instr-profile="$PROFDATA" \
     --ignore-filename-regex="$IGNORE_REGEX" \
     --format=text > "$JSON_TMP"

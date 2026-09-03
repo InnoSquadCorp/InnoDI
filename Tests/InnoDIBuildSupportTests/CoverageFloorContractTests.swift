@@ -69,6 +69,12 @@ struct CoverageFloorContractTests {
             ),
             encoding: .utf8
         )
+        let coverageCollector = try String(
+            contentsOf: root.appendingPathComponent(
+                "Tools/collect-coverage.sh"
+            ),
+            encoding: .utf8
+        )
 
         #expect(
             macroWorkflow.components(
@@ -105,6 +111,20 @@ struct CoverageFloorContractTests {
         )
         #expect(coverageGate.contains("Tools/collect-coverage.sh"))
         #expect(coverageGate.contains("Tools/check-coverage-floor.py"))
+        #expect(coverageCollector.contains("InnoDIPackageTests.xctest"))
+        #expect(coverageCollector.contains("InnoDI*Tests.xctest"))
+        #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-DependencyGraph"))
+        #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-Migrate"))
+        #expect(
+            coverageCollector.contains(
+                "COVERAGE_OBJECT_ARGUMENTS+=(\"-object\" \"$BINARY\")"
+            )
+        )
+        #expect(
+            coverageCollector.contains(
+                "\"${COVERAGE_OBJECT_ARGUMENTS[@]}\""
+            )
+        )
 
         let diagnosticUploadCondition =
             "if: ${{ always() && hashFiles('coverage/summary.json') != '' }}"
