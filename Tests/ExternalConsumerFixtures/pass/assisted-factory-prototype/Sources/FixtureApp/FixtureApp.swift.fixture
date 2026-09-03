@@ -1,0 +1,15 @@
+@_spi(Experimental) import FeatureKit
+
+@main
+struct FixtureApp {
+    static func main() {
+        let repository = TrainingRepository()
+        let factory = makeTrainingFactory(repository: repository)
+        let first = factory(routineID: 1)
+        let second = factory(routineID: 2)
+
+        precondition(first.routineID == 1)
+        precondition(second.routineID == 2)
+        precondition(first.token !== second.token)
+    }
+}
