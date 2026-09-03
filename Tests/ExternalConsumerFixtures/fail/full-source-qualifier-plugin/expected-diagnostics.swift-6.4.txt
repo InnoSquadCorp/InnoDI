@@ -9,6 +9,6 @@
 [swiftui.environment-bridge-local-declaration-unsupported] @DIEnvironmentBridge cannot be attached to local declaration 'LocalBridge' in function 'makeLocalBridge' in InnoDI 5.0. Move the bridge target to file or nominal scope so its generated conformance has a stable lookup path.
 [swiftui.environment-bridge-reserved-module-name] Declaration 'Swift' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.
 [swiftui.environment-bridge-reserved-module-name] Declaration 'SwiftUI' visible from @DIEnvironmentBridge shadows a module qualifier used by generated SwiftUI support. Rename the declaration so the generated modifier remains unambiguous.
-'extension' macro cannot be attached to extension (extension of 'DirectBridgeHost')
-@DIEnvironmentBridge cannot be attached to an extension or to a declaration nested in an extension in InnoDI 5.0. Move the bridge target into file or nominal scope so generated Swift and SwiftUI qualifiers can be validated.
-local type cannot have attached extension macro
+? 'extension' macro cannot be attached to extension (extension of 'DirectBridgeHost')
+? @DIEnvironmentBridge cannot be attached to an extension or to a declaration nested in an extension in InnoDI 5.0. Move the bridge target into file or nominal scope so generated Swift and SwiftUI qualifiers can be validated.
+? local type cannot have attached extension macro
