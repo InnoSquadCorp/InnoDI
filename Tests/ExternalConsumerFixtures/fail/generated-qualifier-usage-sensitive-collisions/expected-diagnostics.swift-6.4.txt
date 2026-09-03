@@ -1,0 +1,8 @@
+[container.reserved-module-name] Declaration 'Swift' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
+[container.reserved-module-name] Declaration '_Concurrency' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
+[container.reserved-module-name] Declaration 'InnoDI' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
+'MainActor' is not a member type of enum 'ShadowKit._Concurrency'
+'MainActor' is not a member type of enum 'ShadowKit._Concurrency'
+'Task' is not a member type of enum 'ShadowKit._Concurrency'
+Factory parameter 'dependency' for 'value' cannot call Provider<T> during .shared construction. Store or forward the provider and invoke it only after the container has finished initializing.
+no 'async' operations occur within 'await' expression

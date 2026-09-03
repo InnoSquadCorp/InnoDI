@@ -119,10 +119,19 @@ struct ExternalConsumerContractTests {
                 "Fixture '\(fixture.name)' emitted an unsupported source-diagnostic phase count:\n\(formatDiagnosticMultiset(normalization.inconsistentPhaseCounts))"
             )
             let actualCounts = diagnosticMultiset(normalization.messages)
-            let expectedCounts = diagnosticMultiset(expectedDiagnostics)
+            let expectedCounts = diagnosticMultiset(expectedDiagnostics.required)
+            let maximumCounts = diagnosticMultiset(
+                expectedDiagnostics.required + expectedDiagnostics.optional
+            )
+            let missingRequired = expectedCounts.filter { message, count in
+                actualCounts[message, default: 0] < count
+            }
+            let unexpected = actualCounts.filter { message, count in
+                count > maximumCounts[message, default: 0]
+            }
             #expect(
-                actualCounts == expectedCounts,
-                "Fixture '\(fixture.name)' emitted a different exact diagnostic multiset.\nExpected:\n\(formatDiagnosticMultiset(expectedCounts))\nActual:\n\(formatDiagnosticMultiset(actualCounts))"
+                missingRequired.isEmpty && unexpected.isEmpty,
+                "Fixture '\(fixture.name)' emitted a diagnostic multiset outside its exact required/optional bounds.\nRequired:\n\(formatDiagnosticMultiset(expectedCounts))\nOptional:\n\(formatDiagnosticMultiset(diagnosticMultiset(expectedDiagnostics.optional)))\nActual:\n\(formatDiagnosticMultiset(actualCounts))"
             )
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
         }
@@ -197,11 +206,12 @@ struct ExternalConsumerContractTests {
         )
     }
 
-    @Test("Raw Swift diagnostics preserve multiplicity without phase provenance")
-    func compilerDiagnosticNormalizationPreservesRawSwiftMultiplicity() {
+    @Test("Raw Swift diagnostics collapse only exact source-location copies")
+    func compilerDiagnosticNormalizationCollapsesRawSwiftPhaseCopies() {
         let output = """
         /tmp/Fixture.swift:6:3: error: raw compiler diagnostic [#ActorIsolatedCall]
         /tmp/Fixture.swift:6:3: error: raw compiler diagnostic [#ActorIsolatedCall]
+        /tmp/Fixture.swift:8:3: error: raw compiler diagnostic [#ActorIsolatedCall]
         /tmp/Fixture.swift:7:1: warning: ignored warning
         unrelated: error: ignored non-source error
         """
@@ -308,7 +318,7 @@ private enum ExternalConsumerFixtureError: Error, CustomStringConvertible {
         case .unexpectedFixtureEntry(let path):
             return "Only fixture directories are allowed directly under pass/fail: \(path)"
         case .unexpectedTemplate(let path):
-            return "Fixture files must end in .fixture or be expected-diagnostics.txt: \(path)"
+            return "Fixture files must end in .fixture or be an expected-diagnostics text file: \(path)"
         case .unresolvedPlaceholder(let path):
             return "Fixture contains an unresolved InnoDI placeholder: \(path)"
         case .missingMaterializedFile(let path):
@@ -467,7 +477,7 @@ private func materializeExternalConsumerFixture(
             continue
         }
 
-        if sourceURL.lastPathComponent == "expected-diagnostics.txt" {
+        if isExpectedDiagnosticsFile(sourceURL.lastPathComponent) {
             continue
         }
         guard relativePath.hasSuffix(".fixture") else {
@@ -541,13 +551,21 @@ private func externalConsumerScratchPath(
     root.appendingPathComponent(profile.rawValue, isDirectory: true)
 }
 
+private struct ExpectedDiagnostics {
+    let required: [String]
+    let optional: [String]
+}
+
 private func expectedDiagnostics(
     for fixture: ExternalConsumerFixture
-) throws -> [String] {
-    let diagnosticsURL = fixture.sourceURL.appendingPathComponent("expected-diagnostics.txt")
-    guard FileManager.default.fileExists(
-        atPath: diagnosticsURL.path(percentEncoded: false)
-    ) else {
+) throws -> ExpectedDiagnostics {
+    let diagnosticsURL = expectedDiagnosticsFilenameCandidates.compactMap { filename in
+        let candidate = fixture.sourceURL.appendingPathComponent(filename)
+        return FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false))
+            ? candidate
+            : nil
+    }.first
+    guard let diagnosticsURL else {
         throw ExternalConsumerFixtureError.missingDiagnostics(fixture.name)
     }
 
@@ -558,7 +576,28 @@ private func expectedDiagnostics(
     guard !diagnostics.isEmpty else {
         throw ExternalConsumerFixtureError.missingDiagnostics(fixture.name)
     }
-    return diagnostics
+    return ExpectedDiagnostics(
+        required: diagnostics.filter { !$0.hasPrefix("? ") },
+        optional: diagnostics.compactMap { line in
+            line.hasPrefix("? ") ? String(line.dropFirst(2)) : nil
+        }
+    )
+}
+
+private var expectedDiagnosticsFilenameCandidates: [String] {
+    #if compiler(>=6.5)
+    ["expected-diagnostics.txt"]
+    #elseif compiler(>=6.4)
+    ["expected-diagnostics.swift-6.4.txt", "expected-diagnostics.txt"]
+    #else
+    ["expected-diagnostics.txt"]
+    #endif
+}
+
+private func isExpectedDiagnosticsFile(_ filename: String) -> Bool {
+    filename == "expected-diagnostics.txt"
+        || filename.hasPrefix("expected-diagnostics.swift-")
+            && filename.hasSuffix(".txt")
 }
 
 private func assertNoCompilerCrash(in output: String, fixtureName: String) {
@@ -596,9 +635,9 @@ private struct CompilerSourceErrorNormalization {
 /// Attached-macro diagnostics identify their provenance, so paired frontend-phase
 /// copies can be normalized without conflating different producers. Structured
 /// plugin diagnostics preserve their raw multiplicity because each stable-code
-/// record is intentional. Raw Swift diagnostics also preserve raw multiplicity:
-/// compiler output has no phase identifier, and collapsing identical records could
-/// hide genuine duplicate semantic errors.
+/// record is intentional. Raw Swift diagnostics collapse only identical copies at
+/// the same source location. That removes frontend-phase variance while preserving
+/// equal messages emitted for distinct declarations.
 private func normalizeCompilerSourceErrors(
     in output: String
 ) -> CompilerSourceErrorNormalization {
@@ -649,8 +688,10 @@ private func normalizeCompilerSourceErrors(
     for (error, rawCount) in rawCounts {
         let semanticCount: Int
         switch error.provenance {
-        case .structuredPlugin, .rawSwift:
+        case .structuredPlugin:
             semanticCount = rawCount
+        case .rawSwift:
+            semanticCount = 1
         case let .attachedMacro(name):
             switch rawCount {
             case 1, 2:

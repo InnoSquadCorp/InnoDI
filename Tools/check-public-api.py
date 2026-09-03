@@ -12,13 +12,16 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 1
-PRIMARY_GRAPH_NAMES = {
-    "InnoDI.symbols.json",
-    "InnoDISwiftUI.symbols.json",
+SCHEMA_VERSION = 2
+PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI")
+VOLATILE_SYMBOL_KEYS = {
+    "declarationFragments",
+    "docComment",
+    "functionSignature",
+    "location",
+    "names",
 }
-EXTENSION_GRAPH_PREFIX = "InnoDISwiftUI@"
-VOLATILE_SYMBOL_KEYS = {"docComment", "location", "names"}
+VOLATILE_RELATIONSHIP_KEYS = {"targetFallback"}
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -81,38 +84,83 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
         "precise": symbol["identifier"]["precise"],
         "interfaceLanguage": symbol["identifier"]["interfaceLanguage"],
     }
+    normalized["declaration"] = normalize_declaration_fragments(
+        symbol.get("declarationFragments", [])
+    )
     return normalized
 
 
-def graph_paths(output_directory: Path) -> list[Path]:
-    paths = [output_directory / name for name in sorted(PRIMARY_GRAPH_NAMES)]
-    paths.extend(sorted(output_directory.glob(f"{EXTENSION_GRAPH_PREFIX}*.symbols.json")))
-
-    missing = [path.name for path in paths[: len(PRIMARY_GRAPH_NAMES)] if not path.is_file()]
-    if missing:
-        raise SystemExit(f"Missing public product symbol graph(s): {', '.join(missing)}")
-    return paths
-
-
-def normalize_graph(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    symbol_payload = payload.get("symbols", [])
-    if isinstance(symbol_payload, dict):
-        symbol_payload = symbol_payload.values()
-    symbols = [normalize_symbol(symbol) for symbol in symbol_payload]
-    symbols.sort(key=lambda symbol: symbol["identifier"]["precise"])
-
-    relationships = payload.get("relationships", [])
-    relationships.sort(
-        key=lambda relationship: json.dumps(
-            relationship,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+def normalize_declaration_fragments(fragments: list[dict[str, Any]]) -> str:
+    declaration = "".join(fragment.get("spelling", "") for fragment in fragments)
+    declaration = re.sub(r"\s+", " ", declaration).strip()
+    # Swift 6.2/6.3 spell `Any.Type?` as `(any Any.Type)?` in symbol graphs;
+    # Swift 6.4 emits the source-equivalent compact form. Keep one contract.
+    return declaration.replace("(any Any.Type)?", "Any.Type?").replace(
+        "any Any.Type",
+        "Any.Type",
     )
+
+
+def product_graph_paths(output_directory: Path, module: str) -> list[Path]:
+    primary = output_directory / f"{module}.symbols.json"
+    if not primary.is_file():
+        raise SystemExit(f"Missing public product symbol graph: {primary.name}")
+    return [primary, *sorted(output_directory.glob(f"{module}@*.symbols.json"))]
+
+
+def is_product_declaration(symbol: dict[str, Any], module: str) -> bool:
+    location = symbol.get("location", {}).get("uri", "")
+    return f"/Sources/{module}/" in location
+
+
+def normalize_relationship(relationship: dict[str, Any]) -> dict[str, Any]:
     return {
-        "file": path.name,
-        "module": payload["module"]["name"],
+        key: value
+        for key, value in relationship.items()
+        if key not in VOLATILE_RELATIONSHIP_KEYS
+    }
+
+
+def normalize_product_graph(output_directory: Path, module: str) -> dict[str, Any]:
+    payloads = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in product_graph_paths(output_directory, module)
+    ]
+    symbols_by_identifier: dict[str, dict[str, Any]] = {}
+    for payload in payloads:
+        symbol_payload = payload.get("symbols", [])
+        if isinstance(symbol_payload, dict):
+            symbol_payload = symbol_payload.values()
+        for symbol in symbol_payload:
+            if not is_product_declaration(symbol, module):
+                continue
+            normalized = normalize_symbol(symbol)
+            symbols_by_identifier[normalized["identifier"]["precise"]] = normalized
+
+    if not symbols_by_identifier:
+        raise SystemExit(f"No source-authored public symbols found for {module}.")
+
+    symbol_identifiers = set(symbols_by_identifier)
+    relationships_by_identity: dict[str, dict[str, Any]] = {}
+    for payload in payloads:
+        for relationship in payload.get("relationships", []):
+            if relationship.get("source") not in symbol_identifiers:
+                continue
+            normalized = normalize_relationship(relationship)
+            identity = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+            relationships_by_identity[identity] = normalized
+
+    symbols = sorted(
+        symbols_by_identifier.values(),
+        key=lambda symbol: symbol["identifier"]["precise"],
+    )
+    relationships = [
+        relationships_by_identity[identity]
+        for identity in sorted(relationships_by_identity)
+    ]
+    return {
+        "file": f"{module}.symbols.json",
+        "module": module,
         "symbols": symbols,
         "relationships": relationships,
     }
@@ -121,7 +169,10 @@ def normalize_graph(path: Path) -> dict[str, Any]:
 def current_contract(output_directory: Path) -> dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
-        "graphs": [normalize_graph(path) for path in graph_paths(output_directory)],
+        "graphs": [
+            normalize_product_graph(output_directory, module)
+            for module in PUBLIC_PRODUCT_MODULES
+        ],
     }
 
 

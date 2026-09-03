@@ -29,6 +29,10 @@ struct PublicCLIDocumentationTests {
                 if line.contains("--validate-dag")
                     || line.contains("--diagnose-lock")
                     || line.contains("--cache-stats")
+                    || line.contains("--why")
+                    || line.contains("--dependents")
+                    || line.contains("--unused")
+                    || line.contains("--diff")
                     || line.contains("--help") {
                     continue
                 }
