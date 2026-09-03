@@ -47,7 +47,18 @@ docc_plugin_version = sys.argv[2]
 text = manifest_path.read_text()
 dependency_line = f'        .package(url: "https://github.com/swiftlang/swift-docc-plugin", exact: "{docc_plugin_version}"),\n'
 
+# The release package excludes DocC catalogs from ordinary Swift 6.4 builds to
+# avoid an Xcode 27 preview SwiftPM unhandled-input diagnostic under
+# -warnings-as-errors. This isolated package is specifically for DocC, so put
+# those catalogs back into the plugin's target source-file view.
+text = re.sub(
+    r'documentationCatalogBuildExcludes\("[^"]+"\)',
+    '[]',
+    text,
+)
+
 if "swift-docc-plugin" in text:
+    manifest_path.write_text(text)
     raise SystemExit(0)
 
 pattern = re.compile(
