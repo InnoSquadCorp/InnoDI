@@ -385,7 +385,7 @@ conflation that makes assisted inputs hard to explain and extend.
 
 | Requirement | Acceptance criteria | Planned implementation | Evidence |
 |---|---|---|---|
-| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target and cross-module strict consumers with typed assisted calls and independent child shared storage |
+| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target `@MainActor` and cross-module strict consumers with typed assisted calls, actor-correct override forwarding, and independent child shared storage |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | `@SubContainerFactory` owns the shared factory provider; whole-source tests cover complete bindings plus missing, duplicate, unknown, and assisted-as-static failures |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Complete preparation implementation: nodes separate ordinary and assisted inputs; edges distinguish fixed ownership, assisted-factory ownership, and ordered contributions; JSON diff includes contributor order and exits 5 on drift |

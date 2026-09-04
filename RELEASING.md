@@ -235,6 +235,10 @@ standalone release assets.
   cross-file, cross-module parent own the factory through rename-safe
   `@Provide(..., with:)` static wiring without repeating assisted parameters;
   the alias name remains replaceable before 6.0.
+- The public assisted-factory bridge now preserves `@MainActor` on its
+  initializer, call, and override-application closure. A same-target Swift 6
+  strict-concurrency fixture guards the exact Xcode consumer shape that would
+  otherwise reject override forwarding as a non-Sendable actor crossing.
 - Added an underscored `Experimental` SPI multibinding probe for RFC 0006. It
   builds one deterministic ordered collection from explicit local synchronous
   providers with the same written type. Macro and strict external-consumer
