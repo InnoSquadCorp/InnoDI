@@ -559,12 +559,15 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             || !rootMarkers.isEmpty
         guard needsMigration else { return nil }
 
+        let moduleQualified = container.attributeName.is(MemberTypeSyntax.self)
         var rebuilt: [LabeledExprSyntax] = []
         if let role {
             rebuilt.append(
                 LabeledExprSyntax(
-                    expression: ExprSyntax(
-                        MemberAccessExprSyntax(name: .identifier(role))
+                    expression: qualifiedRoleOption(
+                        typeName: "ContainerRole",
+                        memberName: role,
+                        moduleQualified: moduleQualified
                     )
                 )
             )
@@ -574,8 +577,10 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 LabeledExprSyntax(
                     label: .identifier("isolation"),
                     colon: .colonToken(trailingTrivia: .space),
-                    expression: ExprSyntax(
-                        MemberAccessExprSyntax(name: .identifier("mainActor"))
+                    expression: qualifiedRoleOption(
+                        typeName: "DIContainerIsolation",
+                        memberName: "mainActor",
+                        moduleQualified: moduleQualified
                     )
                 )
             )
@@ -635,6 +640,34 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         }
         return TypeSyntax(
             IdentifierTypeSyntax(name: .identifier("DIContainerRole"))
+        )
+    }
+
+    private func qualifiedRoleOption(
+        typeName: String,
+        memberName: String,
+        moduleQualified: Bool
+    ) -> ExprSyntax {
+        let typeReference: ExprSyntax
+        if moduleQualified {
+            typeReference = ExprSyntax(
+                MemberAccessExprSyntax(
+                    base: ExprSyntax(
+                        DeclReferenceExprSyntax(baseName: .identifier("InnoDI"))
+                    ),
+                    declName: DeclReferenceExprSyntax(baseName: .identifier(typeName))
+                )
+            )
+        } else {
+            typeReference = ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier(typeName))
+            )
+        }
+        return ExprSyntax(
+            MemberAccessExprSyntax(
+                base: typeReference,
+                declName: DeclReferenceExprSyntax(baseName: .identifier(memberName))
+            )
         )
     }
 

@@ -183,6 +183,10 @@ struct InnoDIMigrationCoreTests {
             @DIHierarchyRoot
             @DIContainer(root: true)
             struct AppContainer {}
+
+            @InnoDI.DIComponent
+            @InnoDI.DIContainer(mainActor: true)
+            struct QualifiedFeatureContainer {}
             """,
         ])
         defer { try? FileManager.default.removeItem(at: root) }
@@ -191,10 +195,19 @@ struct InnoDIMigrationCoreTests {
         let plan = try migrator.plan(root: root)
         #expect(plan.diagnostics.isEmpty)
         let migrated = try #require(plan.changes.first?.migratedSource)
-        #expect(migrated.contains("@DIContainerRole(.component, isolation: .mainActor, validateDAG: false)"))
+        #expect(
+            migrated.contains(
+                "@DIContainerRole(ContainerRole.component, isolation: DIContainerIsolation.mainActor, validateDAG: false)"
+            )
+        )
         #expect(migrated.contains("@Input var config"))
         #expect(migrated.contains("@InnoDI.Input(escaping: true)"))
-        #expect(migrated.contains("@DIContainerRole(.root)"))
+        #expect(migrated.contains("@DIContainerRole(ContainerRole.root)"))
+        #expect(
+            migrated.contains(
+                "@InnoDI.DIContainerRole(InnoDI.ContainerRole.component, isolation: InnoDI.DIContainerIsolation.mainActor)"
+            )
+        )
         #expect(!migrated.contains("@DIComponent"))
         #expect(!migrated.contains("@DIHierarchyRoot"))
         #expect(!migrated.contains("@Provide(.input)"))

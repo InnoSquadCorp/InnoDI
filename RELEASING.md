@@ -252,6 +252,11 @@ standalone release assets.
   coverage collector now accepts both the combined package test bundle used by
   earlier toolchains and Swift 6.4's per-target test bundles, including public
   executable entry points without lowering any checked-in floor.
+- The 6.0 vocabulary migrator and examples now emit fully qualified
+  `ContainerRole` and `DIContainerIsolation` enum members. This avoids a Swift
+  6.2.3 compiler signal 11 triggered while resolving inferred enum shorthand
+  in an attached `@DIContainerRole` expansion, without dropping Xcode 26.2
+  compatibility from the release gate.
 
 ## 5.1.0
 

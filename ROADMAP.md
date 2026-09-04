@@ -307,10 +307,12 @@ Delivery order:
    overrides without an SPI import or temporary wrapper. The generated public
    bridge also passes separate-file same-target and cross-module strict
    consumers.
-5. The public `@Input` and `@DIContainerRole(.component/.root,
-   isolation: .mainActor)` source paths now reuse the existing initializer,
-   hierarchy, actor, and strict external-consumer contracts. Final naming,
-   consumer-pilot, and performance review still block freezing these names.
+5. The public `@Input` and fully qualified
+   `@DIContainerRole(ContainerRole.component/.root, isolation:
+   DIContainerIsolation.mainActor)` source paths now reuse the existing
+   initializer, hierarchy, actor, and strict external-consumer contracts.
+   Final naming, consumer-pilot, and performance review still block freezing
+   these names.
 6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
 7. Remove superseded declarations and publish graph JSON v3 in 6.0.0.

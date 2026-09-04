@@ -224,19 +224,22 @@ struct FeatureContainer {
 }
 
 // After
-@DIContainerRole(.component, isolation: .mainActor)
+@DIContainerRole(
+    ContainerRole.component,
+    isolation: DIContainerIsolation.mainActor
+)
 struct FeatureContainer {
     @Input var config: FeatureConfig
 }
 ```
 
-Use `@DIContainerRole(.root)` in place of `@DIHierarchyRoot` combined with
-`@DIContainer(root: true)`. The compatibility spellings continue to compile
-during the 6.0 preparation train. `InnoDI-Migrate --check`, `--report`, and
-`--write` apply the new spelling mechanically, preserve `validateDAG` and
-`escaping`, and are idempotent. The migrator leaves commented, dynamic, or
-conflicting role sites unchanged and emits a blocking diagnostic rather than
-guessing intent.
+Use `@DIContainerRole(ContainerRole.root)` in place of `@DIHierarchyRoot`
+combined with `@DIContainer(root: true)`. The compatibility spellings continue
+to compile during the 6.0 preparation train. `InnoDI-Migrate --check`,
+`--report`, and `--write` apply the new spelling mechanically, preserve
+`validateDAG` and `escaping`, and are idempotent. The migrator leaves commented,
+dynamic, or conflicting role sites unchanged and emits a blocking diagnostic
+rather than guessing intent.
 
 `@Input(.assisted)` records that the value arrives at a child-factory call.
 During the 6.0 preparation train, declare a source-visible nested
