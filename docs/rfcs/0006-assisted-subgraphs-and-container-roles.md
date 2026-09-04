@@ -3,7 +3,7 @@
 - **Status**: Draft
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-03
-- **Last updated**: 2026-09-03
+- **Last updated**: 2026-09-04
 - **Target release**: Experimental groundwork in 5.2.x; stable contract in 6.0.0
 - **Supersedes in part**: RFC 0004 macro-consolidation candidates 1 and 3
 
@@ -25,6 +25,11 @@ The same major release separates input source from provider lifetime and folds
 root/component markers into an explicit container role. Additive graph-query
 and migration support ships first on the 5.x train so adopters can measure and
 migrate before the old spelling is removed.
+
+6.0 should also add deterministic compile-time multibinding for ordered
+collections of same-typed providers. Contributions stay explicit and
+source-visible; InnoDI does not scan loaded modules or mutate a registry at
+runtime.
 
 ## Verified baseline
 
@@ -102,11 +107,18 @@ rendering, generated dependency contracts, and hierarchy validation.
   container role while preserving opt-in rooted hierarchy validation.
 - **FR-600-007**: Provide a mechanical 5.x-to-6.0 migration report and rewrite
   for every removed declaration spelling.
+- **FR-600-008**: Aggregate an explicit ordered list of same-typed synchronous
+  providers while preserving each contributor's lifetime and override behavior.
+- **FR-600-009**: Represent a collection binding and its contributors in graph
+  artifacts and reject unknown, duplicate, async, or mismatched contributions
+  with stable diagnostics.
 
 ## Non-goals
 
 - Runtime registration, service lookup, property-injected service location, or
   graph mutation after container creation.
+- Classpath/module scanning or declaration-order discovery of multibinding
+  contributors. Contribution membership and order must be explicit.
 - Reflection-based discovery of child inputs.
 - Arbitrary user-defined lifetime scopes. Session, window, document, and
   request lifetimes should first be modeled as owned child-container instances.
@@ -207,12 +219,41 @@ does not model one whole root must not acquire diagnostics merely by upgrading.
 evaluate `isolation: .mainActor` against the existing `mainActor: true` API;
 the major migration must not silently change executor behavior.
 
+## Compile-time multibindings
+
+The exact declaration spelling remains open. The stable semantics require one
+rename-safe, explicit contributor list rather than implicit module discovery.
+An illustrative 6.0 surface is:
+
+```swift
+@DIContainer(.component)
+public struct NetworkContainer {
+    @Provide(.shared, factory: AuthInterceptor())
+    public var auth: any RequestInterceptor
+
+    @Provide(.transient, factory: LoggingInterceptor())
+    public var logging: any RequestInterceptor
+
+    @Multibinding([\Self.auth, \Self.logging])
+    public var interceptors: [any RequestInterceptor]
+}
+```
+
+The literal key-path order is the output order. Reading the collection resolves
+each contributor according to its own lifetime, so a shared contributor keeps
+its identity and a transient contributor is recreated. Contributor overrides
+remain authoritative. The first 5.2 SPI probe accepts only synchronous members
+with the same written type and emits one local ordered collection. Injectable
+collection declarations, map keys, parent/child extension, and the final public
+attribute name remain 6.0 design work.
+
 ## Graph and diagnostic contract
 
 Graph JSON v3 should add explicit assisted-input and factory-ownership
 semantics. An assisted input is metadata on its owning container and is not a
 globally resolvable node. Factory ownership is a hard ownership edge from the
-parent container to the child container.
+parent container to the child container. It should also distinguish a
+multibinding collection from its ordered contribution edges.
 
 Required diagnostics include:
 
@@ -223,6 +264,8 @@ Required diagnostics include:
 - generated factory/helper name collision;
 - access-level mismatch across a public component boundary;
 - conflicting root/component compatibility markers during the 5.x runway.
+- empty, duplicate, unknown, async, or differently typed multibinding
+  contributors, plus generated collection-name collisions.
 
 Additive 5.x graph commands should include `--why`, `--dependents`, `--unused`,
 and `--diff`. These commands are migration evidence, not a reason to delay them
@@ -303,6 +346,10 @@ conflation that makes assisted inputs hard to explain and extend.
   explicit `.root` and remain inactive without one.
 - **AC-600-007** (`FR-600-001` through `FR-600-006`): Root-package and
   synthetic-consumer macro measurements remain within the release gate.
+- **AC-600-008** (`FR-600-008`): A strict-concurrency external fixture proves
+  contributor order, shared/transient lifetime behavior, and override flow.
+- **AC-600-009** (`FR-600-009`): Macro and graph tests reject invalid
+  contributions and graph JSON v3 records the ordered collection edges.
 
 ## Traceability
 
@@ -315,6 +362,8 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | TBD |
 | FR-600-007 | AC-600-005 | Schema-v1 report groundwork landed; 6.0 rewrite rules remain TBD | `InnoDIMigrationCoreTests`, external-consumer coverage, and the exact InnoSample/Mulbyul/BlPia report snapshot above |
+| FR-600-008 | AC-600-008 | Ordered collection binding code generation | Partial: the underscored SPI macro and strict external fixture cover one local synchronous collection, order, lifetimes, and overrides; injectable/public syntax remains TBD |
+| FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v3 contribution edges | Partial: macro diagnostics cover empty/duplicate/unknown/async/type-mismatched contributors; build-support serialization and graph v3 edges remain TBD |
 
 ## Staged delivery
 
@@ -334,6 +383,11 @@ conflation that makes assisted inputs hard to explain and extend.
   and is not the proposed 6.0 `@Input(.assisted)` syntax. A public pilot
   container and any API exposing its generated factory must also be marked
   `@_spi(Experimental)`; the external fixture verifies that boundary.
+- An underscored multibinding SPI probe generates one ordered local collection
+  from an explicit string-literal contributor list. Macro tests and a strict
+  external runtime fixture cover contributor validation, deterministic order,
+  shared/transient lifetime behavior, and overrides. The generated member is
+  not yet injectable and the temporary spelling is not a 6.0 API decision.
 - Pilot one InnoSample flow.
 
 ### Later 5.x — adoption runway
@@ -361,6 +415,10 @@ conflation that makes assisted inputs hard to explain and extend.
   builder? This does not block the assisted-factory prototype.
 - Which two real adopter flows satisfy the promotion gate after the InnoSample
   pilot?
+- Should the stable collection declaration be `@Multibinding`, a `@Provide`
+  construction form, or a separate `@IntoCollection` contribution marker?
+- Does 6.0 ship ordered arrays only, or also keyed maps after duplicate-key and
+  cross-module extension semantics are proven?
 
 ## Review gate
 

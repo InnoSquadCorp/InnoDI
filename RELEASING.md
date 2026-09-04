@@ -230,6 +230,12 @@ standalone release assets.
   list is compile-time validated and is not the proposed 6.0 input syntax.
   Pilot declarations that expose the generated factory must remain inside the
   same `Experimental` SPI boundary.
+- Added an underscored `Experimental` SPI multibinding probe for RFC 0006. It
+  builds one deterministic ordered collection from explicit local synchronous
+  providers with the same written type. Macro and strict external-consumer
+  tests cover invalid contributors, shared/transient lifetime behavior, and
+  overrides. The generated collection is not injectable yet, and neither the
+  temporary string-list input nor generated member name is a stable 6.0 API.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of
