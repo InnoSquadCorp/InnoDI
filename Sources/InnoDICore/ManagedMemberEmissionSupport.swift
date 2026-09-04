@@ -46,6 +46,7 @@ package func isSupportedProvideStoredProperty(
         "Provide",
         "Input",
         "SubContainerFactory",
+        "Multibinding",
         "SubContainer",
         "_InnoDIProvideAccessor",
         "_InnoDISubContainerAccessor",
@@ -100,6 +101,7 @@ package func isSupportedSubContainerStoredProperty(
         "Provide",
         "Input",
         "SubContainerFactory",
+        "Multibinding",
         "SubContainer",
     ]
     return declaration.attributes.allSatisfy { element in
@@ -156,6 +158,23 @@ package func isLocallyValidProvideConfiguration(
     guard declaration.bindings.count == 1,
           let binding = declaration.bindings.first else {
         return false
+    }
+    if arguments.isMultibinding {
+        guard arguments.scope == .transient,
+              arguments.factoryExpr == nil,
+              arguments.asyncFactoryExpr == nil,
+              arguments.typeExpr == nil,
+              binding.initializer == nil,
+              !arguments.escaping,
+              !arguments.escapingParseState.isInvalid,
+              case let .parsed(contributors) = arguments.dependenciesParseState,
+              !contributors.isEmpty,
+              Set(contributors).count == contributors.count,
+              let type = binding.typeAnnotation?.type,
+              multibindingElementType(type) != nil else {
+            return false
+        }
+        return true
     }
     return isLocallyValidProvideConstruction(
         binding: binding,

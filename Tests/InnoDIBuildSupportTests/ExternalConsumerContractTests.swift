@@ -73,6 +73,37 @@ struct ExternalConsumerContractTests {
         #expect(execution.exitCode == 0)
     }
 
+    @Test("Public multibinding builds, injects, and preserves lifetimes")
+    func publicMultibindingBuilds() throws {
+        let fixture = try externalConsumerFixture(
+            named: "multibinding-public",
+            expectation: .pass
+        )
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+        let scratchPath = externalConsumerScratchPath(
+            for: fixture,
+            under: externalConsumerScratchRoot()
+        )
+        let build = try runStrictConcurrencyBuild(
+            packageURL: materializedURL,
+            scratchPath: scratchPath
+        )
+        let output = build.stdout + "\n" + build.stderr
+        if build.timedOut || build.exitCode != 0 {
+            Issue.record("Public multibinding build failed:\n\(output)")
+        }
+        #expect(!build.timedOut)
+        #expect(build.exitCode == 0)
+        guard !build.timedOut, build.exitCode == 0 else { return }
+        let execution = try runExternalConsumerExecutable(
+            packageURL: materializedURL,
+            scratchPath: scratchPath
+        )
+        #expect(!execution.timedOut)
+        #expect(execution.exitCode == 0)
+    }
+
     @Test("Compile-pass fixtures build and run with strict concurrency")
     func compilePassFixturesBuild() throws {
         let fixtures = try externalConsumerFixtures(expectation: .pass)

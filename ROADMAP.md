@@ -350,7 +350,8 @@ true before the next minor release can promote them.
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
 | `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Graph v3, two additional real pilots, migration, naming review, and performance gates must pass. |
 | `_InnoDIAssistedFactoryPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Keep only until the InnoSample pilot migrates to the public preparation API. |
-| `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 replacement | Injectable collection syntax, serialized build contract, graph v3 contribution edges, two real pilots, and naming review must pass. |
+| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Graph v3 contribution edges, two real pilots, migration, naming review, and performance gates must pass. |
+| `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Retain only for pinned 5.2 pilot compatibility while consumers migrate to `@Multibinding`. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros

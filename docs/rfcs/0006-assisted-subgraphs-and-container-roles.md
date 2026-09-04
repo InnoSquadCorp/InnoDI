@@ -248,9 +248,9 @@ the major migration must not silently change executor behavior.
 
 ## Compile-time multibindings
 
-The exact declaration spelling remains open. The stable semantics require one
-rename-safe, explicit contributor list rather than implicit module discovery.
-An illustrative 6.0 surface is:
+The stage-2 preparation spelling uses one rename-safe, explicit contributor
+list rather than implicit module discovery. It remains reviewable while this
+RFC is Draft:
 
 ```swift
 @DIContainerRole(.component)
@@ -269,10 +269,12 @@ public struct NetworkContainer {
 The literal key-path order is the output order. Reading the collection resolves
 each contributor according to its own lifetime, so a shared contributor keeps
 its identity and a transient contributor is recreated. Contributor overrides
-remain authoritative. The first 5.2 SPI probe accepts only synchronous members
-with the same written type and emits one local ordered collection. Injectable
-collection declarations, map keys, parent/child extension, and the final public
-attribute name remain 6.0 design work.
+remain authoritative. The collection is a normal injectable transient graph
+node and has its own override slot. Both macro expansion and the serialized
+whole-source build gate reject invalid, empty, duplicate, unknown, asynchronous,
+or written-type-mismatched contributors. The first 5.2 SPI probe remains only
+for pinned migration compatibility. Map keys, parent/child extension, and the
+final accepted public attribute name remain separate design work.
 
 ## Graph and diagnostic contract
 

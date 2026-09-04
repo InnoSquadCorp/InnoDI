@@ -14,7 +14,7 @@ package enum ManagedMemberRole {
     )
 }
 
-/// Shared first-stage IR for `@Provide` / `@Input` /
+/// Shared first-stage IR for `@Provide` / `@Input` / `@Multibinding` /
 /// `@SubContainerFactory` / `@SubContainer` member attributes.
 ///
 /// This type owns role matching, duplicate counts, role conflicts, and the

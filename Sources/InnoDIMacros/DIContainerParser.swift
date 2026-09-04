@@ -487,17 +487,30 @@ struct DIContainerParser {
             hadArgumentErrors = true
         }
         if arguments.dependenciesParseState.isInvalid {
-            context.emit(
-                SimpleDiagnostic.provideInvalidWithDependencies(
+            let message = arguments.isMultibinding
+                ? SimpleDiagnostic.multibindingInvalidContributors()
+                : SimpleDiagnostic.provideInvalidWithDependencies(
                     memberName: memberName,
                     expectedRoot: "Self"
-                ),
-                at: extractArgumentExpression(
-                    label: "with",
-                    from: attribute
-                ).map(Syntax.init) ?? Syntax(attribute)
-            )
+                )
+            context.emit(message, at: Syntax(attribute))
             hadArgumentErrors = true
+        }
+        if arguments.isMultibinding,
+           case let .parsed(contributors) = arguments.dependenciesParseState {
+            if contributors.isEmpty {
+                context.emit(
+                    SimpleDiagnostic.multibindingEmptyContributors(),
+                    at: Syntax(attribute)
+                )
+                hadArgumentErrors = true
+            } else if Set(contributors).count != contributors.count {
+                context.emit(
+                    SimpleDiagnostic.multibindingDuplicateContributor(),
+                    at: Syntax(attribute)
+                )
+                hadArgumentErrors = true
+            }
         }
         guard !hadArgumentErrors,
               let scope = arguments.scope else {
@@ -528,6 +541,7 @@ struct DIContainerParser {
                 type: validatedBinding.typeAnnotation.type,
                 scope: scope,
                 inputKind: arguments.inputKind,
+                isMultibinding: arguments.isMultibinding,
                 factory: arguments.factoryExpr,
                 asyncFactory: arguments.asyncFactoryExpr,
                 asyncFactoryIsThrowing: arguments.asyncFactoryIsThrowing,
@@ -538,7 +552,9 @@ struct DIContainerParser {
                 withDependencies: arguments.dependencies,
                 withDependencyLabels: arguments.dependencyLabels,
                 withDependenciesParseState: arguments.dependenciesParseState,
-                withDependencyReferences: arguments.assistedFactoryChildType == nil
+                withDependencyReferences: arguments.isMultibinding
+                    ? extractMultibindingDependencyReferences(from: attribute)
+                    : arguments.assistedFactoryChildType == nil
                     ? extractWithDependencyReferences(
                         from: attribute,
                         requiringCanonicalProvidePath: true

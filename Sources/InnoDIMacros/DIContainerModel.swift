@@ -268,6 +268,7 @@ struct ProvideMemberModel {
     let type: TypeSyntax
     let scope: ProvideScope
     let inputKind: InputKindValue
+    let isMultibinding: Bool
     let factory: ExprSyntax?
     let asyncFactory: ExprSyntax?
     let asyncFactoryIsThrowing: Bool

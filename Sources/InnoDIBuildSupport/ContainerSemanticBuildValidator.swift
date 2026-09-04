@@ -93,6 +93,7 @@ package enum ContainerSemanticBuildValidator {
         let containers = collectorResults.flatMap(\.containers)
         let subContainers = collectorResults.flatMap(\.subContainers)
         let assistedFactories = collectorResults.flatMap(\.assistedFactories)
+        let multibindings = collectorResults.flatMap(\.multibindings)
         let wrapperParameters = collectorResults.flatMap(\.wrapperParameters)
         let wrapperDeclarations = collectorResults.flatMap(\.wrapperDeclarations)
         let wrapperAliases = collectorResults.flatMap(\.wrapperAliases)
@@ -118,6 +119,10 @@ package enum ContainerSemanticBuildValidator {
             containersByPath: containerInputsByPath,
             containerCandidatePaths: containerCandidatePaths
         ))
+        issues.append(contentsOf: validateMultibindings(
+            multibindings,
+            containersByPath: containerInputsByPath
+        ))
         issues.append(contentsOf: validateDeferredWrapperParameters(
             wrapperParameters,
             wrapperDeclarationsByPath: wrapperDeclarationsByPath,
@@ -141,6 +146,27 @@ struct SemanticContainerRecord: Equatable {
     let inputMembers: Set<String>
     let staticInputMembers: Set<String>
     let assistedInputMembers: Set<String>
+    let managedMembers: [String: SemanticManagedMemberRecord]
+}
+
+struct SemanticManagedMemberRecord: Equatable {
+    let writtenType: String?
+    let isAsync: Bool
+    let location: ValidationIssueLocation
+}
+
+struct SemanticMultibindingContributorRecord: Equatable {
+    let name: String
+    let location: ValidationIssueLocation
+}
+
+struct SemanticMultibindingRecord: Equatable {
+    let containerPath: String
+    let memberName: String
+    let elementType: String?
+    let contributors: [SemanticMultibindingContributorRecord]
+    let invalidContributorsLocation: ValidationIssueLocation?
+    let location: ValidationIssueLocation
 }
 
 struct SubContainerBindingValidationRecord: Equatable {
@@ -198,6 +224,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     private(set) var typeAliases: [SemanticTypeAliasRecord] = []
     private(set) var subContainers: [SemanticSubContainerRecord] = []
     private(set) var assistedFactories: [SemanticAssistedFactoryRecord] = []
+    private(set) var multibindings: [SemanticMultibindingRecord] = []
     private(set) var wrapperParameters: [DeferredWrapperParameterRecord] = []
     private(set) var wrapperDeclarations: [WrapperDeclarationRecord] = []
     private(set) var wrapperAliases: [WrapperAliasRecord] = []
@@ -211,7 +238,8 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                     location: builder.location,
                     inputMembers: builder.inputMembers,
                     staticInputMembers: builder.staticInputMembers,
-                    assistedInputMembers: builder.assistedInputMembers
+                    assistedInputMembers: builder.assistedInputMembers,
+                    managedMembers: builder.managedMembers
                 )
             }
             .sorted { $0.path < $1.path }
@@ -325,6 +353,38 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                     builder.staticInputMembers.insert(binding.name)
                 }
                 containerBuilders[currentContainerPath] = builder
+            }
+
+            var builder = containerBuilders[currentContainerPath, default: SemanticContainerBuilder(
+                path: currentContainerPath,
+                location: sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
+            )]
+            builder.managedMembers[binding.name] = SemanticManagedMemberRecord(
+                writtenType: binding.type?.trimmedDescription,
+                isAsync: provideArguments.asyncFactoryExpr != nil,
+                location: sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
+            )
+            containerBuilders[currentContainerPath] = builder
+
+            if provideArguments.isMultibinding {
+                let contributorState = extractMultibindingContributors(
+                    from: provideAttribute
+                )
+                multibindings.append(
+                    SemanticMultibindingRecord(
+                        containerPath: currentContainerPath,
+                        memberName: binding.name,
+                        elementType: binding.type.flatMap(
+                            multibindingElementType
+                        )?.trimmedDescription,
+                        contributors: contributorState.contributors,
+                        invalidContributorsLocation: contributorState
+                            .invalidLocation,
+                        location: sourceLocation(
+                            for: provideAttribute.positionAfterSkippingLeadingTrivia
+                        )
+                    )
+                )
             }
 
             if matchesInnoDIAttribute(
@@ -547,6 +607,55 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
 
         return .omitted
     }
+
+    private func extractMultibindingContributors(
+        from attribute: AttributeSyntax
+    ) -> MultibindingContributorParseState {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+              arguments.count == 1,
+              let argument = arguments.first,
+              argument.label == nil,
+              let array = argument.expression.as(ArrayExprSyntax.self) else {
+            return .invalid(sourceLocation(
+                for: attribute.positionAfterSkippingLeadingTrivia
+            ))
+        }
+        var contributors: [SemanticMultibindingContributorRecord] = []
+        for element in array.elements {
+            guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+                  keyPath.root?.trimmedDescription == "Self",
+                  keyPath.components.count == 1,
+                  let name = keyPath.components.last?
+                    .component.as(KeyPathPropertyComponentSyntax.self)?
+                    .declName.baseName.text else {
+                return .invalid(sourceLocation(
+                    for: element.expression.positionAfterSkippingLeadingTrivia
+                ))
+            }
+            contributors.append(SemanticMultibindingContributorRecord(
+                name: name,
+                location: sourceLocation(
+                    for: element.expression.positionAfterSkippingLeadingTrivia
+                )
+            ))
+        }
+        return .parsed(contributors)
+    }
+}
+
+private enum MultibindingContributorParseState {
+    case parsed([SemanticMultibindingContributorRecord])
+    case invalid(ValidationIssueLocation)
+
+    var contributors: [SemanticMultibindingContributorRecord] {
+        if case let .parsed(contributors) = self { return contributors }
+        return []
+    }
+
+    var invalidLocation: ValidationIssueLocation? {
+        if case let .invalid(location) = self { return location }
+        return nil
+    }
 }
 
 private enum BindingValidationParseState {
@@ -575,6 +684,7 @@ private struct SemanticContainerBuilder {
     var inputMembers: Set<String> = []
     var staticInputMembers: Set<String> = []
     var assistedInputMembers: Set<String> = []
+    var managedMembers: [String: SemanticManagedMemberRecord] = [:]
 }
 
 private struct ValidatedVariableBinding {
