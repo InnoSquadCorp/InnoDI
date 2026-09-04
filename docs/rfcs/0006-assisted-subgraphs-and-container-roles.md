@@ -3,7 +3,7 @@
 - **Status**: Draft
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-03
-- **Last updated**: 2026-09-04
+- **Last updated**: 2026-09-05
 - **Target release**: Experimental groundwork in 5.2.x; stable contract in 6.0.0
 - **Supersedes in part**: RFC 0004 macro-consolidation candidates 1 and 3
 
@@ -151,9 +151,9 @@ roles are fixed for the prototype.
 
 ```swift
 public enum ContainerRole {
-    case local
-    case component
-    case root
+    public static let local = "local"
+    public static let component = "component"
+    public static let root = "root"
 }
 
 public enum DIInputKind {
@@ -167,7 +167,7 @@ Illustrative source:
 ```swift
 @DIContainerRole(
     role: ContainerRole.component,
-    isolation: DIContainerIsolation.mainActor
+    mainActor: true
 )
 public struct TrainingContainer {
     @Input public var repository: any TrainingRepository
@@ -186,7 +186,7 @@ public struct TrainingContainer {
 
 @DIContainerRole(
     role: ContainerRole.root,
-    isolation: DIContainerIsolation.mainActor
+    mainActor: true
 )
 public struct AppContainer {
     @Provide(.shared, factory: LiveTrainingRepository())
@@ -246,10 +246,9 @@ has no runtime inputs.
 Root inference is rejected. A workspace that has components but intentionally
 does not model one whole root must not acquire diagnostics merely by upgrading.
 
-`validateDAG` remains an explicit narrow escape hatch. The prototype should
-evaluate `isolation: DIContainerIsolation.mainActor` against the existing
-`mainActor: true` API; the major migration must not silently change executor
-behavior.
+`validateDAG` remains an explicit narrow escape hatch. The prototype preserves
+the existing `mainActor: true` API; the major migration must not silently
+change executor behavior.
 
 ## Compile-time multibindings
 
@@ -395,7 +394,7 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | The public external-consumer fixtures and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Complete preparation implementation: nodes separate ordinary and assisted inputs; edges distinguish fixed ownership, assisted-factory ownership, and ordered contributions; JSON diff includes contributor order and exits 5 on drift |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | `@Input` and `@Input(.assisted)` normalize into the provider IR; generated input type aliases feed the assisted bridge without repeating source types |
-| FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(role: ContainerRole.component/.root)` and `isolation: DIContainerIsolation.mainActor` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
+| FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(role: ContainerRole.component/.root)` and `mainActor: true` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
 | FR-600-007 | AC-600-005 | Schema-v1 report plus idempotent 6.0 rewrite rules | `InnoDIMigrationCoreTests` cover input, role, isolation, option preservation, write, and second-pass stability; the strict public component fixture compiles the migrated spelling |
 | FR-600-008 | AC-600-008 | Ordered collection binding code generation | Complete preparation implementation: public `@Multibinding` is injectable and overrideable; strict external runtime coverage proves order and shared/transient contributor lifetime behavior |
 | FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v3 contribution edges | Complete preparation implementation: macro and serialized whole-source validators cover invalid contributor contracts, while schema v3 records contributor identity and order as contribution edges |
@@ -451,11 +450,11 @@ conflation that makes assisted inputs hard to explain and extend.
   factory mode be added to `@SubContainer` without overloading lifetime scope?
 - Should the generated override configuration be a trailing closure, an
   explicit `overrides:` argument, or both?
-- Can `isolation: DIContainerIsolation.mainActor` replace `mainActor: true`
-  without creating less readable diagnostics? Swift 6.2.3 crashes while
-  resolving an unlabeled role argument in this multi-role attached macro, so
-  the preparation API uses a required `role:` label and fully qualified enum
-  members until the supported toolchain floor makes shorthand safe.
+- Should 6.0 keep the proven `mainActor: true` spelling or add an isolation
+  token after the minimum toolchain advances? Swift 6.2.3 crashes while
+  matching public enum arguments in this multi-role attached macro, so the
+  preparation API uses a required string-backed `ContainerRole` token and the
+  established Boolean isolation option.
 - Should the typed SwiftUI bridge remain a macro or become a non-macro result
   builder? This does not block the assisted-factory prototype.
 - Which two real adopter flows satisfy the promotion gate after the InnoSample

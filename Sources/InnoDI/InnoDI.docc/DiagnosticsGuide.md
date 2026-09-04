@@ -231,6 +231,9 @@ Most frequently-hit codes:
 - `container.mainactor-nonisolated-member` — a `@Provide` or `@SubContainer`
   member opts out with `nonisolated`, which contradicts the container's
   `mainActor: true` contract.
+- `container.role-token-required` — `@DIContainerRole role:` is not one of
+  `ContainerRole.local`, `ContainerRole.component`, or `ContainerRole.root`.
+  Use the named token rather than a string literal or variable.
 - `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
   was not literal `true` or `false`; use conditional compilation to choose
   different attribute spellings.

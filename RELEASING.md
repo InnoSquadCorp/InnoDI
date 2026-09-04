@@ -253,10 +253,11 @@ standalone release assets.
   earlier toolchains and Swift 6.4's per-target test bundles, including public
   executable entry points without lowering any checked-in floor.
 - The 6.0 vocabulary migrator and examples now emit a required `role:` label
-  with fully qualified `ContainerRole` and `DIContainerIsolation` enum members.
-  This avoids a Swift 6.2.3 compiler signal 11 triggered while matching an
-  unlabeled argument in the multi-role attached `@DIContainerRole` expansion,
-  without dropping Xcode 26.2 compatibility from the release gate.
+  with a named, string-backed `ContainerRole` token and the established
+  `mainActor: true` option. This avoids a Swift 6.2.3 compiler signal 11 while
+  matching a public enum argument in the multi-role attached
+  `@DIContainerRole` expansion, without dropping Xcode 26.2 compatibility from
+  the release gate. Arbitrary strings fail with a stable InnoDI diagnostic.
 
 ## 5.1.0
 

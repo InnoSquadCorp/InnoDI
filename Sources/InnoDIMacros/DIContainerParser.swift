@@ -274,7 +274,7 @@ struct DIContainerParser {
         declaration: some DeclGroupSyntax,
         context: some MacroExpansionContext
     ) -> Bool {
-        var hadErrors = diagnoseInvalidContainerBoolArguments(
+        var hadErrors = diagnoseInvalidContainerArguments(
             options: options,
             declaration: declaration,
             context: context
@@ -791,7 +791,7 @@ func extractArgumentExpression(label: String, from attribute: AttributeSyntax) -
     return nil
 }
 
-private func diagnoseInvalidContainerBoolArguments(
+private func diagnoseInvalidContainerArguments(
     options: DIContainerAttributeInfo,
     declaration: some DeclGroupSyntax,
     context: some MacroExpansionContext
@@ -808,6 +808,14 @@ private func diagnoseInvalidContainerBoolArguments(
         ("mainActor", options.mainActorParseState)
     ]
     var hadErrors = false
+    if !options.roleArgumentIsValid {
+        context.emit(
+            SimpleDiagnostic.containerRoleTokenRequired(),
+            at: extractArgumentExpression(label: "role", from: attribute)
+                .map(Syntax.init) ?? Syntax(attribute)
+        )
+        hadErrors = true
+    }
     for item in states where item.state.isInvalid {
         context.emit(
             SimpleDiagnostic.containerBoolLiteralRequired(label: item.label),

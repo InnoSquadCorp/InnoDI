@@ -628,6 +628,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func containerRoleTokenRequired() -> Self {
+        Self(
+            "@DIContainerRole role: requires ContainerRole.local, ContainerRole.component, or ContainerRole.root.",
+            code: .containerRoleTokenRequired
+        )
+    }
+
     static func containerBoolLiteralRequired(label: String) -> Self {
         Self(
             "@DIContainer \(label): requires a literal true or false. Use conditional compilation to choose different attribute spellings per build configuration.",

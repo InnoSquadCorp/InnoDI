@@ -32,7 +32,7 @@ struct HierarchyMacroTests {
             """
             @DIContainerRole(
                 role: ContainerRole.component,
-                isolation: DIContainerIsolation.mainActor
+                mainActor: true
             )
             public struct FeatureContainer {
                 @Input public var config: FeatureConfig
@@ -56,6 +56,28 @@ struct HierarchyMacroTests {
         )
         #expect(root.diagnostics.isEmpty)
         #expect(root.expansion.contains("InnoDI.DIHierarchyRootMarker"))
+    }
+
+    @Test("DIContainerRole requires a named role token")
+    func containerRoleRequiresNamedToken() {
+        let roleMacros = Self.macros.merging([
+            "DIContainerRole": DIContainerRoleMacro.self,
+        ]) { _, new in new }
+        assertMacroExpansionDiagnosticCodes(
+            """
+            let role = "component"
+
+            @DIContainerRole(role: role)
+            struct FeatureContainer {}
+            """,
+            expectedCodes: [
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "container.role-token-required"
+                )
+            ],
+            macros: roleMacros
+        )
     }
 
     @Test("DIComponent suppresses every companion expansion after a reserved qualifier diagnostic")

@@ -308,8 +308,8 @@ Delivery order:
    bridge also passes separate-file same-target and cross-module strict
    consumers.
 5. The public `@Input` and fully qualified
-   `@DIContainerRole(role: ContainerRole.component/.root, isolation:
-   DIContainerIsolation.mainActor)` source paths now reuse the existing
+   `@DIContainerRole(role: ContainerRole.component/.root, mainActor: true)`
+   source paths now reuse the existing
    initializer, hierarchy, actor, and strict external-consumer contracts.
    Final naming, consumer-pilot, and performance review still block freezing
    these names.
