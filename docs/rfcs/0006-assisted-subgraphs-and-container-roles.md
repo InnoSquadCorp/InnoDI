@@ -77,17 +77,19 @@ design itself.
 
 | Consumer | Consumer commit | InnoDI revision | Verification | Result |
 |---|---|---|---|---|
-| InnoSample | `b42ad9f985155aeb5b75aee20856403dd8776539` | `6de46b4afb961c3741b4146023a4c0b262f6d0cc` | Xcode 27.0, Tuist 4.202.5, `make verify-ci`; Remote 16 + feature 25 tests and generic iOS/embedded watch build | First runtime pilot verified. A People route creates assisted detail children, proves per-child `.shared` isolation and override identity, and keeps the SPI revision explicit. |
+| InnoSample | `f3acdeea9e4dc9d1e4d1f19be2a90c675b165a38` | `8a1012ed8d9d5421cb31bd2106c5c7a679ecdd78` | Xcode 27.0, Tuist 4.202.5, `make verify-ci`; Remote 16 + feature 25 tests and generic iOS/embedded watch build | Runtime pilot verified against the parent-owner alias revision. A People route creates assisted detail children, proves per-child `.shared` isolation and override identity, and keeps the SPI revision explicit. |
 
-The pilot also exposed a contract boundary rather than hiding it. Directly
-referencing the prototype's internal generated nested factory type from a
-different source file in the same Xcode target was not reliable under batch
-compilation. InnoSample therefore keeps a hand-written
-`PeopleDetailFactoryPilot` wrapper beside the child declaration and lets the
-parent coordinator own that wrapper. This is positive evidence for
-FR-600-001/003, but it does **not** satisfy FR-600-002 or AC-600-002: the
-framework still needs a serialized, cross-file and cross-module parent-owned
-factory contract before the public spelling can freeze.
+The pilot also exposed a contract boundary rather than hiding it. The
+deterministic SPI peer alias passes the strict external cross-module parent
+fixture, satisfying the compilation portion of AC-600-002. In the same Xcode
+target, however, another source file cannot name the generated peer directly;
+adding a source-written typealias exposes the nested type name but still does
+not make its generated initializer accessible. InnoSample therefore keeps a
+hand-written `PeopleDetailFactoryPilot` wrapper beside the child declaration
+and lets the parent coordinator own that wrapper. This is positive evidence
+for FR-600-001/002/003, but FR-600-002 remains partial and AC-600-003 remains
+open: the framework still needs a same-module bridge plus complete
+child-to-parent binding diagnostics before the public spelling can freeze.
 
 ## Problem definition
 
@@ -371,8 +373,8 @@ conflation that makes assisted inputs hard to explain and extend.
 
 | Requirement | Acceptance criteria | Planned implementation | Evidence |
 |---|---|---|---|
-| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: macro tests, the SPI external-consumer fixture, and InnoSample commit `b42ad9f` cover child-owned signature generation; parent ownership remains TBD |
-| FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | Partial: the SPI peer alias lets a cross-module parent own the generated factory through `@Provide(..., with:)` without repeating assisted types; child-to-parent binding completeness and invalid static/assisted diagnostics remain TBD |
+| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: macro tests, the SPI external-consumer fixture, and InnoSample commit `f3acdee` cover child-owned signature generation; the public name and same-module bridge remain TBD |
+| FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | Partial: the SPI peer alias lets a cross-module parent own the generated factory through `@Provide(..., with:)` without repeating assisted types; InnoSample proves the peer and initializer are not yet consumable from another file in the same Xcode target, while child-to-parent binding completeness and invalid static/assisted diagnostics remain TBD |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
@@ -408,10 +410,10 @@ conflation that makes assisted inputs hard to explain and extend.
   external runtime fixture cover contributor validation, deterministic order,
   shared/transient lifetime behavior, and overrides. The generated member is
   not yet injectable and the temporary spelling is not a 6.0 API decision.
-- Pilot one InnoSample flow. Completed at consumer commit `b42ad9f` against
-  InnoDI `6de46b4`; the full consumer gate and per-child lifetime assertions
+- Pilot one InnoSample flow. Completed at consumer commit `f3acdee` against
+  InnoDI `8a1012e`; the full consumer gate and per-child lifetime assertions
   pass, while the required local wrapper records the remaining FR-600-002
-  ownership/visibility gap.
+  same-module bridge and binding-diagnostics gap.
 
 ### Later 5.x — adoption runway
 

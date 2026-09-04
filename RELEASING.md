@@ -239,11 +239,12 @@ standalone release assets.
   tests cover invalid contributors, shared/transient lifetime behavior, and
   overrides. The generated collection is not injectable yet, and neither the
   temporary string-list input nor generated member name is a stable 6.0 API.
-- Verified the first RFC 0006 runtime pilot in InnoSample commit `b42ad9f`
-  against InnoDI `6de46b4`. The People detail route passes the consumer's full
-  Xcode 27 gate and proves per-child shared-state isolation plus overrides. A
-  required same-file wrapper around the generated factory records the remaining
-  parent-ownership and cross-file visibility work before 6.0 API freeze.
+- Verified the first RFC 0006 runtime pilot in InnoSample commit `f3acdee`
+  against InnoDI `8a1012e`. The People detail route passes the consumer's full
+  Xcode 27 gate and proves per-child shared-state isolation plus overrides. The
+  peer alias passes the strict cross-module parent fixture, while the required
+  same-file wrapper records the remaining same-target visibility, initializer
+  access, and binding-diagnostics work before 6.0 API freeze.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of
