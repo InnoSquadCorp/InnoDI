@@ -1,7 +1,7 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// Expansion roles used only by the required-positional 6.0 container
+/// Expansion roles used only by the required-role 6.0 container
 /// overload. Keeping the legacy declaration on `DIContainerMacro` prevents
 /// the compiler from applying extension-role structural restrictions to every
 /// 5.x container before InnoDI can emit its established diagnostics.

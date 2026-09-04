@@ -966,6 +966,13 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
                 }
                 continue
             }
+            if label == "role",
+               let member = argument.expression.as(MemberAccessExprSyntax.self),
+               let parsed = DIContainerRoleValue(
+                rawValue: member.declName.baseName.text
+               ) {
+                role = parsed
+            }
             if label == "root" {
                 rootParseState = parseBoolArgument(argument.expression)
                 if let value = rootParseState.value {

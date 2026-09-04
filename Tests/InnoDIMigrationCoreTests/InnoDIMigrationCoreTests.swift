@@ -197,15 +197,15 @@ struct InnoDIMigrationCoreTests {
         let migrated = try #require(plan.changes.first?.migratedSource)
         #expect(
             migrated.contains(
-                "@DIContainerRole(ContainerRole.component, isolation: DIContainerIsolation.mainActor, validateDAG: false)"
+                "@DIContainerRole(role: ContainerRole.component, isolation: DIContainerIsolation.mainActor, validateDAG: false)"
             )
         )
         #expect(migrated.contains("@Input var config"))
         #expect(migrated.contains("@InnoDI.Input(escaping: true)"))
-        #expect(migrated.contains("@DIContainerRole(ContainerRole.root)"))
+        #expect(migrated.contains("@DIContainerRole(role: ContainerRole.root)"))
         #expect(
             migrated.contains(
-                "@InnoDI.DIContainerRole(InnoDI.ContainerRole.component, isolation: InnoDI.DIContainerIsolation.mainActor)"
+                "@InnoDI.DIContainerRole(role: InnoDI.ContainerRole.component, isolation: InnoDI.DIContainerIsolation.mainActor)"
             )
         )
         #expect(!migrated.contains("@DIComponent"))

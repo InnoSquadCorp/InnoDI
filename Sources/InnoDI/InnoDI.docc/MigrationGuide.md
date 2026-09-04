@@ -225,7 +225,7 @@ struct FeatureContainer {
 
 // After
 @DIContainerRole(
-    ContainerRole.component,
+    role: ContainerRole.component,
     isolation: DIContainerIsolation.mainActor
 )
 struct FeatureContainer {
@@ -233,7 +233,7 @@ struct FeatureContainer {
 }
 ```
 
-Use `@DIContainerRole(ContainerRole.root)` in place of `@DIHierarchyRoot`
+Use `@DIContainerRole(role: ContainerRole.root)` in place of `@DIHierarchyRoot`
 combined with `@DIContainer(root: true)`. The compatibility spellings continue
 to compile during the 6.0 preparation train. `InnoDI-Migrate --check`,
 `--report`, and `--write` apply the new spelling mechanically, preserve
