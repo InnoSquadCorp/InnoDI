@@ -82,6 +82,26 @@ struct MultibindingPrototypeMacroTests {
 
     @Test("Contributor lists are nonempty, literal, unique, and synchronous")
     func rejectsInvalidListsAndAsyncMembers() {
+        let empty = expandMacroSource(
+            """
+            @_InnoDIMultibindingPrototype(members: [])
+            @DIContainer
+            struct EmptyContainer {
+                @Provide(.shared, factory: Auth()) var auth: any Interceptor
+            }
+            """,
+            macros: Self.macros
+        )
+        let nonliteral = expandMacroSource(
+            """
+            @_InnoDIMultibindingPrototype(members: [String()])
+            @DIContainer
+            struct NonliteralContainer {
+                @Provide(.shared, factory: Auth()) var auth: any Interceptor
+            }
+            """,
+            macros: Self.macros
+        )
         let duplicate = expandMacroSource(
             """
             @_InnoDIMultibindingPrototype(members: ["auth", "auth"])
@@ -104,6 +124,18 @@ struct MultibindingPrototypeMacroTests {
             macros: Self.macros
         )
 
+        #expect(empty.diagnostics.map(\.diagnosticID) == [
+            MessageID(
+                domain: "InnoDI.experimental",
+                id: "multibinding-prototype.empty-members"
+            ),
+        ])
+        #expect(nonliteral.diagnostics.map(\.diagnosticID) == [
+            MessageID(
+                domain: "InnoDI.experimental",
+                id: "multibinding-prototype.invalid-members"
+            ),
+        ])
         #expect(duplicate.diagnostics.map(\.diagnosticID) == [
             MessageID(
                 domain: "InnoDI.experimental",
@@ -114,6 +146,24 @@ struct MultibindingPrototypeMacroTests {
             MessageID(
                 domain: "InnoDI.experimental",
                 id: "multibinding-prototype.async-member"
+            ),
+        ])
+    }
+
+    @Test("Prototype requires a DI container declaration")
+    func rejectsInvalidDeclaration() {
+        let missingContainer = expandMacroSource(
+            """
+            @_InnoDIMultibindingPrototype(members: ["auth"])
+            struct PlainType {}
+            """,
+            macros: Self.macros
+        )
+
+        #expect(missingContainer.diagnostics.map(\.diagnosticID) == [
+            MessageID(
+                domain: "InnoDI.experimental",
+                id: "multibinding-prototype.requires-container"
             ),
         ])
     }

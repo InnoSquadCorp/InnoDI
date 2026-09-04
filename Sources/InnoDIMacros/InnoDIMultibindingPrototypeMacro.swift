@@ -111,19 +111,6 @@ public struct InnoDIMultibindingPrototypeMacro: MemberMacro {
             return []
         }
 
-        guard !hasDirectMember(
-            named: multibindingPrototypeMemberName,
-            in: declaration
-        ) else {
-            diagnose(
-                "The container already declares '\(multibindingPrototypeMemberName)', which is reserved by the multibinding prototype.",
-                id: "generated-name-conflict",
-                at: Syntax(attribute),
-                in: context
-            )
-            return []
-        }
-
         let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
         let isolationPrefix = model.options.mainActor
             ? "@_Concurrency.MainActor\n"
@@ -201,20 +188,6 @@ private func parseMemberNames(
         return nil
     }
     return names
-}
-
-private func hasDirectMember(
-    named name: String,
-    in declaration: some DeclGroupSyntax
-) -> Bool {
-    declaration.memberBlock.members.contains { member in
-        guard let variable = member.decl.as(VariableDeclSyntax.self) else {
-            return false
-        }
-        return variable.bindings.contains { binding in
-            binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == name
-        }
-    }
 }
 
 private func diagnose(
