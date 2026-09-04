@@ -61,7 +61,10 @@ struct ParsingTests {
         let container = try #require(
             firstStructDecl(
                 in: """
-                @DIContainerRole(ContainerRole.root, isolation: DIContainerIsolation.mainActor)
+                @DIContainerRole(
+                    role: ContainerRole.root,
+                    isolation: DIContainerIsolation.mainActor
+                )
                 struct C {}
                 """
             )

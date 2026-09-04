@@ -399,16 +399,16 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) @attached(peer, names: suffixed(Dependencies)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, DIHierarchyRootMarker, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIContainerRole(_ role: ContainerRole, isolation: DIContainerIsolation = .automatic, validateDAG: Bool = true)",
+          "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) @attached(peer, names: suffixed(Dependencies)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, DIHierarchyRootMarker, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIContainerRole(role: ContainerRole, isolation: DIContainerIsolation = .automatic, validateDAG: Bool = true)",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI15DIContainerRole_9isolation11validateDAGyAA09ContainerD0O_AA0C9IsolationOSbtcfm"
+            "precise": "s:6InnoDI15DIContainerRole4role9isolation11validateDAGyAA09ContainerD0O_AA0C9IsolationOSbtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "DIContainerRole(_:isolation:validateDAG:)"
+            "DIContainerRole(role:isolation:validateDAG:)"
           ]
         },
         {

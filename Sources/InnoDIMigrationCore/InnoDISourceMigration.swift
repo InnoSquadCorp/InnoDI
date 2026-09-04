@@ -564,6 +564,8 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         if let role {
             rebuilt.append(
                 LabeledExprSyntax(
+                    label: .identifier("role"),
+                    colon: .colonToken(trailingTrivia: .space),
                     expression: qualifiedRoleOption(
                         typeName: "ContainerRole",
                         memberName: role,

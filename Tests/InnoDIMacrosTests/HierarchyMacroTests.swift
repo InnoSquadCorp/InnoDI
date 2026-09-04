@@ -30,7 +30,10 @@ struct HierarchyMacroTests {
         ]) { _, new in new }
         let component = expandMacroSource(
             """
-            @DIContainerRole(ContainerRole.component, isolation: DIContainerIsolation.mainActor)
+            @DIContainerRole(
+                role: ContainerRole.component,
+                isolation: DIContainerIsolation.mainActor
+            )
             public struct FeatureContainer {
                 @Input public var config: FeatureConfig
             }
@@ -46,7 +49,7 @@ struct HierarchyMacroTests {
 
         let root = expandMacroSource(
             """
-            @DIContainerRole(ContainerRole.root)
+            @DIContainerRole(role: ContainerRole.root)
             struct AppContainer {}
             """,
             macros: roleMacros

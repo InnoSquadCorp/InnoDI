@@ -107,7 +107,7 @@ public macro DIContainer(
 /// structural restrictions before expansion, even when a role would emit no
 /// conformance.
 public macro DIContainerRole(
-    _ role: ContainerRole,
+    role: ContainerRole,
     isolation: DIContainerIsolation = .automatic,
     validateDAG: Bool = true
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerRoleMacro")
