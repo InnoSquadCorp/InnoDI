@@ -279,10 +279,10 @@ is limited to reversible groundwork while the RFC remains Draft.
 Delivery order:
 
 1. Add graph explainability and migration reporting on 5.x. The 5.2 train now
-   includes `--why`, `--dependents`, `--unused`, schema-v2 `--diff`, and the
+   includes `--why`, `--dependents`, `--unused`, schema-v3 `--diff`, and the
    source-free schema-v1 `InnoDI-Migrate --report` inventory. A schema-v2
-   `--diff ... --check-contract` gate now fails CI with exit 5 on any unreviewed
-   graph drift; graph JSON v3 semantics remain part of the 6.0 cutover.
+   contract established scoped stable IDs; schema v3 now makes assisted input,
+   factory ownership, and ordered contribution drift fail CI with exit 5.
    The migration engine now also implements the idempotent 6.0 vocabulary
    rewrite for inputs, container roles, and isolation while preserving
    `validateDAG`; commented, dynamic, or conflicting sites fail closed.
@@ -295,10 +295,11 @@ Delivery order:
    unknown, and assisted-as-static child bindings. The underscored SPI remains
    only as compatibility evidence until the 6.0 cleanup.
 3. Prototype deterministic compile-time multibinding without runtime discovery.
-   An underscored SPI probe now aggregates one explicit ordered list of local,
-   synchronous, same-typed providers and preserves contributor lifetimes and
-   overrides. Injectable collections, graph v3 edges, and the stable spelling
-   remain 6.0 work.
+   Public `@Multibinding` now aggregates one explicit ordered list of local,
+   synchronous, same-typed providers, preserves contributor lifetimes and
+   overrides, injects into other providers, and emits ordered graph v3
+   contribution edges. The underscored SPI remains only for pinned pilot
+   compatibility until consumer migration and the RFC removal decision.
 4. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
    InnoSample is the first completed runtime pilot: consumer commit `f3acdee`
    resolves InnoDI `8a1012e`, passes its full Xcode 27 `make verify-ci` gate,
@@ -308,8 +309,8 @@ Delivery order:
    the Draft naming decision is accepted.
 5. The public `@Input` and `@DIContainerRole(.component/.root,
    isolation: .mainActor)` source paths now reuse the existing initializer,
-   hierarchy, actor, and strict external-consumer contracts. Assisted factory
-   ownership and public multibinding still block freezing these names.
+   hierarchy, actor, and strict external-consumer contracts. Final naming,
+   consumer-pilot, and performance review still block freezing these names.
 6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
 7. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
@@ -348,9 +349,9 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Graph v3, two additional real pilots, migration, naming review, and performance gates must pass. |
+| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two additional real pilots plus final migration, naming, and performance gates must pass. |
 | `_InnoDIAssistedFactoryPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Keep only until the InnoSample pilot migrates to the public preparation API. |
-| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Graph v3 contribution edges, two real pilots, migration, naming review, and performance gates must pass. |
+| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two real pilots plus final migration, naming, and performance gates must pass. |
 | `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Retain only for pinned 5.2 pilot compatibility while consumers migrate to `@Multibinding`. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 

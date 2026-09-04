@@ -261,6 +261,13 @@ can itself be injected into another provider, and has its own test override.
 The SPI remains available only for pinned preparation consumers until RFC 0006
 accepts the 6.0 naming and removal decision.
 
+Graph JSON consumers must opt into schema v3 for 6.0 preparation. Container
+nodes retain `requiredInputs` for ordinary construction-time inputs and add
+`assistedInputs`. Edges add `assistedFactoryOwnership` and `contribution`
+kinds; contribution edges include `contributor` and zero-based `order` fields.
+The CLI rejects older documents for `--diff`, so regenerate both baselines
+before enabling `--check-contract` on this version.
+
 ---
 
 ## 4.x → 5.0

@@ -191,7 +191,7 @@ package func runDependencyGraphCLI() -> Int32 {
         case .json:
             guard let primaryTargetID else {
                 fputs(
-                    "Error: JSON schema v2 requires target-scoped analysis\n",
+                    "Error: JSON schema v3 requires target-scoped analysis\n",
                     stderr
                 )
                 return ExitCode.failure

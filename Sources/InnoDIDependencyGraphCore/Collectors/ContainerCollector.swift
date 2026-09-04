@@ -8,6 +8,10 @@ import SwiftSyntax
 /// etc. The CLI resolves these into concrete parent→child container IDs
 /// after every container has been catalogued.
 struct PendingSubContainerReference {
+    enum OwnershipKind: Equatable {
+        case subContainer
+        case assistedFactory
+    }
     /// Stable ID of the parent container node.
     let parentID: String
     /// Dotted semantic path of the parent container (used for diagnostics
@@ -26,6 +30,14 @@ struct PendingSubContainerReference {
     /// shape is supported by the shared resolver. `nil` for excluded forms
     /// such as generic specializations.
     let childReference: SemanticTypeReference?
+    let ownershipKind: OwnershipKind
+}
+
+struct PendingMultibindingContribution {
+    let containerID: String
+    let collectionName: String
+    let contributorName: String
+    let order: Int
 }
 
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
@@ -35,6 +47,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     /// body. Resolved into graph edges by `resolveSubContainerReferences`
     /// once every container has been visited.
     var subContainerReferences: [PendingSubContainerReference] = []
+    var multibindingContributions: [PendingMultibindingContribution] = []
 
     private let moduleIdentity: String?
     private var currentRelativeFilePath: String = ""
@@ -126,6 +139,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         )
 
         var requiredInputs: [String] = []
+        var assistedInputs: [String] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
 
@@ -148,18 +162,56 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         parentSemanticPath: semanticPath,
                         memberName: pattern.identifier.text,
                         childDisplayName: childType,
-                        childReference: normalizedSemanticTypeReference(typeAnnotation.type)
+                        childReference: normalizedSemanticTypeReference(typeAnnotation.type),
+                        ownershipKind: .subContainer
                     )
                 )
                 continue
             }
 
-            guard let provide = parseProvideAttribute(varDecl.attributes), provide.scope == .input else { continue }
+            guard let provide = parseProvideAttribute(varDecl.attributes)
+            else { continue }
             guard let binding = varDecl.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
                 continue
             }
-            requiredInputs.append(pattern.identifier.text)
+
+            if let childType = provide.assistedFactoryChildType {
+                subContainerReferences.append(
+                    PendingSubContainerReference(
+                        parentID: parentID,
+                        parentSemanticPath: semanticPath,
+                        memberName: pattern.identifier.text,
+                        childDisplayName: childType.trimmedDescription,
+                        childReference: normalizedSemanticTypeReference(
+                            childType
+                        ),
+                        ownershipKind: .assistedFactory
+                    )
+                )
+                continue
+            }
+
+            if provide.isMultibinding {
+                for (order, contributor) in provide.dependencies.enumerated() {
+                    multibindingContributions.append(
+                        PendingMultibindingContribution(
+                            containerID: parentID,
+                            collectionName: pattern.identifier.text,
+                            contributorName: contributor,
+                            order: order
+                        )
+                    )
+                }
+                continue
+            }
+
+            guard provide.scope == .input else { continue }
+            if provide.inputKind == .assisted {
+                assistedInputs.append(pattern.identifier.text)
+            } else {
+                requiredInputs.append(pattern.identifier.text)
+            }
         }
 
         nodes.append(
@@ -169,7 +221,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                 semanticPath: semanticPath,
                 isRoot: containerAttr.root,
                 validateDAG: containerAttr.validateDAG,
-                requiredInputs: requiredInputs
+                requiredInputs: requiredInputs,
+                assistedInputs: assistedInputs
             )
         )
     }

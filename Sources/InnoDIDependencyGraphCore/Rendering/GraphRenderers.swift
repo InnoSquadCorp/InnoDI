@@ -11,6 +11,9 @@ package func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraph
         if node.isRoot {
             label += " [root]"
         }
+        if !node.assistedInputs.isEmpty {
+            label += " [assisted: \(node.assistedInputs.joined(separator: ", "))]"
+        }
         result += "    \(alias)[\"\(escapeMermaidLabel(label))\"]\n"
     }
 
@@ -26,7 +29,16 @@ package func renderMermaid(nodes: [DependencyGraphNode], edges: [DependencyGraph
         // arrow glyph stays `-->` because Mermaid only exposes three distinct
         // edge shapes (-->, -.->, ==>) which are already taken by hard,
         // soft, and provider edges respectively.
-        if edge.isOwnership {
+        if edge.isContribution {
+            let index = edge.order.map(String.init) ?? "?"
+            let contributor = edge.contributor ?? "?"
+            let collection = edge.label ?? "collection"
+            effectiveLabel = "|contributes[\(index)]: \(escapeMermaidLabel(contributor)) → \(escapeMermaidLabel(collection))|"
+        } else if edge.isAssistedFactoryOwnership {
+            let ownsLabel = rawLabel.map { "factory owns: \($0)" }
+                ?? "factory owns"
+            effectiveLabel = "|\(escapeMermaidLabel(ownsLabel))|"
+        } else if edge.isOwnership {
             let ownsLabel = rawLabel.map { "owns: \($0)" } ?? "owns"
             effectiveLabel = "|\(escapeMermaidLabel(ownsLabel))|"
         } else {
@@ -65,7 +77,14 @@ package func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge
     for node in nodes {
         guard let alias = aliases[node.id] else { continue }
         let fill = node.isRoot ? "#e1f5fe" : "#e5e7eb"
-        let label = escapeDOTLabel(displayLabel(for: node, duplicateDisplayNames: duplicateDisplayNames))
+        var rawLabel = displayLabel(
+            for: node,
+            duplicateDisplayNames: duplicateDisplayNames
+        )
+        if !node.assistedInputs.isEmpty {
+            rawLabel += "\nassisted: \(node.assistedInputs.joined(separator: ", "))"
+        }
+        let label = escapeDOTLabel(rawLabel)
         result += "  \"\(alias)\" [label=\"\(label)\", shape=box, style=\"rounded,filled\", fillcolor=\"\(fill)\"];\n"
     }
 
@@ -85,7 +104,23 @@ package func renderDOT(nodes: [DependencyGraphNode], edges: [DependencyGraphEdge
         // Each kind still renders as an arrow so the dependency remains
         // visible; the style attribute just conveys the semantic category.
         var attributes: [String] = []
-        if edge.isOwnership {
+        if edge.isContribution {
+            let index = edge.order.map(String.init) ?? "?"
+            let contributor = edge.contributor ?? "?"
+            let collection = edge.label ?? "collection"
+            attributes.append(
+                "label=\"contributes[\(index)]: \(escapeDOTLabel(contributor)) -> \(escapeDOTLabel(collection))\""
+            )
+            attributes.append("style=dashed")
+            attributes.append("color=\"#7e22ce\"")
+            attributes.append("constraint=false")
+        } else if edge.isAssistedFactoryOwnership {
+            let ownsLabel = edge.label.map { "factory owns: \($0)" }
+                ?? "factory owns"
+            attributes.append("label=\"\(escapeDOTLabel(ownsLabel))\"")
+            attributes.append("style=bold")
+            attributes.append("color=\"#0f766e\"")
+        } else if edge.isOwnership {
             let ownsLabel = edge.label.map { "owns: \($0)" } ?? "owns"
             attributes.append("label=\"\(escapeDOTLabel(ownsLabel))\"")
             attributes.append("style=bold")
@@ -129,7 +164,10 @@ package func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEd
         let padding = String(repeating: " ", count: max(0, maxNameLength - label.count))
         let rootSuffix = node.isRoot ? " [ROOT]" : ""
         let inputs = node.requiredInputs.isEmpty ? "" : " (inputs: \(node.requiredInputs.joined(separator: ", ")))"
-        result += "  \(label)\(padding)\(rootSuffix)\(inputs)\n"
+        let assistedInputs = node.assistedInputs.isEmpty
+            ? ""
+            : " (assisted: \(node.assistedInputs.joined(separator: ", ")))"
+        result += "  \(label)\(padding)\(rootSuffix)\(inputs)\(assistedInputs)\n"
     }
 
     result += "\n"
@@ -137,8 +175,15 @@ package func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEd
 
     let hasSoftEdge = edges.contains(where: \.isSoft)
     let hasProviderEdge = edges.contains(where: \.isProvider)
-    let hasOwnershipEdge = edges.contains(where: \.isOwnership)
-    if hasSoftEdge || hasProviderEdge || hasOwnershipEdge {
+    let hasOwnershipEdge = edges.contains {
+        $0.isOwnership && !$0.isAssistedFactoryOwnership
+    }
+    let hasAssistedFactoryOwnershipEdge = edges.contains(
+        where: \.isAssistedFactoryOwnership
+    )
+    let hasContributionEdge = edges.contains(where: \.isContribution)
+    if hasSoftEdge || hasProviderEdge || hasOwnershipEdge
+        || hasContributionEdge {
         // Legend only appears when at least one non-hard edge is present so
         // the default render stays compact. Each glyph-to-meaning mapping
         // is listed only when that glyph actually appears in the output.
@@ -152,6 +197,12 @@ package func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEd
         if hasOwnershipEdge {
             legendParts.append("#=> ownership (@SubContainer)")
         }
+        if hasAssistedFactoryOwnershipEdge {
+            legendParts.append("@=> assisted factory ownership")
+        }
+        if hasContributionEdge {
+            legendParts.append("+=> ordered multibinding contribution")
+        }
         result += "  Legend: " + legendParts.joined(separator: "    ") + "\n"
     }
 
@@ -162,7 +213,18 @@ package func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEd
         // semantic is visible even without the legend. Other edge kinds
         // pass through whatever label the author set.
         let labelPart: String
-        if edge.isOwnership {
+        if edge.isContribution {
+            let index = edge.order.map(String.init) ?? "?"
+            let contributor = edge.contributor ?? "?"
+            let collection = edge.label ?? "collection"
+            labelPart = ":contributes[\(index)],\(contributor)->\(collection)"
+        } else if edge.isAssistedFactoryOwnership {
+            if let label = edge.label {
+                labelPart = ":factory-owns,\(label)"
+            } else {
+                labelPart = ":factory-owns"
+            }
+        } else if edge.isOwnership {
             if let label = edge.label {
                 labelPart = ":owns,\(label)"
             } else {
@@ -173,7 +235,11 @@ package func renderASCII(nodes: [DependencyGraphNode], edges: [DependencyGraphEd
         }
         let padding = String(repeating: " ", count: max(0, maxNameLength - fromLabel.count))
         let arrow: String
-        if edge.isOwnership {
+        if edge.isContribution {
+            arrow = "+=>"
+        } else if edge.isAssistedFactoryOwnership {
+            arrow = "@=>"
+        } else if edge.isOwnership {
             arrow = "#=>"
         } else if edge.isProvider {
             arrow = "~~>"
