@@ -46,6 +46,34 @@ struct ParsingTests {
     }
 
     @Test
+    func inputAndContainerRoleSyntaxNormalizeIntoCoreIR() throws {
+        let input = try #require(
+            firstVarDecl(
+                in: "struct C { @InnoDI.Input(.assisted, escaping: true) var callback: Callback }"
+            )
+        )
+        let semantics = parseManagedMemberSemantics(input.attributes)
+        let arguments = try #require(semantics.provideArguments)
+        #expect(arguments.scope == .input)
+        #expect(arguments.inputKind == .assisted)
+        #expect(arguments.escaping)
+
+        let container = try #require(
+            firstStructDecl(
+                in: "@DIContainerRole(.root, isolation: .mainActor) struct C {}"
+            )
+        )
+        let parsedOptions = InnoDICore.parseDIContainerAttribute(
+            container.attributes
+        )
+        let options = try #require(parsedOptions)
+        #expect(options.role == .root)
+        #expect(options.root)
+        #expect(options.isolation == .mainActor)
+        #expect(options.mainActor)
+    }
+
+    @Test
     func managedMemberSemanticsFailClosedForDuplicatesAndConflicts() throws {
         let conflicting = try #require(
             firstVarDecl(
@@ -66,6 +94,16 @@ struct ParsingTests {
         #expect(duplicates.provideAttributes.count == 2)
         #expect(!duplicates.hasConflictingRoles)
         #expect(!duplicates.hasExactlyOneRole)
+
+        let mixedInputSpelling = try #require(
+            firstVarDecl(
+                in: "struct C { @Input @Provide(.input) var value: Value }"
+            )
+        )
+        #expect(
+            parseManagedMemberSemantics(mixedInputSpelling.attributes)
+                .provideAttributes.count == 2
+        )
 
         let lookalike = try #require(
             firstVarDecl(

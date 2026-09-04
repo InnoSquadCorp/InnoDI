@@ -13,6 +13,32 @@ public enum DIScope {
     case transient
 }
 
+/// Determines when an `@Input` value is supplied.
+public enum DIInputKind {
+    /// Supplied by the container's synthesized initializer.
+    case container
+    /// Supplied later by an assisted child-container factory call.
+    case assisted
+}
+
+/// Declares how a container participates in the application hierarchy.
+public enum ContainerRole {
+    /// A container used only inside its declaring feature or module.
+    case local
+    /// A mountable feature boundary with a generated dependency contract.
+    case component
+    /// The root of strict hierarchy validation and graph reachability.
+    case root
+}
+
+/// Actor-isolation policy for all generated container APIs.
+public enum DIContainerIsolation {
+    /// Keep generated APIs on the declaration's ordinary isolation domain.
+    case automatic
+    /// Isolate generated APIs and managed properties to `MainActor`.
+    case mainActor
+}
+
 /// Compiler support used by generated invariant paths. Application code must
 /// not call this function directly.
 @_documentation(visibility: internal)
@@ -66,6 +92,25 @@ public macro DIContainer(
     validateDAG: Bool = true,
     mainActor: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
+
+@attached(memberAttribute)
+@attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary)
+@attached(peer, names: suffixed(Dependencies))
+@attached(
+    extension,
+    conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable,
+        DIHierarchyRootMarker,
+    names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)
+)
+/// 6.0 role-based container spelling. This separate attribute preserves the
+/// legacy `@DIContainer` diagnostic contract: Swift applies extension-macro
+/// structural restrictions before expansion, even when a role would emit no
+/// conformance.
+public macro DIContainerRole(
+    _ role: ContainerRole,
+    isolation: DIContainerIsolation = .automatic,
+    validateDAG: Bool = true
+) = #externalMacro(module: "InnoDIMacros", type: "DIContainerRoleMacro")
 
 @_spi(Experimental)
 @attached(member, names: named(_InnoDIAssistedFactoryPrototype))
@@ -208,6 +253,18 @@ public macro Provide(
     with dependencies: [AnyKeyPath] = [],
     factory: Any? = nil,
     asyncFactory: Any? = nil,
+    escaping: Bool = false
+) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
+
+@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
+/// Declares a required external value using the 6.0 input vocabulary.
+///
+/// `@Input` is the source-compatible replacement for `@Provide(.input)`.
+/// Container inputs remain initializer parameters. Assisted inputs are also
+/// retained in the normalized graph model and are consumed by an assisted
+/// factory rather than by a parent container's static binding contract.
+public macro Input(
+    _ kind: DIInputKind = .container,
     escaping: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 

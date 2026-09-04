@@ -18,12 +18,31 @@ struct DIContainerMacroTests {
         "DIComponent": DIComponentMacro.self,
         "DIHierarchyRoot": DIHierarchyRootMacro.self,
         "Provide": ProvideMacro.self,
+        "Input": ProvideMacro.self,
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
         "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
         "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
     ]
+
+    @Test("Input uses the established container initializer and storage path")
+    func inputUsesNormalizedProviderStorage() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Input var config: Config
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("init(config: Config"))
+        #expect(result.expansion.contains("_storage_config"))
+        #expect(result.expansion.contains("self._storage_config = config"))
+    }
 
     @Test("A flagless concrete shared dependency keeps its declared storage type")
     func flaglessConcreteSharedDependencyGeneratesStorage() {

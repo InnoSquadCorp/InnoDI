@@ -268,7 +268,7 @@ private final class CustomInitFileCollector: SyntaxVisitor {
 }
 
 private func containsDIContainerAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    findInnoDIAttribute(named: "DIContainer", in: attributes) != nil
+    findDIContainerAttribute(in: attributes) != nil
 }
 
 /// Extension members inside top-level conditional-compilation branches share

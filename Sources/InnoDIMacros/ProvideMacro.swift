@@ -22,8 +22,7 @@ public struct ProvideMacro: PeerMacro {
         // only the second @Provide own the global duplicate diagnostic so the
         // same contract also covers standalone and nested non-container uses.
         // All peer roles still suppress storage output.
-        let provideAttributes = findInnoDIAttributes(
-            named: "Provide",
+        let provideAttributes = InnoDICore.findManagedProviderAttributes(
             in: varDecl.attributes
         )
         guard provideAttributes.count == 1 else {

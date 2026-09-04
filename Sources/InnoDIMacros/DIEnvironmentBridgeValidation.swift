@@ -130,8 +130,7 @@ private func validateEnvironmentBridgeDeclaration(
         in: declaration,
         lexicalContext: context.lexicalContext
     )
-    let isContainer = findInnoDIAttribute(
-        named: "DIContainer",
+    let isContainer = InnoDICore.findDIContainerAttribute(
         in: declaration.attributes
     ) != nil
     let hasCoreContainerConflict = isContainer
@@ -513,9 +512,7 @@ private func containerMemberInfos(in declaration: some DeclGroupSyntax) -> [Envi
             return []
         }
 
-        let provideAttribute = findAttribute(
-            named: "Provide",
-            allowingQualifiedModules: ["InnoDI"],
+        let provideAttribute = InnoDICore.findManagedProviderAttribute(
             in: variableDecl.attributes
         )
         let isAsyncProvide = provideAttribute.map { parseProvideArguments($0).asyncFactoryExpr != nil } ?? false

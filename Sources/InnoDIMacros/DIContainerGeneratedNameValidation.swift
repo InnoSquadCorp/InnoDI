@@ -208,8 +208,7 @@ private func rawManagedGeneratedSymbolSources(
             return nil
         }
 
-        let provideAttributes = findInnoDIAttributes(
-            named: "Provide",
+        let provideAttributes = InnoDICore.findManagedProviderAttributes(
             in: variable.attributes
         )
         let subContainerAttributes = findInnoDIAttributes(

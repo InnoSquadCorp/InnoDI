@@ -147,7 +147,7 @@ func isSupportedDIContainerDeclarationIfPresent(
     _ declaration: some DeclGroupSyntax,
     in context: some MacroExpansionContext
 ) -> Bool {
-    guard findInnoDIAttribute(named: "DIContainer", in: declaration.attributes) != nil else {
+    guard InnoDICore.findDIContainerAttribute(in: declaration.attributes) != nil else {
         return true
     }
 
@@ -204,7 +204,7 @@ func unmanagedStoredContainerMembers(
     var result: [UnmanagedStoredContainerMember] = []
 
     func appendUnmanagedBindings(from variable: VariableDeclSyntax) {
-        guard findInnoDIAttribute(named: "Provide", in: variable.attributes) == nil,
+        guard InnoDICore.findManagedProviderAttribute(in: variable.attributes) == nil,
               findInnoDIAttribute(named: "SubContainer", in: variable.attributes) == nil,
               findInnoDIAttribute(named: "_InnoDIProvideAccessor", in: variable.attributes) == nil,
               findInnoDIAttribute(named: "_InnoDISubContainerAccessor", in: variable.attributes) == nil,
@@ -328,7 +328,7 @@ func conditionallyCompiledProvideMembers(
     in declaration: some DeclGroupSyntax
 ) -> [ConditionallyCompiledDIContainerMember] {
     conditionallyCompiledDIContainerMembers(in: declaration).filter {
-        $0.attributeName == "Provide"
+        $0.attributeName == "Provide" || $0.attributeName == "Input"
     }
 }
 
@@ -421,7 +421,7 @@ private func collectConditionallyCompiledDIContainerMembers(
     into result: inout [ConditionallyCompiledDIContainerMember]
 ) {
     if let variable = syntax.as(VariableDeclSyntax.self) {
-        for attributeName in ["Provide", "SubContainer"] {
+        for attributeName in ["Provide", "Input", "SubContainer"] {
             if let attribute = findInnoDIAttribute(
                 named: attributeName,
                 in: variable.attributes
@@ -488,8 +488,7 @@ func directDIContainerMembership(
     }
 
     if let container = directEnclosingDeclGroup(startingAt: Syntax(declaration)) {
-        guard findInnoDIAttribute(
-            named: "DIContainer",
+        guard InnoDICore.findDIContainerAttribute(
             in: container.attributes
         ) != nil else {
             return .none
@@ -505,9 +504,8 @@ func directDIContainerMembership(
     // declaration instead of accepting any outer `@DIContainer`.
     guard let nearestContext = context.lexicalContext.first,
           let container = diContainerDeclGroup(from: nearestContext),
-          findInnoDIAttribute(
-              named: "DIContainer",
-              in: container.attributes
+          InnoDICore.findDIContainerAttribute(
+            in: container.attributes
           ) != nil else {
         return .none
     }
@@ -538,7 +536,7 @@ func directDIContainerHasReservedGeneratedName(
     in context: some MacroExpansionContext
 ) -> Bool {
     if let container = directEnclosingDeclGroup(startingAt: Syntax(declaration)),
-       findInnoDIAttribute(named: "DIContainer", in: container.attributes) != nil {
+       InnoDICore.findDIContainerAttribute(in: container.attributes) != nil {
         return containerHasReservedGeneratedName(
             in: container,
             lexicalContext: context.lexicalContext
@@ -547,9 +545,8 @@ func directDIContainerHasReservedGeneratedName(
 
     for lexicalNode in context.lexicalContext {
         guard let container = diContainerDeclGroup(from: lexicalNode),
-              findInnoDIAttribute(
-                  named: "DIContainer",
-                  in: container.attributes
+              InnoDICore.findDIContainerAttribute(
+                in: container.attributes
               ) != nil else {
             continue
         }
@@ -643,8 +640,7 @@ private func isEligibleManagedMemberForDuplicateIdentity(
         return false
     }
 
-    let provideAttributes = findInnoDIAttributes(
-        named: "Provide",
+    let provideAttributes = InnoDICore.findManagedProviderAttributes(
         in: variable.attributes
     )
     let subContainerAttributes = findInnoDIAttributes(
@@ -713,7 +709,7 @@ private func enclosingDIContainerDeclaration(
     var current: Syntax? = syntax.parent
     while let node = current {
         if let declaration = diContainerDeclGroup(from: node),
-           findInnoDIAttribute(named: "DIContainer", in: declaration.attributes) != nil {
+           InnoDICore.findDIContainerAttribute(in: declaration.attributes) != nil {
             return declaration
         }
         current = node.parent
@@ -721,7 +717,7 @@ private func enclosingDIContainerDeclaration(
 
     for node in lexicalContext {
         if let declaration = diContainerDeclGroup(from: node),
-           findInnoDIAttribute(named: "DIContainer", in: declaration.attributes) != nil {
+           InnoDICore.findDIContainerAttribute(in: declaration.attributes) != nil {
             return declaration
         }
     }

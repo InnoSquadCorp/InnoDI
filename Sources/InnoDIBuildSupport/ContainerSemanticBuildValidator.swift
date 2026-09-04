@@ -549,7 +549,7 @@ private func isDirectMemberVariable(_ node: VariableDeclSyntax) -> Bool {
 }
 
 private func containsDIContainerAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    findInnoDIAttribute(named: "DIContainer", in: attributes) != nil
+    findDIContainerAttribute(in: attributes) != nil
 }
 
 private func directWrapperKind(named name: String) -> DeferredDependencyWrapperKind? {

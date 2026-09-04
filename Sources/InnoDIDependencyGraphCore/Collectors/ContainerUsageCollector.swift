@@ -471,7 +471,7 @@ final class ContainerUsageCollector: SyntaxVisitor, DeclarationPathTracking {
         let references = node.memberBlock.members.flatMap { member in
             guard let variable = member.decl.as(VariableDeclSyntax.self),
                   !variable.modifiers.contains(where: { $0.name.text == "static" }),
-                  let attribute = findInnoDIAttribute(named: "Provide", in: variable.attributes),
+                  let attribute = findManagedProviderAttribute(in: variable.attributes),
                   let binding = variable.bindings.first,
                   binding.pattern.is(IdentifierPatternSyntax.self),
                   binding.typeAnnotation != nil else {

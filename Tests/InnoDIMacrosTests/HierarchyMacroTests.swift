@@ -17,10 +17,43 @@ struct HierarchyMacroTests {
         "InnoDI.DIContainer": DIContainerMacro.self,
         "InnoDI.DIHierarchyRoot": DIHierarchyRootMacro.self,
         "Provide": ProvideMacro.self,
+        "Input": ProvideMacro.self,
         "SubContainer": SubContainerMacro.self,
         "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
         "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
     ]
+
+    @Test("DIContainer 6.0 roles synthesize component and root contracts")
+    func containerRolesSynthesizeHierarchyContracts() {
+        let roleMacros = Self.macros.merging([
+            "DIContainerRole": DIContainerRoleMacro.self,
+        ]) { _, new in new }
+        let component = expandMacroSource(
+            """
+            @DIContainerRole(.component, isolation: .mainActor)
+            public struct FeatureContainer {
+                @Input public var config: FeatureConfig
+            }
+            """,
+            macros: roleMacros
+        )
+
+        #expect(component.diagnostics.isEmpty)
+        #expect(component.expansion.contains("public protocol FeatureContainerDependencies"))
+        #expect(component.expansion.contains("_InnoDIMainActorComponentMountable"))
+        #expect(component.expansion.contains("dependencies _innoDIDependencies"))
+        #expect(component.expansion.contains("@_Concurrency.MainActor"))
+
+        let root = expandMacroSource(
+            """
+            @DIContainerRole(.root)
+            struct AppContainer {}
+            """,
+            macros: roleMacros
+        )
+        #expect(root.diagnostics.isEmpty)
+        #expect(root.expansion.contains("InnoDI.DIHierarchyRootMarker"))
+    }
 
     @Test("DIComponent suppresses every companion expansion after a reserved qualifier diagnostic")
     func componentReservedQualifierFailsClosed() {

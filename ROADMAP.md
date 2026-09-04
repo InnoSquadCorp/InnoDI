@@ -283,6 +283,9 @@ Delivery order:
    source-free schema-v1 `InnoDI-Migrate --report` inventory. A schema-v2
    `--diff ... --check-contract` gate now fails CI with exit 5 on any unreviewed
    graph drift; graph JSON v3 semantics remain part of the 6.0 cutover.
+   The migration engine now also implements the idempotent 6.0 vocabulary
+   rewrite for inputs, container roles, and isolation while preserving
+   `validateDAG`; commented, dynamic, or conflicting sites fail closed.
 2. Prototype child-owned assisted factories without removing stable 5.x APIs.
    An underscored SPI probe now partitions existing `.input` members into
    factory-captured static values and call-time assisted values, with a
@@ -304,9 +307,13 @@ Delivery order:
    peer alias passes a strict cross-module parent fixture, but its required
    same-file wrapper confirms that same-target factory visibility and
    initializer access remain release blockers rather than a frozen API.
-5. Accept and freeze the RFC only after diagnostics, graph schema, migration,
+5. The public `@Input` and `@DIContainerRole(.component/.root,
+   isolation: .mainActor)` source paths now reuse the existing initializer,
+   hierarchy, actor, and strict external-consumer contracts. Assisted factory
+   ownership and public multibinding still block freezing these names.
+6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
-6. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
+7. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
 
 The read-only static inventory for step 4 is recorded in RFC 0006 against
 fetched `origin/main` SHAs: InnoSample and Mulbyul are clean on their pinned

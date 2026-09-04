@@ -210,6 +210,41 @@ Two additions that you don't have to use, but might want to:
 
 ---
 
+## 5.x → 6.0 vocabulary
+
+The 6.0 source vocabulary separates external inputs from provider lifetime and
+makes hierarchy/isolation intent part of `@DIContainer`:
+
+```swift
+// Before
+@DIComponent
+@DIContainer(mainActor: true)
+struct FeatureContainer {
+    @Provide(.input) var config: FeatureConfig
+}
+
+// After
+@DIContainerRole(.component, isolation: .mainActor)
+struct FeatureContainer {
+    @Input var config: FeatureConfig
+}
+```
+
+Use `@DIContainerRole(.root)` in place of `@DIHierarchyRoot` combined with
+`@DIContainer(root: true)`. The compatibility spellings continue to compile
+during the 6.0 preparation train. `InnoDI-Migrate --check`, `--report`, and
+`--write` apply the new spelling mechanically, preserve `validateDAG` and
+`escaping`, and are idempotent. The migrator leaves commented, dynamic, or
+conflicting role sites unchanged and emits a blocking diagnostic rather than
+guessing intent.
+
+`@Input(.assisted)` records that the value arrives at a child-factory call.
+The public child/parent factory bridge is still governed by Draft RFC 0006, so
+do not migrate production assisted construction until that factory contract is
+accepted.
+
+---
+
 ## 4.x → 5.0
 
 5.0 restores the compiler and graph contracts before adding more macro
