@@ -34,3 +34,4 @@ Factory parameter 'staticInput' for 'staticEcho' does not match any injectable c
 @Provide(.input, escaping: true) member 'handler' must use a non-optional function type or a typealias that resolves to one.
 @Provide(.input, escaping: true) member 'qualifiedHandler' must use a non-optional function type or a typealias that resolves to one.
 @Provide member 'service' cannot use an implicitly unwrapped optional type. Replace 'T!' with explicit 'T' or 'T?' so generated storage and sibling wiring have one unambiguous optionality contract.
+? @Provide member 'localService' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
