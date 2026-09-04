@@ -5,11 +5,12 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 private let assistedFactoryPrototypeTypeName = "_InnoDIAssistedFactoryPrototype"
+private let assistedFactoryPrototypeAliasPrefix = "_InnoDIAssistedFactoryPrototype_"
 
 /// Internal 5.2.x runway for validating the child-owned assisted-factory
 /// semantics from RFC 0006. The public spelling and generated names remain
 /// intentionally underscored and SPI-only until the RFC is accepted.
-public struct InnoDIAssistedFactoryPrototypeMacro: MemberMacro {
+public struct InnoDIAssistedFactoryPrototypeMacro: MemberMacro, PeerMacro {
     public static func expansion(
         of attribute: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -112,6 +113,61 @@ public struct InnoDIAssistedFactoryPrototypeMacro: MemberMacro {
                 container: container,
                 model: model,
                 assistedNames: Set(assistedNames)
+            )
+        ]
+    }
+
+    public static func expansion(
+        of attribute: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        guard let container = declaration.as(StructDeclSyntax.self),
+              findInnoDIAttribute(
+                  named: "DIContainer",
+                  in: container.attributes
+              ) != nil else {
+            return []
+        }
+
+        // The member role owns user-facing diagnostics. The peer role repeats
+        // validation silently so an invalid child never leaves behind a
+        // factory alias that points at a member the primary role did not emit.
+        let validationContext = DiagnosticSuppressingMacroExpansionContext(
+            forwardingTo: context
+        )
+        guard let assistedNames = parseAssistedNames(
+            from: attribute,
+            in: validationContext
+        ),
+              classifyDIContainerDeclaration(
+                  container,
+                  lexicalContext: context.lexicalContext
+              ).isSupported,
+              DIContainerParser.userDefinedInitializers(in: container).isEmpty,
+              let model = DIContainerParser.parse(
+                  declaration: container,
+                  context: validationContext
+              ),
+              DIContainerValidator.validate(
+                  model: model,
+                  declaration: container,
+                  context: validationContext
+              ),
+              Set(assistedNames).isSubset(
+                  of: Set(model.inputMembers.map(\.name))
+              ),
+              !hasDirectTypeDeclaration(
+                  named: assistedFactoryPrototypeTypeName,
+                  in: container
+              ) else {
+            return []
+        }
+
+        return [
+            makeAssistedFactoryPrototypeAliasDecl(
+                container: container,
+                model: model
             )
         ]
     }
@@ -249,6 +305,25 @@ private func makeAssistedFactoryPrototypeDecl(
     """
     return declaration.prependingMARK(
         "// MARK: - Experimental Assisted Factory Prototype"
+    )
+}
+
+private func makeAssistedFactoryPrototypeAliasDecl(
+    container: StructDeclSyntax,
+    model: DIContainerExpansionModel
+) -> DeclSyntax {
+    let containerName = container.name.text
+    let aliasName = "\(assistedFactoryPrototypeAliasPrefix)\(containerName)"
+    let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
+    let spiPrefix = model.accessLevel == "public"
+        ? "@_spi(Experimental)\n"
+        : ""
+
+    let declaration: DeclSyntax = """
+    \(raw: spiPrefix)\(raw: accessPrefix)typealias \(raw: aliasName) = \(raw: containerName).\(raw: assistedFactoryPrototypeTypeName)
+    """
+    return declaration.prependingMARK(
+        "// MARK: - Experimental Assisted Factory Prototype Alias"
     )
 }
 

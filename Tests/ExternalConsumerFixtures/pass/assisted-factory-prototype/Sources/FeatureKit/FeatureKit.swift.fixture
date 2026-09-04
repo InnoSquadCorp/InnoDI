@@ -16,10 +16,3 @@ public struct TrainingContainer {
     @Provide(.input) public var routineID: Int
     @Provide(.shared, factory: InstanceToken()) public var token: InstanceToken
 }
-
-@_spi(Experimental)
-public func makeTrainingFactory(
-    repository: TrainingRepository
-) -> TrainingContainer._InnoDIAssistedFactoryPrototype {
-    .init(repository: repository)
-}

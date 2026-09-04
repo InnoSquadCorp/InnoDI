@@ -29,6 +29,11 @@ struct AssistedFactoryPrototypeMacroTests {
 
         #expect(result.diagnostics.isEmpty)
         #expect(result.expansion.contains("public struct _InnoDIAssistedFactoryPrototype"))
+        #expect(
+            result.expansion.contains(
+                "public typealias _InnoDIAssistedFactoryPrototype_TrainingContainer = TrainingContainer._InnoDIAssistedFactoryPrototype"
+            )
+        )
         #expect(result.expansion.contains("private let repository: any TrainingRepository"))
         #expect(!result.expansion.contains("private let routineID"))
         #expect(result.expansion.contains("public init(repository: any TrainingRepository)"))
@@ -86,6 +91,11 @@ struct AssistedFactoryPrototypeMacroTests {
             ]
         )
         #expect(!result.expansion.contains("struct _InnoDIAssistedFactoryPrototype"))
+        #expect(
+            !result.expansion.contains(
+                "typealias _InnoDIAssistedFactoryPrototype_InvalidContainer"
+            )
+        )
     }
 
     @Test("Assisted entries must be unique plain string literals")
