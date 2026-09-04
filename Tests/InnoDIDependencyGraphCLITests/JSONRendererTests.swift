@@ -17,7 +17,8 @@ struct JSONRendererTests {
                 displayName: "AppContainer",
                 semanticPath: "App.AppContainer",
                 isRoot: true,
-                requiredInputs: ["config"]
+                requiredInputs: ["config"],
+                assistedInputs: ["sessionID"]
             ),
             DependencyGraphNode(
                 id: "swiftpm:root-package:App::FeatureContainer",
@@ -40,6 +41,20 @@ struct JSONRendererTests {
                 toID: "swiftpm:root-package:App::FeatureContainer",
                 label: nil,
                 isOwnership: true
+            ),
+            DependencyGraphEdge(
+                fromID: "swiftpm:root-package:App::AppContainer",
+                toID: "swiftpm:root-package:App::FeatureContainer",
+                label: "featureFactory",
+                isAssistedFactoryOwnership: true
+            ),
+            DependencyGraphEdge(
+                fromID: "swiftpm:root-package:App::AppContainer",
+                toID: "swiftpm:root-package:App::AppContainer",
+                label: "interceptors",
+                isContribution: true,
+                contributor: "auth",
+                order: 0
             ),
             DependencyGraphEdge(
                 fromID: "swiftpm:root-package:App::FeatureContainer",
@@ -96,6 +111,7 @@ struct JSONRendererTests {
             "displayName",
             "id",
             "isRoot",
+            "assistedInputs",
             "requiredInputs",
             "semanticPath",
         ])
@@ -103,11 +119,11 @@ struct JSONRendererTests {
             rawDocument["edges"] as? [[String: Any]]
         )
         let labeledEdge = try #require(
-            rawEdges.first { $0["label"] != nil }
+            rawEdges.first { $0["kind"] as? String == "hard" }
         )
         #expect(Set(labeledEdge.keys) == ["from", "kind", "label", "to"])
         #expect(decoded.nodes.count == 3)
-        #expect(decoded.edges.count == 4)
+        #expect(decoded.edges.count == 6)
 
         let appNode = try #require(
             decoded.nodes.first {
@@ -116,6 +132,7 @@ struct JSONRendererTests {
         )
         #expect(appNode.isRoot)
         #expect(appNode.requiredInputs == ["config"])
+        #expect(appNode.assistedInputs == ["sessionID"])
 
         let ownershipEdge = try #require(decoded.edges.first { $0.kind == .ownership })
         #expect(
@@ -135,6 +152,23 @@ struct JSONRendererTests {
 
         let providerEdge = try #require(decoded.edges.first { $0.kind == .provider })
         #expect(providerEdge.label == "makeLogger")
+
+        let factoryEdge = try #require(
+            decoded.edges.first { $0.kind == .assistedFactoryOwnership }
+        )
+        #expect(factoryEdge.label == "featureFactory")
+
+        let contributionEdge = try #require(
+            decoded.edges.first { $0.kind == .contribution }
+        )
+        #expect(contributionEdge.contributor == "auth")
+        #expect(contributionEdge.order == 0)
+        let rawContribution = try #require(
+            rawEdges.first { $0["kind"] as? String == "contribution" }
+        )
+        #expect(Set(rawContribution.keys) == [
+            "contributor", "from", "kind", "label", "order", "to",
+        ])
     }
 
     @Test("Empty graph produces empty node/edge lists")
@@ -172,6 +206,6 @@ struct JSONRendererTests {
             from: Data(forward.utf8)
         )
         #expect(decoded.nodes.map(\.id) == decoded.nodes.map(\.id).sorted())
-        #expect(decoded.edges.first?.kind == .ownership)
+        #expect(decoded.edges.first?.kind == .contribution)
     }
 }

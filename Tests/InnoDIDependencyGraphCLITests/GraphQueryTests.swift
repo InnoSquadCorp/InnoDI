@@ -234,6 +234,37 @@ struct GraphQueryTests {
         #expect(renderGraphDiff(report).contains("Scope: unchanged"))
     }
 
+    @Test("Graph diff rejects a decodable schema-v2 document with a stable error")
+    func rejectsSchemaV2Document() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("innodi-graph-v2-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let payload = """
+        {
+          "schemaVersion": 2,
+          "scope": { "primaryTargetID": "App", "rootPruning": "roots" },
+          "nodes": [{
+            "id": "App::AppContainer",
+            "displayName": "AppContainer",
+            "semanticPath": "App.AppContainer",
+            "isRoot": true,
+            "requiredInputs": []
+          }],
+          "edges": []
+        }
+        """
+        try Data(payload.utf8).write(to: fileURL, options: .atomic)
+
+        #expect(throws: GraphInspectionError.unsupportedSchema(
+            path: fileURL.path,
+            found: 2,
+            expected: 3
+        )) {
+            _ = try loadGraphJSONDocument(at: fileURL.path)
+        }
+    }
+
     private func graphDocument(
         nodes: [DependencyGraphNode],
         edges: [DependencyGraphEdge],

@@ -216,10 +216,12 @@ standalone release assets.
   breaking surface is frozen.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
-  every rooted graph, and `--diff` compares two schema-v2 JSON artifacts.
+  every rooted graph, and `--diff` compares two schema-v3 JSON artifacts.
   `--diff ... --check-contract` turns that comparison into a CI gate: unchanged
-  contracts exit 0 and any scope, node, or edge drift exits 5 while preserving
-  the human-readable diff.
+  contracts exit 0 and any scope, node, or edge drift, including assisted input,
+  assisted-factory ownership, or ordered contribution changes, exits 5 while
+  preserving the human-readable diff. Regenerate schema-v2 baselines before
+  comparing them with this release candidate.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
   and diagnostics without including original or migrated source bodies.

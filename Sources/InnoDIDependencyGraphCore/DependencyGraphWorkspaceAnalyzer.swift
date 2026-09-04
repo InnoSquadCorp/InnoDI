@@ -207,14 +207,22 @@ private func collectDependencyGraphWithDiagnostics(
                 fromID: reference.parentID,
                 toID: resolvedID,
                 label: reference.memberName,
-                isOwnership: true
+                isOwnership: true,
+                isAssistedFactoryOwnership:
+                    reference.ownershipKind == .assistedFactory
             )
         )
     }
 
+    let contributionEdges = collector.multibindingContributions.map {
+        contributionEdge(from: $0)
+    }
+
     return DependencyGraphDiagnosticCollection(
         nodes: nodes,
-        edges: deduplicateEdges(usageCollector.edges + ownershipEdges),
+        edges: deduplicateEdges(
+            usageCollector.edges + ownershipEdges + contributionEdges
+        ),
         semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues,
         identityCollisions: []
     )
@@ -225,6 +233,7 @@ private struct TargetScopedCollectedSource {
     let targetID: WorkspaceTargetID
     let sourceImports: TargetAwareSourceImports
     let subContainerReferences: [PendingSubContainerReference]
+    let multibindingContributions: [PendingMultibindingContribution]
 }
 
 private func collectTargetScopedDependencyGraphWithDiagnostics(
@@ -285,7 +294,9 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
                 sourceFile: sourceFile,
                 targetID: targetID,
                 sourceImports: sourceImports,
-                subContainerReferences: collector.subContainerReferences
+                subContainerReferences: collector.subContainerReferences,
+                multibindingContributions:
+                    collector.multibindingContributions
             )
         )
     }
@@ -343,6 +354,9 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
             tree: collectedSource.sourceFile.syntax
         )
         edges.append(contentsOf: usageCollector.edges)
+        edges.append(contentsOf: collectedSource.multibindingContributions.map {
+            contributionEdge(from: $0)
+        })
         semanticIssues.append(contentsOf: usageCollector.semanticIssues)
 
         var ownershipFallbackMatchedReferences: [String] = []
@@ -376,7 +390,9 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
                     fromID: reference.parentID,
                     toID: resolvedID,
                     label: reference.memberName,
-                    isOwnership: true
+                    isOwnership: true,
+                    isAssistedFactoryOwnership:
+                        reference.ownershipKind == .assistedFactory
                 )
             )
         }
@@ -387,6 +403,19 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
         edges: sortedGraphEdges(deduplicateEdges(edges)),
         semanticIssues: semanticIssues,
         identityCollisions: identityCollisions
+    )
+}
+
+private func contributionEdge(
+    from contribution: PendingMultibindingContribution
+) -> DependencyGraphEdge {
+    DependencyGraphEdge(
+        fromID: contribution.containerID,
+        toID: contribution.containerID,
+        label: contribution.collectionName,
+        isContribution: true,
+        contributor: contribution.contributorName,
+        order: contribution.order
     )
 }
 
@@ -414,6 +443,20 @@ private func sortedGraphEdges(
         }
         if lhs.isOwnership != rhs.isOwnership {
             return lhs.isOwnership && !rhs.isOwnership
+        }
+        if lhs.isAssistedFactoryOwnership
+            != rhs.isAssistedFactoryOwnership {
+            return lhs.isAssistedFactoryOwnership
+                && !rhs.isAssistedFactoryOwnership
+        }
+        if lhs.isContribution != rhs.isContribution {
+            return lhs.isContribution && !rhs.isContribution
+        }
+        if lhs.order != rhs.order {
+            return (lhs.order ?? .min) < (rhs.order ?? .min)
+        }
+        if lhs.contributor != rhs.contributor {
+            return (lhs.contributor ?? "") < (rhs.contributor ?? "")
         }
         if lhs.isProvider != rhs.isProvider {
             return lhs.isProvider && !rhs.isProvider

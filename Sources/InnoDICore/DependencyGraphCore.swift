@@ -5,6 +5,7 @@ package struct DependencyGraphNode: Hashable {
     package let isRoot: Bool
     package let validateDAG: Bool
     package let requiredInputs: [String]
+    package let assistedInputs: [String]
 
     package init(
         id: String,
@@ -12,7 +13,8 @@ package struct DependencyGraphNode: Hashable {
         semanticPath: String,
         isRoot: Bool,
         validateDAG: Bool = true,
-        requiredInputs: [String]
+        requiredInputs: [String],
+        assistedInputs: [String] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -20,6 +22,7 @@ package struct DependencyGraphNode: Hashable {
         self.isRoot = isRoot
         self.validateDAG = validateDAG
         self.requiredInputs = requiredInputs
+        self.assistedInputs = assistedInputs
     }
 }
 
@@ -50,6 +53,14 @@ package struct DependencyGraphEdge: Hashable {
     /// "owns" label so reviewers can tell container ownership apart from
     /// regular `.input` wiring.
     package let isOwnership: Bool
+    /// Assisted-factory ownership is distinct from fixed `@SubContainer`
+    /// ownership in graph schema v3, while remaining a hard ownership edge.
+    package let isAssistedFactoryOwnership: Bool
+    /// Ordered collection contribution metadata. Contribution edges are
+    /// self-edges on the owning container and are excluded from cycle checks.
+    package let isContribution: Bool
+    package let contributor: String?
+    package let order: Int?
 
     package init(
         fromID: String,
@@ -57,19 +68,34 @@ package struct DependencyGraphEdge: Hashable {
         label: String?,
         isSoft: Bool = false,
         isProvider: Bool = false,
-        isOwnership: Bool = false
+        isOwnership: Bool = false,
+        isAssistedFactoryOwnership: Bool = false,
+        isContribution: Bool = false,
+        contributor: String? = nil,
+        order: Int? = nil
     ) {
         self.fromID = fromID
         self.toID = toID
         self.label = label
         self.isSoft = isSoft
         self.isProvider = isProvider
-        self.isOwnership = isOwnership
+        self.isOwnership = isOwnership || isAssistedFactoryOwnership
+        self.isAssistedFactoryOwnership = isAssistedFactoryOwnership
+        self.isContribution = isContribution
+        self.contributor = contributor
+        self.order = order
     }
 }
 
 package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphNode] {
-    var map: [String: (displayName: String, semanticPath: String, isRoot: Bool, validateDAG: Bool, inputs: Set<String>)] = [:]
+    var map: [String: (
+        displayName: String,
+        semanticPath: String,
+        isRoot: Bool,
+        validateDAG: Bool,
+        inputs: Set<String>,
+        assistedInputs: Set<String>
+    )] = [:]
 
     for node in nodes {
         var entry = map[node.id] ?? (
@@ -77,11 +103,13 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
             semanticPath: node.semanticPath,
             isRoot: false,
             validateDAG: true,
-            inputs: []
+            inputs: [],
+            assistedInputs: []
         )
         entry.isRoot = entry.isRoot || node.isRoot
         entry.validateDAG = entry.validateDAG && node.validateDAG
         entry.inputs.formUnion(node.requiredInputs)
+        entry.assistedInputs.formUnion(node.assistedInputs)
 
         if entry.displayName.isEmpty {
             entry.displayName = node.displayName
@@ -101,7 +129,8 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
             semanticPath: entry.semanticPath,
             isRoot: entry.isRoot,
             validateDAG: entry.validateDAG,
-            requiredInputs: entry.inputs.sorted()
+            requiredInputs: entry.inputs.sorted(),
+            assistedInputs: entry.assistedInputs.sorted()
         )
     }
 }
@@ -129,7 +158,8 @@ package func buildCycleDetectionAdjacency(
     for node in nodes {
         adjacency[node.id] = []
     }
-    for edge in edges where edge.isOwnership || (!edge.isSoft && !edge.isProvider) {
+    for edge in edges where !edge.isContribution
+        && (edge.isOwnership || (!edge.isSoft && !edge.isProvider)) {
         adjacency[edge.fromID, default: []].append(edge.toID)
     }
     return adjacency
@@ -140,6 +170,8 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
         let fromID: String
         let toID: String
         let label: String?
+        let contributor: String?
+        let order: Int?
     }
 
     func normalizedEdge(
@@ -148,18 +180,33 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
         label: String?,
         isSoft: Bool,
         isProvider: Bool,
-        isOwnership: Bool
+        isOwnership: Bool,
+        isAssistedFactoryOwnership: Bool,
+        isContribution: Bool,
+        contributor: String?,
+        order: Int?
     ) -> DependencyGraphEdge {
-        let effectiveIsOwnership = isOwnership
-        let effectiveIsSoft = effectiveIsOwnership ? false : isSoft
-        let effectiveIsProvider = effectiveIsOwnership ? false : isProvider
+        let effectiveIsContribution = isContribution
+        let effectiveIsAssistedFactoryOwnership =
+            !effectiveIsContribution && isAssistedFactoryOwnership
+        let effectiveIsOwnership = !effectiveIsContribution
+            && (isOwnership || effectiveIsAssistedFactoryOwnership)
+        let effectiveIsSoft = effectiveIsOwnership || effectiveIsContribution
+            ? false : isSoft
+        let effectiveIsProvider = effectiveIsOwnership
+            || effectiveIsContribution ? false : isProvider
         return DependencyGraphEdge(
             fromID: fromID,
             toID: toID,
             label: label,
             isSoft: effectiveIsSoft,
             isProvider: effectiveIsProvider,
-            isOwnership: effectiveIsOwnership
+            isOwnership: effectiveIsOwnership,
+            isAssistedFactoryOwnership:
+                effectiveIsAssistedFactoryOwnership,
+            isContribution: effectiveIsContribution,
+            contributor: contributor,
+            order: order
         )
     }
 
@@ -175,12 +222,23 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
     var result: [DependencyGraphEdge] = []
 
     for edge in edges {
-        let key = EdgeKey(fromID: edge.fromID, toID: edge.toID, label: edge.label)
+        let key = EdgeKey(
+            fromID: edge.fromID,
+            toID: edge.toID,
+            label: edge.label,
+            contributor: edge.contributor,
+            order: edge.order
+        )
         if let existingIndex = seen[key] {
             let existing = result[existingIndex]
             let mergedIsSoft = existing.isSoft && edge.isSoft
             let mergedIsProvider = existing.isProvider && edge.isProvider
             let mergedIsOwnership = existing.isOwnership && edge.isOwnership
+            let mergedIsAssistedFactoryOwnership =
+                existing.isAssistedFactoryOwnership
+                && edge.isAssistedFactoryOwnership
+            let mergedIsContribution = existing.isContribution
+                && edge.isContribution
             // If one occurrence is soft and another is provider, they are
             // different deferred wrappers at different sites — demote to hard.
             let deferredMismatch = (existing.isSoft && edge.isProvider)
@@ -188,6 +246,9 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
             if existing.isSoft != mergedIsSoft
                 || existing.isProvider != mergedIsProvider
                 || existing.isOwnership != mergedIsOwnership
+                || existing.isAssistedFactoryOwnership
+                    != mergedIsAssistedFactoryOwnership
+                || existing.isContribution != mergedIsContribution
                 || deferredMismatch {
                 result[existingIndex] = normalizedEdge(
                     fromID: edge.fromID,
@@ -195,7 +256,12 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
                     label: edge.label,
                     isSoft: deferredMismatch ? false : mergedIsSoft,
                     isProvider: deferredMismatch ? false : mergedIsProvider,
-                    isOwnership: mergedIsOwnership
+                    isOwnership: mergedIsOwnership,
+                    isAssistedFactoryOwnership:
+                        mergedIsAssistedFactoryOwnership,
+                    isContribution: mergedIsContribution,
+                    contributor: edge.contributor,
+                    order: edge.order
                 )
             }
         } else {
@@ -207,7 +273,12 @@ package func deduplicateEdges(_ edges: [DependencyGraphEdge]) -> [DependencyGrap
                     label: edge.label,
                     isSoft: edge.isSoft,
                     isProvider: edge.isProvider,
-                    isOwnership: edge.isOwnership
+                    isOwnership: edge.isOwnership,
+                    isAssistedFactoryOwnership:
+                        edge.isAssistedFactoryOwnership,
+                    isContribution: edge.isContribution,
+                    contributor: edge.contributor,
+                    order: edge.order
                 )
             )
         }

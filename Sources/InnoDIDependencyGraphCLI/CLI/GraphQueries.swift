@@ -319,7 +319,13 @@ private func graphEdgeCanonicalOrder(
 
 private func edgeDescription(_ edge: DependencyGraphEdge) -> String {
     let kind: String
-    if edge.isOwnership {
+    if edge.isContribution {
+        let index = edge.order.map(String.init) ?? "?"
+        let contributor = edge.contributor ?? "?"
+        kind = "contributes[\(index)]: \(contributor)"
+    } else if edge.isAssistedFactoryOwnership {
+        kind = "factory owns"
+    } else if edge.isOwnership {
         kind = "owns"
     } else if edge.isProvider {
         kind = "provider"
@@ -333,7 +339,9 @@ private func edgeDescription(_ edge: DependencyGraphEdge) -> String {
 
 private func graphJSONEdgeIdentity(_ edge: GraphJSON.Edge) -> String {
     let label = edge.label.map { ": \($0)" } ?? ""
-    return "\(edge.from) --[\(edge.kind.rawValue)\(label)]--> \(edge.to)"
+    let contributor = edge.contributor.map { ", contributor=\($0)" } ?? ""
+    let order = edge.order.map { ", order=\($0)" } ?? ""
+    return "\(edge.from) --[\(edge.kind.rawValue)\(label)\(contributor)\(order)]--> \(edge.to)"
 }
 
 private func scopeDescription(_ scope: GraphJSON.Scope) -> String {
@@ -357,6 +365,11 @@ private func nodeChangeDescription(
     if before.requiredInputs != after.requiredInputs {
         changes.append(
             "inputs [\(before.requiredInputs.joined(separator: ", "))] -> [\(after.requiredInputs.joined(separator: ", "))]"
+        )
+    }
+    if before.assistedInputs != after.assistedInputs {
+        changes.append(
+            "assisted [\(before.assistedInputs.joined(separator: ", "))] -> [\(after.assistedInputs.joined(separator: ", "))]"
         )
     }
     return changes.joined(separator: "; ")

@@ -388,12 +388,12 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target and cross-module strict consumers with typed assisted calls and independent child shared storage |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | `@SubContainerFactory` owns the shared factory provider; whole-source tests cover complete bindings plus missing, duplicate, unknown, and assisted-as-static failures |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
-| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
+| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Complete preparation implementation: nodes separate ordinary and assisted inputs; edges distinguish fixed ownership, assisted-factory ownership, and ordered contributions; JSON diff includes contributor order and exits 5 on drift |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | `@Input` and `@Input(.assisted)` normalize into the provider IR; generated input type aliases feed the assisted bridge without repeating source types |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(.component/.root)` and `isolation: .mainActor` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
 | FR-600-007 | AC-600-005 | Schema-v1 report plus idempotent 6.0 rewrite rules | `InnoDIMigrationCoreTests` cover input, role, isolation, option preservation, write, and second-pass stability; the strict public component fixture compiles the migrated spelling |
-| FR-600-008 | AC-600-008 | Ordered collection binding code generation | Partial: the underscored SPI macro and strict external fixture cover one local synchronous collection, order, lifetimes, and overrides; injectable/public syntax remains TBD |
-| FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v3 contribution edges | Partial: macro diagnostics cover empty/duplicate/unknown/async/type-mismatched contributors; build-support serialization and graph v3 edges remain TBD |
+| FR-600-008 | AC-600-008 | Ordered collection binding code generation | Complete preparation implementation: public `@Multibinding` is injectable and overrideable; strict external runtime coverage proves order and shared/transient contributor lifetime behavior |
+| FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v3 contribution edges | Complete preparation implementation: macro and serialized whole-source validators cover invalid contributor contracts, while schema v3 records contributor identity and order as contribution edges |
 
 ## Staged delivery
 
@@ -417,11 +417,11 @@ conflation that makes assisted inputs hard to explain and extend.
   or module can own the factory through ordinary `@Provide(..., with:)`
   key-path wiring. This satisfies AC-600-002 without freezing the alias name;
   a dedicated child-to-parent binding validator remains 6.0 work.
-- An underscored multibinding SPI probe generates one ordered local collection
-  from an explicit string-literal contributor list. Macro tests and a strict
-  external runtime fixture cover contributor validation, deterministic order,
-  shared/transient lifetime behavior, and overrides. The generated member is
-  not yet injectable and the temporary spelling is not a 6.0 API decision.
+- Public `@Multibinding` generates one injectable ordered local collection from
+  contributor key paths. Macro, serialized build-validation, graph-v3, and
+  strict external runtime fixtures cover diagnostics, deterministic order,
+  shared/transient lifetime behavior, injection, and overrides. The
+  underscored SPI remains only as compatibility evidence for pinned pilots.
 - Pilot one InnoSample flow. Completed at consumer commit `f3acdee` against
   InnoDI `8a1012e`; the full consumer gate and per-child lifetime assertions
   pass, while the required local wrapper records the remaining FR-600-002

@@ -190,7 +190,7 @@ struct ArgumentsParsingTests {
         )
     }
 
-    @Test("JSON schema v2 rejects legacy root scans")
+    @Test("JSON schema v3 rejects legacy root scans")
     func jsonRequiresManifest() {
         #expect(
             parseArguments([
