@@ -287,14 +287,13 @@ Delivery order:
    rewrite for inputs, container roles, and isolation while preserving
    `validateDAG`; commented, dynamic, or conflicting sites fail closed.
 2. Prototype child-owned assisted factories without removing stable 5.x APIs.
-   An underscored SPI probe now partitions existing `.input` members into
-   factory-captured static values and call-time assisted values, with a
-   cross-module fixture proving per-child shared-storage isolation. A generated
-   SPI peer alias also lets a parent in another file and module own the factory
-   through rename-safe `@Provide(..., with:)` static wiring without repeating
-   assisted parameter types. Its source and generated names remain explicitly
-   outside the stable contract; complete child-to-parent binding diagnostics
-   are still required.
+   The public preparation surface now combines a source-visible nested
+   `@AssistedFactory` bridge with parent-owned `@SubContainerFactory` static
+   bindings. Separate-file same-target and cross-module strict consumers prove
+   typed calls, per-child shared-storage isolation, and override flow without
+   repeating input types. Whole-source validation rejects missing, duplicate,
+   unknown, and assisted-as-static child bindings. The underscored SPI remains
+   only as compatibility evidence until the 6.0 cleanup.
 3. Prototype deterministic compile-time multibinding without runtime discovery.
    An underscored SPI probe now aggregates one explicit ordered list of local,
    synchronous, same-typed providers and preserves contributor lifetimes and
@@ -304,9 +303,9 @@ Delivery order:
    InnoSample is the first completed runtime pilot: consumer commit `f3acdee`
    resolves InnoDI `8a1012e`, passes its full Xcode 27 `make verify-ci` gate,
    and proves per-child shared-state isolation plus overrides. The generated
-   peer alias passes a strict cross-module parent fixture, but its required
-   same-file wrapper confirms that same-target factory visibility and
-   initializer access remain release blockers rather than a frozen API.
+   public bridge now passes both separate-file same-target and cross-module
+   strict consumers; the pilot can migrate off its temporary SPI wrapper after
+   the Draft naming decision is accepted.
 5. The public `@Input` and `@DIContainerRole(.component/.root,
    isolation: .mainActor)` source paths now reuse the existing initializer,
    hierarchy, actor, and strict external-consumer contracts. Assisted factory
@@ -349,7 +348,8 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| `_InnoDIAssistedFactoryPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 replacement | Parent ownership, graph v3, two additional real pilots, migration, naming review, and performance gates must pass. |
+| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Graph v3, two additional real pilots, migration, naming review, and performance gates must pass. |
+| `_InnoDIAssistedFactoryPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Keep only until the InnoSample pilot migrates to the public preparation API. |
 | `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 replacement | Injectable collection syntax, serialized build contract, graph v3 contribution edges, two real pilots, and naming review must pass. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 

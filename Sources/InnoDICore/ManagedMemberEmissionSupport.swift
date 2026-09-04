@@ -45,6 +45,7 @@ package func isSupportedProvideStoredProperty(
     let supportedAttributeNames: Set<String> = [
         "Provide",
         "Input",
+        "SubContainerFactory",
         "SubContainer",
         "_InnoDIProvideAccessor",
         "_InnoDISubContainerAccessor",
@@ -98,6 +99,7 @@ package func isSupportedSubContainerStoredProperty(
     let supportedAttributeNames: Set<String> = [
         "Provide",
         "Input",
+        "SubContainerFactory",
         "SubContainer",
     ]
     return declaration.attributes.allSatisfy { element in

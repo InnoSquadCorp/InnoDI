@@ -11,6 +11,19 @@ This page groups the codes by category, explains what triggers each one, and
 links to the recovery path. Code IDs are intended to be grep-able; message
 text may be refined between releases without changing the ID.
 
+## Assisted factory diagnostics
+
+- `assisted-factory.invalid-declaration`: `@AssistedFactory` must annotate an
+  empty, non-generic nested struct named `AssistedFactory`.
+- `assisted-factory.missing-declaration`: an assisted input exists without the
+  source-visible nested factory bridge.
+- `assisted-factory.invalid-arguments`: the child type or literal static and
+  assisted key-path lists are missing or malformed.
+- `assisted-factory.duplicate-input`: an input appears more than once across
+  the static and assisted lists.
+- `assisted-factory.input-partition-mismatch`: the factory lists omit,
+  misclassify, or add an input compared with the child declaration.
+
 The category prefix reflects the stage that emits the diagnostic:
 
 - `InnoDI.usage.*` — structural errors about *how* the macro is attached

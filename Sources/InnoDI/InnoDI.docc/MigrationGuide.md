@@ -239,9 +239,12 @@ conflicting role sites unchanged and emits a blocking diagnostic rather than
 guessing intent.
 
 `@Input(.assisted)` records that the value arrives at a child-factory call.
-The public child/parent factory bridge is still governed by Draft RFC 0006, so
-do not migrate production assisted construction until that factory contract is
-accepted.
+During the 6.0 preparation train, declare a source-visible nested
+`@AssistedFactory(...static:...assisted:...) struct AssistedFactory {}` and let
+the parent own it with `@SubContainerFactory(Child.self, bindings: ...)`.
+Whole-source validation requires every ordinary child input exactly once and
+rejects assisted inputs in the static binding list. RFC 0006 remains Draft, so
+keep pilot revisions pinned until naming and removal decisions are accepted.
 
 ---
 

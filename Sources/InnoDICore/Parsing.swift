@@ -128,11 +128,18 @@ public struct ProvideArguments {
     public let typeExpr: ExprSyntax?
     /// Dependency key-path names passed via `with:`.
     public let dependencies: [String]
+    /// Initializer labels paired with `dependencies`. Ordinary `@Provide`
+    /// values use the dependency name as the label. `@SubContainerFactory`
+    /// keeps the child input label separate from the parent member name.
+    public let dependencyLabels: [String]
     /// Literal parse state for `with:`.
     public let dependenciesParseState: KeyPathArrayArgumentParseState
     /// Input timing parsed from `@Input`. Legacy `@Provide(.input)` values are
     /// normalized to `.container`.
     public let inputKind: InputKindValue
+    /// Child container expression from `@SubContainerFactory(Child.self, ...)`.
+    /// `nil` for ordinary providers and inputs.
+    public let assistedFactoryChildType: ExprSyntax?
 
     /// Creates a parsed `@Provide` argument model.
     ///
@@ -157,8 +164,10 @@ public struct ProvideArguments {
         escapingParseState: BoolArgumentParseState? = nil,
         typeExpr: ExprSyntax? = nil,
         dependencies: [String] = [],
+        dependencyLabels: [String]? = nil,
         dependenciesParseState: KeyPathArrayArgumentParseState? = nil,
-        inputKind: InputKindValue = .container
+        inputKind: InputKindValue = .container,
+        assistedFactoryChildType: ExprSyntax? = nil
     ) {
         self.scope = scope
         self.scopeName = scopeName
@@ -170,8 +179,10 @@ public struct ProvideArguments {
         self.escapingParseState = escapingParseState ?? (escaping ? .parsed(true) : .omitted)
         self.typeExpr = typeExpr
         self.dependencies = dependencies
+        self.dependencyLabels = dependencyLabels ?? dependencies
         self.dependenciesParseState = dependenciesParseState ?? (dependencies.isEmpty ? .omitted : .parsed(dependencies))
         self.inputKind = inputKind
+        self.assistedFactoryChildType = assistedFactoryChildType
     }
 }
 
@@ -448,8 +459,12 @@ private func isSupportedProvideScopeReference(_ expression: MemberAccessExprSynt
 }
 
 public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
-    if attributeBaseName(attribute.attributeName) == "Input" {
+    let managedAttributeName = attributeBaseName(attribute.attributeName)
+    if managedAttributeName == "Input" {
         return parseInputArguments(attribute)
+    }
+    if managedAttributeName == "SubContainerFactory" {
+        return parseSubContainerFactoryArguments(attribute)
     }
     var scopeName: String?
     var scope: ProvideScope?
@@ -536,6 +551,68 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         typeExpr: typeExpr,
         dependencies: dependencies,
         dependenciesParseState: dependenciesParseState
+    )
+}
+
+/// Parses the parent-owned assisted-factory declaration into the existing
+/// provider construction IR. The generated provider is shared in the parent;
+/// each factory call still creates a fresh child container instance.
+public func parseSubContainerFactoryArguments(
+    _ attribute: AttributeSyntax
+) -> ProvideArguments {
+    var childType: ExprSyntax?
+    var factoryType: ExprSyntax?
+    var bindingsState: SubContainerBindingsParseState = .omitted
+
+    if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
+        for argument in arguments {
+            if argument.label?.text == "bindings" {
+                bindingsState = parseSubContainerBindingsArgumentState(
+                    argument.expression
+                )
+                continue
+            }
+            guard argument.label == nil,
+                  let member = argument.expression.as(
+                    MemberAccessExprSyntax.self
+                  ),
+                  member.declName.baseName.text == "self",
+                  let base = member.base else {
+                continue
+            }
+            childType = base
+            factoryType = ExprSyntax(
+                MemberAccessExprSyntax(
+                    base: base,
+                    period: .periodToken(),
+                    declName: DeclReferenceExprSyntax(
+                        baseName: .identifier("AssistedFactory")
+                    )
+                )
+            )
+        }
+    }
+
+    let bindings = bindingsState.bindings
+    let dependencyState: KeyPathArrayArgumentParseState
+    switch bindingsState {
+    case .omitted:
+        dependencyState = .omitted
+    case .invalid:
+        dependencyState = .invalid
+    case .parsed:
+        dependencyState = .parsed(bindings.map(\.parentName))
+    }
+
+    return ProvideArguments(
+        scope: .shared,
+        scopeName: ProvideScope.shared.rawValue,
+        factoryExpr: nil,
+        typeExpr: factoryType,
+        dependencies: bindings.map(\.parentName),
+        dependencyLabels: bindings.map(\.childName),
+        dependenciesParseState: dependencyState,
+        assistedFactoryChildType: childType
     )
 }
 
@@ -774,6 +851,7 @@ public func findManagedProviderAttribute(
 ) -> AttributeSyntax? {
     findInnoDIAttribute(named: "Provide", in: attributes)
         ?? findInnoDIAttribute(named: "Input", in: attributes)
+        ?? findInnoDIAttribute(named: "SubContainerFactory", in: attributes)
 }
 
 /// Finds all provider-storage roles in source order. `@Provide` and `@Input`
@@ -785,7 +863,9 @@ public func findManagedProviderAttributes(
     return attributes.compactMap { element in
         guard let attribute = element.as(AttributeSyntax.self) else { return nil }
         let name = attributeBaseName(attribute.attributeName)
-        guard name == "Provide" || name == "Input" else { return nil }
+        guard name == "Provide"
+            || name == "Input"
+            || name == "SubContainerFactory" else { return nil }
         if let member = attribute.attributeName.as(MemberTypeSyntax.self),
            member.baseType.trimmedDescription != "InnoDI" {
             return nil

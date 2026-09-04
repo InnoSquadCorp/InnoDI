@@ -371,6 +371,20 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "@attached(member, names: named(init), named(callAsFunction), arbitrary) macro AssistedFactory(_ child: Any.Type, static staticInputs: [AnyKeyPath], assisted assistedInputs: [AnyKeyPath])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI15AssistedFactory_6static8assistedyypXp_Says10AnyKeyPathCGAGtcfm"
+          },
+          "kind": {
+            "identifier": "swift.macro"
+          },
+          "pathComponents": [
+            "AssistedFactory(_:static:assisted:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) @attached(peer, names: suffixed(Dependencies)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, DIHierarchyRootMarker, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIContainerRole(_ role: ContainerRole, isolation: DIContainerIsolation = .automatic, validateDAG: Bool = true)",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -439,6 +453,20 @@
           "pathComponents": [
             "SubContainerScope",
             "transient"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) macro SubContainerFactory(_ child: Any.Type, bindings: [(child: AnyKeyPath, parent: AnyKeyPath)])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI19SubContainerFactory_8bindingsyypXp_Says10AnyKeyPathC5child_AE6parenttGtcfm"
+          },
+          "kind": {
+            "identifier": "swift.macro"
+          },
+          "pathComponents": [
+            "SubContainerFactory(_:bindings:)"
           ]
         },
         {
@@ -572,7 +600,7 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) macro Input(_ kind: DIInputKind = .container, escaping: Bool = false)",
+          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_), prefixed(_InnoDIInputType_)) macro Input(_ kind: DIInputKind = .container, escaping: Bool = false)",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI5Input_8escapingyAA11DIInputKindO_Sbtcfm"

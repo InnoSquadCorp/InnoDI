@@ -1,0 +1,12 @@
+@main
+struct FixtureApp {
+    static func main() {
+        let parent = AppContainer(repository: Repository())
+        let first = parent.session(sessionID: 1)
+        let second = parent.session(sessionID: 2)
+
+        precondition(first.sessionID == 1)
+        precondition(second.sessionID == 2)
+        precondition(first.token !== second.token)
+    }
+}

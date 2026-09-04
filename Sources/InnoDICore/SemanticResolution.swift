@@ -313,6 +313,29 @@ package func normalizedSemanticTypeReference(_ type: TypeSyntax) -> SemanticType
     return nil
 }
 
+/// Normalizes a type-like expression captured from `Child.self` syntax.
+/// Assisted-factory declarations store the base as an expression because it
+/// originates in an attribute argument rather than a type annotation.
+package func normalizedSemanticTypeReference(
+    _ expression: ExprSyntax
+) -> SemanticTypeReference? {
+    if let reference = expression.as(DeclReferenceExprSyntax.self) {
+        let name = reference.baseName.text
+        return SemanticTypeReference(displayPath: name, components: [name])
+    }
+    if let member = expression.as(MemberAccessExprSyntax.self),
+       let base = member.base,
+       let normalizedBase = normalizedSemanticTypeReference(base) {
+        let components = normalizedBase.components
+            + [member.declName.baseName.text]
+        return SemanticTypeReference(
+            displayPath: components.joined(separator: "."),
+            components: components
+        )
+    }
+    return nil
+}
+
 package func normalizedSemanticExpressionReference(_ expr: ExprSyntax) -> SemanticTypeReference? {
     if let declReference = expr.as(DeclReferenceExprSyntax.self) {
         let component = declReference.baseName.text

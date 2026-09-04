@@ -10,6 +10,44 @@ import InnoDICore
 import SwiftDiagnostics
 
 extension SimpleDiagnostic {
+    static func assistedFactoryInvalidDeclaration() -> Self {
+        Self(
+            "@AssistedFactory must annotate an empty, non-generic nested struct named 'AssistedFactory'.",
+            code: .assistedFactoryInvalidDeclaration
+        )
+    }
+
+    static func assistedFactoryMissingDeclaration() -> Self {
+        Self(
+            "A container with @Input(.assisted) must declare an empty nested '@AssistedFactory struct AssistedFactory {}'.",
+            code: .assistedFactoryMissingDeclaration
+        )
+    }
+
+    static func assistedFactoryInvalidArguments() -> Self {
+        Self(
+            "@AssistedFactory requires Child.self plus literal static: and nonempty assisted: child key-path arrays.",
+            code: .assistedFactoryInvalidArguments
+        )
+    }
+
+    static func assistedFactoryDuplicateInput() -> Self {
+        Self(
+            "Each assisted-factory input must appear exactly once across static: and assisted:.",
+            code: .assistedFactoryDuplicateInput
+        )
+    }
+
+    static func assistedFactoryInputPartitionMismatch(
+        expectedStatic: [String],
+        expectedAssisted: [String]
+    ) -> Self {
+        Self(
+            "@AssistedFactory must partition every child input exactly once. Expected static: [\(expectedStatic.joined(separator: ", "))] and assisted: [\(expectedAssisted.joined(separator: ", "))].",
+            code: .assistedFactoryInputPartitionMismatch
+        )
+    }
+
     static func provideSingleBinding() -> Self {
         Self("@Provide supports a single variable binding.", code: .provideSingleBinding)
     }

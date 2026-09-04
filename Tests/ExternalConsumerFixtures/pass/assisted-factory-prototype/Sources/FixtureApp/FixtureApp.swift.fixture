@@ -1,4 +1,4 @@
-@_spi(Experimental) import FeatureKit
+import FeatureKit
 
 @main
 struct FixtureApp {

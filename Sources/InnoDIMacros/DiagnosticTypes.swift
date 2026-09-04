@@ -61,6 +61,11 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
     case provideDuplicateAttribute = "provide.duplicate-attribute"
     case provideGeneratedAccessorManualAttachment = "provide.generated-accessor-manual-attachment"
+    case assistedFactoryInvalidDeclaration = "assisted-factory.invalid-declaration"
+    case assistedFactoryMissingDeclaration = "assisted-factory.missing-declaration"
+    case assistedFactoryInvalidArguments = "assisted-factory.invalid-arguments"
+    case assistedFactoryDuplicateInput = "assisted-factory.duplicate-input"
+    case assistedFactoryInputPartitionMismatch = "assisted-factory.input-partition-mismatch"
     case provideSharedFactoryRequired = "provide.shared-factory-required"
     case provideTransientFactoryRequired = "provide.transient-factory-required"
     case provideInputInvalidConfiguration = "provide.input-invalid-configuration"
@@ -164,6 +169,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideConditionalDeclarationUnsupported,
                 .provideDuplicateAttribute,
                 .provideGeneratedAccessorManualAttachment,
+                .assistedFactoryInvalidDeclaration,
+                .assistedFactoryInvalidArguments,
                 .provideInputInvalidConfiguration, .transientFactoryUnnamedParameters,
                 .containerUnsupportedDeclarationKind, .containerPrivateAccessUnsupported,
                 .containerGenericUnsupported,
@@ -178,6 +185,9 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired,
                 .provideFactoryConflict, .provideConstructionSourceConflict,
                 .provideWithRequiresTypeConstruction,
+                .assistedFactoryMissingDeclaration,
+                .assistedFactoryDuplicateInput,
+                .assistedFactoryInputPartitionMismatch,
                 .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
                 .provideFactoryMustBeSync, .provideFactoryMustNotThrow,
                 .provideEscapingInvalidScope,

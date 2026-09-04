@@ -54,6 +54,11 @@ struct DIContainerValidator {
             memberByName: memberByName,
             context: context
         ) || hadErrors
+        hadErrors = validateAssistedFactoryContract(
+            model: model,
+            declaration: declaration,
+            context: context
+        ) || hadErrors
         validateDeferredWrapperAliases(
             model: model,
             context: context
@@ -278,4 +283,58 @@ struct DIContainerValidator {
             }
         }
     }
+}
+
+private func validateAssistedFactoryContract(
+    model: DIContainerExpansionModel,
+    declaration: some DeclGroupSyntax,
+    context: some MacroExpansionContext
+) -> Bool {
+    let assistedInputs = model.inputMembers.filter(\.isAssistedInput)
+    guard let firstAssisted = assistedInputs.first else { return false }
+    let factoryEntry = declaration.memberBlock.members.compactMap { member
+        -> (StructDeclSyntax, AttributeSyntax)? in
+        guard let factory = member.decl.as(StructDeclSyntax.self),
+              factory.name.text == "AssistedFactory" else {
+            return nil
+        }
+        guard let attribute = findInnoDIAttribute(
+            named: "AssistedFactory",
+            in: factory.attributes
+        ) else { return nil }
+        return (factory, attribute)
+    }.first
+    guard let factoryEntry else {
+        context.emit(
+            SimpleDiagnostic.assistedFactoryMissingDeclaration(),
+            at: Syntax(firstAssisted.attribute)
+        )
+        return true
+    }
+
+    guard let arguments = parseAssistedFactoryArguments(factoryEntry.1) else {
+        return false
+    }
+    let expectedStatic = Set(
+        model.inputMembers.filter { !$0.isAssistedInput }.map(\.name)
+    )
+    let expectedAssisted = Set(assistedInputs.map(\.name))
+    let actualStatic = Set(arguments.staticInputs)
+    let actualAssisted = Set(arguments.assistedInputs)
+    let childMatches = arguments.childType.trimmedDescription
+        .split(separator: ".").last.map(String.init)
+        == declaration.as(StructDeclSyntax.self)?.name.text
+    guard childMatches,
+          expectedStatic == actualStatic,
+          expectedAssisted == actualAssisted else {
+        context.emit(
+            SimpleDiagnostic.assistedFactoryInputPartitionMismatch(
+                expectedStatic: expectedStatic.sorted(),
+                expectedAssisted: expectedAssisted.sorted()
+            ),
+            at: Syntax(factoryEntry.1)
+        )
+        return true
+    }
+    return false
 }

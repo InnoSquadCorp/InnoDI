@@ -92,6 +92,7 @@ package enum ContainerSemanticBuildValidator {
         let typeAliases = collectorResults.flatMap(\.typeAliases)
         let containers = collectorResults.flatMap(\.containers)
         let subContainers = collectorResults.flatMap(\.subContainers)
+        let assistedFactories = collectorResults.flatMap(\.assistedFactories)
         let wrapperParameters = collectorResults.flatMap(\.wrapperParameters)
         let wrapperDeclarations = collectorResults.flatMap(\.wrapperDeclarations)
         let wrapperAliases = collectorResults.flatMap(\.wrapperAliases)
@@ -111,6 +112,12 @@ package enum ContainerSemanticBuildValidator {
             containerInputsByPath: containerInputsByPath,
             containerCandidatePaths: containerCandidatePaths
         )
+        issues.append(contentsOf: validateAssistedFactoryBindings(
+            assistedFactories,
+            semanticResolver: semanticResolver,
+            containersByPath: containerInputsByPath,
+            containerCandidatePaths: containerCandidatePaths
+        ))
         issues.append(contentsOf: validateDeferredWrapperParameters(
             wrapperParameters,
             wrapperDeclarationsByPath: wrapperDeclarationsByPath,
@@ -132,6 +139,8 @@ struct SemanticContainerRecord: Equatable {
     let displayName: String
     let location: ValidationIssueLocation
     let inputMembers: Set<String>
+    let staticInputMembers: Set<String>
+    let assistedInputMembers: Set<String>
 }
 
 struct SubContainerBindingValidationRecord: Equatable {
@@ -147,6 +156,15 @@ struct SemanticSubContainerRecord: Equatable {
     let childReference: SemanticTypeReference?
     let bindings: [SubContainerBindingValidationRecord]
     let invalidBindingsLocation: ValidationIssueLocation?
+}
+
+struct SemanticAssistedFactoryRecord: Equatable {
+    let parentContainerPath: String
+    let memberName: String
+    let childReference: SemanticTypeReference?
+    let bindings: [SubContainerBindingValidationRecord]
+    let invalidBindingsLocation: ValidationIssueLocation?
+    let location: ValidationIssueLocation
 }
 
 struct DeferredWrapperParameterRecord: Equatable {
@@ -179,6 +197,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
     private(set) var nominalTypes: [SemanticNominalTypeRecord] = []
     private(set) var typeAliases: [SemanticTypeAliasRecord] = []
     private(set) var subContainers: [SemanticSubContainerRecord] = []
+    private(set) var assistedFactories: [SemanticAssistedFactoryRecord] = []
     private(set) var wrapperParameters: [DeferredWrapperParameterRecord] = []
     private(set) var wrapperDeclarations: [WrapperDeclarationRecord] = []
     private(set) var wrapperAliases: [WrapperAliasRecord] = []
@@ -190,7 +209,9 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                     path: builder.path,
                     displayName: builder.path.split(separator: ".").last.map(String.init) ?? builder.path,
                     location: builder.location,
-                    inputMembers: builder.inputMembers
+                    inputMembers: builder.inputMembers,
+                    staticInputMembers: builder.staticInputMembers,
+                    assistedInputMembers: builder.assistedInputMembers
                 )
             }
             .sorted { $0.path < $1.path }
@@ -293,11 +314,39 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
             let provideArguments = managedSemantics.provideArguments
                 ?? parseProvideArguments(provideAttribute)
             if provideArguments.scope == .input {
-                containerBuilders[currentContainerPath, default: SemanticContainerBuilder(
+                var builder = containerBuilders[currentContainerPath, default: SemanticContainerBuilder(
                     path: currentContainerPath,
                     location: sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
                 )]
-                .inputMembers.insert(binding.name)
+                builder.inputMembers.insert(binding.name)
+                if provideArguments.inputKind == .assisted {
+                    builder.assistedInputMembers.insert(binding.name)
+                } else {
+                    builder.staticInputMembers.insert(binding.name)
+                }
+                containerBuilders[currentContainerPath] = builder
+            }
+
+            if matchesInnoDIAttribute(
+                named: "SubContainerFactory",
+                attributeName: provideAttribute.attributeName
+            ) {
+                let bindingState = extractBindingValidationRecords(
+                    from: provideAttribute
+                )
+                assistedFactories.append(
+                    SemanticAssistedFactoryRecord(
+                        parentContainerPath: currentContainerPath,
+                        memberName: binding.name,
+                        childReference: provideArguments.assistedFactoryChildType
+                            .flatMap(normalizedSemanticTypeReference),
+                        bindings: bindingState.bindings,
+                        invalidBindingsLocation: bindingState.invalidLocation,
+                        location: sourceLocation(
+                            for: provideAttribute.positionAfterSkippingLeadingTrivia
+                        )
+                    )
+                )
             }
 
             collectDeferredWrapperParameters(
@@ -524,6 +573,8 @@ private struct SemanticContainerBuilder {
     let path: String
     let location: ValidationIssueLocation
     var inputMembers: Set<String> = []
+    var staticInputMembers: Set<String> = []
+    var assistedInputMembers: Set<String> = []
 }
 
 private struct ValidatedVariableBinding {
