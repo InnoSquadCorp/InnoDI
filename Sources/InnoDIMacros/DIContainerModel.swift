@@ -276,6 +276,7 @@ struct ProvideMemberModel {
     let escapingInput: Bool
     let escapingParseState: BoolArgumentParseState
     let withDependencies: [String]
+    let withDependencyLabels: [String]
     let withDependenciesParseState: KeyPathArrayArgumentParseState
     let withDependencyReferences: [WithDependencyReference]
     let closureDependencies: [String]
@@ -371,6 +372,10 @@ struct ProvideMemberModel {
 
     var isAssistedInput: Bool {
         scope == .input && inputKind == .assisted
+    }
+
+    var assistedFactoryChildType: ExprSyntax? {
+        parseProvideArguments(attribute).assistedFactoryChildType
     }
 }
 

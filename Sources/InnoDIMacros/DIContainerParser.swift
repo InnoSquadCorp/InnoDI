@@ -536,11 +536,19 @@ struct DIContainerParser {
                 escapingInput: arguments.escaping,
                 escapingParseState: arguments.escapingParseState,
                 withDependencies: arguments.dependencies,
+                withDependencyLabels: arguments.dependencyLabels,
                 withDependenciesParseState: arguments.dependenciesParseState,
-                withDependencyReferences: extractWithDependencyReferences(
-                    from: attribute,
-                    requiringCanonicalProvidePath: true
-                ),
+                withDependencyReferences: arguments.assistedFactoryChildType == nil
+                    ? extractWithDependencyReferences(
+                        from: attribute,
+                        requiringCanonicalProvidePath: true
+                    )
+                    : extractSubContainerBindingReferences(from: attribute).map {
+                        WithDependencyReference(
+                            name: $0.parentMemberName,
+                            anchorExpression: ExprSyntax($0.parentKeyPath)
+                        )
+                    },
                 closureDependencies: closureParameters.names,
                 closureParameterReferences: closureParameters.references,
                 closureHasWildcard: closureParameters.hasWildcard,

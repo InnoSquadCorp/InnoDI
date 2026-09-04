@@ -40,6 +40,7 @@ internal func makeFactoryExpr(
     if let typeExpr = member.typeExpr {
         let args = try labeledDependencyArguments(
             dependencies: member.withDependencies,
+            labels: member.withDependencyLabels,
             availableNames: availableNames,
             fallbackOverrideNames: fallbackOverrideNames,
             allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
@@ -59,13 +60,21 @@ internal func makeFactoryExpr(
 
 private func labeledDependencyArguments(
     dependencies: [String],
+    labels: [String],
     availableNames: [String],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> [LabeledExprSyntax] {
-    try dependencies.enumerated().map { index, dependency in
-        LabeledExprSyntax(
-            label: .identifier(dependency),
+    guard dependencies.count == labels.count else {
+        throw CodegenInvariantError(
+            description: "Initializer dependency labels do not match dependency values."
+        )
+    }
+    return try zip(labels, dependencies).enumerated().map {
+        index, pair in
+        let (label, dependency) = pair
+        return LabeledExprSyntax(
+            label: .identifier(label),
             colon: .colonToken(),
             expression: try resolvedInitDependencyExpression(
                 name: dependency,

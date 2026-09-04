@@ -152,7 +152,7 @@ The exact spelling remains reviewable while this RFC is Draft. The semantic
 roles are fixed for the prototype.
 
 ```swift
-public enum DIContainerRole {
+public enum ContainerRole {
     case local
     case component
     case root
@@ -167,16 +167,23 @@ public enum DIInputKind {
 Illustrative source:
 
 ```swift
-@DIContainer(.component, isolation: .mainActor)
+@DIContainerRole(.component, isolation: .mainActor)
 public struct TrainingContainer {
     @Input public var repository: any TrainingRepository
     @Input(.assisted) public var routineID: Routine.ID
 
     @Provide(.shared, TrainingCoordinator.self, with: [\Self.repository, \Self.routineID])
     public var coordinator: TrainingCoordinator
+
+    @AssistedFactory(
+        TrainingContainer.self,
+        static: [\TrainingContainer.repository],
+        assisted: [\TrainingContainer.routineID]
+    )
+    public struct AssistedFactory {}
 }
 
-@DIContainer(.root, isolation: .mainActor)
+@DIContainerRole(.root, isolation: .mainActor)
 public struct AppContainer {
     @Provide(.shared, factory: LiveTrainingRepository())
     public var repository: any TrainingRepository
@@ -199,18 +206,20 @@ only framework-created lifetime cases such as `.shared` and `.transient`.
 
 ## Child-owned assisted factory
 
-The child container must generate its own factory signature because it is the
-only macro expansion with lexical access to the assisted declarations.
-Conceptually, the component above generates:
+Swift cannot make a nested nominal type introduced by a member macro visible
+to another source file in the same target during that compilation. The child
+therefore declares an empty source-visible nested `AssistedFactory`; its macro
+fills the implementation. Rename-safe child key paths partition static and
+assisted inputs without repeating their types. Each `@Input` emits a hidden
+type alias used only by generated signatures. Conceptually, the component
+above completes:
 
 ```swift
-extension TrainingContainer {
-    public struct AssistedFactory {
+extension TrainingContainer.AssistedFactory {
         public func callAsFunction(
             routineID: Routine.ID,
             _ configure: (inout TrainingContainer.Overrides) -> Void = { _ in }
         ) -> TrainingContainer
-    }
 }
 ```
 
@@ -244,7 +253,7 @@ rename-safe, explicit contributor list rather than implicit module discovery.
 An illustrative 6.0 surface is:
 
 ```swift
-@DIContainer(.component)
+@DIContainerRole(.component)
 public struct NetworkContainer {
     @Provide(.shared, factory: AuthInterceptor())
     public var auth: any RequestInterceptor
@@ -374,11 +383,11 @@ conflation that makes assisted inputs hard to explain and extend.
 
 | Requirement | Acceptance criteria | Planned implementation | Evidence |
 |---|---|---|---|
-| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: macro tests, the SPI external-consumer fixture, and InnoSample commit `f3acdee` cover child-owned signature generation; the public name and same-module bridge remain TBD |
-| FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | Partial: the SPI peer alias lets a cross-module parent own the generated factory through `@Provide(..., with:)` without repeating assisted types; InnoSample proves the peer and initializer are not yet consumable from another file in the same Xcode target, while child-to-parent binding completeness and invalid static/assisted diagnostics remain TBD |
+| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target and cross-module strict consumers with typed assisted calls and independent child shared storage |
+| FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | `@SubContainerFactory` owns the shared factory provider; whole-source tests cover complete bindings plus missing, duplicate, unknown, and assisted-as-static failures |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
-| FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | Partial: `@Input` and `@Input(.assisted)` normalize into the provider IR; container inputs compile through the existing storage/initializer contract, while assisted factory consumption remains FR-600-002 work |
+| FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | `@Input` and `@Input(.assisted)` normalize into the provider IR; generated input type aliases feed the assisted bridge without repeating source types |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(.component/.root)` and `isolation: .mainActor` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
 | FR-600-007 | AC-600-005 | Schema-v1 report plus idempotent 6.0 rewrite rules | `InnoDIMigrationCoreTests` cover input, role, isolation, option preservation, write, and second-pass stability; the strict public component fixture compiles the migrated spelling |
 | FR-600-008 | AC-600-008 | Ordered collection binding code generation | Partial: the underscored SPI macro and strict external fixture cover one local synchronous collection, order, lifetimes, and overrides; injectable/public syntax remains TBD |

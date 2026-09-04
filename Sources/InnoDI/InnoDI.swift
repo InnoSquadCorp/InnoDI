@@ -112,6 +112,22 @@ public macro DIContainerRole(
     validateDAG: Bool = true
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerRoleMacro")
 
+@attached(member, names: named(init), named(callAsFunction), arbitrary)
+/// Completes a source-visible child-owned assisted factory.
+///
+/// Declare an empty nested `AssistedFactory` inside a container that has at
+/// least one `@Input(.assisted)` member. Keeping the nested type declaration
+/// in source makes it visible to parents in another file of the same target;
+/// the macro supplies its static-input storage, initializer, and typed call.
+public macro AssistedFactory(
+    _ child: Any.Type,
+    static staticInputs: [AnyKeyPath],
+    assisted assistedInputs: [AnyKeyPath]
+) = #externalMacro(
+    module: "InnoDIMacros",
+    type: "AssistedFactoryMacro"
+)
+
 @_spi(Experimental)
 @attached(member, names: named(_InnoDIAssistedFactoryPrototype))
 @attached(peer, names: prefixed(_InnoDIAssistedFactoryPrototype_))
@@ -256,7 +272,11 @@ public macro Provide(
     escaping: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 
-@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
+@attached(
+    peer,
+    names: prefixed(_storage_), prefixed(_storage_task_),
+        prefixed(_override_), prefixed(_InnoDIInputType_)
+)
 /// Declares a required external value using the 6.0 input vocabulary.
 ///
 /// `@Input` is the source-compatible replacement for `@Provide(.input)`.
@@ -266,6 +286,17 @@ public macro Provide(
 public macro Input(
     _ kind: DIInputKind = .container,
     escaping: Bool = false
+) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
+
+@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
+/// Owns a child container's assisted factory in its parent graph.
+///
+/// `bindings:` must bind every ordinary child `@Input` exactly once and must
+/// not bind `@Input(.assisted)` values. Assisted values remain named arguments
+/// of the child-owned factory's `callAsFunction` method.
+public macro SubContainerFactory(
+    _ child: Any.Type,
+    bindings: [(child: AnyKeyPath, parent: AnyKeyPath)]
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 
 /// Internal accessor and storage owner synthesized for direct provider members

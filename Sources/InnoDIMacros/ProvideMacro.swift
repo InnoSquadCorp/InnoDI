@@ -162,6 +162,27 @@ public struct ProvideMacro: PeerMacro {
             return []
         }
 
+        // Assisted factories need source-visible parameter types even when the
+        // factory and its parent live in different files of one target. Emit a
+        // generated alias next to each input so the factory does not repeat the
+        // written input type.
+        if matchesInnoDIAttribute(
+            named: "Input",
+            attributeName: attribute.attributeName
+        ), let type = binding.typeAnnotation?.type {
+            let memberName = identifier.identifier.text
+            let access = varDecl.modifiers.first { modifier in
+                ["public", "package", "internal", "fileprivate", "private"]
+                    .contains(modifier.name.text)
+            }?.name.text
+            let accessPrefix = access.map { "\($0) " } ?? ""
+            return [
+                DeclSyntax(
+                    "\(raw: accessPrefix)typealias _InnoDIInputType_\(raw: memberName) = \(type)"
+                )
+            ]
+        }
+
         // The compiler-owned support attribute attached by @DIContainer owns
         // both storage and accessors. Its peer role receives the same recovery
         // bit as its accessor role, so container-wide validation can suppress

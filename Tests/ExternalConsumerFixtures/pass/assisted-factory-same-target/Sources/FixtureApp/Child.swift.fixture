@@ -1,0 +1,19 @@
+import InnoDI
+
+struct Repository {}
+
+final class InstanceToken {}
+
+@DIContainer
+struct SessionContainer {
+    @Input var repository: Repository
+    @Input(.assisted) var sessionID: Int
+    @Provide(.shared, factory: InstanceToken()) var token: InstanceToken
+
+    @AssistedFactory(
+        SessionContainer.self,
+        static: [\SessionContainer.repository],
+        assisted: [\SessionContainer.sessionID]
+    )
+    struct AssistedFactory {}
+}

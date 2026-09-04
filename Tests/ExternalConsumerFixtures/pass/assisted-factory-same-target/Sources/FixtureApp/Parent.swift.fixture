@@ -1,0 +1,17 @@
+import InnoDI
+
+@DIContainer
+struct AppContainer {
+    @Input var repository: Repository
+
+    @SubContainerFactory(
+        SessionContainer.self,
+        bindings: [
+            (
+                child: \SessionContainer.repository,
+                parent: \AppContainer.repository
+            ),
+        ]
+    )
+    var session: SessionContainer.AssistedFactory
+}

@@ -5,6 +5,74 @@ import InnoDITestSupport
 
 @Suite("External SwiftPM consumer contracts", .serialized, .tags(.slow))
 struct ExternalConsumerContractTests {
+    @Test("Same-target assisted factory bridge builds and runs")
+    func sameTargetAssistedFactoryBuilds() throws {
+        let fixture = try externalConsumerFixture(
+            named: "assisted-factory-same-target",
+            expectation: .pass
+        )
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+        let scratchPath = externalConsumerScratchPath(
+            for: fixture,
+            under: externalConsumerScratchRoot()
+        )
+
+        let build = try runStrictConcurrencyBuild(
+            packageURL: materializedURL,
+            scratchPath: scratchPath
+        )
+        let buildOutput = build.stdout + "\n" + build.stderr
+        if build.timedOut || build.exitCode != 0 {
+            Issue.record("Same-target assisted factory build failed:\n\(buildOutput)")
+        }
+        #expect(!build.timedOut)
+        #expect(build.exitCode == 0)
+        assertNoCompilerCrash(
+            in: buildOutput,
+            fixtureName: fixture.name
+        )
+
+        guard !build.timedOut, build.exitCode == 0 else { return }
+        let execution = try runExternalConsumerExecutable(
+            packageURL: materializedURL,
+            scratchPath: scratchPath
+        )
+        #expect(!execution.timedOut)
+        #expect(execution.exitCode == 0)
+    }
+
+    @Test("Cross-module public assisted factory builds and runs")
+    func crossModuleAssistedFactoryBuilds() throws {
+        let fixture = try externalConsumerFixture(
+            named: "assisted-factory-prototype",
+            expectation: .pass
+        )
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+        let scratchPath = externalConsumerScratchPath(
+            for: fixture,
+            under: externalConsumerScratchRoot()
+        )
+        let build = try runStrictConcurrencyBuild(
+            packageURL: materializedURL,
+            scratchPath: scratchPath
+        )
+        let output = build.stdout + "\n" + build.stderr
+        if build.timedOut || build.exitCode != 0 {
+            Issue.record("Cross-module assisted factory build failed:\n\(output)")
+        }
+        #expect(!build.timedOut)
+        #expect(build.exitCode == 0)
+        guard !build.timedOut, build.exitCode == 0 else { return }
+        let execution = try runExternalConsumerExecutable(
+            packageURL: materializedURL,
+            scratchPath: scratchPath
+        )
+        #expect(!execution.timedOut)
+        #expect(execution.exitCode == 0)
+    }
+
     @Test("Compile-pass fixtures build and run with strict concurrency")
     func compilePassFixturesBuild() throws {
         let fixtures = try externalConsumerFixtures(expectation: .pass)

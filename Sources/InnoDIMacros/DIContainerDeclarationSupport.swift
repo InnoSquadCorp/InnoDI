@@ -328,7 +328,9 @@ func conditionallyCompiledProvideMembers(
     in declaration: some DeclGroupSyntax
 ) -> [ConditionallyCompiledDIContainerMember] {
     conditionallyCompiledDIContainerMembers(in: declaration).filter {
-        $0.attributeName == "Provide" || $0.attributeName == "Input"
+        $0.attributeName == "Provide"
+            || $0.attributeName == "Input"
+            || $0.attributeName == "SubContainerFactory"
     }
 }
 
@@ -421,7 +423,9 @@ private func collectConditionallyCompiledDIContainerMembers(
     into result: inout [ConditionallyCompiledDIContainerMember]
 ) {
     if let variable = syntax.as(VariableDeclSyntax.self) {
-        for attributeName in ["Provide", "Input", "SubContainer"] {
+        for attributeName in [
+            "Provide", "Input", "SubContainerFactory", "SubContainer",
+        ] {
             if let attribute = findInnoDIAttribute(
                 named: attributeName,
                 in: variable.attributes
