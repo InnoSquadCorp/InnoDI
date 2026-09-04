@@ -67,11 +67,27 @@ not a substitute for resolving the experimental revision and building a pilot.
 | Mulbyul Apple | `ce91b1ee280acaa65e629ccf00bc4aa5a975d7dc` | `5.1.0` | `clean`; 449 Swift files, 0 changes, 0 diagnostics | Second pilot candidate. `routineID` and `sessionID` are created at Training navigation/session boundaries; the existing shared `TrainingFeatureContainer` input remains static while a nested routine/session child owns the assisted value. |
 | BlPia Apple | `8404b2f81c6f4f4d7f43a5616c99722fb75714fc` | `3.0.1` | `blocked`; 158 Swift files, 7 `migrate.unqualified-ownership-ambiguous` diagnostics | Not a direct assisted-factory pilot. First qualify ownership and migrate the seven legacy `@Provide(concrete:)` sites onto the 5.x contract, then rerun the report and strict consumer build. |
 
-This closes the static inventory portion of the adoption gate. The InnoSample
-and Mulbyul rows remain unverified as runtime pilots until their exact package
-revision, build, and per-child lifetime assertions are recorded. BlPia remains
-blocked before that gate and must not be counted as a negative result for the
-assisted-factory design itself.
+This closes the static inventory portion of the adoption gate. Mulbyul remains
+unverified as a runtime pilot until its exact package revision, build, and
+per-child lifetime assertions are recorded. BlPia remains blocked before that
+gate and must not be counted as a negative result for the assisted-factory
+design itself.
+
+### Runtime pilot evidence
+
+| Consumer | Consumer commit | InnoDI revision | Verification | Result |
+|---|---|---|---|---|
+| InnoSample | `b42ad9f985155aeb5b75aee20856403dd8776539` | `6de46b4afb961c3741b4146023a4c0b262f6d0cc` | Xcode 27.0, Tuist 4.202.5, `make verify-ci`; Remote 16 + feature 25 tests and generic iOS/embedded watch build | First runtime pilot verified. A People route creates assisted detail children, proves per-child `.shared` isolation and override identity, and keeps the SPI revision explicit. |
+
+The pilot also exposed a contract boundary rather than hiding it. Directly
+referencing the prototype's internal generated nested factory type from a
+different source file in the same Xcode target was not reliable under batch
+compilation. InnoSample therefore keeps a hand-written
+`PeopleDetailFactoryPilot` wrapper beside the child declaration and lets the
+parent coordinator own that wrapper. This is positive evidence for
+FR-600-001/003, but it does **not** satisfy FR-600-002 or AC-600-002: the
+framework still needs a serialized, cross-file and cross-module parent-owned
+factory contract before the public spelling can freeze.
 
 ## Problem definition
 
@@ -355,9 +371,9 @@ conflation that makes assisted inputs hard to explain and extend.
 
 | Requirement | Acceptance criteria | Planned implementation | Evidence |
 |---|---|---|---|
-| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: `AssistedFactoryPrototypeMacroTests` and the SPI external-consumer fixture cover child-owned signature generation; parent ownership remains TBD |
+| FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: macro tests, the SPI external-consumer fixture, and InnoSample commit `b42ad9f` cover child-owned signature generation; parent ownership remains TBD |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | TBD |
-| FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture creates two children and asserts distinct `.shared` identities |
+| FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | TBD |
@@ -388,7 +404,10 @@ conflation that makes assisted inputs hard to explain and extend.
   external runtime fixture cover contributor validation, deterministic order,
   shared/transient lifetime behavior, and overrides. The generated member is
   not yet injectable and the temporary spelling is not a 6.0 API decision.
-- Pilot one InnoSample flow.
+- Pilot one InnoSample flow. Completed at consumer commit `b42ad9f` against
+  InnoDI `6de46b4`; the full consumer gate and per-child lifetime assertions
+  pass, while the required local wrapper records the remaining FR-600-002
+  ownership/visibility gap.
 
 ### Later 5.x — adoption runway
 
@@ -426,4 +445,5 @@ This RFC remains Draft until maintainers record the chosen public spellings,
 the three pilot results, migration coverage, graph schema review, macro
 performance comparison, and a conforming-counterexample review showing that no
 accepted implementation can satisfy the written requirements while falling
-back to runtime service lookup.
+back to runtime service lookup. One of the three runtime pilots is currently
+recorded.
