@@ -226,7 +226,9 @@ Required diagnostics include:
 
 Additive 5.x graph commands should include `--why`, `--dependents`, `--unused`,
 and `--diff`. These commands are migration evidence, not a reason to delay them
-until 6.0.
+until 6.0. `--diff ... --check-contract` must return 0 for an unchanged graph
+and a distinct exit code for any scope, node, or edge drift so CI cannot accept
+an unreviewed contract change.
 
 ## Failure and recovery behavior
 
@@ -309,7 +311,7 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: `AssistedFactoryPrototypeMacroTests` and the SPI external-consumer fixture cover child-owned signature generation; parent ownership remains TBD |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | TBD |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture creates two children and asserts distinct `.shared` identities |
-| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | TBD |
+| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | TBD |
 | FR-600-007 | AC-600-005 | Schema-v1 report groundwork landed; 6.0 rewrite rules remain TBD | `InnoDIMigrationCoreTests`, external-consumer coverage, and the exact InnoSample/Mulbyul/BlPia report snapshot above |

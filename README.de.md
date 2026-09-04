@@ -595,7 +595,11 @@ swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
 swift run InnoDI-DependencyGraph --root . --unused
 swift run InnoDI-DependencyGraph --diff before.json after.json
+swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 ```
+
+`--check-contract` liefert Exit-Code 5, sobald sich Scope-, Knoten- oder
+Kantenvertraege aendern, damit CI nur gepruefte Snapshot-Aenderungen zulaesst.
 
 Von Makros erzeugten Swift-Code fur ein Consumer-Target prufen:
 

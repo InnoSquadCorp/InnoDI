@@ -48,10 +48,13 @@ package func runDependencyGraphCLI() -> Int32 {
         do {
             let before = try loadGraphJSONDocument(at: diffInput.beforePath)
             let after = try loadGraphJSONDocument(at: diffInput.afterPath)
+            let report = compareGraphDocuments(before: before, after: after)
             return writeValidationResult(
                 DependencyGraphCommandResult(
-                    exitCode: ExitCode.success,
-                    stdout: renderGraphDiff(before: before, after: after),
+                    exitCode: parsed.checkGraphContract && report.hasChanges
+                        ? ExitCode.graphContractChanged
+                        : ExitCode.success,
+                    stdout: renderGraphDiff(report),
                     stderr: ""
                 ),
                 outputPath: outputPath

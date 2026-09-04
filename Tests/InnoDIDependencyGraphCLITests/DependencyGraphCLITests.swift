@@ -425,6 +425,55 @@ struct DependencyGraphCLITests {
         #expect(allDocument.nodes.count > rootsDocument.nodes.count)
     }
 
+    @Test("Graph contract check exits 5 only when the snapshot changed")
+    func graphContractCheckExitCode() throws {
+        let fixtureURL = try makeFixtureProject()
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        let manifest = try writeCLIAnalysisManifest(for: fixtureURL)
+        let beforeURL = fixtureURL.appendingPathComponent("before.json")
+        let afterURL = fixtureURL.appendingPathComponent("after.json")
+
+        let rendered = try runCLI([
+            "--analysis-manifest", manifest.url.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "json",
+        ])
+        #expect(rendered.exitCode == ExitCode.success)
+        try rendered.stdout.write(to: beforeURL, atomically: true, encoding: .utf8)
+        try rendered.stdout.write(to: afterURL, atomically: true, encoding: .utf8)
+
+        let unchanged = try runCLI([
+            "--diff",
+            beforeURL.path(percentEncoded: false),
+            afterURL.path(percentEncoded: false),
+            "--check-contract",
+        ])
+        #expect(unchanged.exitCode == ExitCode.success)
+
+        var document = try JSONDecoder().decode(
+            GraphJSON.Document.self,
+            from: Data(rendered.stdout.utf8)
+        )
+        document = GraphJSON.Document(
+            schemaVersion: document.schemaVersion,
+            scope: document.scope,
+            nodes: Array(document.nodes.dropLast()),
+            edges: document.edges
+        )
+        let encoder = JSONEncoder()
+        try encoder.encode(document).write(to: afterURL)
+
+        let changed = try runCLI([
+            "--diff",
+            beforeURL.path(percentEncoded: false),
+            afterURL.path(percentEncoded: false),
+            "--check-contract",
+        ])
+        #expect(changed.exitCode == ExitCode.graphContractChanged)
+        #expect(changed.stdout.contains("Nodes removed (1)"))
+        #expect(changed.stderr.isEmpty)
+    }
+
     @Test("Maintenance commands dispatch without graph input or pruning")
     func maintenanceCommandsDispatchBeforeGraphValidation() throws {
         let fixtureURL = FileManager.default.temporaryDirectory

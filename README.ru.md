@@ -582,7 +582,11 @@ swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
 swift run InnoDI-DependencyGraph --root . --unused
 swift run InnoDI-DependencyGraph --diff before.json after.json
+swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 ```
+
+`--check-contract` возвращает код 5 при любом изменении контракта scope, узла
+или ребра, чтобы CI принимал только проверленные обновления snapshot графа.
 
 Проверить Swift-код, созданный макросами для consumer target:
 
