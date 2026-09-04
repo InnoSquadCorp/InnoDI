@@ -24,6 +24,21 @@ text may be refined between releases without changing the ID.
 - `assisted-factory.input-partition-mismatch`: the factory lists omit,
   misclassify, or add an input compared with the child declaration.
 
+## Multibinding diagnostics
+
+- `multibinding.invalid-contributors`: the argument is not one literal array
+  of canonical `\Self.member` key paths.
+- `multibinding.empty-contributors`: the contributor list is empty.
+- `multibinding.duplicate-contributor`: a contributor appears more than once.
+- `multibinding.collection-type-required`: the annotated member does not use
+  an array type.
+- `multibinding.unknown-contributor`: a key path does not name a direct managed
+  dependency on the same container.
+- `multibinding.async-contributor`: a synchronous collection references an
+  asynchronous provider.
+- `multibinding.type-mismatch`: a contributor's written type differs from the
+  collection element type.
+
 The category prefix reflects the stage that emits the diagnostic:
 
 - `InnoDI.usage.*` — structural errors about *how* the macro is attached

@@ -346,6 +346,7 @@ private func subContainerMemberValidationRecovery(
 private struct DIContainerMemberConstructionSummary {
     let scope: ProvideScope
     let effect: ProvideConstructionEffect
+    let writtenType: String
 }
 
 /// Member-attribute expansion is the one attached-macro phase guaranteed to
@@ -430,8 +431,29 @@ private func provideMemberValidationRecovery(
         }
         providers[identifier.identifier.text] = DIContainerMemberConstructionSummary(
             scope: providerScope,
-            effect: providerArguments.constructionEffect
+            effect: providerArguments.constructionEffect,
+            writtenType: providerBinding.typeAnnotation?.type
+                .trimmedDescription ?? ""
         )
+    }
+
+    if arguments.isMultibinding {
+        guard let collectionType = member.bindings.first?.typeAnnotation?.type,
+              let elementType = multibindingElementType(collectionType)?
+                .trimmedDescription else {
+            return true
+        }
+        return arguments.dependencies.contains { dependencyName in
+            guard let provider = providers[dependencyName],
+                  dependencyName != member.bindings.first?
+                    .pattern.as(IdentifierPatternSyntax.self)?
+                    .identifier.text else {
+                return true
+            }
+            guard provider.writtenType == elementType else { return true }
+            if case .synchronous = provider.effect { return false }
+            return true
+        }
     }
 
     let closure: ClosureExprSyntax?

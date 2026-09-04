@@ -298,6 +298,20 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "@attached(peer, names: prefixed(_override_)) macro Multibinding(_ contributors: [AnyKeyPath])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12MultibindingyySays10AnyKeyPathCGcfm"
+          },
+          "kind": {
+            "identifier": "swift.macro"
+          },
+          "pathComponents": [
+            "Multibinding(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(peer) macro SubContainer(scope: SubContainerScope, with dependencies: [AnyKeyPath] = [], bindings: [(child: AnyKeyPath, parent: AnyKeyPath)] = [], featureRoot: Any.Type? = nil, featureRoots: [FeatureRoot] = [])",
           "identifier": {
             "interfaceLanguage": "swift",

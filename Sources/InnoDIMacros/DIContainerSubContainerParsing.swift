@@ -39,6 +39,32 @@ func extractWithDependencyReferences(
     return []
 }
 
+func extractMultibindingDependencyReferences(
+    from attribute: AttributeSyntax
+) -> [WithDependencyReference] {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+          arguments.count == 1,
+          let argument = arguments.first,
+          argument.label == nil,
+          let array = argument.expression.as(ArrayExprSyntax.self) else {
+        return []
+    }
+    return array.elements.compactMap { element in
+        guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
+              keyPath.root?.trimmedDescription == "Self",
+              keyPath.components.count == 1,
+              let property = keyPath.components.last?
+                .component.as(KeyPathPropertyComponentSyntax.self)?
+                .declName.baseName.text else {
+            return nil
+        }
+        return WithDependencyReference(
+            name: property,
+            anchorExpression: ExprSyntax(keyPath)
+        )
+    }
+}
+
 func sameNameWiringExpressionSyntax(
     for state: SubContainerSameNameWiringParseState,
     in attribute: AttributeSyntax

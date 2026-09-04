@@ -1,5 +1,113 @@
 import InnoDICore
 
+/// Revalidates ordered collection bindings from the whole-source snapshot.
+/// This keeps malformed or stale macro expansion inputs from bypassing the
+/// build plugin's serialized contract.
+func validateMultibindings(
+    _ multibindings: [SemanticMultibindingRecord],
+    containersByPath: [String: SemanticContainerRecord]
+) -> [ValidationIssue] {
+    var issues: [ValidationIssue] = []
+    for multibinding in multibindings {
+        guard let container = containersByPath[multibinding.containerPath]
+        else { continue }
+        if let invalid = multibinding.invalidContributorsLocation {
+            issues.append(multibindingIssue(
+                code: "multibinding.invalid-contributors",
+                message: "@Multibinding requires one literal array of canonical \\Self.member key paths.",
+                record: multibinding,
+                location: invalid,
+                remediation: "Use a nonempty literal such as @Multibinding([\\Self.auth, \\Self.logging])."
+            ))
+            continue
+        }
+        guard let elementType = multibinding.elementType else {
+            issues.append(multibindingIssue(
+                code: "multibinding.collection-type-required",
+                message: "@Multibinding member '\(multibinding.memberName)' must declare an array type.",
+                record: multibinding,
+                remediation: "Declare the member as [Element], where every contributor exposes Element."
+            ))
+            continue
+        }
+        if multibinding.contributors.isEmpty {
+            issues.append(multibindingIssue(
+                code: "multibinding.empty-contributors",
+                message: "@Multibinding member '\(multibinding.memberName)' has no contributors.",
+                record: multibinding,
+                remediation: "Add at least one direct synchronous managed dependency."
+            ))
+            continue
+        }
+
+        var seen: Set<String> = []
+        for contributor in multibinding.contributors {
+            if !seen.insert(contributor.name).inserted {
+                issues.append(multibindingIssue(
+                    code: "multibinding.duplicate-contributor",
+                    message: "Contributor '\(contributor.name)' appears more than once in @Multibinding member '\(multibinding.memberName)'.",
+                    record: multibinding,
+                    location: contributor.location,
+                    remediation: "Keep each contributor exactly once; array order remains output order."
+                ))
+                continue
+            }
+            guard contributor.name != multibinding.memberName,
+                  let provider = container.managedMembers[contributor.name]
+            else {
+                issues.append(multibindingIssue(
+                    code: "multibinding.unknown-contributor",
+                    message: "Contributor '\(contributor.name)' does not name another direct managed dependency in '\(container.displayName)'.",
+                    record: multibinding,
+                    location: contributor.location,
+                    remediation: "Use a key path to a direct @Provide or @Input member."
+                ))
+                continue
+            }
+            if provider.isAsync {
+                issues.append(multibindingIssue(
+                    code: "multibinding.async-contributor",
+                    message: "Synchronous @Multibinding member '\(multibinding.memberName)' cannot collect async contributor '\(contributor.name)'.",
+                    record: multibinding,
+                    location: contributor.location,
+                    remediation: "Use a synchronous contributor or construct the async collection explicitly."
+                ))
+                continue
+            }
+            if provider.writtenType != elementType {
+                issues.append(multibindingIssue(
+                    code: "multibinding.type-mismatch",
+                    message: "Contributor '\(contributor.name)' exposes '\(provider.writtenType ?? "<missing>")', but '\(multibinding.memberName)' collects '\(elementType)'.",
+                    record: multibinding,
+                    location: contributor.location,
+                    remediation: "Make every contributor's written type exactly match the collection element type."
+                ))
+            }
+        }
+    }
+    return issues
+}
+
+private func multibindingIssue(
+    code: String,
+    message: String,
+    record: SemanticMultibindingRecord,
+    location: ValidationIssueLocation? = nil,
+    remediation: String
+) -> ValidationIssue {
+    ValidationIssue(
+        code: code,
+        severity: .error,
+        message: message,
+        location: location ?? record.location,
+        remediation: remediation,
+        metadata: [
+            "containerPath": record.containerPath,
+            "multibindingMemberName": record.memberName,
+        ]
+    )
+}
+
 /// Validates `@SubContainer(bindings:)` records after source collection and
 /// semantic path resolution have completed.
 func validateSubContainerBindings(

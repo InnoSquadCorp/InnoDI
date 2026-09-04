@@ -375,6 +375,23 @@ private func makeTransientProvideAccessors(
 
     let overrideCheck = overrideCheckStmt(overrideName: overrideName)
 
+    if parseResult.isMultibinding {
+        let elements = parseResult.dependencies.map {
+            "self.\($0)"
+        }.joined(separator: ", ")
+        let collection: ExprSyntax = "[\(raw: elements)]"
+        return [
+            makeGetter(
+                statements: [
+                    overrideCheck,
+                    returnStmt(expr: collection),
+                ],
+                isAsync: false,
+                isThrowing: false
+            )
+        ]
+    }
+
     if let asyncFactory = parseResult.asyncFactoryExpr {
         let createExpr: ExprSyntax
 

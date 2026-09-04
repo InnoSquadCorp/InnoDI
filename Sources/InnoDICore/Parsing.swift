@@ -140,6 +140,9 @@ public struct ProvideArguments {
     /// Child container expression from `@SubContainerFactory(Child.self, ...)`.
     /// `nil` for ordinary providers and inputs.
     public let assistedFactoryChildType: ExprSyntax?
+    /// Whether this provider is the public deterministic collection-binding
+    /// spelling. Contributors are carried by `dependencies` in source order.
+    public let isMultibinding: Bool
 
     /// Creates a parsed `@Provide` argument model.
     ///
@@ -167,7 +170,8 @@ public struct ProvideArguments {
         dependencyLabels: [String]? = nil,
         dependenciesParseState: KeyPathArrayArgumentParseState? = nil,
         inputKind: InputKindValue = .container,
-        assistedFactoryChildType: ExprSyntax? = nil
+        assistedFactoryChildType: ExprSyntax? = nil,
+        isMultibinding: Bool = false
     ) {
         self.scope = scope
         self.scopeName = scopeName
@@ -183,6 +187,7 @@ public struct ProvideArguments {
         self.dependenciesParseState = dependenciesParseState ?? (dependencies.isEmpty ? .omitted : .parsed(dependencies))
         self.inputKind = inputKind
         self.assistedFactoryChildType = assistedFactoryChildType
+        self.isMultibinding = isMultibinding
     }
 }
 
@@ -466,6 +471,9 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     if managedAttributeName == "SubContainerFactory" {
         return parseSubContainerFactoryArguments(attribute)
     }
+    if managedAttributeName == "Multibinding" {
+        return parseMultibindingArguments(attribute)
+    }
     var scopeName: String?
     var scope: ProvideScope?
     var scopeExpr: ExprSyntax?
@@ -551,6 +559,33 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         typeExpr: typeExpr,
         dependencies: dependencies,
         dependenciesParseState: dependenciesParseState
+    )
+}
+
+/// Parses an ordered public multibinding declaration into the provider IR.
+/// The collection behaves as a synchronous transient provider: each read
+/// resolves contributors through their own accessors, so their individual
+/// lifetime and override semantics remain authoritative.
+public func parseMultibindingArguments(
+    _ attribute: AttributeSyntax
+) -> ProvideArguments {
+    var state: KeyPathArrayArgumentParseState = .omitted
+    if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+       arguments.count == 1,
+       let argument = arguments.first,
+       argument.label == nil {
+        state = parseQualifiedKeyPathArrayArgumentState(argument.expression)
+    } else if attribute.arguments != nil {
+        state = .invalid
+    }
+
+    return ProvideArguments(
+        scope: .transient,
+        scopeName: ProvideScope.transient.rawValue,
+        factoryExpr: nil,
+        dependencies: state.dependencies,
+        dependenciesParseState: state,
+        isMultibinding: true
     )
 }
 
@@ -852,10 +887,11 @@ public func findManagedProviderAttribute(
     findInnoDIAttribute(named: "Provide", in: attributes)
         ?? findInnoDIAttribute(named: "Input", in: attributes)
         ?? findInnoDIAttribute(named: "SubContainerFactory", in: attributes)
+        ?? findInnoDIAttribute(named: "Multibinding", in: attributes)
 }
 
-/// Finds all provider-storage roles in source order. `@Provide` and `@Input`
-/// are mutually exclusive and duplicates are diagnosed by their consumers.
+/// Finds all provider-storage roles in source order. The roles are mutually
+/// exclusive and duplicates are diagnosed by their consumers.
 public func findManagedProviderAttributes(
     in attributes: AttributeListSyntax?
 ) -> [AttributeSyntax] {
@@ -865,13 +901,19 @@ public func findManagedProviderAttributes(
         let name = attributeBaseName(attribute.attributeName)
         guard name == "Provide"
             || name == "Input"
-            || name == "SubContainerFactory" else { return nil }
+            || name == "SubContainerFactory"
+            || name == "Multibinding" else { return nil }
         if let member = attribute.attributeName.as(MemberTypeSyntax.self),
            member.baseType.trimmedDescription != "InnoDI" {
             return nil
         }
         return attribute
     }
+}
+
+/// Returns the element type when `type` is written as an array.
+public func multibindingElementType(_ type: TypeSyntax) -> TypeSyntax? {
+    type.as(ArrayTypeSyntax.self)?.element
 }
 
 public func parseBoolLiteral(_ expr: ExprSyntax) -> Bool? {

@@ -331,6 +331,7 @@ func conditionallyCompiledProvideMembers(
         $0.attributeName == "Provide"
             || $0.attributeName == "Input"
             || $0.attributeName == "SubContainerFactory"
+            || $0.attributeName == "Multibinding"
     }
 }
 
@@ -424,7 +425,8 @@ private func collectConditionallyCompiledDIContainerMembers(
 ) {
     if let variable = syntax.as(VariableDeclSyntax.self) {
         for attributeName in [
-            "Provide", "Input", "SubContainerFactory", "SubContainer",
+            "Provide", "Input", "SubContainerFactory", "Multibinding",
+            "SubContainer",
         ] {
             if let attribute = findInnoDIAttribute(
                 named: attributeName,

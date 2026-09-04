@@ -41,6 +41,15 @@ extension DIContainerValidator {
                 context: context
             ) || hadErrors
 
+            if member.isMultibinding {
+                hadErrors = validateMultibinding(
+                    member: member,
+                    memberByName: memberByName,
+                    context: context
+                ) || hadErrors
+                continue
+            }
+
             // Configuration diagnostics own the declaration until its local
             // construction mode is coherent. Do not derive sibling lookup,
             // graph, or effect errors from a provider that code generation
@@ -91,6 +100,67 @@ extension DIContainerValidator {
                 dagValidationEnabled: dagValidationEnabled,
                 context: context
             ) || hadErrors
+        }
+        return hadErrors
+    }
+
+    private static func validateMultibinding(
+        member: ProvideMemberModel,
+        memberByName: [String: ProvideMemberModel],
+        context: some MacroExpansionContext
+    ) -> Bool {
+        guard let elementType = multibindingElementType(member.type) else {
+            context.emit(
+                SimpleDiagnostic.multibindingCollectionTypeRequired(
+                    memberName: member.name
+                ),
+                at: Syntax(member.type)
+            )
+            return true
+        }
+
+        let expectedType = elementType.trimmedDescription
+        var hadErrors = false
+        for contributorName in member.withDependencies {
+            let anchor = member.withDependencyReferences.first {
+                $0.name == contributorName
+            }.map { Syntax($0.anchorExpression) } ?? Syntax(member.attribute)
+            guard let contributor = memberByName[contributorName],
+                  contributor.name != member.name else {
+                context.emit(
+                    SimpleDiagnostic.multibindingUnknownContributor(
+                        memberName: member.name,
+                        contributorName: contributorName
+                    ),
+                    at: anchor
+                )
+                hadErrors = true
+                continue
+            }
+            if contributor.isAsyncFactory {
+                context.emit(
+                    SimpleDiagnostic.multibindingAsyncContributor(
+                        memberName: member.name,
+                        contributorName: contributorName
+                    ),
+                    at: anchor
+                )
+                hadErrors = true
+                continue
+            }
+            let actualType = contributor.type.trimmedDescription
+            if actualType != expectedType {
+                context.emit(
+                    SimpleDiagnostic.multibindingTypeMismatch(
+                        memberName: member.name,
+                        contributorName: contributorName,
+                        expectedType: expectedType,
+                        actualType: actualType
+                    ),
+                    at: anchor
+                )
+                hadErrors = true
+            }
         }
         return hadErrors
     }
@@ -220,6 +290,7 @@ extension DIContainerValidator {
             context.emit(message, at: Syntax(member.attribute))
             hadErrors = true
         } else if member.scope != .input,
+                  !member.isMultibinding,
                   member.withDependenciesParseState.hasArgument,
                   member.typeExpr == nil {
             context.emit(
@@ -245,7 +316,8 @@ extension DIContainerValidator {
             )
             hadErrors = true
         }
-        if member.scope == .transient && !state.hasConstructionSource {
+        if member.scope == .transient && !state.hasConstructionSource
+            && !member.isMultibinding {
             context.emit(
                 SimpleDiagnostic.provideTransientFactoryRequired(),
                 at: Syntax(member.attribute)
@@ -551,6 +623,7 @@ private struct ManagedMemberConstructionState {
             member.initializer != nil,
         ].filter { $0 }.count
         hasConstructionSource = constructionSourceCount > 0
+            || member.isMultibinding
         hasInputConfiguration = hasConstructionSource
             || member.withDependenciesParseState.hasArgument
         hasConstructionSourceConflict = member.scope != .input

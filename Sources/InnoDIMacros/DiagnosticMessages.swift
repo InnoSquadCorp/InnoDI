@@ -48,6 +48,66 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func multibindingInvalidContributors() -> Self {
+        Self(
+            "@Multibinding requires one literal array of canonical direct-member key paths such as [\\Self.auth, \\Self.logging].",
+            code: .multibindingInvalidContributors
+        )
+    }
+
+    static func multibindingEmptyContributors() -> Self {
+        Self(
+            "@Multibinding requires at least one contributor.",
+            code: .multibindingEmptyContributors
+        )
+    }
+
+    static func multibindingDuplicateContributor() -> Self {
+        Self(
+            "Each @Multibinding contributor may appear only once.",
+            code: .multibindingDuplicateContributor
+        )
+    }
+
+    static func multibindingCollectionTypeRequired(memberName: String) -> Self {
+        Self(
+            "@Multibinding member '\(memberName)' must declare an array type such as [any RequestInterceptor].",
+            code: .multibindingCollectionTypeRequired
+        )
+    }
+
+    static func multibindingUnknownContributor(
+        memberName: String,
+        contributorName: String
+    ) -> Self {
+        Self(
+            "@Multibinding member '\(memberName)' references unknown direct dependency '\(contributorName)'.",
+            code: .multibindingUnknownContributor
+        )
+    }
+
+    static func multibindingAsyncContributor(
+        memberName: String,
+        contributorName: String
+    ) -> Self {
+        Self(
+            "@Multibinding member '\(memberName)' cannot synchronously collect async contributor '\(contributorName)'.",
+            code: .multibindingAsyncContributor
+        )
+    }
+
+    static func multibindingTypeMismatch(
+        memberName: String,
+        contributorName: String,
+        expectedType: String,
+        actualType: String
+    ) -> Self {
+        Self(
+            "@Multibinding member '\(memberName)' expects contributor type '\(expectedType)', but '\(contributorName)' exposes '\(actualType)'.",
+            code: .multibindingTypeMismatch
+        )
+    }
+
     static func provideSingleBinding() -> Self {
         Self("@Provide supports a single variable binding.", code: .provideSingleBinding)
     }

@@ -246,6 +246,21 @@ Whole-source validation requires every ordinary child input exactly once and
 rejects assisted inputs in the static binding list. RFC 0006 remains Draft, so
 keep pilot revisions pinned until naming and removal decisions are accepted.
 
+Replace `_InnoDIMultibindingPrototype(members: ["first", "second"])` with a
+direct injectable collection declaration:
+
+```swift
+@Multibinding([\Self.first, \Self.second])
+var services: [any Service]
+```
+
+Contributor key-path order is output order. Contributors must be synchronous
+direct managed dependencies whose written type exactly matches the array
+element type. The collection preserves contributor lifetimes and overrides,
+can itself be injected into another provider, and has its own test override.
+The SPI remains available only for pinned preparation consumers until RFC 0006
+accepts the 6.0 naming and removal decision.
+
 ---
 
 ## 4.x → 5.0

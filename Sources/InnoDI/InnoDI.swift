@@ -173,9 +173,9 @@ public macro _InnoDIAssistedFactoryPrototype(
 /// `.transient` lifetime and its current override.
 ///
 /// The probe intentionally supports one local collection and does not make the
-/// generated collection injectable into another provider yet. It exists to
-/// validate ordering, lifetime, override, and diagnostic semantics before the
-/// RFC freezes a 6.0 public declaration syntax or cross-module contract.
+/// generated collection injectable into another provider. New 6.0 preparation
+/// work should use `@Multibinding`; this SPI remains only for pinned 5.2 pilot
+/// compatibility until the RFC migration and removal decision is accepted.
 /// Import it with `@_spi(Experimental) import InnoDI`. The macro and generated
 /// member are not covered by SemVer and may be replaced or removed.
 public macro _InnoDIMultibindingPrototype(
@@ -286,6 +286,18 @@ public macro Provide(
 public macro Input(
     _ kind: DIInputKind = .container,
     escaping: Bool = false
+) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
+
+@attached(peer, names: prefixed(_override_))
+/// Declares a deterministic, injectable collection of direct dependencies.
+///
+/// Contributors must be synchronous direct managed members whose written
+/// type matches the collection element type. Literal `\Self.member` key-path
+/// order is preserved. Reading the collection resolves each contributor
+/// through its own accessor, retaining shared/transient lifetime and override
+/// behavior; the collection itself can also be overridden for tests.
+public macro Multibinding(
+    _ contributors: [AnyKeyPath]
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 
 @attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))

@@ -1,0 +1,55 @@
+import InnoDI
+
+protocol RequestInterceptor: AnyObject {
+    var name: String { get }
+}
+
+final class AuthInterceptor: RequestInterceptor {
+    let name = "auth"
+}
+
+final class LoggingInterceptor: RequestInterceptor {
+    let name = "logging"
+}
+
+final class StubInterceptor: RequestInterceptor {
+    let name = "stub"
+}
+
+struct Client {
+    let interceptors: [any RequestInterceptor]
+}
+
+@DIContainer
+struct NetworkContainer {
+    @Provide(.shared, factory: AuthInterceptor())
+    var auth: any RequestInterceptor
+
+    @Provide(.transient, factory: LoggingInterceptor())
+    var logging: any RequestInterceptor
+
+    @Multibinding([\Self.auth, \Self.logging])
+    var interceptors: [any RequestInterceptor]
+
+    @Provide(.transient, factory: { interceptors in
+        Client(interceptors: interceptors)
+    })
+    var client: Client
+}
+
+let container = NetworkContainer()
+let first = container.interceptors
+let second = container.interceptors
+precondition(first.map(\.name) == ["auth", "logging"])
+precondition(second.map(\.name) == ["auth", "logging"])
+precondition(first[0] === second[0])
+precondition(first[1] !== second[1])
+precondition(container.client.interceptors.map(\.name) == ["auth", "logging"])
+
+let stub = StubInterceptor()
+let overridden = NetworkContainer { overrides in
+    overrides.interceptors = [stub]
+}
+precondition(overridden.interceptors.count == 1)
+precondition(overridden.interceptors[0] === stub)
+precondition(overridden.client.interceptors[0] === stub)
