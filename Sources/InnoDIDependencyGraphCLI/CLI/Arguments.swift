@@ -42,6 +42,7 @@ struct ParsedArguments: Equatable {
     var validateDAG: Bool
     var query: GraphQuery?
     var diffInput: GraphDiffInput?
+    var checkGraphContract: Bool
     /// When non-nil, the CLI runs the `--diagnose-lock` maintenance command.
     /// An empty string asks the caller to use `<root>/.build`.
     var diagnoseLockPath: String?
@@ -82,6 +83,7 @@ enum ArgumentsError: Error, Equatable {
     case incompatibleQueryOption(option: String)
     case incompatibleDiffOption(option: String)
     case diffRequiresTwoPaths
+    case contractCheckRequiresDiff
 }
 
 /// Pure-function argument parser. No process exit, no stderr writes — the
@@ -98,6 +100,7 @@ func parseArguments(
     var query: GraphQuery?
     var queryOptionName: String?
     var diffInput: GraphDiffInput?
+    var checkGraphContract = false
     var diagnoseLockPath: String?
     var cacheStatsPath: String?
     var seenOptions: Set<String> = []
@@ -209,6 +212,15 @@ func parseArguments(
             continue
         }
 
+        if option == "--check-contract" {
+            if let error = recordOption(option) {
+                return .failed(error)
+            }
+            checkGraphContract = true
+            index += 1
+            continue
+        }
+
         if option == "--diff" {
             if let error = recordOption(option) {
                 return .failed(error)
@@ -298,6 +310,9 @@ func parseArguments(
 
     let isMaintenanceCommand = diagnoseLockPath != nil
         || cacheStatsPath != nil
+    if checkGraphContract, diffInput == nil {
+        return .failed(.contractCheckRequiresDiff)
+    }
     if isMaintenanceCommand {
         if manifestPath != nil {
             return .failed(
@@ -324,6 +339,7 @@ func parseArguments(
                 validateDAG: false,
                 query: nil,
                 diffInput: nil,
+                checkGraphContract: false,
                 diagnoseLockPath: diagnoseLockPath,
                 cacheStatsPath: cacheStatsPath
             )
@@ -349,6 +365,7 @@ func parseArguments(
                 validateDAG: false,
                 query: nil,
                 diffInput: diffInput,
+                checkGraphContract: checkGraphContract,
                 diagnoseLockPath: nil,
                 cacheStatsPath: nil
             )
@@ -375,6 +392,7 @@ func parseArguments(
                 validateDAG: false,
                 query: query,
                 diffInput: nil,
+                checkGraphContract: false,
                 diagnoseLockPath: nil,
                 cacheStatsPath: nil
             )
@@ -403,6 +421,7 @@ func parseArguments(
             validateDAG: validateDAG,
             query: nil,
             diffInput: nil,
+            checkGraphContract: false,
             diagnoseLockPath: nil,
             cacheStatsPath: nil
         )
@@ -414,7 +433,7 @@ func usageText() -> String {
     Usage: InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --root-pruning <all|roots> [--format <mermaid|dot|ascii|json>] [--output <file>]
            InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --validate-dag [--output <file>]
            InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) (--why <container> | --dependents <container> | --unused) [--output <file>]
-           InnoDI-DependencyGraph --diff <before.json> <after.json> [--output <file>]
+           InnoDI-DependencyGraph --diff <before.json> <after.json> [--check-contract] [--output <file>]
            InnoDI-DependencyGraph [--root <path>] --diagnose-lock [<scratch-path>]
            InnoDI-DependencyGraph [--root <path>] --cache-stats [<state-path>]
 
@@ -430,6 +449,7 @@ func usageText() -> String {
       --dependents <container>   List direct and transitive dependents
       --unused                   List containers unreachable from every explicit root
       --diff <before> <after>    Compare two graph JSON v2 documents
+      --check-contract           With --diff, exit 5 when any graph contract changed
       --diagnose-lock [path]     Inspect validation lock state (default: <root>/.build)
       --cache-stats [path]       Aggregate validation cache metrics
       --help, -h                 Show this help message
@@ -475,6 +495,8 @@ extension ArgumentsError {
             return "Error: Option \(option) is not supported with --diff"
         case .diffRequiresTwoPaths:
             return "Error: --diff requires <before.json> and <after.json>"
+        case .contractCheckRequiresDiff:
+            return "Error: --check-contract requires --diff <before.json> <after.json>"
         }
     }
 }

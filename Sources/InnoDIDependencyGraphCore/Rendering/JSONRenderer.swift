@@ -68,6 +68,18 @@ package enum GraphJSON {
         package let scope: Scope
         package let nodes: [Node]
         package let edges: [Edge]
+
+        package init(
+            schemaVersion: Int,
+            scope: Scope,
+            nodes: [Node],
+            edges: [Edge]
+        ) {
+            self.schemaVersion = schemaVersion
+            self.scope = scope
+            self.nodes = nodes
+            self.edges = edges
+        }
     }
 
     package struct Scope: Codable, Equatable {

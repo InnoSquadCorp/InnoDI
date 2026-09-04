@@ -529,7 +529,11 @@ swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
 swift run InnoDI-DependencyGraph --root . --unused
 swift run InnoDI-DependencyGraph --diff before.json after.json
+swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 ```
+
+当 scope、节点或边契约发生任何变化时，`--check-contract` 返回退出码 5，
+因此 CI 可以只允许经过审核的图快照更新。
 
 检查 consumer target 中由宏生成的 Swift 代码：
 

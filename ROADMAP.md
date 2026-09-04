@@ -280,7 +280,9 @@ Delivery order:
 
 1. Add graph explainability and migration reporting on 5.x. The 5.2 train now
    includes `--why`, `--dependents`, `--unused`, schema-v2 `--diff`, and the
-   source-free schema-v1 `InnoDI-Migrate --report` inventory.
+   source-free schema-v1 `InnoDI-Migrate --report` inventory. A schema-v2
+   `--diff ... --check-contract` gate now fails CI with exit 5 on any unreviewed
+   graph drift; graph JSON v3 semantics remain part of the 6.0 cutover.
 2. Prototype child-owned assisted factories without removing stable 5.x APIs.
    An underscored SPI probe now partitions existing `.input` members into
    factory-captured static values and call-time assisted values, with a

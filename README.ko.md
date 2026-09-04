@@ -586,7 +586,11 @@ target-scoped JSON 그래프 artifact 두 개 비교:
 
 ```bash
 swift run InnoDI-DependencyGraph --diff before.json after.json
+swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 ```
+
+`--check-contract`는 scope, node, edge 계약이 하나라도 바뀌면 종료 코드
+5를 반환하므로 CI에서 검토된 그래프 스냅샷 갱신만 허용할 수 있습니다.
 
 consumer target에서 매크로가 생성한 Swift 코드 확인:
 

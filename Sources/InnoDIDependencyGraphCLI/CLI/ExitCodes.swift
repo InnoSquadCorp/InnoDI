@@ -6,4 +6,6 @@ enum ExitCode {
     /// Distinct from `failure` so tooling can tell "the workspace has no
     /// `@DIContainer` yet" apart from a genuine error.
     static let noContainers: Int32 = 4
+    /// A valid graph diff was produced, but the contract gate found drift.
+    static let graphContractChanged: Int32 = 5
 }

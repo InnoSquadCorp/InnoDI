@@ -205,7 +205,9 @@ struct GraphQueryTests {
         )
 
         let output = renderGraphDiff(before: before, after: after)
+        let report = compareGraphDocuments(before: before, after: after)
 
+        #expect(report.hasChanges)
         #expect(output.contains("Scope: App, pruning=roots -> App, pruning=all"))
         #expect(output.contains("Nodes added (1)\n+ Data::DataContainer"))
         #expect(output.contains("Nodes changed (1)"))
@@ -216,6 +218,20 @@ struct GraphQueryTests {
                 "+ Feature::FeatureContainer --[hard: data]--> Data::DataContainer"
             )
         )
+    }
+
+    @Test("Graph diff report treats identical documents as unchanged")
+    func unchangedGraphDiff() throws {
+        let document = try graphDocument(
+            nodes: Array(nodes.prefix(2)),
+            edges: Array(edges.prefix(1)),
+            pruning: .roots
+        )
+
+        let report = compareGraphDocuments(before: document, after: document)
+
+        #expect(!report.hasChanges)
+        #expect(renderGraphDiff(report).contains("Scope: unchanged"))
     }
 
     private func graphDocument(

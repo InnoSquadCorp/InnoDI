@@ -57,6 +57,32 @@ func renderGraphDiff(
     before: GraphJSON.Document,
     after: GraphJSON.Document
 ) -> String {
+    renderGraphDiff(compareGraphDocuments(before: before, after: after))
+}
+
+struct GraphDiffReport: Equatable {
+    let beforeScope: GraphJSON.Scope
+    let afterScope: GraphJSON.Scope
+    let addedNodeIDs: [String]
+    let removedNodeIDs: [String]
+    let changedNodes: [String]
+    let addedEdgeIDs: [String]
+    let removedEdgeIDs: [String]
+
+    var hasChanges: Bool {
+        beforeScope != afterScope
+            || !addedNodeIDs.isEmpty
+            || !removedNodeIDs.isEmpty
+            || !changedNodes.isEmpty
+            || !addedEdgeIDs.isEmpty
+            || !removedEdgeIDs.isEmpty
+    }
+}
+
+func compareGraphDocuments(
+    before: GraphJSON.Document,
+    after: GraphJSON.Document
+) -> GraphDiffReport {
     let beforeNodes = before.nodes.reduce(into: [String: GraphJSON.Node]()) {
         $0[$1.id] = $0[$1.id] ?? $1
     }
@@ -68,53 +94,66 @@ func renderGraphDiff(
 
     let addedNodeIDs = afterIDs.subtracting(beforeIDs).sorted()
     let removedNodeIDs = beforeIDs.subtracting(afterIDs).sorted()
-    let changedNodeIDs = beforeIDs.intersection(afterIDs)
+    let changedNodes = beforeIDs.intersection(afterIDs)
         .filter { beforeNodes[$0] != afterNodes[$0] }
         .sorted()
+        .map { id in
+            guard let old = beforeNodes[id], let new = afterNodes[id] else { return id }
+            return "\(id): \(nodeChangeDescription(before: old, after: new))"
+        }
 
     let beforeEdgeIDs = Set(before.edges.map(graphJSONEdgeIdentity))
     let afterEdgeIDs = Set(after.edges.map(graphJSONEdgeIdentity))
 
+    return GraphDiffReport(
+        beforeScope: before.scope,
+        afterScope: after.scope,
+        addedNodeIDs: addedNodeIDs,
+        removedNodeIDs: removedNodeIDs,
+        changedNodes: changedNodes,
+        addedEdgeIDs: afterEdgeIDs.subtracting(beforeEdgeIDs).sorted(),
+        removedEdgeIDs: beforeEdgeIDs.subtracting(afterEdgeIDs).sorted()
+    )
+}
+
+func renderGraphDiff(_ report: GraphDiffReport) -> String {
     var lines = ["InnoDI Graph Diff (schema v\(GraphJSON.currentSchemaVersion))"]
-    if before.scope == after.scope {
+    if report.beforeScope == report.afterScope {
         lines.append("Scope: unchanged")
     } else {
         lines.append(
-            "Scope: \(scopeDescription(before.scope)) -> \(scopeDescription(after.scope))"
+            "Scope: \(scopeDescription(report.beforeScope)) -> \(scopeDescription(report.afterScope))"
         )
     }
 
     appendDiffSection(
         title: "Nodes added",
         marker: "+",
-        values: addedNodeIDs,
+        values: report.addedNodeIDs,
         to: &lines
     )
     appendDiffSection(
         title: "Nodes removed",
         marker: "-",
-        values: removedNodeIDs,
+        values: report.removedNodeIDs,
         to: &lines
     )
     appendDiffSection(
         title: "Nodes changed",
         marker: "~",
-        values: changedNodeIDs.map { id in
-            guard let old = beforeNodes[id], let new = afterNodes[id] else { return id }
-            return "\(id): \(nodeChangeDescription(before: old, after: new))"
-        },
+        values: report.changedNodes,
         to: &lines
     )
     appendDiffSection(
         title: "Edges added",
         marker: "+",
-        values: afterEdgeIDs.subtracting(beforeEdgeIDs).sorted(),
+        values: report.addedEdgeIDs,
         to: &lines
     )
     appendDiffSection(
         title: "Edges removed",
         marker: "-",
-        values: beforeEdgeIDs.subtracting(afterEdgeIDs).sorted(),
+        values: report.removedEdgeIDs,
         to: &lines
     )
 

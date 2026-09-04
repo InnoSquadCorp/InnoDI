@@ -616,7 +616,11 @@ Comparar dos artefactos JSON del grafo:
 
 ```bash
 swift run InnoDI-DependencyGraph --diff before.json after.json
+swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 ```
+
+`--check-contract` devuelve el codigo de salida 5 si cambia cualquier contrato
+de scope, nodo o arista, para exigir en CI una actualizacion revisada del snapshot.
 
 Inspeccionar el Swift generado por las macros para un target consumidor:
 

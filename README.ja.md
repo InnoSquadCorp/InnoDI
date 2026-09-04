@@ -568,7 +568,11 @@ swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
 swift run InnoDI-DependencyGraph --root . --unused
 swift run InnoDI-DependencyGraph --diff before.json after.json
+swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 ```
+
+`--check-contract` は scope、node、edge の契約が一つでも変わると終了コード
+5 を返すため、CI でレビュー済みのグラフ snapshot 更新だけを許可できます。
 
 consumer target でマクロが生成した Swift コードを確認するには：
 

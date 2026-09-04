@@ -288,6 +288,7 @@ struct ArgumentsParsingTests {
     func graphDiffOptions() {
         guard case let .parsed(args, warnings) = parseArguments([
             "--diff", "before.json", "after.json",
+            "--check-contract",
             "--output", "changes.txt",
         ]) else {
             Issue.record("Expected parsed result")
@@ -302,6 +303,7 @@ struct ArgumentsParsingTests {
         )
         #expect(args.input == nil)
         #expect(args.output == "changes.txt")
+        #expect(args.checkGraphContract)
         #expect(warnings.isEmpty)
     }
 
@@ -310,6 +312,12 @@ struct ArgumentsParsingTests {
         #expect(
             parseArguments(["--diff", "before.json"])
                 == .failed(.diffRequiresTwoPaths)
+        )
+        #expect(
+            parseArguments([
+                "--root", "/tmp/project",
+                "--check-contract",
+            ]) == .failed(.contractCheckRequiresDiff)
         )
         #expect(
             parseArguments([
