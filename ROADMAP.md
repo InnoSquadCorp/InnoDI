@@ -298,11 +298,12 @@ Delivery order:
    overrides. Injectable collections, graph v3 edges, and the stable spelling
    remain 6.0 work.
 4. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
-   InnoSample is the first completed runtime pilot: consumer commit `b42ad9f`
-   resolves InnoDI `6de46b4`, passes its full Xcode 27 `make verify-ci` gate,
-   and proves per-child shared-state isolation plus overrides. Its required
-   same-file wrapper confirms that parent-owned cross-file factory visibility
-   remains a release blocker rather than a frozen API.
+   InnoSample is the first completed runtime pilot: consumer commit `f3acdee`
+   resolves InnoDI `8a1012e`, passes its full Xcode 27 `make verify-ci` gate,
+   and proves per-child shared-state isolation plus overrides. The generated
+   peer alias passes a strict cross-module parent fixture, but its required
+   same-file wrapper confirms that same-target factory visibility and
+   initializer access remain release blockers rather than a frozen API.
 5. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
 6. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
