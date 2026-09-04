@@ -1,0 +1,15 @@
+@_spi(Experimental) import FeatureKit
+@_spi(Experimental) import InnoDI
+
+@DIContainer
+struct AppContainer {
+    @Provide(.input)
+    var repository: TrainingRepository
+
+    @Provide(
+        .shared,
+        _InnoDIAssistedFactoryPrototype_TrainingContainer.self,
+        with: [\Self.repository]
+    )
+    var training: _InnoDIAssistedFactoryPrototype_TrainingContainer
+}

@@ -229,7 +229,10 @@ standalone release assets.
   or removing any stable 5.x declaration. Its temporary string-literal member
   list is compile-time validated and is not the proposed 6.0 input syntax.
   Pilot declarations that expose the generated factory must remain inside the
-  same `Experimental` SPI boundary.
+  same `Experimental` SPI boundary. A deterministic SPI peer alias now lets a
+  cross-file, cross-module parent own the factory through rename-safe
+  `@Provide(..., with:)` static wiring without repeating assisted parameters;
+  the alias name remains replaceable before 6.0.
 - Added an underscored `Experimental` SPI multibinding probe for RFC 0006. It
   builds one deterministic ordered collection from explicit local synchronous
   providers with the same written type. Macro and strict external-consumer

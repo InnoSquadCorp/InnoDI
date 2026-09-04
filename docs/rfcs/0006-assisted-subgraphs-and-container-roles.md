@@ -372,7 +372,7 @@ conflation that makes assisted inputs hard to explain and extend.
 | Requirement | Acceptance criteria | Planned implementation | Evidence |
 |---|---|---|---|
 | FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | Partial: macro tests, the SPI external-consumer fixture, and InnoSample commit `b42ad9f` cover child-owned signature generation; parent ownership remains TBD |
-| FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | TBD |
+| FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | Partial: the SPI peer alias lets a cross-module parent own the generated factory through `@Provide(..., with:)` without repeating assisted types; child-to-parent binding completeness and invalid static/assisted diagnostics remain TBD |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
@@ -398,7 +398,11 @@ conflation that makes assisted inputs hard to explain and extend.
   avoid the self-referential key-path limitation of an attached type attribute
   and is not the proposed 6.0 `@Input(.assisted)` syntax. A public pilot
   container and any API exposing its generated factory must also be marked
-  `@_spi(Experimental)`; the external fixture verifies that boundary.
+  `@_spi(Experimental)`; the external fixture verifies that boundary. The
+  child also emits a deterministic SPI peer alias so a parent in another file
+  or module can own the factory through ordinary `@Provide(..., with:)`
+  key-path wiring. This satisfies AC-600-002 without freezing the alias name;
+  a dedicated child-to-parent binding validator remains 6.0 work.
 - An underscored multibinding SPI probe generates one ordered local collection
   from an explicit string-literal contributor list. Macro tests and a strict
   external runtime fixture cover contributor validation, deterministic order,

@@ -4,9 +4,9 @@
 struct FixtureApp {
     static func main() {
         let repository = TrainingRepository()
-        let factory = makeTrainingFactory(repository: repository)
-        let first = factory(routineID: 1)
-        let second = factory(routineID: 2)
+        let parent = AppContainer(repository: repository)
+        let first = parent.training(routineID: 1)
+        let second = parent.training(routineID: 2)
 
         precondition(first.routineID == 1)
         precondition(second.routineID == 2)

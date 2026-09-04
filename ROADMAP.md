@@ -286,8 +286,12 @@ Delivery order:
 2. Prototype child-owned assisted factories without removing stable 5.x APIs.
    An underscored SPI probe now partitions existing `.input` members into
    factory-captured static values and call-time assisted values, with a
-   cross-module fixture proving per-child shared-storage isolation. Its source
-   and generated names remain explicitly outside the stable contract.
+   cross-module fixture proving per-child shared-storage isolation. A generated
+   SPI peer alias also lets a parent in another file and module own the factory
+   through rename-safe `@Provide(..., with:)` static wiring without repeating
+   assisted parameter types. Its source and generated names remain explicitly
+   outside the stable contract; complete child-to-parent binding diagnostics
+   are still required.
 3. Prototype deterministic compile-time multibinding without runtime discovery.
    An underscored SPI probe now aggregates one explicit ordered list of local,
    synchronous, same-typed providers and preserves contributor lifetimes and
