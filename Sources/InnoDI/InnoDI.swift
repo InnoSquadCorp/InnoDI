@@ -94,6 +94,30 @@ public macro _InnoDIAssistedFactoryPrototype(
     type: "InnoDIAssistedFactoryPrototypeMacro"
 )
 
+@_spi(Experimental)
+@attached(member, names: named(_innoDIMultibindingPrototype))
+/// Experimental 5.2.x implementation probe for deterministic multibinding.
+///
+/// Stack this SPI-only macro on `@DIContainer` and list direct synchronous
+/// `@Provide` members that expose the same written type. The macro emits one
+/// ordered collection at `_innoDIMultibindingPrototype`; list order is the
+/// collection order, so builds never depend on source or runtime discovery.
+/// Contributor access still follows each member's own `.input`, `.shared`, or
+/// `.transient` lifetime and its current override.
+///
+/// The probe intentionally supports one local collection and does not make the
+/// generated collection injectable into another provider yet. It exists to
+/// validate ordering, lifetime, override, and diagnostic semantics before the
+/// RFC freezes a 6.0 public declaration syntax or cross-module contract.
+/// Import it with `@_spi(Experimental) import InnoDI`. The macro and generated
+/// member are not covered by SemVer and may be replaced or removed.
+public macro _InnoDIMultibindingPrototype(
+    members: [String]
+) = #externalMacro(
+    module: "InnoDIMacros",
+    type: "InnoDIMultibindingPrototypeMacro"
+)
+
 @attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
 /// Declares a dependency on a direct, plain, stored instance `var` in the same
 /// supported struct annotated with `@DIContainer`. `let`, computed or observed

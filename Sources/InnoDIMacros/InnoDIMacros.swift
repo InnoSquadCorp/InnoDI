@@ -11,6 +11,7 @@ struct InnoDIPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         DIContainerMacro.self,
         InnoDIAssistedFactoryPrototypeMacro.self,
+        InnoDIMultibindingPrototypeMacro.self,
         DIComponentMacro.self,
         DIHierarchyRootMacro.self,
         ProvideMacro.self,

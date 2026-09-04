@@ -1,0 +1,44 @@
+@_spi(Experimental) import InnoDI
+
+public protocol Interceptor: AnyObject {
+    var name: String { get }
+}
+
+public final class AuthInterceptor: Interceptor {
+    public let name = "auth"
+    public init() {}
+}
+
+public final class LoggingInterceptor: Interceptor {
+    public let name = "logging"
+    public init() {}
+}
+
+@_spi(Experimental)
+@_InnoDIMultibindingPrototype(members: ["auth", "logging"])
+@DIContainer
+public struct NetworkContainer {
+    @Provide(.shared, factory: AuthInterceptor())
+    public var auth: any Interceptor
+
+    @Provide(.transient, factory: LoggingInterceptor())
+    public var logging: any Interceptor
+}
+
+@_spi(Experimental)
+public func verifyMultibindingPrototype() {
+    let container = NetworkContainer()
+    let first = container._innoDIMultibindingPrototype
+    let second = container._innoDIMultibindingPrototype
+
+    precondition(first.map(\.name) == ["auth", "logging"])
+    precondition((first[0] as AnyObject) === (second[0] as AnyObject))
+    precondition((first[1] as AnyObject) !== (second[1] as AnyObject))
+
+    let replacement = AuthInterceptor()
+    let overridden = NetworkContainer { overrides in
+        overrides.auth = replacement
+    }
+    let overriddenElements = overridden._innoDIMultibindingPrototype
+    precondition((overriddenElements[0] as AnyObject) === replacement)
+}

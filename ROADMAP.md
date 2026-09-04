@@ -288,10 +288,15 @@ Delivery order:
    factory-captured static values and call-time assisted values, with a
    cross-module fixture proving per-child shared-storage isolation. Its source
    and generated names remain explicitly outside the stable contract.
-3. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
-4. Accept and freeze the RFC only after diagnostics, graph schema, migration,
+3. Prototype deterministic compile-time multibinding without runtime discovery.
+   An underscored SPI probe now aggregates one explicit ordered list of local,
+   synchronous, same-typed providers and preserves contributor lifetimes and
+   overrides. Injectable collections, graph v3 edges, and the stable spelling
+   remain 6.0 work.
+4. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
+5. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
-5. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
+6. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
 
 The read-only static inventory for step 3 is now recorded in RFC 0006 against
 fetched `origin/main` SHAs: InnoSample and Mulbyul are clean on their pinned
@@ -327,6 +332,8 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
+| `_InnoDIAssistedFactoryPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 replacement | Parent ownership, graph v3, two real pilots, migration, naming review, and performance gates must pass. |
+| `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 replacement | Injectable collection syntax, serialized build contract, graph v3 contribution edges, two real pilots, and naming review must pass. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros
