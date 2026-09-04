@@ -60,7 +60,11 @@ public struct AssistedFactoryMacro: MemberMacro {
 
         return makeAssistedFactoryMembers(
             factory: factory,
-            arguments: arguments
+            arguments: arguments,
+            isMainActor: enclosingDIContainerInfo(
+                for: factory,
+                in: context
+            )?.mainActor == true
         )
     }
 }
@@ -115,7 +119,8 @@ func parseAssistedFactoryArguments(
 
 private func makeAssistedFactoryMembers(
     factory: StructDeclSyntax,
-    arguments: AssistedFactoryArguments
+    arguments: AssistedFactoryArguments,
+    isMainActor: Bool
 ) -> [DeclSyntax] {
     let childType = arguments.childType.trimmedDescription
     let access = factory.modifiers.first { modifier in
@@ -123,6 +128,7 @@ private func makeAssistedFactoryMembers(
             .contains(modifier.name.text)
     }?.name.text
     let accessPrefix = access.map { "\($0) " } ?? ""
+    let isolationPrefix = isMainActor ? "@_Concurrency.MainActor " : ""
 
     var declarations: [DeclSyntax] = arguments.staticInputs.map { name in
         DeclSyntax(
@@ -138,14 +144,14 @@ private func makeAssistedFactoryMembers(
     }.joined(separator: "\n")
     declarations.append(
         DeclSyntax(
-            stringLiteral: "\(accessPrefix)init(\(initParameters)) {\n\(assignments)\n}"
+            stringLiteral: "\(isolationPrefix)\(accessPrefix)init(\(initParameters)) {\n\(assignments)\n}"
         )
     )
 
     let callParameters = arguments.assistedInputs.map { name in
         "\(name): \(childType)._InnoDIInputType_\(name)"
     } + [
-        "_ _innoDIApplyOverrides: (inout \(childType).Overrides) -> Void = { _ in }",
+        "_ _innoDIApplyOverrides: \(overrideApplyClosureType(overridesTypeDescription: "\(childType).Overrides", isMainActor: isMainActor).trimmedDescription) = { _ in }",
     ]
     let forwardedInputs = arguments.staticInputs.map { name in
         "\(name): self.\(name)"
@@ -155,7 +161,7 @@ private func makeAssistedFactoryMembers(
     declarations.append(
         DeclSyntax(
             stringLiteral: """
-            \(accessPrefix)func callAsFunction(
+            \(isolationPrefix)\(accessPrefix)func callAsFunction(
                 \(callParameters.joined(separator: ",\n    "))
             ) -> \(childType) {
                 \(childType)(

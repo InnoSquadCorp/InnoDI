@@ -1,6 +1,6 @@
 import InnoDI
 
-@DIContainer
+@DIContainer(mainActor: true)
 struct AppContainer {
     @Input var repository: Repository
 

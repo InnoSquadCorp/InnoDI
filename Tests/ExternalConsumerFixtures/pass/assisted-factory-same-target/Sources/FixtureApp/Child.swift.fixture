@@ -4,7 +4,7 @@ struct Repository {}
 
 final class InstanceToken {}
 
-@DIContainer
+@DIContainer(mainActor: true)
 struct SessionContainer {
     @Input var repository: Repository
     @Input(.assisted) var sessionID: Int

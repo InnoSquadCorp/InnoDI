@@ -35,6 +35,36 @@ struct AssistedFactoryMacroTests {
         #expect(result.expansion.contains("sessionID: sessionID"))
     }
 
+    @Test("main-actor child factory preserves override closure isolation")
+    func preservesMainActorOverrideIsolation() {
+        let result = expandMacroSource(
+            """
+            @DIContainer(mainActor: true)
+            struct Child {
+                @Input var repository: Repository
+                @Input(.assisted) var sessionID: Int
+
+                @AssistedFactory(
+                    Child.self,
+                    static: [\\Child.repository],
+                    assisted: [\\Child.sessionID]
+                )
+                struct AssistedFactory {}
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "_ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Child.Overrides) -> Void"
+            )
+        )
+        #expect(result.expansion.contains("@_Concurrency.MainActor init(repository:"))
+        #expect(result.expansion.contains("@_Concurrency.MainActor func callAsFunction("))
+    }
+
     @Test("factory input partition must match the child declaration")
     func rejectsMismatchedPartition() {
         let result = expandMacroSource(
