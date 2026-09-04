@@ -204,6 +204,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.mainactor-nonisolated-member` — `@Provide` 또는 `@SubContainer`
   member가 `nonisolated`로 격리를 해제해 container의 `mainActor: true`
   계약과 충돌합니다.
+- `container.role-token-required` — `@DIContainerRole role:`이
+  `ContainerRole.local`, `ContainerRole.component`, `ContainerRole.root` 중
+  하나가 아닙니다. 문자열 literal이나 변수 대신 named token을 사용하세요.
 - `container.bool-literal-required` — `root:`, `validateDAG:`,
   `mainActor:`가 literal `true` 또는 `false`가 아닙니다. build
   configuration별 attribute 분기는 conditional compilation을 쓰세요.

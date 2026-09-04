@@ -63,7 +63,7 @@ struct ParsingTests {
                 in: """
                 @DIContainerRole(
                     role: ContainerRole.root,
-                    isolation: DIContainerIsolation.mainActor
+                    mainActor: true
                 )
                 struct C {}
                 """
@@ -75,7 +75,6 @@ struct ParsingTests {
         let options = try #require(parsedOptions)
         #expect(options.role == .root)
         #expect(options.root)
-        #expect(options.isolation == .mainActor)
         #expect(options.mainActor)
     }
 

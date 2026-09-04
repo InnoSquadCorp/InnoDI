@@ -226,7 +226,7 @@ struct FeatureContainer {
 // After
 @DIContainerRole(
     role: ContainerRole.component,
-    isolation: DIContainerIsolation.mainActor
+    mainActor: true
 )
 struct FeatureContainer {
     @Input var config: FeatureConfig

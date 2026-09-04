@@ -106,6 +106,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerDependencyCycle = "container.dependency-cycle"
     case containerMainActorConflict = "container.mainactor-conflict"
     case containerMainActorNonisolatedMember = "container.mainactor-nonisolated-member"
+    case containerRoleTokenRequired = "container.role-token-required"
     case containerBoolLiteralRequired = "container.bool-literal-required"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerUnmanagedStoredProperty = "container.unmanaged-stored-property"
@@ -218,6 +219,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerMainActorNonisolatedMember,
+                .containerRoleTokenRequired,
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,

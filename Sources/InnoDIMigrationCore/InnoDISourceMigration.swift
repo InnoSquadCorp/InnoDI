@@ -577,12 +577,10 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         if mainActorValue == true {
             rebuilt.append(
                 LabeledExprSyntax(
-                    label: .identifier("isolation"),
+                    label: .identifier("mainActor"),
                     colon: .colonToken(trailingTrivia: .space),
-                    expression: qualifiedRoleOption(
-                        typeName: "DIContainerIsolation",
-                        memberName: "mainActor",
-                        moduleQualified: moduleQualified
+                    expression: ExprSyntax(
+                        BooleanLiteralExprSyntax(literal: .keyword(.true))
                     )
                 )
             )

@@ -21,22 +21,18 @@ public enum DIInputKind {
     case assisted
 }
 
-/// Declares how a container participates in the application hierarchy.
+/// Source tokens for declaring how a container participates in the application hierarchy.
+///
+/// The tokens are strings because Swift 6.2.3 crashes while matching a public
+/// enum value passed to a multi-role attached macro. `@DIContainerRole`
+/// validates that callers use one of these named tokens.
 public enum ContainerRole {
     /// A container used only inside its declaring feature or module.
-    case local
+    public static let local = "local"
     /// A mountable feature boundary with a generated dependency contract.
-    case component
+    public static let component = "component"
     /// The root of strict hierarchy validation and graph reachability.
-    case root
-}
-
-/// Actor-isolation policy for all generated container APIs.
-public enum DIContainerIsolation {
-    /// Keep generated APIs on the declaration's ordinary isolation domain.
-    case automatic
-    /// Isolate generated APIs and managed properties to `MainActor`.
-    case mainActor
+    public static let root = "root"
 }
 
 /// Compiler support used by generated invariant paths. Application code must
@@ -107,8 +103,8 @@ public macro DIContainer(
 /// structural restrictions before expansion, even when a role would emit no
 /// conformance.
 public macro DIContainerRole(
-    role: ContainerRole,
-    isolation: DIContainerIsolation = .automatic,
+    role: String,
+    mainActor: Bool = false,
     validateDAG: Bool = true
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerRoleMacro")
 

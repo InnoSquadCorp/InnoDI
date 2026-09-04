@@ -31,12 +31,6 @@ public enum DIContainerRoleValue: String, Equatable, Sendable {
     case root
 }
 
-/// Normalized actor-isolation policy for generated container APIs.
-public enum DIContainerIsolationValue: String, Equatable, Sendable {
-    case automatic
-    case mainActor
-}
-
 /// Parse state for macro arguments that must be literal Bool expressions.
 public enum BoolArgumentParseState: Equatable, Sendable {
     /// The labeled argument did not appear in source.
@@ -330,8 +324,8 @@ public struct DIContainerAttributeInfo {
     /// 6.0 container role. Legacy marker macros normalize into the same
     /// semantic model in their respective validators.
     public let role: DIContainerRoleValue
-    /// 6.0 isolation policy.
-    public let isolation: DIContainerIsolationValue
+    /// Whether the `role:` expression is one of InnoDI's named role tokens.
+    public let roleArgumentIsValid: Bool
     /// Whether the container should be marked as graph root.
     public let root: Bool
     /// Literal parse state for `root:`.
@@ -353,7 +347,7 @@ public struct DIContainerAttributeInfo {
     ///   - mainActor: Main actor isolation flag.
     public init(
         role: DIContainerRoleValue = .local,
-        isolation: DIContainerIsolationValue = .automatic,
+        roleArgumentIsValid: Bool = true,
         root: Bool,
         validateDAG: Bool,
         mainActor: Bool,
@@ -362,12 +356,12 @@ public struct DIContainerAttributeInfo {
         mainActorParseState: BoolArgumentParseState = .omitted
     ) {
         self.role = role
-        self.isolation = isolation
+        self.roleArgumentIsValid = roleArgumentIsValid
         self.root = root || role == .root
         self.rootParseState = rootParseState
         self.validateDAG = validateDAG
         self.validateDAGParseState = validateDAGParseState
-        self.mainActor = mainActor || isolation == .mainActor
+        self.mainActor = mainActor
         self.mainActorParseState = mainActorParseState
     }
 }
@@ -953,7 +947,8 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
     var validateDAGParseState: BoolArgumentParseState = .omitted
     var mainActorParseState: BoolArgumentParseState = .omitted
     var role: DIContainerRoleValue = .local
-    var isolation: DIContainerIsolationValue = .automatic
+    let isRoleAttribute = attributeBaseName(attr.attributeName) == "DIContainerRole"
+    var roleArgumentIsValid = !isRoleAttribute
 
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -966,12 +961,17 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
                 }
                 continue
             }
-            if label == "role",
-               let member = argument.expression.as(MemberAccessExprSyntax.self),
-               let parsed = DIContainerRoleValue(
-                rawValue: member.declName.baseName.text
-               ) {
-                role = parsed
+            if label == "role" {
+                if let member = argument.expression.as(MemberAccessExprSyntax.self),
+                   isSupportedContainerRoleReference(member),
+                   let parsed = DIContainerRoleValue(
+                    rawValue: member.declName.baseName.text
+                   ) {
+                    role = parsed
+                    roleArgumentIsValid = true
+                } else {
+                    roleArgumentIsValid = false
+                }
             }
             if label == "root" {
                 rootParseState = parseBoolArgument(argument.expression)
@@ -991,19 +991,12 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
                     mainActor = value
                 }
             }
-            if label == "isolation",
-               let member = argument.expression.as(MemberAccessExprSyntax.self),
-               let parsed = DIContainerIsolationValue(
-                rawValue: member.declName.baseName.text
-               ) {
-                isolation = parsed
-            }
         }
     }
 
     return DIContainerAttributeInfo(
         role: role,
-        isolation: isolation,
+        roleArgumentIsValid: roleArgumentIsValid,
         root: root,
         validateDAG: validateDAG,
         mainActor: mainActor,
@@ -1011,6 +1004,18 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
         validateDAGParseState: validateDAGParseState,
         mainActorParseState: mainActorParseState
     )
+}
+
+private func isSupportedContainerRoleReference(
+    _ expression: MemberAccessExprSyntax
+) -> Bool {
+    guard let base = expression.base else { return false }
+    switch base.trimmedDescription {
+    case "ContainerRole", "InnoDI.ContainerRole":
+        return true
+    default:
+        return false
+    }
 }
 
 /// Finds either the compatibility or role-based public container attribute.

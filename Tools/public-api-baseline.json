@@ -16,32 +16,12 @@
         },
         {
           "kind": "conformsTo",
-          "source": "s:6InnoDI13ContainerRoleO",
-          "target": "s:SH"
-        },
-        {
-          "kind": "conformsTo",
-          "source": "s:6InnoDI13ContainerRoleO",
-          "target": "s:SQ"
-        },
-        {
-          "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
           "target": "s:SH"
         },
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
-          "target": "s:SQ"
-        },
-        {
-          "kind": "conformsTo",
-          "source": "s:6InnoDI20DIContainerIsolationO",
-          "target": "s:SH"
-        },
-        {
-          "kind": "conformsTo",
-          "source": "s:6InnoDI20DIContainerIsolationO",
           "target": "s:SQ"
         },
         {
@@ -81,17 +61,17 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI13ContainerRoleO4rootyA2CmF",
+          "source": "s:6InnoDI13ContainerRoleO4rootSSvpZ",
           "target": "s:6InnoDI13ContainerRoleO"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI13ContainerRoleO5localyA2CmF",
+          "source": "s:6InnoDI13ContainerRoleO5localSSvpZ",
           "target": "s:6InnoDI13ContainerRoleO"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI13ContainerRoleO9componentyA2CmF",
+          "source": "s:6InnoDI13ContainerRoleO9componentSSvpZ",
           "target": "s:6InnoDI13ContainerRoleO"
         },
         {
@@ -103,16 +83,6 @@
           "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO9transientyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
-        },
-        {
-          "kind": "memberOf",
-          "source": "s:6InnoDI20DIContainerIsolationO9automaticyA2CmF",
-          "target": "s:6InnoDI20DIContainerIsolationO"
-        },
-        {
-          "kind": "memberOf",
-          "source": "s:6InnoDI20DIContainerIsolationO9mainActoryA2CmF",
-          "target": "s:6InnoDI20DIContainerIsolationO"
         },
         {
           "kind": "memberOf",
@@ -340,13 +310,13 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "case root",
+          "declaration": "static let root: String",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI13ContainerRoleO4rootyA2CmF"
+            "precise": "s:6InnoDI13ContainerRoleO4rootSSvpZ"
           },
           "kind": {
-            "identifier": "swift.enum.case"
+            "identifier": "swift.type.property"
           },
           "pathComponents": [
             "ContainerRole",
@@ -355,13 +325,13 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "case local",
+          "declaration": "static let local: String",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI13ContainerRoleO5localyA2CmF"
+            "precise": "s:6InnoDI13ContainerRoleO5localSSvpZ"
           },
           "kind": {
-            "identifier": "swift.enum.case"
+            "identifier": "swift.type.property"
           },
           "pathComponents": [
             "ContainerRole",
@@ -370,13 +340,13 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "case component",
+          "declaration": "static let component: String",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI13ContainerRoleO9componentyA2CmF"
+            "precise": "s:6InnoDI13ContainerRoleO9componentSSvpZ"
           },
           "kind": {
-            "identifier": "swift.enum.case"
+            "identifier": "swift.type.property"
           },
           "pathComponents": [
             "ContainerRole",
@@ -399,16 +369,16 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) @attached(peer, names: suffixed(Dependencies)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, DIHierarchyRootMarker, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIContainerRole(role: ContainerRole, isolation: DIContainerIsolation = .automatic, validateDAG: Bool = true)",
+          "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) @attached(peer, names: suffixed(Dependencies)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, DIHierarchyRootMarker, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI15DIContainerRole4role9isolation11validateDAGyAA09ContainerD0O_AA0C9IsolationOSbtcfm"
+            "precise": "s:6InnoDI15DIContainerRole4role9mainActor11validateDAGySS_S2btcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "DIContainerRole(role:isolation:validateDAG:)"
+            "DIContainerRole(role:mainActor:validateDAG:)"
           ]
         },
         {
@@ -481,50 +451,6 @@
           },
           "pathComponents": [
             "SubContainerFactory(_:bindings:)"
-          ]
-        },
-        {
-          "accessLevel": "public",
-          "declaration": "enum DIContainerIsolation",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI20DIContainerIsolationO"
-          },
-          "kind": {
-            "identifier": "swift.enum"
-          },
-          "pathComponents": [
-            "DIContainerIsolation"
-          ]
-        },
-        {
-          "accessLevel": "public",
-          "declaration": "case automatic",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI20DIContainerIsolationO9automaticyA2CmF"
-          },
-          "kind": {
-            "identifier": "swift.enum.case"
-          },
-          "pathComponents": [
-            "DIContainerIsolation",
-            "automatic"
-          ]
-        },
-        {
-          "accessLevel": "public",
-          "declaration": "case mainActor",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI20DIContainerIsolationO9mainActoryA2CmF"
-          },
-          "kind": {
-            "identifier": "swift.enum.case"
-          },
-          "pathComponents": [
-            "DIContainerIsolation",
-            "mainActor"
           ]
         },
         {
