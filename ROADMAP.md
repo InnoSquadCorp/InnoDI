@@ -292,8 +292,8 @@ Delivery order:
    bindings. Separate-file same-target and cross-module strict consumers prove
    typed calls, per-child shared-storage isolation, and override flow without
    repeating input types. Whole-source validation rejects missing, duplicate,
-   unknown, and assisted-as-static child bindings. The underscored SPI remains
-   only as compatibility evidence until the 6.0 cleanup.
+   unknown, and assisted-as-static child bindings. The superseded underscored
+   SPI was removed after the InnoSample pilot migrated to this public surface.
 3. Prototype deterministic compile-time multibinding without runtime discovery.
    Public `@Multibinding` now aggregates one explicit ordered list of local,
    synchronous, same-typed providers, preserves contributor lifetimes and
@@ -301,12 +301,12 @@ Delivery order:
    contribution edges. The underscored SPI remains only for pinned pilot
    compatibility until consumer migration and the RFC removal decision.
 4. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
-   InnoSample is the first completed runtime pilot: consumer commit `f3acdee`
-   resolves InnoDI `8a1012e`, passes its full Xcode 27 `make verify-ci` gate,
-   and proves per-child shared-state isolation plus overrides. The generated
-   public bridge now passes both separate-file same-target and cross-module
-   strict consumers; the pilot can migrate off its temporary SPI wrapper after
-   the Draft naming decision is accepted.
+   InnoSample is the first completed public runtime pilot: consumer commit
+   `d72bbdc` resolves InnoDI `e1f0d12`, passes its full Xcode 27
+   `make verify-ci` gate, and proves per-child shared-state isolation plus
+   overrides without an SPI import or temporary wrapper. The generated public
+   bridge also passes separate-file same-target and cross-module strict
+   consumers.
 5. The public `@Input` and `@DIContainerRole(.component/.root,
    isolation: .mainActor)` source paths now reuse the existing initializer,
    hierarchy, actor, and strict external-consumer contracts. Final naming,
@@ -319,8 +319,9 @@ The read-only static inventory for step 4 is recorded in RFC 0006 against
 fetched `origin/main` SHAs: InnoSample and Mulbyul are clean on their pinned
 5.1.0 source, while BlPia is blocked at its 3.0.1-to-5.x migration boundary by
 seven ownership-ambiguous legacy `concrete:` sites. The InnoSample runtime
-pilot is now complete against the experimental revision; Mulbyul still needs
-an exact-revision pilot, and BlPia must cross its migration boundary first.
+pilot is now complete against the public preparation API; Mulbyul still needs
+an exact-revision assisted and multibinding pilot, and BlPia must cross its
+migration boundary before it can contribute adoption evidence.
 
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
@@ -350,7 +351,6 @@ true before the next minor release can promote them.
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
 | `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two additional real pilots plus final migration, naming, and performance gates must pass. |
-| `_InnoDIAssistedFactoryPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Keep only until the InnoSample pilot migrates to the public preparation API. |
 | `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two real pilots plus final migration, naming, and performance gates must pass. |
 | `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Retain only for pinned 5.2 pilot compatibility while consumers migrate to `@Multibinding`. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |

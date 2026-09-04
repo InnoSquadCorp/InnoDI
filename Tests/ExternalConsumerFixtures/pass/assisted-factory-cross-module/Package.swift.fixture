@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "AssistedFactoryPrototypeConsumer",
+    name: "AssistedFactoryCrossModuleConsumer",
     platforms: [
         .macOS(.v14)
     ],
