@@ -77,19 +77,17 @@ design itself.
 
 | Consumer | Consumer commit | InnoDI revision | Verification | Result |
 |---|---|---|---|---|
-| InnoSample | `f3acdeea9e4dc9d1e4d1f19be2a90c675b165a38` | `8a1012ed8d9d5421cb31bd2106c5c7a679ecdd78` | Xcode 27.0, Tuist 4.202.5, `make verify-ci`; Remote 16 + feature 25 tests and generic iOS/embedded watch build | Runtime pilot verified against the parent-owner alias revision. A People route creates assisted detail children, proves per-child `.shared` isolation and override identity, and keeps the SPI revision explicit. |
+| InnoSample | `d72bbdce55d92046980f9efd204286fd216baadb` | `e1f0d12ee0d8077d4077dca8718aa372553a6277` | Xcode 27.0, Tuist 4.202.5, `make verify-ci`; Remote 16 + feature 25 tests and generic iOS/embedded watch build | Public runtime pilot verified. A People route creates assisted detail children, proves per-child `.shared` isolation and override identity, and uses no SPI import or hand-written factory wrapper. |
 
-The pilot also exposed a contract boundary rather than hiding it. The
-deterministic SPI peer alias passes the strict external cross-module parent
-fixture, satisfying the compilation portion of AC-600-002. In the same Xcode
-target, however, another source file cannot name the generated peer directly;
-adding a source-written typealias exposes the nested type name but still does
-not make its generated initializer accessible. InnoSample therefore keeps a
-hand-written `PeopleDetailFactoryPilot` wrapper beside the child declaration
-and lets the parent coordinator own that wrapper. This is positive evidence
-for FR-600-001/002/003, but FR-600-002 remains partial and AC-600-003 remains
-open: the framework still needs a same-module bridge plus complete
-child-to-parent binding diagnostics before the public spelling can freeze.
+The original SPI pilot exposed same-target visibility and initializer-access
+gaps rather than hiding them. The public source-visible nested bridge now
+passes both the separate-file same-target `@MainActor` fixture and the strict
+cross-module parent fixture, and InnoSample removed its temporary
+`PeopleDetailFactoryPilot` wrapper. Whole-source validation also rejects
+missing, duplicate, unknown, and assisted-as-static bindings. AC-600-003 still
+requires one diagnostic hardening item before the public spelling can freeze:
+report an access-level mismatch at the public parent/child factory boundary
+instead of leaving it to a secondary Swift compiler error.
 
 ## Problem definition
 
@@ -387,7 +385,7 @@ conflation that makes assisted inputs hard to explain and extend.
 |---|---|---|---|
 | FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target `@MainActor` and cross-module strict consumers with typed assisted calls, actor-correct override forwarding, and independent child shared storage |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | `@SubContainerFactory` owns the shared factory provider; whole-source tests cover complete bindings plus missing, duplicate, unknown, and assisted-as-static failures |
-| FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
+| FR-600-003 | AC-600-001 | Generated child construction and overrides | The public external-consumer fixtures and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Complete preparation implementation: nodes separate ordinary and assisted inputs; edges distinguish fixed ownership, assisted-factory ownership, and ordered contributions; JSON diff includes contributor order and exits 5 on drift |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | `@Input` and `@Input(.assisted)` normalize into the provider IR; generated input type aliases feed the assisted bridge without repeating source types |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(.component/.root)` and `isolation: .mainActor` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
@@ -403,7 +401,7 @@ conflation that makes assisted inputs hard to explain and extend.
 - Add graph explainability commands and migration reporting.
 - Prototype the child-owned factory in internal tests or an explicitly
   experimental public surface without deprecating 5.x declarations.
-- The underscored `Experimental` SPI prototype now partitions existing
+- The underscored `Experimental` SPI prototype partitioned existing
   `@Provide(.input)` members into static and assisted inputs and has a
   cross-module runtime fixture proving that separate factory calls own
   separate `.shared` storage. Its attribute and generated type names are not
@@ -413,19 +411,19 @@ conflation that makes assisted inputs hard to explain and extend.
   and is not the proposed 6.0 `@Input(.assisted)` syntax. A public pilot
   container and any API exposing its generated factory must also be marked
   `@_spi(Experimental)`; the external fixture verifies that boundary. The
-  child also emits a deterministic SPI peer alias so a parent in another file
+  child also emitted a deterministic SPI peer alias so a parent in another file
   or module can own the factory through ordinary `@Provide(..., with:)`
   key-path wiring. This satisfies AC-600-002 without freezing the alias name;
-  a dedicated child-to-parent binding validator remains 6.0 work.
+  the probe was removed after the public bridge, validator, and InnoSample
+  migration replaced its evidence.
 - Public `@Multibinding` generates one injectable ordered local collection from
   contributor key paths. Macro, serialized build-validation, graph-v3, and
   strict external runtime fixtures cover diagnostics, deterministic order,
   shared/transient lifetime behavior, injection, and overrides. The
   underscored SPI remains only as compatibility evidence for pinned pilots.
-- Pilot one InnoSample flow. Completed at consumer commit `f3acdee` against
-  InnoDI `8a1012e`; the full consumer gate and per-child lifetime assertions
-  pass, while the required local wrapper records the remaining FR-600-002
-  same-module bridge and binding-diagnostics gap.
+- Pilot one InnoSample flow. The final public migration completed at consumer
+  commit `d72bbdc` against InnoDI `e1f0d12`; the full consumer gate and
+  per-child lifetime assertions pass without an SPI import or local wrapper.
 
 ### Later 5.x — adoption runway
 
@@ -464,4 +462,4 @@ the three pilot results, migration coverage, graph schema review, macro
 performance comparison, and a conforming-counterexample review showing that no
 accepted implementation can satisfy the written requirements while falling
 back to runtime service lookup. One of the three runtime pilots is currently
-recorded.
+recorded on the public preparation API.

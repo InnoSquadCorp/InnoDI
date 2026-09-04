@@ -129,39 +129,6 @@ public macro AssistedFactory(
 )
 
 @_spi(Experimental)
-@attached(member, names: named(_InnoDIAssistedFactoryPrototype))
-@attached(peer, names: prefixed(_InnoDIAssistedFactoryPrototype_))
-/// Experimental 5.2.x implementation probe for RFC 0006.
-///
-/// Stack this SPI-only macro on `@DIContainer` and identify the existing
-/// `@Provide(.input)` members whose values arrive when a feature is entered.
-/// This probe uses string literals such as `"route"` only because attached
-/// type attributes cannot form a key path rooted in the declaration they are
-/// creating. The macro validates every name against direct input declarations
-/// at compile time; it does not perform runtime lookup.
-/// The remaining input members become static values captured by the generated
-/// child-owned factory. Every factory call constructs a new container, so its
-/// shared storage and overrides remain isolated from other children.
-/// The probe also emits a peer alias whose name prefixes the child type with
-/// `_InnoDIAssistedFactoryPrototype_`. A parent in another file or module can
-/// own that alias as an ordinary `@Provide` dependency and supply static
-/// inputs through its existing key-path `with:` contract without repeating
-/// the assisted call signature.
-///
-/// The macro and generated type names are intentionally underscored. They are
-/// not covered by SemVer and will be replaced or removed before the accepted
-/// 6.0 spelling ships. Production packages should use this only for pinned
-/// pilot revisions, import it with `@_spi(Experimental) import InnoDI`, and
-/// mark any public container or factory exposing the generated type with the
-/// same SPI boundary.
-public macro _InnoDIAssistedFactoryPrototype(
-    assisted: [String]
-) = #externalMacro(
-    module: "InnoDIMacros",
-    type: "InnoDIAssistedFactoryPrototypeMacro"
-)
-
-@_spi(Experimental)
 @attached(member, names: named(_innoDIMultibindingPrototype))
 /// Experimental 5.2.x implementation probe for deterministic multibinding.
 ///

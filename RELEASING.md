@@ -225,32 +225,26 @@ standalone release assets.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
   and diagnostics without including original or migrated source bodies.
-- Added an underscored `Experimental` SPI assisted-factory probe for RFC 0006.
-  It lets pinned 5.2 pilot consumers exercise child-owned static/assisted input
-  partitioning and per-child lifetime isolation without freezing the 6.0 API
-  or removing any stable 5.x declaration. Its temporary string-literal member
-  list is compile-time validated and is not the proposed 6.0 input syntax.
-  Pilot declarations that expose the generated factory must remain inside the
-  same `Experimental` SPI boundary. A deterministic SPI peer alias now lets a
-  cross-file, cross-module parent own the factory through rename-safe
-  `@Provide(..., with:)` static wiring without repeating assisted parameters;
-  the alias name remains replaceable before 6.0.
+- Removed the superseded underscored assisted-factory SPI after the public
+  `@Input(.assisted)`, `@AssistedFactory`, and `@SubContainerFactory` surface
+  replaced its same-target, cross-module, runtime-isolation, and override
+  evidence. The SPI was never covered by SemVer and no recorded pilot remains
+  pinned to it.
 - The public assisted-factory bridge now preserves `@MainActor` on its
   initializer, call, and override-application closure. A same-target Swift 6
   strict-concurrency fixture guards the exact Xcode consumer shape that would
   otherwise reject override forwarding as a non-Sendable actor crossing.
-- Added an underscored `Experimental` SPI multibinding probe for RFC 0006. It
-  builds one deterministic ordered collection from explicit local synchronous
-  providers with the same written type. Macro and strict external-consumer
-  tests cover invalid contributors, shared/transient lifetime behavior, and
-  overrides. The generated collection is not injectable yet, and neither the
-  temporary string-list input nor generated member name is a stable 6.0 API.
-- Verified the first RFC 0006 runtime pilot in InnoSample commit `f3acdee`
-  against InnoDI `8a1012e`. The People detail route passes the consumer's full
-  Xcode 27 gate and proves per-child shared-state isolation plus overrides. The
-  peer alias passes the strict cross-module parent fixture, while the required
-  same-file wrapper records the remaining same-target visibility, initializer
-  access, and binding-diagnostics work before 6.0 API freeze.
+- Added public `@Multibinding` for one injectable deterministic ordered
+  collection from explicit local synchronous providers with the same written
+  type. Macro, serialized validation, graph-v3, and strict external-consumer
+  tests cover invalid contributors, injection, shared/transient lifetime
+  behavior, contributor order, and overrides. The older underscored SPI remains
+  only for pinned pilot compatibility until real consumers migrate.
+- Verified the first public RFC 0006 runtime pilot in InnoSample commit
+  `d72bbdc` against InnoDI `e1f0d12`. The People detail route passes the
+  consumer's full Xcode 27 gate, proves per-child shared-state isolation plus
+  overrides, and no longer imports the Experimental SPI or keeps a hand-written
+  factory wrapper.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of

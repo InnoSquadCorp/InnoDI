@@ -45,7 +45,7 @@ struct ExternalConsumerContractTests {
     @Test("Cross-module public assisted factory builds and runs")
     func crossModuleAssistedFactoryBuilds() throws {
         let fixture = try externalConsumerFixture(
-            named: "assisted-factory-prototype",
+            named: "assisted-factory-cross-module",
             expectation: .pass
         )
         let materializedURL = try materializeExternalConsumerFixture(fixture)
