@@ -60,7 +60,10 @@ struct ParsingTests {
 
         let container = try #require(
             firstStructDecl(
-                in: "@DIContainerRole(.root, isolation: .mainActor) struct C {}"
+                in: """
+                @DIContainerRole(ContainerRole.root, isolation: DIContainerIsolation.mainActor)
+                struct C {}
+                """
             )
         )
         let parsedOptions = InnoDICore.parseDIContainerAttribute(
