@@ -14,7 +14,7 @@ package enum ManagedMemberRole {
     )
 }
 
-/// Shared first-stage IR for `@Provide` / `@SubContainer` member attributes.
+/// Shared first-stage IR for `@Provide` / `@Input` / `@SubContainer` member attributes.
 ///
 /// This type owns role matching, duplicate counts, role conflicts, and the
 /// parsed argument model for a unique role. Consumers still own diagnostics
@@ -77,16 +77,7 @@ package struct ManagedMemberSemantics {
 
     package init(attributes: AttributeListSyntax?) {
         let attributes = attributes ?? []
-        provideAttributes = attributes.compactMap { element in
-            guard let attribute = element.as(AttributeSyntax.self),
-                  matchesInnoDIAttribute(
-                    named: "Provide",
-                    attributeName: attribute.attributeName
-                  ) else {
-                return nil
-            }
-            return attribute
-        }
+        provideAttributes = findManagedProviderAttributes(in: attributes)
         subContainerAttributes = attributes.compactMap { element in
             guard let attribute = element.as(AttributeSyntax.self),
                   matchesInnoDIAttribute(

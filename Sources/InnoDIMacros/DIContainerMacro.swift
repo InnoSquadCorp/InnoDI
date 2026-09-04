@@ -87,13 +87,22 @@ public struct DIContainerMacro: MemberMacro {
                 ]
             }
 
-            return try DIContainerCodeGenerator.generateAll(
+            var generated = try DIContainerCodeGenerator.generateAll(
                 for: model,
                 prependingInitializationMARK: !hasHierarchyAttribute(
                     named: "DIComponent",
                     in: decl.attributes
-                )
+                ) && model.options.role != .component
             )
+            if model.options.role == .component,
+               !hasHierarchyAttribute(named: "DIComponent", in: decl.attributes) {
+                generated.append(contentsOf: try DIComponentMacro.expansion(
+                    of: attribute,
+                    providingMembersOf: decl,
+                    in: context
+                ))
+            }
+            return generated
         } catch let error as CodegenInvariantError {
             context.emit(
                 SimpleDiagnostic.internalCodegenInvariant(description: error.description),
@@ -176,8 +185,7 @@ extension DIContainerMacro: MemberAttributeMacro {
         ) else {
             return []
         }
-        let provideAttributes = findInnoDIAttributes(
-            named: "Provide",
+        let provideAttributes = InnoDICore.findManagedProviderAttributes(
             in: variable.attributes
         )
         let subContainerAttributes = findInnoDIAttributes(
@@ -216,12 +224,7 @@ extension DIContainerMacro: MemberAttributeMacro {
         // This phase sees the source declaration before generated attributes,
         // so source-written actor/property-wrapper attributes are still
         // rejected by the closed declaration-shape validation below.
-        let isContainerManagedMember = ["Provide", "SubContainer"].contains { name in
-            InnoDICore.findInnoDIAttribute(
-                named: name,
-                in: variable.attributes
-            ) != nil
-        }
+        let isContainerManagedMember = hasProvide || hasSubContainer
 
         if options.mainActor,
            isInstanceMember,
@@ -358,7 +361,7 @@ private func provideMemberValidationRecovery(
         return true
     }
 
-    guard let attribute = findInnoDIAttribute(named: "Provide", in: member.attributes) else {
+    guard let attribute = InnoDICore.findManagedProviderAttribute(in: member.attributes) else {
         return true
     }
 
@@ -407,7 +410,7 @@ private func provideMemberValidationRecovery(
     for sibling in declaration.memberBlock.members {
         guard let variable = sibling.decl.as(VariableDeclSyntax.self),
               canAttachGeneratedProvideAccessor(to: variable),
-              let providerAttribute = findInnoDIAttribute(named: "Provide", in: variable.attributes),
+              let providerAttribute = InnoDICore.findManagedProviderAttribute(in: variable.attributes),
               findInnoDIAttribute(named: "SubContainer", in: variable.attributes) == nil,
               !options.mainActor
                 || (
@@ -475,8 +478,7 @@ private func hasIncomingProvideWithReference(
 ) -> Bool {
     declaration.memberBlock.members.contains { sibling in
         guard let variable = sibling.decl.as(VariableDeclSyntax.self),
-              let attribute = findInnoDIAttribute(
-                named: "Provide",
+              let attribute = InnoDICore.findManagedProviderAttribute(
                 in: variable.attributes
               ) else {
             return false

@@ -267,6 +267,7 @@ struct ProvideMemberModel {
     let name: String
     let type: TypeSyntax
     let scope: ProvideScope
+    let inputKind: InputKindValue
     let factory: ExprSyntax?
     let asyncFactory: ExprSyntax?
     let asyncFactoryIsThrowing: Bool
@@ -366,6 +367,10 @@ struct ProvideMemberModel {
         case .shared, .transient:
             return !isAsyncFactory
         }
+    }
+
+    var isAssistedInput: Bool {
+        scope == .input && inputKind == .assisted
     }
 }
 

@@ -180,8 +180,7 @@ package final class DIContainerDeclarationSupportCollector: SyntaxVisitor {
     }
 
     private func collect(_ declaration: some DeclGroupSyntax) -> SyntaxVisitorContinueKind {
-        guard let attribute = findInnoDIAttribute(
-            named: "DIContainer",
+        guard let attribute = findDIContainerAttribute(
             in: declaration.attributes
         ) else {
             return .visitChildren

@@ -16,7 +16,7 @@ extension DIComponentMacro: PeerMacro {
             return []
         }
 
-        guard hasHierarchyAttribute(named: "DIContainer", in: declGroup.attributes) else {
+        guard hasDIContainerAttribute(in: declGroup.attributes) else {
             context.emit(
                 SimpleDiagnostic.componentRequiresContainer(),
                 at: Syntax(node)
@@ -88,7 +88,7 @@ extension DIComponentMacro: MemberMacro {
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
+        guard hasDIContainerAttribute(in: declaration.attributes) else {
             return []
         }
         guard let targetName = hierarchyNominalNameToken(for: declaration),
@@ -166,7 +166,7 @@ extension DIComponentMacro: ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
-        guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
+        guard hasDIContainerAttribute(in: declaration.attributes) else {
             return []
         }
         guard let targetName = hierarchyNominalNameToken(for: declaration),
@@ -229,7 +229,7 @@ extension DIHierarchyRootMacro: ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
-        guard hasHierarchyAttribute(named: "DIContainer", in: declaration.attributes) else {
+        guard hasDIContainerAttribute(in: declaration.attributes) else {
             context.emit(
                 SimpleDiagnostic.hierarchyRootRequiresContainer(),
                 at: Syntax(node)
@@ -254,6 +254,13 @@ extension DIHierarchyRootMacro: ExtensionMacro {
             makeHierarchyRootMarkerExtensionDecl(type: type)
         ]
     }
+}
+
+private func hasDIContainerAttribute(
+    in attributes: AttributeListSyntax?
+) -> Bool {
+    hasHierarchyAttribute(named: "DIContainer", in: attributes)
+        || hasHierarchyAttribute(named: "DIContainerRole", in: attributes)
 }
 
 private struct HierarchyNominalTypeInfo {

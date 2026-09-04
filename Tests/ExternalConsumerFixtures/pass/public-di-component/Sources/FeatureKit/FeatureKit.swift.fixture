@@ -26,10 +26,9 @@ public struct AsyncFeatureRequest: Sendable {
     public init() {}
 }
 
-@DIComponent
-@DIContainer
+@DIContainerRole(.component)
 public struct FeatureContainer {
-    @Provide(.input) public var config: FeatureConfig
+    @Input public var config: FeatureConfig
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
     @Provide(.transient, factory: { (config: FeatureConfig) in
         FeatureRequest(config: config)

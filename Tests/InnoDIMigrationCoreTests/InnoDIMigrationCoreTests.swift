@@ -3,7 +3,7 @@ import InnoDITestSupport
 @testable import InnoDIMigrationCore
 import Testing
 
-@Suite("InnoDI 5.0 migration", .serialized)
+@Suite("InnoDI migration", .serialized)
 struct InnoDIMigrationCoreTests {
     @Test("CLI requires one root and one mode")
     func argumentContract() {
@@ -164,6 +164,45 @@ struct InnoDIMigrationCoreTests {
         #expect(report.exitCode == 0)
         #expect(!report.requiresChanges)
         #expect(report.canWrite)
+    }
+
+    @Test("6.0 input, role, and isolation rewrites are idempotent")
+    func migratesSixDotZeroVocabularyIdempotently() throws {
+        let root = try makeTemporaryTree(files: [
+            "Sources/App.swift": """
+            import InnoDI
+
+            @DIComponent
+            @DIContainer(mainActor: true, validateDAG: false)
+            struct FeatureContainer {
+                @Provide(.input) var config: Config
+                @InnoDI.Provide(InnoDI.DIScope.input, escaping: true)
+                var callback: Callback
+            }
+
+            @DIHierarchyRoot
+            @DIContainer(root: true)
+            struct AppContainer {}
+            """,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let migrator = InnoDIMigrator()
+        let plan = try migrator.plan(root: root)
+        #expect(plan.diagnostics.isEmpty)
+        let migrated = try #require(plan.changes.first?.migratedSource)
+        #expect(migrated.contains("@DIContainerRole(.component, isolation: .mainActor, validateDAG: false)"))
+        #expect(migrated.contains("@Input var config"))
+        #expect(migrated.contains("@InnoDI.Input(escaping: true)"))
+        #expect(migrated.contains("@DIContainerRole(.root)"))
+        #expect(!migrated.contains("@DIComponent"))
+        #expect(!migrated.contains("@DIHierarchyRoot"))
+        #expect(!migrated.contains("@Provide(.input)"))
+
+        _ = try migrator.run(root: root, mode: .write)
+        let second = try migrator.plan(root: root)
+        #expect(second.diagnostics.isEmpty)
+        #expect(second.changes.isEmpty)
     }
 
     @Test("Concrete and stacked feature-root surfaces migrate idempotently")

@@ -15,6 +15,28 @@ public enum ProvideScope: String {
     case transient
 }
 
+/// Semantic source of a container input.
+///
+/// Container inputs are supplied when the container itself is constructed.
+/// Assisted inputs are supplied later through a child-owned factory call.
+public enum InputKindValue: String, Equatable, Sendable {
+    case container
+    case assisted
+}
+
+/// Normalized 6.0 role for a dependency container.
+public enum DIContainerRoleValue: String, Equatable, Sendable {
+    case local
+    case component
+    case root
+}
+
+/// Normalized actor-isolation policy for generated container APIs.
+public enum DIContainerIsolationValue: String, Equatable, Sendable {
+    case automatic
+    case mainActor
+}
+
 /// Parse state for macro arguments that must be literal Bool expressions.
 public enum BoolArgumentParseState: Equatable, Sendable {
     /// The labeled argument did not appear in source.
@@ -108,6 +130,9 @@ public struct ProvideArguments {
     public let dependencies: [String]
     /// Literal parse state for `with:`.
     public let dependenciesParseState: KeyPathArrayArgumentParseState
+    /// Input timing parsed from `@Input`. Legacy `@Provide(.input)` values are
+    /// normalized to `.container`.
+    public let inputKind: InputKindValue
 
     /// Creates a parsed `@Provide` argument model.
     ///
@@ -132,7 +157,8 @@ public struct ProvideArguments {
         escapingParseState: BoolArgumentParseState? = nil,
         typeExpr: ExprSyntax? = nil,
         dependencies: [String] = [],
-        dependenciesParseState: KeyPathArrayArgumentParseState? = nil
+        dependenciesParseState: KeyPathArrayArgumentParseState? = nil,
+        inputKind: InputKindValue = .container
     ) {
         self.scope = scope
         self.scopeName = scopeName
@@ -145,6 +171,7 @@ public struct ProvideArguments {
         self.typeExpr = typeExpr
         self.dependencies = dependencies
         self.dependenciesParseState = dependenciesParseState ?? (dependencies.isEmpty ? .omitted : .parsed(dependencies))
+        self.inputKind = inputKind
     }
 }
 
@@ -284,6 +311,11 @@ public enum SubContainerBindingsParseState: Equatable, Sendable {
 
 /// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
+    /// 6.0 container role. Legacy marker macros normalize into the same
+    /// semantic model in their respective validators.
+    public let role: DIContainerRoleValue
+    /// 6.0 isolation policy.
+    public let isolation: DIContainerIsolationValue
     /// Whether the container should be marked as graph root.
     public let root: Bool
     /// Literal parse state for `root:`.
@@ -304,6 +336,8 @@ public struct DIContainerAttributeInfo {
     ///   - validateDAG: DAG validation flag.
     ///   - mainActor: Main actor isolation flag.
     public init(
+        role: DIContainerRoleValue = .local,
+        isolation: DIContainerIsolationValue = .automatic,
         root: Bool,
         validateDAG: Bool,
         mainActor: Bool,
@@ -311,11 +345,13 @@ public struct DIContainerAttributeInfo {
         validateDAGParseState: BoolArgumentParseState = .omitted,
         mainActorParseState: BoolArgumentParseState = .omitted
     ) {
-        self.root = root
+        self.role = role
+        self.isolation = isolation
+        self.root = root || role == .root
         self.rootParseState = rootParseState
         self.validateDAG = validateDAG
         self.validateDAGParseState = validateDAGParseState
-        self.mainActor = mainActor
+        self.mainActor = mainActor || isolation == .mainActor
         self.mainActorParseState = mainActorParseState
     }
 }
@@ -412,6 +448,9 @@ private func isSupportedProvideScopeReference(_ expression: MemberAccessExprSynt
 }
 
 public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
+    if attributeBaseName(attribute.attributeName) == "Input" {
+        return parseInputArguments(attribute)
+    }
     var scopeName: String?
     var scope: ProvideScope?
     var scopeExpr: ExprSyntax?
@@ -497,6 +536,44 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         typeExpr: typeExpr,
         dependencies: dependencies,
         dependenciesParseState: dependenciesParseState
+    )
+}
+
+/// Parses the 6.0 `@Input` spelling into the existing provider IR. This keeps
+/// initialization, storage, hierarchy, and graph consumers on one normalized
+/// model while retaining the assisted/container distinction.
+public func parseInputArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
+    var kind: InputKindValue = .container
+    var escaping = false
+    var escapingParseState: BoolArgumentParseState = .omitted
+
+    if let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) {
+        for argument in arguments {
+            if argument.label?.text == "escaping" {
+                escapingParseState = parseBoolArgument(argument.expression)
+                if let value = escapingParseState.value {
+                    escaping = value
+                }
+                continue
+            }
+            guard argument.label == nil,
+                  let member = argument.expression.as(MemberAccessExprSyntax.self) else {
+                continue
+            }
+            let name = member.declName.baseName.text
+            if let parsed = InputKindValue(rawValue: name) {
+                kind = parsed
+            }
+        }
+    }
+
+    return ProvideArguments(
+        scope: .input,
+        scopeName: ProvideScope.input.rawValue,
+        factoryExpr: nil,
+        escaping: escaping,
+        escapingParseState: escapingParseState,
+        inputKind: kind
     )
 }
 
@@ -685,10 +762,36 @@ public func parseSubContainerAttribute(_ attributes: AttributeListSyntax?) -> Su
 }
 
 public func parseProvideAttribute(_ attributes: AttributeListSyntax?) -> ProvideArguments? {
-    guard let attribute = findInnoDIAttribute(named: "Provide", in: attributes) else {
+    guard let attribute = findManagedProviderAttribute(in: attributes) else {
         return nil
     }
     return parseProvideArguments(attribute)
+}
+
+/// Finds the first public attribute that participates in provider storage.
+public func findManagedProviderAttribute(
+    in attributes: AttributeListSyntax?
+) -> AttributeSyntax? {
+    findInnoDIAttribute(named: "Provide", in: attributes)
+        ?? findInnoDIAttribute(named: "Input", in: attributes)
+}
+
+/// Finds all provider-storage roles in source order. `@Provide` and `@Input`
+/// are mutually exclusive and duplicates are diagnosed by their consumers.
+public func findManagedProviderAttributes(
+    in attributes: AttributeListSyntax?
+) -> [AttributeSyntax] {
+    guard let attributes else { return [] }
+    return attributes.compactMap { element in
+        guard let attribute = element.as(AttributeSyntax.self) else { return nil }
+        let name = attributeBaseName(attribute.attributeName)
+        guard name == "Provide" || name == "Input" else { return nil }
+        if let member = attribute.attributeName.as(MemberTypeSyntax.self),
+           member.baseType.trimmedDescription != "InnoDI" {
+            return nil
+        }
+        return attribute
+    }
 }
 
 public func parseBoolLiteral(_ expr: ExprSyntax) -> Bool? {
@@ -717,7 +820,9 @@ private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {
 }
 
 public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIContainerAttributeInfo? {
-    guard let attr = findInnoDIAttribute(named: "DIContainer", in: attributes) else { return nil }
+    guard let attr = findDIContainerAttribute(in: attributes) else {
+        return nil
+    }
 
     var root = false
     var validateDAG = true
@@ -725,10 +830,20 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
     var rootParseState: BoolArgumentParseState = .omitted
     var validateDAGParseState: BoolArgumentParseState = .omitted
     var mainActorParseState: BoolArgumentParseState = .omitted
+    var role: DIContainerRoleValue = .local
+    var isolation: DIContainerIsolationValue = .automatic
 
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
-            guard let label = argument.label?.text else { continue }
+            guard let label = argument.label?.text else {
+                if let member = argument.expression.as(MemberAccessExprSyntax.self),
+                   let parsed = DIContainerRoleValue(
+                    rawValue: member.declName.baseName.text
+                   ) {
+                    role = parsed
+                }
+                continue
+            }
             if label == "root" {
                 rootParseState = parseBoolArgument(argument.expression)
                 if let value = rootParseState.value {
@@ -747,10 +862,19 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
                     mainActor = value
                 }
             }
+            if label == "isolation",
+               let member = argument.expression.as(MemberAccessExprSyntax.self),
+               let parsed = DIContainerIsolationValue(
+                rawValue: member.declName.baseName.text
+               ) {
+                isolation = parsed
+            }
         }
     }
 
     return DIContainerAttributeInfo(
+        role: role,
+        isolation: isolation,
         root: root,
         validateDAG: validateDAG,
         mainActor: mainActor,
@@ -758,4 +882,12 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
         validateDAGParseState: validateDAGParseState,
         mainActorParseState: mainActorParseState
     )
+}
+
+/// Finds either the compatibility or role-based public container attribute.
+public func findDIContainerAttribute(
+    in attributes: AttributeListSyntax?
+) -> AttributeSyntax? {
+    findInnoDIAttribute(named: "DIContainer", in: attributes)
+        ?? findInnoDIAttribute(named: "DIContainerRole", in: attributes)
 }

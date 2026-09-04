@@ -6,12 +6,42 @@
       "relationships": [
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI11DIInputKindO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI11DIInputKindO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI13ContainerRoleO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI13ContainerRoleO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
           "target": "s:SH"
         },
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIContainerIsolationO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIContainerIsolationO",
           "target": "s:SQ"
         },
         {
@@ -23,6 +53,16 @@
           "kind": "conformsTo",
           "source": "s:6InnoDI7DIScopeO",
           "target": "s:SQ"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI11DIInputKindO8assistedyA2CmF",
+          "target": "s:6InnoDI11DIInputKindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI11DIInputKindO9containeryA2CmF",
+          "target": "s:6InnoDI11DIInputKindO"
         },
         {
           "kind": "memberOf",
@@ -41,6 +81,21 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI13ContainerRoleO4rootyA2CmF",
+          "target": "s:6InnoDI13ContainerRoleO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI13ContainerRoleO5localyA2CmF",
+          "target": "s:6InnoDI13ContainerRoleO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI13ContainerRoleO9componentyA2CmF",
+          "target": "s:6InnoDI13ContainerRoleO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO6sharedyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
         },
@@ -48,6 +103,16 @@
           "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO9transientyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIContainerIsolationO9automaticyA2CmF",
+          "target": "s:6InnoDI20DIContainerIsolationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIContainerIsolationO9mainActoryA2CmF",
+          "target": "s:6InnoDI20DIContainerIsolationO"
         },
         {
           "kind": "memberOf",
@@ -112,6 +177,50 @@
           },
           "pathComponents": [
             "DIContainer(root:validateDAG:mainActor:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIInputKind",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11DIInputKindO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIInputKind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case assisted",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11DIInputKindO8assistedyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIInputKind",
+            "assisted"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case container",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11DIInputKindO9containeryA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIInputKind",
+            "container"
           ]
         },
         {
@@ -203,6 +312,79 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "enum ContainerRole",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI13ContainerRoleO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "ContainerRole"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case root",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI13ContainerRoleO4rootyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "ContainerRole",
+            "root"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case local",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI13ContainerRoleO5localyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "ContainerRole",
+            "local"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case component",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI13ContainerRoleO9componentyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "ContainerRole",
+            "component"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@attached(memberAttribute) @attached(member, names: named(init), named(Overrides), named(withOverrides), arbitrary) @attached(peer, names: suffixed(Dependencies)) @attached(extension, conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable, DIHierarchyRootMarker, names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)) macro DIContainerRole(_ role: ContainerRole, isolation: DIContainerIsolation = .automatic, validateDAG: Bool = true)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI15DIContainerRole_9isolation11validateDAGyAA09ContainerD0O_AA0C9IsolationOSbtcfm"
+          },
+          "kind": {
+            "identifier": "swift.macro"
+          },
+          "pathComponents": [
+            "DIContainerRole(_:isolation:validateDAG:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(extension, conformances: DIHierarchyRootMarker) macro DIHierarchyRoot()",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -257,6 +439,50 @@
           "pathComponents": [
             "SubContainerScope",
             "transient"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIContainerIsolation",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIContainerIsolationO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIContainerIsolation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case automatic",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIContainerIsolationO9automaticyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIContainerIsolation",
+            "automatic"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case mainActor",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIContainerIsolationO9mainActoryA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIContainerIsolation",
+            "mainActor"
           ]
         },
         {
@@ -343,6 +569,20 @@
               }
             ]
           }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) macro Input(_ kind: DIInputKind = .container, escaping: Bool = false)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI5Input_8escapingyAA11DIInputKindO_Sbtcfm"
+          },
+          "kind": {
+            "identifier": "swift.macro"
+          },
+          "pathComponents": [
+            "Input(_:escaping:)"
+          ]
         },
         {
           "accessLevel": "public",

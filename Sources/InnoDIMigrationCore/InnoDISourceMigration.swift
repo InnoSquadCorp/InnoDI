@@ -49,12 +49,20 @@ struct UnqualifiedInnoDIAttributeContext {
 private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
     private static let innoDINames: Set<String> = [
         "DIContainer",
+        "DIContainerRole",
+        "DIComponent",
+        "DIHierarchyRoot",
+        "Input",
         "Provide",
         "SubContainer",
     ]
     private static let innoDISwiftUINames: Set<String> = [
         "DIContainer",
+        "DIContainerRole",
+        "DIComponent",
+        "DIHierarchyRoot",
         "DIFeatureRoot",
+        "Input",
         "Provide",
         "SubContainer",
     ]
@@ -326,6 +334,15 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         ExprSyntax(node)
     }
 
+    override func visit(_ node: StructDeclSyntax) -> DeclSyntax {
+        let visited = super.visit(node)
+        guard let visitedStruct = visited.as(StructDeclSyntax.self),
+              let migrated = migrateContainerDeclaration(visitedStruct) else {
+            return visited
+        }
+        return DeclSyntax(migrated)
+    }
+
     override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
         guard node.bindings.count == 1,
               let binding = node.bindings.first,
@@ -397,6 +414,24 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             return super.visit(node)
         }
 
+        if isInputScope(arguments.first(where: { $0.label == nil })?.expression) {
+            guard !containsComment(node),
+                  arguments.allSatisfy({ argument in
+                    argument.label == nil
+                        || canonicalIdentifier(argument.label!) == "escaping"
+                  }) else {
+                diagnostics.append(
+                    MigrationDiagnostic(
+                        code: "migrate.input-argument-unsupported",
+                        path: path,
+                        message: "Cannot safely rewrite a commented or non-input @Provide(.input) argument list; no files were written."
+                    )
+                )
+                return super.visit(node)
+            }
+            return super.visit(makeInputAttribute(from: node, arguments: arguments))
+        }
+
         let concreteArguments = Array(
             arguments.filter { $0.label.map(canonicalIdentifier) == "concrete" }
         )
@@ -431,6 +466,226 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         return super.visit(
             node.with(\.arguments, .argumentList(filtered))
         )
+    }
+
+    private func migrateContainerDeclaration(
+        _ node: StructDeclSyntax
+    ) -> StructDeclSyntax? {
+        let attributes = node.attributes.compactMap { $0.as(AttributeSyntax.self) }
+        guard let container = attributes.first(where: {
+            isInnoDIAttribute($0, named: "DIContainer", context: attributeContext)
+        }) else {
+            return nil
+        }
+        let componentMarkers = attributes.filter {
+            isInnoDIAttribute($0, named: "DIComponent", context: attributeContext)
+        }
+        let rootMarkers = attributes.filter {
+            isInnoDIAttribute($0, named: "DIHierarchyRoot", context: attributeContext)
+        }
+        guard componentMarkers.count <= 1, rootMarkers.count <= 1 else {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.container-role-duplicate",
+                    path: path,
+                    message: "Duplicate hierarchy markers cannot be migrated safely; no files were written."
+                )
+            )
+            return nil
+        }
+        if !componentMarkers.isEmpty && !rootMarkers.isEmpty {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.container-role-conflict",
+                    path: path,
+                    message: "A container cannot migrate as both .component and .root; choose one role before rerunning. No files were written."
+                )
+            )
+            return nil
+        }
+        guard !containsComment(container),
+              !componentMarkers.contains(where: containsComment),
+              !rootMarkers.contains(where: containsComment) else {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.container-option-comment",
+                    path: path,
+                    message: "Comments attached to legacy container role or isolation options require manual migration; no files were written."
+                )
+            )
+            return nil
+        }
+
+        let existing = Array(container.arguments?.as(LabeledExprListSyntax.self) ?? [])
+        let existingRole = existing.first(where: { $0.label == nil })
+        let rootArgument = existing.first(where: {
+            $0.label.map(canonicalIdentifier) == "root"
+        })
+        let mainActorArgument = existing.first(where: {
+            $0.label.map(canonicalIdentifier) == "mainActor"
+        })
+        if existingRole != nil || existing.contains(where: {
+            $0.label.map(canonicalIdentifier) == "isolation"
+        }) {
+            return nil
+        }
+
+        let rootValue = rootArgument.flatMap { booleanLiteralValue($0.expression) }
+        let mainActorValue = mainActorArgument.flatMap { booleanLiteralValue($0.expression) }
+        if rootArgument != nil && rootValue == nil
+            || mainActorArgument != nil && mainActorValue == nil {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.container-option-nonliteral",
+                    path: path,
+                    message: "Only literal root: and mainActor: values can be migrated automatically; no files were written."
+                )
+            )
+            return nil
+        }
+
+        let role: String?
+        if !componentMarkers.isEmpty {
+            role = "component"
+        } else if !rootMarkers.isEmpty || rootValue == true {
+            role = "root"
+        } else {
+            role = nil
+        }
+        let needsMigration = role != nil
+            || mainActorArgument != nil
+            || rootArgument != nil
+            || !componentMarkers.isEmpty
+            || !rootMarkers.isEmpty
+        guard needsMigration else { return nil }
+
+        var rebuilt: [LabeledExprSyntax] = []
+        if let role {
+            rebuilt.append(
+                LabeledExprSyntax(
+                    expression: ExprSyntax(
+                        MemberAccessExprSyntax(name: .identifier(role))
+                    )
+                )
+            )
+        }
+        if mainActorValue == true {
+            rebuilt.append(
+                LabeledExprSyntax(
+                    label: .identifier("isolation"),
+                    colon: .colonToken(trailingTrivia: .space),
+                    expression: ExprSyntax(
+                        MemberAccessExprSyntax(name: .identifier("mainActor"))
+                    )
+                )
+            )
+        }
+        rebuilt.append(contentsOf: existing.filter { argument in
+            let label = argument.label.map(canonicalIdentifier)
+            return label != "root" && label != "mainActor"
+        }.map { $0.with(\.leadingTrivia, []) })
+        rebuilt = rebuilt.enumerated().map { index, argument in
+            argument.with(
+                \.trailingComma,
+                index == rebuilt.index(before: rebuilt.endIndex)
+                    ? nil
+                    : .commaToken(trailingTrivia: .space)
+            )
+        }
+
+        let migratedContainer = container
+            .with(\.attributeName, roleContainerAttributeName(from: container))
+            .with(
+            \.arguments,
+            rebuilt.isEmpty ? nil : .argumentList(LabeledExprListSyntax(rebuilt))
+        )
+        let removedOffsets = Set(
+            (componentMarkers + rootMarkers).map { $0.position.utf8Offset }
+        )
+        let containerOffset = container.position.utf8Offset
+        var migratedAttributes: [AttributeListSyntax.Element] = []
+        for element in node.attributes {
+            if let attribute = element.as(AttributeSyntax.self) {
+                let offset = attribute.position.utf8Offset
+                if removedOffsets.contains(offset) { continue }
+                if offset == containerOffset {
+                    migratedAttributes.append(.attribute(migratedContainer))
+                    continue
+                }
+            }
+            migratedAttributes.append(element)
+        }
+        return node.with(
+            \.attributes,
+            AttributeListSyntax(migratedAttributes)
+        )
+    }
+
+    private func roleContainerAttributeName(
+        from container: AttributeSyntax
+    ) -> TypeSyntax {
+        if container.attributeName.is(MemberTypeSyntax.self) {
+            return TypeSyntax(
+                MemberTypeSyntax(
+                    baseType: TypeSyntax(IdentifierTypeSyntax(name: .identifier("InnoDI"))),
+                    period: .periodToken(),
+                    name: .identifier("DIContainerRole")
+                )
+            )
+        }
+        return TypeSyntax(
+            IdentifierTypeSyntax(name: .identifier("DIContainerRole"))
+        )
+    }
+
+    private func makeInputAttribute(
+        from provide: AttributeSyntax,
+        arguments: LabeledExprListSyntax
+    ) -> AttributeSyntax {
+        let name: TypeSyntax
+        if provide.attributeName.is(MemberTypeSyntax.self) {
+            name = TypeSyntax(
+                MemberTypeSyntax(
+                    baseType: TypeSyntax(IdentifierTypeSyntax(name: .identifier("InnoDI"))),
+                    period: .periodToken(),
+                    name: .identifier("Input")
+                )
+            )
+        } else {
+            name = TypeSyntax(IdentifierTypeSyntax(name: .identifier("Input")))
+        }
+        let escaping = arguments.filter {
+            $0.label.map(canonicalIdentifier) == "escaping"
+        }
+        var migrated = AttributeSyntax(
+            atSign: provide.atSign,
+            attributeName: name,
+            leftParen: escaping.isEmpty ? nil : .leftParenToken(),
+            arguments: escaping.isEmpty ? nil : .argumentList(escaping),
+            rightParen: escaping.isEmpty ? nil : .rightParenToken()
+        )
+        migrated = migrated
+            .with(\.leadingTrivia, provide.leadingTrivia)
+            .with(\.trailingTrivia, provide.trailingTrivia)
+        return migrated
+    }
+
+    private func isInputScope(_ expression: ExprSyntax?) -> Bool {
+        guard let expression,
+              let member = expression.as(MemberAccessExprSyntax.self),
+              canonicalIdentifier(member.declName.baseName) == "input" else {
+            return false
+        }
+        guard let base = member.base else { return true }
+        return base.trimmedDescription == "DIScope"
+            || base.trimmedDescription == "InnoDI.DIScope"
+    }
+
+    private func booleanLiteralValue(_ expression: ExprSyntax) -> Bool? {
+        guard let literal = expression.as(BooleanLiteralExprSyntax.self) else {
+            return nil
+        }
+        return literal.literal.text == "true"
     }
 
     private func migrateFeatureRoots(

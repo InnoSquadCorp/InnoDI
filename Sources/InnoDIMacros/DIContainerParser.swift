@@ -527,6 +527,7 @@ struct DIContainerParser {
                 name: memberName,
                 type: validatedBinding.typeAnnotation.type,
                 scope: scope,
+                inputKind: arguments.inputKind,
                 factory: arguments.factoryExpr,
                 asyncFactory: arguments.asyncFactoryExpr,
                 asyncFactoryIsThrowing: arguments.asyncFactoryIsThrowing,
@@ -771,7 +772,9 @@ private func diagnoseInvalidContainerBoolArguments(
     declaration: some DeclGroupSyntax,
     context: some MacroExpansionContext
 ) -> Bool {
-    guard let attribute = InnoDICore.findInnoDIAttribute(named: "DIContainer", in: declaration.attributes) else {
+    guard let attribute = InnoDICore.findDIContainerAttribute(
+        in: declaration.attributes
+    ) else {
         return false
     }
 

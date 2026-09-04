@@ -310,9 +310,10 @@ The `InnoDI-Migrate` sequence is intentionally mechanical:
 
 1. Convert `@Provide(.input)` to `@Input`.
 2. Convert `@DIComponent` plus `@DIContainer` to
-   `@DIContainer(.component, ...)`.
+   `@DIContainerRole(.component, ...)` during the preparation train. Final
+   naming remains subject to RFC acceptance.
 3. Convert `@DIHierarchyRoot` plus `@DIContainer(root: true, ...)` to
-   `@DIContainer(.root, ...)`.
+   `@DIContainerRole(.root, ...)`.
 4. Preserve `validateDAG` and actor-isolation arguments exactly.
 5. Leave manual child construction unchanged unless the tool can prove the
    full assisted-factory transformation; report those sites as candidates.
@@ -377,9 +378,9 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | Partial: the SPI peer alias lets a cross-module parent own the generated factory through `@Provide(..., with:)` without repeating assisted types; InnoSample proves the peer and initializer are not yet consumable from another file in the same Xcode target, while child-to-parent binding completeness and invalid static/assisted diagnostics remain TBD |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | Partial: the SPI external-consumer fixture and InnoSample People route create children with distinct `.shared` identities and verify override identity |
 | FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Partial: the schema-v2 contract gate reports all scope/node/edge drift and exits 5; assisted-input and factory-ownership v3 fields remain TBD |
-| FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | TBD |
-| FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | TBD |
-| FR-600-007 | AC-600-005 | Schema-v1 report groundwork landed; 6.0 rewrite rules remain TBD | `InnoDIMigrationCoreTests`, external-consumer coverage, and the exact InnoSample/Mulbyul/BlPia report snapshot above |
+| FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | Partial: `@Input` and `@Input(.assisted)` normalize into the provider IR; container inputs compile through the existing storage/initializer contract, while assisted factory consumption remains FR-600-002 work |
+| FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(.component/.root)` and `isolation: .mainActor` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
+| FR-600-007 | AC-600-005 | Schema-v1 report plus idempotent 6.0 rewrite rules | `InnoDIMigrationCoreTests` cover input, role, isolation, option preservation, write, and second-pass stability; the strict public component fixture compiles the migrated spelling |
 | FR-600-008 | AC-600-008 | Ordered collection binding code generation | Partial: the underscored SPI macro and strict external fixture cover one local synchronous collection, order, lifetimes, and overrides; injectable/public syntax remains TBD |
 | FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v3 contribution edges | Partial: macro diagnostics cover empty/duplicate/unknown/async/type-mismatched contributors; build-support serialization and graph v3 edges remain TBD |
 

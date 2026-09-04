@@ -25,8 +25,7 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
               let binding = variable.bindings.first,
               let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
               let type = binding.typeAnnotation?.type,
-              let provideAttribute = findInnoDIAttribute(
-                  named: "Provide",
+              let provideAttribute = InnoDICore.findManagedProviderAttribute(
                   in: variable.attributes
               ) else {
             return []
@@ -148,8 +147,7 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             ]
         }
 
-        guard let provideAttribute = findInnoDIAttribute(
-            named: "Provide",
+        guard let provideAttribute = InnoDICore.findManagedProviderAttribute(
             in: variable.attributes
         ) else {
             if isDirectMemberOfSupportedDIContainer(declaration, in: context) {
@@ -717,5 +715,5 @@ private func makeTransientClosureCallExpr(
 }
 
 private func hasProvideAttribute(_ attributes: AttributeListSyntax?) -> Bool {
-    findInnoDIAttribute(named: "Provide", in: attributes) != nil
+    InnoDICore.findManagedProviderAttribute(in: attributes) != nil
 }
