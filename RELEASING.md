@@ -219,11 +219,11 @@ standalone release assets.
   breaking surface is frozen.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
-  every rooted graph, and `--diff` compares two schema-v3 JSON artifacts.
+  every rooted graph, and `--diff` compares two schema-v4 JSON artifacts.
   `--diff ... --check-contract` turns that comparison into a CI gate: unchanged
   contracts exit 0 and any scope, node, or edge drift, including assisted input,
   assisted-factory ownership, or ordered contribution changes, exits 5 while
-  preserving the human-readable diff. Regenerate schema-v2 baselines before
+  preserving the human-readable diff. Regenerate schema-v3 baselines before
   comparing them with this release candidate.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
@@ -239,15 +239,15 @@ standalone release assets.
   otherwise reject override forwarding as a non-Sendable actor crossing.
 - Added public `@Multibinding` for one injectable deterministic ordered
   collection from explicit local synchronous providers with the same written
-  type. Macro, serialized validation, graph-v3, and strict external-consumer
+  type. Macro, serialized validation, graph-v4, and strict external-consumer
   tests cover invalid contributors, injection, shared/transient lifetime
-  behavior, contributor order, and overrides. The older underscored SPI remains
-  only for pinned pilot compatibility until real consumers migrate.
-- Verified the first public RFC 0006 runtime pilot in InnoSample commit
-  `d72bbdc` against InnoDI `e1f0d12`. The People detail route passes the
+  behavior, contributor order, and overrides. The superseded underscored SPI
+  has been removed after public consumer migration.
+- Verified the public RFC 0006 runtime and SwiftUI host pilot in InnoSample
+  commit `db90dafa5e52ed37f96ead3b632aa16b45cf5ac5` against InnoDI
+  `eaee869c4518fd2cd102e6ec750a05cde16c50ac`. The People route passes the
   consumer's full Xcode 27 gate, proves per-child shared-state isolation plus
-  overrides, and no longer imports the Experimental SPI or keeps a hand-written
-  factory wrapper.
+  overrides, and replaces its manual state wrapper with `DIContainerHost`.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of
