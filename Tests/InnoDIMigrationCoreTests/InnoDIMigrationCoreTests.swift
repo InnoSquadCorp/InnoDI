@@ -376,6 +376,34 @@ struct InnoDIMigrationCoreTests {
         )
     }
 
+    @Test("Ambiguous 6.0 input and role migrations fail closed")
+    func ambiguousSixDotZeroVocabularyBlocksMigration() throws {
+        let source = """
+        import InnoDI
+        import ProductModule
+
+        @DIHierarchyRoot
+        @DIContainer(root: true, mainActor: true)
+        struct AppContainer {
+            @Provide(.input)
+            var configuration: Configuration
+        }
+        """
+        let root = try makeTemporaryTree(files: ["AppContainer.swift": source])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = try InnoDIMigrator().run(root: root, mode: .write)
+        #expect(plan.changes.isEmpty)
+        #expect(plan.diagnostics.map(\.code) == ["migrate.unqualified-ownership-ambiguous"])
+        #expect(plan.diagnostics[0].message.contains("@Provide(.input)"))
+        #expect(plan.diagnostics[0].message.contains("@DIContainer(role/isolation:)"))
+        #expect(plan.diagnostics[0].message.contains("@DIHierarchyRoot"))
+        #expect(
+            try String(contentsOf: root.appendingPathComponent("AppContainer.swift"), encoding: .utf8)
+                == source
+        )
+    }
+
     @Test("Exported untrusted macro namespaces block sibling-file migration")
     func exportedUntrustedNamespaceBlocksSiblingMigration() throws {
         let root = try makeTemporaryTree(files: [

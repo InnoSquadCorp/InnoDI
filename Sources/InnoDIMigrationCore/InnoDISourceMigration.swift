@@ -909,11 +909,43 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
                   let arguments = node.arguments?.as(LabeledExprListSyntax.self),
                   arguments.contains(where: {
                       $0.label.map(canonicalIdentifier) == "concrete"
+                  }) || arguments.first(where: { $0.label == nil }).map({
+                      isLegacyInputScopeExpression($0.expression)
+                  }) == true {
+            if arguments.contains(where: {
+                $0.label.map(canonicalIdentifier) == "concrete"
+            }) {
+                names.insert("@Provide(concrete:)")
+            }
+            if arguments.first(where: { $0.label == nil }).map({
+                isLegacyInputScopeExpression($0.expression)
+            }) == true {
+                names.insert("@Provide(.input)")
+            }
+        } else if name == "DIContainer",
+                  !attributeContext.allows(name),
+                  let arguments = node.arguments?.as(LabeledExprListSyntax.self),
+                  arguments.contains(where: {
+                      let label = $0.label.map(canonicalIdentifier)
+                      return label == "root" || label == "mainActor" || label == "isolation"
                   }) {
-            names.insert("@Provide(concrete:)")
+            names.insert("@DIContainer(role/isolation:)")
+        } else if (name == "DIComponent" || name == "DIHierarchyRoot"),
+                  !attributeContext.allows(name) {
+            names.insert("@\(name)")
         }
         return .visitChildren
     }
+}
+
+private func isLegacyInputScopeExpression(_ expression: ExprSyntax) -> Bool {
+    guard let member = expression.as(MemberAccessExprSyntax.self),
+          canonicalIdentifier(member.declName.baseName) == "input" else {
+        return false
+    }
+    guard let base = member.base else { return true }
+    return base.trimmedDescription == "DIScope"
+        || base.trimmedDescription == "InnoDI.DIScope"
 }
 
 private final class LegacyFeatureRootCollector: SyntaxVisitor {
