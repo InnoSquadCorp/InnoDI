@@ -213,6 +213,35 @@ jobs:
           path: build/perf-trend-report.json
           if-no-files-found: ignore
 
+  sanitizers:
+    name: Thread and address sanitizers (Xcode 26.6)
+    if: github.event_name == 'push'
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Run thread sanitizer suite
+        run: >-
+          swift test
+          --scratch-path .build/main-tsan
+          --sanitize=thread
+          -Xswiftc -strict-concurrency=complete
+          -Xswiftc -warnings-as-errors
+      - name: Run address sanitizer suite
+        run: >-
+          swift test
+          --scratch-path .build/main-asan
+          --sanitize=address
+          -Xswiftc -strict-concurrency=complete
+          -Xswiftc -warnings-as-errors
+
   swift-62-compatibility:
     name: Swift 6.2 compatibility
     if: github.event_name == 'push'
@@ -334,6 +363,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - macro-tests
+      - sanitizers
       - swift-62-compatibility
       - apple-platform-builds
       - path-identity
