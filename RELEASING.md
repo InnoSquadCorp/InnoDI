@@ -87,6 +87,13 @@ Before dispatching the `Release Gate` workflow:
     - repository is public
     - `Package.swift` is at the root
     - `swift package dump-package` succeeds with the current Swift toolchain
+    - On the release-candidate PR, apply the maintainer-only
+      `release-validation` label. The label makes every subsequent PR update run
+      the read-only exhaustive, sanitizer, Swift 6.2/6.4, Apple-platform, and
+      renamed-checkout lanes before merge. Remove the label when the PR is no
+      longer a release candidate. `workflow_dispatch` provides the same
+      read-only validation for branches after this workflow entry point exists
+      on the default branch. Neither path publishes a tag or performance history.
 13. Complete the GitHub-side publication controls:
     - enable immutable releases for the repository
     - add an active branch ruleset with no bypass actors or exclusions that
