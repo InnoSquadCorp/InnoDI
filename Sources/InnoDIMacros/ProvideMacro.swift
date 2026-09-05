@@ -69,6 +69,16 @@ public struct ProvideMacro: PeerMacro {
             }
             return []
         }
+        if parseResult.initialization == nil {
+            context.emit(
+                SimpleDiagnostic.provideUnknownInitialization(
+                    parseResult.initializationName ?? "<unknown>"
+                ),
+                at: parseResult.initializationExpr.map(Syntax.init)
+                    ?? Syntax(attribute)
+            )
+            return []
+        }
 
         if varDecl.bindings.count == 1,
            let identifier = varDecl.bindings.first?

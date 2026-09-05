@@ -60,6 +60,13 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   하나로 만들도록 명시적인 `T` 또는 `T?`로 바꾸세요.
 - `provide.unknown-scope` — `.shared` / `.transient` / `.input`만
   받습니다.
+- `provide.unknown-initialization` — `initialization:`이 `.eager` 또는
+  `.onDemand`가 아닙니다.
+- `provide.initialization-invalid-scope` — `.shared`가 아닌 scope에
+  `.onDemand`를 사용했습니다.
+- `provide.ondemand-async-unsupported` — `.onDemand`와 `asyncFactory:`를 함께
+  사용했습니다. 비동기 작업에 명시적 prepare·취소·재시도 소유권이 필요하면
+  ``DIAsyncScope``를 사용하세요.
 - `provide.input-invalid-configuration` — `.input` 멤버는 factory,
   type, async factory, dependency wiring 설정을 가질 수 없습니다.
 - `provide.escaping-invalid-scope` — `.input`이 아닌 scope에서
@@ -198,6 +205,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   타입이 필수 합성 빌더와 충돌합니다. InnoDI 5.0에서는 오류로 처리하므로
   사용자 선언의 이름을 바꾸세요. 진단 전용 recovery initializer가 mount된
   child container에서 무관한 Swift argument 오류가 연쇄되는 것을 막습니다.
+- `container.prewarm-name-conflict` — on-demand 컨테이너에 `prewarm`이라는
+  direct value 또는 function이 이미 있습니다. 생성되는 선택적 prewarm API가
+  모호하지 않도록 이름을 바꾸세요.
 - `container.mainactor-conflict` — `@DIContainer(mainActor: true)`가 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
   제거하거나 `mainActor` 생성을 비활성화하세요.

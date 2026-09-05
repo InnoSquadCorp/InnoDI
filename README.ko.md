@@ -23,6 +23,20 @@ struct AppContainer {
 let client = AppContainer(baseURL: "https://api.example.com").apiClient
 ```
 
+사용되지 않을 수 있는 무거운 shared 서비스는 첫 접근 시 생성하도록 명시할
+수 있습니다. 컨테이너 값 복사본은 하나의 논리 cache를 공유하고 별도로 만든
+컨테이너는 서로 격리됩니다.
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
+생성되는 `prewarm` 메서드는 선택한 on-demand provider만 준비하며 `Lazy`와
+`Provider` 의존성은 계속 지연합니다. 비동기 소유 작업에는 `DIAsyncScope`를
+사용해 개별 waiter 취소와 owner 종료를 분리하고, `DIAsyncPreparationPlan`으로
+실패와 downstream 차단 상태를 구조적으로 확인할 수 있습니다.
+
 ## 왜 InnoDI인가
 
 InnoDI는 DI wiring을 명시적이고 리뷰 가능한 상태로 유지하면서, 실패를 더

@@ -108,6 +108,35 @@ internal func providerStoragePeerDecl(
     return DeclSyntax(decl)
 }
 
+internal func providerOnDemandStoragePeerDecl(
+    name: String,
+    type: TypeSyntax
+) -> DeclSyntax {
+    let storedType = TypeSyntax(
+        stringLiteral: "InnoDI._InnoDISharedCell<\(type.trimmedDescription)>?"
+    )
+    let decl = VariableDeclSyntax(
+        modifiers: DeclModifierListSyntax([
+            DeclModifierSyntax(name: .keyword(.private, trailingTrivia: .space))
+        ]),
+        bindingSpecifier: .keyword(.var, trailingTrivia: .space),
+        bindings: PatternBindingListSyntax([
+            PatternBindingSyntax(
+                pattern: IdentifierPatternSyntax(identifier: .identifier(name)),
+                typeAnnotation: TypeAnnotationSyntax(
+                    colon: .colonToken(trailingTrivia: .space),
+                    type: storedType
+                ),
+                initializer: InitializerClauseSyntax(
+                    equal: .equalToken(leadingTrivia: .space, trailingTrivia: .space),
+                    value: NilLiteralExprSyntax()
+                )
+            )
+        ])
+    )
+    return DeclSyntax(decl)
+}
+
 /// Builds the standard-library task type without allowing a nested container
 /// declaration named `Task`, `Error`, or `Never` to shadow compiler-authored
 /// async storage.

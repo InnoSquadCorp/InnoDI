@@ -15,6 +15,12 @@ public enum ProvideScope: String {
     case transient
 }
 
+/// Controls when a shared provider runs its construction source.
+public enum ProvideInitializationValue: String, Equatable, Sendable {
+    case eager
+    case onDemand
+}
+
 /// Semantic source of a container input.
 ///
 /// Container inputs are supplied when the container itself is constructed.
@@ -107,6 +113,12 @@ public struct ProvideArguments {
     /// Explicit scope expression, or `nil` when the default `.shared` scope
     /// was omitted at the call site.
     public let scopeExpr: ExprSyntax?
+    /// Shared-provider construction timing.
+    public let initialization: ProvideInitializationValue?
+    /// Raw initialization spelling for diagnostics.
+    public let initializationName: String?
+    /// Explicit initialization expression, when present.
+    public let initializationExpr: ExprSyntax?
     /// Factory expression passed via `factory:`.
     public let factoryExpr: ExprSyntax?
     /// Asynchronous factory expression passed via `asyncFactory:`.
@@ -154,6 +166,9 @@ public struct ProvideArguments {
         scope: ProvideScope?,
         scopeName: String?,
         scopeExpr: ExprSyntax? = nil,
+        initialization: ProvideInitializationValue? = .eager,
+        initializationName: String? = ProvideInitializationValue.eager.rawValue,
+        initializationExpr: ExprSyntax? = nil,
         factoryExpr: ExprSyntax?,
         asyncFactoryExpr: ExprSyntax? = nil,
         asyncFactoryIsThrowing: Bool = false,
@@ -170,6 +185,9 @@ public struct ProvideArguments {
         self.scope = scope
         self.scopeName = scopeName
         self.scopeExpr = scopeExpr
+        self.initialization = initialization
+        self.initializationName = initializationName
+        self.initializationExpr = initializationExpr
         self.factoryExpr = factoryExpr
         self.asyncFactoryExpr = asyncFactoryExpr
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
@@ -472,6 +490,9 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var scope: ProvideScope?
     var scopeExpr: ExprSyntax?
     var factoryExpr: ExprSyntax?
+    var initialization: ProvideInitializationValue? = .eager
+    var initializationName: String? = ProvideInitializationValue.eager.rawValue
+    var initializationExpr: ExprSyntax?
     var asyncFactoryExpr: ExprSyntax?
     var asyncFactoryIsThrowing = false
     var escaping: Bool = false
@@ -485,6 +506,22 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
             if let label = argument.label?.text {
                 if label == "factory" {
                     factoryExpr = argument.expression
+                    continue
+                }
+                if label == "initialization" {
+                    initializationExpr = argument.expression
+                    initializationName = argument.expression.trimmedDescription
+                    if let member = argument.expression.as(
+                        MemberAccessExprSyntax.self
+                    ) {
+                        let name = member.declName.baseName.text
+                        initializationName = name
+                        initialization = ProvideInitializationValue(
+                            rawValue: name
+                        )
+                    } else {
+                        initialization = nil
+                    }
                     continue
                 }
                 if label == "asyncFactory" {
@@ -545,6 +582,9 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         scope: scope,
         scopeName: scopeName,
         scopeExpr: scopeExpr,
+        initialization: initialization,
+        initializationName: initializationName,
+        initializationExpr: initializationExpr,
         factoryExpr: factoryExpr,
         asyncFactoryExpr: asyncFactoryExpr,
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,

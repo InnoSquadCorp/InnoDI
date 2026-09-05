@@ -89,6 +89,7 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         case external
         case eager
         case onAccess
+        case onDemand
         case assisted
     }
 

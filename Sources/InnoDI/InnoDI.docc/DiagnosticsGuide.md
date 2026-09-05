@@ -88,6 +88,13 @@ Most frequently-hit codes:
   unwrapped optional `T!`. Replace it with explicit `T` or `T?` so storage and
   sibling wiring have one optionality contract.
 - `provide.unknown-scope` — `.shared` / `.transient` / `.input` only.
+- `provide.unknown-initialization` — `initialization:` is not `.eager` or
+  `.onDemand`.
+- `provide.initialization-invalid-scope` — `.onDemand` was used with a scope
+  other than `.shared`.
+- `provide.ondemand-async-unsupported` — `.onDemand` was combined with
+  `asyncFactory:`. Use ``DIAsyncScope`` when asynchronous work needs explicit
+  prepare, cancellation, and retry ownership.
 - `provide.input-invalid-configuration` — `.input` members cannot carry
   factory, type, async factory, or dependency wiring configuration.
 - `provide.escaping-invalid-scope` — `escaping: true` was used outside
@@ -227,6 +234,9 @@ Most frequently-hit codes:
   an error; rename the custom declaration. A diagnostic-only recovery
   initializer prevents mounted child containers from producing unrelated
   Swift argument errors.
+- `container.prewarm-name-conflict` — an on-demand container already has a
+  direct value or function named `prewarm`. Rename it so the generated
+  selective prewarm API remains unambiguous.
 - `container.mainactor-conflict` — `@DIContainer(mainActor: true)` is combined
   with another global actor on the container or a dependency member. Remove
   the custom actor or disable `mainActor` generation.

@@ -21,6 +21,20 @@ public enum DIInputKind {
     case assisted
 }
 
+/// Selects when a shared provider creates its value.
+public enum DIInitialization {
+    /// Construct the value while the container initializer runs.
+    case eager
+    /// Construct the value on first access and cache it in a copy-shared cell.
+    case onDemand
+}
+
+/// Raised when generated prewarming receives a key path that does not name an
+/// on-demand shared provider on that container.
+public enum DIPrewarmError: Error, Equatable, Sendable {
+    case unsupportedProvider
+}
+
 /// Source tokens for declaring how a container participates in the application hierarchy.
 ///
 /// The tokens are strings because Swift 6.2.3 crashes while matching a public
@@ -229,6 +243,11 @@ public macro _InnoDIMultibindingPrototype(
 ///   - dependencies: A literal array containing only canonical direct-member
 ///     `\Self.member` key paths for `type`-based construction, or an empty
 ///     array. Every referenced provider must be synchronous.
+///   - initialization: `.eager` preserves the default initialization-time
+///     construction. `.onDemand` is available for synchronous `.shared`
+///     providers and constructs once on first access. Value-type container
+///     copies share the same cache cell; separately initialized containers do
+///     not. Passing an override bypasses the original factory.
 ///   - factory: Synchronous factory expression. Only a root closure literal's
 ///     named parameters declare sibling DI edges; other expressions are opaque.
 ///   - asyncFactory: Explicit `async` or `async throws` factory closure for
@@ -244,6 +263,7 @@ public macro Provide(
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
     asyncFactory: Any? = nil,
     escaping: Bool = false

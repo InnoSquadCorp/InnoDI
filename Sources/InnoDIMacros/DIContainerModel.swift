@@ -268,6 +268,7 @@ struct ProvideMemberModel {
     let type: TypeSyntax
     let accessLevel: String?
     let scope: ProvideScope
+    let initialization: ProvideInitializationValue
     let inputKind: InputKindValue
     let isMultibinding: Bool
     let factory: ExprSyntax?
@@ -308,7 +309,11 @@ struct ProvideMemberModel {
     /// Derived diagnostics must not treat a provider whose own construction
     /// contract is already invalid as a usable effect source.
     var hasLocallyValidConstructionConfiguration: Bool {
-        InnoDICore.isLocallyValidProvideConstruction(
+        guard initialization == .eager || scope == .shared,
+              !(initialization == .onDemand && asyncFactory != nil) else {
+            return false
+        }
+        return InnoDICore.isLocallyValidProvideConstruction(
             binding: bindingSyntax,
             scope: scope,
             factory: factory,

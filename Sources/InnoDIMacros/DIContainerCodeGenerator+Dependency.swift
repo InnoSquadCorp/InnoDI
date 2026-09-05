@@ -25,6 +25,7 @@ internal func closureArgumentExpressions(
     member: ProvideMemberModel,
     closure: ClosureExprSyntax,
     availableNames: [String],
+    availableExpressions: [String: ExprSyntax] = [:],
     deferredTargetNameSet: Set<String>,
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
@@ -39,6 +40,7 @@ internal func closureArgumentExpressions(
             try resolvedInitDependencyExpression(
                 name: name,
                 availableNames: availableNames,
+                availableExpressions: availableExpressions,
                 fallbackOverrideNames: fallbackOverrideNames,
                 allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             )
@@ -91,6 +93,7 @@ internal func closureArgumentExpressions(
             try resolvedInitDependencyExpression(
                 name: ref.name,
                 availableNames: availableNames,
+                availableExpressions: availableExpressions,
                 fallbackOverrideNames: fallbackOverrideNames,
                 allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             )
@@ -177,9 +180,13 @@ private func resolveClosureParameter(name: String, availableNames: [String]) -> 
 internal func resolvedInitDependencyExpression(
     name: String,
     availableNames: [String],
+    availableExpressions: [String: ExprSyntax] = [:],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> ExprSyntax {
+    if let expression = availableExpressions[name] {
+        return expression
+    }
     if let resolvedName = resolveClosureParameter(name: name, availableNames: availableNames) {
         if resolvedName.hasPrefix(storagePrefix) {
             return makeProviderStorageReadExpr(name: resolvedName)

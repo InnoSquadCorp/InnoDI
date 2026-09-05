@@ -23,6 +23,13 @@ struct AppContainer {
 let client = AppContainer(baseURL: "https://api.example.com").apiClient
 ```
 
+昂贵的 shared 服务可以在首次访问时按需构建：
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
 ## 为什么选择 InnoDI
 
 InnoDI 适合希望让 DI wiring 保持显式、可审查，并尽可能提前发现错误的团队。

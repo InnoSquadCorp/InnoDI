@@ -34,7 +34,8 @@ import SwiftSyntaxBuilder
 /// mismatches with the child's `.input` parameter names.
 internal func makeSubContainerInitStatements(
     member: SubContainerMemberModel,
-    autoWireParentMemberNames: [String]
+    autoWireParentMemberNames: [String],
+    onDemandParentMemberNames: Set<String> = []
 ) -> [CodeBlockItemSyntax] {
     let selectedArguments = resolvedSubContainerArguments(
         member: member,
@@ -47,7 +48,8 @@ internal func makeSubContainerInitStatements(
     case .shared:
         let ifChain = subContainerSharedAssignmentExpr(
             member: member,
-            selectedArguments: selectedArguments
+            selectedArguments: selectedArguments,
+            onDemandParentMemberNames: onDemandParentMemberNames
         )
         stmts.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(ExpressionStmtSyntax(expression: ExprSyntax(ifChain))))))
 
@@ -82,7 +84,8 @@ internal func makeSubContainerInitStatements(
 /// string-reparse fallback during macro expansion.
 private func subContainerSharedAssignmentExpr(
     member: SubContainerMemberModel,
-    selectedArguments: [(childLabel: String, parentName: String)]
+    selectedArguments: [(childLabel: String, parentName: String)],
+    onDemandParentMemberNames: Set<String>
 ) -> IfExprSyntax {
     let storageName = "_storage_sub_\(member.name)"
     let overrideParam = member.name
@@ -98,6 +101,7 @@ private func subContainerSharedAssignmentExpr(
         value: subContainerInitializerExpr(
             childType: member.type,
             argumentMappings: selectedArguments,
+            onDemandParentMemberNames: onDemandParentMemberNames,
             trailingOverrideExpression: ExprSyntax(
                 DeclReferenceExprSyntax(baseName: .identifier("apply"))
             )
@@ -107,7 +111,8 @@ private func subContainerSharedAssignmentExpr(
         targetName: storageName,
         value: subContainerInitializerExpr(
             childType: member.type,
-            argumentMappings: selectedArguments
+            argumentMappings: selectedArguments,
+            onDemandParentMemberNames: onDemandParentMemberNames
         )
     )
     let elseIfExpr = makeSubContainerOptionalBindingIfExpr(
@@ -134,6 +139,7 @@ private func subContainerSharedAssignmentExpr(
 internal func subContainerInitializerExpr(
     childType _: TypeSyntax,
     argumentMappings: [(childLabel: String, parentName: String)],
+    onDemandParentMemberNames: Set<String> = [],
     trailingOverrideExpression: ExprSyntax? = nil,
     parentMemberBaseName: String = "self",
     parentMemberPrefix: String = "_storage_"
@@ -142,15 +148,35 @@ internal func subContainerInitializerExpr(
     var arguments: [LabeledExprSyntax] = argumentMappings.enumerated().map { index, mapping in
         let hasTrailingOverride = trailingOverrideExpression != nil
         let isLast = index == argumentMappings.count - 1 && !hasTrailingOverride
-        let parentExpression = parentMemberPrefix == "_storage_"
-            ? makeProviderStorageReadExpr(
+        let parentExpression: ExprSyntax
+        if parentMemberPrefix == "_storage_" {
+            let storageRead = makeProviderStorageReadExpr(
                 name: "\(parentMemberPrefix)\(mapping.parentName)",
                 baseName: parentMemberBaseName
             )
-            : makeSelfMemberAccessExpr(
+            if onDemandParentMemberNames.contains(mapping.parentName) {
+                parentExpression = ExprSyntax(
+                    FunctionCallExprSyntax(
+                        calledExpression: MemberAccessExprSyntax(
+                            base: storageRead,
+                            declName: DeclReferenceExprSyntax(
+                                baseName: .identifier("value")
+                            )
+                        ),
+                        leftParen: .leftParenToken(),
+                        arguments: LabeledExprListSyntax([]),
+                        rightParen: .rightParenToken()
+                    )
+                )
+            } else {
+                parentExpression = storageRead
+            }
+        } else {
+            parentExpression = makeSelfMemberAccessExpr(
                 name: "\(parentMemberPrefix)\(mapping.parentName)",
                 baseName: parentMemberBaseName
             )
+        }
         return LabeledExprSyntax(
             label: .identifier(mapping.childLabel),
             colon: .colonToken(),

@@ -268,7 +268,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                 initialization = .onAccess
             case .shared, .none:
                 lifetime = .shared
-                initialization = .eager
+                initialization = provide.initialization == .onDemand
+                    ? .onDemand : .eager
             }
             let effect: DependencyGraphProvider.Effect
             if provide.asyncFactoryExpr == nil {

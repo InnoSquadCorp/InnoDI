@@ -4,10 +4,14 @@ struct FixtureApp {
     static func main() {
         var staticCalls = 0
         var assistedCalls = 0
+        let repositoryFactory = RepositoryFactory()
         let parent = AppContainer(
-            repository: Repository(),
+            repositoryFactory: repositoryFactory,
             callback: { staticCalls += 1 }
         )
+        precondition(repositoryFactory.calls == 1)
+        try! parent.prewarm(\AppContainer.repository)
+        precondition(repositoryFactory.calls == 1)
         let first = parent.session(
             sessionID: 1,
             completion: { assistedCalls += 1 }
@@ -17,6 +21,7 @@ struct FixtureApp {
         precondition(first.sessionID == 1)
         precondition(second.sessionID == 2)
         precondition(first.token !== second.token)
+        precondition(first.repository === second.repository)
         first.callback()
         first.completion()
         precondition(staticCalls == 1)

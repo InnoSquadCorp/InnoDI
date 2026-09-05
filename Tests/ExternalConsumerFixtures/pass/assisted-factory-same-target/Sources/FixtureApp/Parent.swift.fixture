@@ -2,8 +2,15 @@ import InnoDI
 
 @DIContainer(mainActor: true)
 struct AppContainer {
-    @Input var repository: Repository
+    @Input var repositoryFactory: RepositoryFactory
     @Input(escaping: true) var callback: Callback
+    @Provide(
+        .shared,
+        initialization: .onDemand,
+        factory: { (repositoryFactory: RepositoryFactory) in
+            repositoryFactory.make()
+        }
+    ) var repository: Repository
 
     @SubContainerFactory(
         SessionContainer.self,
