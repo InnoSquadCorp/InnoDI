@@ -56,16 +56,16 @@ As of 2026-09-05:
 ### Exact consumer adoption snapshot
 
 The validated 6.0 code candidate is
-`82c9074aed63a083a09961995bd867cc45ad9925`. `InnoDI-Doctor` analyzed the
+`f1a3eaccf19bfc43164de3621c9197c731d92342`. `InnoDI-Doctor` analyzed the
 actual Swift/Tuist layouts and the three committed consumer pilots resolved
 that exact revision. A read-only Doctor result is configuration evidence; it
 is not by itself a runtime pilot.
 
 | Consumer | Consumer state | Exact candidate evidence | Result |
 |---|---|---|---|
-| InnoSample | committed and pushed on main as `afb7023` | Doctor: 178 Swift files, 0 proposed/applied/second-pass changes; migration check; DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory, `DIContainerHost`, `@Input`, and explicit container-role pilot verified. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. The official `make verify-ci` passes. |
-| BlPia Apple | committed and pushed branch pilot `cac0280`; original dirty checkout preserved | Doctor: 160 Swift files, 0 diagnostics/changes; unchanged second pass; DAG; 10 test schemes; generic iOS and embedded watch build | A feature-root graph resolve now owns shared session state and an integration test proves onboarding-to-dashboard propagation. This is a committed adopter vote. |
-| Lynceus | committed and pushed branch pilot `67b1730`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
+| InnoSample | committed and pushed on main as `ec88716` | Doctor: 178 Swift files, 0 proposed/applied/second-pass changes; migration check; DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory, `DIContainerHost`, `@Input`, and explicit container-role pilot verified. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. The official `make verify-ci` passes. |
+| BlPia Apple | committed and pushed branch pilot `c12560d`; original dirty checkout preserved | Doctor: 160 Swift files, 0 diagnostics/changes; unchanged second pass; DAG; 10 test schemes; generic iOS and embedded watch build | The final strict hierarchy gate detected seven factory-created containers incorrectly marked as cross-module `component` ownership; the pilot now uses `local` roles for those `@Provide`-owned containers and passes the full gate. This is a committed adopter vote. |
+| Lynceus | committed and pushed branch pilot `3edb77b`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
 | Mulbyul Apple | original checkout and user changes preserved; no source commit or migration applied | Earlier isolated source/build compatibility tests only | User explicitly limited Mulbyul to testing without changes. It is not pinned to the final code candidate and is not counted as a committed adopter vote. |
 
 The original SPI pilot exposed same-target visibility and initializer-access
@@ -416,7 +416,7 @@ conflation that makes assisted inputs hard to explain and extend.
   shared/transient lifetime behavior, injection, and overrides. The
   underscored SPI was removed after the public path replaced it.
 - Pilot one InnoSample flow. The assisted factory and container-host migration
-  completed at consumer commit `afb7023` against InnoDI `82c9074`; the full
+  completed at consumer commit `ec88716` against InnoDI `f1a3eac`; the full
   local consumer gate and per-child lifetime assertions pass without an SPI
   import, local wrapper, or manual SwiftUI state owner.
 
@@ -448,8 +448,8 @@ conflation that makes assisted inputs hard to explain and extend.
 - Keep `@Multibinding` as the explicit local array declaration. Keyed and
   provider collections plus cross-module composition are explicit runtime
   contracts; automatic discovery and `@IntoCollection` are out of scope.
-- The two additional committed adopter votes are BlPia `cac0280` and Lynceus
-  `67b1730`. Mulbyul remains outside the mutation scope by explicit user
+- The two additional committed adopter votes are BlPia `c12560d` and Lynceus
+  `3edb77b`. Mulbyul remains outside the mutation scope by explicit user
   direction.
 
 ## Acceptance gate

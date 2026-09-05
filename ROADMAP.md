@@ -304,7 +304,7 @@ Delivery order:
 4. Validate InnoSample, BlPia, and Lynceus adoption against exact revisions;
    keep Mulbyul read-only/test-only per its owner boundary.
    InnoSample is the committed public runtime and SwiftUI host pilot: consumer
-   commit `afb7023` resolves InnoDI `82c9074`, passes its Xcode 27
+   commit `ec88716` resolves InnoDI `f1a3eac`, passes its Xcode 27
    `make verify-ci` gate, and proves per-child shared-state isolation,
    overrides, loading/failure/retry, and host identity without an SPI import,
    temporary wrapper, or manual state owner. The generated public bridge also
@@ -314,7 +314,7 @@ Delivery order:
    source paths now reuse the existing
    initializer, hierarchy, actor, and strict external-consumer contracts.
    The compiler/toolchain contract is frozen for the code candidate; BlPia
-   `cac0280` and Lynceus `67b1730` provide the two additional committed pilot
+   `c12560d` and Lynceus `3edb77b` provide the two additional committed pilot
    votes. Maintainers accepted the names after the dedicated promotion pull
    request completed its seven-calendar-day cooldown.
 6. Accept and freeze the RFC after diagnostics, graph schema, migration,

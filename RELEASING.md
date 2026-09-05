@@ -250,14 +250,16 @@ standalone release assets.
   behavior, contributor order, and overrides. The superseded underscored SPI
   has been removed after public consumer migration.
 - Verified the public RFC 0006 runtime and SwiftUI host pilot in InnoSample
-  commit `afb7023` against validated InnoDI code candidate
-  `82c9074aed63a083a09961995bd867cc45ad9925`. The People route passes the
+  commit `ec88716` against validated InnoDI code candidate
+  `f1a3eaccf19bfc43164de3621c9197c731d92342`. The People route passes the
   consumer's full Xcode 27 gate, proves per-child shared-state isolation plus
   overrides, and replaces its manual state wrapper with `DIContainerHost`.
 - Added two more committed consumer pilots against that code candidate. BlPia
-  `cac0280` passes Doctor over 160 Swift files, an unchanged second migration
-  pass, DAG validation, 10 test schemes, and a generic iOS/watch build. Lynceus
-  `67b1730` passes Doctor over 81 Swift files, an unchanged second pass, a real
+  `c12560d` passes Doctor over 160 Swift files, an unchanged second migration
+  pass, DAG validation, 10 test schemes, and a generic iOS/watch build; the
+  strict hierarchy gate also corrected seven manually provided containers from
+  `component` to `local` ownership. Lynceus `3edb77b` passes Doctor over 81
+  Swift files, an unchanged second pass, a real
   two-container full-root DAG, 41 tests, and its macOS build. Mulbyul was tested
   without source changes and is deliberately not counted as a committed pilot.
 - Hardened migration and workspace analysis from real-consumer evidence:
