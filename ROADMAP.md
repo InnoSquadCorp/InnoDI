@@ -272,9 +272,10 @@ ordered by user-facing trust risk first.
 ## 6.0 Preparation Train
 
 [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) defines
-the accepted 6.0 contract: child-owned assisted factories, separate input and
+the proposed 6.0 contract: child-owned assisted factories, separate input and
 provider-lifetime declarations, explicit container roles, and deterministic
-compile-time multibinding.
+compile-time multibinding. Its implementation is frozen for promotion review;
+formal RFC acceptance remains pending.
 
 Delivery order:
 
@@ -315,10 +316,12 @@ Delivery order:
    initializer, hierarchy, actor, and strict external-consumer contracts.
    The compiler/toolchain contract is frozen for the code candidate; BlPia
    `c12560d` and Lynceus `3edb77b` provide the two additional committed pilot
-   votes. Maintainers accepted the names after the dedicated promotion pull
-   request completed its seven-calendar-day cooldown.
-6. Accept and freeze the RFC after diagnostics, graph schema, migration,
-   strict-concurrency, consumer, and macro-performance gates pass. Complete.
+   votes. This evidence freezes the candidate implementation, while formal RFC
+   acceptance remains pending.
+6. Pending: accept and freeze the RFC only after diagnostics, graph schema,
+   migration, strict-concurrency, consumer, and macro-performance gates pass,
+   the promotion pull request completes its cooldown, and a maintainer grants
+   human approval.
 7. Remove superseded declarations and publish graph JSON v4 in 6.0.0.
 
 The exact-revision inventory for step 4 is recorded in RFC 0006. InnoSample is
