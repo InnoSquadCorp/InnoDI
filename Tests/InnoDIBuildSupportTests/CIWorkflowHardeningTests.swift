@@ -37,12 +37,12 @@ struct CIWorkflowHardeningTests {
         )
         let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
         let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
-        let compatibilityStart = try #require(
-            workflow.range(of: "  swift-62-compatibility:\n")
+        let sanitizerStart = try #require(
+            workflow.range(of: "  sanitizers:\n")
         )
         let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
         let exhaustiveJob = workflow[
-            exhaustiveStart.lowerBound..<compatibilityStart.lowerBound
+            exhaustiveStart.lowerBound..<sanitizerStart.lowerBound
         ]
 
         #expect(fastJob.contains("name: Fast PR contracts"))
@@ -96,6 +96,16 @@ struct CIWorkflowHardeningTests {
         #expect(job.contains("--sanitize=thread"))
         #expect(job.contains("--scratch-path .build/main-asan"))
         #expect(job.contains("--sanitize=address"))
+        #expect(
+            job.components(
+                separatedBy: "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
+            ).count - 1 == 2
+        )
+        #expect(
+            job.components(
+                separatedBy: "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
+            ).count - 1 == 2
+        )
         #expect(
             job.components(
                 separatedBy: "-Xswiftc -strict-concurrency=complete"

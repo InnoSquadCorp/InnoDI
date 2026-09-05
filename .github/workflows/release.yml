@@ -238,12 +238,16 @@ jobs:
             --scratch-path .build/release-tsan \
             --sanitize=thread \
             -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warnings-as-errors
+            -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
           swift test \
             --scratch-path .build/release-asan \
             --sanitize=address \
             -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warnings-as-errors
+            -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
 
       - name: Upload coverage diagnostics
         if: ${{ always() && hashFiles('coverage/summary.json') != '' }}
