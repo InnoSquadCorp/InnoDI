@@ -224,8 +224,8 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.isEmpty)
     }
 
-    @Test("Manifest-backed JSON emits the schema-v3 scope and stable IDs")
-    func manifestBackedJSONV3EndToEnd() throws {
+    @Test("Manifest-backed JSON emits the schema-v4 scope and stable IDs")
+    func manifestBackedJSONV4EndToEnd() throws {
         let fixtureURL = try makeFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
         let manifest = try writeCLIAnalysisManifest(for: fixtureURL)
@@ -243,7 +243,7 @@ struct DependencyGraphCLITests {
             GraphJSON.Document.self,
             from: Data(result.stdout.utf8)
         )
-        #expect(document.schemaVersion == 3)
+        #expect(document.schemaVersion == 4)
         #expect(document.scope.primaryTargetID == manifest.targetID.rawValue)
         #expect(document.scope.rootPruning == .all)
         #expect(
@@ -458,7 +458,10 @@ struct DependencyGraphCLITests {
             schemaVersion: document.schemaVersion,
             scope: document.scope,
             nodes: Array(document.nodes.dropLast()),
-            edges: document.edges
+            edges: document.edges,
+            providers: document.providers.filter {
+                $0.containerID != document.nodes.last?.id
+            }
         )
         let encoder = JSONEncoder()
         try encoder.encode(document).write(to: afterURL)

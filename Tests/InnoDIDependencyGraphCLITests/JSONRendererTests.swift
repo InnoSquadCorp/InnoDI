@@ -97,6 +97,7 @@ struct JSONRendererTests {
         #expect(Set(rawDocument.keys) == [
             "edges",
             "nodes",
+            "providers",
             "schemaVersion",
             "scope",
         ])
@@ -124,6 +125,7 @@ struct JSONRendererTests {
         #expect(Set(labeledEdge.keys) == ["from", "kind", "label", "to"])
         #expect(decoded.nodes.count == 3)
         #expect(decoded.edges.count == 6)
+        #expect(decoded.providers.isEmpty)
 
         let appNode = try #require(
             decoded.nodes.first {

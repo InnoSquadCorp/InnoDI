@@ -8,6 +8,7 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
     case noRoots
     case unreachableFromRoots(selector: String)
     case unsupportedSchema(path: String, found: Int, expected: Int)
+    case invalidDocument(path: String, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -21,6 +22,8 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
             return "Container '\(selector)' is not reachable from any explicit graph root."
         case .unsupportedSchema(let path, let found, let expected):
             return "Graph document '\(path)' uses schema v\(found); --diff currently requires schema v\(expected)."
+        case .invalidDocument(let path, let reason):
+            return "Graph document '\(path)' is invalid: \(reason)"
         }
     }
 }
@@ -50,7 +53,61 @@ func loadGraphJSONDocument(at path: String) throws -> GraphJSON.Document {
             expected: GraphJSON.currentSchemaVersion
         )
     }
+    try validateGraphJSONDocument(document, path: path)
     return document
+}
+
+private func validateGraphJSONDocument(
+    _ document: GraphJSON.Document,
+    path: String
+) throws {
+    let nodeIDs = document.nodes.map(\.id)
+    if let duplicate = firstDuplicate(in: nodeIDs) {
+        throw GraphInspectionError.invalidDocument(
+            path: path,
+            reason: "duplicate node ID '\(duplicate)'"
+        )
+    }
+    let validNodeIDs = Set(nodeIDs)
+    for edge in document.edges {
+        guard validNodeIDs.contains(edge.from) else {
+            throw GraphInspectionError.invalidDocument(
+                path: path,
+                reason: "edge source '\(edge.from)' does not name a node"
+            )
+        }
+        guard validNodeIDs.contains(edge.to) else {
+            throw GraphInspectionError.invalidDocument(
+                path: path,
+                reason: "edge destination '\(edge.to)' does not name a node"
+            )
+        }
+    }
+    if let duplicate = firstDuplicate(in: document.providers.map(\.id)) {
+        throw GraphInspectionError.invalidDocument(
+            path: path,
+            reason: "duplicate provider ID '\(duplicate)'"
+        )
+    }
+    for provider in document.providers {
+        guard validNodeIDs.contains(provider.containerID) else {
+            throw GraphInspectionError.invalidDocument(
+                path: path,
+                reason: "provider '\(provider.id)' names missing container '\(provider.containerID)'"
+            )
+        }
+        guard provider.source.line > 0, provider.source.column > 0 else {
+            throw GraphInspectionError.invalidDocument(
+                path: path,
+                reason: "provider '\(provider.id)' has an invalid source location"
+            )
+        }
+    }
+}
+
+private func firstDuplicate(in values: [String]) -> String? {
+    var seen: Set<String> = []
+    return values.first { !seen.insert($0).inserted }
 }
 
 func renderGraphDiff(
@@ -68,6 +125,9 @@ struct GraphDiffReport: Equatable {
     let changedNodes: [String]
     let addedEdgeIDs: [String]
     let removedEdgeIDs: [String]
+    let addedProviderIDs: [String]
+    let removedProviderIDs: [String]
+    let changedProviders: [String]
 
     var hasChanges: Bool {
         beforeScope != afterScope
@@ -76,6 +136,9 @@ struct GraphDiffReport: Equatable {
             || !changedNodes.isEmpty
             || !addedEdgeIDs.isEmpty
             || !removedEdgeIDs.isEmpty
+            || !addedProviderIDs.isEmpty
+            || !removedProviderIDs.isEmpty
+            || !changedProviders.isEmpty
     }
 }
 
@@ -104,6 +167,27 @@ func compareGraphDocuments(
 
     let beforeEdgeIDs = Set(before.edges.map(graphJSONEdgeIdentity))
     let afterEdgeIDs = Set(after.edges.map(graphJSONEdgeIdentity))
+    let beforeProviders = Dictionary(
+        before.providers.map { ($0.id, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+    let afterProviders = Dictionary(
+        after.providers.map { ($0.id, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+    let beforeProviderIDs = Set(beforeProviders.keys)
+    let afterProviderIDs = Set(afterProviders.keys)
+    let changedProviders = beforeProviderIDs.intersection(afterProviderIDs)
+        .filter {
+            beforeProviders[$0]?.semanticIdentity
+                != afterProviders[$0]?.semanticIdentity
+        }
+        .sorted()
+        .map { id in
+            guard let old = beforeProviders[id], let new = afterProviders[id]
+            else { return id }
+            return "\(id): \(providerChangeDescription(before: old, after: new))"
+        }
 
     return GraphDiffReport(
         beforeScope: before.scope,
@@ -112,7 +196,10 @@ func compareGraphDocuments(
         removedNodeIDs: removedNodeIDs,
         changedNodes: changedNodes,
         addedEdgeIDs: afterEdgeIDs.subtracting(beforeEdgeIDs).sorted(),
-        removedEdgeIDs: beforeEdgeIDs.subtracting(afterEdgeIDs).sorted()
+        removedEdgeIDs: beforeEdgeIDs.subtracting(afterEdgeIDs).sorted(),
+        addedProviderIDs: afterProviderIDs.subtracting(beforeProviderIDs).sorted(),
+        removedProviderIDs: beforeProviderIDs.subtracting(afterProviderIDs).sorted(),
+        changedProviders: changedProviders
     )
 }
 
@@ -145,6 +232,24 @@ func renderGraphDiff(_ report: GraphDiffReport) -> String {
         to: &lines
     )
     appendDiffSection(
+        title: "Providers added",
+        marker: "+",
+        values: report.addedProviderIDs,
+        to: &lines
+    )
+    appendDiffSection(
+        title: "Providers removed",
+        marker: "-",
+        values: report.removedProviderIDs,
+        to: &lines
+    )
+    appendDiffSection(
+        title: "Providers changed",
+        marker: "~",
+        values: report.changedProviders,
+        to: &lines
+    )
+    appendDiffSection(
         title: "Edges added",
         marker: "+",
         values: report.addedEdgeIDs,
@@ -158,6 +263,25 @@ func renderGraphDiff(_ report: GraphDiffReport) -> String {
     )
 
     return lines.joined(separator: "\n") + "\n"
+}
+
+private func providerChangeDescription(
+    before: GraphJSON.Provider,
+    after: GraphJSON.Provider
+) -> String {
+    var changes: [String] = []
+    func append<T: Equatable>(_ label: String, _ old: T, _ new: T) {
+        if old != new { changes.append("\(label) \(old) -> \(new)") }
+    }
+    append("type", before.type, after.type)
+    append("role", before.role.rawValue, after.role.rawValue)
+    append("lifetime", before.lifetime.rawValue, after.lifetime.rawValue)
+    append("initialization", before.initialization.rawValue, after.initialization.rawValue)
+    append("isolation", before.isolation.rawValue, after.isolation.rawValue)
+    append("effect", before.effect.rawValue, after.effect.rawValue)
+    append("inputKind", before.inputKind?.rawValue ?? "none", after.inputKind?.rawValue ?? "none")
+    append("dependencies", before.dependencies, after.dependencies)
+    return changes.joined(separator: "; ")
 }
 
 private func renderWhyQuery(

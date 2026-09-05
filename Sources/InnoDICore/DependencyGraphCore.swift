@@ -26,6 +26,125 @@ package struct DependencyGraphNode: Hashable {
     }
 }
 
+/// Canonical provider semantics shared by source analysis and graph tooling.
+/// Source coordinates intentionally live outside the semantic identity so a
+/// declaration moving within the same file does not trip a contract diff.
+package struct DependencyGraphProvider: Hashable, Sendable {
+    package let id: String
+    package let containerID: String
+    package let name: String
+    package let type: String
+    package let role: Role
+    package let lifetime: Lifetime
+    package let initialization: Initialization
+    package let isolation: Isolation
+    package let effect: Effect
+    package let inputKind: InputKind?
+    package let dependencies: [String]
+    package let source: SourceLocation
+
+    package init(
+        id: String,
+        containerID: String,
+        name: String,
+        type: String,
+        role: Role,
+        lifetime: Lifetime,
+        initialization: Initialization,
+        isolation: Isolation,
+        effect: Effect,
+        inputKind: InputKind? = nil,
+        dependencies: [String] = [],
+        source: SourceLocation
+    ) {
+        self.id = id
+        self.containerID = containerID
+        self.name = name
+        self.type = type
+        self.role = role
+        self.lifetime = lifetime
+        self.initialization = initialization
+        self.isolation = isolation
+        self.effect = effect
+        self.inputKind = inputKind
+        self.dependencies = dependencies
+        self.source = source
+    }
+
+    package enum Role: String, Codable, Hashable, Sendable {
+        case input
+        case provider
+        case subcontainer
+        case assistedFactory
+        case multibinding
+    }
+
+    package enum Lifetime: String, Codable, Hashable, Sendable {
+        case external
+        case shared
+        case transient
+    }
+
+    package enum Initialization: String, Codable, Hashable, Sendable {
+        case external
+        case eager
+        case onAccess
+        case assisted
+    }
+
+    package enum Isolation: String, Codable, Hashable, Sendable {
+        case nonisolated
+        case mainActor
+    }
+
+    package enum Effect: String, Codable, Hashable, Sendable {
+        case sync
+        case async
+        case asyncThrows
+    }
+
+    package enum InputKind: String, Codable, Hashable, Sendable {
+        case container
+        case assisted
+    }
+
+    package struct SourceLocation: Hashable, Sendable {
+        package let path: String
+        package let line: Int
+        package let column: Int
+
+        package init(path: String, line: Int, column: Int) {
+            self.path = path
+            self.line = line
+            self.column = column
+        }
+    }
+}
+
+package func normalizeProviders(
+    _ providers: [DependencyGraphProvider]
+) -> [DependencyGraphProvider] {
+    var providersByID: [String: DependencyGraphProvider] = [:]
+    for provider in providers.sorted(by: providerCanonicalOrder) {
+        providersByID[provider.id] = providersByID[provider.id] ?? provider
+    }
+    return providersByID.values.sorted(by: providerCanonicalOrder)
+}
+
+private func providerCanonicalOrder(
+    _ lhs: DependencyGraphProvider,
+    _ rhs: DependencyGraphProvider
+) -> Bool {
+    if lhs.id != rhs.id { return lhs.id < rhs.id }
+    if lhs.source.path != rhs.source.path {
+        return lhs.source.path < rhs.source.path
+    }
+    if lhs.source.line != rhs.source.line {
+        return lhs.source.line < rhs.source.line
+    }
+    return lhs.source.column < rhs.source.column
+}
+
 package struct DependencyGraphEdge: Hashable {
     package let fromID: String
     package let toID: String
@@ -54,7 +173,7 @@ package struct DependencyGraphEdge: Hashable {
     /// regular `.input` wiring.
     package let isOwnership: Bool
     /// Assisted-factory ownership is distinct from fixed `@SubContainer`
-    /// ownership in graph schema v3, while remaining a hard ownership edge.
+    /// ownership in graph schema v4, while remaining a hard ownership edge.
     package let isAssistedFactoryOwnership: Bool
     /// Ordered collection contribution metadata. Contribution edges are
     /// self-edges on the owning container and are excluded from cycle checks.
