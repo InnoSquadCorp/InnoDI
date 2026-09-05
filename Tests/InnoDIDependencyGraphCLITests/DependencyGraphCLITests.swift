@@ -7,6 +7,45 @@ import Testing
 
 @Suite("DependencyGraph CLI Integration")
 struct DependencyGraphCLITests {
+    @Test("Role-based containers remain visible to root-path graph validation")
+    func roleBasedContainersAreCollectedEndToEnd() throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "InnoDI-CLI-Role-Container-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: fixtureURL) }
+        try FileManager.default.createDirectory(
+            at: fixtureURL,
+            withIntermediateDirectories: true
+        )
+        try Data(
+            """
+            import InnoDI
+
+            @InnoDI.DIContainerRole(role: InnoDI.ContainerRole.root)
+            struct AppContainer {
+                @InnoDI.Input var value: Int
+            }
+            """.utf8
+        ).write(to: fixtureURL.appendingPathComponent("AppContainer.swift"))
+
+        let render = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--root-pruning", "all",
+            "--format", "ascii",
+        ])
+        #expect(render.exitCode == 0)
+        #expect(render.stdout.contains("AppContainer"))
+
+        let validation = try runCLI([
+            "--root", fixtureURL.path(percentEncoded: false),
+            "--validate-dag",
+        ])
+        #expect(validation.exitCode == 0)
+        #expect(validation.stdout == "DAG validation passed.\n")
+    }
+
     @Test("Unsupported nested containers block outer graph usage collection")
     func unsupportedNestedContainerIsAGraphUsageBarrier() throws {
         let fixtureURL = try makeUnsupportedNestedContainerFixtureProject()
