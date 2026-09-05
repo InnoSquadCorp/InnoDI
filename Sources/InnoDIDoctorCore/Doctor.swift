@@ -99,21 +99,27 @@ public struct InnoDIDoctor: Sendable {
         }
 
         if let manifest {
-            if let version = toolsVersion(in: manifest), version < (6, 2) {
+            if let version = declaredSwiftVersion(
+                in: manifest,
+                verificationKind: workspace.verificationKind
+            ), version < (6, 2) {
                 diagnostics.append(.init(
                     id: "doctor.toolchain.minimum",
                     severity: .error,
                     path: "\(workspace.manifestPath ?? "Package.swift"):1",
-                    message: "The package declares Swift tools \(version.0).\(version.1), below InnoDI 6.0's Swift 6.2 floor.",
+                    message: "The workspace declares Swift \(version.0).\(version.1), below InnoDI 6.0's Swift 6.2 floor.",
                     recommendation: "Upgrade the package toolchain deliberately before adopting InnoDI 6.0."
                 ))
-            } else if toolsVersion(in: manifest) == nil {
+            } else if declaredSwiftVersion(
+                in: manifest,
+                verificationKind: workspace.verificationKind
+            ) == nil {
                 diagnostics.append(.init(
                     id: "doctor.toolchain.unknown",
                     severity: .error,
                     path: "\(workspace.manifestPath ?? "Package.swift"):1",
-                    message: "The swift-tools-version declaration is missing or malformed.",
-                    recommendation: "Declare // swift-tools-version: 6.2 or newer."
+                    message: "The Swift tools or Tuist swiftVersion declaration is missing or malformed.",
+                    recommendation: "Declare Swift 6.2 or newer in Package.swift or Tuist.swift."
                 ))
             }
         }
@@ -219,10 +225,13 @@ private func doctorWorkspace(at root: URL) -> DoctorWorkspace {
     let fileManager = FileManager.default
     let packageURL = root.appendingPathComponent("Package.swift")
     let tuistPackageURL = root.appendingPathComponent("Tuist/Package.swift")
+    let tuistConfigurationURL = root.appendingPathComponent("Tuist.swift")
+    let workspaceURL = root.appendingPathComponent("Workspace.swift")
+    let projectURL = root.appendingPathComponent("Project.swift")
     let hasTuistWorkspace = fileManager.fileExists(
-        atPath: root.appendingPathComponent("Workspace.swift").path
+        atPath: workspaceURL.path
     ) || fileManager.fileExists(
-        atPath: root.appendingPathComponent("Project.swift").path
+        atPath: projectURL.path
     )
 
     if fileManager.isReadableFile(atPath: packageURL.path) {
@@ -236,6 +245,25 @@ private func doctorWorkspace(at root: URL) -> DoctorWorkspace {
         return DoctorWorkspace(
             manifestURL: tuistPackageURL,
             manifestPath: "Tuist/Package.swift",
+            verificationKind: .tuist
+        )
+    }
+    if hasTuistWorkspace {
+        let configurationURL: URL
+        let configurationPath: String
+        if fileManager.isReadableFile(atPath: tuistConfigurationURL.path) {
+            configurationURL = tuistConfigurationURL
+            configurationPath = "Tuist.swift"
+        } else if fileManager.isReadableFile(atPath: workspaceURL.path) {
+            configurationURL = workspaceURL
+            configurationPath = "Workspace.swift"
+        } else {
+            configurationURL = projectURL
+            configurationPath = "Project.swift"
+        }
+        return DoctorWorkspace(
+            manifestURL: configurationURL,
+            manifestPath: configurationPath,
             verificationKind: .tuist
         )
     }
@@ -315,6 +343,33 @@ private func toolsVersion(in manifest: String) -> (Int, Int)? {
         return nil
     }
     return (major, minor)
+}
+
+private func declaredSwiftVersion(
+    in configuration: String,
+    verificationKind: DoctorVerificationKind
+) -> (Int, Int)? {
+    if let version = toolsVersion(in: configuration) {
+        return version
+    }
+    guard case .tuist = verificationKind else { return nil }
+
+    for line in configuration.split(separator: "\n") {
+        let text = String(line)
+        guard text.contains("swiftVersion") || text.contains("SWIFT_VERSION") else {
+            continue
+        }
+        let quoted = text.split(separator: "\"")
+        for candidate in quoted where candidate.contains(".") {
+            let pieces = candidate.split(separator: ".")
+            if pieces.count >= 2,
+               let major = Int(pieces[0]),
+               let minor = Int(pieces[1]) {
+                return (major, minor)
+            }
+        }
+    }
+    return nil
 }
 
 private func sourceTreeContains(_ needle: String, root: URL) throws -> Bool {
