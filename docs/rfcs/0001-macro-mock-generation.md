@@ -3,7 +3,7 @@
 - **Status**: Accepted (experimental); available on `main` as opt-in
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
-- **Last updated**: 2026-07-17
+- **Last updated**: 2026-09-06
 - **Target release**: Experimental until the published GA criteria
   pass (not a 5.0 blocker)
 
@@ -11,12 +11,12 @@
 
 | Question | Answer |
 |---|---|
-| Generic protocols | Synthesize a generic mock class; preserves callability and matches user expectations. |
+| Generic protocols | Protocol genericity expressed through associated types remains unsupported; generic method requirements are supported through erased handlers. |
 | Generic methods | Supported in the experimental implementation with erased handler closures and preserved generic clauses. |
-| Associated types | Require explicit pinning via `@GenerateMock(associatedTypes: ...)` until cross-module resolution lands in SwiftSyntax. |
-| Actor protocols | Out-of-scope for the initial drop. Track in a follow-up RFC; users can manually implement actor mocks for now. |
-| Mutation tracking | Provide an opt-in `reset()` helper; default behavior records all calls without bound. |
-| Snapshot of call args | Generated `Call` structs conform to `Equatable` when all parameters do, otherwise fall back to `Any`-typed record. |
+| Associated types | Candidate direction is explicit pinning via `@GenerateMock(associatedTypes: ...)`; it is not implemented while cross-module resolution remains unsettled. |
+| Actor protocols | Protocol-level `@MainActor` is supported. Custom global actors and individually isolated requirements fail closed and remain outside the current GA scope. |
+| Mutation tracking | Generated mocks expose reset-safe call and stub state. `Sendable` protocols use lock-backed storage from `InnoDITesting` with atomic snapshots. |
+| Snapshot of call args | Generated `Call` structs preserve written parameter types. `Sendable` protocol records require `Sendable` fields; generic methods alone use documented handler erasure. No implicit `Equatable` or `Any` fallback is synthesized. |
 
 ## Summary
 
@@ -26,10 +26,11 @@ implementation. The generated type captures every call for assertion and plugs
 into the existing `Overrides` builder so tests can replace a production binding
 with its mock in a single line.
 
-In the current experimental implementation, generated mocks are intentionally
-not `Sendable` by default because call arrays, result slots, and handlers are
-plain mutable state. Lock-backed strict-sendable mocks remain a follow-up
-option.
+In the current experimental implementation, ordinary protocols generate
+single-executor mocks. Protocols inheriting `Sendable` generate lock-backed
+call and stub storage from `InnoDITesting`, while protocol-level `@MainActor`
+is preserved on the generated mock. Custom global actors and individually
+isolated requirements fail closed instead of producing a partial conformance.
 
 Not in scope for this RFC: runtime mocking (swizzling, proxy objects),
 partial mocks that fall back to the real implementation, or anything that
@@ -178,9 +179,9 @@ mixed real/mock graphs.
 ## Open-source etiquette
 
 RFC 0001 is the maintainers' initial sketch; public comments are welcome
-via GitHub discussions. We will tag the RFC `Accepted` only after the
-open questions above receive written answers and at least one example
-project compiles against the generated code end-to-end.
+via GitHub discussions. The RFC is Accepted only for its experimental opt-in
+stage. Promotion to GA still requires every criterion below, including real
+adopter reports and a dedicated promotion pull request.
 
 ## Implementation Status
 
@@ -198,19 +199,31 @@ RFC revisions.
       is available (`AnyObject` class bounds remain supported)
 - [x] Private/fileprivate protocol peers preserve the narrow access level;
       public/package protocols intentionally keep an internal experimental mock
-- [x] Actor-isolated protocols and requirements fail closed until an actor-safe
-      mutable call-recording model is accepted
+- [x] Protocol-level `@MainActor` isolation is preserved; custom global actors
+      and individually isolated requirements fail closed
 - [x] Snapshot tests for the supported call shapes
 - [x] Async / `throws` method shapes covered by snapshots and a strict external
       consumer ([`8a80f66`](https://github.com/InnoSquadCorp/InnoDI/commit/8a80f6646da8df146100750d58f2894d1adf5720))
+- [x] `Sendable` protocols use `InnoDITesting` lock-backed state without
+      unchecked conformance; protocol-level `@MainActor`, typed throws,
+      100-call concurrency, missing-stub preflight, and interaction validation
+      compile and run in the
+      [`generate-mock-module-shadow`](../../Tests/ExternalConsumerFixtures/pass/generate-mock-module-shadow/Sources/FixtureApp/FixtureApp.swift.fixture)
+      strict consumer
 - [ ] Associated-type protocols (per RFC `Initial answers to open questions`,
       with `@GenerateMock(associatedTypes: ...)` syntax)
-- [ ] Actor-isolated protocols — currently *Out-of-scope for GA* and tracked
-      separately
+- [ ] Custom global-actor and individually isolated requirements — currently
+      *Out-of-scope for GA* and still require a dedicated follow-up contract
 - [ ] `bundleWithOverrides:` integration with the `Overrides` builder
-- [ ] At least two adopter reports captured (see GA criteria #4)
-- [ ] Strict-concurrency-clean snapshots across the supported shape matrix
-- [ ] Promotion PR opened with a 7-day cooldown
+- [ ] At least two `@GenerateMock` adopter reports captured (see GA criteria
+      #4). The RFC 0006 container pilots do not exercise this macro and are not
+      counted.
+- [x] Strict-concurrency-clean compile/run coverage across the currently
+      supported shape matrix in
+      [`StrictConcurrencyBuildTests`](../../Tests/InnoDIBuildSupportTests/StrictConcurrencyBuildTests.swift)
+      and the external consumer fixture above
+- [ ] Dedicated RFC 0001 promotion PR opened with a 7-day cooldown. RFC 0006's
+      promotion PR does not satisfy this independent gate.
 
 When a checkbox flips, link the PR or issue that flipped it inline with the
 item.
