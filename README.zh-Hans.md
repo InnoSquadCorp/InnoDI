@@ -558,6 +558,10 @@ consumer 的常规 build cache 不会被修改。只检查一个声明时，Xcod
 
 发布说明与升级说明统一放在 [RELEASING.md](RELEASING.md)。
 
+## Collection Composition
+
+有关 6.0 collection composition、provider collection 与 keyed collision 契约，请参阅英文 README。
+
 ## 示例
 
 - [Examples/README.md](Examples/README.md)

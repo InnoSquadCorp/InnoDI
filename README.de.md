@@ -626,6 +626,10 @@ in Xcode weiterhin der schnellste Weg.
 
 Release- und Upgrade-Notizen stehen in [RELEASING.md](RELEASING.md).
 
+## Collection Composition
+
+Die 6.0-Vertrage fur Collection Composition, Provider Collections und Key-Kollisionen sind im englischen README dokumentiert.
+
 ## Beispiele
 
 - [Examples/README.md](Examples/README.md)

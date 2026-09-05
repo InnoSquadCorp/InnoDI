@@ -300,4 +300,71 @@ struct AssistedFactoryMacroTests {
             )
         )
     }
+
+    @Test("input-derived factory generation is deterministic")
+    func inputDerivedGenerationIsDeterministic() {
+        let source = """
+            typealias Callback = () -> Void
+
+            @DIContainer
+            struct Child {
+                @Input var repository: Repository
+                @Input(escaping: true) var callback: Callback
+                @Input(.assisted) var itemID: Int
+
+                @AssistedFactory(
+                    Child.self,
+                    static: [\\Child.repository, \\Child.callback],
+                    assisted: [\\Child.itemID]
+                )
+                struct AssistedFactory {}
+            }
+            """
+
+        let first = expandMacroSource(source, macros: Self.macros)
+        let second = expandMacroSource(source, macros: Self.macros)
+
+        #expect(first.diagnostics.isEmpty)
+        #expect(first.expansion == second.expansion)
+        #expect(first.expansion.contains("_InnoDIInputType_repository"))
+        #expect(first.expansion.contains("_InnoDIInputType_callback"))
+        #expect(first.expansion.contains("_InnoDIInputType_itemID"))
+        #expect(first.expansion.contains("callback: @escaping"))
+        #expect(first.expansion.contains("itemID:"))
+    }
+
+    @Test(
+        "input edits make stale key-path partitions fail closed",
+        arguments: [
+            "@Input var added: Int\n@Input(.assisted) var itemID: Int",
+            "@Input(.assisted) var renamedItemID: Int",
+            "@Input(.assisted) var itemID: Int",
+        ]
+    )
+    func staleInputEditsAreRejected(editedInput: String) {
+        let source = """
+            @DIContainer
+            struct Child {
+                @Input var repository: Repository
+                \(editedInput)
+
+                @AssistedFactory(
+                    Child.self,
+                    static: [\\Child.repository, \\Child.removed],
+                    assisted: [\\Child.itemID]
+                )
+                struct AssistedFactory {}
+            }
+            """
+        let result = expandMacroSource(source, macros: Self.macros)
+
+        #expect(
+            result.diagnostics.map(\.diagnosticID).contains(
+                MessageID(
+                    domain: "InnoDI.validation",
+                    id: "assisted-factory.input-partition-mismatch"
+                )
+            )
+        )
+    }
 }

@@ -51,10 +51,29 @@ struct MultibindingBuildValidatorTests {
         )
         #expect(Set(report.issues.map(\.code)) == [
             "multibinding.async-contributor",
-            "multibinding.type-mismatch",
             "multibinding.duplicate-contributor",
             "multibinding.unknown-contributor",
         ])
+    }
+
+    @Test("empty and possible subtype spelling are deferred to the compiler")
+    func defersAssignabilityToCompiler() throws {
+        let report = try validate(
+            """
+            @DIContainer
+            struct Container {
+                @Provide(.shared, factory: Live())
+                var live: Live
+
+                @Multibinding([\\Self.live])
+                var services: [any Service]
+
+                @Multibinding([])
+                var empty: [any Service]
+            }
+            """
+        )
+        #expect(report.issues.isEmpty)
     }
 
     private func validate(_ source: String) throws -> ValidationIssueReport {

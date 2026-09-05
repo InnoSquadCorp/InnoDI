@@ -196,6 +196,15 @@ jobs:
         run: |
           Tools/check-performance-trend.sh \
             --current-report build/macro-performance-report.json
+      - name: Runtime Trace Performance Check
+        run: Tools/measure-runtime-trace-performance.sh
+      - name: Upload Runtime Trace Performance Report
+        if: ${{ always() && hashFiles('build/runtime-trace-performance-report.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-trace-performance-report
+          path: build/runtime-trace-performance-report.json
+          if-no-files-found: error
       - name: Upload Performance Trend Report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

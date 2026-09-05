@@ -567,6 +567,9 @@ cross-module ownership에는 다음을 사용합니다.
 - `@DIEnvironmentBridge`는 container member를 SwiftUI environment key에 매핑합니다.
 - `@SubContainer(..., featureRoot:)`와 `featureRoots:`는 child container의
   default 또는 named feature-root helper를 생성합니다.
+- `DIContainerHost`는 fixed/assisted child를 route, document, window identity별로
+  지연 생성해 소유합니다. 앱이 loading/failure/retry UI를 구성하고,
+  `onDisappear` 대신 실제 close 경로에서 lifecycle handle을 호출합니다.
 - InnoDI 5.0에서는 deprecated compatibility macro인 `@DIFeatureRoot`를
   제거합니다. 한 property에 peer macro를 겹치지 않도록 `@SubContainer`의
   `featureRoot:` 또는 `featureRoots:` argument로 교체하세요.
@@ -614,6 +617,36 @@ swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 있습니다. schema v4 provider 레코드는 타입, lifetime, 초기화 정책, 격리,
 effect를 포함하며 source 줄/열 이동만으로는 계약 변경이 되지 않습니다.
 이전 graph schema는 unchanged로 취급하지 않고 명시적으로 거부합니다.
+
+`--why App.AppContainer.client`처럼 provider selector도 `--why`와
+`--dependents`에서 사용할 수 있습니다. 결과는 provider 계약과 source 위치를
+포함합니다. runtime cache/override/async provenance는 opt-in `DITraceContext`와
+`DIBoundedTraceBuffer`로 수집하며, 비활성 경로에서는 ID, event, buffer를 만들지
+않고 입력값이나 오류 payload도 기록하지 않습니다. graph query가 출력한 stable
+provider ID를 `trace.withResolution(providerID: id) { ... }`에 전달하면 성공,
+실패, 협조적 취소가 같은 runtime instance ID로 연결됩니다. cache hit와
+override 지점은 `record`로 명시적 terminal event를 추가할 수 있습니다.
+
+migration 또는 도입 전 read-only doctor를 실행합니다.
+
+```bash
+swift run InnoDI-Doctor --root .
+swift run InnoDI-Doctor --root . --json
+```
+
+기본 모드는 resolve, build, write, cache 삭제, process 종료를 하지 않습니다.
+`--apply`는 migrator의 atomic safety 검사를 명시적으로 사용하고 `--verify`는
+별도로 `swift build`를 허용합니다. report는 제안/적용 경로, 두 번째 실행의
+idempotency, 검증 상태를 구분합니다.
+
+## Collection 조합
+
+`@Multibinding([])`은 명시적 empty collection입니다. nonempty array는 생성된
+Swift array를 compiler assignability witness로 사용하므로 문자열 타입 추정
+없이 concrete 구현을 existential element로 합성할 수 있습니다.
+`DICollectionGroup`과 `DIKeyedCollection`은 명시적으로 export한 module 출력을
+호출자 순서로 합치고 keyed collision을 거부합니다. `DIProviderCollection`과
+`DIKeyedProviderCollection`은 선택한 index 또는 key만 resolve합니다.
 
 consumer target에서 매크로가 생성한 Swift 코드 확인:
 

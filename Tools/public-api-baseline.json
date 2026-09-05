@@ -16,6 +16,16 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI11DITraceSinkP",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI11DITraceSinkP",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI12DIAsyncScopeC",
           "target": "s:6InnoDI16DIAsyncPreparingP"
         },
@@ -36,6 +46,66 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV",
+          "target": "s:SE"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV",
+          "target": "s:Se"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:SE"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:Se"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI14DIPrewarmErrorO",
           "target": "s:SH"
         },
@@ -57,6 +127,16 @@
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI14DIPrewarmErrorO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DITraceContextV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DITraceContextV",
           "target": "s:s8SendableP"
         },
         {
@@ -101,6 +181,292 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI17DICollectionGroupV",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DICollectionGroupV",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DICollectionGroupV",
+          "target": "s:SK"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DICollectionGroupV",
+          "target": "s:ST"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DICollectionGroupV",
+          "target": "s:Sk"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DICollectionGroupV",
+          "target": "s:Sl"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV",
+          "target": "s:SK"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV",
+          "target": "s:ST"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV",
+          "target": "s:Sk"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV",
+          "target": "s:Sl"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV5EntryV",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIKeyedCollectionV5EntryV",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Key",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Copyable",
+              "rhsPrecise": "s:s8CopyableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Escapable",
+              "rhsPrecise": "s:s9EscapableP"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Element",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
           "target": "s:SH"
         },
@@ -108,6 +474,51 @@
           "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
           "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC",
+          "target": "s:6InnoDI11DITraceSinkP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIProviderCollectionV",
+          "target": "s:SK"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIProviderCollectionV",
+          "target": "s:ST"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIProviderCollectionV",
+          "target": "s:Sk"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DIProviderCollectionV",
+          "target": "s:Sl"
         },
         {
           "kind": "conformsTo",
@@ -226,6 +637,26 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV",
+          "target": "s:SK"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV",
+          "target": "s:ST"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV",
+          "target": "s:Sk"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV",
+          "target": "s:Sl"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO",
           "target": "s:SQ"
         },
@@ -242,6 +673,26 @@
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV",
           "target": "s:s8SendableP"
         },
         {
@@ -341,6 +792,66 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV10instanceID10Foundation4UUIDVvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind17uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOs6UInt64Vtcfc",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV10providerIDSSvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV17uptimeNanosecondss6UInt64Vvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO5startyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO6cancelyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO7failureyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO7successyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO8cacheHityA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO8overrideyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4kindAC4KindOvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI13ContainerRoleO4rootSSvpZ",
           "target": "s:6InnoDI13ContainerRoleO"
         },
@@ -358,6 +869,46 @@
           "kind": "memberOf",
           "source": "s:6InnoDI14DIPrewarmErrorO19unsupportedProvideryA2CmF",
           "target": "s:6InnoDI14DIPrewarmErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV14withResolution10providerID_xSS_xyKXEtKlF",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV14withResolution10providerID_xSS_xyYaKXEtYaKlF",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV4emityyAA0C5EventVyXKF",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV4sinkAcA0C4Sink_p_tcfc",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV5start10providerID10Foundation4UUIDVSgSS_tF",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV6record_10providerID08instanceG0yAA0C5EventV4KindO_SS10Foundation4UUIDVSgtF",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV8disabledACvpZ",
+          "target": "s:6InnoDI14DITraceContextV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI14DITraceContextV9isEnabledSbvp",
+          "target": "s:6InnoDI14DITraceContextV"
         },
         {
           "kind": "memberOf",
@@ -381,6 +932,133 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupV10startIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.startIndex",
+            "identifier": "s:Sk10startIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupV5Indexa",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.Index",
+            "identifier": "s:Sk5IndexQa"
+          },
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupV5emptyACyxGvpZ",
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupV7composeyACyxGSayAEGFZ",
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupV8endIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.endIndex",
+            "identifier": "s:Sk8endIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupVyACyxGSayxGcfc",
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DICollectionGroupVyxSicip",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.subscript(_:)",
+            "identifier": "s:Sky7ElementQz5IndexQzcip"
+          },
+          "target": "s:6InnoDI17DICollectionGroupV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV10startIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.startIndex",
+            "identifier": "s:Sk10startIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV3keyq_Sgx_tcip",
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV5EntryV",
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV5EntryV3key5valueAEyxq__Gx_q_tcfc",
+          "target": "s:6InnoDI17DIKeyedCollectionV5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV5EntryV3keyxvp",
+          "target": "s:6InnoDI17DIKeyedCollectionV5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV5EntryV5valueq_vp",
+          "target": "s:6InnoDI17DIKeyedCollectionV5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV5Indexa",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.Index",
+            "identifier": "s:Sk5IndexQa"
+          },
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV5emptyACyxq_GvpZ",
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV7composeyACyxq_GSayAEGKFZ",
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionV8endIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.endIndex",
+            "identifier": "s:Sk8endIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionVyAC5EntryVyxq__GSicip",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.subscript(_:)",
+            "identifier": "s:Sky7ElementQz5IndexQzcip"
+          },
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIKeyedCollectionVyACyxq_GSayAC5EntryVyxq__GGKcfc",
+          "target": "s:6InnoDI17DIKeyedCollectionV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO6sharedyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
         },
@@ -388,6 +1066,96 @@
           "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO9transientyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC6recordyyAA12DITraceEventVF",
+          "sourceOrigin": {
+            "displayName": "DITraceSink.record(_:)",
+            "identifier": "s:6InnoDI11DITraceSinkP6recordyyAA0C5EventVF"
+          },
+          "target": "s:6InnoDI20DIBoundedTraceBufferC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV",
+          "target": "s:6InnoDI20DIBoundedTraceBufferC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV17droppedEventCountSivp",
+          "target": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV6eventsSayAA12DITraceEventVGvp",
+          "target": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8capacityACSi_tcfc",
+          "target": "s:6InnoDI20DIBoundedTraceBufferC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIBoundedTraceBufferC8snapshotAC8SnapshotVyF",
+          "target": "s:6InnoDI20DIBoundedTraceBufferC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionV10startIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.startIndex",
+            "identifier": "s:Sk10startIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionV5Indexa",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.Index",
+            "identifier": "s:Sk5IndexQa"
+          },
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionV5emptyACyxGvpZ",
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionV7composeyACyxGSayAEGFZ",
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionV8Providera",
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionV8endIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.endIndex",
+            "identifier": "s:Sk8endIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionVyACyxGSayxycGcfc",
+          "target": "s:6InnoDI20DIProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DIProviderCollectionVyxSicip",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.subscript(_:)",
+            "identifier": "s:Sky7ElementQz5IndexQzcip"
+          },
+          "target": "s:6InnoDI20DIProviderCollectionV"
         },
         {
           "kind": "memberOf",
@@ -551,6 +1319,82 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV10startIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.startIndex",
+            "identifier": "s:Sk10startIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV3keyq_Sgx_tcip",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV14callAsFunctionq_yF",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV3key8providerAEyxq__Gx_q_yctcfc",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV3keyxvp",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV5Indexa",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.Index",
+            "identifier": "s:Sk5IndexQa"
+          },
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV5emptyACyxq_GvpZ",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV7composeyACyxq_GSayAEGKFZ",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionV8endIndexSivp",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.endIndex",
+            "identifier": "s:Sk8endIndex0B0Qzvp"
+          },
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionVyAC5EntryVyxq__GSicip",
+          "sourceOrigin": {
+            "displayName": "RandomAccessCollection.subscript(_:)",
+            "identifier": "s:Sky7ElementQz5IndexQzcip"
+          },
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIKeyedProviderCollectionVyACyxq_GSayAC5EntryVyxq__GGKcfc",
+          "target": "s:6InnoDI25DIKeyedProviderCollectionV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO15dependencyCycleyACSaySSGcACmF",
           "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
         },
@@ -568,6 +1412,16 @@
           "kind": "memberOf",
           "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF",
           "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyACyxGx_tcfc",
+          "target": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyxvp",
+          "target": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
         },
         {
           "kind": "memberOf",
@@ -603,6 +1457,11 @@
           "kind": "memberOf",
           "source": "s:6InnoDI8ProviderVyACyxGxyccfc",
           "target": "s:6InnoDI8ProviderV"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI11DITraceSinkP6recordyyAA0C5EventVF",
+          "target": "s:6InnoDI11DITraceSinkP"
         },
         {
           "kind": "requirementOf",
@@ -701,6 +1560,35 @@
           "pathComponents": [
             "DIInputKind",
             "container"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "protocol DITraceSink : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11DITraceSinkP"
+          },
+          "kind": {
+            "identifier": "swift.protocol"
+          },
+          "pathComponents": [
+            "DITraceSink"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func record(_ event: DITraceEvent)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11DITraceSinkP6recordyyAA0C5EventVF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DITraceSink",
+            "record(_:)"
           ]
         },
         {
@@ -1034,6 +1922,206 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "struct DITraceEvent",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DITraceEvent"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let instanceID: UUID",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV10instanceID10Foundation4UUIDVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "instanceID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(providerID: String, instanceID: UUID, kind: Kind, uptimeNanoseconds: UInt64 = DispatchTime.now().uptimeNanoseconds)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind17uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOs6UInt64Vtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "init(providerID:instanceID:kind:uptimeNanoseconds:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let providerID: String",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV10providerIDSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "providerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let uptimeNanoseconds: UInt64",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV17uptimeNanosecondss6UInt64Vvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "uptimeNanoseconds"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum Kind",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case start",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO5startyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "start"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case cancel",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO6cancelyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "cancel"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case failure",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO7failureyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "failure"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case success",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO7successyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "success"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case cacheHit",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO8cacheHityA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "cacheHit"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case override",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO8overrideyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "override"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let kind: Kind",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4kindAC4KindOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(peer, names: suffixed(Mock)) macro GenerateMock()",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -1160,6 +2248,158 @@
           "pathComponents": [
             "DIPrewarmError",
             "unsupportedProvider"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DITraceContext",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DITraceContext"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func withResolution<Value>(providerID: String, _ operation: () throws -> Value) rethrows -> Value",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV14withResolution10providerID_xSS_xyKXEtKlF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "withResolution(providerID:_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func withResolution<Value>(providerID: String, _ operation: () async throws -> Value) async rethrows -> Value",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV14withResolution10providerID_xSS_xyYaKXEtYaKlF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "withResolution(providerID:_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func emit(_ event: @autoclosure () -> DITraceEvent)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV4emityyAA0C5EventVyXKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "emit(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(sink: any DITraceSink)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV4sinkAcA0C4Sink_p_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "init(sink:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func start(providerID: String) -> UUID?",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV5start10providerID10Foundation4UUIDVSgSS_tF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "start(providerID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func record(_ kind: DITraceEvent.Kind, providerID: String, instanceID: UUID?)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV6record_10providerID08instanceG0yAA0C5EventV4KindO_SS10Foundation4UUIDVSgtF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "record(_:providerID:instanceID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static let disabled: DITraceContext",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV8disabledACvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "disabled"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var isEnabled: Bool { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DITraceContextV9isEnabledSbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceContext",
+            "isEnabled"
           ]
         },
         {
@@ -1383,6 +2623,591 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "struct DICollectionGroup<Element>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DICollectionGroup"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var startIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupV10startIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "startIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Index = Int",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupV5Indexa"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "Index"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static var empty: `Self` { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupV5emptyACyxGvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "empty"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static func compose(_ groups: [`Self`]) -> DICollectionGroup<Element>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupV7composeyACyxGSayAEGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "compose(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var endIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupV8endIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "endIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(_ elements: [Element])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupVyACyxGSayxGcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "init(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "subscript(position: Int) -> Element { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DICollectionGroupVyxSicip"
+          },
+          "kind": {
+            "identifier": "swift.subscript"
+          },
+          "pathComponents": [
+            "DICollectionGroup",
+            "subscript(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIKeyedCollection<Key, Element> where Key : Hashable, Key : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedCollection"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var startIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV10startIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "startIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "subscript(key key: Key) -> Element? { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV3keyq_Sgx_tcip"
+          },
+          "kind": {
+            "identifier": "swift.subscript"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "subscript(key:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct Entry",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "Entry"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(key: Key, value: Element)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV3key5valueAEyxq__Gx_q_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "Entry",
+            "init(key:value:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let key: Key",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV3keyxvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "Entry",
+            "key"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let value: Element",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV5valueq_vp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "Entry",
+            "value"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Index = Int",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV5Indexa"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "Index"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static var empty: `Self` { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV5emptyACyxq_GvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "empty"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static func compose(_ groups: [`Self`]) throws -> DIKeyedCollection<Key, Element>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV7composeyACyxq_GSayAEGKFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "compose(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var endIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionV8endIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "endIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "subscript(position: Int) -> Entry { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionVyAC5EntryVyxq__GSicip"
+          },
+          "kind": {
+            "identifier": "swift.subscript"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "subscript(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(_ entries: [Entry]) throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIKeyedCollectionVyACyxq_GSayAC5EntryVyxq__GGKcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIKeyedCollection",
+            "init(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
           "declaration": "enum SubContainerScope",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -1438,6 +3263,300 @@
           "pathComponents": [
             "SubContainerFactory(_:bindings:)"
           ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "final class DIBoundedTraceBuffer",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func record(_ event: DITraceEvent)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC6recordyyAA12DITraceEventVF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer",
+            "record(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct Snapshot",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer",
+            "Snapshot"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let droppedEventCount: Int",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV17droppedEventCountSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer",
+            "Snapshot",
+            "droppedEventCount"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let events: [DITraceEvent]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV6eventsSayAA12DITraceEventVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer",
+            "Snapshot",
+            "events"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(capacity: Int)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC8capacityACSi_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer",
+            "init(capacity:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func snapshot() -> Snapshot",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIBoundedTraceBufferC8snapshotAC8SnapshotVyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIBoundedTraceBuffer",
+            "snapshot()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIProviderCollection<Element>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIProviderCollection"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var startIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV10startIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "startIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Index = Int",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV5Indexa"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "Index"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static var empty: `Self` { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV5emptyACyxGvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "empty"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static func compose(_ groups: [`Self`]) -> DIProviderCollection<Element>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV7composeyACyxGSayAEGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "compose(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Provider = () -> Element",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV8Providera"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "Provider"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var endIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionV8endIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "endIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(_ providers: [Provider])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionVyACyxGSayxycGcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "init(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "subscript(position: Int) -> Element { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DIProviderCollectionVyxSicip"
+          },
+          "kind": {
+            "identifier": "swift.subscript"
+          },
+          "pathComponents": [
+            "DIProviderCollection",
+            "subscript(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Element"
+              }
+            ]
+          }
         },
         {
           "accessLevel": "public",
@@ -2015,6 +4134,455 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "struct DIKeyedProviderCollection<Key, Element> where Key : Hashable, Key : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var startIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV10startIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "startIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "subscript(key key: Key) -> Element? { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV3keyq_Sgx_tcip"
+          },
+          "kind": {
+            "identifier": "swift.subscript"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "subscript(key:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct Entry",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "Entry"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func callAsFunction() -> Element",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV14callAsFunctionq_yF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "Entry",
+            "callAsFunction()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(key: Key, provider: @escaping () -> Element)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV3key8providerAEyxq__Gx_q_yctcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "Entry",
+            "init(key:provider:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let key: Key",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV3keyxvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "Entry",
+            "key"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Index = Int",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV5Indexa"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "Index"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static var empty: `Self` { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV5emptyACyxq_GvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "empty"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static func compose(_ groups: [`Self`]) throws -> DIKeyedProviderCollection<Key, Element>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV7composeyACyxq_GSayAEGKFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "compose(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var endIndex: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionV8endIndexSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "endIndex"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "subscript(position: Int) -> Entry { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionVyAC5EntryVyxq__GSicip"
+          },
+          "kind": {
+            "identifier": "swift.subscript"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "subscript(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(_ entries: [Entry]) throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIKeyedProviderCollectionVyACyxq_GSayAC5EntryVyxq__GGKcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIKeyedProviderCollection",
+            "init(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Element"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
           "declaration": "enum DIAsyncPreparationPlanError",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -2085,6 +4653,96 @@
           "pathComponents": [
             "DIAsyncPreparationPlanError",
             "unknownDependency(providerID:dependencyID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIKeyedCollectionDuplicateError<Key> where Key : Hashable, Key : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionDuplicateError"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(key: Key)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyACyxGx_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionDuplicateError",
+            "init(key:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Key",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Key"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let key: Key",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyxvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionDuplicateError",
+            "key"
           ]
         },
         {
@@ -2323,6 +4981,130 @@
       "module": "InnoDISwiftUI",
       "relationships": [
         {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI15DIContainerHostV",
+          "target": "s:7SwiftUI4ViewP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI15DIContainerHostV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
+          "target": "s:7Combine16ObservableObjectP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI15DIContainerHostV4bodyQrvp",
+          "sourceOrigin": {
+            "displayName": "View.body",
+            "identifier": "s:7SwiftUI4ViewP4body4BodyQzvp"
+          },
+          "target": "s:13InnoDISwiftUI15DIContainerHostV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI15DIContainerHostV5Closea",
+          "target": "s:13InnoDISwiftUI15DIContainerHostV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI15DIContainerHostV7Factorya",
+          "target": "s:13InnoDISwiftUI15DIContainerHostV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI15DIContainerHostV8identity7factory5close7content7loading7failureACyxq_q0_q1_q2_Gx_q_xYaYbKScMYccyq_YaYbScMYccq0_q__AA0dE6HandleVtYbScMYccq1_yYbScMYccq2_s5Error_p_ALtYbScMYcctcfc",
+          "target": "s:13InnoDISwiftUI15DIContainerHostV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC5Closea",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC5closeyyYaF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC5phaseAA0dE5PhaseOyxq_Gvp",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC5retryyyF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC5start8identity7factory5closeyx_q_xYaYbKScMYccyq_YaYbScMYcctF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC7Factorya",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerCACyxq_Gycfc",
+          "target": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO4idleyACyxq_GAEmSHRzs8SendableRzr0_lF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO5readyyACyxq_Gx_q_tcAEmSHRzs8SendableRzr0_lF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO6failedyACyxq_Gx_s5Error_ptcAEmSHRzs8SendableRzr0_lF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO7loadingyACyxq_Gx_tcAEmSHRzs8SendableRzr0_lF",
+          "target": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV5closeyyYaF",
+          "target": "s:13InnoDISwiftUI21DIContainerHostHandleV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV5retryyyF",
+          "target": "s:13InnoDISwiftUI21DIContainerHostHandleV"
+        },
+        {
           "kind": "memberOf",
           "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF",
           "target": "s:7SwiftUI4ViewP"
@@ -2341,6 +5123,324 @@
       "symbols": [
         {
           "accessLevel": "public",
+          "declaration": "@MainActor struct DIContainerHost<Identity, Container, Content, Loading, Failure> where Identity : Hashable, Identity : Sendable, Content : View, Loading : View, Failure : View",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI15DIContainerHostV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIContainerHost"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Content",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Loading",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Failure",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              },
+              {
+                "depth": 0,
+                "index": 2,
+                "name": "Content"
+              },
+              {
+                "depth": 0,
+                "index": 3,
+                "name": "Loading"
+              },
+              {
+                "depth": 0,
+                "index": 4,
+                "name": "Failure"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor var body: some View { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI15DIContainerHostV4bodyQrvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIContainerHost",
+            "body"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Close = DIContainerHostOwner<Identity, Container>.Close",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI15DIContainerHostV5Closea"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIContainerHost",
+            "Close"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Content",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Loading",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Failure",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              },
+              {
+                "depth": 0,
+                "index": 2,
+                "name": "Content"
+              },
+              {
+                "depth": 0,
+                "index": 3,
+                "name": "Loading"
+              },
+              {
+                "depth": 0,
+                "index": 4,
+                "name": "Failure"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Factory = DIContainerHostOwner<Identity, Container>.Factory",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI15DIContainerHostV7Factorya"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIContainerHost",
+            "Factory"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Content",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Loading",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Failure",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              },
+              {
+                "depth": 0,
+                "index": 2,
+                "name": "Content"
+              },
+              {
+                "depth": 0,
+                "index": 3,
+                "name": "Loading"
+              },
+              {
+                "depth": 0,
+                "index": 4,
+                "name": "Failure"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor init(identity: Identity, factory: @escaping Factory, close: @escaping Close = { _ in }, @ViewBuilder content: @escaping @MainActor (Container, DIContainerHostHandle) -> Content, @ViewBuilder loading: @escaping @MainActor () -> Loading, @ViewBuilder failure: @escaping @MainActor (any Error, DIContainerHostHandle) -> Failure)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI15DIContainerHostV8identity7factory5close7content7loading7failureACyxq_q0_q1_q2_Gx_q_xYaYbKScMYccyq_YaYbScMYccq0_q__AA0dE6HandleVtYbScMYccq1_yYbScMYccq2_s5Error_p_ALtYbScMYcctcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIContainerHost",
+            "init(identity:factory:close:content:loading:failure:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Content",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Loading",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Failure",
+                "rhs": "View",
+                "rhsPrecise": "s:7SwiftUI4ViewP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              },
+              {
+                "depth": 0,
+                "index": 2,
+                "name": "Content"
+              },
+              {
+                "depth": 0,
+                "index": 3,
+                "name": "Loading"
+              },
+              {
+                "depth": 0,
+                "index": 4,
+                "name": "Failure"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(member, names: named(_InnoDIEnvironmentBridgeModifier), named(_innoDIEnvironmentBridgeModifier)) @attached(extension, conformances: DIEnvironmentBridging) macro DIEnvironmentBridge(_ mappings: [(member: String, environment: AnyKeyPath)])",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -2351,6 +5451,423 @@
           },
           "pathComponents": [
             "DIEnvironmentBridge(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor final class DIContainerHostOwner<Identity, Container> where Identity : Hashable, Identity : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Close = @MainActor @Sendable (Container) async -> Void",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5Closea"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "Close"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor func close() async",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5closeyyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "close()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@Published @MainActor var phase: DIContainerHostPhase<Identity, Container> { get set }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5phaseAA0dE5PhaseOyxq_Gvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "phase"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor func retry()",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5retryyyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "retry()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor func start(identity newIdentity: Identity, factory newFactory: @escaping Factory, close newClose: @escaping Close = { _ in })",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5start8identity7factory5closeyx_q_xYaYbKScMYccyq_YaYbScMYcctF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "start(identity:factory:close:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Factory = @MainActor @Sendable (Identity) async throws -> Container",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC7Factorya"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "Factory"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor init()",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerCACyxq_Gycfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIContainerHostOwner",
+            "init()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor enum DIContainerHostPhase<Identity, Container> where Identity : Hashable, Identity : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIContainerHostPhase"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Hashable",
+                "rhsPrecise": "s:SH"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Identity",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Identity"
+              },
+              {
+                "depth": 0,
+                "index": 1,
+                "name": "Container"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case idle",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO4idleyACyxq_GAEmSHRzs8SendableRzr0_lF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIContainerHostPhase",
+            "idle"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case ready(identity: Identity, container: Container)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO5readyyACyxq_Gx_q_tcAEmSHRzs8SendableRzr0_lF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIContainerHostPhase",
+            "ready(identity:container:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case failed(identity: Identity, error: any Error)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO6failedyACyxq_Gx_s5Error_ptcAEmSHRzs8SendableRzr0_lF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIContainerHostPhase",
+            "failed(identity:error:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case loading(identity: Identity)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO7loadingyACyxq_Gx_tcAEmSHRzs8SendableRzr0_lF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIContainerHostPhase",
+            "loading(identity:)"
           ]
         },
         {
@@ -2380,6 +5897,50 @@
               }
             ]
           }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIContainerHostHandle",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIContainerHostHandle"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor func close() async",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV5closeyyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIContainerHostHandle",
+            "close()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@MainActor func retry()",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV5retryyyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIContainerHostHandle",
+            "retry()"
+          ]
         },
         {
           "accessLevel": "public",

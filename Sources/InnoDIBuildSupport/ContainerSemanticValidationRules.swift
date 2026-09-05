@@ -21,7 +21,7 @@ func validateMultibindings(
             ))
             continue
         }
-        guard let elementType = multibinding.elementType else {
+        guard multibinding.elementType != nil else {
             issues.append(multibindingIssue(
                 code: "multibinding.collection-type-required",
                 message: "@Multibinding member '\(multibinding.memberName)' must declare an array type.",
@@ -30,16 +30,6 @@ func validateMultibindings(
             ))
             continue
         }
-        if multibinding.contributors.isEmpty {
-            issues.append(multibindingIssue(
-                code: "multibinding.empty-contributors",
-                message: "@Multibinding member '\(multibinding.memberName)' has no contributors.",
-                record: multibinding,
-                remediation: "Add at least one direct synchronous managed dependency."
-            ))
-            continue
-        }
-
         var seen: Set<String> = []
         for contributor in multibinding.contributors {
             if !seen.insert(contributor.name).inserted {
@@ -74,15 +64,9 @@ func validateMultibindings(
                 ))
                 continue
             }
-            if provider.writtenType != elementType {
-                issues.append(multibindingIssue(
-                    code: "multibinding.type-mismatch",
-                    message: "Contributor '\(contributor.name)' exposes '\(provider.writtenType ?? "<missing>")', but '\(multibinding.memberName)' collects '\(elementType)'.",
-                    record: multibinding,
-                    location: contributor.location,
-                    remediation: "Make every contributor's written type exactly match the collection element type."
-                ))
-            }
+            // Swift's generated array expression is the authoritative
+            // assignability check. Build support intentionally does not infer
+            // Swift subtyping from written type strings.
         }
     }
     return issues

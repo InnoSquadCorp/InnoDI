@@ -1,0 +1,33 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "CollectionCrossModuleConsumer",
+    platforms: [.macOS(.v13)],
+    dependencies: [.package(path: "{{INNODI_PACKAGE_PATH}}")],
+    targets: [
+        .target(name: "Contracts"),
+        .target(
+            name: "ModuleA",
+            dependencies: [
+                "Contracts",
+                .product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}"),
+            ]
+        ),
+        .target(
+            name: "ModuleB",
+            dependencies: [
+                "Contracts",
+                .product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}"),
+            ]
+        ),
+        .executableTarget(
+            name: "FixtureApp",
+            dependencies: [
+                "Contracts", "ModuleA", "ModuleB",
+                .product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}"),
+            ]
+        ),
+    ]
+)

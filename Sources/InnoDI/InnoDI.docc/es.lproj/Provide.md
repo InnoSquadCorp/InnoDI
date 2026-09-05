@@ -110,6 +110,6 @@ rechazan targets construidos mediante `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:factory:asyncFactory:escaping:)``
+- ``Provide(_:_:with:initialization:factory:asyncFactory:escaping:)``
 - ``DIScope``
 - <doc:Validation>

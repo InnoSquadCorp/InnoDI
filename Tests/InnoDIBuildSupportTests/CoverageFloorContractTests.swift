@@ -20,12 +20,14 @@ struct CoverageFloorContractTests {
         #expect(payload["schemaVersion"] as? Int == 1)
         #expect(Set(modules.keys) == [
             "InnoDI",
+            "InnoDI-Doctor",
             "InnoDI-DependencyGraph",
             "InnoDI-Migrate",
             "InnoDIBuildSupport",
             "InnoDICore",
             "InnoDIDependencyGraphCLI",
             "InnoDIDependencyGraphCore",
+            "InnoDIDoctorCore",
             "InnoDIMacros",
             "InnoDIMigrationCore",
             "InnoDISwiftUI",
@@ -116,6 +118,7 @@ struct CoverageFloorContractTests {
         #expect(coverageCollector.contains("InnoDI*Tests.xctest"))
         #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-DependencyGraph"))
         #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-Migrate"))
+        #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-Doctor"))
         #expect(
             coverageCollector.contains(
                 "COVERAGE_OBJECT_ARGUMENTS+=(\"-object\" \"$BINARY\")"

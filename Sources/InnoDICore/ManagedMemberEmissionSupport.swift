@@ -168,7 +168,6 @@ package func isLocallyValidProvideConfiguration(
               !arguments.escaping,
               !arguments.escapingParseState.isInvalid,
               case let .parsed(contributors) = arguments.dependenciesParseState,
-              !contributors.isEmpty,
               Set(contributors).count == contributors.count,
               let type = binding.typeAnnotation?.type,
               multibindingElementType(type) != nil else {

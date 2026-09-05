@@ -30,6 +30,7 @@ let package = Package(
         .library(name: "InnoDITesting", targets: ["InnoDITesting"]),
         .executable(name: "InnoDI-DependencyGraph", targets: ["InnoDI-DependencyGraph"]),
         .executable(name: "InnoDI-Migrate", targets: ["InnoDI-Migrate"]),
+        .executable(name: "InnoDI-Doctor", targets: ["InnoDI-Doctor"]),
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
     dependencies: [
@@ -124,6 +125,14 @@ let package = Package(
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
         ),
+        .target(
+            name: "InnoDIDoctorCore",
+            dependencies: [
+                "InnoDIDependencyGraphCore",
+                "InnoDIMigrationCore",
+                "InnoDIWorkspaceAnalysis",
+            ]
+        ),
         .executableTarget(
             name: "InnoDI-DependencyGraph",
             dependencies: [
@@ -135,6 +144,10 @@ let package = Package(
             dependencies: [
                 "InnoDIMigrationCore"
             ]
+        ),
+        .executableTarget(
+            name: "InnoDI-Doctor",
+            dependencies: ["InnoDIDoctorCore"]
         ),
         .executableTarget(
             name: "InnoDI-DAGValidationCoordinator",
@@ -203,6 +216,10 @@ let package = Package(
                 "InnoDIMigrationCore",
                 "InnoDITestSupport",
             ]
+        ),
+        .testTarget(
+            name: "InnoDIDoctorCoreTests",
+            dependencies: ["InnoDIDoctorCore"]
         ),
         .testTarget(
             name: "InnoDIBuildSupportTests",

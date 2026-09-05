@@ -4,7 +4,7 @@ This document is the single release source of truth for InnoDI.
 
 Latest stable public release: `5.1.0`
 
-Current development train: `5.2.0` (unreleased)
+Current development train: `6.0.0` (unreleased)
 
 `main` accumulates release work as independently green commits. During a
 development train, keep README installation snippets on the latest stable
@@ -65,6 +65,9 @@ Before dispatching the `Release Gate` workflow:
    - The baseline is hardware-sensitive. Refresh it only from a successful
      `Perf History` run on the same `macos-26` / Xcode 26.6 image used by CI;
      do not replace it with a developer-machine measurement.
+   - Run `Tools/measure-runtime-trace-performance.sh` to enforce the separate
+     disabled-resolution and enabled-event budgets. This microbenchmark does
+     not replace an actual consumer runtime pilot.
 10. Generate DocC:
     - `Tools/generate-docc.sh`
     - package `.build/docc/InnoDI` with
@@ -258,6 +261,11 @@ standalone release assets.
   matching a public enum argument in the multi-role attached
   `@DIContainerRole` expansion, without dropping Xcode 26.2 compatibility from
   the release gate. Arbitrary strings fail with a stable InnoDI diagnostic.
+- Added owned on-demand and async preparation scopes, a SwiftUI container host,
+  concurrency-safe public testing support, explicit cross-module ordered/keyed
+  provider collections, schema-v4 provider contract queries, metadata-only
+  bounded runtime tracing, and a read-only-first `InnoDI-Doctor` workflow for
+  the 6.0 candidate.
 
 ## 5.1.0
 

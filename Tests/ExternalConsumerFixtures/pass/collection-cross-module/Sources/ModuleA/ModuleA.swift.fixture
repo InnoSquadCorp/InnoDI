@@ -1,0 +1,15 @@
+import Contracts
+import InnoDI
+
+public struct ModuleAService: CrossModuleService {
+    public let name = "a"
+    public init() {}
+}
+
+public enum ModuleAContributions {
+    public static let ordered = DICollectionGroup<any CrossModuleService>([ModuleAService()])
+
+    public static func keyed() throws -> DIKeyedCollection<String, any CrossModuleService> {
+        try DIKeyedCollection([.init(key: "a", value: ModuleAService())])
+    }
+}
