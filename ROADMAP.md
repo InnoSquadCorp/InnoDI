@@ -272,9 +272,9 @@ ordered by user-facing trust risk first.
 ## 6.0 Preparation Train
 
 [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) defines
-the Draft direction for 6.0: child-owned assisted factories, separate input and
-provider-lifetime declarations, and explicit container roles. The 5.2.x train
-is limited to reversible groundwork while the RFC remains Draft.
+the accepted 6.0 contract: child-owned assisted factories, separate input and
+provider-lifetime declarations, explicit container roles, and deterministic
+compile-time multibinding.
 
 Delivery order:
 
@@ -304,7 +304,7 @@ Delivery order:
 4. Validate InnoSample, BlPia, and Lynceus adoption against exact revisions;
    keep Mulbyul read-only/test-only per its owner boundary.
    InnoSample is the committed public runtime and SwiftUI host pilot: consumer
-   commit `f53510b` resolves InnoDI `28a95a5`, passes its Xcode 27
+   commit `afb7023` resolves InnoDI `82c9074`, passes its Xcode 27
    `make verify-ci` gate, and proves per-child shared-state isolation,
    overrides, loading/failure/retry, and host identity without an SPI import,
    temporary wrapper, or manual state owner. The generated public bridge also
@@ -314,10 +314,11 @@ Delivery order:
    source paths now reuse the existing
    initializer, hierarchy, actor, and strict external-consumer contracts.
    The compiler/toolchain contract is frozen for the code candidate; BlPia
-   `787f419` and Lynceus `61d3df4` provide the two additional committed pilot
-   votes. Maintainer RFC approval and the promotion cooldown still block GA.
-6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
-   strict-concurrency, consumer, and macro-performance gates pass.
+   `cac0280` and Lynceus `67b1730` provide the two additional committed pilot
+   votes. Maintainers accepted the names after the dedicated promotion pull
+   request completed its seven-calendar-day cooldown.
+6. Accept and freeze the RFC after diagnostics, graph schema, migration,
+   strict-concurrency, consumer, and macro-performance gates pass. Complete.
 7. Remove superseded declarations and publish graph JSON v4 in 6.0.0.
 
 The exact-revision inventory for step 4 is recorded in RFC 0006. InnoSample is
@@ -352,8 +353,6 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Three committed pilots and final migration/performance gates pass; maintainer naming approval and promotion cooldown remain. |
-| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Real-consumer and final migration/performance gates pass; maintainer naming approval and promotion cooldown remain. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros

@@ -1,6 +1,6 @@
 # RFC 0006 — Assisted subgraphs and container roles
 
-- **Status**: Draft
+- **Status**: Accepted
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-03
 - **Last updated**: 2026-09-05
@@ -14,7 +14,7 @@ missing composition boundary: a child graph whose framework-owned dependencies
 come from its parent but whose runtime values are supplied when the feature is
 entered.
 
-The proposed release-defining surface is an **assisted subgraph factory**. A
+The accepted release-defining surface is an **assisted subgraph factory**. A
 child container declares ordinary container inputs separately from assisted
 inputs. The child macro generates the complete factory call signature; a
 parent only provides the child's static dependency contract. This keeps the
@@ -56,16 +56,16 @@ As of 2026-09-05:
 ### Exact consumer adoption snapshot
 
 The validated 6.0 code candidate is
-`28a95a5b146de6f79668e53156cece9aea3fa8c0`. `InnoDI-Doctor` analyzed the
+`82c9074aed63a083a09961995bd867cc45ad9925`. `InnoDI-Doctor` analyzed the
 actual Swift/Tuist layouts and the three committed consumer pilots resolved
 that exact revision. A read-only Doctor result is configuration evidence; it
 is not by itself a runtime pilot.
 
 | Consumer | Consumer state | Exact candidate evidence | Result |
 |---|---|---|---|
-| InnoSample | committed and pushed on main as `f53510b` | DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory and `DIContainerHost` pilot verified. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. The official `make verify-ci` passes; the broader non-CI app-test target still contains pre-existing stale coordinator/actor test code. |
-| BlPia Apple | committed and pushed branch pilot `787f419`; original dirty checkout preserved | Doctor: 160 Swift files, 0 diagnostics/changes; unchanged second pass; DAG; 10 test schemes; generic iOS and embedded watch build | A feature-root graph resolve now owns shared session state and an integration test proves onboarding-to-dashboard propagation. This is a committed adopter vote. |
-| Lynceus | committed and pushed branch pilot `61d3df4`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
+| InnoSample | committed and pushed on main as `afb7023` | Doctor: 178 Swift files, 0 proposed/applied/second-pass changes; migration check; DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory, `DIContainerHost`, `@Input`, and explicit container-role pilot verified. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. The official `make verify-ci` passes. |
+| BlPia Apple | committed and pushed branch pilot `cac0280`; original dirty checkout preserved | Doctor: 160 Swift files, 0 diagnostics/changes; unchanged second pass; DAG; 10 test schemes; generic iOS and embedded watch build | A feature-root graph resolve now owns shared session state and an integration test proves onboarding-to-dashboard propagation. This is a committed adopter vote. |
+| Lynceus | committed and pushed branch pilot `67b1730`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
 | Mulbyul Apple | original checkout and user changes preserved; no source commit or migration applied | Earlier isolated source/build compatibility tests only | User explicitly limited Mulbyul to testing without changes. It is not pinned to the final code candidate and is not counted as a committed adopter vote. |
 
 The original SPI pilot exposed same-target visibility and initializer-access
@@ -131,10 +131,10 @@ rendering, generated dependency contracts, and hierarchy validation.
 - A minimum platform-version increase unless an accepted implementation
   requires one.
 
-## Proposed public vocabulary
+## Accepted public vocabulary
 
-The exact spelling remains reviewable while this RFC is Draft. The semantic
-roles are fixed for the prototype.
+The following spelling is the accepted 6.0 contract. The semantic roles and
+their source representation are frozen for the release candidate.
 
 ```swift
 public enum ContainerRole {
@@ -239,9 +239,8 @@ change executor behavior.
 
 ## Compile-time multibindings
 
-The stage-2 preparation spelling uses one rename-safe, explicit contributor
-list rather than implicit module discovery. It remains reviewable while this
-RFC is Draft:
+The accepted spelling uses one rename-safe, explicit contributor list rather
+than implicit module discovery:
 
 ```swift
 @DIContainerRole(role: ContainerRole.component)
@@ -315,8 +314,7 @@ The `InnoDI-Migrate` sequence is intentionally mechanical:
 
 1. Convert `@Provide(.input)` to `@Input`.
 2. Convert `@DIComponent` plus `@DIContainer` to
-   `@DIContainerRole(role: ContainerRole.component, ...)` during the preparation
-   train. Final naming remains subject to RFC acceptance.
+   `@DIContainerRole(role: ContainerRole.component, ...)`.
 3. Convert `@DIHierarchyRoot` plus `@DIContainer(root: true, ...)` to
    `@DIContainerRole(role: ContainerRole.root, ...)`.
 4. Preserve `validateDAG` and actor-isolation arguments exactly.
@@ -418,7 +416,7 @@ conflation that makes assisted inputs hard to explain and extend.
   shared/transient lifetime behavior, injection, and overrides. The
   underscored SPI was removed after the public path replaced it.
 - Pilot one InnoSample flow. The assisted factory and container-host migration
-  completed at consumer commit `f53510b` against InnoDI `28a95a5`; the full
+  completed at consumer commit `afb7023` against InnoDI `82c9074`; the full
   local consumer gate and per-child lifetime assertions pass without an SPI
   import, local wrapper, or manual SwiftUI state owner.
 
@@ -426,9 +424,9 @@ conflation that makes assisted inputs hard to explain and extend.
 
 - Pilot BlPia and Lynceus flows against an exact package revision; retain
   Mulbyul as read-only/test-only evidence unless its owner later changes scope.
-- Freeze names only after expansion, strict-concurrency, graph, and consumer
-  fixtures pass.
-- Ship deprecations and the idempotent rewrite after the RFC is Accepted.
+- Names were frozen after expansion, strict-concurrency, graph, and consumer
+  fixtures passed.
+- Ship deprecations and the idempotent rewrite from this Accepted contract.
 
 ### 6.0.0 — stable contract
 
@@ -436,7 +434,7 @@ conflation that makes assisted inputs hard to explain and extend.
 - Publish graph JSON v4 and the final migration guide.
 - Require exact-tag external consumer validation before publication.
 
-## Candidate decisions and remaining adoption question
+## Accepted decisions and adopter evidence
 
 - Keep `@SubContainerFactory` separate from fixed `@SubContainer`; factory
   ownership and fixed child ownership remain distinct graph contracts.
@@ -450,15 +448,16 @@ conflation that makes assisted inputs hard to explain and extend.
 - Keep `@Multibinding` as the explicit local array declaration. Keyed and
   provider collections plus cross-module composition are explicit runtime
   contracts; automatic discovery and `@IntoCollection` are out of scope.
-- The two additional committed adopter votes are BlPia `787f419` and Lynceus
-  `61d3df4`. Mulbyul remains outside the mutation scope by explicit user
+- The two additional committed adopter votes are BlPia `cac0280` and Lynceus
+  `67b1730`. Mulbyul remains outside the mutation scope by explicit user
   direction.
 
-## Review gate
+## Acceptance gate
 
-This RFC remains Draft until maintainers approve the chosen public spellings
-and complete the required promotion-review cooldown. Migration coverage,
-schema-v4 review, strict toolchain/platform gates, macro/runtime performance
-evidence, conforming-counterexample review, and three committed consumer
-pilots are recorded on the candidate. Mulbyul remains read-only/test-only
-compatibility evidence and is not counted as an adopter promotion vote.
+Maintainers accepted the chosen public spellings after the dedicated promotion
+pull request completed its required seven-calendar-day review cooldown.
+Migration coverage, schema-v4 review, strict toolchain/platform gates,
+macro/runtime performance evidence, conforming-counterexample review, and
+three committed consumer pilots are recorded on the candidate. Mulbyul remains
+read-only/test-only compatibility evidence and is not counted as an adopter
+promotion vote.
