@@ -234,20 +234,19 @@ struct FeatureContainer {
 ```
 
 Use `@DIContainerRole(role: ContainerRole.root)` in place of `@DIHierarchyRoot`
-combined with `@DIContainer(root: true)`. The compatibility spellings continue
-to compile during the 6.0 preparation train. `InnoDI-Migrate --check`,
+combined with `@DIContainer(root: true)`. For 6.0, `InnoDI-Migrate --check`,
 `--report`, and `--write` apply the new spelling mechanically, preserve
 `validateDAG` and `escaping`, and are idempotent. The migrator leaves commented,
 dynamic, or conflicting role sites unchanged and emits a blocking diagnostic
 rather than guessing intent.
 
 `@Input(.assisted)` records that the value arrives at a child-factory call.
-During the 6.0 preparation train, declare a source-visible nested
+For 6.0, declare a source-visible nested
 `@AssistedFactory(...static:...assisted:...) struct AssistedFactory {}` and let
 the parent own it with `@SubContainerFactory(Child.self, bindings: ...)`.
 Whole-source validation requires every ordinary child input exactly once and
-rejects assisted inputs in the static binding list. RFC 0006 remains Draft, so
-keep pilot revisions pinned until naming and removal decisions are accepted.
+rejects assisted inputs in the static binding list. RFC 0006 accepts these
+spellings; migrate pinned 5.x pilots before adopting the stable 6.0 contract.
 
 Replace `_InnoDIMultibindingPrototype(members: ["first", "second"])` with a
 direct injectable collection declaration:

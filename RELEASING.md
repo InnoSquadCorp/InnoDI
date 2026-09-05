@@ -218,11 +218,11 @@ standalone release assets.
 
 ### Highlights
 
-- Opened [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
-  for the staged 6.0 preparation train. The Draft keeps 5.x groundwork
-  additive while assisted child factories, input/lifetime separation, and
-  container-role consolidation are validated in real consumers before the
-  breaking surface is frozen.
+- Accepted [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
+  after its dedicated promotion pull request completed the required
+  seven-calendar-day cooldown. Assisted child factories, input/lifetime
+  separation, container-role consolidation, and deterministic multibinding
+  are frozen after three committed consumer pilots and the final gates passed.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v4 JSON artifacts.
@@ -250,14 +250,14 @@ standalone release assets.
   behavior, contributor order, and overrides. The superseded underscored SPI
   has been removed after public consumer migration.
 - Verified the public RFC 0006 runtime and SwiftUI host pilot in InnoSample
-  commit `f53510b` against validated InnoDI code candidate
-  `28a95a5b146de6f79668e53156cece9aea3fa8c0`. The People route passes the
+  commit `afb7023` against validated InnoDI code candidate
+  `82c9074aed63a083a09961995bd867cc45ad9925`. The People route passes the
   consumer's full Xcode 27 gate, proves per-child shared-state isolation plus
   overrides, and replaces its manual state wrapper with `DIContainerHost`.
 - Added two more committed consumer pilots against that code candidate. BlPia
-  `787f419` passes Doctor over 160 Swift files, an unchanged second migration
+  `cac0280` passes Doctor over 160 Swift files, an unchanged second migration
   pass, DAG validation, 10 test schemes, and a generic iOS/watch build. Lynceus
-  `61d3df4` passes Doctor over 81 Swift files, an unchanged second pass, a real
+  `67b1730` passes Doctor over 81 Swift files, an unchanged second pass, a real
   two-container full-root DAG, 41 tests, and its macOS build. Mulbyul was tested
   without source changes and is deliberately not counted as a committed pilot.
 - Hardened migration and workspace analysis from real-consumer evidence:
