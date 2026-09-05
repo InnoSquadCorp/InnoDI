@@ -1,0 +1,1 @@
+@AssistedFactory requires Child.self plus literal static: and nonempty assisted: arrays of direct key paths rooted in that child type.

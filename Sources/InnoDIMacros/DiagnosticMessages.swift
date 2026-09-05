@@ -26,7 +26,7 @@ extension SimpleDiagnostic {
 
     static func assistedFactoryInvalidArguments() -> Self {
         Self(
-            "@AssistedFactory requires Child.self plus literal static: and nonempty assisted: child key-path arrays.",
+            "@AssistedFactory requires Child.self plus literal static: and nonempty assisted: arrays of direct key paths rooted in that child type.",
             code: .assistedFactoryInvalidArguments
         )
     }
@@ -45,6 +45,16 @@ extension SimpleDiagnostic {
         Self(
             "@AssistedFactory must partition every child input exactly once. Expected static: [\(expectedStatic.joined(separator: ", "))] and assisted: [\(expectedAssisted.joined(separator: ", "))].",
             code: .assistedFactoryInputPartitionMismatch
+        )
+    }
+
+    static func assistedFactoryAccessLevelMismatch(
+        factoryAccess: String,
+        bridgeAccess: String
+    ) -> Self {
+        Self(
+            "@AssistedFactory is \(factoryAccess), but its child/input type bridge is only \(bridgeAccess). Lower the factory access or raise the container and every @Input declaration to the same access level.",
+            code: .assistedFactoryAccessLevelMismatch
         )
     }
 

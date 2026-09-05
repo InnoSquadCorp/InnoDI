@@ -124,8 +124,32 @@ extension DIContainerMacro: MemberAttributeMacro {
               classifyDIContainerDeclaration(
                 declaration,
                 lexicalContext: context.lexicalContext
-              ).isSupported,
-              let variable = member.as(VariableDeclSyntax.self) else {
+              ).isSupported else {
+            return []
+        }
+
+        if let factory = member.as(StructDeclSyntax.self),
+           factory.name.text == "AssistedFactory",
+           findInnoDIAttribute(
+               named: "AssistedFactory",
+               in: factory.attributes
+           ) != nil {
+            let validationContext = DiagnosticSuppressingMacroExpansionContext(
+                forwardingTo: context
+            )
+            guard let model = DIContainerParser.parse(
+                declaration: declaration,
+                context: validationContext
+            ) else { return [] }
+            return [
+                assistedFactoryMetadataAttribute(
+                    for: model,
+                    isMainActor: options.mainActor
+                ),
+            ]
+        }
+
+        guard let variable = member.as(VariableDeclSyntax.self) else {
             return []
         }
 
@@ -551,4 +575,19 @@ private func subContainerAccessorAttribute(recovery: Bool) -> AttributeSyntax {
         ? "@InnoDI._InnoDISubContainerAccessor(recovery: true)"
         : "@InnoDI._InnoDISubContainerAccessor(recovery: false)"
     return attribute
+}
+
+private func assistedFactoryMetadataAttribute(
+    for model: DIContainerExpansionModel,
+    isMainActor: Bool
+) -> AttributeSyntax {
+    let orderedNames = model.inputMembers.map(\.name)
+    let escapingNames = model.inputMembers.filter { member in
+        member.escapingInput || isDirectNonOptionalFunctionType(member.type)
+    }.map(\.name)
+    let order = orderedNames.map { "\"\($0)\"" }.joined(separator: ", ")
+    let escaping = escapingNames.map { "\"\($0)\"" }.joined(separator: ", ")
+    return AttributeSyntax(
+        stringLiteral: "@InnoDI._InnoDIAssistedFactoryMetadata(order: [\(order)], escaping: [\(escaping)], mainActor: \(isMainActor))"
+    )
 }

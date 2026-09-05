@@ -2,12 +2,24 @@
 struct FixtureApp {
     @MainActor
     static func main() {
-        let parent = AppContainer(repository: Repository())
-        let first = parent.session(sessionID: 1)
-        let second = parent.session(sessionID: 2)
+        var staticCalls = 0
+        var assistedCalls = 0
+        let parent = AppContainer(
+            repository: Repository(),
+            callback: { staticCalls += 1 }
+        )
+        let first = parent.session(
+            sessionID: 1,
+            completion: { assistedCalls += 1 }
+        )
+        let second = parent.session(sessionID: 2, completion: {})
 
         precondition(first.sessionID == 1)
         precondition(second.sessionID == 2)
         precondition(first.token !== second.token)
+        first.callback()
+        first.completion()
+        precondition(staticCalls == 1)
+        precondition(assistedCalls == 1)
     }
 }

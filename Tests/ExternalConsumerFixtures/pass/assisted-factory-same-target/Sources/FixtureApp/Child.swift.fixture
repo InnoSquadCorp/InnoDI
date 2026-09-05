@@ -3,17 +3,26 @@ import InnoDI
 struct Repository {}
 
 final class InstanceToken {}
+typealias Callback = () -> Void
 
 @DIContainer(mainActor: true)
 struct SessionContainer {
-    @Input var repository: Repository
     @Input(.assisted) var sessionID: Int
+    @Input(.assisted) var completion: () -> Void
+    @Input var repository: Repository
+    @Input(escaping: true) var callback: Callback
     @Provide(.shared, factory: InstanceToken()) var token: InstanceToken
 
     @AssistedFactory(
         SessionContainer.self,
-        static: [\SessionContainer.repository],
-        assisted: [\SessionContainer.sessionID]
+        static: [
+            \SessionContainer.repository,
+            \SessionContainer.callback,
+        ],
+        assisted: [
+            \SessionContainer.sessionID,
+            \SessionContainer.completion,
+        ]
     )
     struct AssistedFactory {}
 }

@@ -24,6 +24,8 @@ struct DIContainerMacroTests {
         "SubContainer": SubContainerMacro.self,
         "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
         "InnoDI._InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
+        "_InnoDIAssistedFactoryMetadata": InnoDIAssistedFactoryMetadataMacro.self,
+        "InnoDI._InnoDIAssistedFactoryMetadata": InnoDIAssistedFactoryMetadataMacro.self,
     ]
 
     @Test("Input uses the established container initializer and storage path")

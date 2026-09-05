@@ -266,6 +266,7 @@ struct ProvideMemberModel {
     let sourceOrder: Int
     let name: String
     let type: TypeSyntax
+    let accessLevel: String?
     let scope: ProvideScope
     let inputKind: InputKindValue
     let isMultibinding: Bool

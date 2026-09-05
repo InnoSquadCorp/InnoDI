@@ -12,6 +12,7 @@ struct InnoDIPlugin: CompilerPlugin {
         DIContainerMacro.self,
         DIContainerRoleMacro.self,
         AssistedFactoryMacro.self,
+        InnoDIAssistedFactoryMetadataMacro.self,
         InnoDIMultibindingPrototypeMacro.self,
         DIComponentMacro.self,
         DIHierarchyRootMacro.self,
