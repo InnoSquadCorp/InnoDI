@@ -43,16 +43,16 @@ struct UserRepository {
 
 @DIContainer
 struct FeatureContainer {
-    @Provide(.input)
+    @Input
     var apiClient: APIClient
 
-    @Provide(.input)
+    @Input
     var cache: Cache
 
-    @Provide(.input)
+    @Input
     var database: Database
 
-    @Provide(.input)
+    @Input
     var analytics: Analytics
 
     @Provide(.shared, factory: { (apiClient: APIClient, cache: Cache) in
@@ -66,9 +66,9 @@ struct FeatureContainer {
     var userRepository: UserRepository
 }
 
-@DIContainer(root: true)
+@DIContainerRole(role: ContainerRole.root)
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: AppConfig
 
     @Provide(.shared, factory: Logger(subsystem: "InnoDI.SampleApp"))

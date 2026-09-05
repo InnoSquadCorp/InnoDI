@@ -59,7 +59,7 @@ struct DIContainerDeclarationSupportTests {
         #expect(support.diagnosticCode == "container.private-access-unsupported")
         #expect(
             support.diagnosticMessage
-                == "@DIContainer 'PrivateContainer' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
+                == "@DIContainer 'PrivateContainer' cannot be declared private in InnoDI 6.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
         )
     }
 

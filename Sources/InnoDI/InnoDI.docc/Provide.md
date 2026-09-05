@@ -2,7 +2,7 @@
 
 `@Provide` declares a container member and its construction strategy.
 
-InnoDI 5.0 supports `@Provide` only on a direct, plain, stored instance `var` in
+InnoDI 6.0 supports `@Provide` only on a direct, plain, stored instance `var` in
 the same supported `struct` that carries `@DIContainer`. `let`, computed or
 observed properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone,
 and indirectly nested uses are rejected. InnoDI owns the generated provider
@@ -12,7 +12,7 @@ Provider declarations also use a closed attribute and access-control surface.
 Property wrappers, conditional or unknown attributes, setter access modifiers
 such as `private(set)`, and global-actor attributes are rejected. Besides
 `@Provide` itself, no source-written property-level attribute is supported.
-This prohibition includes `@MainActor`; use `@DIContainer(mainActor: true)` for
+This prohibition includes `@MainActor`; use `@DIContainerRole(role: ContainerRole.local, mainActor: true)` for
 actor isolation.
 Isolation attributes InnoDI generates on the provider declaration and accessor
 are internal compiler support. A complete `@Provide` member declaration inside
@@ -35,22 +35,22 @@ diagnostic.
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 ## Input Values and Escaping Functions
 
-Generated `.input` initializer parameters are eager values of the declared
+Generated `@Input` initializer parameters are eager values of the declared
 type `T`. Swift evaluates each argument before the initializer call, so
 `try makeValue()` and `await makeValue()` remain valid argument expressions.
 Directly spelled non-optional function types are detected automatically and
 emitted as escaping parameters. If a non-optional function type is hidden
-behind a typealias, declare `@Provide(.input, escaping: true)`.
+behind a typealias, declare `@Input(escaping: true)`.
 
-`escaping:` must be a literal Boolean and is valid only for `.input`. The opt-in
+`escaping:` must be a literal Boolean and is valid only for `@Input`. The opt-in
 rejects obvious nonfunction and optional-function type shapes with stable
 InnoDI diagnostics. Identifier and member types are accepted conservatively
 because an attached macro cannot resolve arbitrary aliases; Swift may add its
@@ -64,7 +64,7 @@ function type.
 - `Type.self`, optionally with `with:`: synchronous construction/autowiring
 - property initializer: synchronous opaque construction
 
-For `.shared` and `.transient`, choose exactly one mode. `.input` chooses none
+For `.shared` and `.transient`, choose exactly one mode. `@Input` chooses none
 and also rejects `with:`.
 
 ## Sibling Edge Contract
@@ -89,7 +89,7 @@ Sibling DI edges use a closed, reviewable syntax:
 
 - `factory:`, `asyncFactory:`, `Type.self`, and a property initializer are
   mutually exclusive construction sources.
-- `.input` does not allow any construction source or `with:`.
+- `@Input` does not allow any construction source or `with:`.
 - `.shared` and `.transient` require exactly one construction source.
 - `with:` is allowed only with `Type.self` construction and synchronous
   providers.
@@ -119,6 +119,6 @@ targets constructed by `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:factory:asyncFactory:escaping:)``
+- ``Provide(_:_:with:initialization:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>

@@ -3,7 +3,7 @@ import InnoDI
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var repository: TrainingRepository
 
     @SubContainerFactory(

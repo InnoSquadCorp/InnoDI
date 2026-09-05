@@ -122,10 +122,9 @@ struct WorkspaceHierarchyBuildValidatorTests {
 
         try writeSource(
             """
-            @DIHierarchyRoot
-            @DIContainer
+            @DIContainerRole(role: ContainerRole.root)
             struct AppContainer {
-                @Provide(.input) var config: Config
+                @Input var config: Config
                 @SubContainer(scope: .shared)
                 var feature: FeatureContainer
             }
@@ -134,10 +133,9 @@ struct WorkspaceHierarchyBuildValidatorTests {
         )
         try writeSource(
             """
-            @DIComponent
-            @DIContainer
+            @DIContainerRole(role: ContainerRole.component)
             struct FeatureContainer {
-                @Provide(.input) var config: Config
+                @Input var config: Config
             }
             """,
             to: rootURL.appendingPathComponent("Sources/FeatureModule/FeatureContainer.swift")

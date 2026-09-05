@@ -9,9 +9,9 @@ InnoDI コンテナとして表し、コンテナ API を合成します。
 `class`、`actor`、`enum`、`protocol`、直接アノテーションした `extension`、
 extension 内にネストされた struct は拒否されます。関数、クロージャ、
 アクセサ、`switch` case など、実行可能またはローカルなコードスコープ内の
-宣言も拒否されます。この境界は `@DIComponent` を併用した宣言にも適用されます。
+宣言も拒否されます。この境界は component role の `@DIContainerRole` にも適用されます。
 ランタイムまたは型固有の状態は、protocol dependency または
-`@Provide(.input)` の背後に移してください。
+`@Input` の背後に移してください。
 
 明示的な `private` container も、sibling container が生成 mount surface に
 アクセスできないため拒否されます。同一 file 内の mount には `fileprivate`、
@@ -25,7 +25,8 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 ## Declaration
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 ## Generated Surface
@@ -43,7 +44,7 @@ non-`Sendable` container と closure value は isolation boundary を越えま�
 `withOverrides` overload と operation closure が引き続き `@MainActor` です。
 
 管理対象メンバーがない場合も含め、すべてのコンテナが完全な overrides
-scaffolding を生成します。ユーザー定義のネスト `Overrides` 型は InnoDI 5.0
+scaffolding を生成します。ユーザー定義のネスト `Overrides` 型は InnoDI 6.0
 ではサポートされず、`container.overrides-name-conflict` が発生します。mount
 可能な override ABI を macro が所有できるよう、その宣言を改名してください。
 
@@ -76,7 +77,7 @@ sibling member を参照できません。Effect compatibility は
   `Overrides`、convenience initializer・`withOverrides`・child override・
   component mount で使う `applyOverrides` 関数型、4 つの `withOverrides`
   operation closure、feature-root helper を `@MainActor` に隔離します。
-  `@DIComponent` を併用すると、生成される `<Container>Dependencies` protocol
+  component role を使用すると、生成される `<Container>Dependencies` protocol
   と `init(dependencies:_:)` も同じ隔離を受け、component は専用の
   `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを
   使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。

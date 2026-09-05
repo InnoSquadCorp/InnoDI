@@ -536,7 +536,7 @@ struct HierarchyMacroTests {
         )
         #expect(
             context.diagnostics.first?.message
-                == "@DIComponent target 'default' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name."
+                == "Component-role container 'default' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name."
         )
     }
 
@@ -557,7 +557,7 @@ struct HierarchyMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "component.requires-container"),
-                    message: "@DIComponent can only be attached to a type that also declares @DIContainer.",
+                    message: "@DIComponent was removed in InnoDI 6.0. Replace the stacked declaration with @DIContainerRole(role: ContainerRole.component).",
                     line: 1,
                     column: 1
                 )
@@ -581,7 +581,7 @@ struct HierarchyMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "hierarchy-root.requires-container"),
-                    message: "@DIHierarchyRoot can only be attached to a type that also declares @DIContainer.",
+                    message: "@DIHierarchyRoot was removed in InnoDI 6.0. Replace the stacked declaration with @DIContainerRole(role: ContainerRole.root).",
                     line: 1,
                     column: 1
                 )

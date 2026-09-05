@@ -176,7 +176,7 @@ struct OverridesBuilderTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict"),
-                    message: "A nested 'Overrides' struct is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
+                    message: "A nested 'Overrides' struct is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 6.0.",
                     line: 3,
                     column: 5,
                     severity: .error
@@ -207,7 +207,7 @@ struct OverridesBuilderTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "container.overrides-name-conflict"),
-                    message: "A nested 'Overrides' struct is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
+                    message: "A nested 'Overrides' struct is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 6.0.",
                     line: 3,
                     column: 5,
                     severity: .error

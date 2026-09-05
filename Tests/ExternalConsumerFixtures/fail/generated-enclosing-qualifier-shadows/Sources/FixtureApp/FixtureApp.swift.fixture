@@ -1,10 +1,9 @@
 import InnoDI
 
 struct Swift {
-    @DIComponent
-    @DIContainer(mainActor: true)
+    @DIContainerRole(role: ContainerRole.component, mainActor: true)
     struct ComponentContainer {
-        @Provide(.input)
+        @Input
         var value: Int
     }
 }
@@ -12,7 +11,7 @@ struct Swift {
 enum _Concurrency {
     @DIContainer
     struct AsyncContainer {
-        @Provide(.input)
+        @Input
         var value: Int
     }
 }
@@ -20,7 +19,7 @@ enum _Concurrency {
 struct InnoDI {
     @DIContainer
     struct RuntimeContainer {
-        @Provide(.input)
+        @Input
         var value: Int
     }
 }

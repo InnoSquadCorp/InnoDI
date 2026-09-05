@@ -38,8 +38,8 @@ extension EnvironmentValues {
 ])
 @DIContainer
 struct BridgeOnlyContainer {
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
 }
 
 @DIEnvironmentBridge([
@@ -48,9 +48,9 @@ struct BridgeOnlyContainer {
 ])
 @DIContainer
 struct SharedFeatureContainer {
-    @Provide(.input) var username: String
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var username: String
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
     @Provide(.shared, factory: UUID())
     var token: UUID
 }
@@ -61,9 +61,9 @@ struct SharedFeatureContainer {
 ])
 @DIContainer
 struct TransientFeatureContainer {
-    @Provide(.input) var username: String
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var username: String
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
     @Provide(.shared, factory: UUID())
     var token: UUID
 }
@@ -104,12 +104,12 @@ final class MutableUsername: @unchecked Sendable {
 
 @DIContainer
 struct MutableTransientFeatureContainer {
-    @Provide(.input) var username: MutableUsername
+    @Input var username: MutableUsername
 }
 
 @DIContainer
 struct MutableParentContainer {
-    @Provide(.input) var username: MutableUsername
+    @Input var username: MutableUsername
 
     @SubContainer(
         scope: .transient,
@@ -120,9 +120,9 @@ struct MutableParentContainer {
 
 @DIContainer
 struct ParentContainer {
-    @Provide(.input) var username: String
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var username: String
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
 
     @SubContainer(
         scope: .shared,

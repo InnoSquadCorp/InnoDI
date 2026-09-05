@@ -1,6 +1,6 @@
 # Tutorial 2 — External inputs
 
-Add a configuration value that the container does not own. `.input` members
+Add a configuration value that the container does not own. `@Input` members
 are passed in at initialization time and are read-only thereafter.
 
 ## Goal
@@ -25,7 +25,7 @@ struct Greeter {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: AppConfig
 
     @Provide(.shared, factory: { (config: AppConfig) in
@@ -40,7 +40,7 @@ print(container.greeter.hello())
 
 ## What changed
 
-* `@Provide(.input)` adds `config: AppConfig` to the synthesized
+* `@Input` adds `config: AppConfig` to the synthesized
   initializer. The macro infers the parameter from the property type and
   emits `init(config: AppConfig)`.
 * The factory closure now takes `config` as a parameter. The macro reads
@@ -54,7 +54,7 @@ print(container.greeter.hello())
 * Rename the factory parameter from `config` to `cfg` and observe the
   `provide.unresolved-factory-parameter` diagnostic. Name resolution is
   strict on purpose.
-* Add a second `.input` and confirm the synthesized initializer expects
+* Add a second `@Input` and confirm the synthesized initializer expects
   both arguments.
 
 ## Next

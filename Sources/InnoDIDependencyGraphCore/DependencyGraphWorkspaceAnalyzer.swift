@@ -522,7 +522,7 @@ private func rootPruningWithoutRootsFailure() -> DependencyGraphCommandResult {
     DependencyGraphCommandResult(
         exitCode: DependencyGraphCoreExitCode.dagValidationFailure,
         stdout: "",
-        stderr: "[graph.root-pruning-no-roots] Root pruning requires at least one @DIContainer(root: true) declaration.\n"
+        stderr: "[graph.root-pruning-no-roots] Root pruning requires at least one @DIContainerRole(role: ContainerRole.root) declaration.\n"
     )
 }
 

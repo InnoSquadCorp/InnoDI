@@ -2,19 +2,19 @@ import InnoDI
 
 @DIContainer
 struct DuplicateProviderMemberContainer {
-    @Provide(.input)
+    @Input
     var duplicatedMemberValue: Int
 
-    @Provide(.input)
+    @Input
     var duplicatedMemberValue: Int
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct DuplicateMainActorProviderMemberContainer {
-    @Provide(.input)
+    @Input
     var duplicatedMainActorMemberValue: Int
 
-    @Provide(.input)
+    @Input
     var duplicatedMainActorMemberValue: Int
 }
 
@@ -32,7 +32,7 @@ struct DuplicateSubContainerMemberContainer {
 
 @DIContainer
 struct DuplicateCrossRoleMemberContainer {
-    @Provide(.input)
+    @Input
     var duplicatedCrossRoleValue: Int
 
     @SubContainer(scope: .shared, with: [])
@@ -80,7 +80,7 @@ struct DuplicateFactoryParameterContainer {
 
 @DIContainer
 struct EscapedProviderIdentifierContainer {
-    @Provide(.input)
+    @Input
     var `default`: Int
 }
 

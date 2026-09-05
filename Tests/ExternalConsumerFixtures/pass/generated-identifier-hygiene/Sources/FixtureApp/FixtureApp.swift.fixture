@@ -52,7 +52,7 @@ struct GeneratedPeerNearMissContainer {
     @Provide(.shared, factory: 26)
     var cache: Int
 
-    @Provide(.input)
+    @Input
     var sub_feature: Int
 
     @SubContainer(scope: .transient, with: [])
@@ -67,25 +67,25 @@ struct GeneratedPeerNearMissContainer {
 
 @DIContainer
 struct ConvenienceNamesContainer {
-    @Provide(.input) var applyOverrides: Int
-    @Provide(.input) var overrides: Int
-    @Provide(.input) var operation: Int
-    @Provide(.input) var container: Int
-    @Provide(.input) var Overrides: Int
+    @Input var applyOverrides: Int
+    @Input var overrides: Int
+    @Input var operation: Int
+    @Input var container: Int
+    @Input var Overrides: Int
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct AsyncNamesContainer {
     struct Task<Success, Failure> {}
     struct Never {}
     struct Error: Swift.Error {}
 
-    @Provide(.input) var config: NameConfig
-    @Provide(.input) var _resolved_config: Int
-    @Provide(.input) var _task_service: Int
-    @Provide(.input) var Task: Int
-    @Provide(.input) var Swift: Int
-    @Provide(.input) var _Concurrency: Int
+    @Input var config: NameConfig
+    @Input var _resolved_config: Int
+    @Input var _task_service: Int
+    @Input var Task: Int
+    @Input var Swift: Int
+    @Input var _Concurrency: Int
 
     @Provide(
         .shared,
@@ -108,11 +108,11 @@ struct AsyncNamesContainer {
 struct DeferredNamesContainer {
     struct Sendable {}
 
-    @Provide(.input) var _lazyCell_request: Int
-    @Provide(.input) var _lazySelf: Int
-    @Provide(.input) var Lazy: Int
-    @Provide(.input) var Provider: Int
-    @Provide(.input) var preconditionFailure: Int
+    @Input var _lazyCell_request: Int
+    @Input var _lazySelf: Int
+    @Input var Lazy: Int
+    @Input var Provider: Int
+    @Input var preconditionFailure: Int
 
     @Provide(
         .shared,
@@ -146,7 +146,7 @@ struct DeferredNamesContainer {
 
 @DIContainer
 struct ChildType {
-    @Provide(.input) var config: Int
+    @Input var config: Int
 }
 
 struct FeatureRootView {
@@ -160,11 +160,11 @@ enum FixtureTypes {
 
 @DIContainer
 struct ShadowedTypeParent {
-    @Provide(.input) var config: Int
-    @Provide(.input) var _subBuildCell_feature: Int
-    @Provide(.input) var _lazySelfForSub: Int
-    @Provide(.input) var ChildType: Int
-    @Provide(.input) var FeatureRootView: Int
+    @Input var config: Int
+    @Input var _subBuildCell_feature: Int
+    @Input var _lazySelfForSub: Int
+    @Input var ChildType: Int
+    @Input var FeatureRootView: Int
 
     @SubContainer(
         scope: .transient,
@@ -176,8 +176,8 @@ struct ShadowedTypeParent {
 
 @DIContainer(validateDAG: false)
 struct TrapNamesContainer {
-    @Provide(.input) var fatalError: Int
-    @Provide(.input) var Swift: Int
+    @Input var fatalError: Int
+    @Input var Swift: Int
 
     @Provide(
         .shared,
@@ -186,11 +186,11 @@ struct TrapNamesContainer {
     var service: TrapService
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct ActorNameContainer {
     struct MainActor {}
 
-    @Provide(.input) var value: Int
+    @Input var value: Int
 
     @SubContainer(scope: .transient, with: [])
     var child: EmptyChild
@@ -198,14 +198,14 @@ struct ActorNameContainer {
 
 @DIContainer
 struct NonisolatedOuterContainer {
-    @DIContainer(mainActor: true)
+    @DIContainerRole(role: ContainerRole.local, mainActor: true)
     struct IsolatedInnerContainer {
         @SubContainer(scope: .transient, with: [])
         var child: EmptyChild
     }
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct IsolatedOuterContainer {
     @DIContainer
     struct NonisolatedInnerContainer {
@@ -216,8 +216,8 @@ struct IsolatedOuterContainer {
 
 @DIContainer
 struct TypeExpressionNamesContainer {
-    @Provide(.input) var config: Int
-    @Provide(.input) var ConstructedService: Int
+    @Input var config: Int
+    @Input var ConstructedService: Int
 
     @Provide(
         .shared,

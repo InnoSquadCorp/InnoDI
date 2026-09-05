@@ -1024,7 +1024,7 @@ extension ValidationCoordinatorTests {
             }
         }
 
-        // Syntax-only validator boundary fixture. InnoDI 5.0 rejects this
+        // Syntax-only validator boundary fixture. InnoDI 6.0 rejects this
         // declaration during macro expansion; it is not a supported example.
         @DIContainer
         struct GenericContainer<T> {

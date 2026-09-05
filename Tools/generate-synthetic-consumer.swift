@@ -136,7 +136,7 @@ var sharedLines: [String] = []
 var mainLines: [String] = ["let container = SyntheticContainer("]
 
 for index in 0..<args.bindingCount {
-    inputLines.append("    @Provide(.input) var input\(index): Int")
+    inputLines.append("    @Input var input\(index): Int")
     sharedLines.append(
         "    @Provide(.shared, factory: { (input\(index): Int) in Double(input\(index)) * 1.5 }) var shared\(index): Double"
     )

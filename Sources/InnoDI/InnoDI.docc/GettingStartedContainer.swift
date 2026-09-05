@@ -6,7 +6,7 @@ struct APIClient {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])

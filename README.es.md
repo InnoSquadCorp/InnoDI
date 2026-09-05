@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -71,7 +71,7 @@ locales sean una mejor abstraccion.
 El patron de capas que mejor funciona separa *construccion* (InnoDI) de
 *overrides efimeros por llamada* (`swift-dependencies`). El composition root
 resuelve un `DependencyKey` (por ejemplo `@Dependency(\.date)`) y pasa el
-valor al contenedor como un slot `.input`; los tests lo intercambian por un
+valor al contenedor como un slot `@Input`; los tests lo intercambian por un
 arbol de llamadas con `withDependencies { $0.date = .constant(...) }
 operation:`, sin reconstruir el contenedor ni revalidar su grafo. El builder
 `Overrides` a nivel de contenedor sigue siendo la herramienta adecuada para
@@ -214,7 +214,7 @@ La API de plugins de Xcode no expone la topologia completa de dependencias entre
 targets de Tuist. Por eso, el fallback de 5.1 conserva el full-source DAG y la
 validacion de declarations, pero Xcode por si solo no puede demostrar todas las
 reglas de module-edge hierarchy. Mantenga un check topology-aware en SwiftPM o
-CI cuando las relaciones de modulo `@DIComponent` / `@DIHierarchyRoot` sean un
+CI cuando las relaciones de modulo `@DIContainerRole(role: ContainerRole.component)` / `@DIContainerRole(role: ContainerRole.root)` sean un
 release gate. Las variantes multi-destination comparten el plugin work
 directory, por lo que no se declaran output files y Xcode puede indicar que el
 validation command se ejecuta en cada build.
@@ -237,7 +237,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -276,7 +276,7 @@ Empieza por estos documentos en este orden:
 
 `@DIContainer` sintetiza:
 
-1. Un `init(...)` principal con parametros `.input` obligatorios y overrides
+1. Un `init(...)` principal con parametros `@Input` obligatorios y overrides
    opcionales para miembros `.shared`, `.transient` y `@SubContainer`.
 2. Un tipo `Overrides` anidado.
 3. Un `init(<inputs...>, _ applyOverrides: (inout Overrides) -> Void)` de conveniencia.
@@ -285,7 +285,7 @@ Empieza por estos documentos en este orden:
 
 Cada contenedor, incluso si no tiene miembros administrados, sintetiza toda la
 estructura de overrides. Un tipo `Overrides` anidado declarado por el usuario
-no es compatible con InnoDI 5.0 y emite
+no es compatible con InnoDI 6.0 y emite
 `container.overrides-name-conflict`; cambie su nombre para que la macro sea
 duena de la ABI de overrides montable.
 
@@ -305,9 +305,9 @@ ninguna declaracion envolvente puede tener parametros genericos o una clausula
 anotadas directamente y los structs anidados en extensiones. Tambien se
 rechaza cualquier declaracion en un alcance ejecutable o local, incluidas
 funciones, closures, accessors y casos de `switch`. El mismo limite se aplica
-al combinar `@DIComponent`.
+al combinar `@DIContainerRole(role: ContainerRole.component)`.
 Mueve el estado de runtime o especifico del tipo detras de dependencias de
-protocolo o `@Provide(.input)`.
+protocolo o `@Input`.
 
 Tambien se rechaza un contenedor declarado explicitamente `private`, porque
 los contenedores hermanos no pueden acceder a su superficie de montaje
@@ -321,16 +321,17 @@ completo y rechazan tambien este caso limite. Conecta el plugin a cada target
 que declare contenedores.
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | Parametro | Default | Significado |
 |---|---|---|
-| `root` | `false` | Solo marca la entrada de render del grafo. Si existe al menos una raiz, la salida Mermaid, DOT y ASCII se reduce a la union de nodos y aristas alcanzables desde esas raices. |
+| `role` | obligatorio en `@DIContainerRole` | `ContainerRole.local`, `.component` o `.root`. El rol root define el inicio de alcance del grafo; el rol component define el contrato de montaje entre módulos. |
 | `validateDAG` | `true` | Activa la validacion global del DAG y los checks graph-derived locales. Con `false` se omiten el DAG global y los ciclos locales, pero siguen la validacion de declaraciones y la compatibilidad de efectos en edges sibling explicitos. |
-| `mainActor` | `false` | Aplica `@MainActor` a los accessors de dependencias, todos los inicializadores generados, `Overrides`, los tipos de closure `applyOverrides` usados por los inicializadores de conveniencia, `withOverrides`, los overrides de child containers y el mounting de componentes, las closures de operación de los cuatro overloads `withOverrides` y los helpers de feature root. Con `@DIComponent`, también aísla el protocolo `<Container>Dependencies` y `init(dependencies:_:)` generados, y usa la conformidad dedicada `_InnoDIMainActorComponentMountable`. Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`. El uso fuera del actor principal requiere un salto explícito. Recomendado para contenedores raíz de UI. |
+| `mainActor` | `false` | Aplica `@MainActor` a los accessors de dependencias, todos los inicializadores generados, `Overrides`, los tipos de closure `applyOverrides` usados por los inicializadores de conveniencia, `withOverrides`, los overrides de child containers y el mounting de componentes, las closures de operación de los cuatro overloads `withOverrides` y los helpers de feature root. Con `@DIContainerRole(role: ContainerRole.component)`, también aísla el protocolo `<Container>Dependencies` y `init(dependencies:_:)` generados, y usa la conformidad dedicada `_InnoDIMainActorComponentMountable`. Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`. El uso fuera del actor principal requiere un salto explícito. Recomendado para contenedores raíz de UI. |
 
-En 5.0, los helpers genéricos de mounting deben distinguir ambos protocolos
+En 6.0, los helpers genéricos de mounting deben distinguir ambos protocolos
 marcadores. Conserva `_InnoDIComponentMountable` para componentes normales y,
 para componentes con `mainActor: true`, añade un overload `@MainActor` con el
 constraint `_InnoDIMainActorComponentMountable` y una closure de override
@@ -347,7 +348,7 @@ tipo anotado ni en extensiones equivalentes.
 
 ### `@Provide` y scopes
 
-InnoDI 5.0 admite `@Provide` solo en un `var` de instancia simple, almacenado y
+InnoDI 6.0 admite `@Provide` solo en un `var` de instancia simple, almacenado y
 directo del mismo struct compatible que lleva `@DIContainer`. Se rechazan
 `let`, properties computed u observed, `lazy`, `weak`, `unowned`,
 `static`/`class`, usos independientes e indirectamente anidados. InnoDI es
@@ -360,7 +361,7 @@ condicionales o desconocidos, los modificadores de acceso del setter como
 `private(set)` y los attributes de global actor personalizados. No se admite
 ningún attribute de nivel de propiedad escrito en el código fuente aparte de
 `@Provide`, incluido `@MainActor`; solicita el aislamiento del actor con
-`@DIContainer(mainActor: true)`. Los attributes de aislamiento que InnoDI
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`. Los attributes de aislamiento que InnoDI
 genera en la declaracion del provider y su accessor son soporte interno del
 compilador. Una declaracion completa de miembro `@Provide` dentro de `#if`
 tambien se rechaza con
@@ -412,15 +413,15 @@ usa los codigos de salida `0` (clean), `1` (cambios requeridos) y `2` (blocked).
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | Scope | Significado | Reglas de construccion |
 |---|---|---|
-| `.input` | Dependencia externa suministrada al inicializar el contenedor | No declara `factory:`, `asyncFactory:`, `Type.self`, initializer de property ni `with:` |
+| `@Input` | Dependencia externa suministrada al inicializar el contenedor | No declara `factory:`, `asyncFactory:`, `Type.self`, initializer de property ni `with:` |
 | `.shared` | Se crea una vez por instancia del contenedor y se reutiliza | Declara exactamente uno de `factory:`, `asyncFactory:`, `Type.self` o initializer de property |
 | `.transient` | Se recrea en cada acceso | Declara exactamente uno de `factory:`, `asyncFactory:`, `Type.self` o initializer de property |
 
@@ -429,14 +430,14 @@ Reglas adicionales:
 - En `.shared` / `.transient`, `factory:`, `asyncFactory:`, `Type.self` y el
   initializer de property son cuatro fuentes de construccion mutuamente
   excluyentes.
-- `.input` rechaza todas las fuentes de construccion y `with:`.
-- Los parametros `.input` del initializer generado son valores eager del tipo
+- `@Input` rechaza todas las fuentes de construccion y `with:`.
+- Los parametros `@Input` del initializer generado son valores eager del tipo
   declarado `T`; Swift evalua expresiones de argumento `try` / `await` antes de
   llamar al initializer, como siempre. Los tipos de funcion non-optional
   escritos directamente se detectan y se generan como parametros escaping.
   Si un tipo de funcion non-optional esta oculto tras un typealias, usa
-  `@Provide(.input, escaping: true)`. `escaping:` debe ser un Bool literal y
-  solo es valido para `.input`. Se rechazan formas obviamente no funcionales u
+  `@Input(escaping: true)`. `escaping:` debe ser un Bool literal y
+  solo es valido para `@Input`. Se rechazan formas obviamente no funcionales u
   optional-function; si un alias identifier/member aceptado conservadoramente
   no se resuelve realmente como funcion non-optional, Swift puede emitir su
   propio diagnostico.
@@ -516,7 +517,7 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 
 Puntos importantes:
 
-- Los contenedores solo con `.input` tambien sintetizan un builder vacio.
+- Los contenedores solo con `@Input` tambien sintetizan un builder vacio.
 - Si un child container es solo de input, los closures `<name>Overrides`
   compilan y se ejecutan como no-op hasta que el child tenga miembros overrideables.
 
@@ -583,8 +584,8 @@ Reglas clave:
 
 Para ownership cross-module:
 
-- `@DIComponent` marca children montables
-- `@DIHierarchyRoot` habilita validacion de jerarquia a nivel workspace
+- `@DIContainerRole(role: ContainerRole.component)` marca children montables
+- `@DIContainerRole(role: ContainerRole.root)` habilita validacion de jerarquia a nivel workspace
 
 ## Helpers de SwiftUI
 

@@ -4,10 +4,10 @@ struct PlainChild {}
 
 @DIContainer
 struct ParentContainer {
-    @Provide(.input)
+    @Input
     var first: Int
 
-    @Provide(.input)
+    @Input
     var second: Int
 
     @SubContainer(scope: .shared)

@@ -25,7 +25,7 @@ func findInnoDIAttributes(
 /// graph lookup keys. Backtick spellings are valid Swift source, but preserving
 /// the raw token would embed the backticks in synthesized names while stripping
 /// them selectively would make expansion semantics depend on normalization.
-/// InnoDI 5.0 therefore rejects these spellings at the declaration boundary.
+/// InnoDI 6.0 therefore rejects these spellings at the declaration boundary.
 func isEscapedInnoDIIdentifier(_ token: TokenSyntax) -> Bool {
     InnoDICore.isEscapedInnoDIIdentifier(token)
 }
@@ -163,7 +163,7 @@ enum DirectDIContainerMembership: Equatable {
     case unsupported
 }
 
-/// Public `@Provide` is peer-only in InnoDI 5.0. A container attaches the
+/// Public `@Provide` is peer-only in InnoDI 6.0. A container attaches the
 /// compiler-owned accessor only after this declaration shape has been proven
 /// safe, which avoids Swift's structural accessor diagnostics for `let`,
 /// computed, observed, and storage-modified declarations.
@@ -193,7 +193,7 @@ struct UnmanagedStoredContainerMember {
 }
 
 /// Finds stored instance state that `@DIContainer` cannot initialize because
-/// it is not owned by either `@Provide` or `@SubContainer`. InnoDI 5.0 emits an
+/// it is not owned by either `@Provide` or `@SubContainer`. InnoDI 6.0 emits an
 /// explicit initializer even for a truly empty container so that every child
 /// has a complete mount ABI; accepting unrelated stored state would therefore
 /// remove the memberwise initializer and surface raw definite-initialization

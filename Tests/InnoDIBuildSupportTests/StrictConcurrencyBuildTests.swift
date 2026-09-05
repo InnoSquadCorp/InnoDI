@@ -38,7 +38,7 @@ struct StrictConcurrencyBuildTests {
 
             @DIContainer
             struct AppContainer {
-                @Provide(.input)
+                @Input
                 var config: Config
 
                 @Provide(.transient, factory: { Service() })
@@ -104,7 +104,7 @@ struct StrictConcurrencyBuildTests {
             @DIEnvironmentBridge([
                 (member: "greeting", environment: \\EnvironmentValues.greeting),
             ])
-            @DIContainer(mainActor: true)
+            @DIContainerRole(role: ContainerRole.local, mainActor: true)
             struct AppContainer {
                 @Provide(.shared, factory: Greeting())
                 var greeting: Greeting

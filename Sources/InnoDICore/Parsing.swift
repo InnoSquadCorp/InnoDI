@@ -724,7 +724,7 @@ public func parseInputArguments(_ attribute: AttributeSyntax) -> ProvideArgument
 }
 
 /// `@Provide` is declared with `[AnyKeyPath]`, so Swift cannot infer the root of
-/// `\.member`. InnoDI 5.0 requires the canonical `\Self.member` spelling.
+/// `\.member`. InnoDI 6.0 requires the canonical `\Self.member` spelling.
 /// Unlike a bare container identifier, `Self` cannot be shadowed by a nested
 /// typealias that silently changes the key path's semantic root while codegen
 /// still resolves the final member name against the enclosing container.
