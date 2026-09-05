@@ -7,7 +7,7 @@ public enum DoctorCLI {
       default    Read-only source/config diagnosis; no resolution or build
       --json     Emit schema-v1 structured output
       --apply    Apply only safe InnoDI migrations after full preflight
-      --verify   Run swift build after diagnosis/application
+      --verify   Run swift build or Tuist generation after diagnosis/application
     """
 
     public static func run(arguments: [String]) -> Int32 {
