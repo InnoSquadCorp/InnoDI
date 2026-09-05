@@ -1,8 +1,0 @@
-@_spi(Experimental) import FeatureKit
-
-@main
-struct FixtureApp {
-    static func main() {
-        verifyMultibindingPrototype()
-    }
-}

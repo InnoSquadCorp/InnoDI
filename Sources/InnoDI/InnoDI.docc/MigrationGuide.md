@@ -261,8 +261,9 @@ Contributor key-path order is output order. Contributors must be synchronous
 direct managed dependencies whose written type exactly matches the array
 element type. The collection preserves contributor lifetimes and overrides,
 can itself be injected into another provider, and has its own test override.
-The SPI remains available only for pinned preparation consumers until RFC 0006
-accepts the 6.0 naming and removal decision.
+The superseded SPI was removed after public `@Multibinding` replaced its
+ordered-collection contract. Pinned preparation consumers must migrate to the
+public spelling before adopting 6.0.
 
 Graph JSON consumers must opt into schema v4 for 6.0. In addition to the v3
 assisted-input, factory-ownership, and ordered-contribution fields, v4 emits a
