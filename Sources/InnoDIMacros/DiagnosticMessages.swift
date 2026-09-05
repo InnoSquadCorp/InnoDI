@@ -993,7 +993,7 @@ extension SimpleDiagnostic {
         let listed = memberNames.prefix(5).joined(separator: ", ")
         let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
         return Self(
-            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Actor isolation, associated types, protocol inheritance other than AnyObject, unsupported requirement modifiers, subscripts, rethrows or typed throws, inout parameters, and opaque return types need a hand-written mock until the RFC 0001 support matrix expands.",
+            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Custom global actors, individually actor-isolated requirements, associated types, protocol inheritance other than AnyObject or Sendable, unsupported requirement modifiers, subscripts, rethrows, inout parameters, opaque return types, and generic requirements on Sendable protocols need a hand-written mock until the RFC 0001 support matrix expands.",
             code: .generateMockUnsupportedMember,
             severity: .warning
         )

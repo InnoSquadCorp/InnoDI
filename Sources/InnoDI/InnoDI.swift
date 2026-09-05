@@ -744,14 +744,18 @@ public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "D
 ///
 /// `@GenerateMock` is the RFC 0001 entry point. Attach it to a protocol
 /// declaration to have InnoDI emit a `Mock` peer with stubbed return
-/// values, recorded call lists, and protocol conformance. The 4.x
-/// experimental drop supports top-level protocols, overload-qualified
-/// helper names, and generic method requirements through erased handlers.
+/// values, recorded call lists, and protocol conformance. The 6.0 candidate
+/// supports top-level protocols, overload-qualified helper names, typed
+/// throws, `@MainActor` protocols, and lock-backed `Sendable` protocols.
+/// `Sendable` mock consumers also add the `InnoDITesting` product, which owns
+/// the concurrency-safe storage and interaction validation helpers. Generic
+/// method requirements continue to use erased handlers on non-`Sendable`
+/// protocols.
 /// The `Overrides` builder bundling option remains planned (see
 /// `bundleWithOverrides:`).
 ///
 /// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
-/// rollout schedule. Adoption remains opt-in through InnoDI 5.0; the macro
+/// rollout schedule. Adoption remains opt-in through InnoDI 6.0; the macro
 /// reaches GA only after RFC 0001's dedicated promotion criteria pass, and
 /// the generated shape may evolve until then.
 ///

@@ -27,6 +27,7 @@ let package = Package(
     products: [
         .library(name: "InnoDI", targets: ["InnoDI"]),
         .library(name: "InnoDISwiftUI", targets: ["InnoDISwiftUI"]),
+        .library(name: "InnoDITesting", targets: ["InnoDITesting"]),
         .executable(name: "InnoDI-DependencyGraph", targets: ["InnoDI-DependencyGraph"]),
         .executable(name: "InnoDI-Migrate", targets: ["InnoDI-Migrate"]),
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
@@ -74,6 +75,11 @@ let package = Package(
             resources: [
                 .copy("PrivacyInfo.xcprivacy"),
             ]
+        ),
+        .target(
+            name: "InnoDITesting",
+            dependencies: ["InnoDI"],
+            exclude: documentationCatalogBuildExcludes("InnoDITesting.docc")
         ),
         .target(
             name: "InnoDIBuildSupport",
@@ -218,6 +224,10 @@ let package = Package(
             dependencies: [
                 "InnoDISwiftUI"
             ]
+        ),
+        .testTarget(
+            name: "InnoDITestingTests",
+            dependencies: ["InnoDITesting"]
         ),
     ]
 )

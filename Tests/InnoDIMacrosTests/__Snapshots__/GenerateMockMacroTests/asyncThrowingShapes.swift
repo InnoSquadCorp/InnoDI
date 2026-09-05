@@ -36,4 +36,11 @@ final class AsyncServiceMock: AsyncService {
             throw error
         }
     }
+
+    var recordedCallCounts: [String: Int] {
+        [
+            "fetch": fetchCalls.count,
+            "refresh": refreshCalls.count
+        ]
+    }
 }

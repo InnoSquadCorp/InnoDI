@@ -3,7 +3,7 @@
 `@GenerateMock` (RFC 0001) synthesizes a call-recording mock peer for a
 protocol so tests can plug into the existing `Overrides` builder without
 hand-writing the mock body. The attribute is available as an
-**experimental** opt-in and remains experimental in InnoDI 5.0. Its generated
+**experimental** opt-in and remains experimental in InnoDI 6.0. Its generated
 shape may evolve until RFC 0001's dedicated GA criteria pass.
 
 ## Usage
@@ -60,6 +60,9 @@ For each supported protocol member the macro emits the following:
   `var nameThrownError: Error?` hook the generated body re-throws when
   set.
 * **`func name(args) async throws -> T`** — combines the two cases.
+* **`func name(args) throws(Failure) -> T`** — preserves the typed error in
+  `Result<T, Failure>?`. Because the macro cannot invent an arbitrary
+  `Failure`, validate `missingStubSelectors` before running the operation.
 * **Overloaded functions** — helper names include selector labels and parameter
   type stems so `fetch(id:)` and `fetch(page:)` do not collide.
 * **Generic functions** — the generated method preserves generic clauses and
@@ -75,9 +78,17 @@ For each supported protocol member the macro emits the following:
 * **Escaping closure arguments** — recorded with property-safe function types
   (`@escaping` / `@autoclosure` are removed from the call-record field while
   the conforming method keeps the original parameter spelling).
-* **Concurrency** — generated mocks are not thread-safe by default. Keep a mock
-  instance on one test executor or provide your own locking wrapper when a test
-  intentionally shares it across tasks.
+* **Concurrency** — a protocol inheriting `Sendable` receives lock-backed call
+  and stub storage from the `InnoDITesting` product. Snapshots and reset-safe
+  support types do not use unchecked conformance. The compiler still rejects
+  non-`Sendable` arguments, results, and stored properties. Ordinary protocols
+  remain single-executor mocks.
+* **Actor isolation** — a protocol-level `@MainActor` annotation is copied to
+  the generated mock class, keeping all mutable test state on the main actor.
+* **Interaction validation** — every generated mock with functions exposes
+  `recordedCallCounts`; typed-throws mocks also expose
+  `missingStubSelectors`. Pass both to `DIInteractionValidation` for strict or
+  recording-only verification.
 
 ## Currently unsupported
 
@@ -86,18 +97,18 @@ The first drop intentionally rejects the following requirements with a
 when any of these appear, because that would generate a broken conformance:
 
 * `static` and `class` requirements (RFC 0001 stage 4).
-* Actor-isolated protocols or individual requirements, including global-actor
-  attributes such as `@MainActor`. Mutable call recording does not yet have an
-  actor-safe generated shape.
+* Custom global-actor protocols and individually actor-isolated requirements.
+  Protocol-level `@MainActor` is supported.
 * Function requirement modifiers other than `mutating`, including
   `nonisolated`, `borrowing`, and `consuming`.
 * `subscript` requirements (no stable lowering yet).
 * `inout` parameters (call-record storage would need a copy policy).
-* `rethrows` and typed `throws(ErrorType)` requirements.
+* `rethrows` requirements. Typed `throws(ErrorType)` is supported for
+  non-generic requirements.
 * Opaque `some` return types.
 * Associated types — hand-roll those mocks until the RFC settles on the
   pinning and cross-module resolution path.
-* Protocol inheritance other than `AnyObject`. Attached peer macros cannot
+* Protocol inheritance other than `AnyObject` and `Sendable`. Attached peer macros cannot
   inspect inherited requirements across files or modules, so InnoDI fails
   closed instead of emitting a mock with a potentially incomplete
   conformance.
@@ -130,7 +141,7 @@ A few starting points that work well alongside InnoDI:
 
 * Third-party libraries supporting protocol-witness or partial-mock patterns
   are a good fit when the protocol needs `static` requirements,
-  `Sendable` inheritance, or associated-type binding.
+  custom global actors, or associated-type binding.
 * Hand-written conforming structs/classes remain the lightest option for
   small protocols; the macro is meant to remove repetitive boilerplate, not
   to replace one-off conformances.
@@ -151,9 +162,9 @@ validation.
   names, recorded-call internals) is **not yet stable** and may change
   before GA. Pin the generated names through `Overrides`
   builder slots rather than reaching into the synthesized internals.
-* The `bundleWithOverrides:` and `sendable: .strict` parameters from RFC
-  0001 are reserved for the next stage. Treat the current macro as the
-  protocol-mock path only.
+* The `bundleWithOverrides:` parameter from RFC 0001 remains reserved for a
+  later stage. `Sendable` behavior is inferred from protocol inheritance so
+  isolation cannot drift from the production contract.
 
 ## See Also
 

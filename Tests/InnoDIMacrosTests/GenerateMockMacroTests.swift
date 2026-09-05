@@ -58,6 +58,40 @@ struct GenerateMockMacroTests {
         )
     }
 
+    @Test("GenerateMock preserves typed throws and exposes preflight stub validation")
+    func generateMockPreservesTypedThrows() throws {
+        let source = """
+        enum LoadFailure: Error { case unavailable }
+
+        @GenerateMock
+        protocol TypedAPI {
+            func load(id: Int) async throws(LoadFailure) -> String
+            func refresh() throws(LoadFailure)
+        }
+        """
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(
+            parsed.statements.compactMap {
+                $0.item.as(ProtocolDeclSyntax.self)
+            }.first
+        )
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = try #require(peers.first?.description)
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(peer.contains("var loadResult: Result<String, LoadFailure>?"))
+        #expect(peer.contains("func load(id: Int) async throws(LoadFailure) -> String"))
+        #expect(peer.contains("var refreshResult: Result<Void, LoadFailure>?"))
+        #expect(peer.contains("var missingStubSelectors: [String]"))
+        #expect(!peer.contains("Result<String, Error>"))
+    }
+
     @Test("GenerateMock attached to an empty protocol emits the experimental skeleton note")
     func generateMockEmitsSkeletonNoteForEmptyProtocol() {
         assertMacroExpansionDiagnosticCodes(
@@ -126,13 +160,15 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("__innodi_prefix_hba8821b572531e29StubValue = newValue"))
         #expect(peer.contains("private(set) var greetCalls"))
         #expect(peer.contains("var greetReturnValue: String?"))
+        #expect(peer.contains("var recordedCallCounts: [String: Int]"))
+        #expect(peer.contains("\"greet\": greetCalls.count"))
         #expect(peer.contains("func greet(name: String) -> String"))
         #expect(peer.contains("was not set on \\(Self.self)"))
         #expect(!peer.contains("Swift.type(of: self)"))
     }
 
-    @Test("GenerateMock refuses Sendable-inherited protocols")
-    func generateMockRefusesSendableInheritedProtocols() throws {
+    @Test("GenerateMock uses lock-backed storage for Sendable protocols")
+    func generateMockSupportsSendableInheritedProtocols() throws {
         let source = """
         @GenerateMock
         protocol SharedAPI: Sendable {
@@ -151,17 +187,98 @@ struct GenerateMockMacroTests {
             in: context
         )
 
-        #expect(peers.isEmpty)
-        #expect(
-            context.diagnostics.contains {
-                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
-                    && $0.message.contains("Sendable inheritance")
-            }
-        )
+        let peer = try #require(peers.first?.description)
+        #expect(context.diagnostics.isEmpty)
+        #expect(peer.contains("struct LoadCall: Sendable"))
+        #expect(peer.contains("InnoDITesting.DIConcurrentValueBox"))
+        #expect(!peer.contains("@unchecked Sendable"))
     }
 
-    @Test("GenerateMock refuses qualified Sendable-inherited protocols")
-    func generateMockRefusesQualifiedSendableInheritedProtocols() throws {
+    @Test("GenerateMock covers every concurrency-safe storage effect")
+    func generateMockSupportsConcurrentStorageEffects() throws {
+        let source = """
+        enum SharedFailure: Error { case unavailable }
+
+        @GenerateMock
+        protocol SharedAPI: Sendable {
+            var title: String { get set }
+            func load() throws(SharedFailure) -> String
+            func fetch() throws -> String
+            func refresh() throws
+        }
+        """
+        let parsed = SwiftParser.Parser.parse(source: source)
+        let decl = try #require(
+            parsed.statements.compactMap {
+                $0.item.as(ProtocolDeclSyntax.self)
+            }.first
+        )
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = try #require(peers.first?.description)
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(peer.contains("DIConcurrentValueBox<String?>(nil)"))
+        #expect(peer.contains("DIConcurrentValueBox<Result<String, SharedFailure>?>(nil)"))
+        #expect(peer.contains("DIConcurrentValueBox<Result<String, Error>>"))
+        #expect(peer.contains("DIConcurrentValueBox<Error?>(nil)"))
+        #expect(peer.contains("return try __innodi_fetchResultBox.snapshot().get()"))
+        #expect(peer.contains("if let error = __innodi_refreshThrownErrorBox.snapshot()"))
+        #expect(peer.contains("loadResult == nil ? \"load\" : nil"))
+    }
+
+    @Test("GenerateMock rejects unsupported concurrent and member-isolated shapes")
+    func generateMockRejectsUnsupportedConcurrentShapes() throws {
+        let cases = [
+            """
+            @GenerateMock
+            protocol SharedAPI: Sendable {
+                func transform<T>(_ value: T) -> T
+            }
+            """,
+            """
+            @GenerateMock
+            protocol SharedAPI: Sendable {
+                func update(_ value: inout Int)
+            }
+            """,
+            """
+            @GenerateMock
+            protocol SharedAPI {
+                @FeatureActor func load() -> String
+            }
+            """,
+        ]
+
+        for source in cases {
+            let parsed = SwiftParser.Parser.parse(source: source)
+            let decl = try #require(
+                parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+            )
+            let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+            let context = TestMacroExpansionContext()
+            let peers = try GenerateMockMacro.expansion(
+                of: attr,
+                providingPeersOf: decl,
+                in: context
+            )
+            #expect(peers.isEmpty)
+            #expect(context.diagnostics.contains {
+                $0.diagnosticID == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "mock.unsupported-member"
+                )
+            })
+        }
+    }
+
+    @Test("GenerateMock recognizes qualified Sendable inheritance")
+    func generateMockSupportsQualifiedSendableInheritedProtocols() throws {
         let source = """
         @GenerateMock
         protocol SharedAPI: Swift.Sendable {
@@ -180,13 +297,9 @@ struct GenerateMockMacroTests {
             in: context
         )
 
-        #expect(peers.isEmpty)
-        #expect(
-            context.diagnostics.contains {
-                $0.diagnosticID == MessageID(domain: "InnoDI.validation", id: "mock.unsupported-member")
-                    && $0.message.contains("Sendable inheritance")
-            }
-        )
+        let peer = try #require(peers.first?.description)
+        #expect(context.diagnostics.isEmpty)
+        #expect(peer.contains("InnoDITesting.DIConcurrentValueBox"))
     }
 
     @Test("GenerateMock fails closed for inherited protocol requirements")
@@ -709,25 +822,90 @@ struct GenerateMockMacroTests {
         }
     }
 
-    @Test("GenerateMock fails closed for actor-isolated protocols")
-    func generateMockRefusesActorIsolatedProtocols() throws {
-        for isolation in ["@MainActor", "@FixtureActor"] {
-            let parsed = SwiftParser.Parser.parse(source: """
-            \(isolation)
+    @Test("GenerateMock preserves MainActor protocol isolation")
+    func generateMockPreservesMainActorIsolation() throws {
+        let parsed = SwiftParser.Parser.parse(source: """
+            @MainActor
             @GenerateMock
             protocol IsolatedAPI {
                 func load() -> String
             }
             """)
-            let decl = try #require(
-                parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
-            )
-            let attr = try #require(
-                decl.attributes.compactMap { $0.as(AttributeSyntax.self) }.first {
-                    $0.attributeName.trimmedDescription == "GenerateMock"
-                }
-            )
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(
+            decl.attributes.compactMap { $0.as(AttributeSyntax.self) }.first {
+                $0.attributeName.trimmedDescription == "GenerateMock"
+            }
+        )
 
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(context.diagnostics.isEmpty)
+        #expect(peers.first?.description.contains("@MainActor\nfinal class IsolatedAPIMock") == true)
+    }
+
+    @Test("GenerateMock fails closed for individually MainActor requirements")
+    func generateMockRefusesIndividualMainActorIsolation() throws {
+        let parsed = SwiftParser.Parser.parse(source: """
+            @GenerateMock
+            protocol PartlyIsolatedAPI {
+                @MainActor func load() -> String
+            }
+            """)
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(
+                domain: "InnoDI.validation",
+                id: "mock.unsupported-member"
+            ) && $0.message.contains("load")
+        })
+    }
+
+    @Test("GenerateMock rejects aggregate helper collisions")
+    func generateMockRejectsAggregateHelperCollisions() throws {
+        let sources = [
+            """
+            @GenerateMock
+            protocol CollidingAPI {
+                var recordedCallCounts: [String: Int] { get }
+                func load() -> String
+            }
+            """,
+            """
+            enum Failure: Error { case missing }
+            @GenerateMock
+            protocol CollidingAPI {
+                var missingStubSelectors: [String] { get }
+                func load() throws(Failure) -> String
+            }
+            """,
+        ]
+        for source in sources {
+            let parsed = SwiftParser.Parser.parse(source: source)
+            let decl = try #require(
+                parsed.statements.compactMap {
+                    $0.item.as(ProtocolDeclSyntax.self)
+                }.first
+            )
+            let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
             let context = TestMacroExpansionContext()
             let peers = try GenerateMockMacro.expansion(
                 of: attr,
@@ -736,15 +914,43 @@ struct GenerateMockMacroTests {
             )
 
             #expect(peers.isEmpty)
-            #expect(
-                context.diagnostics.contains {
-                    $0.diagnosticID == MessageID(
-                        domain: "InnoDI.validation",
-                        id: "mock.unsupported-member"
-                    ) && $0.message.contains("isolation")
-                }
-            )
+            #expect(context.diagnostics.contains {
+                $0.message.contains("generated-helper collision")
+            })
         }
+    }
+
+    @Test("GenerateMock fails closed for custom actor-isolated protocols")
+    func generateMockRefusesCustomActorIsolation() throws {
+        let parsed = SwiftParser.Parser.parse(source: """
+            @FixtureActor
+            @GenerateMock
+            protocol IsolatedAPI {
+                func load() -> String
+            }
+            """)
+        let decl = try #require(
+            parsed.statements.first?.item.as(ProtocolDeclSyntax.self)
+        )
+        let attr = try #require(
+            decl.attributes.compactMap { $0.as(AttributeSyntax.self) }.first {
+                $0.attributeName.trimmedDescription == "GenerateMock"
+            }
+        )
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(context.diagnostics.contains {
+            $0.diagnosticID == MessageID(
+                domain: "InnoDI.validation",
+                id: "mock.unsupported-member"
+            ) && $0.message.contains("isolation")
+        })
     }
 
     @Test("GenerateMock fails closed for unsupported requirement modifiers")
