@@ -6,13 +6,14 @@ import InnoDICore
 /// The schema is deliberately small and versioned so CI pipelines, IDE
 /// plugins, or web viewers can consume it without re-parsing Mermaid/DOT.
 ///
-/// Schema v3 separates assisted inputs, assisted-factory ownership, and
-/// ordered multibinding contributions. Target-qualified identity and explicit
-/// analysis scope remain required from schema v2.
+/// Schema v4 adds canonical provider semantics and diagnostic-only source
+/// locations. Target-qualified identity and explicit analysis scope remain
+/// required from schema v2.
 package func renderJSON(
     scope: GraphJSON.Scope,
     nodes: [DependencyGraphNode],
-    edges: [DependencyGraphEdge]
+    edges: [DependencyGraphEdge],
+    providers: [DependencyGraphProvider] = []
 ) throws -> String {
     let nodePayloads: [GraphJSON.Node] = nodes.map { node in
         GraphJSON.Node(
@@ -38,11 +39,15 @@ package func renderJSON(
     }
     .sorted(by: GraphJSON.Edge.canonicalOrder)
 
+    let providerPayloads = providers.map(GraphJSON.Provider.init)
+        .sorted { $0.id < $1.id }
+
     let document = GraphJSON.Document(
         schemaVersion: GraphJSON.currentSchemaVersion,
         scope: scope,
         nodes: nodePayloads,
-        edges: edgePayloads
+        edges: edgePayloads,
+        providers: providerPayloads
     )
 
     let encoder = JSONEncoder()
@@ -67,24 +72,117 @@ private func edgeKind(for edge: DependencyGraphEdge) -> GraphJSON.EdgeKind {
 /// Namespaces the JSON schema types so they stay close to the renderer
 /// and aren't accidentally reused for an unrelated payload.
 package enum GraphJSON {
-    package static let currentSchemaVersion = 3
+    package static let currentSchemaVersion = 4
 
     package struct Document: Codable, Equatable {
         package let schemaVersion: Int
         package let scope: Scope
         package let nodes: [Node]
         package let edges: [Edge]
+        package let providers: [Provider]
 
         package init(
             schemaVersion: Int,
             scope: Scope,
             nodes: [Node],
-            edges: [Edge]
+            edges: [Edge],
+            providers: [Provider] = []
         ) {
             self.schemaVersion = schemaVersion
             self.scope = scope
             self.nodes = nodes
             self.edges = edges
+            self.providers = providers
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case schemaVersion
+            case scope
+            case nodes
+            case edges
+            case providers
+        }
+
+        package init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+            scope = try container.decode(Scope.self, forKey: .scope)
+            nodes = try container.decode([Node].self, forKey: .nodes)
+            edges = try container.decode([Edge].self, forKey: .edges)
+            providers = try container.decodeIfPresent(
+                [Provider].self,
+                forKey: .providers
+            ) ?? []
+        }
+    }
+
+    package struct Provider: Codable, Equatable {
+        package let id: String
+        package let containerID: String
+        package let name: String
+        package let type: String
+        package let role: DependencyGraphProvider.Role
+        package let lifetime: DependencyGraphProvider.Lifetime
+        package let initialization: DependencyGraphProvider.Initialization
+        package let isolation: DependencyGraphProvider.Isolation
+        package let effect: DependencyGraphProvider.Effect
+        package let inputKind: DependencyGraphProvider.InputKind?
+        package let dependencies: [String]
+        package let source: Source
+
+        package init(_ provider: DependencyGraphProvider) {
+            id = provider.id
+            containerID = provider.containerID
+            name = provider.name
+            type = provider.type
+            role = provider.role
+            lifetime = provider.lifetime
+            initialization = provider.initialization
+            isolation = provider.isolation
+            effect = provider.effect
+            inputKind = provider.inputKind
+            dependencies = provider.dependencies
+            source = Source(provider.source)
+        }
+
+        package struct Source: Codable, Equatable {
+            package let path: String
+            package let line: Int
+            package let column: Int
+
+            package init(_ source: DependencyGraphProvider.SourceLocation) {
+                path = source.path
+                line = source.line
+                column = source.column
+            }
+        }
+
+        package var semanticIdentity: SemanticIdentity {
+            SemanticIdentity(
+                containerID: containerID,
+                name: name,
+                type: type,
+                role: role,
+                lifetime: lifetime,
+                initialization: initialization,
+                isolation: isolation,
+                effect: effect,
+                inputKind: inputKind,
+                dependencies: dependencies
+            )
+        }
+
+        package struct SemanticIdentity: Equatable {
+            let containerID: String
+            let name: String
+            let type: String
+            let role: DependencyGraphProvider.Role
+            let lifetime: DependencyGraphProvider.Lifetime
+            let initialization: DependencyGraphProvider.Initialization
+            let isolation: DependencyGraphProvider.Isolation
+            let effect: DependencyGraphProvider.Effect
+            let inputKind: DependencyGraphProvider.InputKind?
+            let dependencies: [String]
         }
     }
 

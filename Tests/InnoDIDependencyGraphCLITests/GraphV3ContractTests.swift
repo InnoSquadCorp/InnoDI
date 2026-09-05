@@ -7,7 +7,7 @@ import Testing
 @testable import InnoDIDependencyGraphCore
 @testable import InnoDIDependencyGraphCLI
 
-@Suite("Graph JSON v3 contract")
+@Suite("Graph JSON v4 contract")
 struct GraphV3ContractTests {
     @Test("assisted inputs, factory ownership, and contributions are explicit")
     func collectsVersionThreeSemantics() throws {
@@ -96,22 +96,32 @@ struct GraphV3ContractTests {
                 rootPruning: .all
             ),
             nodes: graph.nodes,
-            edges: graph.edges
+            edges: graph.edges,
+            providers: graph.providers
         )
         let document = try JSONDecoder().decode(
             GraphJSON.Document.self,
             from: Data(rendered.utf8)
         )
-        #expect(document.schemaVersion == 3)
+        #expect(document.schemaVersion == 4)
         #expect(
             document.edges.contains {
                 $0.kind == .assistedFactoryOwnership
             }
         )
         #expect(document.edges.filter { $0.kind == .contribution }.count == 2)
+        #expect(document.providers.count == 7)
+        let session = try #require(
+            document.providers.first { $0.name == "sessionID" }
+        )
+        #expect(session.type == "Int")
+        #expect(session.role == .input)
+        #expect(session.inputKind == .assisted)
+        #expect(session.initialization == .assisted)
+        #expect(session.source.path == "Sources/App/Containers.swift")
     }
 
-    @Test("human renderers expose every v3 semantic")
+    @Test("human renderers expose inherited v3 semantics")
     func rendersVersionThreeSemantics() {
         let nodes = [
             DependencyGraphNode(
@@ -201,5 +211,118 @@ struct GraphV3ContractTests {
         #expect(report.hasChanges)
         #expect(report.removedEdgeIDs.first?.contains("order=0") == true)
         #expect(report.addedEdgeIDs.first?.contains("order=1") == true)
+    }
+
+    @Test("provider type, lifetime, isolation, and effect are contractual")
+    func providerSemanticsAreContractual() throws {
+        let baseline = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var configuration: Int
+            @Provide(.shared, factory: Service()) var service: Service
+        }
+        """)
+
+        let variants: [(String, String)] = [
+            ("type", """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Input var configuration: String
+                @Provide(.shared, factory: Service()) var service: Service
+            }
+            """),
+            ("lifetime", """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Input var configuration: Int
+                @Provide(.transient, factory: Service()) var service: Service
+            }
+            """),
+            ("isolation", """
+            @DIContainer(root: true, mainActor: true)
+            struct AppContainer {
+                @Input var configuration: Int
+                @Provide(.shared, factory: Service()) var service: Service
+            }
+            """),
+            ("effect", """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Input var configuration: Int
+                @Provide(.shared, asyncFactory: { await Service.load() }) var service: Service
+            }
+            """),
+        ]
+
+        for (field, source) in variants {
+            let report = compareGraphDocuments(
+                before: baseline,
+                after: try graphDocument(source: source)
+            )
+            #expect(report.hasChanges, "Expected \(field) drift")
+            #expect(
+                report.changedProviders.contains { $0.contains("\(field) ") },
+                "Expected provider diff to name \(field)"
+            )
+        }
+    }
+
+    @Test("source line movement is diagnostic-only")
+    func sourceMovementIsNotContractual() throws {
+        let before = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(.shared, factory: Service()) var service: Service
+        }
+        """)
+        let after = try graphDocument(source: """
+
+
+        @DIContainer(root: true)
+        struct AppContainer {
+
+            @Provide(.shared, factory: Service()) var service: Service
+        }
+        """)
+
+        let beforeLine = try #require(before.providers.first).source.line
+        let afterLine = try #require(after.providers.first).source.line
+        #expect(beforeLine != afterLine)
+        #expect(!compareGraphDocuments(before: before, after: after).hasChanges)
+    }
+
+    private func graphDocument(source: String) throws -> GraphJSON.Document {
+        let syntax = Parser.parse(source: source)
+        let root = URL(fileURLWithPath: "/workspace")
+        let snapshot = WorkspaceSourceSnapshot(
+            rootPath: root.path,
+            rootURL: root,
+            files: [
+                WorkspaceSourceFile(
+                    relativePath: "Sources/App/AppContainer.swift",
+                    fileURL: root.appendingPathComponent(
+                        "Sources/App/AppContainer.swift"
+                    ),
+                    syntax: syntax
+                )
+            ]
+        )
+        let graph = collectDependencyGraph(
+            snapshot: snapshot,
+            validateDAG: false
+        )
+        let rendered = try renderJSON(
+            scope: GraphJSON.Scope(
+                primaryTargetID: "App",
+                rootPruning: .all
+            ),
+            nodes: graph.nodes,
+            edges: graph.edges,
+            providers: graph.providers
+        )
+        return try JSONDecoder().decode(
+            GraphJSON.Document.self,
+            from: Data(rendered.utf8)
+        )
     }
 }

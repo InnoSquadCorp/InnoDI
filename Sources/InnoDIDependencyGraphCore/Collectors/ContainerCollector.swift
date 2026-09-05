@@ -48,9 +48,11 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     /// once every container has been visited.
     var subContainerReferences: [PendingSubContainerReference] = []
     var multibindingContributions: [PendingMultibindingContribution] = []
+    var providers: [DependencyGraphProvider] = []
 
     private let moduleIdentity: String?
     private var currentRelativeFilePath: String = ""
+    private var sourceLocationConverter: SourceLocationConverter?
     var declarationPath: [String] = []
 
     override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
@@ -118,6 +120,10 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
     func walkFile(relativePath: String, tree: SourceFileSyntax) {
         currentRelativeFilePath = relativePath
+        sourceLocationConverter = SourceLocationConverter(
+            fileName: relativePath,
+            tree: tree
+        )
         declarationPath.removeAll(keepingCapacity: true)
         walk(tree)
     }
@@ -142,6 +148,14 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         var assistedInputs: [String] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
+            guard let binding = varDecl.bindings.first,
+                  let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+                  let typeAnnotation = binding.typeAnnotation else {
+                continue
+            }
+            let memberName = pattern.identifier.text
+            let memberType = typeAnnotation.type.trimmedDescription
+            let source = providerSourceLocation(for: varDecl)
 
             // `@SubContainer` ownership edge collection. Parent/child IDs
             // stay unresolved at this stage — the AppMain pass feeds the
@@ -149,13 +163,23 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             // the full file set has been walked so ownership edges follow
             // the same alias/suffix/ambiguity policy as regular container
             // references.
-            if parseSubContainerAttribute(varDecl.attributes) != nil {
-                guard let binding = varDecl.bindings.first,
-                      let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-                      let typeAnnotation = binding.typeAnnotation else {
-                    continue
-                }
+            if let subcontainer = parseSubContainerAttribute(varDecl.attributes) {
                 let childType = typeAnnotation.type.trimmedDescription
+                providers.append(
+                    DependencyGraphProvider(
+                        id: providerID(containerID: parentID, memberName: memberName),
+                        containerID: parentID,
+                        name: memberName,
+                        type: memberType,
+                        role: .subcontainer,
+                        lifetime: subcontainer.scope == .transient ? .transient : .shared,
+                        initialization: subcontainer.scope == .transient ? .onAccess : .eager,
+                        isolation: containerAttr.mainActor ? .mainActor : .nonisolated,
+                        effect: .sync,
+                        dependencies: subcontainer.dependencies + subcontainer.bindings.map(\.parentName),
+                        source: source
+                    )
+                )
                 subContainerReferences.append(
                     PendingSubContainerReference(
                         parentID: parentID,
@@ -171,12 +195,22 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
             guard let provide = parseProvideAttribute(varDecl.attributes)
             else { continue }
-            guard let binding = varDecl.bindings.first,
-                  let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
-                continue
-            }
-
             if let childType = provide.assistedFactoryChildType {
+                providers.append(
+                    DependencyGraphProvider(
+                        id: providerID(containerID: parentID, memberName: memberName),
+                        containerID: parentID,
+                        name: memberName,
+                        type: memberType,
+                        role: .assistedFactory,
+                        lifetime: .transient,
+                        initialization: .assisted,
+                        isolation: containerAttr.mainActor ? .mainActor : .nonisolated,
+                        effect: .sync,
+                        dependencies: provide.dependencies,
+                        source: source
+                    )
+                )
                 subContainerReferences.append(
                     PendingSubContainerReference(
                         parentID: parentID,
@@ -193,6 +227,21 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             }
 
             if provide.isMultibinding {
+                providers.append(
+                    DependencyGraphProvider(
+                        id: providerID(containerID: parentID, memberName: memberName),
+                        containerID: parentID,
+                        name: memberName,
+                        type: memberType,
+                        role: .multibinding,
+                        lifetime: .transient,
+                        initialization: .onAccess,
+                        isolation: containerAttr.mainActor ? .mainActor : .nonisolated,
+                        effect: .sync,
+                        dependencies: provide.dependencies,
+                        source: source
+                    )
+                )
                 for (order, contributor) in provide.dependencies.enumerated() {
                     multibindingContributions.append(
                         PendingMultibindingContribution(
@@ -205,6 +254,48 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                 }
                 continue
             }
+
+            let role: DependencyGraphProvider.Role = provide.scope == .input
+                ? .input : .provider
+            let lifetime: DependencyGraphProvider.Lifetime
+            let initialization: DependencyGraphProvider.Initialization
+            switch provide.scope {
+            case .input:
+                lifetime = .external
+                initialization = provide.inputKind == .assisted ? .assisted : .external
+            case .transient:
+                lifetime = .transient
+                initialization = .onAccess
+            case .shared, .none:
+                lifetime = .shared
+                initialization = .eager
+            }
+            let effect: DependencyGraphProvider.Effect
+            if provide.asyncFactoryExpr == nil {
+                effect = .sync
+            } else if provide.asyncFactoryIsThrowing {
+                effect = .asyncThrows
+            } else {
+                effect = .async
+            }
+            providers.append(
+                DependencyGraphProvider(
+                    id: providerID(containerID: parentID, memberName: memberName),
+                    containerID: parentID,
+                    name: memberName,
+                    type: memberType,
+                    role: role,
+                    lifetime: lifetime,
+                    initialization: initialization,
+                    isolation: containerAttr.mainActor ? .mainActor : .nonisolated,
+                    effect: effect,
+                    inputKind: provide.scope == .input
+                        ? (provide.inputKind == .assisted ? .assisted : .container)
+                        : nil,
+                    dependencies: provide.dependencies,
+                    source: source
+                )
+            )
 
             guard provide.scope == .input else { continue }
             if provide.inputKind == .assisted {
@@ -224,6 +315,23 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                 requiredInputs: requiredInputs,
                 assistedInputs: assistedInputs
             )
+        )
+    }
+
+    private func providerID(containerID: String, memberName: String) -> String {
+        "\(containerID).\(memberName)"
+    }
+
+    private func providerSourceLocation(
+        for declaration: VariableDeclSyntax
+    ) -> DependencyGraphProvider.SourceLocation {
+        let location = sourceLocationConverter?.location(
+            for: declaration.positionAfterSkippingLeadingTrivia
+        )
+        return DependencyGraphProvider.SourceLocation(
+            path: currentRelativeFilePath,
+            line: location?.line ?? 1,
+            column: location?.column ?? 1
         )
     }
 }

@@ -191,7 +191,7 @@ package func runDependencyGraphCLI() -> Int32 {
         case .json:
             guard let primaryTargetID else {
                 fputs(
-                    "Error: JSON schema v3 requires target-scoped analysis\n",
+                    "Error: JSON schema v4 requires target-scoped analysis\n",
                     stderr
                 )
                 return ExitCode.failure
@@ -202,7 +202,8 @@ package func runDependencyGraphCLI() -> Int32 {
                     rootPruning: rootPruning
                 ),
                 nodes: renderedGraph.nodes,
-                edges: renderedGraph.edges
+                edges: renderedGraph.edges,
+                providers: renderedGraph.providers
             )
         }
     } catch {

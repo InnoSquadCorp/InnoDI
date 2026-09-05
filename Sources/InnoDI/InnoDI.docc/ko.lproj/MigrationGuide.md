@@ -205,6 +205,17 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ---
 
+## 5.x → 6.0 그래프 계약
+
+Graph JSON consumer는 schema v4로 옮겨야 합니다. v4의 `providers` 배열은
+안정적인 container/member ID와 작성된 타입, 역할, lifetime, 초기화 정책,
+actor 격리, effect, dependency, source 위치를 기록합니다. 계약 비교는 줄과
+열 이동은 무시하지만 의미 필드 변경은 검출합니다. `--diff`는 이전 schema를
+명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after baseline을
+모두 같은 6.0 도구로 다시 만드세요.
+
+---
+
 ## 4.x → 5.0
 
 5.0은 매크로 surface를 더 늘리기 전에 compiler와 graph의 공개 계약을

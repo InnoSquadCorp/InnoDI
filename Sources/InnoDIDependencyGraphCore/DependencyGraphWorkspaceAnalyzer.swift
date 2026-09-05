@@ -5,15 +5,18 @@ import InnoDIWorkspaceAnalysis
 package struct DependencyGraphAnalysis {
     package let nodes: [DependencyGraphNode]
     package let edges: [DependencyGraphEdge]
+    package let providers: [DependencyGraphProvider]
     package let preflightFailure: DependencyGraphCommandResult?
 
     package init(
         nodes: [DependencyGraphNode],
         edges: [DependencyGraphEdge],
+        providers: [DependencyGraphProvider] = [],
         preflightFailure: DependencyGraphCommandResult? = nil
     ) {
         self.nodes = nodes
         self.edges = edges
+        self.providers = providers
         self.preflightFailure = preflightFailure
     }
 }
@@ -51,6 +54,7 @@ package func collectDependencyGraph(
     return DependencyGraphAnalysis(
         nodes: collection.nodes,
         edges: collection.edges,
+        providers: collection.providers,
         preflightFailure: identityCollisionFailure(
             collection.identityCollisions
         )
@@ -73,6 +77,7 @@ package func collectRenderableDependencyGraph(
         return DependencyGraphAnalysis(
             nodes: [],
             edges: [],
+            providers: [],
             preflightFailure: analysis.preflightFailure
                 ?? rootPruningWithoutRootsFailure()
         )
@@ -80,6 +85,11 @@ package func collectRenderableDependencyGraph(
     return DependencyGraphAnalysis(
         nodes: rendered.nodes,
         edges: rendered.edges,
+        providers: analysis.providers.filter { provider in
+            rendered.nodes.contains { node in
+                node.id == provider.containerID
+            }
+        },
         preflightFailure: analysis.preflightFailure
     )
 }
@@ -105,6 +115,7 @@ package func validateDependencyGraph(snapshot: WorkspaceSourceSnapshot) -> Depen
 private struct DependencyGraphDiagnosticCollection {
     let nodes: [DependencyGraphNode]
     let edges: [DependencyGraphEdge]
+    let providers: [DependencyGraphProvider]
     let semanticIssues: [SemanticContainerReferenceIssue]
     let identityCollisions: [DependencyGraphIdentityCollision]
 }
@@ -137,6 +148,7 @@ private func collectDependencyGraphWithDiagnostics(
         return DependencyGraphDiagnosticCollection(
             nodes: [],
             edges: [],
+            providers: [],
             semanticIssues: [],
             identityCollisions: []
         )
@@ -223,6 +235,7 @@ private func collectDependencyGraphWithDiagnostics(
         edges: deduplicateEdges(
             usageCollector.edges + ownershipEdges + contributionEdges
         ),
+        providers: normalizeProviders(collector.providers),
         semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues,
         identityCollisions: []
     )
@@ -234,6 +247,7 @@ private struct TargetScopedCollectedSource {
     let sourceImports: TargetAwareSourceImports
     let subContainerReferences: [PendingSubContainerReference]
     let multibindingContributions: [PendingMultibindingContribution]
+    let providers: [DependencyGraphProvider]
 }
 
 private func collectTargetScopedDependencyGraphWithDiagnostics(
@@ -296,7 +310,8 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
                 sourceImports: sourceImports,
                 subContainerReferences: collector.subContainerReferences,
                 multibindingContributions:
-                    collector.multibindingContributions
+                    collector.multibindingContributions,
+                providers: collector.providers
             )
         )
     }
@@ -325,6 +340,7 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
         return DependencyGraphDiagnosticCollection(
             nodes: [],
             edges: [],
+            providers: [],
             semanticIssues: [],
             identityCollisions: identityCollisions
         )
@@ -401,6 +417,9 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
     return DependencyGraphDiagnosticCollection(
         nodes: nodes,
         edges: sortedGraphEdges(deduplicateEdges(edges)),
+        providers: normalizeProviders(
+            collectedSources.flatMap(\.providers)
+        ),
         semanticIssues: semanticIssues,
         identityCollisions: identityCollisions
     )
