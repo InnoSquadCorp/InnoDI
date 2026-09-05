@@ -65,6 +65,33 @@ struct DIContainerMacroTests {
         #expect(result.expansion.contains("self._storage_apiClient = apiClient ?? APIClient()"))
     }
 
+    @Test("On-demand shared dependencies use a copy-shared cell")
+    func onDemandSharedDependencyGeneratesCell() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Input var config: Config
+                @Provide(
+                    .shared,
+                    initialization: .onDemand,
+                    factory: { (config: Config) in APIClient(config: config) }
+                )
+                var apiClient: APIClient
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("InnoDI._InnoDISharedCell<APIClient> ="))
+        #expect(result.expansion.contains("InnoDI._InnoDISharedCell {"))
+        #expect(result.expansion.contains("}(config)"))
+        #expect(result.expansion.contains("self._storage_apiClient = _innoDIOnDemand_apiClient"))
+        #expect(result.expansion.contains("func prewarm(_ providers: Swift.PartialKeyPath<Self>...) throws"))
+        #expect(result.expansion.contains("throw InnoDI.DIPrewarmError.unsupportedProvider"))
+    }
+
     @Test("A flagless concrete transient dependency keeps its declared override type")
     func flaglessConcreteTransientDependencyGeneratesOverride() {
         let result = expandMacroSource(

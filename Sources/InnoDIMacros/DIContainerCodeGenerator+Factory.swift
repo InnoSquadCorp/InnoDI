@@ -14,6 +14,7 @@ import SwiftSyntaxBuilder
 internal func makeFactoryExpr(
     member: ProvideMemberModel,
     availableNames: [String],
+    availableExpressions: [String: ExprSyntax] = [:],
     deferredTargetNameSet: Set<String>,
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
@@ -24,6 +25,7 @@ internal func makeFactoryExpr(
                 member: member,
                 closure: closure,
                 availableNames: availableNames,
+                availableExpressions: availableExpressions,
                 deferredTargetNameSet: deferredTargetNameSet,
                 fallbackOverrideNames: fallbackOverrideNames,
                 allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
@@ -42,6 +44,7 @@ internal func makeFactoryExpr(
             dependencies: member.withDependencies,
             labels: member.withDependencyLabels,
             availableNames: availableNames,
+            availableExpressions: availableExpressions,
             fallbackOverrideNames: fallbackOverrideNames,
             allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
@@ -62,6 +65,7 @@ private func labeledDependencyArguments(
     dependencies: [String],
     labels: [String],
     availableNames: [String],
+    availableExpressions: [String: ExprSyntax],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> [LabeledExprSyntax] {
@@ -79,6 +83,7 @@ private func labeledDependencyArguments(
             expression: try resolvedInitDependencyExpression(
                 name: dependency,
                 availableNames: availableNames,
+                availableExpressions: availableExpressions,
                 fallbackOverrideNames: fallbackOverrideNames,
                 allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
             ),

@@ -276,6 +276,24 @@ extension DIContainerValidator {
         context: some MacroExpansionContext
     ) -> Bool {
         var hadErrors = false
+        if member.initialization == .onDemand, member.scope != .shared {
+            context.emit(
+                SimpleDiagnostic.provideInitializationInvalidScope(
+                    memberName: member.name
+                ),
+                at: Syntax(member.attribute)
+            )
+            hadErrors = true
+        }
+        if member.initialization == .onDemand, member.asyncFactory != nil {
+            context.emit(
+                SimpleDiagnostic.provideOnDemandAsyncUnsupported(
+                    memberName: member.name
+                ),
+                at: Syntax(member.attribute)
+            )
+            hadErrors = true
+        }
         if state.hasConstructionSourceConflict {
             let message: SimpleDiagnostic
             if state.constructionSourceCount == 2,

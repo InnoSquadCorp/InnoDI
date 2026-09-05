@@ -89,6 +89,14 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
                     )
                 ]
             }
+            if parseResult.initialization == .onDemand {
+                return [
+                    providerOnDemandStoragePeerDecl(
+                        name: "_storage_\(memberName)",
+                        type: type
+                    )
+                ]
+            }
             return [
                 providerStoragePeerDecl(
                     name: "_storage_\(memberName)",
@@ -272,6 +280,13 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
                 ], isMainActor: isMainActor)
             }
 
+            if parseResult.initialization == .onDemand {
+                return isolateProvideAccessors(
+                    [onDemandProvideGetter(storageName: "_storage_\(memberName)")],
+                    isMainActor: isMainActor
+                )
+            }
+
             return isolateProvideAccessors(
                 [storedProvideGetter(storageName: "_storage_\(memberName)")],
                 isMainActor: isMainActor
@@ -305,6 +320,15 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             ]
         }
     }
+}
+
+private func onDemandProvideGetter(storageName: String) -> AccessorDeclSyntax {
+    let expression: ExprSyntax = "self.\(raw: storageName)!.value()"
+    return makeGetter(
+        statements: [returnStmt(expr: expression)],
+        isAsync: false,
+        isThrowing: false
+    )
 }
 
 private func isolateProvideAccessors(

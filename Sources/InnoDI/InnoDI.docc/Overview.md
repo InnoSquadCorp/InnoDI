@@ -61,6 +61,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 - <doc:lock-safety>
 - <doc:DAGValidation>
+- <doc:AsyncPreparation>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
 
@@ -86,3 +87,5 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - ``DIScope``
 - ``Lazy``
 - ``Provider``
+- ``DIAsyncScope``
+- ``DIAsyncPreparationPlan``

@@ -176,6 +176,12 @@ package func isLocallyValidProvideConfiguration(
         }
         return true
     }
+    guard let initialization = arguments.initialization,
+          initialization == .eager || arguments.scope == .shared,
+          !(initialization == .onDemand && arguments.asyncFactoryExpr != nil)
+    else {
+        return false
+    }
     return isLocallyValidProvideConstruction(
         binding: binding,
         scope: arguments.scope,

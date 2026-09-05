@@ -238,6 +238,13 @@ struct GraphV3ContractTests {
                 @Provide(.transient, factory: Service()) var service: Service
             }
             """),
+            ("initialization", """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Input var configuration: Int
+                @Provide(.shared, initialization: .onDemand, factory: Service()) var service: Service
+            }
+            """),
             ("isolation", """
             @DIContainer(root: true, mainActor: true)
             struct AppContainer {

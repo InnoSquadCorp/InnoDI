@@ -57,6 +57,9 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subDuplicateAttribute = "sub.duplicate-attribute"
     case subGeneratedAccessorManualAttachment = "sub.generated-accessor-manual-attachment"
     case provideUnknownScope = "provide.unknown-scope"
+    case provideUnknownInitialization = "provide.unknown-initialization"
+    case provideInitializationInvalidScope = "provide.initialization-invalid-scope"
+    case provideOnDemandAsyncUnsupported = "provide.ondemand-async-unsupported"
     case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
     case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
     case provideDuplicateAttribute = "provide.duplicate-attribute"
@@ -112,6 +115,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerUnmanagedStoredProperty = "container.unmanaged-stored-property"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
+    case containerPrewarmNameConflict = "container.prewarm-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
     case containerReservedModuleName = "container.reserved-module-name"
     case containerDuplicateMemberName = "container.duplicate-member-name"
@@ -174,7 +178,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subConditionalDeclarationUnsupported,
                 .subDuplicateAttribute,
                 .subGeneratedAccessorManualAttachment,
-                .provideUnknownScope, .provideRequiresDirectContainerMember,
+                .provideUnknownScope, .provideUnknownInitialization,
+                .provideRequiresDirectContainerMember,
                 .provideConditionalDeclarationUnsupported,
                 .provideDuplicateAttribute,
                 .provideGeneratedAccessorManualAttachment,
@@ -195,6 +200,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
         case .provideSharedFactoryRequired, .provideTransientFactoryRequired,
                 .provideFactoryConflict, .provideConstructionSourceConflict,
                 .provideWithRequiresTypeConstruction,
+                .provideInitializationInvalidScope,
+                .provideOnDemandAsyncUnsupported,
                 .assistedFactoryMissingDeclaration,
                 .assistedFactoryDuplicateInput,
                 .assistedFactoryInputPartitionMismatch,
@@ -224,6 +231,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerRoleTokenRequired,
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
+                .containerPrewarmNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,
                 .containerDuplicateMemberName,
                 .containerGeneratedSymbolCollision,

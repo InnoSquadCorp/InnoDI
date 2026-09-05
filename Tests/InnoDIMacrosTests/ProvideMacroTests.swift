@@ -813,6 +813,68 @@ struct ProvideMacroTests {
 
     // MARK: - Public API presence
 
+    @Test("Unknown initialization policy is rejected with a stable diagnostic")
+    func unknownInitializationPolicyDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, initialization: .eventually, factory: Service())
+                var service: Service
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.provideUnknownInitialization.messageID],
+            macros: Self.macros
+        )
+    }
+
+    @Test("On-demand initialization rejects transient providers")
+    func onDemandTransientDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.transient, initialization: .onDemand, factory: Service())
+                var service: Service
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.provideInitializationInvalidScope.messageID],
+            macros: Self.macros
+        )
+    }
+
+    @Test("On-demand initialization rejects async factories")
+    func onDemandAsyncDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in Service() })
+                var service: Service
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.provideOnDemandAsyncUnsupported.messageID],
+            macros: Self.macros
+        )
+    }
+
+    @Test("On-demand containers reserve the generated prewarm API name")
+    func onDemandPrewarmNameConflictDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, initialization: .onDemand, factory: Service())
+                var service: Service
+
+                func prewarm() {}
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.containerPrewarmNameConflict.messageID],
+            macros: Self.macros
+        )
+    }
+
     @Test("Compiler support declaration owns provider storage peer names")
     func compilerSupportDeclarationOwnsStoragePeerNames() throws {
         let fileURL = URL(fileURLWithPath: #filePath)

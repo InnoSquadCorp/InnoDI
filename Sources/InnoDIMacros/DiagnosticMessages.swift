@@ -10,6 +10,27 @@ import InnoDICore
 import SwiftDiagnostics
 
 extension SimpleDiagnostic {
+    static func provideUnknownInitialization(_ name: String) -> Self {
+        Self(
+            "Unknown @Provide initialization policy '\(name)'. Valid policies are .eager and .onDemand.",
+            code: .provideUnknownInitialization
+        )
+    }
+
+    static func provideInitializationInvalidScope(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' can use initialization: .onDemand only with .shared scope.",
+            code: .provideInitializationInvalidScope
+        )
+    }
+
+    static func provideOnDemandAsyncUnsupported(memberName: String) -> Self {
+        Self(
+            "@Provide member '\(memberName)' cannot combine initialization: .onDemand with asyncFactory yet; use the async scope API or eager initialization.",
+            code: .provideOnDemandAsyncUnsupported
+        )
+    }
+
     static func assistedFactoryInvalidDeclaration() -> Self {
         Self(
             "@AssistedFactory must annotate an empty, non-generic nested struct named 'AssistedFactory'.",
@@ -671,6 +692,13 @@ extension SimpleDiagnostic {
         Self(
             "A nested 'Overrides' \(kind) is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
             code: .containerOverridesNameConflict
+        )
+    }
+
+    static func containerPrewarmNameConflict() -> Self {
+        Self(
+            "An on-demand @DIContainer synthesizes prewarm(_:), but a direct declaration already uses the name 'prewarm'. Rename that declaration so the generated selective prewarm API remains unambiguous.",
+            code: .containerPrewarmNameConflict
         )
     }
 

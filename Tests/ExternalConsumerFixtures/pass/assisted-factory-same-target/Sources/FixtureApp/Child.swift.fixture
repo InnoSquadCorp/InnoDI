@@ -1,6 +1,16 @@
 import InnoDI
 
-struct Repository {}
+final class Repository {}
+
+@MainActor
+final class RepositoryFactory {
+    private(set) var calls = 0
+
+    func make() -> Repository {
+        calls += 1
+        return Repository()
+    }
+}
 
 final class InstanceToken {}
 typealias Callback = () -> Void

@@ -45,6 +45,11 @@ struct DIContainerValidator {
             declaration: declaration,
             context: context
         ) || hadErrors
+        hadErrors = validatePrewarmNameConflict(
+            model: model,
+            declaration: declaration,
+            context: context
+        ) || hadErrors
         hadErrors = validateReservedQualifierScopes(
             declaration: declaration,
             context: context
@@ -64,6 +69,27 @@ struct DIContainerValidator {
             context: context
         )
         return !hadErrors
+    }
+
+    private static func validatePrewarmNameConflict(
+        model: DIContainerExpansionModel,
+        declaration: some DeclGroupSyntax,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        guard model.syncSharedMembers.contains(where: {
+            $0.initialization == .onDemand
+        }) else {
+            return false
+        }
+        guard let conflict = directContainerDeclarationNames(in: declaration)
+            .first(where: { $0.namespace == .value && $0.name == "prewarm" }) else {
+            return false
+        }
+        context.emit(
+            SimpleDiagnostic.containerPrewarmNameConflict(),
+            at: conflict.anchor
+        )
+        return true
     }
 
     /// Rejects managed members whose generated support symbols collide.

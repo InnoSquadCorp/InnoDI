@@ -16,6 +16,91 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI12DIAsyncScopeC",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DIAsyncScopeC",
+          "target": "s:ScA"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DIAsyncScopeC",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DIAsyncScopeC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DIPrewarmErrorO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DIPrewarmErrorO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DIPrewarmErrorO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DIPrewarmErrorO",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI14DIPrewarmErrorO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIAsyncPreparingP",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIAsyncPreparingP",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIInitializationO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIInitializationO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIAsyncScopeErrorO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIAsyncScopeErrorO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIAsyncScopeErrorO",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI17DIAsyncScopeErrorO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
           "target": "s:SH"
         },
@@ -23,6 +108,141 @@
           "kind": "conformsTo",
           "source": "s:6InnoDI17SubContainerScopeO",
           "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI22DIAsyncPreparationNodeV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI22DIAsyncPreparationNodeV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO",
+          "target": "s:s8SendableP"
         },
         {
           "kind": "conformsTo",
@@ -61,6 +281,66 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC10providerID9operationACyxGSS_xyYaYbKctcfc",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC10providerIDSSvp",
+          "sourceOrigin": {
+            "displayName": "DIAsyncPreparing.providerID",
+            "identifier": "s:6InnoDI16DIAsyncPreparingP10providerIDSSvp"
+          },
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5closeyyF",
+          "sourceOrigin": {
+            "displayName": "DIAsyncPreparing.close()",
+            "identifier": "s:6InnoDI16DIAsyncPreparingP5closeyyYaF"
+          },
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5retryyyKF",
+          "sourceOrigin": {
+            "displayName": "DIAsyncPreparing.retry()",
+            "identifier": "s:6InnoDI16DIAsyncPreparingP5retryyyYaKF"
+          },
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5valuexyYaKF",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyF",
+          "sourceOrigin": {
+            "displayName": "DIAsyncPreparing.status()",
+            "identifier": "s:6InnoDI16DIAsyncPreparingP6statusAA0C14ProviderStatusVyYaF"
+          },
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC7prepareAA0C14ProviderStatusVyYaF",
+          "sourceOrigin": {
+            "displayName": "DIAsyncPreparing.prepare()",
+            "identifier": "s:6InnoDI16DIAsyncPreparingP7prepareAA0C14ProviderStatusVyYaF"
+          },
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC9Operationa",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI13ContainerRoleO4rootSSvpZ",
           "target": "s:6InnoDI13ContainerRoleO"
         },
@@ -76,6 +356,31 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI14DIPrewarmErrorO19unsupportedProvideryA2CmF",
+          "target": "s:6InnoDI14DIPrewarmErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI16DIInitializationO5eageryA2CmF",
+          "target": "s:6InnoDI16DIInitializationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI16DIInitializationO8onDemandyA2CmF",
+          "target": "s:6InnoDI16DIInitializationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIAsyncScopeErrorO20retryRequiresFailureyACSS_tcACmF",
+          "target": "s:6InnoDI17DIAsyncScopeErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI17DIAsyncScopeErrorO6closedyACSS_tcACmF",
+          "target": "s:6InnoDI17DIAsyncScopeErrorO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO6sharedyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
         },
@@ -83,6 +388,186 @@
           "kind": "memberOf",
           "source": "s:6InnoDI17SubContainerScopeO9transientyA2CmF",
           "target": "s:6InnoDI17SubContainerScopeO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV10generationSivp",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV10providerID10generation5state16errorDescriptionACSS_SiAC5StateOSSSgtcfc",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV10providerIDSSvp",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV16errorDescriptionSSSgvp",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO4idleyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO5readyyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO6closedyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO6failedyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO7runningyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5stateAC5StateOvp",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationNodeV12dependenciesSaySSGvp",
+          "target": "s:6InnoDI22DIAsyncPreparationNodeV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationNodeV8provider12dependenciesAcA0C9Preparing_p_SaySSGtcfc",
+          "target": "s:6InnoDI22DIAsyncPreparationNodeV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationNodeV8providerAA0C9Preparing_pvp",
+          "target": "s:6InnoDI22DIAsyncPreparationNodeV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV5closeyySaySSGYaKF",
+          "target": "s:6InnoDI22DIAsyncPreparationPlanV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV5nodesACSayAA0cD4NodeVG_tKcfc",
+          "target": "s:6InnoDI22DIAsyncPreparationPlanV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV7prepareyAA0cD6ReportVSaySSGYaKF",
+          "target": "s:6InnoDI22DIAsyncPreparationPlanV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV10providerID6status11disposition20blockingDependenciesACSS_AA0C14ProviderStatusVAC11DispositionOSaySSGtcfc",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV10providerIDSSvp",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO5readyyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO6closedyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO6failedyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7blockedyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7runningyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11dispositionAC11DispositionOvp",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV20blockingDependenciesSaySSGvp",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV6statusAA0C14ProviderStatusVvp",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDs7entriesACSaySSG_SayAA0cD5EntryVGtcfc",
+          "target": "s:6InnoDI24DIAsyncPreparationReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDsSaySSGvp",
+          "target": "s:6InnoDI24DIAsyncPreparationReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV7entriesSayAA0cD5EntryVGvp",
+          "target": "s:6InnoDI24DIAsyncPreparationReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV7isReadySbvp",
+          "target": "s:6InnoDI24DIAsyncPreparationReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO15dependencyCycleyACSaySSGcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO15unknownProvideryACSScACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17duplicateProvideryACSScACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
         },
         {
           "kind": "memberOf",
@@ -118,6 +603,31 @@
           "kind": "memberOf",
           "source": "s:6InnoDI8ProviderVyACyxGxyccfc",
           "target": "s:6InnoDI8ProviderV"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP10providerIDSSvp",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP5closeyyYaF",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP5retryyyYaKF",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP6statusAA0C14ProviderStatusVyYaF",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP7prepareAA0C14ProviderStatusVyYaF",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
         }
       ],
       "symbols": [
@@ -254,6 +764,276 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "actor DIAsyncScope<Value> where Value : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIAsyncScope"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(providerID: String, operation: @escaping Operation)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC10providerID9operationACyxGSS_xyYaYbKctcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "init(providerID:operation:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "nonisolated let providerID: String",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC10providerIDSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "providerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func close()",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5closeyyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "close()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func retry() throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5retryyyKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "retry()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func value() async throws -> Value",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5valuexyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "value()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func status() -> DIAsyncProviderStatus",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "status()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func prepare() async -> DIAsyncProviderStatus",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC7prepareAA0C14ProviderStatusVyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "prepare()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "typealias Operation = @Sendable () async throws -> Value",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC9Operationa"
+          },
+          "kind": {
+            "identifier": "swift.typealias"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "Operation"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(peer, names: suffixed(Mock)) macro GenerateMock()",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -355,6 +1135,35 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "enum DIPrewarmError",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DIPrewarmErrorO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIPrewarmError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case unsupportedProvider",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI14DIPrewarmErrorO19unsupportedProvideryA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIPrewarmError",
+            "unsupportedProvider"
+          ]
+        },
+        {
+          "accessLevel": "public",
           "declaration": "@attached(member, names: named(init), named(callAsFunction), arbitrary) macro AssistedFactory(_ child: Any.Type, static staticInputs: [AnyKeyPath], assisted assistedInputs: [AnyKeyPath])",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -393,6 +1202,183 @@
           },
           "pathComponents": [
             "DIHierarchyRoot()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "protocol DIAsyncPreparing : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP"
+          },
+          "kind": {
+            "identifier": "swift.protocol"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var providerID: String { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP10providerIDSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "providerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func close() async",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP5closeyyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "close()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func retry() async throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP5retryyyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "retry()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func status() async -> DIAsyncProviderStatus",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP6statusAA0C14ProviderStatusVyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "status()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func prepare() async -> DIAsyncProviderStatus",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP7prepareAA0C14ProviderStatusVyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "prepare()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIInitialization",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIInitializationO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIInitialization"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case eager",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIInitializationO5eageryA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIInitialization",
+            "eager"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case onDemand",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIInitializationO8onDemandyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIInitialization",
+            "onDemand"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIAsyncScopeError",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIAsyncScopeErrorO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIAsyncScopeError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case retryRequiresFailure(providerID: String)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIAsyncScopeErrorO20retryRequiresFailureyACSS_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncScopeError",
+            "retryRequiresFailure(providerID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case closed(providerID: String)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI17DIAsyncScopeErrorO6closedyACSS_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncScopeError",
+            "closed(providerID:)"
           ]
         },
         {
@@ -455,6 +1441,190 @@
         },
         {
           "accessLevel": "public",
+          "declaration": "struct DIAsyncProviderStatus",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let generation: Int",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV10generationSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "generation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(providerID: String, generation: Int, state: State, errorDescription: String? = nil)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV10providerID10generation5state16errorDescriptionACSS_SiAC5StateOSSSgtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "init(providerID:generation:state:errorDescription:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let providerID: String",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV10providerIDSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "providerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let errorDescription: String?",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV16errorDescriptionSSSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "errorDescription"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum State",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case idle",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO4idleyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "idle"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case ready",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO5readyyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "ready"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case closed",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO6closedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "closed"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case failed",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO6failedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "failed"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case running",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO7runningyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "running"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let state: State",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5stateAC5StateOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "state"
+          ]
+        },
+        {
+          "accessLevel": "public",
           "declaration": "protocol DIHierarchyRootMarker",
           "identifier": {
             "interfaceLanguage": "swift",
@@ -465,6 +1635,456 @@
           },
           "pathComponents": [
             "DIHierarchyRootMarker"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIAsyncPreparationNode",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationNodeV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationNode"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let dependencies: [String]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationNodeV12dependenciesSaySSGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationNode",
+            "dependencies"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(provider: any DIAsyncPreparing, dependencies: [String] = [])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationNodeV8provider12dependenciesAcA0C9Preparing_p_SaySSGtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationNode",
+            "init(provider:dependencies:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let provider: any DIAsyncPreparing",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationNodeV8providerAA0C9Preparing_pvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationNode",
+            "provider"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIAsyncPreparationPlan",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationPlanV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlan"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func close(_ selectedProviderIDs: [String]) async throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationPlanV5closeyySaySSGYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlan",
+            "close(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(nodes: [DIAsyncPreparationNode]) throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationPlanV5nodesACSayAA0cD4NodeVG_tKcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlan",
+            "init(nodes:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func prepare(_ selectedProviderIDs: [String]) async throws -> DIAsyncPreparationReport",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationPlanV7prepareyAA0cD6ReportVSaySSGYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlan",
+            "prepare(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIAsyncPreparationEntry",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(providerID: String, status: DIAsyncProviderStatus, disposition: Disposition, blockingDependencies: [String] = [])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV10providerID6status11disposition20blockingDependenciesACSS_AA0C14ProviderStatusVAC11DispositionOSaySSGtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "init(providerID:status:disposition:blockingDependencies:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let providerID: String",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV10providerIDSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "providerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum Disposition",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case ready",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO5readyyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "ready"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case closed",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO6closedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "closed"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case failed",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO6failedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "failed"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case blocked",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7blockedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "blocked"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case running",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7runningyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "running"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let disposition: Disposition",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11dispositionAC11DispositionOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "disposition"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let blockingDependencies: [String]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV20blockingDependenciesSaySSGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "blockingDependencies"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let status: DIAsyncProviderStatus",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV6statusAA0C14ProviderStatusVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "status"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIAsyncPreparationReport",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI24DIAsyncPreparationReportV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationReport"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(selectedProviderIDs: [String], entries: [DIAsyncPreparationEntry])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDs7entriesACSaySSG_SayAA0cD5EntryVGtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationReport",
+            "init(selectedProviderIDs:entries:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let selectedProviderIDs: [String]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDsSaySSGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationReport",
+            "selectedProviderIDs"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let entries: [DIAsyncPreparationEntry]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI24DIAsyncPreparationReportV7entriesSayAA0cD5EntryVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationReport",
+            "entries"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var isReady: Bool { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI24DIAsyncPreparationReportV7isReadySbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationReport",
+            "isReady"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIAsyncPreparationPlanError",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case dependencyCycle([String])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO15dependencyCycleyACSaySSGcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "dependencyCycle(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case unknownProvider(String)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO15unknownProvideryACSScACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "unknownProvider(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case duplicateProvider(String)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17duplicateProvideryACSScACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "duplicateProvider(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case unknownDependency(providerID: String, dependencyID: String)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "unknownDependency(providerID:dependencyID:)"
           ]
         },
         {
@@ -613,16 +2233,16 @@
         },
         {
           "accessLevel": "public",
-          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) macro Provide(_ scope: DIScope = .shared, _ type: Any.Type? = nil, with dependencies: [AnyKeyPath] = [], factory: Any? = nil, asyncFactory: Any? = nil, escaping: Bool = false)",
+          "declaration": "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_)) macro Provide(_ scope: DIScope = .shared, _ type: Any.Type? = nil, with dependencies: [AnyKeyPath] = [], initialization: DIInitialization = .eager, factory: Any? = nil, asyncFactory: Any? = nil, escaping: Bool = false)",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7Provide__4with7factory12asyncFactory8escapingyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGypSgAMSbtcfm"
+            "precise": "s:6InnoDI7Provide__4with14initialization7factory12asyncFactory8escapingyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOypSgAPSbtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "Provide(_:_:with:factory:asyncFactory:escaping:)"
+            "Provide(_:_:with:initialization:factory:asyncFactory:escaping:)"
           ]
         },
         {

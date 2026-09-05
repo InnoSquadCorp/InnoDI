@@ -23,6 +23,13 @@ struct AppContainer {
 let client = AppContainer(baseURL: "https://api.example.com").apiClient
 ```
 
+高コストな shared サービスは、最初のアクセス時にオンデマンドで構築できます。
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
 ## InnoDI を使う理由
 
 DI の wiring を明示的かつレビューしやすい形で保ち、失敗をできるだけ早く

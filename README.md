@@ -23,6 +23,20 @@ struct AppContainer {
 let client = AppContainer(baseURL: "https://api.example.com").apiClient
 ```
 
+For expensive shared services that may never be used, opt into first-access
+construction. Container copies retain one logical cache, while separately
+initialized containers remain isolated:
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
+The generated `prewarm` method resolves only selected on-demand providers;
+`Lazy` and `Provider` dependencies remain deferred. For asynchronous owned
+work, `DIAsyncScope` separates waiter cancellation from owner shutdown, while
+`DIAsyncPreparationPlan` reports failure and blocked downstream providers.
+
 ## Why InnoDI
 
 InnoDI is designed for teams that want DI wiring to stay explicit and

@@ -24,6 +24,14 @@ struct AppContainer {
 let client = AppContainer(baseURL: "https://api.example.com").apiClient
 ```
 
+Los servicios compartidos costosos pueden construirse bajo demanda en el
+primer acceso:
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
 ## Por que InnoDI
 
 InnoDI esta pensado para equipos que quieren mantener el wiring de DI

@@ -50,6 +50,7 @@ graph tooling에 초점을 둡니다.
 ### Operations
 
 - <doc:lock-safety>
+- <doc:AsyncPreparation>
 - <doc:MigrationGuide>
 
 ### Container API
@@ -66,3 +67,5 @@ graph tooling에 초점을 둡니다.
 - ``DIScope``
 - ``Lazy``
 - ``Provider``
+- ``DIAsyncScope``
+- ``DIAsyncPreparationPlan``

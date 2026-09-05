@@ -66,6 +66,12 @@ struct DIContainerCodeGenerator {
             )
         )
 
+        if let prewarm = makePrewarmDecl(model: model) {
+            decls.append(
+                prewarm.prependingMARK("// MARK: - On-Demand Prewarming")
+            )
+        }
+
         let featureRootHelpers = makeFeatureRootHelperDecls(
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
@@ -111,6 +117,40 @@ struct DIContainerCodeGenerator {
 
         return decls
     }
+}
+
+private func makePrewarmDecl(
+    model: DIContainerExpansionModel
+) -> DeclSyntax? {
+    let members = model.syncSharedMembers.filter {
+        $0.initialization == .onDemand
+    }
+    guard !members.isEmpty else { return nil }
+
+    let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
+    let actorPrefix = model.options.mainActor ? "@MainActor\n" : ""
+    let matches = members.map { member in
+        """
+        if provider == \\Self.\(member.name) {
+            _ = self.\(member.name)
+            matched = true
+        }
+        """
+    }.joined(separator: "\n")
+
+    return DeclSyntax(
+        stringLiteral: """
+        \(actorPrefix)\(accessPrefix)func prewarm(_ providers: Swift.PartialKeyPath<Self>...) throws {
+            for provider in providers {
+                var matched = false
+                \(matches)
+                if !matched {
+                    throw InnoDI.DIPrewarmError.unsupportedProvider
+                }
+            }
+        }
+        """
+    )
 }
 
 /// Tracks an async `Task`-based binding introduced by `makeInitDecl` so that
@@ -248,12 +288,18 @@ private func makeInitDecl(
     var statements: [CodeBlockItemSyntax] = []
     var resolvedValueBindings: [String: String] = [:]
     var taskBindings: [String: AsyncTaskBinding] = [:]
+    var availableDependencyExpressions: [String: ExprSyntax] = [:]
     let asyncResolvedTargetNames = Set(
         asyncSharedMembers.flatMap { member in
             member.closureParameterReferences
                 .filter { $0.kind == .hard }
                 .map(\.name)
         }
+    )
+    let onDemandHardDependencyNames = Set(
+        syncSharedMembers
+            .filter { $0.initialization == .onDemand }
+            .flatMap(\.explicitDependencies)
     )
 
     if !deferredTargetMembers.isEmpty || hasTransientSubContainer {
@@ -277,6 +323,11 @@ private func makeInitDecl(
     for member in inputMembers {
         let storageName = "_storage_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: member.name))))
+        if onDemandHardDependencyNames.contains(member.name) {
+            availableDependencyExpressions[member.name] = ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier(member.name))
+            )
+        }
 
         if asyncResolvedTargetNames.contains(member.name) {
             let resolvedName = "_innoDIResolved_\(member.name)"
@@ -302,36 +353,90 @@ private func makeInitDecl(
         let factoryExpr = try makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
+            availableExpressions: availableDependencyExpressions,
             deferredTargetNameSet: deferredTargetNameSet,
             fallbackOverrideNames: fallbackOverrideNames,
             allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
 
-        let initializerExpr = ExprSyntax(
-            InfixOperatorExprSyntax(
-                leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))),
-                operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
-                rightOperand: factoryExpr
-            )
-        )
-
         let storageName = "_storage_\(member.name)"
-        statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
+        if member.initialization == .onDemand {
+            let cellName = "_innoDIOnDemand_\(member.name)"
+            let typeDescription = member.type.trimmedDescription
+            let declaration: CodeBlockItemSyntax = """
+                let \(raw: cellName): InnoDI._InnoDISharedCell<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
+                    InnoDI._InnoDISharedCell(value: _innoDIOverride)
+                } else {
+                    InnoDI._InnoDISharedCell { \(factoryExpr) }
+                }
+                """
+            statements.append(declaration)
+            statements.append(
+                CodeBlockItemSyntax(
+                    item: .expr(
+                        assignExpr(
+                            targetName: storageName,
+                            valueName: cellName
+                        )
+                    )
+                )
+            )
+            let valueExpression: ExprSyntax = "\(raw: cellName).value()"
+            availableDependencyExpressions[member.name] = valueExpression
+        } else {
+            let initializerExpr = ExprSyntax(
+                InfixOperatorExprSyntax(
+                    leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))),
+                    operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
+                    rightOperand: factoryExpr
+                )
+            )
+            statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
+            if onDemandHardDependencyNames.contains(member.name) {
+                let localName = "_innoDIOnDemandDependency_\(member.name)"
+                statements.append(
+                    CodeBlockItemSyntax(
+                        item: .decl(
+                            letBinding(
+                                name: localName,
+                                value: makeProviderStorageReadExpr(
+                                    name: storageName
+                                )
+                            )
+                        )
+                    )
+                )
+                availableDependencyExpressions[member.name] = ExprSyntax(
+                    DeclReferenceExprSyntax(baseName: .identifier(localName))
+                )
+            }
+        }
 
         if asyncResolvedTargetNames.contains(member.name) {
             let resolvedName = "_innoDIResolved_\(member.name)"
             let resolvedDecl = letBinding(
                 name: resolvedName,
-                value: makeProviderStorageReadExpr(name: storageName)
+                value: availableDependencyExpressions[member.name]
+                    ?? makeProviderStorageReadExpr(name: storageName)
             )
             statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
             resolvedValueBindings[member.name] = resolvedName
         }
 
         if deferredTargetNameSet.contains(member.name) {
-            statements.append(
-                CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
-            )
+            if member.initialization == .onDemand {
+                let cellName = "_innoDIOnDemand_\(member.name)"
+                let bind: CodeBlockItemSyntax = """
+                    _innoDILazyCell_\(raw: member.name).bindResolver {
+                        \(raw: cellName).value()
+                    }
+                    """
+                statements.append(bind)
+            } else {
+                statements.append(
+                    CodeBlockItemSyntax(item: .expr(makeLazyCellStoreExpr(name: member.name, storageName: storageName)))
+                )
+            }
         }
     }
 
@@ -384,10 +489,16 @@ private func makeInitDecl(
     // accessors as a fully-constructed value type — value-type copies of
     // `self` are cheap and reflect the stable parent state.
     let autoWireParentMemberNames = (inputMembers + sharedMembers + transientMembers).map(\.name)
+    let onDemandParentMemberNames = Set(
+        syncSharedMembers
+            .filter { $0.initialization == .onDemand }
+            .map(\.name)
+    )
     for member in subContainerMembers {
         statements.append(contentsOf: makeSubContainerInitStatements(
             member: member,
-            autoWireParentMemberNames: autoWireParentMemberNames
+            autoWireParentMemberNames: autoWireParentMemberNames,
+            onDemandParentMemberNames: onDemandParentMemberNames
         ))
     }
     if hasTransientSubContainer {
