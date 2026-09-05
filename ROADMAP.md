@@ -279,10 +279,11 @@ is limited to reversible groundwork while the RFC remains Draft.
 Delivery order:
 
 1. Add graph explainability and migration reporting on 5.x. The 5.2 train now
-   includes `--why`, `--dependents`, `--unused`, schema-v3 `--diff`, and the
+   includes `--why`, `--dependents`, `--unused`, schema-v4 `--diff`, and the
    source-free schema-v1 `InnoDI-Migrate --report` inventory. A schema-v2
-   contract established scoped stable IDs; schema v3 now makes assisted input,
-   factory ownership, and ordered contribution drift fail CI with exit 5.
+   contract established scoped stable IDs; schema v4 now makes provider
+   lifetime, initialization, isolation, effect, assisted input, factory
+   ownership, dependency, and ordered contribution drift fail CI with exit 5.
    The migration engine now also implements the idempotent 6.0 vocabulary
    rewrite for inputs, container roles, and isolation while preserving
    `validateDAG`; commented, dynamic, or conflicting sites fail closed.
@@ -297,33 +298,32 @@ Delivery order:
 3. Prototype deterministic compile-time multibinding without runtime discovery.
    Public `@Multibinding` now aggregates one explicit ordered list of local,
    synchronous, same-typed providers, preserves contributor lifetimes and
-   overrides, injects into other providers, and emits ordered graph v3
-   contribution edges. The underscored SPI remains only for pinned pilot
-   compatibility until consumer migration and the RFC removal decision.
+   overrides, injects into other providers, and emits ordered graph v4
+   contribution edges. The superseded underscored SPI has been removed after
+   the public migration path replaced it.
 4. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
-   InnoSample is the first completed public runtime pilot: consumer commit
-   `d72bbdc` resolves InnoDI `e1f0d12`, passes its full Xcode 27
-   `make verify-ci` gate, and proves per-child shared-state isolation plus
-   overrides without an SPI import or temporary wrapper. The generated public
-   bridge also passes separate-file same-target and cross-module strict
-   consumers.
+   InnoSample is the committed public runtime and SwiftUI host pilot: consumer
+   commit `db90daf` resolves InnoDI `eaee869`, passes its full Xcode 27
+   `make verify-ci` gate, and proves per-child shared-state isolation,
+   overrides, loading/failure/retry, and host identity without an SPI import,
+   temporary wrapper, or manual state owner. The generated public bridge also
+   passes separate-file same-target and cross-module strict consumers.
 5. The public `@Input` and fully qualified
    `@DIContainerRole(role: ContainerRole.component/.root, mainActor: true)`
    source paths now reuse the existing
    initializer, hierarchy, actor, and strict external-consumer contracts.
-   Final naming, consumer-pilot, and performance review still block freezing
-   these names.
+   The compiler/toolchain contract is frozen for the candidate; two more
+   committed consumer pilots and maintainer RFC approval still block GA.
 6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
-7. Remove superseded declarations and publish graph JSON v3 in 6.0.0.
+7. Remove superseded declarations and publish graph JSON v4 in 6.0.0.
 
-The read-only static inventory for step 4 is recorded in RFC 0006 against
-fetched `origin/main` SHAs: InnoSample and Mulbyul are clean on their pinned
-5.1.0 source, while BlPia is blocked at its 3.0.1-to-5.x migration boundary by
-seven ownership-ambiguous legacy `concrete:` sites. The InnoSample runtime
-pilot is now complete against the public preparation API; Mulbyul still needs
-an exact-revision assisted and multibinding pilot, and BlPia must cross its
-migration boundary before it can contribute adoption evidence.
+The exact-revision inventory for step 4 is recorded in RFC 0006. InnoSample is
+committed and pushed. Mulbyul and BlPia both pass isolated source/build
+compatibility checks after the 6.0 input migration, but their original dirty
+checkouts were preserved and Doctor reports missing command-plugin wiring.
+Those two checks are not counted as committed runtime pilots; plugin adoption
+and product-owner integration remain explicit GA gates.
 
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
@@ -354,7 +354,6 @@ true before the next minor release can promote them.
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
 | `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two additional real pilots plus final migration, naming, and performance gates must pass. |
 | `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two real pilots plus final migration, naming, and performance gates must pass. |
-| `_InnoDIMultibindingPrototype` SPI | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | remove in 6.0.0 | Retain only for pinned 5.2 pilot compatibility while consumers migrate to `@Multibinding`. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros

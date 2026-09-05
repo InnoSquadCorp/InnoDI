@@ -33,9 +33,9 @@ runtime.
 
 ## Verified baseline
 
-As of 2026-09-03:
+As of 2026-09-05:
 
-- `5.1.0` is the latest stable tag and `main` is the unreleased `5.2.0`
+- `5.1.0` is the latest stable tag and `main` is the unreleased `6.0.0`
   development train.
 - The current `@SubContainer` contract can forward parent-owned `.input`
   values, but it cannot expose creation-time values such as an item identifier,
@@ -55,39 +55,24 @@ As of 2026-09-03:
 
 ### Exact consumer adoption snapshot
 
-The following read-only snapshot used each consumer's fetched `origin/main`
-archive and the schema-v1 `InnoDI-Migrate --report` command from InnoDI commit
-`65086345f8ba00f04107ca74e70e15df496ff68c`. A clean report proves only that
-the current 5.x migration scanner found no required rewrite or blocker. It is
-not a substitute for resolving the experimental revision and building a pilot.
+The 6.0 candidate is `eaee869c4518fd2cd102e6ec750a05cde16c50ac`.
+`InnoDI-Doctor` analyzed the actual Swift/Tuist layouts and the consumer builds
+resolved that exact revision. A read-only Doctor result is configuration
+evidence; it is not by itself a runtime pilot.
 
-| Consumer | Observed `origin/main` | Pinned InnoDI | Report | 6.0 implication |
-|---|---|---:|---|---|
-| InnoSample | `ee3d9409cb422635ff89e02f361e2693fa226e13` | `5.1.0` | `clean`; 175 Swift files, 0 changes, 0 diagnostics | First pilot candidate. Runtime `userID` and `assigneeID` values already enter through router/deep-link flows, so the pilot should introduce a dedicated detail child rather than reclassify the long-lived feature input bundle. |
-| Mulbyul Apple | `ce91b1ee280acaa65e629ccf00bc4aa5a975d7dc` | `5.1.0` | `clean`; 449 Swift files, 0 changes, 0 diagnostics | Second pilot candidate. `routineID` and `sessionID` are created at Training navigation/session boundaries; the existing shared `TrainingFeatureContainer` input remains static while a nested routine/session child owns the assisted value. |
-| BlPia Apple | `8404b2f81c6f4f4d7f43a5616c99722fb75714fc` | `3.0.1` | `blocked`; 158 Swift files, 7 `migrate.unqualified-ownership-ambiguous` diagnostics | Not a direct assisted-factory pilot. First qualify ownership and migrate the seven legacy `@Provide(concrete:)` sites onto the 5.x contract, then rerun the report and strict consumer build. |
-
-This closes the static inventory portion of the adoption gate. Mulbyul remains
-unverified as a runtime pilot until its exact package revision, build, and
-per-child lifetime assertions are recorded. BlPia remains blocked before that
-gate and must not be counted as a negative result for the assisted-factory
-design itself.
-
-### Runtime pilot evidence
-
-| Consumer | Consumer commit | InnoDI revision | Verification | Result |
-|---|---|---|---|---|
-| InnoSample | `d72bbdce55d92046980f9efd204286fd216baadb` | `e1f0d12ee0d8077d4077dca8718aa372553a6277` | Xcode 27.0, Tuist 4.202.5, `make verify-ci`; Remote 16 + feature 25 tests and generic iOS/embedded watch build | Public runtime pilot verified. A People route creates assisted detail children, proves per-child `.shared` isolation and override identity, and uses no SPI import or hand-written factory wrapper. |
+| Consumer | Consumer state | Exact candidate evidence | Result |
+|---|---|---|---|
+| InnoSample | committed and pushed `db90dafa5e52ed37f96ead3b632aa16b45cf5ac5` | Doctor: 178 Swift files, 0 diagnostics/changes; DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory and `DIContainerHost` pilot verified locally. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. |
+| Mulbyul Apple | clean isolated worktree from `092ff9514695ceae5cfd490388e017fac331e30a`; original checkout preserved with user changes | 481 Swift files including copied ignored generated inputs, 0 migration changes; DAG; `Layers` macOS test; generic iOS app including watch build | Exact-revision source/build compatibility verified. The ignored generated sources were copied only to reproduce the existing Tuist input boundary. Doctor reports `doctor.plugin.missing`, and no committed runtime feature pilot was made, so this does not satisfy the second adopter promotion gate. |
+| BlPia Apple | isolated worktree from local committed `65850a6efb1c7c36302127bface39249a0cb878d`; original checkout and its divergence from `origin/main` preserved | 159 Swift files, 0 migration changes; DAG; generic iOS app build | The former seven legacy ownership blockers are resolved and the production graph builds. Doctor still reports `doctor.plugin.missing`; `LayersTests` stops on pre-existing missing `URLSessionProtocol`/`fetchTodosUseCase` test contracts, so the isolated proof is not counted as committed adoption. |
 
 The original SPI pilot exposed same-target visibility and initializer-access
-gaps rather than hiding them. The public source-visible nested bridge now
-passes both the separate-file same-target `@MainActor` fixture and the strict
-cross-module parent fixture, and InnoSample removed its temporary
-`PeopleDetailFactoryPilot` wrapper. Whole-source validation also rejects
-missing, duplicate, unknown, and assisted-as-static bindings. AC-600-003 still
-requires one diagnostic hardening item before the public spelling can freeze:
-report an access-level mismatch at the public parent/child factory boundary
-instead of leaving it to a secondary Swift compiler error.
+gaps rather than hiding them. The public source-visible nested bridge passes
+the separate-file same-target `@MainActor` fixture and strict cross-module
+parent fixture. Whole-source validation rejects missing, duplicate, unknown,
+assisted-as-static, and public access-level mismatch contracts at the source
+declaration. The two dirty consumer repositories remain explicit adoption
+work, rather than being silently counted as successful pilots.
 
 ## Problem definition
 
@@ -276,17 +261,20 @@ its identity and a transient contributor is recreated. Contributor overrides
 remain authoritative. The collection is a normal injectable transient graph
 node and has its own override slot. Both macro expansion and the serialized
 whole-source build gate reject invalid, empty, duplicate, unknown, asynchronous,
-or written-type-mismatched contributors. The first 5.2 SPI probe remains only
-for pinned migration compatibility. Map keys, parent/child extension, and the
-final accepted public attribute name remain separate design work.
+or written-type-mismatched contributors. The first 5.2 SPI probe was removed
+after the public contract and migration path replaced its evidence.
+Keyed/provider collections and explicit cross-module composition are provided
+as runtime types; automatic module discovery remains intentionally out of
+scope.
 
 ## Graph and diagnostic contract
 
-Graph JSON v3 should add explicit assisted-input and factory-ownership
-semantics. An assisted input is metadata on its owning container and is not a
-globally resolvable node. Factory ownership is a hard ownership edge from the
-parent container to the child container. It should also distinguish a
-multibinding collection from its ordered contribution edges.
+Graph JSON v4 records explicit assisted-input, factory-ownership, provider,
+and contribution semantics. An assisted input is metadata on its owning
+container and is not a globally resolvable node. Factory ownership is a hard
+ownership edge from the parent container to the child container. Provider
+identity includes lifetime, initialization, isolation, effect, dependency,
+and contribution order while excluding source position from semantic diff.
 
 Required diagnostics include:
 
@@ -392,12 +380,12 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target `@MainActor` and cross-module strict consumers with typed assisted calls, actor-correct override forwarding, and independent child shared storage |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | `@SubContainerFactory` owns the shared factory provider; whole-source tests cover complete bindings plus missing, duplicate, unknown, and assisted-as-static failures |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | The public external-consumer fixtures and InnoSample People route create children with distinct `.shared` identities and verify override identity |
-| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v3 and renderers | Complete preparation implementation: nodes separate ordinary and assisted inputs; edges distinguish fixed ownership, assisted-factory ownership, and ordered contributions; JSON diff includes contributor order and exits 5 on drift |
+| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v4 and renderers | Complete: nodes separate ordinary and assisted inputs; provider contracts and edges distinguish fixed ownership, assisted-factory ownership, and ordered contributions; JSON diff includes provider semantics and contributor order and exits 5 on drift |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | `@Input` and `@Input(.assisted)` normalize into the provider IR; generated input type aliases feed the assisted bridge without repeating source types |
-| FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Partial: `@DIContainerRole(role: ContainerRole.component/.root)` and `mainActor: true` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; final naming review and broader consumer pilots remain |
+| FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Complete candidate: `@DIContainerRole(role: ContainerRole.component/.root)` and `mainActor: true` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; Swift 6.2 and 6.4 external lanes pass |
 | FR-600-007 | AC-600-005 | Schema-v1 report plus idempotent 6.0 rewrite rules | `InnoDIMigrationCoreTests` cover input, role, isolation, option preservation, write, and second-pass stability; the strict public component fixture compiles the migrated spelling |
 | FR-600-008 | AC-600-008 | Ordered collection binding code generation | Complete preparation implementation: public `@Multibinding` is injectable and overrideable; strict external runtime coverage proves order and shared/transient contributor lifetime behavior |
-| FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v3 contribution edges | Complete preparation implementation: macro and serialized whole-source validators cover invalid contributor contracts, while schema v3 records contributor identity and order as contribution edges |
+| FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v4 contribution edges | Complete: macro and serialized whole-source validators cover invalid contributor contracts, while schema v4 records provider identity and order as contribution edges |
 
 ## Staged delivery
 
@@ -423,13 +411,14 @@ conflation that makes assisted inputs hard to explain and extend.
   the probe was removed after the public bridge, validator, and InnoSample
   migration replaced its evidence.
 - Public `@Multibinding` generates one injectable ordered local collection from
-  contributor key paths. Macro, serialized build-validation, graph-v3, and
+  contributor key paths. Macro, serialized build-validation, graph-v4, and
   strict external runtime fixtures cover diagnostics, deterministic order,
   shared/transient lifetime behavior, injection, and overrides. The
-  underscored SPI remains only as compatibility evidence for pinned pilots.
-- Pilot one InnoSample flow. The final public migration completed at consumer
-  commit `d72bbdc` against InnoDI `e1f0d12`; the full consumer gate and
-  per-child lifetime assertions pass without an SPI import or local wrapper.
+  underscored SPI was removed after the public path replaced it.
+- Pilot one InnoSample flow. The assisted factory and container-host migration
+  completed at consumer commit `db90daf` against InnoDI `eaee869`; the full
+  local consumer gate and per-child lifetime assertions pass without an SPI
+  import, local wrapper, or manual SwiftUI state owner.
 
 ### Later 5.x — adoption runway
 
@@ -441,34 +430,32 @@ conflation that makes assisted inputs hard to explain and extend.
 ### 6.0.0 — stable contract
 
 - Remove the superseded markers and `.input` provider spelling.
-- Publish graph JSON v3 and the final migration guide.
+- Publish graph JSON v4 and the final migration guide.
 - Require exact-tag external consumer validation before publication.
 
-## Open questions
+## Candidate decisions and remaining adoption question
 
-- Should the parent surface be named `@SubContainerFactory`, or should a
-  factory mode be added to `@SubContainer` without overloading lifetime scope?
-- Should the generated override configuration be a trailing closure, an
-  explicit `overrides:` argument, or both?
-- Should 6.0 keep the proven `mainActor: true` spelling or add an isolation
-  token after the minimum toolchain advances? Swift 6.2.3 crashes while
-  matching public enum arguments in this multi-role attached macro, so the
-  preparation API uses a required string-backed `ContainerRole` token and the
-  established Boolean isolation option.
-- Should the typed SwiftUI bridge remain a macro or become a non-macro result
-  builder? This does not block the assisted-factory prototype.
-- Which two real adopter flows satisfy the promotion gate after the InnoSample
-  pilot?
-- Should the stable collection declaration be `@Multibinding`, a `@Provide`
-  construction form, or a separate `@IntoCollection` contribution marker?
-- Does 6.0 ship ordered arrays only, or also keyed maps after duplicate-key and
-  cross-module extension semantics are proven?
+- Keep `@SubContainerFactory` separate from fixed `@SubContainer`; factory
+  ownership and fixed child ownership remain distinct graph contracts.
+- Keep the generated trailing override-application closure. It preserves typed
+  child overrides without adding an untyped configuration surface.
+- Keep `mainActor: true` and the required string-backed `ContainerRole` token.
+  Swift 6.2.3 crashes while matching the public enum form in this multi-role
+  attached macro, and the chosen spelling passes Swift 6.2 and 6.4 lanes.
+- Use the non-macro `DIContainerHost`/owner runtime types for SwiftUI lifecycle
+  rather than adding a second macro or result-builder DSL.
+- Keep `@Multibinding` as the explicit local array declaration. Keyed and
+  provider collections plus cross-module composition are explicit runtime
+  contracts; automatic discovery and `@IntoCollection` are out of scope.
+- Remaining adoption question: which Mulbyul and BlPia product-owned flows will
+  become the two committed pilots after command-plugin wiring is added?
 
 ## Review gate
 
-This RFC remains Draft until maintainers record the chosen public spellings,
-the three pilot results, migration coverage, graph schema review, macro
-performance comparison, and a conforming-counterexample review showing that no
-accepted implementation can satisfy the written requirements while falling
-back to runtime service lookup. One of the three runtime pilots is currently
-recorded on the public preparation API.
+This RFC remains Draft until maintainers record two more committed pilot
+results with plugin wiring, approve the chosen public spellings, and complete
+the required review cooldown. Migration coverage, schema-v4 review, strict
+toolchain/platform gates, macro/runtime performance evidence, and the
+conforming-counterexample review are recorded on the candidate. InnoSample is
+the committed runtime/host pilot; isolated Mulbyul and BlPia builds are useful
+compatibility evidence but are not counted as adopter promotion votes.

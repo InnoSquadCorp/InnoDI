@@ -2,6 +2,6 @@
   "schemaVersion": 1,
   "iterations": 1000000,
   "enabledIterations": 20000,
-  "disabledNetNanosecondsPerResolution": 100.0,
-  "enabledNanosecondsPerEvent": 500.0
+  "disabledNetNanosecondsPerResolution": 210.0,
+  "enabledNanosecondsPerEvent": 600.0
 }
