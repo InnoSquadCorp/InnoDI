@@ -10,9 +10,9 @@ Parameter oder eine `where`-Klausel besitzen. `class`, `actor`, `enum`,
 `protocol`, direkt annotierte `extension`-Deklarationen und in Extensions
 verschachtelte Structs werden abgelehnt. Das gilt auch fur Deklarationen in
 ausfuhrbaren oder lokalen Scopes, darunter Funktionen, Closures, Accessors und
-`switch`-Falle. Diese Grenze gilt ebenso bei kombiniertem `@DIComponent`.
+`switch`-Falle. Diese Grenze gilt ebenso fur eine `@DIContainerRole` mit Component-Rolle.
 Verschieben Sie Laufzeit- oder
-typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Provide(.input)`.
+typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Input`.
 
 Ein explizit `private` deklarierter Container wird ebenfalls abgelehnt, weil
 Sibling-Container seine generierte Mount-Oberflache nicht erreichen. Verwenden
@@ -28,7 +28,8 @@ jedes Target an, das Container deklariert.
 ## Declaration
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 ## Generated Surface
@@ -47,7 +48,7 @@ bleiben alle `withOverrides`-Overloads und Operation-Closures `@MainActor`.
 
 Jeder Container, auch ohne verwaltete Member, erzeugt das vollstandige
 Overrides-Scaffolding. Ein benutzerdefinierter verschachtelter `Overrides`-Typ
-ist in InnoDI 5.0 nicht unterstutzt und erzeugt
+ist in InnoDI 6.0 nicht unterstutzt und erzeugt
 `container.overrides-name-conflict`; benennen Sie ihn um, damit das Makro die
 mountbare Override-ABI besitzen kann.
 
@@ -81,7 +82,7 @@ Die Effektkompatibilität bleibt auch mit `validateDAG: false` verpflichtend.
   `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-
   Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die
   Operations-Closures aller vier `withOverrides`-Overloads sowie Feature-Root-
-  Helper mit `@MainActor`. Zusammen mit `@DIComponent` erhalten das generierte
+  Helper mit `@MainActor`. Mit der Component-Rolle erhalten das generierte
   `<Container>Dependencies`-Protokoll und `init(dependencies:_:)` dieselbe
   Isolation; die Component konformiert dem dedizierten Protokoll
   `_InnoDIMainActorComponentMountable`. Components ohne diese Option verwenden

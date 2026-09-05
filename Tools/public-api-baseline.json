@@ -1069,11 +1069,6 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI7DIScopeO5inputyA2CmF",
-          "target": "s:6InnoDI7DIScopeO"
-        },
-        {
-          "kind": "memberOf",
           "source": "s:6InnoDI7DIScopeO6sharedyA2CmF",
           "target": "s:6InnoDI7DIScopeO"
         },
@@ -1128,26 +1123,13 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI11DIComponentyycfm"
+            "precise": "s:6InnoDI11DIContainer11validateDAGySb_tcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "DIComponent()"
-          ]
-        },
-        {
-          "accessLevel": "public",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI11DIContainer4root11validateDAG9mainActorySb_S2btcfm"
-          },
-          "kind": {
-            "identifier": "swift.macro"
-          },
-          "pathComponents": [
-            "DIContainer(root:validateDAG:mainActor:)"
+            "DIContainer(validateDAG:)"
           ]
         },
         {
@@ -2009,19 +1991,6 @@
           },
           "pathComponents": [
             "DIContainerRole(role:mainActor:validateDAG:)"
-          ]
-        },
-        {
-          "accessLevel": "public",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI15DIHierarchyRootyycfm"
-          },
-          "kind": {
-            "identifier": "swift.macro"
-          },
-          "pathComponents": [
-            "DIHierarchyRoot()"
           ]
         },
         {
@@ -4311,20 +4280,6 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7DIScopeO5inputyA2CmF"
-          },
-          "kind": {
-            "identifier": "swift.enum.case"
-          },
-          "pathComponents": [
-            "DIScope",
-            "input"
-          ]
-        },
-        {
-          "accessLevel": "public",
-          "identifier": {
-            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO6sharedyA2CmF"
           },
           "kind": {
@@ -4353,13 +4308,13 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7Provide__4with14initialization7factory12asyncFactory8escapingyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOypSgAPSbtcfm"
+            "precise": "s:6InnoDI7Provide__4with14initialization7factory12asyncFactoryyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOypSgAOtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "Provide(_:_:with:initialization:factory:asyncFactory:escaping:)"
+            "Provide(_:_:with:initialization:factory:asyncFactory:)"
           ]
         },
         {

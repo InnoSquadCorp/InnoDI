@@ -4,25 +4,17 @@ protocol _InnoDIComponentMountable {}
 protocol _InnoDIMainActorComponentMountable {}
 protocol DIHierarchyRootMarker {}
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 struct FeatureContainer {
-    @Provide(.input) var value: Int
+    @Input var value: Int
 }
 
-@DIHierarchyRoot
-@DIComponent
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.root, mainActor: true)
 struct RootContainer {
-    @Provide(.input) var value: Int
+    @Input var value: Int
 }
 
 struct FeatureDependencies: FeatureContainerDependencies {
-    let value: Int
-}
-
-@MainActor
-struct RootDependencies: RootContainerDependencies {
     let value: Int
 }
 
@@ -42,15 +34,12 @@ struct FixtureApp {
     @MainActor
     static func main() {
         requireComponent(FeatureContainer.self)
-        requireMainActorComponent(RootContainer.self)
         requireRoot(RootContainer.self)
 
         let feature = FeatureContainer(
             dependencies: FeatureDependencies(value: 1)
         )
-        let root = RootContainer(
-            dependencies: RootDependencies(value: 2)
-        )
+        let root = RootContainer(value: 2)
         precondition(feature.value == 1)
         precondition(root.value == 2)
     }

@@ -2,7 +2,7 @@
 
 `@Provide` declara un miembro del contenedor y su estrategia de construccion.
 
-InnoDI 5.0 admite `@Provide` solo en un `var` de instancia simple, almacenado y
+InnoDI 6.0 admite `@Provide` solo en un `var` de instancia simple, almacenado y
 directo del mismo struct compatible con `@DIContainer`. Se rechazan `let`,
 properties computed/observed, `lazy`, `weak`, `unowned`, `static`/`class`, usos
 independientes e indirectamente anidados. El accessor generado pertenece a
@@ -12,7 +12,7 @@ Tambien se rechazan property wrappers, attributes condicionales o desconocidos,
 modificadores de acceso del setter como `private(set)` y attributes de global
 actor personalizados. No se admite ningún attribute de nivel de propiedad
 escrito en el código fuente aparte de `@Provide`, incluido `@MainActor`;
-solicita el aislamiento del actor con `@DIContainer(mainActor: true)`. El
+solicita el aislamiento del actor con `@DIContainerRole(role: ContainerRole.local, mainActor: true)`. El
 aislamiento que InnoDI genera en la declaracion del provider y su accessor es
 soporte interno del compilador. Una declaracion completa de miembro `@Provide`
 dentro de `#if` produce `provide.conditional-declaration-unsupported`; manten la
@@ -34,22 +34,22 @@ indebido de InnoDI.
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 ## Valores input y funciones escaping
 
-Los parametros `.input` del initializer generado son valores eager del tipo
+Los parametros `@Input` del initializer generado son valores eager del tipo
 declarado `T`. Swift evalua cada argumento antes de llamar al initializer, por
 lo que `try makeValue()` y `await makeValue()` siguen siendo expresiones de
 argumento validas. Los tipos de funcion non-optional escritos directamente se
 detectan y generan como parametros escaping. Si el tipo esta oculto tras un
-typealias, declara `@Provide(.input, escaping: true)`.
+typealias, declara `@Input(escaping: true)`.
 
-`escaping:` debe ser un Bool literal y solo es valido para `.input`. Las formas
+`escaping:` debe ser un Bool literal y solo es valido para `@Input`. Las formas
 obviamente no funcionales u optional-function se rechazan con diagnosticos
 estables de InnoDI. Los tipos identifier/member se aceptan de forma conservadora
 porque un attached macro no puede resolver aliases arbitrarios; Swift puede
@@ -67,7 +67,7 @@ non-optional.
 
 - `factory:`, `asyncFactory:`, `Type.self` y el initializer de property son
   fuentes de construccion mutuamente excluyentes.
-- `.input` no permite ninguna fuente de construccion ni `with:`.
+- `@Input` no permite ninguna fuente de construccion ni `with:`.
 - `.shared` y `.transient` requieren exactamente una fuente de construccion.
 - `with:` solo se admite con `Type.self` y providers sincronos.
 - `asyncFactory` se admite para `.shared` y `.transient`, y debe ser una
@@ -110,6 +110,6 @@ rechazan targets construidos mediante `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:factory:asyncFactory:escaping:)``
+- ``Provide(_:_:with:initialization:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>

@@ -170,7 +170,7 @@ public struct DirectInnoDISwiftUIBridge {
 public struct StackedDirectInnoDISwiftUIBridge {
     public struct InnoDISwiftUI {}
 
-    @Provide(.input) public var value: Int
+    @Input public var value: Int
 }
 
 @main

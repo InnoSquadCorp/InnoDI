@@ -54,8 +54,8 @@ The category prefix reflects the stage that emits the diagnostic:
 Most diagnostics embed the fix directly in the message. Patterns you'll see
 repeatedly:
 
-- **"Use `@Provide(.shared, …)` / `.transient` / `.input`."** — the scope
-  argument is wrong for the declared property.
+- **"Use `@Provide(.shared, …)`, `@Provide(.transient, …)`, or `@Input`."** —
+  the declaration does not match the intended lifetime.
 - **"Spell `Lazy<T>` directly."** — a `typealias` was used for a deferred
   wrapper; the macro reads syntax, so aliased forms silently become hard
   edges.
@@ -77,7 +77,7 @@ Most frequently-hit codes:
   accessor generation for the ambiguous declaration.
 - `provide.escaped-identifier-unsupported` — a direct provider property or a
   root factory dependency parameter uses a backtick-escaped identifier. Rename
-  it to an unescaped identifier. InnoDI 5.0 derives storage and lookup identities
+  it to an unescaped identifier. InnoDI 6.0 derives storage and lookup identities
   only from unescaped spellings and fails closed before peer generation.
 - `provide.named-property-required` — the binding must have a name.
 - `provide.explicit-type-required` — the binding must have a type annotation.
@@ -87,7 +87,8 @@ Most frequently-hit codes:
 - `provide.iuo-type-unsupported` — the explicit property type is an implicitly
   unwrapped optional `T!`. Replace it with explicit `T` or `T?` so storage and
   sibling wiring have one optionality contract.
-- `provide.unknown-scope` — `.shared` / `.transient` / `.input` only.
+- `provide.unknown-scope` — `@Provide` accepts only `.shared` or `.transient`;
+  declare external values with `@Input`.
 - `provide.unknown-initialization` — `initialization:` is not `.eager` or
   `.onDemand`.
 - `provide.initialization-invalid-scope` — `.onDemand` was used with a scope
@@ -95,12 +96,12 @@ Most frequently-hit codes:
 - `provide.ondemand-async-unsupported` — `.onDemand` was combined with
   `asyncFactory:`. Use ``DIAsyncScope`` when asynchronous work needs explicit
   prepare, cancellation, and retry ownership.
-- `provide.input-invalid-configuration` — `.input` members cannot carry
+- `provide.input-invalid-configuration` — `@Input` members cannot carry
   factory, type, async factory, or dependency wiring configuration.
 - `provide.escaping-invalid-scope` — `escaping: true` was used outside
-  `.input`. Remove it from `.shared` / `.transient`; escaping input storage is
+  `@Input`. Remove it from `.shared` / `.transient`; escaping input storage is
   the only supported use.
-- `provide.escaping-nonfunction-type` — `@Provide(.input, escaping: true)` was
+- `provide.escaping-nonfunction-type` — `@Input(escaping: true)` was
   applied to an obvious nonfunction or optional-function type shape. Use it
   only for a non-optional function type hidden behind an alias. Identifier and
   member types are accepted conservatively because macros cannot resolve
@@ -118,7 +119,7 @@ Most frequently-hit codes:
   factory or property initializer. `with:` belongs only to `Type.self` wiring;
   factory closures declare edges with named parameters.
 - `provide.async-factory-invalid-scope` — `asyncFactory:` is valid for
-  `.shared` and `.transient`, but not `.input`.
+  `.shared` and `.transient`, but not `@Input`.
 - `provide.async-factory-must-be-async` — the supplied closure is not `async`.
 - `provide.factory-must-be-sync` — `factory:` was given an `async` closure;
   move async construction to `asyncFactory:`.
@@ -140,7 +141,7 @@ Most frequently-hit codes:
   wrappers, and conditional/unknown attributes. Besides `@Provide` itself, no
   source-written property-level attribute is supported. This prohibition
   includes `@MainActor`; request isolation with
-  `@DIContainer(mainActor: true)`. Isolation attributes InnoDI generates on
+  `@DIContainerRole(role: ContainerRole.local, mainActor: true)`. Isolation attributes InnoDI generates on
   provider declarations and accessors are internal compiler support.
 - `provide.conditional-declaration-unsupported` — the complete `@Provide`
   declaration appears inside `#if`. Move the declaration outside conditional
@@ -179,7 +180,7 @@ Most frequently-hit codes:
 - `provide.lazy-eager-call` — `Lazy<T>` invoked during `.shared`
   construction, which turns the soft edge back into an eager edge.
 - `provide.provider-non-transient-target` — `Provider<T>` resolved to a
-  `.shared` or `.input`; providers require `.transient` targets.
+  `.shared` or `@Input` member; providers require `.transient` targets.
 - `provide.provider-unsupported-target` — `Provider<T>` points at an async
   transient member; provider handles are synchronous.
 - `provide.provider-eager-call` — `Provider<T>` invoked at construction
@@ -194,7 +195,7 @@ Most frequently-hit codes:
 - `container.unsupported-declaration-kind` — `@DIContainer` is attached to a
   class, actor, enum, protocol, extension, or another non-struct declaration.
   Move the boundary to a non-generic struct and inject runtime state through
-  `.input` members.
+  `@Input` members.
 - `container.private-access-unsupported` — the container is explicitly
   `private`, so sibling containers cannot access its generated mount surface.
   Use `fileprivate` for file-local mounting, or nest a default-access container
@@ -210,7 +211,7 @@ Most frequently-hit codes:
   case, or local block. Move it to file scope or a non-generic nominal
   declaration. Swift can also emit its own language diagnostic for inherently
   invalid placements such as a type nested in a generic function or a local
-  container stacked with an attached-extension macro such as `@DIComponent`.
+  container using a component or root `@DIContainerRole`.
   Current Swift toolchains omit accessor ancestry from the attached-macro
   context for a type inside a computed-property body; the build-validation
   plugin and graph CLI full-source preflight emit this diagnostic for that
@@ -226,18 +227,18 @@ Most frequently-hit codes:
   extensions are owned by the required `InnoDIDAGValidationPlugin` full-source
   pass because compiler-plugin macro input does not contain sibling extensions.
 - `container.unmanaged-stored-property` — a stored instance member has neither
-  `@Provide` nor `@SubContainer`. InnoDI 5.0 owns the complete container
+  `@Provide` nor `@SubContainer`. InnoDI 6.0 owns the complete container
   initializer, including for empty containers; annotate the member or make it
   computed/static.
 - `container.overrides-name-conflict` — the user's nested `Overrides` type
-  collides with the required synthesized builder. InnoDI 5.0 treats this as
+  collides with the required synthesized builder. InnoDI 6.0 treats this as
   an error; rename the custom declaration. A diagnostic-only recovery
   initializer prevents mounted child containers from producing unrelated
   Swift argument errors.
 - `container.prewarm-name-conflict` — an on-demand container already has a
   direct value or function named `prewarm`. Rename it so the generated
   selective prewarm API remains unambiguous.
-- `container.mainactor-conflict` — `@DIContainer(mainActor: true)` is combined
+- `container.mainactor-conflict` — a main-actor `@DIContainerRole` is combined
   with another global actor on the container or a dependency member. Remove
   the custom actor or disable `mainActor` generation.
 - `container.mainactor-nonisolated-member` — a `@Provide` or `@SubContainer`
@@ -330,7 +331,7 @@ Most frequently-hit codes:
 
 ## Graph-level diagnostics (build plugin)
 
-- `graph.dependency-cycle` — global DAG (across `@DIComponent` graph)
+- `graph.dependency-cycle` — global DAG (across the component-role graph)
   detected a cycle.
 - `graph.ambiguous-container-reference` — a name matched multiple
   containers.
@@ -400,22 +401,22 @@ Most frequently-hit codes:
   protocol witnesses are widened to `fileprivate`.
 - `swiftui.environment-bridge-parameter-pack-unsupported` — the bridge target
   declares a generic parameter pack. Use ordinary generic parameters or put
-  the bridge on a non-generic adapter type; InnoDI 5.0 fails closed instead of
+  the bridge on a non-generic adapter type; InnoDI 6.0 fails closed instead of
   emitting a modifier that can trap in the Swift variadic-generics runtime.
 
 ## Component / Hierarchy diagnostics
 
-- `component.escaped-target-unsupported` — an `@DIComponent` target uses a
+- `component.escaped-target-unsupported` — a component-role target uses a
   backtick-escaped identifier. Rename the type to an unescaped identifier so
   its generated `<Container>Dependencies` peer has one canonical Swift name.
   The peer macro owns this diagnostic; member and extension roles fail closed
   without emitting copies or malformed support declarations.
-- `component.requires-container` — `@DIComponent` must be attached to a
-  `@DIContainer`-marked type.
-- `component.overrides-builder-required` — `@DIComponent` requires the
+- `component.requires-container` — legacy `@DIComponent` must migrate to a
+  supported component `@DIContainerRole` type.
+- `component.overrides-builder-required` — a component role requires the
   synthesized overrides builder.
-- `hierarchy-root.requires-container` — `@DIHierarchyRoot` must be
-  attached to a `@DIContainer` type.
+- `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot` must migrate
+  to a supported root `@DIContainerRole` type.
 
 ## Mock generation diagnostics
 

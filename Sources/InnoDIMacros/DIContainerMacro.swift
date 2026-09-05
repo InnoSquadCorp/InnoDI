@@ -42,7 +42,7 @@ public struct DIContainerMacro: MemberMacro {
                         Note(
                             node: Syntax(attribute),
                             message: SimpleNote(
-                                "The synthesized container initializer already covers .input members and optional dependency overrides.",
+                                "The synthesized container initializer already covers @Input members and optional dependency overrides.",
                                 code: .containerCustomInitUnsupported,
                                 suffix: "synthesized-init"
                             )

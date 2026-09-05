@@ -7,8 +7,6 @@
 public enum DIScope {
     /// A shared dependency initialized once per container instance.
     case shared
-    /// An externally provided dependency supplied through container initialization.
-    case input
     /// A dependency that is created every time it is accessed.
     case transient
 }
@@ -62,17 +60,17 @@ public func _innoDITrap<T>(_ message: String) -> T {
 /// Marks a supported non-generic struct as an InnoDI container and synthesizes
 /// initialization, overrides, and validation behavior.
 ///
-/// - Parameters:
-///   - root: Marks this container as a graph-rendering entry point. When at least one root exists, CLI render output is pruned to the root-reachable subgraph.
-///   - validateDAG: Enables global DAG validation plus the macro's graph-derived local checks for this container. When set to `false`, global DAG validation and local cycle checks are skipped, but declaration diagnostics and effect compatibility on explicit sibling edges still apply.
-///   - mainActor: Isolates every generated container API on the main actor, including dependency accessors, initializers, override-application closure types, `Overrides`, `withOverrides` operation closures, child-override closures, and feature-root helpers. When combined with `@DIComponent`, this also isolates the generated dependency protocol and dependency initializer and selects the main-actor mounting protocol.
+/// - Parameter validateDAG: Enables global DAG validation plus the macro's
+///   graph-derived local checks for this container. When set to `false`, global
+///   DAG validation and local cycle checks are skipped, but declaration
+///   diagnostics and effect compatibility on explicit sibling edges still apply.
 ///
-/// For a container without `mainActor: true`, the generated `async` and
+/// The generated `async` and
 /// `async throws` `withOverrides` methods and their operation closure types use
 /// `nonisolated(nonsending)`. They retain the caller's actor executor, so an
 /// arbitrary non-`Sendable` container and closure do not cross an isolation
-/// boundary. Synchronous overloads are unchanged; `mainActor: true` overloads
-/// remain `@MainActor`.
+/// boundary. Use `@DIContainerRole(role: ContainerRole.local, mainActor: true)`
+/// when every generated API must be isolated to the main actor.
 ///
 /// > Important: `validateDAG: false` is a narrow opt-out from the global
 /// > DAG and local cycle gates. Treat it as a temporary fixture rather than
@@ -84,23 +82,21 @@ public func _innoDITrap<T>(_ message: String) -> T {
 /// > workflow's step summary so reviewers can audit escape-hatch creep
 /// > without a separate gate.
 ///
-/// > Important: InnoDI 5.0 supports only effectively non-generic structs at
+/// > Important: InnoDI 6.0 supports only effectively non-generic structs at
 /// > file scope or nested in non-generic nominal declarations. Neither the
 /// > struct nor an enclosing nominal declaration may introduce generic
 /// > parameters or a generic `where` clause. Classes, actors, enums, protocols,
 /// > extension declarations, structs inside extensions, and structs in
 /// > executable scopes such as functions, closures, accessors, or switch cases
 /// > are rejected. Move runtime or type-specific state behind injected protocol
-/// > dependencies or `@Provide(.input)` values.
+/// > dependencies or `@Input` values.
 /// > Current Swift toolchains omit accessor ancestry from attached-macro
 /// > context for a type inside a computed-property body. Attach the
 /// > build-validation plugin to every container target so its full-source
 /// > preflight enforces this edge case. Without it, companion macros stacked on
 /// > an accessor-local container can emit secondary compiler or macro errors.
 public macro DIContainer(
-    root: Bool = false,
-    validateDAG: Bool = true,
-    mainActor: Bool = false
+    validateDAG: Bool = true
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
 @attached(memberAttribute)
@@ -112,10 +108,9 @@ public macro DIContainer(
         DIHierarchyRootMarker,
     names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)
 )
-/// 6.0 role-based container spelling. This separate attribute preserves the
-/// legacy `@DIContainer` diagnostic contract: Swift applies extension-macro
-/// structural restrictions before expansion, even when a role would emit no
-/// conformance.
+/// Declares the explicit 6.0 hierarchy role for a container. Use the `.local`
+/// token for an actor-isolated local container, `.component` for a mountable
+/// feature boundary, and `.root` for the rooted validation entry point.
 public macro DIContainerRole(
     role: String,
     mainActor: Bool = false,
@@ -163,7 +158,7 @@ public macro _InnoDIAssistedFactoryMetadata(
 /// modifiers such as `private(set)`, and global-actor attributes are
 /// unsupported. Besides `@Provide` itself, no source-written property-level
 /// attribute is accepted. This prohibition includes `@MainActor`; use
-/// `@DIContainer(mainActor: true)` for actor isolation. Any isolation
+/// `@DIContainerRole(role: ContainerRole.local, mainActor: true)` for actor isolation. Any isolation
 /// attributes InnoDI generates on provider declarations and accessors are
 /// internal compiler support. A complete provider declaration inside `#if` is
 /// also unsupported; keep it unconditional and branch inside the factory or
@@ -197,23 +192,9 @@ public macro _InnoDIAssistedFactoryMetadata(
 ///
 /// A `.shared` or `.transient` provider declares exactly one construction
 /// source: `factory:`, `asyncFactory:`, `Type.self`, or a property initializer.
-/// An `.input` provider declares none of those sources and does not use
-/// `with:`. The `with:` argument is valid only with `Type.self` construction.
-/// Generated `.input` initializer parameters remain eager values of the
-/// declared type `T`. Swift evaluates each argument before the initializer
-/// call, so callers can pass `try makeValue()` or `await makeValue()` normally.
-/// A directly spelled non-optional function type is detected automatically
-/// and emitted as an escaping initializer parameter. When that function type
-/// is hidden behind a typealias, use `escaping: true` to request the same
-/// parameter contract. The option accepts a literal Boolean, is valid only for
-/// `.input`, and applies only to non-optional function values. Because an
-/// attached macro cannot resolve arbitrary aliases, Swift may add its own
-/// diagnostic if an alias used with `escaping: true` does not resolve to a
-/// non-optional function type.
-///
 /// - Parameters:
 ///   - scope: Dependency lifecycle scope. `.shared` and `.transient` require
-///     exactly one construction source; `.input` rejects all of them.
+///     exactly one construction source.
 ///   - type: Optional `Type.self` construction source. This is the only source
 ///     that accepts `with` autowiring.
 ///   - dependencies: A literal array containing only canonical direct-member
@@ -230,19 +211,13 @@ public macro _InnoDIAssistedFactoryMetadata(
 ///     `.shared` and `.transient` dependencies. Consumers must declare every
 ///     effect required by their providers; InnoDI does not infer effects, and
 ///     validates them even when the container uses `validateDAG: false`.
-///   - escaping: A literal Boolean opt-in for a non-optional function-valued
-///     `.input` whose function type is hidden behind a typealias. Direct
-///     function type spellings are detected automatically. Obvious nonfunction
-///     shapes and every non-input scope are rejected; alias resolution remains
-///     the Swift compiler's responsibility.
 public macro Provide(
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")
 
 @attached(
@@ -252,8 +227,7 @@ public macro Provide(
 )
 /// Declares a required external value using the 6.0 input vocabulary.
 ///
-/// `@Input` is the source-compatible replacement for `@Provide(.input)`.
-/// Container inputs remain initializer parameters. Assisted inputs are also
+/// Container inputs are synthesized initializer parameters. Assisted inputs are
 /// retained in the normalized graph model and are consumed by an assisted
 /// factory rather than by a parent container's static binding contract.
 public macro Input(
@@ -378,7 +352,7 @@ public struct Lazy<T> {
 /// member to have `.transient` scope so that `.callAsFunction()` semantics
 /// stay aligned with transient re-entry. Live containers typically produce a
 /// new instance on each call, but test overrides may still return a stored
-/// value. `.shared` and `.input` targets are rejected with
+/// value. `.shared` and `@Input` targets are rejected with
 /// `provide.provider-non-transient-target`.
 /// Async transient targets are also rejected because `Provider<T>` is a
 /// synchronous handle; use an explicitly async factory abstraction instead.
@@ -386,7 +360,7 @@ public struct Lazy<T> {
 /// ```swift
 /// @DIContainer
 /// struct AppContainer {
-///     @Provide(.input) var config: Config
+///     @Input var config: Config
 ///
 ///     @Provide(.transient, factory: { (config: Config) in
 ///         Request(config: config)
@@ -472,10 +446,9 @@ public struct Provider<T> {
 ///   per-request scopes where the child has no identity of its own and only
 ///   acts as a wiring namespace.
 ///
-/// Unlike `DIScope`, this enum intentionally excludes `.input`: a
-/// sub-container is always owned by its parent and cannot be supplied from
-/// the outside through the primary init — tests inject a replacement via the
-/// generated `Overrides` builder instead.
+/// A sub-container is always owned by its parent and cannot be declared with
+/// `@Input` or supplied through the primary initializer. Tests inject a
+/// replacement through the generated `Overrides` builder instead.
 public enum SubContainerScope {
     /// Parent constructs and stores the child during parent initialization,
     /// then reuses that same instance on every access. Use for coordinator-
@@ -515,13 +488,13 @@ public struct FeatureRoot {
     }
 }
 
-/// Declares that a property owns a child `@DIContainer` whose `.input` members
+/// Declares that a property owns a child `@DIContainer` whose `@Input` members
 /// are wired from the parent container's members.
 ///
 /// ```swift
-/// @DIContainer(root: true)
+/// @DIContainerRole(role: ContainerRole.root)
 /// struct AppContainer {
-///     @Provide(.input) var config: AppConfig
+///     @Input var config: AppConfig
 ///     @Provide(.shared, factory: APIClient()) var apiClient: any APIClientProtocol
 ///
 ///     // Explicit same-name wiring calls
@@ -540,7 +513,7 @@ public struct FeatureRoot {
 ///   parent members are forwarded to the child. Each `\.parentMember` keypath
 ///   is passed with the same label on the child side. This must be a literal
 ///   array the macro can read, for example `with: [\.config]` or `with: []`.
-/// - `bindings`: Optional explicit remapping tuples used when child `.input`
+/// - `bindings`: Optional explicit remapping tuples used when child `@Input`
 ///   labels differ from the parent member names. Each tuple spells
 ///   `(child: \.childInput, parent: \.parentMember)`.
 /// - `featureRoot`: Optional SwiftUI root view type. When provided, the
@@ -614,19 +587,19 @@ public macro _InnoDISubContainerAccessor(
     recovery: Bool
 ) = #externalMacro(module: "InnoDIMacros", type: "InnoDISubContainerAccessorMacro")
 
-/// Marker protocol synthesized by `@DIComponent`.
+/// Marker protocol synthesized for a component-role container.
 ///
 /// Conforming containers expose a dependency-contract type plus an overrides
 /// builder shape that other modules can mount through `@SubContainer` while
 /// build validation enforces rooted hierarchy rules.
 ///
 /// The protocol itself remains nonisolated so ordinary components do not
-/// acquire actor requirements. A component whose `@DIContainer` opts into
-/// `mainActor: true` conforms to ``_InnoDIMainActorComponentMountable``
+/// acquire actor requirements. A component role whose `@DIContainerRole`
+/// opts into `mainActor: true` conforms to ``_InnoDIMainActorComponentMountable``
 /// instead.
 ///
 /// > Important: This protocol is an InnoDI implementation detail synthesized
-/// > by `@DIComponent`. The leading underscore marks it as SPI-in-spirit;
+/// > for a component-role container. The leading underscore marks it as SPI-in-spirit;
 /// > application code should not conform to it manually.
 @_documentation(visibility: internal)
 public protocol _InnoDIComponentMountable {
@@ -639,8 +612,8 @@ public protocol _InnoDIComponentMountable {
     )
 }
 
-/// Main-actor-isolated mounting marker synthesized by `@DIComponent` when its
-/// paired `@DIContainer` declares `mainActor: true`.
+/// Main-actor-isolated mounting marker synthesized when a component-role
+/// container declares `mainActor: true`.
 ///
 /// This protocol intentionally remains separate from
 /// ``_InnoDIComponentMountable`` because actor isolation is part of a
@@ -662,61 +635,12 @@ public protocol _InnoDIMainActorComponentMountable {
     )
 }
 
-/// Marker protocol synthesized by `@DIHierarchyRoot`.
+/// Marker protocol synthesized by
+/// `@DIContainerRole(role: ContainerRole.root)`.
 ///
 /// The build-support hierarchy validator only enforces rooted component rules
 /// for workspaces that declare at least one root container with this marker.
 public protocol DIHierarchyRootMarker {}
-
-@attached(peer, names: suffixed(Dependencies))
-@attached(member, names: named(init))
-@attached(
-    extension,
-    conformances: _InnoDIComponentMountable, _InnoDIMainActorComponentMountable,
-    names: named(_InnoDIComponentDependencies), named(_InnoDIComponentOverrides)
-)
-/// Marks a supported `@DIContainer` struct as a cross-module mountable
-/// component. The same file-or-nominal-scope, effectively non-generic
-/// declaration boundary applies when `@DIComponent` is stacked on the
-/// container.
-///
-/// Attach the build-validation plugin to every component target. Current Swift
-/// toolchains omit computed-property accessor ancestry from attached-macro
-/// context, and the plugin's full-source preflight prevents secondary compiler
-/// or companion-macro errors for a component declared in that unsupported
-/// local scope.
-///
-/// `@DIComponent` lifts the container's `.input` members into a generated
-/// dependency contract named `<ContainerName>Dependencies` and synthesizes
-/// `init(dependencies:_:)` so parent modules can treat the child as an
-/// explicit component boundary.
-///
-/// When the paired container declares `mainActor: true`, the dependency
-/// contract and initializer are `@MainActor`, the override closure type is
-/// also `@MainActor`, and the macro emits an
-/// `_InnoDIMainActorComponentMountable` conformance. Construct and use that
-/// component from an `@MainActor` caller or inside `MainActor.run`. A
-/// non-`Sendable` component value cannot be returned across the actor boundary;
-/// `await` can directly return only a `Sendable` result, such as a scoped
-/// `withOverrides` operation result.
-///
-/// ```swift
-/// @DIComponent
-/// @DIContainer
-/// public struct FeatureContainer {
-///     @Provide(.input) public var config: FeatureConfig
-///     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
-/// }
-/// ```
-public macro DIComponent() = #externalMacro(module: "InnoDIMacros", type: "DIComponentMacro")
-
-@attached(extension, conformances: DIHierarchyRootMarker)
-/// Marks a `@DIContainer` as the root of a strict hierarchy-validation tree.
-///
-/// The build-support validator only emits cross-module hierarchy diagnostics
-/// such as orphan components, duplicate parents, and module-edge mismatches
-/// when at least one `@DIHierarchyRoot` is present in the workspace.
-public macro DIHierarchyRoot() = #externalMacro(module: "InnoDIMacros", type: "DIHierarchyRootMacro")
 
 /// Experimental — synthesizes a call-recording mock peer for a protocol.
 ///

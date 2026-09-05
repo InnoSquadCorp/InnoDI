@@ -51,7 +51,7 @@ public extension View {
 /// Each `environment:` value must be a direct property key path rooted at
 /// `EnvironmentValues` or `SwiftUI.EnvironmentValues`; aliases, other roots,
 /// chained properties, and subscripts are rejected.
-/// Targets with generic parameter packs are rejected in InnoDI 5.0; use
+/// Targets with generic parameter packs are rejected in InnoDI 6.0; use
 /// ordinary generic parameters or a non-generic adapter type.
 ///
 /// ```swift

@@ -25,6 +25,6 @@ package enum MacroBuildDiagnosticContract {
         childInputName: String,
         childContainerName: String
     ) -> String {
-        "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching .input member."
+        "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching @Input member."
     }
 }

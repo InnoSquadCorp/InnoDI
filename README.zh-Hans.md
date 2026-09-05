@@ -15,7 +15,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -63,7 +63,7 @@ runtime values。
 
 实战中较稳的分层是：把*构造*交给 InnoDI，把*调用粒度的临时 override*交给
 `swift-dependencies`。composition root 解析 `DependencyKey`（例如
-`@Dependency(\.date)`）后，把结果作为 `.input` 槽传入 container；测试用
+`@Dependency(\.date)`）后，把结果作为 `@Input` 槽传入 container；测试用
 `withDependencies { $0.date = .constant(...) } operation:` 只替换一棵调用树，
 无需重新构造 container，也无需重新校验 graph。container 级 `Overrides`
 builder 仍是替换全 app 范围依赖（如假 `APIClient`）的正确工具；只有当
@@ -190,7 +190,7 @@ Swift source，因此跨 project 的 container 引用也会进入 source DAG。
 
 Xcode plugin API 不会公开 Tuist 完整的跨 project target dependency topology。因此
 5.1 fallback 会保留 full-source DAG 和 declaration validation，但仅靠 Xcode 无法
-证明全部 module-edge hierarchy 规则。如果 `@DIComponent` / `@DIHierarchyRoot` 的
+证明全部 module-edge hierarchy 规则。如果 `@DIContainerRole(role: ContainerRole.component)` / `@DIContainerRole(role: ContainerRole.root)` 的
 module 关系属于 release gate，请继续使用 topology-aware 的 SwiftPM 或 CI hierarchy
 check。multi-destination variant 会共享 plugin work directory，所以验证命令不会声明
 output file；Xcode 可能会提示该 validation command 在每次 build 中运行。
@@ -213,7 +213,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -254,7 +254,7 @@ var apiClient: any APIClientProtocol
 3. `init(<inputs...>, _ applyOverrides: ...)` 便利初始化器
 4. 四个 `withOverrides` 重载：`sync`、`throws`、`async`、`async throws`
 
-每个容器都会生成完整的 overrides scaffolding，即使没有受管理成员。InnoDI 5.0
+每个容器都会生成完整的 overrides scaffolding，即使没有受管理成员。InnoDI 6.0
 不支持用户声明的嵌套 `Overrides` 类型，并会发出
 `container.overrides-name-conflict`；请重命名该声明，让宏拥有可挂载的
 override ABI。
@@ -271,8 +271,8 @@ initializer ABI 漂移。
 `actor`、`enum`、`protocol`、直接标注的 `extension` 以及嵌套在 extension
 中的 struct 都会被拒绝。任何可执行或局部代码作用域内的声明也会被拒绝，
 包括函数、闭包、访问器和 `switch` case。
-与 `@DIComponent` 叠加使用时同样受此边界限制。请把运行时状态或特定类型的
-状态放到协议依赖或 `@Provide(.input)` 后面。
+与 `@DIContainerRole(role: ContainerRole.component)` 叠加使用时同样受此边界限制。请把运行时状态或特定类型的
+状态放到协议依赖或 `@Input` 后面。
 
 显式声明为 `private` 的容器也会被拒绝，因为同级容器无法访问其生成的挂载
 接口。文件内挂载请使用 `fileprivate`，或在 private namespace 内嵌套使用
@@ -284,16 +284,17 @@ dependency-graph CLI 会扫描完整 source tree，并拒绝这个边界情况�
 声明容器的 target 挂载该 plugin。
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | 参数 | 默认值 | 含义 |
 |---|---|---|
-| `root` | `false` | 只影响图渲染入口。如果存在 root，Mermaid、DOT、ASCII 输出会裁剪为从 root 可达的节点与边。 |
+| `role` | `@DIContainerRole` 必填 | 取 `ContainerRole.local`、`.component` 或 `.root`。root role 定义图可达性的入口，component role 定义跨模块挂载契约。 |
 | `validateDAG` | `true` | 开启全局 DAG 校验以及宏的本地 graph-derived 校验。设为 `false` 会跳过全局 DAG 和本地 cycle 校验，但声明校验与显式 sibling edge 的效果兼容性校验仍会执行。 |
-| `mainActor` | `false` | 为依赖访问器、所有生成的初始化器、`Overrides`、convenience initializer、`withOverrides`、子容器 override 与 component mounting 所使用的 `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及 feature-root helper 应用 `@MainActor` 隔离。与 `@DIComponent` 搭配时，生成的 `<Container>Dependencies` 协议和 `init(dependencies:_:)` 也会被隔离，并改为遵循专用协议 `_InnoDIMainActorComponentMountable`。未使用该选项的普通组件继续遵循 `_InnoDIComponentMountable`。主执行器之外的使用者需要显式 hop。推荐用于 UI 根容器。 |
+| `mainActor` | `false` | 为依赖访问器、所有生成的初始化器、`Overrides`、convenience initializer、`withOverrides`、子容器 override 与 component mounting 所使用的 `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及 feature-root helper 应用 `@MainActor` 隔离。与 `@DIContainerRole(role: ContainerRole.component)` 搭配时，生成的 `<Container>Dependencies` 协议和 `init(dependencies:_:)` 也会被隔离，并改为遵循专用协议 `_InnoDIMainActorComponentMountable`。未使用该选项的普通组件继续遵循 `_InnoDIComponentMountable`。主执行器之外的使用者需要显式 hop。推荐用于 UI 根容器。 |
 
-在 5.0 中，generic component mounting helper 必须区分这两个 marker protocol。
+在 6.0 中，generic component mounting helper 必须区分这两个 marker protocol。
 普通组件继续使用 `_InnoDIComponentMountable`；对于 `mainActor: true` 组件，
 请增加一个使用 `_InnoDIMainActorComponentMountable` constraint 并接收
 `@MainActor` override closure 的 `@MainActor` overload。
@@ -305,7 +306,7 @@ operation result；它不会让 container 本身可以安全地带到执行器�
 
 ### `@Provide` 与作用域
 
-InnoDI 5.0 只允许把 `@Provide` 标注在同一个受支持的 `@DIContainer` struct
+InnoDI 6.0 只允许把 `@Provide` 标注在同一个受支持的 `@DIContainer` struct
 中的直接、普通、存储型实例 `var` 上。`let`、computed/observed property、
 `lazy`、`weak`、`unowned`、`static`/`class`、独立以及间接嵌套用法都会被拒绝。
 生成的 provider accessor 由 InnoDI 所有；不要手动附加
@@ -315,7 +316,7 @@ Provider 声明的 attribute 与 access control 也采用封闭契约。Property
 conditional 或 unknown attribute、`private(set)` 等 setter access modifier，以及
 custom global-actor attribute 都会被拒绝。除 `@Provide` 外，不允许任何
 source-written property-level attribute，其中也包括 `@MainActor`。请使用
-`@DIContainer(mainActor: true)` 请求 actor 隔离。InnoDI 在 provider declaration
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)` 请求 actor 隔离。InnoDI 在 provider declaration
 和 accessor 上生成的 isolation attribute 属于内部 compiler support。把完整的
 `@Provide` member declaration 放在 `#if` 内也会
 触发 `provide.conditional-declaration-unsupported`。请让声明保持无条件，并在
@@ -360,27 +361,27 @@ Schema-v1 report 只包含 path 和 diagnostic，不包含 source 正文；exit 
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | Scope | 含义 | 构造规则 |
 |---|---|---|
-| `.input` | 在初始化容器时由外部提供 | 不声明 `factory:`、`asyncFactory:`、`Type.self`、property initializer 或 `with:` |
+| `@Input` | 在初始化容器时由外部提供 | 不声明 `factory:`、`asyncFactory:`、`Type.self`、property initializer 或 `with:` |
 | `.shared` | 每个容器实例创建一次并复用 | 在 `factory:`、`asyncFactory:`、`Type.self`、property initializer 中恰好声明一个 |
 | `.transient` | 每次访问都重新创建 | 在 `factory:`、`asyncFactory:`、`Type.self`、property initializer 中恰好声明一个 |
 
 - 对 `.shared` / `.transient`，`factory:`、`asyncFactory:`、`Type.self` 和
   property initializer 这四种构造源互斥。
-- `.input` 会拒绝所有构造源和 `with:`。
-- 生成的 `.input` initializer 参数是声明类型 `T` 的 eager value；Swift 会像往常
+- `@Input` 会拒绝所有构造源和 `with:`。
+- 生成的 `@Input` initializer 参数是声明类型 `T` 的 eager value；Swift 会像往常
   一样在调用 initializer 前求值 `try` / `await` 参数表达式。直接写出的
   non-optional function type 会被自动识别并生成 escaping 参数。如果
   non-optional function type 隐藏在 typealias 后，请使用
-  `@Provide(.input, escaping: true)`。`escaping:` 必须是 literal Bool，且只在
-  `.input` 有效。明显的 nonfunction / optional-function 形状会被拒绝；若保守接受的
+  `@Input(escaping: true)`。`escaping:` 必须是 literal Bool，且只在
+  `@Input` 有效。明显的 nonfunction / optional-function 形状会被拒绝；若保守接受的
   identifier/member alias 实际并不解析为 non-optional function，Swift 可能再发出
   自身的 diagnostic。
 - `asyncFactory` 支持 `.shared` 和 `.transient`，且必须是 `async` closure。
@@ -447,7 +448,7 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 }
 ```
 
-只有 `.input` 的容器也会生成空 builder。若子容器只有 input，`<name>Overrides`
+只有 `@Input` 的容器也会生成空 builder。若子容器只有 input，`<name>Overrides`
 closure 依然可以编译，并作为 no-op 运行。
 
 ## `Lazy<T>` 与 `Provider<T>`
@@ -507,8 +508,8 @@ var feature: FeatureContainer
 
 跨模块 ownership 使用：
 
-- `@DIComponent`
-- `@DIHierarchyRoot`
+- `@DIContainerRole(role: ContainerRole.component)`
+- `@DIContainerRole(role: ContainerRole.root)`
 
 ## SwiftUI Helper
 

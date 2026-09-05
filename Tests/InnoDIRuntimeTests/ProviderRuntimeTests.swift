@@ -32,7 +32,7 @@ final class RequestLogger {
 
 @DIContainer
 struct ProviderContainer {
-    @Provide(.input)
+    @Input
     var config: Config
 
     @Provide(.transient, factory: { (config: Config) in
@@ -67,7 +67,7 @@ final class PayloadProcessor {
 
 @DIContainer
 struct TransientProviderContainer {
-    @Provide(.input)
+    @Input
     var input: PayloadInput
 
     @Provide(.transient, factory: { (input: PayloadInput) in

@@ -147,7 +147,7 @@ func validateSubContainerBindings(
                             location: childContainer.location
                         )
                     ],
-                    remediation: "Rename the child keypath in bindings:, or add a matching @Provide(.input) member to '\(childContainer.displayName)'.",
+                    remediation: "Rename the child keypath in bindings:, or add a matching @Input member to '\(childContainer.displayName)'.",
                     metadata: [
                         "childContainerPath": childContainer.path,
                         "parentContainerPath": subContainer.parentContainerPath

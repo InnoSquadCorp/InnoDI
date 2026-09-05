@@ -2,7 +2,7 @@
 
 `@Provide` 声明容器成员及其构造策略。
 
-InnoDI 5.0 只允许把 `@Provide` 标注在同一个受支持的 `@DIContainer` struct
+InnoDI 6.0 只允许把 `@Provide` 标注在同一个受支持的 `@DIContainer` struct
 中的直接、普通、存储型实例 `var` 上。`let`、computed/observed property、
 `lazy`、`weak`、`unowned`、`static`/`class`、独立与间接嵌套用法都会被拒绝。
 生成的 accessor 归 InnoDI 所有；不要手动附加 `_InnoDIProvideAccessor`。
@@ -10,7 +10,7 @@ InnoDI 5.0 只允许把 `@Provide` 标注在同一个受支持的 `@DIContainer`
 Property wrapper、conditional/unknown attribute、`private(set)` 等 setter
 access modifier，以及 custom global-actor attribute 也会被拒绝。除 `@Provide`
 外，不允许任何 source-written property-level attribute，其中也包括 `@MainActor`。
-请使用 `@DIContainer(mainActor: true)` 请求 actor 隔离。InnoDI 在 provider
+请使用 `@DIContainerRole(role: ContainerRole.local, mainActor: true)` 请求 actor 隔离。InnoDI 在 provider
 declaration 和 accessor 上生成的 isolation attribute 属于内部 compiler support。
 完整的 `@Provide` member declaration
 位于 `#if` 内时会触发 `provide.conditional-declaration-unsupported`；请将声明放在
@@ -30,21 +30,21 @@ declaration 和 accessor 上生成的 isolation attribute 属于内部 compiler 
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 ## Input 值与 escaping 函数
 
-生成的 `.input` initializer 参数是声明类型 `T` 的 eager value。Swift 会在调用
+生成的 `@Input` initializer 参数是声明类型 `T` 的 eager value。Swift 会在调用
 initializer 前求值每个参数，因此 `try makeValue()` 与 `await makeValue()` 仍是
 有效的参数表达式。直接写出的 non-optional function type 会被自动识别并生成
 escaping 参数；如果它隐藏在 typealias 后，请声明
-`@Provide(.input, escaping: true)`。
+`@Input(escaping: true)`。
 
-`escaping:` 必须是 literal Bool，且只在 `.input` 有效。明显的 nonfunction 或
+`escaping:` 必须是 literal Bool，且只在 `@Input` 有效。明显的 nonfunction 或
 optional-function 形状会以稳定的 InnoDI diagnostic 拒绝。由于 attached macro
 无法解析任意 alias，identifier/member type 会被保守接受；若该 alias 实际并非
 non-optional function type，Swift 可能追加自身的 diagnostic。
@@ -53,7 +53,7 @@ non-optional function type，Swift 可能追加自身的 diagnostic。
 
 - `factory:`、`asyncFactory:`、`Type.self` 与 property initializer 是互斥的
   construction source
-- `.input` 不允许任何 construction source 或 `with:`
+- `@Input` 不允许任何 construction source 或 `with:`
 - `.shared` 与 `.transient` 必须恰好声明一个 construction source
 - `with:` 只能与 `Type.self` 和同步 provider 一起使用
 - `asyncFactory` 支持 `.shared` 和 `.transient`，且必须是 `async` closure

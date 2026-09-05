@@ -1,25 +1,25 @@
-@Provide member 'input' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'service' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'request' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'nestedService' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'staticInput' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
+@Provide member 'input' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'service' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'request' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'nestedService' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'staticInput' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
 Factory parameter 'staticInput' for 'staticEcho' does not match any injectable container member.
 @InnoDI._InnoDIProvideAccessor is compiler support for @DIContainer and cannot be attached manually to 'value'. Remove it and declare @Provide on a direct container member.
 @InnoDI._InnoDIProvideAccessor is compiler support for @DIContainer and cannot be attached manually to 'sharedValue'. Remove it and declare @Provide on a direct container member.
 @InnoDI._InnoDIProvideAccessor is compiler support for @DIContainer and cannot be attached manually to 'inputValue'. Remove it and declare @Provide on a direct container member.
-@Provide member 'immutable' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'computed' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'lazyValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'weakValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'unownedValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'observed' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'restrictedValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'wrappedValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'actorNamedWrapperValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'shadowedMainActorValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide member 'conditionalWrapperValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
+@Provide member 'immutable' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'computed' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'lazyValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'weakValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'unownedValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'observed' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'restrictedValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'wrappedValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'actorNamedWrapperValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'shadowedMainActorValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Provide member 'conditionalWrapperValue' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
 @Provide requires an explicit type.
-@Provide member 'service' cannot be declared inside #if in InnoDI 5.0. Move the declaration outside conditional compilation and branch inside its factory or injected implementation instead.
+@Provide member 'service' cannot be declared inside #if in InnoDI 6.0. Move the declaration outside conditional compilation and branch inside its factory or injected implementation instead.
 @Provide member 'conflictingSource' must declare exactly one construction source: factory:, asyncFactory:, Type.self, or a property initializer. Remove the conflicting sources.
 @Provide member 'invalidWithSource' may use with: only with the Type.self construction form. Move sibling wiring into named factory closure parameters or use Type.self.
 @Provide for 'foreignRootSource' requires with: to be a literal array of canonical direct-member key paths such as [\Self.config] or []. Use exactly one member component and the Self root.
@@ -28,10 +28,10 @@ Factory parameter 'staticInput' for 'staticEcho' does not match any injectable c
 @Provide member 'value' declares @Provide more than once. Keep exactly one @Provide attribute on each dependency property.
 @Provide member 'standaloneValue' declares @Provide more than once. Keep exactly one @Provide attribute on each dependency property.
 @Provide member 'nestedValue' declares @Provide more than once. Keep exactly one @Provide attribute on each dependency property.
-@Provide member 'foreignWrappedInput' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
+@Provide member 'foreignWrappedInput' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
 @InnoDI._InnoDIProvideAccessor is compiler support for @DIContainer and cannot be attached manually to 'forgedRecoveryInput'. Remove it and declare @Provide on a direct container member.
-@Provide member 'forgedRecoveryInput' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
-@Provide(.input, escaping: true) member 'handler' must use a non-optional function type or a typealias that resolves to one.
-@Provide(.input, escaping: true) member 'qualifiedHandler' must use a non-optional function type or a typealias that resolves to one.
+@Provide member 'forgedRecoveryInput' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.
+@Input(escaping: true) member 'handler' must use a non-optional function type or a typealias that resolves to one.
+@Input(escaping: true) member 'qualifiedHandler' must use a non-optional function type or a typealias that resolves to one.
 @Provide member 'service' cannot use an implicitly unwrapped optional type. Replace 'T!' with explicit 'T' or 'T?' so generated storage and sibling wiring have one unambiguous optionality contract.
-@Provide member 'localService' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
+@Provide member 'localService' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.

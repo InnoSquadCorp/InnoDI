@@ -21,7 +21,7 @@ It does **not** disable any of the following:
 - The direct, plain, stored instance-`var` declaration contract for
   `@Provide`.
 - Effect compatibility on explicit sibling edges.
-- Build-time hierarchy validation for `@DIComponent` and `@DIHierarchyRoot`.
+- Build-time hierarchy validation for component and root `@DIContainerRole` declarations.
 - Cross-file custom `init` validation.
 - The artifact contract documented in <doc:Validation>.
 
@@ -123,4 +123,4 @@ custom lint rule) keeps the answers visible at review time. The shipped
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
-- ``DIContainer(root:validateDAG:mainActor:)``
+- ``DIContainer(validateDAG:)``

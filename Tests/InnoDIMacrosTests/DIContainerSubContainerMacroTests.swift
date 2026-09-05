@@ -1475,7 +1475,7 @@ extension DIContainerMacroTests {
             diagnostics: [
                 DiagnosticSpec(
                     id: MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient"),
-                    message: "@SubContainer(scope: .shared) 'feature' cannot read parent member 'request' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so 'request' is .shared or .input.",
+                    message: "@SubContainer(scope: .shared) 'feature' cannot read parent member 'request' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so 'request' is .shared or @Input.",
                     line: 8,
                     column: 16
                 )

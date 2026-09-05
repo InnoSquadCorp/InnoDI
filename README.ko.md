@@ -15,7 +15,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -76,7 +76,7 @@ feature 내부의 runtime 값은 `swift-dependencies`나 작은 factory로 처�
 권장 layering 패턴은 *생성*은 InnoDI, *호출 단위 일시 override*는
 `swift-dependencies`로 분리하는 것입니다. composition root에서
 `@Dependency(\.date)` 같은 `DependencyKey`를 해석한 뒤 그 값을 container의
-`.input` 슬롯으로 전달하고, 테스트는
+`@Input` 슬롯으로 전달하고, 테스트는
 `withDependencies { $0.date = .constant(...) } operation:`로 한 호출 트리만
 교체합니다. container를 다시 만들 필요도, validated graph를 재검증할 필요도
 없습니다. InnoDI의 container 레벨 `Overrides` 빌더는 가짜 `APIClient` 같은
@@ -210,7 +210,7 @@ DAG에 포함됩니다.
 Xcode plugin API는 Tuist의 전체 교차 project target dependency topology를 제공하지
 않습니다. 따라서 5.1 fallback은 full-source DAG와 declaration 검증을 보존하지만
 Xcode만으로 모든 module-edge hierarchy 규칙을 증명할 수는 없습니다.
-`@DIComponent` / `@DIHierarchyRoot` module 관계가 release gate라면 topology-aware
+component/root `@DIContainerRole` module 관계가 release gate라면 topology-aware
 SwiftPM 또는 CI hierarchy 검증을 유지하세요. multi-destination variant가 같은 plugin
 work directory를 공유하므로 Xcode 검증은 output file을 선언하지 않으며, 그 결과
 Xcode가 매 build마다 validation command를 실행한다고 표시할 수 있습니다.
@@ -233,7 +233,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -272,14 +272,14 @@ var apiClient: any APIClientProtocol
 
 `@DIContainer`는 다음을 합성합니다.
 
-1. 필수 `.input` 파라미터와 `.shared`, `.transient`, `@SubContainer`
+1. 필수 `@Input` 파라미터와 `.shared`, `.transient`, `@SubContainer`
    멤버용 optional override를 받는 primary `init(...)`
 2. nested `Overrides` 타입
 3. `init(<inputs...>, _ applyOverrides: (inout Overrides) -> Void)` 형태의 convenience init
 4. `sync`, `throws`, `async`, `async throws` 4종류의 `withOverrides` overload
 
 관리 멤버가 하나도 없는 경우까지 모든 컨테이너가 전체 overrides scaffolding을
-생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 5.0에서
+생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 6.0에서
 지원하지 않으며 `container.overrides-name-conflict` 오류가 발생합니다. mount 가능한
 override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바꾸세요.
 
@@ -296,9 +296,9 @@ initializer가 전체 상태를 소유하고 memberwise initializer 변화가 �
 generic parameter나 `where` clause가 없어야 합니다. `class`, `actor`, `enum`,
 `protocol`, 직접 annotated된 `extension`, extension 안에 nested된 struct는
 거부됩니다. 함수, closure, accessor, `switch` case를 포함한 executable/local
-code scope 안의 선언도 거부됩니다. 이 경계는 `@DIComponent`를 함께 적용한
-선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
-`@Provide(.input)` 뒤로 옮기세요.
+code scope 안의 선언도 거부됩니다. 이 경계는 `@DIContainerRole`에도 동일합니다.
+runtime 또는 타입별 state는 protocol dependency나
+`@Input` 뒤로 옮기세요.
 
 명시적으로 `private`인 컨테이너도 sibling container가 생성된 mount surface에
 접근할 수 없어 거부됩니다. 같은 파일에서 mount하려면 `fileprivate`를 사용하거나,
@@ -312,16 +312,17 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 preflight가 없으면 extension custom initializer가 정책을 우회할 수 있습니다.
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | 파라미터 | 기본값 | 의미 |
 |---|---|---|
-| `root` | `false` | 그래프 렌더 엔트리 플래그입니다. 하나라도 root가 있으면 Mermaid, DOT, ASCII 출력은 root에서 도달 가능한 노드와 엣지 union만 남깁니다. |
+| `role` | `@DIContainerRole`에서 필수 | `ContainerRole.local`, `.component`, `.root` 중 하나입니다. Root role은 그래프 도달성 시작점을, component role은 모듈 간 마운트 계약을 정의합니다. |
 | `validateDAG` | `true` | global DAG validation과 매크로의 local graph-derived 검증을 켭니다. `false`면 global DAG와 local cycle 검증은 건너뛰지만, 선언 검증과 명시적 sibling edge의 효과 호환성 검증은 계속 동작합니다. |
-| `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIComponent`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
+| `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIContainerRole(role: ContainerRole.component)`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
 
-5.0의 generic component mounting helper는 두 marker protocol을 구분해야
+6.0의 generic component mounting helper는 두 marker protocol을 구분해야
 합니다. 일반 component에는 `_InnoDIComponentMountable`을 유지하고,
 `mainActor: true` component에는 `_InnoDIMainActorComponentMountable` constraint와
 `@MainActor` override closure를 쓰는 `@MainActor` overload를 추가하세요.
@@ -339,7 +340,7 @@ non-`Sendable` container/component 값은 `@MainActor` caller를 사용하거나
 
 ### `@Provide`와 스코프
 
-InnoDI 5.0에서 `@Provide`는 `@DIContainer`가 붙은 동일한 지원 struct의 직접적이고
+InnoDI 6.0에서 `@Provide`는 `@DIContainer`가 붙은 동일한 지원 struct의 직접적이고
 평범한 stored instance `var`에만 붙일 수 있습니다. `let`, computed/observed
 property, `lazy`, `weak`, `unowned`, `static`/`class`, standalone, 간접 nested
 사용은 거부됩니다. 생성되는 provider accessor는 InnoDI가 소유하므로
@@ -349,7 +350,7 @@ Provider 선언의 attribute와 access control도 닫힌 계약을 따릅니다.
 wrapper, conditional 또는 unknown attribute, `private(set)` 같은 setter access
 modifier, custom global-actor attribute는 거부됩니다. `@Provide` 외에 source에
 직접 쓰는 property-level attribute는 허용되지 않으며 `@MainActor`도 포함됩니다.
-Actor 격리는 `@DIContainer(mainActor: true)`로 요청하세요. Provider 선언과
+Actor 격리는 `@DIContainerRole(role: ContainerRole.local, mainActor: true)`로 요청하세요. Provider 선언과
 accessor에 InnoDI가 생성한 격리 attribute는 내부 compiler support입니다. 완전한
 `@Provide` 멤버 선언을 `#if` 안에 두는 형태도
 `provide.conditional-declaration-unsupported` 진단으로 거부됩니다.
@@ -392,15 +393,15 @@ misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | 스코프 | 의미 | 생성 규칙 |
 |---|---|---|
-| `.input` | 컨테이너 생성 시 외부에서 주입하는 의존성 | `factory:`, `asyncFactory:`, `Type.self`, property initializer, `with:`를 모두 선언하지 않음 |
+| `@Input` | 컨테이너 생성 시 외부에서 주입하는 의존성 | `factory:`, `asyncFactory:`, `Type.self`, property initializer, `with:`를 모두 선언하지 않음 |
 | `.shared` | 컨테이너 인스턴스당 1회 생성 후 재사용 | `factory:`, `asyncFactory:`, `Type.self`, property initializer 중 정확히 하나 선언 |
 | `.transient` | 접근할 때마다 새로 생성 | `factory:`, `asyncFactory:`, `Type.self`, property initializer 중 정확히 하나 선언 |
 
@@ -408,13 +409,13 @@ misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니
 
 - `.shared`와 `.transient`에서 `factory:`, `asyncFactory:`, `Type.self`, property
   initializer 네 생성 source는 서로 배타적입니다.
-- `.input`은 모든 생성 source와 `with:`를 거부합니다.
-- 생성되는 `.input` initializer 파라미터는 선언 타입 `T`의 eager 값입니다. Swift는
+- `@Input`은 모든 생성 source와 `with:`를 거부합니다.
+- 생성되는 `@Input` initializer 파라미터는 선언 타입 `T`의 eager 값입니다. Swift는
   평소와 같이 initializer 호출 전에 `try` / `await` 인자 식을 평가합니다. 직접
   표기한 non-optional function type은 자동 감지해 escaping 파라미터로 생성합니다.
   Non-optional function type이 typealias 뒤에 숨었다면
-  `@Provide(.input, escaping: true)`를 사용하세요. `escaping:`은 literal Bool이고
-  `.input`에서만 유효합니다. 명백한 nonfunction/optional-function 형태는 거부되며,
+  `@Input(escaping: true)`를 사용하세요. `escaping:`은 literal Bool이고
+  `@Input`에서만 유효합니다. 명백한 nonfunction/optional-function 형태는 거부되며,
   보수적으로 허용된 identifier/member alias가 실제 non-optional function으로
   해석되지 않으면 Swift 자체 진단이 발생할 수 있습니다.
 - `asyncFactory`는 `.shared`와 `.transient`에서 지원되며 반드시 `async`
@@ -501,7 +502,7 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 - input-only container도 비어 있는 builder를 합성합니다.
 - child container가 input-only여도 `<name>Overrides` 클로저는 컴파일되며,
   child에 override 가능한 멤버가 생기기 전까지는 no-op으로 동작합니다.
-- 컨테이너는 nested `Overrides` 타입을 직접 선언하면 안 됩니다. InnoDI 5.0은
+- 컨테이너는 nested `Overrides` 타입을 직접 선언하면 안 됩니다. InnoDI 6.0은
   부분적이고 mount 불가능한 API를 생성하는 대신 이 충돌을 오류로 거부합니다.
 
 ## `Lazy<T>`와 `Provider<T>`
@@ -556,8 +557,8 @@ var feature: FeatureContainer
 
 cross-module ownership에는 다음을 사용합니다.
 
-- mount 가능한 child container용 `@DIComponent`
-- rooted workspace-level validation용 `@DIHierarchyRoot`
+- mount 가능한 child container용 `@DIContainerRole(role: ContainerRole.component)`
+- rooted workspace-level validation용 `@DIContainerRole(role: ContainerRole.root)`
 
 ## SwiftUI Helper
 
@@ -574,8 +575,9 @@ cross-module ownership에는 다음을 사용합니다.
   제거합니다. 한 property에 peer macro를 겹치지 않도록 `@SubContainer`의
   `featureRoot:` 또는 `featureRoots:` argument로 교체하세요.
 
-생성되는 컨테이너 API를 main actor에 격리하려면 UI 루트 컨테이너에
-`@DIContainer(mainActor: true)`를 사용하세요. `@DIComponent`를 함께 적용하면
+로컬 UI 루트의 생성 API를 main actor에 격리하려면
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`를 사용하세요.
+component role에 `mainActor: true`를 지정하면
 `<Container>Dependencies` protocol, `init(dependencies:_:)`, override 적용 closure
 타입도 격리되고 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다.
 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. non-`Sendable`

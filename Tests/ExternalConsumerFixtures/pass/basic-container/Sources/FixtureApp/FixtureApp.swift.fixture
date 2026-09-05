@@ -37,28 +37,28 @@ func makeAsyncValue() async -> Int { 2 }
 
 @DIContainer
 struct FeatureContainer {
-    @Provide(.input)
+    @Input
     var service: Service
 }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input, escaping: true)
+    @Input(escaping: true)
     var handler: Handler
 
-    @Provide(.input)
+    @Input
     var directHandler: @Sendable () -> Void
 
-    @Provide(.input, escaping: true)
+    @Input(escaping: true)
     var namespacedHandler: Namespace.Optional<Int>
 
-    @Provide(.input)
+    @Input
     var throwingValue: Int
 
-    @Provide(.input)
+    @Input
     var asyncValue: Int
 
-    @Provide(.input)
+    @Input
     var referenceState: ReferenceState
 
     @Provide(.shared, factory: Service())

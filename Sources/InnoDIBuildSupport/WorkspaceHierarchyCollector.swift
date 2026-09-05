@@ -168,14 +168,17 @@ final class WorkspaceHierarchyFileCollector: SyntaxVisitor {
         )
 
         let location = sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
-        if containsHierarchyAttribute("DIContainer", in: node.attributes),
+        if findDIContainerAttribute(in: node.attributes) != nil,
            classifyDIContainerDeclaration(node).isSupported {
+            let role = parseDIContainerAttribute(node.attributes)?.role
             containerBuilders[declarationPath] = WorkspaceHierarchyContainerBuilder(
                 path: declarationPath,
                 filePath: filePath,
                 location: location,
-                isComponent: containsHierarchyAttribute("DIComponent", in: node.attributes),
-                isHierarchyRoot: containsHierarchyAttribute("DIHierarchyRoot", in: node.attributes)
+                isComponent: role == .component
+                    || containsHierarchyAttribute("DIComponent", in: node.attributes),
+                isHierarchyRoot: role == .root
+                    || containsHierarchyAttribute("DIHierarchyRoot", in: node.attributes)
             )
             containerContextStack.append(declarationPath)
         } else {

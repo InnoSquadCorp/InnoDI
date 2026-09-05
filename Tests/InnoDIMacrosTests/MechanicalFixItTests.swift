@@ -101,7 +101,7 @@ struct MechanicalFixItTests {
                 """,
             diagnostic: DiagnosticSpec(
                 id: messageID(.containerPrivateAccessUnsupported),
-                message: "@DIContainer 'AppContainer' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace.",
+                message: "@DIContainer 'AppContainer' cannot be declared private in InnoDI 6.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace.",
                 line: 2,
                 column: 1,
                 fixIts: [
