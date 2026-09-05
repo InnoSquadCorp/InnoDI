@@ -455,8 +455,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         var filteredArguments = Array(
             arguments.filter { $0.label.map(canonicalIdentifier) != "concrete" }
         )
-        if !arguments.description.contains("\n"),
-           !containsComment(arguments),
+        if !containsComment(arguments),
            var last = filteredArguments.last,
            last.trailingComma != nil {
             last = last.with(\.trailingComma, nil)

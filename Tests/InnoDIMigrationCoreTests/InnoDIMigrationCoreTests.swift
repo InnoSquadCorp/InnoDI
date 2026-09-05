@@ -267,6 +267,33 @@ struct InnoDIMigrationCoreTests {
         #expect(secondPlan.changes.isEmpty)
     }
 
+    @Test("Multiline concrete removal does not leave a dangling comma")
+    func multilineConcreteRemovalDoesNotLeaveDanglingComma() throws {
+        let root = try makeTemporaryTree(files: [
+            "Sources/App/App.swift": """
+            import InnoDI
+
+            struct Service {}
+
+            @InnoDI.DIContainer
+            struct AppContainer {
+                @InnoDI.Provide(.shared, factory: {
+                    Service()
+                }, concrete: true)
+                var service: Service
+            }
+            """,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = try InnoDIMigrator().plan(root: root)
+        let migrated = try #require(plan.changes.first?.migratedSource)
+        #expect(plan.diagnostics.isEmpty)
+        #expect(!migrated.contains("concrete:"))
+        #expect(!migrated.contains("}, )"))
+        #expect(migrated.contains("})\n    var service"))
+    }
+
     @Test("One default feature root uses the short featureRoot form")
     func singleFeatureRootUsesShortForm() throws {
         let root = try makeTemporaryTree(files: [
