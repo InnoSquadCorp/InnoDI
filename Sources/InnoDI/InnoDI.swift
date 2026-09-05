@@ -288,9 +288,11 @@ public macro Input(
 @attached(peer, names: prefixed(_override_))
 /// Declares a deterministic, injectable collection of direct dependencies.
 ///
-/// Contributors must be synchronous direct managed members whose written
-/// type matches the collection element type. Literal `\Self.member` key-path
-/// order is preserved. Reading the collection resolves each contributor
+/// Contributors must be synchronous direct managed members assignable to the
+/// collection element type. The generated array is a compiler-typed witness,
+/// so concrete implementations can contribute to existential arrays. Literal
+/// `\Self.member` key-path order is preserved; `[]` explicitly declares an
+/// empty contribution. Reading the collection resolves each contributor
 /// through its own accessor, retaining shared/transient lifetime and override
 /// behavior; the collection itself can also be overridden for tests.
 public macro Multibinding(

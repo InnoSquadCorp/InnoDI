@@ -72,7 +72,8 @@ done
 if [[ "$USES_SPLIT_TEST_BUNDLES" -eq 1 ]]; then
     for BINARY in \
         "$BUILD_DIR/InnoDI-DependencyGraph" \
-        "$BUILD_DIR/InnoDI-Migrate"; do
+        "$BUILD_DIR/InnoDI-Migrate" \
+        "$BUILD_DIR/InnoDI-Doctor"; do
         if [[ ! -x "$BINARY" ]]; then
             echo "::error::coverage executable not found: $BINARY" >&2
             exit 1

@@ -23,13 +23,16 @@ struct Client {
 @DIContainer
 struct NetworkContainer {
     @Provide(.shared, factory: AuthInterceptor())
-    var auth: any RequestInterceptor
+    var auth: AuthInterceptor
 
     @Provide(.transient, factory: LoggingInterceptor())
-    var logging: any RequestInterceptor
+    var logging: LoggingInterceptor
 
     @Multibinding([\Self.auth, \Self.logging])
     var interceptors: [any RequestInterceptor]
+
+    @Multibinding([])
+    var noInterceptors: [any RequestInterceptor]
 
     @Provide(.transient, factory: { interceptors in
         Client(interceptors: interceptors)
@@ -45,6 +48,7 @@ precondition(second.map(\.name) == ["auth", "logging"])
 precondition(first[0] === second[0])
 precondition(first[1] !== second[1])
 precondition(container.client.interceptors.map(\.name) == ["auth", "logging"])
+precondition(container.noInterceptors.isEmpty)
 
 let stub = StubInterceptor()
 let overridden = NetworkContainer { overrides in

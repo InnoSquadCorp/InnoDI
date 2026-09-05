@@ -597,6 +597,10 @@ InnoDI の checkout からスクリプトを実行し、`--package-path` を con
 
 リリースノートとアップグレードノートは [RELEASING.md](RELEASING.md) にあります。
 
+## Collection Composition
+
+6.0 の collection composition、provider collection、keyed collision contract の詳細は英語版 README を参照してください。
+
 ## サンプル
 
 - [Examples/README.md](Examples/README.md)

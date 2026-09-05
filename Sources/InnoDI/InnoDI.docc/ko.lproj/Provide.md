@@ -108,6 +108,6 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 
 ## See Also
 
-- ``Provide(_:_:with:factory:asyncFactory:escaping:)``
+- ``Provide(_:_:with:initialization:factory:asyncFactory:escaping:)``
 - ``DIScope``
 - <doc:Validation>

@@ -1,5 +1,8 @@
 import Testing
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 @testable import InnoDISwiftUI
 
@@ -277,5 +280,394 @@ struct InnoDISwiftUITests {
         let firstToken = parent.sharedFeatureRootView().container.token
         let secondToken = parent.sharedFeatureShellRootView().container.token
         #expect(firstToken == secondToken)
+    }
+}
+
+private actor HostLifecycleProbe {
+    private var creations: [Int: Int] = [:]
+    private var closures: [Int: Int] = [:]
+    private var cancellations = 0
+
+    func created(_ identity: Int) {
+        creations[identity, default: 0] += 1
+    }
+
+    func closed(_ identity: Int) {
+        closures[identity, default: 0] += 1
+    }
+
+    func cancelled() {
+        cancellations += 1
+    }
+
+    func snapshot() -> (creations: [Int: Int], closures: [Int: Int], cancellations: Int) {
+        (creations, closures, cancellations)
+    }
+}
+
+private final class HostedContainer: @unchecked Sendable {
+    let identity: Int
+
+    init(identity: Int) {
+        self.identity = identity
+    }
+}
+
+private enum HostFailure: Error {
+    case expected
+}
+
+private actor HostFactoryGate {
+    private var released: Set<Int> = []
+    private var waiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+
+    func wait(for identity: Int) async {
+        if released.contains(identity) { return }
+        await withCheckedContinuation { continuation in
+            waiters[identity, default: []].append(continuation)
+        }
+    }
+
+    func release(_ identity: Int) {
+        released.insert(identity)
+        let continuations = waiters.removeValue(forKey: identity) ?? []
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+}
+
+@MainActor
+private final class HostViewProbe {
+    var failureHandle: DIContainerHostHandle?
+    var readyHandle: DIContainerHostHandle?
+}
+
+@Suite("DIContainerHost lifecycle")
+@MainActor
+struct DIContainerHostLifecycleTests {
+    @Test("lifecycle handle forwards explicit close and retry operations")
+    func lifecycleHandleForwardsOperations() async {
+        var closeCount = 0
+        var retryCount = 0
+        let handle = DIContainerHostHandle(
+            close: { closeCount += 1 },
+            retry: { retryCount += 1 }
+        )
+
+        await handle.close()
+        handle.retry()
+
+        #expect(closeCount == 1)
+        #expect(retryCount == 1)
+    }
+
+    @Test("retry outside a failed phase is a no-op")
+    func retryOutsideFailureIsNoOp() {
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        owner.retry()
+
+        if case .idle = owner.phase {
+            // Expected.
+        } else {
+            Issue.record("retry must preserve idle state")
+        }
+    }
+
+    @Test("owner construction and repeated redraw starts stay lazy and single generation")
+    func lazyConstructionAndRedrawReuse() async throws {
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+
+        #expect(await probe.snapshot().creations.isEmpty)
+
+        for _ in 0..<100 {
+            owner.start(identity: 1) { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            }
+        }
+
+        try await waitUntilReady(owner, identity: 1)
+        #expect(await probe.snapshot().creations == [1: 1])
+    }
+
+    @Test("identity replacement closes the old generation before publishing the new one")
+    func identityReplacementClosesOldGeneration() async throws {
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        let factory: DIContainerHostOwner<Int, HostedContainer>.Factory = { identity in
+            await probe.created(identity)
+            return HostedContainer(identity: identity)
+        }
+        let close: DIContainerHostOwner<Int, HostedContainer>.Close = { container in
+            await probe.closed(container.identity)
+        }
+
+        owner.start(identity: 1, factory: factory, close: close)
+        try await waitUntilReady(owner, identity: 1)
+        owner.start(identity: 2, factory: factory, close: close)
+        try await waitUntilReady(owner, identity: 2)
+
+        let snapshot = await probe.snapshot()
+        #expect(snapshot.creations == [1: 1, 2: 1])
+        #expect(snapshot.closures == [1: 1])
+    }
+
+    @Test("same payload can back independent window owners")
+    func independentSamePayloadWindows() async throws {
+        let probe = HostLifecycleProbe()
+        let first = DIContainerHostOwner<Int, HostedContainer>()
+        let second = DIContainerHostOwner<Int, HostedContainer>()
+        let factory: DIContainerHostOwner<Int, HostedContainer>.Factory = { identity in
+            await probe.created(identity)
+            return HostedContainer(identity: identity)
+        }
+
+        first.start(identity: 7, factory: factory)
+        second.start(identity: 7, factory: factory)
+        try await waitUntilReady(first, identity: 7)
+        try await waitUntilReady(second, identity: 7)
+
+        #expect(await probe.snapshot().creations == [7: 2])
+    }
+
+    @Test("explicit close is idempotent and permits reentry")
+    func closeAndReentry() async throws {
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        let factory: DIContainerHostOwner<Int, HostedContainer>.Factory = { identity in
+            await probe.created(identity)
+            return HostedContainer(identity: identity)
+        }
+        let close: DIContainerHostOwner<Int, HostedContainer>.Close = { container in
+            await probe.closed(container.identity)
+        }
+
+        owner.start(identity: 3, factory: factory, close: close)
+        try await waitUntilReady(owner, identity: 3)
+        await owner.close()
+        await owner.close()
+        owner.start(identity: 3, factory: factory, close: close)
+        try await waitUntilReady(owner, identity: 3)
+
+        let snapshot = await probe.snapshot()
+        #expect(snapshot.creations == [3: 2])
+        #expect(snapshot.closures == [3: 1])
+    }
+
+    @Test("explicit close releases the owned container")
+    func closeReleasesContainer() async throws {
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        owner.start(identity: 5) { HostedContainer(identity: $0) }
+        try await waitUntilReady(owner, identity: 5)
+
+        weak var weakContainer: HostedContainer?
+        if case let .ready(_, container) = owner.phase {
+            weakContainer = container
+        }
+        #expect(weakContainer != nil)
+
+        await owner.close()
+        #expect(weakContainer == nil)
+    }
+
+    @Test("failure can retry in a clean generation")
+    func failureRetry() async throws {
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        var attempts = 0
+
+        owner.start(identity: 9) { identity in
+            attempts += 1
+            if attempts == 1 { throw HostFailure.expected }
+            return HostedContainer(identity: identity)
+        }
+        try await waitUntilFailed(owner, identity: 9)
+        owner.retry()
+        try await waitUntilReady(owner, identity: 9)
+        #expect(attempts == 2)
+    }
+
+    @Test("identity transition cancels an in-flight generation")
+    func transitionCancellation() async throws {
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+
+        owner.start(identity: 1) { identity in
+            do {
+                try await Task.sleep(for: .seconds(30))
+                return HostedContainer(identity: identity)
+            } catch is CancellationError {
+                await probe.cancelled()
+                throw CancellationError()
+            }
+        }
+        await Task.yield()
+        owner.start(identity: 2) { identity in
+            await probe.created(identity)
+            return HostedContainer(identity: identity)
+        }
+        try await waitUntilReady(owner, identity: 2)
+
+        let snapshot = await probe.snapshot()
+        #expect(snapshot.cancellations == 1)
+        #expect(snapshot.creations == [2: 1])
+    }
+
+    @Test("a current generation cancellation returns the owner to idle")
+    func currentGenerationCancellationReturnsToIdle() async throws {
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        owner.start(identity: 11) { _ in throw CancellationError() }
+
+        try await waitUntil {
+            if case .idle = owner.phase { return true }
+            return false
+        }
+    }
+
+    @Test("a cancelled factory candidate is closed instead of being published")
+    func cancelledCandidateIsClosed() async throws {
+        let gate = HostFactoryGate()
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        let close: DIContainerHostOwner<Int, HostedContainer>.Close = { container in
+            await probe.closed(container.identity)
+        }
+
+        owner.start(
+            identity: 12,
+            factory: { identity in
+                await gate.wait(for: identity)
+                return HostedContainer(identity: identity)
+            },
+            close: close
+        )
+        await Task.yield()
+        owner.start(
+            identity: 13,
+            factory: { HostedContainer(identity: $0) },
+            close: close
+        )
+        await gate.release(12)
+        try await waitUntilReady(owner, identity: 13)
+        try await waitUntil { await probe.snapshot().closures[12] == 1 }
+
+        #expect(await probe.snapshot().closures == [12: 1])
+    }
+
+    @Test("starting the same failed identity creates a fresh generation")
+    func sameFailedIdentityCanRestart() async throws {
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        var attempts = 0
+        let factory: DIContainerHostOwner<Int, HostedContainer>.Factory = { identity in
+            attempts += 1
+            if attempts == 1 { throw HostFailure.expected }
+            return HostedContainer(identity: identity)
+        }
+
+        owner.start(identity: 14, factory: factory)
+        try await waitUntilFailed(owner, identity: 14)
+        owner.start(identity: 14, factory: factory)
+        try await waitUntilReady(owner, identity: 14)
+
+        #expect(attempts == 2)
+    }
+
+    #if os(macOS)
+    @Test("mounted failure UI can retry and explicitly close the recovered container")
+    func mountedFailureRetryAndClose() async throws {
+        let probe = HostViewProbe()
+        var attempts = 0
+        let view = DIContainerHost(
+            identity: 15,
+            factory: { identity in
+                attempts += 1
+                if attempts == 1 { throw HostFailure.expected }
+                return HostedContainer(identity: identity)
+            },
+            content: { container, handle in
+                probe.readyHandle = handle
+                return Text("ready-\(container.identity)")
+            },
+            loading: { ProgressView() },
+            failure: { _, handle in
+                probe.failureHandle = handle
+                return Text("failed")
+            }
+        )
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        hostingView.layoutSubtreeIfNeeded()
+
+        try await waitUntil { probe.failureHandle != nil }
+        probe.failureHandle?.retry()
+        try await waitUntil { probe.readyHandle != nil }
+        await probe.readyHandle?.close()
+
+        #expect(attempts == 2)
+        _ = hostingView
+    }
+
+    @Test("a mounted SwiftUI host survives one hundred root redraws without recreating")
+    func mountedHostRedrawStress() async throws {
+        let probe = HostLifecycleProbe()
+        let view = DIContainerHost(
+            identity: 42,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            content: { container, _ in Text("ready-\(container.identity)") },
+            loading: { ProgressView() },
+            failure: { _, _ in Text("failed") }
+        )
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+
+        for _ in 0..<100 {
+            hostingView.rootView = view
+            hostingView.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        try await waitUntil { await probe.snapshot().creations[42] == 1 }
+        #expect(await probe.snapshot().creations == [42: 1])
+        _ = hostingView
+    }
+    #endif
+
+    private func waitUntilReady(
+        _ owner: DIContainerHostOwner<Int, HostedContainer>,
+        identity: Int
+    ) async throws {
+        try await waitUntil {
+            if case let .ready(actualIdentity, _) = owner.phase {
+                return actualIdentity == identity
+            }
+            return false
+        }
+    }
+
+    private func waitUntilFailed(
+        _ owner: DIContainerHostOwner<Int, HostedContainer>,
+        identity: Int
+    ) async throws {
+        try await waitUntil {
+            if case let .failed(actualIdentity, _) = owner.phase {
+                return actualIdentity == identity
+            }
+            return false
+        }
+    }
+
+    private func waitUntil(
+        _ condition: @escaping @MainActor () async -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(5))
+        while !(await condition()) {
+            guard clock.now < deadline else { throw HostFailure.expected }
+            await Task.yield()
+        }
     }
 }

@@ -52,6 +52,34 @@ struct GraphQueryTests {
         ),
     ]
 
+    private let providers = [
+        DependencyGraphProvider(
+            id: "Data::DataContainer.client",
+            containerID: "Data::DataContainer",
+            name: "client",
+            type: "Client",
+            role: .provider,
+            lifetime: .shared,
+            initialization: .onDemand,
+            isolation: .nonisolated,
+            effect: .asyncThrows,
+            source: .init(path: "Sources/Data.swift", line: 12, column: 5)
+        ),
+        DependencyGraphProvider(
+            id: "Data::DataContainer.repository",
+            containerID: "Data::DataContainer",
+            name: "repository",
+            type: "Repository",
+            role: .provider,
+            lifetime: .transient,
+            initialization: .onAccess,
+            isolation: .nonisolated,
+            effect: .sync,
+            dependencies: ["client"],
+            source: .init(path: "Sources/Data.swift", line: 18, column: 5)
+        ),
+    ]
+
     @Test("Why reports a deterministic shortest root path")
     func whyQuery() throws {
         let output = try renderGraphQuery(
@@ -86,6 +114,28 @@ struct GraphQueryTests {
 
             """
         )
+    }
+
+    @Test("provider queries include contract, source, and transitive dependents")
+    func providerQueries() throws {
+        let why = try renderGraphQuery(
+            .why("DataContainer.client"),
+            nodes: nodes,
+            edges: edges,
+            providers: providers
+        )
+        let dependents = try renderGraphQuery(
+            .dependents("Data::DataContainer.client"),
+            nodes: nodes,
+            edges: edges,
+            providers: providers
+        )
+
+        #expect(why.contains("Why provider Data::DataContainer.client"))
+        #expect(why.contains("Source: Sources/Data.swift:12:5"))
+        #expect(why.contains("initialization=onDemand"))
+        #expect(why.contains("Runtime provenance: attach a DITraceContext"))
+        #expect(dependents.contains("Data::DataContainer.repository (distance 1"))
     }
 
     @Test("Unused reports nodes outside every root-reachable graph")

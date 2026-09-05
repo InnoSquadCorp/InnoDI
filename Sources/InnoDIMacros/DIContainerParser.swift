@@ -501,13 +501,7 @@ struct DIContainerParser {
         }
         if arguments.isMultibinding,
            case let .parsed(contributors) = arguments.dependenciesParseState {
-            if contributors.isEmpty {
-                context.emit(
-                    SimpleDiagnostic.multibindingEmptyContributors(),
-                    at: Syntax(attribute)
-                )
-                hadArgumentErrors = true
-            } else if Set(contributors).count != contributors.count {
+            if Set(contributors).count != contributors.count {
                 context.emit(
                     SimpleDiagnostic.multibindingDuplicateContributor(),
                     at: Syntax(attribute)

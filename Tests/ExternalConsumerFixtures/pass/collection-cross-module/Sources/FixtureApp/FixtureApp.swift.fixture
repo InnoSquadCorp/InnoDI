@@ -1,0 +1,30 @@
+import Contracts
+import InnoDI
+import ModuleA
+import ModuleB
+
+@main
+enum FixtureApp {
+    static func main() throws {
+        let ordered = DICollectionGroup.compose([
+            ModuleAContributions.ordered,
+            .empty,
+            ModuleBContributions.ordered,
+        ])
+        precondition(ordered.map(\.name) == ["a", "b"])
+
+        let keyed = try DIKeyedCollection.compose([
+            ModuleAContributions.keyed(),
+            ModuleBContributions.keyed(),
+        ])
+        precondition(keyed.map(\.key) == ["a", "b"])
+        precondition(keyed[key: "b"]?.name == "b")
+
+        do {
+            _ = try DIKeyedCollection.compose([keyed, ModuleAContributions.keyed()])
+            preconditionFailure("duplicate cross-module key must fail")
+        } catch let error as DIKeyedCollectionDuplicateError<String> {
+            precondition(error.key == "a")
+        }
+    }
+}

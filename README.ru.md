@@ -611,6 +611,10 @@ Tools/dump-macro-expansions.sh \
 
 Release notes и upgrade notes находятся в [RELEASING.md](RELEASING.md).
 
+## Collection Composition
+
+Контракты 6.0 для composition, provider collections и конфликтов ключей описаны в английском README.
+
 ## Примеры
 
 - [Examples/README.md](Examples/README.md)

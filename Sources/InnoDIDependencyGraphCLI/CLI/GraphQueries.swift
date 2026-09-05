@@ -9,6 +9,8 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
     case unreachableFromRoots(selector: String)
     case unsupportedSchema(path: String, found: Int, expected: Int)
     case invalidDocument(path: String, reason: String)
+    case providerNotFound(selector: String)
+    case ambiguousProvider(selector: String, candidates: [String])
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +26,10 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
             return "Graph document '\(path)' uses schema v\(found); --diff currently requires schema v\(expected)."
         case .invalidDocument(let path, let reason):
             return "Graph document '\(path)' is invalid: \(reason)"
+        case .providerNotFound(let selector):
+            return "No provider matches '\(selector)'. Use container.member or an exact provider ID."
+        case .ambiguousProvider(let selector, let candidates):
+            return "Provider selector '\(selector)' is ambiguous. Candidates: \(candidates.joined(separator: ", "))"
         }
     }
 }
@@ -31,16 +37,116 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
 func renderGraphQuery(
     _ query: GraphQuery,
     nodes: [DependencyGraphNode],
-    edges: [DependencyGraphEdge]
+    edges: [DependencyGraphEdge],
+    providers: [DependencyGraphProvider] = []
 ) throws -> String {
     switch query {
     case .why(let selector):
+        if looksLikeProviderSelector(selector, providers: providers) {
+            return try renderProviderWhy(selector: selector, nodes: nodes, providers: providers)
+        }
         return try renderWhyQuery(selector: selector, nodes: nodes, edges: edges)
     case .dependents(let selector):
+        if looksLikeProviderSelector(selector, providers: providers) {
+            return try renderProviderDependents(selector: selector, nodes: nodes, providers: providers)
+        }
         return try renderDependentsQuery(selector: selector, nodes: nodes, edges: edges)
     case .unused:
         return try renderUnusedQuery(nodes: nodes, edges: edges)
     }
+}
+
+private func looksLikeProviderSelector(
+    _ selector: String,
+    providers: [DependencyGraphProvider]
+) -> Bool {
+    providers.contains { provider in
+        provider.id == selector || provider.name == selector
+            || provider.id.hasSuffix(".\(selector)")
+            || selector.hasSuffix(".\(provider.name)")
+    }
+}
+
+private func resolveProvider(
+    selector: String,
+    nodes: [DependencyGraphNode],
+    providers: [DependencyGraphProvider]
+) throws -> DependencyGraphProvider {
+    let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+    let matches = providers.filter { provider in
+        guard let node = nodesByID[provider.containerID] else { return false }
+        return provider.id == selector
+            || "\(node.semanticPath).\(provider.name)" == selector
+            || "\(node.displayName).\(provider.name)" == selector
+            || provider.name == selector
+    }
+    if matches.count == 1 { return matches[0] }
+    if matches.count > 1 {
+        throw GraphInspectionError.ambiguousProvider(
+            selector: selector,
+            candidates: matches.map(\.id).sorted()
+        )
+    }
+    throw GraphInspectionError.providerNotFound(selector: selector)
+}
+
+private func renderProviderWhy(
+    selector: String,
+    nodes: [DependencyGraphNode],
+    providers: [DependencyGraphProvider]
+) throws -> String {
+    let provider = try resolveProvider(selector: selector, nodes: nodes, providers: providers)
+    let dependencies = provider.dependencies.map { "\(provider.containerID).\($0)" }
+    var lines = [
+        "Why provider \(provider.id)",
+        "- Source: \(provider.source.path):\(provider.source.line):\(provider.source.column)",
+        "- Contract: role=\(provider.role.rawValue), type=\(provider.type), lifetime=\(provider.lifetime.rawValue), initialization=\(provider.initialization.rawValue), isolation=\(provider.isolation.rawValue), effect=\(provider.effect.rawValue)",
+    ]
+    if dependencies.isEmpty {
+        lines.append("- Dependencies: none")
+    } else {
+        lines.append("- Dependencies: \(dependencies.joined(separator: ", "))")
+    }
+    lines.append("- Runtime provenance: attach a DITraceContext to observe override, cache, and async events")
+    return lines.joined(separator: "\n") + "\n"
+}
+
+private func renderProviderDependents(
+    selector: String,
+    nodes: [DependencyGraphNode],
+    providers: [DependencyGraphProvider]
+) throws -> String {
+    let target = try resolveProvider(selector: selector, nodes: nodes, providers: providers)
+    let providersByID = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
+    var distances = [target.id: 0]
+    var queue = [target.id]
+    var cursor = 0
+    while cursor < queue.count {
+        let dependencyID = queue[cursor]
+        cursor += 1
+        let nextDistance = (distances[dependencyID] ?? 0) + 1
+        for candidate in providers where distances[candidate.id] == nil {
+            let candidateDependencies = candidate.dependencies.map {
+                "\(candidate.containerID).\($0)"
+            }
+            if candidateDependencies.contains(dependencyID) {
+                distances[candidate.id] = nextDistance
+                queue.append(candidate.id)
+            }
+        }
+    }
+    let dependents = distances.keys.compactMap { providersByID[$0] }
+        .filter { $0.id != target.id }
+        .sorted {
+            let lhs = distances[$0.id] ?? .max
+            let rhs = distances[$1.id] ?? .max
+            return lhs == rhs ? $0.id < $1.id : lhs < rhs
+        }
+    var lines = ["Dependents of provider \(target.id) (\(dependents.count))"]
+    lines.append(contentsOf: dependents.map {
+        "- \($0.id) (distance \(distances[$0.id] ?? 0), source \($0.source.path):\($0.source.line):\($0.source.column))"
+    })
+    return lines.joined(separator: "\n") + "\n"
 }
 
 func loadGraphJSONDocument(at path: String) throws -> GraphJSON.Document {

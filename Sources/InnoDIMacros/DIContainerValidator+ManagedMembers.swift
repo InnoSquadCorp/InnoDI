@@ -109,7 +109,7 @@ extension DIContainerValidator {
         memberByName: [String: ProvideMemberModel],
         context: some MacroExpansionContext
     ) -> Bool {
-        guard let elementType = multibindingElementType(member.type) else {
+        guard multibindingElementType(member.type) != nil else {
             context.emit(
                 SimpleDiagnostic.multibindingCollectionTypeRequired(
                     memberName: member.name
@@ -119,7 +119,6 @@ extension DIContainerValidator {
             return true
         }
 
-        let expectedType = elementType.trimmedDescription
         var hadErrors = false
         for contributorName in member.withDependencies {
             let anchor = member.withDependencyReferences.first {
@@ -148,19 +147,9 @@ extension DIContainerValidator {
                 hadErrors = true
                 continue
             }
-            let actualType = contributor.type.trimmedDescription
-            if actualType != expectedType {
-                context.emit(
-                    SimpleDiagnostic.multibindingTypeMismatch(
-                        memberName: member.name,
-                        contributorName: contributorName,
-                        expectedType: expectedType,
-                        actualType: actualType
-                    ),
-                    at: anchor
-                )
-                hadErrors = true
-            }
+            // The generated array expression is the typed witness. Comparing
+            // source spellings here rejects valid aliases and
+            // concrete-to-existential conversions.
         }
         return hadErrors
     }

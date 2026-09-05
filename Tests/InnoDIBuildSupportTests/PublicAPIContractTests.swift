@@ -29,7 +29,14 @@ struct PublicAPIContractTests {
         let swiftUISymbols = try #require(
             swiftUIGraph["symbols"] as? [[String: Any]]
         )
-        #expect(swiftUISymbols.count == 6)
+        #expect(swiftUISymbols.count >= 6)
+        #expect(swiftUISymbols.contains { symbol in
+            guard let identifier = symbol["identifier"] as? [String: Any],
+                  let precise = identifier["precise"] as? String else {
+                return false
+            }
+            return precise.contains("DIContainerHostOwner")
+        })
         #expect(swiftUISymbols.allSatisfy { symbol in
             guard let identifier = symbol["identifier"] as? [String: Any],
                   let precise = identifier["precise"] as? String else {

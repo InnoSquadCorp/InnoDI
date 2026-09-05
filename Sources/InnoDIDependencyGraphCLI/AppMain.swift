@@ -143,7 +143,8 @@ package func runDependencyGraphCLI() -> Int32 {
             let rendered = try renderGraphQuery(
                 query,
                 nodes: graph.nodes,
-                edges: graph.edges
+                edges: graph.edges,
+                providers: graph.providers
             )
             return writeValidationResult(
                 DependencyGraphCommandResult(

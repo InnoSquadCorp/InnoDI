@@ -463,8 +463,7 @@ private func provideMemberValidationRecovery(
 
     if arguments.isMultibinding {
         guard let collectionType = member.bindings.first?.typeAnnotation?.type,
-              let elementType = multibindingElementType(collectionType)?
-                .trimmedDescription else {
+              multibindingElementType(collectionType) != nil else {
             return true
         }
         return arguments.dependencies.contains { dependencyName in
@@ -474,7 +473,6 @@ private func provideMemberValidationRecovery(
                     .identifier.text else {
                 return true
             }
-            guard provider.writtenType == elementType else { return true }
             if case .synchronous = provider.effect { return false }
             return true
         }

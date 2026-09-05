@@ -50,29 +50,43 @@ struct MultibindingMacroTests {
         #expect(result.expansion.contains("self._override_interceptors = interceptors"))
     }
 
-    @Test("contributors must match the collection element type")
-    func rejectsMismatchedContributor() {
+    @Test("concrete contributors defer existential conversion to the compiler")
+    func acceptsConcreteContributorForExistentialCollection() {
+        let result = expandMacroSource(
+            """
+            protocol Service {}
+            struct LiveService: Service {}
+
+            @DIContainer
+            struct ValidContainer {
+                @Provide(.shared, factory: LiveService())
+                var live: LiveService
+
+                @Multibinding([\\Self.live])
+                var services: [any Service]
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("@InnoDI._InnoDIProvideAccessor(recovery: false)"))
+    }
+
+    @Test("an explicit empty contribution is valid")
+    func acceptsExplicitEmptyCollection() {
         let result = expandMacroSource(
             """
             @DIContainer
-            struct InvalidContainer {
-                @Provide(.shared, factory: 42)
-                var count: Int
-
-                @Multibinding([\\Self.count])
+            struct EmptyContainer {
+                @Multibinding([])
                 var values: [String]
             }
             """,
             macros: Self.macros
         )
 
-        #expect(
-            result.diagnostics.map(\.diagnosticID).contains(
-                MessageID(
-                    domain: "InnoDI.validation",
-                    id: "multibinding.type-mismatch"
-                )
-            )
-        )
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("var values: [String]"))
     }
 }

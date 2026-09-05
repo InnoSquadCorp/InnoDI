@@ -652,6 +652,10 @@ Tools/generate-docc.sh
 
 Las notas de release y de upgrade viven en [RELEASING.md](RELEASING.md).
 
+## Collection Composition
+
+Los contratos 6.0 de composition, provider collections y colisiones de claves se documentan en el README en ingles.
+
 ## Ejemplos
 
 - [Examples/README.md](Examples/README.md)

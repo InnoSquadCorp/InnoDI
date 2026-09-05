@@ -1,0 +1,3 @@
+public protocol CrossModuleService: Sendable {
+    var name: String { get }
+}
