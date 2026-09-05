@@ -301,9 +301,10 @@ Delivery order:
    overrides, injects into other providers, and emits ordered graph v4
    contribution edges. The superseded underscored SPI has been removed after
    the public migration path replaced it.
-4. Validate InnoSample, Mulbyul, and BlPia adoption against exact revisions.
+4. Validate InnoSample, BlPia, and Lynceus adoption against exact revisions;
+   keep Mulbyul read-only/test-only per its owner boundary.
    InnoSample is the committed public runtime and SwiftUI host pilot: consumer
-   commit `db90daf` resolves InnoDI `eaee869`, passes its full Xcode 27
+   commit `f53510b` resolves InnoDI `28a95a5`, passes its Xcode 27
    `make verify-ci` gate, and proves per-child shared-state isolation,
    overrides, loading/failure/retry, and host identity without an SPI import,
    temporary wrapper, or manual state owner. The generated public bridge also
@@ -312,18 +313,17 @@ Delivery order:
    `@DIContainerRole(role: ContainerRole.component/.root, mainActor: true)`
    source paths now reuse the existing
    initializer, hierarchy, actor, and strict external-consumer contracts.
-   The compiler/toolchain contract is frozen for the candidate; two more
-   committed consumer pilots and maintainer RFC approval still block GA.
+   The compiler/toolchain contract is frozen for the code candidate; BlPia
+   `787f419` and Lynceus `61d3df4` provide the two additional committed pilot
+   votes. Maintainer RFC approval and the promotion cooldown still block GA.
 6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
    strict-concurrency, consumer, and macro-performance gates pass.
 7. Remove superseded declarations and publish graph JSON v4 in 6.0.0.
 
 The exact-revision inventory for step 4 is recorded in RFC 0006. InnoSample is
-committed and pushed. Mulbyul and BlPia both pass isolated source/build
-compatibility checks after the 6.0 input migration, but their original dirty
-checkouts were preserved and Doctor reports missing command-plugin wiring.
-Those two checks are not counted as committed runtime pilots; plugin adoption
-and product-owner integration remain explicit GA gates.
+committed and pushed on main. BlPia and Lynceus are committed and pushed branch
+pilots with command-plugin analysis and product builds. Mulbyul was not changed;
+its earlier compatibility tests remain non-voting evidence.
 
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
@@ -352,8 +352,8 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two additional real pilots plus final migration, naming, and performance gates must pass. |
-| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Two real pilots plus final migration, naming, and performance gates must pass. |
+| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Three committed pilots and final migration/performance gates pass; maintainer naming approval and promotion cooldown remain. |
+| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Real-consumer and final migration/performance gates pass; maintainer naming approval and promotion cooldown remain. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros
