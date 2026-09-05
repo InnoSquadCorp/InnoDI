@@ -70,6 +70,44 @@ struct CIWorkflowHardeningTests {
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
     }
 
+    @Test("Main CI runs isolated thread and address sanitizer suites")
+    func mainCIRunsSanitizers() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let jobStart = try #require(
+            workflow.range(of: "  sanitizers:\n")
+        )
+        let nextJobStart = try #require(
+            workflow.range(
+                of: "\n  swift-62-compatibility:\n",
+                range: jobStart.upperBound..<workflow.endIndex
+            )
+        )
+        let job = workflow[jobStart.lowerBound..<nextJobStart.lowerBound]
+
+        #expect(job.contains("name: Thread and address sanitizers (Xcode 26.6)"))
+        #expect(job.contains("if: github.event_name == 'push'"))
+        #expect(job.contains("timeout-minutes: 120"))
+        #expect(job.contains("version: \"26.6\""))
+        #expect(job.contains("--scratch-path .build/main-tsan"))
+        #expect(job.contains("--sanitize=thread"))
+        #expect(job.contains("--scratch-path .build/main-asan"))
+        #expect(job.contains("--sanitize=address"))
+        #expect(
+            job.components(
+                separatedBy: "-Xswiftc -strict-concurrency=complete"
+            ).count - 1 == 2
+        )
+        #expect(
+            job.components(
+                separatedBy: "-Xswiftc -warnings-as-errors"
+            ).count - 1 == 2
+        )
+    }
+
     @Test("Main CI keeps an explicit Xcode 27 compatibility lane")
     func xcode27CompatibilityLane() throws {
         let workflow = try String(

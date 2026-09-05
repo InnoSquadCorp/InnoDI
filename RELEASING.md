@@ -25,6 +25,10 @@ Before dispatching the `Release Gate` workflow:
    - `swift test`
 3. Run the strict-concurrency suite:
    - `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
+   - Run the release sanitizer suites from isolated scratch paths:
+     `swift test --scratch-path .build/release-tsan --sanitize=thread -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
+     and
+     `swift test --scratch-path .build/release-asan --sanitize=address -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`.
 4. Build, test, and where applicable run every example under strict
    concurrency with warnings as errors:
    - `Examples/SampleApp` (`swift build`, `swift test`, and `swift run --skip-build SampleApp`)
@@ -259,6 +263,10 @@ standalone release assets.
   recognizes direct Tuist package workspaces (`ac1124b`), and skipped hidden
   files no longer suppress following source siblings during full-root graph
   discovery (`28a95a5`).
+- Added isolated Thread Sanitizer and Address Sanitizer suites to both the main
+  validation workflow and the SHA-bound release gate. They run the complete
+  strict-concurrency package suite from separate scratch paths so sanitizer
+  state cannot be reused across lanes.
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of

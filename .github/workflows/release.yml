@@ -231,6 +231,20 @@ jobs:
         id: coverage
         run: Tools/run-coverage-gate.sh
 
+      - name: Run sanitizer suites
+        run: |
+          set -euo pipefail
+          swift test \
+            --scratch-path .build/release-tsan \
+            --sanitize=thread \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+          swift test \
+            --scratch-path .build/release-asan \
+            --sanitize=address \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors
+
       - name: Upload coverage diagnostics
         if: ${{ always() && hashFiles('coverage/summary.json') != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

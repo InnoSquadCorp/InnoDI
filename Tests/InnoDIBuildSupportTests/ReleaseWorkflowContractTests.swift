@@ -233,6 +233,30 @@ struct ReleaseWorkflowContractTests {
         #expect(publishJob.contains("      - exact-tag-consumer"))
     }
 
+    @Test("Release validation runs isolated thread and address sanitizer suites")
+    func releaseValidationRunsSanitizers() throws {
+        let releaseGateJob = try section(
+            in: workflow,
+            from: "  release-gate:",
+            to: "  release-compatibility:"
+        )
+
+        #expect(releaseGateJob.contains("--scratch-path .build/release-tsan"))
+        #expect(releaseGateJob.contains("--sanitize=thread"))
+        #expect(releaseGateJob.contains("--scratch-path .build/release-asan"))
+        #expect(releaseGateJob.contains("--sanitize=address"))
+        #expect(
+            releaseGateJob.components(
+                separatedBy: "-Xswiftc -strict-concurrency=complete"
+            ).count - 1 >= 2
+        )
+        #expect(
+            releaseGateJob.components(
+                separatedBy: "-Xswiftc -warnings-as-errors"
+            ).count - 1 >= 2
+        )
+    }
+
     @Test("Release publication includes legacy toolchain compatibility")
     func legacyToolchainCompatibilityIsRequired() throws {
         let workflow = try workflow
