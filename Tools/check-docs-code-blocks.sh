@@ -121,7 +121,9 @@ done
     printf '%s\n' '        .visionOS(.v1),'
     printf '%s\n' '    ],'
     printf '%s\n' '    dependencies: ['
-    printf '        .package(path: "%s"),\n' "$root_path_escaped"
+    # Keep the dependency identity stable when the repository is checked out
+    # into a worktree or directory whose basename is not exactly `InnoDI`.
+    printf '        .package(name: "InnoDI", path: "%s"),\n' "$root_path_escaped"
     printf '%s\n' '    ],'
     printf '%s\n' '    targets: ['
     for snippet in "${snippets[@]}"; do
