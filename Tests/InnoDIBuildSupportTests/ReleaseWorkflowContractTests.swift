@@ -247,6 +247,16 @@ struct ReleaseWorkflowContractTests {
         #expect(releaseGateJob.contains("--sanitize=address"))
         #expect(
             releaseGateJob.components(
+                separatedBy: "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
+            ).count - 1 == 2
+        )
+        #expect(
+            releaseGateJob.components(
+                separatedBy: "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
+            ).count - 1 == 2
+        )
+        #expect(
+            releaseGateJob.components(
                 separatedBy: "-Xswiftc -strict-concurrency=complete"
             ).count - 1 >= 2
         )
