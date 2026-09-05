@@ -2483,6 +2483,1433 @@
           }
         }
       ]
+    },
+    {
+      "file": "InnoDITesting.symbols.json",
+      "module": "InnoDITesting",
+      "relationships": [
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting16DIOverridePresetV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting16DIOverridePresetV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV",
+          "target": "s:s23CustomStringConvertibleP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting19DIInteractionReportV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting19DIInteractionReportV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting19DIInteractionReportV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting19DITestEffectProfileV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting19DITestEffectProfileV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting19DITestEffectProfileV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting20DIConcurrentValueBoxC",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting20DIConcurrentValueBoxC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV",
+          "target": "s:s23CustomStringConvertibleP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
+          "target": "s:s16SendableMetatypeP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
+          "target": "s:s23CustomStringConvertibleP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetV14callAsFunctionyyxzF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetV4name5applyACyxGSS_yxzYbctcfc",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetV4nameSSvp",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetV5apply2toyxz_tF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetV8combined4with4nameACyxGAG_SSSgtF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIStubValidationO17requireAllStubbedyySaySSGKFZ",
+          "target": "s:13InnoDITesting16DIStubValidationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV11descriptionSSvp",
+          "sourceOrigin": {
+            "displayName": "CustomStringConvertible.description",
+            "identifier": "s:s23CustomStringConvertibleP11descriptionSSvp"
+          },
+          "target": "s:13InnoDITesting18DIMissingStubErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV9selectorsACSaySSG_tcfc",
+          "target": "s:13InnoDITesting18DIMissingStubErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting18DIMissingStubErrorV9selectorsSaySSGvp",
+          "target": "s:13InnoDITesting18DIMissingStubErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DIInteractionReportV11isSatisfiedSbvp",
+          "target": "s:13InnoDITesting19DIInteractionReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DIInteractionReportV17missingCallCountsSDySSSiGvp",
+          "target": "s:13InnoDITesting19DIInteractionReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DIInteractionReportV20missingStubSelectors0E10CallCounts010unexpectedhI0ACSaySSG_SDySSSiGAHtcfc",
+          "target": "s:13InnoDITesting19DIInteractionReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DIInteractionReportV20missingStubSelectorsSaySSGvp",
+          "target": "s:13InnoDITesting19DIInteractionReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DIInteractionReportV20unexpectedCallCountsSDySSSiGvp",
+          "target": "s:13InnoDITesting19DIInteractionReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV11missingStubAA23DIEffectViolationPolicyOvp",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStubAcA23DIEffectViolationPolicyO_AGtcfc",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCallAA23DIEffectViolationPolicyOvp",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV6strictACvpZ",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV9recordingACvpZ",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting20DIConcurrentValueBoxC6updateyqd__qd__xzYbKXEKs8SendableRd__lF",
+          "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting20DIConcurrentValueBoxC7replace4withyx_tF",
+          "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting20DIConcurrentValueBoxC8snapshotxyF",
+          "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting20DIConcurrentValueBoxCyACyxGxcfc",
+          "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO4failyA2CmF",
+          "target": "s:13InnoDITesting23DIEffectViolationPolicyO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting23DIEffectViolationPolicyO6recordyA2CmF",
+          "target": "s:13InnoDITesting23DIEffectViolationPolicyO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting23DIInteractionValidationO8validate20missingStubSelectors18recordedCallCounts08expectedjK07profileAA0C6ReportVSaySSG_SDySSSiGAlA19DITestEffectProfileVtKFZ",
+          "target": "s:13InnoDITesting23DIInteractionValidationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV4callxvp",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV8sequence4callAEyx_Gs6UInt64V_xtcfc",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV8sequences6UInt64Vvp",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5countSivp",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC5resetyyF",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC6recordys6UInt64VxF",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderC8snapshotSayAC5EntryVyx_GGyF",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting24DIConcurrentCallRecorderCACyxGycfc",
+          "target": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV11descriptionSSvp",
+          "sourceOrigin": {
+            "displayName": "CustomStringConvertible.description",
+            "identifier": "s:s23CustomStringConvertibleP11descriptionSSvp"
+          },
+          "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAA0C6ReportVvp",
+          "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAcA0C6ReportV_tcfc",
+          "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV11descriptionSSvp",
+          "sourceOrigin": {
+            "displayName": "CustomStringConvertible.description",
+            "identifier": "s:s23CustomStringConvertibleP11descriptionSSvp"
+          },
+          "target": "s:13InnoDITesting31DIInteractionConfigurationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV8selectorACSS_tcfc",
+          "target": "s:13InnoDITesting31DIInteractionConfigurationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV8selectorSSvp",
+          "target": "s:13InnoDITesting31DIInteractionConfigurationErrorV"
+        }
+      ],
+      "symbols": [
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIOverridePreset<Overrides>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIOverridePreset"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func callAsFunction(_ overrides: inout Overrides)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetV14callAsFunctionyyxzF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "callAsFunction(_:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(name: String, apply: @escaping @Sendable (inout Overrides) -> Void)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetV4name5applyACyxGSS_yxzYbctcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "init(name:apply:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let name: String",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetV4nameSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "name"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func apply(to overrides: inout Overrides)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetV5apply2toyxz_tF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "apply(to:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func combined(with later: `Self`, name: String? = nil) -> DIOverridePreset<Overrides>",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetV8combined4with4nameACyxGAG_SSSgtF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "combined(with:name:)"
+          ],
+          "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIStubValidation",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIStubValidationO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIStubValidation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static func requireAllStubbed(_ selectors: [String]) throws",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIStubValidationO17requireAllStubbedyySaySSGKFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIStubValidation",
+            "requireAllStubbed(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIMissingStubError",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting18DIMissingStubErrorV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIMissingStubError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var description: String { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting18DIMissingStubErrorV11descriptionSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMissingStubError",
+            "description"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(selectors: [String])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting18DIMissingStubErrorV9selectorsACSaySSG_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIMissingStubError",
+            "init(selectors:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let selectors: [String]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting18DIMissingStubErrorV9selectorsSaySSGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMissingStubError",
+            "selectors"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIInteractionReport",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DIInteractionReportV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIInteractionReport"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var isSatisfied: Bool { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DIInteractionReportV11isSatisfiedSbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionReport",
+            "isSatisfied"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let missingCallCounts: [String : Int]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DIInteractionReportV17missingCallCountsSDySSSiGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionReport",
+            "missingCallCounts"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(missingStubSelectors: [String], missingCallCounts: [String : Int], unexpectedCallCounts: [String : Int])",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DIInteractionReportV20missingStubSelectors0E10CallCounts010unexpectedhI0ACSaySSG_SDySSSiGAHtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIInteractionReport",
+            "init(missingStubSelectors:missingCallCounts:unexpectedCallCounts:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let missingStubSelectors: [String]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DIInteractionReportV20missingStubSelectorsSaySSGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionReport",
+            "missingStubSelectors"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let unexpectedCallCounts: [String : Int]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DIInteractionReportV20unexpectedCallCountsSDySSSiGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionReport",
+            "unexpectedCallCounts"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DITestEffectProfile",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DITestEffectProfile"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let missingStub: DIEffectViolationPolicy",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV11missingStubAA23DIEffectViolationPolicyOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "missingStub"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(unexpectedCall: DIEffectViolationPolicy, missingStub: DIEffectViolationPolicy)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStubAcA23DIEffectViolationPolicyO_AGtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "init(unexpectedCall:missingStub:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let unexpectedCall: DIEffectViolationPolicy",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCallAA23DIEffectViolationPolicyOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "unexpectedCall"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static let strict: DITestEffectProfile",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV6strictACvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "strict"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "static let recording: DITestEffectProfile",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV9recordingACvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "recording"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "final class DIConcurrentValueBox<Value> where Value : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting20DIConcurrentValueBoxC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIConcurrentValueBox"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@discardableResult func update<Result>(_ body: @Sendable (inout Value) throws -> Result) rethrows -> Result where Result : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting20DIConcurrentValueBoxC6updateyqd__qd__xzYbKXEKs8SendableRd__lF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentValueBox",
+            "update(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              },
+              {
+                "kind": "conformance",
+                "lhs": "Result",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              },
+              {
+                "depth": 1,
+                "index": 0,
+                "name": "Result"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func replace(with value: Value)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting20DIConcurrentValueBoxC7replace4withyx_tF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentValueBox",
+            "replace(with:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func snapshot() -> Value",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting20DIConcurrentValueBoxC8snapshotxyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentValueBox",
+            "snapshot()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(_ value: Value)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting20DIConcurrentValueBoxCyACyxGxcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIConcurrentValueBox",
+            "init(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIEffectViolationPolicy",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting23DIEffectViolationPolicyO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIEffectViolationPolicy"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case fail",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting23DIEffectViolationPolicyO4failyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIEffectViolationPolicy",
+            "fail"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "case record",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting23DIEffectViolationPolicyO6recordyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIEffectViolationPolicy",
+            "record"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "enum DIInteractionValidation",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting23DIInteractionValidationO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIInteractionValidation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@discardableResult static func validate(missingStubSelectors: [String] = [], recordedCallCounts: [String : Int], expectedCallCounts: [String : Int], profile: DITestEffectProfile = .strict) throws -> DIInteractionReport",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting23DIInteractionValidationO8validate20missingStubSelectors18recordedCallCounts08expectedjK07profileAA0C6ReportVSaySSG_SDySSSiGAlA19DITestEffectProfileVtKFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIInteractionValidation",
+            "validate(missingStubSelectors:recordedCallCounts:expectedCallCounts:profile:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "final class DIConcurrentCallRecorder<Call> where Call : Sendable",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct Entry",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "Entry"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let call: Call",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV4callxvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "Entry",
+            "call"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(sequence: UInt64, call: Call)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV8sequence4callAEyx_Gs6UInt64V_xtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "Entry",
+            "init(sequence:call:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let sequence: UInt64",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV8sequences6UInt64Vvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "Entry",
+            "sequence"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var count: Int { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5countSivp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "count"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func reset()",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5resetyyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "reset()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "@discardableResult func record(_ call: Call) -> UInt64",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC6recordys6UInt64VxF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "record(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "func snapshot() -> [Entry]",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC8snapshotSayAC5EntryVyx_GGyF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "snapshot()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init()",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting24DIConcurrentCallRecorderCACyxGycfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIConcurrentCallRecorder",
+            "init()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Call",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Call"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIInteractionViolationError",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting27DIInteractionViolationErrorV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIInteractionViolationError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var description: String { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting27DIInteractionViolationErrorV11descriptionSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionViolationError",
+            "description"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let report: DIInteractionReport",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAA0C6ReportVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionViolationError",
+            "report"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(report: DIInteractionReport)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAcA0C6ReportV_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIInteractionViolationError",
+            "init(report:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "struct DIInteractionConfigurationError",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIInteractionConfigurationError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "var description: String { get }",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV11descriptionSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionConfigurationError",
+            "description"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "init(selector: String)",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV8selectorACSS_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIInteractionConfigurationError",
+            "init(selector:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declaration": "let selector: String",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV8selectorSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIInteractionConfigurationError",
+            "selector"
+          ]
+        }
+      ]
     }
   ],
   "schemaVersion": 2

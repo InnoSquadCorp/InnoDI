@@ -1,4 +1,5 @@
 import InnoDI
+import InnoDITesting
 import ShadowKit
 
 @GenerateMock
@@ -6,12 +7,67 @@ protocol Greeter {
     func greet(name: String) -> String
 }
 
+@GenerateMock
+protocol SharedGreeter: Sendable {
+    func greet(value: Int) -> Int
+    func load(value: Int) throws(SharedFailure) -> Int
+}
+
+enum SharedFailure: Error { case unavailable }
+
+@MainActor
+@GenerateMock
+protocol ScreenAPI {
+    var title: String { get set }
+}
+
 @main
 struct FixtureApp {
-    static func main() {
+    @MainActor
+    static func main() async {
         let _: ShadowKit.Swift = .init()
         let mock = GreeterMock()
         mock.greetReturnValue = "Hello"
         precondition(mock.greet(name: "InnoDI") == "Hello")
+
+        let shared = SharedGreeterMock()
+        shared.greetReturnValue = 1
+        precondition(shared.missingStubSelectors == ["load"])
+        do {
+            try DIStubValidation.requireAllStubbed(shared.missingStubSelectors)
+            preconditionFailure("typed missing-stub preflight unexpectedly passed")
+        } catch let error as DIMissingStubError {
+            precondition(error.selectors == ["load"])
+        } catch {
+            preconditionFailure("unexpected missing-stub error: \(error)")
+        }
+        shared.loadResult = .failure(.unavailable)
+        do {
+            _ = try shared.load(value: 0)
+            preconditionFailure("typed failure unexpectedly succeeded")
+        } catch {
+            switch error {
+            case .unavailable:
+                break
+            }
+        }
+        shared.loadResult = .success(7)
+        precondition(try! shared.load(value: 1) == 7)
+        await withTaskGroup(of: Void.self) { group in
+            for value in 0..<100 {
+                group.addTask {
+                    precondition(shared.greet(value: value) == 1)
+                }
+            }
+        }
+        precondition(shared.greetCalls.count == 100)
+        try! DIInteractionValidation.validate(
+            recordedCallCounts: shared.recordedCallCounts,
+            expectedCallCounts: ["greet": 100, "load": 2]
+        )
+
+        let screen = ScreenAPIMock()
+        screen.title = "Preview"
+        precondition(screen.title == "Preview")
     }
 }

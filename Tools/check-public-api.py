@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA_VERSION = 2
-PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI")
+PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
     "docComment",

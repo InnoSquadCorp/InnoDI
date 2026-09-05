@@ -29,6 +29,7 @@ struct CoverageFloorContractTests {
             "InnoDIMacros",
             "InnoDIMigrationCore",
             "InnoDISwiftUI",
+            "InnoDITesting",
             "InnoDIWorkspaceAnalysis",
         ])
 

@@ -46,6 +46,8 @@ InnoDI는 DI wiring을 명시적이고 리뷰 가능한 상태로 유지하면�
 - 매크로 검증이 로컬 실수를 확장 시점에 잡습니다.
 - build validation과 graph CLI가 cross-file, cross-module, global graph 문제를 잡습니다.
 - `InnoDISwiftUI`가 루트 경계의 반복적인 environment wiring을 줄여줍니다.
+- `InnoDITesting`이 테스트·프리뷰 target에 동시성 안전 mock 저장소,
+  interaction 검증, typed override preset을 선택적으로 제공합니다.
 
 InnoDI는 runtime state machine이 아닙니다. 런타임 상태는 앱 레이어나
 `InnoFlow`, `InnoRouter`, `InnoNetwork` 같은 companion framework에 두는
@@ -166,6 +168,10 @@ SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
     ]
 )
 ```
+
+생성된 `Sendable` mock, 재사용 override preset, strict interaction 검증이 필요한
+테스트 또는 프리뷰 지원 target에만 `InnoDITesting`을 추가하세요. 이 product는
+`InnoDI`에만 의존하며 Swift Testing이나 SwiftSyntax에는 의존하지 않습니다.
 
 InnoDI 컨테이너 또는 standalone `@DIEnvironmentBridge`를 선언하는 모든 target에
 build-time validation plugin을 연결합니다. 이는 선택적인 graph 시각화 단계가

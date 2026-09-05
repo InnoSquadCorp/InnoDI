@@ -33,8 +33,15 @@ public struct GenerateMockMacro: PeerMacro {
         }
 
         let mockTypeName = "\(protocolDecl.name.text)Mock"
+        let isMainActor = findStandardMainActorAttribute(
+            in: protocolDecl.attributes
+        ) != nil
+        let isSendable = inheritsSendable(protocolDecl)
+        let usesConcurrentStorage = isSendable && !isMainActor
         var bodyLines: [String] = []
         var unsupportedMembers: [String] = []
+        var missingStubExpressions: [String] = []
+        var recordedCallCountExpressions: [String] = []
         var usesNotStubbedError = false
         if let isolation = unsupportedMockIsolation(in: protocolDecl.attributes) {
             unsupportedMembers.append(isolation)
@@ -62,15 +69,25 @@ public struct GenerateMockMacro: PeerMacro {
                 functionIndex += 1
                 if let rendered = renderFunctionMock(
                     function: function,
-                    names: names
+                    names: names,
+                    concurrent: usesConcurrentStorage
                 ) {
                     bodyLines.append(rendered.snippet)
                     usesNotStubbedError = usesNotStubbedError || rendered.usesNotStubbedError
+                    if let expression = rendered.missingStubExpression {
+                        missingStubExpressions.append(expression)
+                    }
+                    recordedCallCountExpressions.append(
+                        rendered.recordedCallCountExpression
+                    )
                 } else {
                     unsupportedMembers.append(function.name.text)
                 }
             } else if let variable = member.decl.as(VariableDeclSyntax.self) {
-                if let snippet = renderVariableMock(variable: variable) {
+                if let snippet = renderVariableMock(
+                    variable: variable,
+                    concurrent: usesConcurrentStorage
+                ) {
                     bodyLines.append(snippet)
                 } else {
                     unsupportedMembers.append(
@@ -80,6 +97,24 @@ public struct GenerateMockMacro: PeerMacro {
             } else {
                 unsupportedMembers.append(unsupportedMemberName(member.decl))
             }
+        }
+
+        let declaredPropertyNames = Set(
+            protocolDecl.memberBlock.members
+                .compactMap { $0.decl.as(VariableDeclSyntax.self) }
+                .flatMap { variable in
+                    variable.bindings.compactMap {
+                        $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                    }
+                }
+        )
+        if !recordedCallCountExpressions.isEmpty,
+           declaredPropertyNames.contains("recordedCallCounts") {
+            unsupportedMembers.append("recordedCallCounts generated-helper collision")
+        }
+        if !missingStubExpressions.isEmpty,
+           declaredPropertyNames.contains("missingStubSelectors") {
+            unsupportedMembers.append("missingStubSelectors generated-helper collision")
         }
 
         if !unsupportedMembers.isEmpty {
@@ -106,6 +141,32 @@ public struct GenerateMockMacro: PeerMacro {
                 at: 0
             )
         }
+        if !missingStubExpressions.isEmpty {
+            let expressions = missingStubExpressions.joined(separator: ",\n            ")
+            bodyLines.append(
+                """
+                    var missingStubSelectors: [String] {
+                        [
+                            \(expressions)
+                        ].compactMap { $0 }
+                    }
+                """
+            )
+        }
+        if !recordedCallCountExpressions.isEmpty {
+            let expressions = recordedCallCountExpressions.joined(
+                separator: ",\n            "
+            )
+            bodyLines.append(
+                """
+                    var recordedCallCounts: [String: Int] {
+                        [
+                            \(expressions)
+                        ]
+                    }
+                """
+            )
+        }
 
         let bodyJoined = bodyLines.joined(separator: "\n\n")
         let renderedBody: String
@@ -116,9 +177,10 @@ public struct GenerateMockMacro: PeerMacro {
         }
 
         let accessPrefix = mockTypeAccessPrefix(for: protocolDecl)
+        let isolationPrefix = isMainActor ? "@MainActor\n" : ""
         let mockDecl: DeclSyntax = """
         /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
-        \(raw: accessPrefix)final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
+        \(raw: isolationPrefix)\(raw: accessPrefix)final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
             init() {}
 
         \(raw: renderedBody)
@@ -135,19 +197,24 @@ private func unsupportedMockInheritance(
         return []
     }
     return inheritanceClause.inheritedTypes.compactMap { inherited in
-        guard inheritedTypeBaseName(inherited.type) != "AnyObject" else {
+        guard !["AnyObject", "Sendable"].contains(
+            inheritedTypeBaseName(inherited.type)
+        ) else {
             return nil
         }
         return "\(inherited.type.trimmedDescription) inheritance"
     }
 }
 
+private func inheritsSendable(_ protocolDecl: ProtocolDeclSyntax) -> Bool {
+    protocolDecl.inheritanceClause?.inheritedTypes.contains {
+        inheritedTypeBaseName($0.type) == "Sendable"
+    } == true
+}
+
 func unsupportedMockIsolation(
     in attributes: AttributeListSyntax?
 ) -> String? {
-    if findStandardMainActorAttribute(in: attributes) != nil {
-        return "@MainActor isolation"
-    }
     if let actorName = detectConflictingGlobalActor(in: attributes) {
         return "@\(actorName) isolation"
     }

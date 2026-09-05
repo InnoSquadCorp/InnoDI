@@ -3,7 +3,7 @@ import Testing
 
 @Suite("Public API baseline contracts")
 struct PublicAPIContractTests {
-    @Test("Baseline covers source-authored API for both library products")
+    @Test("Baseline covers source-authored API for every public library product")
     func baselineScope() throws {
         let baselineURL = packageRootURL()
             .appendingPathComponent("Tools/public-api-baseline.json")
@@ -19,6 +19,7 @@ struct PublicAPIContractTests {
             graphNames == [
                 "InnoDI.symbols.json",
                 "InnoDISwiftUI.symbols.json",
+                "InnoDITesting.symbols.json",
             ]
         )
 
@@ -35,6 +36,26 @@ struct PublicAPIContractTests {
                 return false
             }
             return precise.contains("InnoDISwift")
+        })
+
+        let testingGraph = try #require(
+            graphs.first { $0["file"] as? String == "InnoDITesting.symbols.json" }
+        )
+        let testingSymbols = try #require(
+            testingGraph["symbols"] as? [[String: Any]]
+        )
+        #expect(!testingSymbols.isEmpty)
+        #expect(testingSymbols.allSatisfy { symbol in
+            guard let identifier = symbol["identifier"] as? [String: Any],
+                  let precise = identifier["precise"] as? String else {
+                return false
+            }
+            return precise.contains("InnoDITesting")
+        })
+        #expect(testingSymbols.allSatisfy { symbol in
+            symbol["declaration"] is String
+                && symbol["declarationFragments"] == nil
+                && symbol["functionSignature"] == nil
         })
         #expect(swiftUISymbols.allSatisfy { symbol in
             symbol["declaration"] is String
