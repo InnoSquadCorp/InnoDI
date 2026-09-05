@@ -416,7 +416,13 @@ package func discoverWorkspaceSourceFiles(rootPath: String) throws -> [String] {
         let relativePath = String(itemPath.dropFirst(rootPrefix.count))
 
         if workspacePathShouldPruneDescendants(relativePath) {
-            enumerator.skipDescendants()
+            var isDirectory = ObjCBool(false)
+            if fileManager.fileExists(
+                atPath: itemURL.path(percentEncoded: false),
+                isDirectory: &isDirectory
+            ), isDirectory.boolValue {
+                enumerator.skipDescendants()
+            }
             continue
         }
         guard relativePath.hasSuffix(".swift") else { continue }

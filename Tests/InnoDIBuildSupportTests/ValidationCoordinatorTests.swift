@@ -240,6 +240,37 @@ struct ValidationCoordinatorTests {
         #expect(files == ["Sources/AppSource.swift"])
     }
 
+    @Test("Workspace discovery does not prune siblings after skipped files")
+    func workspaceDiscoveryDoesNotPruneSiblingsAfterSkippedFiles() throws {
+        let rootURL = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try "ignored\n".write(
+            to: rootURL.appendingPathComponent(".gitignore"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let sourceDirectory = rootURL.appendingPathComponent(
+            "Sources",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: sourceDirectory,
+            withIntermediateDirectories: true
+        )
+        try "struct AppSource {}\n".write(
+            to: sourceDirectory.appendingPathComponent("AppSource.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let files = try discoverWorkspaceSourceFiles(
+            rootPath: rootURL.path(percentEncoded: false)
+        )
+
+        #expect(files == ["Sources/AppSource.swift"])
+    }
+
     @Test("External workspace relative paths include a stable full-path discriminator")
     func externalWorkspaceRelativePathsAreCollisionResistant() throws {
         let rootURL = try makeTemporaryRoot()
