@@ -336,5 +336,47 @@ private func validateAssistedFactoryContract(
         )
         return true
     }
+    let factoryAccess = declaredAccessLevel(factoryEntry.0.modifiers)
+    let narrowestBridgeAccess = model.inputMembers
+        .map(\.accessLevel)
+        .reduce(model.accessLevel) { current, candidate in
+            accessRank(candidate) < accessRank(current) ? candidate : current
+        }
+    if accessRank(factoryAccess) > accessRank(narrowestBridgeAccess) {
+        context.emit(
+            SimpleDiagnostic.assistedFactoryAccessLevelMismatch(
+                factoryAccess: displayedAccessLevel(factoryAccess),
+                bridgeAccess: displayedAccessLevel(narrowestBridgeAccess)
+            ),
+            at: Syntax(factoryEntry.1)
+        )
+        return true
+    }
     return false
+}
+
+private func declaredAccessLevel(
+    _ modifiers: DeclModifierListSyntax
+) -> String? {
+    modifiers.first { modifier in
+        ["open", "public", "package", "internal", "fileprivate", "private"]
+            .contains(modifier.name.text)
+    }.map { modifier in
+        modifier.name.text == "open" ? "public" : modifier.name.text
+    }
+}
+
+private func displayedAccessLevel(_ access: String?) -> String {
+    access ?? "internal"
+}
+
+private func accessRank(_ access: String?) -> Int {
+    switch access {
+    case "public": 4
+    case "package": 3
+    case nil, "internal": 2
+    case "fileprivate": 1
+    case "private": 0
+    default: 2
+    }
 }

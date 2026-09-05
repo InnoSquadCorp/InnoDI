@@ -1,0 +1,25 @@
+import InnoDI
+
+struct Repository {}
+
+struct Unrelated {
+    var repository: Repository
+}
+
+@DIContainer
+struct Child {
+    @Input var repository: Repository
+    @Input(.assisted) var sessionID: Int
+
+    @AssistedFactory(
+        Child.self,
+        static: [\Unrelated.repository],
+        assisted: [\Child.sessionID]
+    )
+    struct AssistedFactory {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

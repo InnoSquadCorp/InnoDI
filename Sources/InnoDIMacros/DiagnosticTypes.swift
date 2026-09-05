@@ -66,6 +66,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case assistedFactoryInvalidArguments = "assisted-factory.invalid-arguments"
     case assistedFactoryDuplicateInput = "assisted-factory.duplicate-input"
     case assistedFactoryInputPartitionMismatch = "assisted-factory.input-partition-mismatch"
+    case assistedFactoryAccessLevelMismatch = "assisted-factory.access-level-mismatch"
     case multibindingInvalidContributors = "multibinding.invalid-contributors"
     case multibindingEmptyContributors = "multibinding.empty-contributors"
     case multibindingDuplicateContributor = "multibinding.duplicate-contributor"
@@ -197,6 +198,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .assistedFactoryMissingDeclaration,
                 .assistedFactoryDuplicateInput,
                 .assistedFactoryInputPartitionMismatch,
+                .assistedFactoryAccessLevelMismatch,
                 .multibindingEmptyContributors,
                 .multibindingDuplicateContributor,
                 .multibindingCollectionTypeRequired,

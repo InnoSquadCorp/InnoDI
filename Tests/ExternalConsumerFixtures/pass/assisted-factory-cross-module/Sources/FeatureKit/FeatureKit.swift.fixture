@@ -10,8 +10,8 @@ public final class InstanceToken {
 
 @DIContainer
 public struct TrainingContainer {
-    @Input public var repository: TrainingRepository
     @Input(.assisted) public var routineID: Int
+    @Input public var repository: TrainingRepository
     @Provide(.shared, factory: InstanceToken()) public var token: InstanceToken
 
     @AssistedFactory(

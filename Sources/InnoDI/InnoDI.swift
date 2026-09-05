@@ -114,7 +114,8 @@ public macro DIContainerRole(
 /// Declare an empty nested `AssistedFactory` inside a container that has at
 /// least one `@Input(.assisted)` member. Keeping the nested type declaration
 /// in source makes it visible to parents in another file of the same target;
-/// the macro supplies its static-input storage, initializer, and typed call.
+/// the container and factory macros cooperatively supply its static-input
+/// storage, initializer, and typed call while preserving source input order.
 public macro AssistedFactory(
     _ child: Any.Type,
     static staticInputs: [AnyKeyPath],
@@ -122,6 +123,19 @@ public macro AssistedFactory(
 ) = #externalMacro(
     module: "InnoDIMacros",
     type: "AssistedFactoryMacro"
+)
+
+@_documentation(visibility: internal)
+@attached(member, names: arbitrary)
+/// Compiler support carrying child-input metadata from `@DIContainer` to its
+/// nested `@AssistedFactory`. Application code must not attach this macro.
+public macro _InnoDIAssistedFactoryMetadata(
+    order: [String],
+    escaping: [String],
+    mainActor: Bool
+) = #externalMacro(
+    module: "InnoDIMacros",
+    type: "InnoDIAssistedFactoryMetadataMacro"
 )
 
 @_spi(Experimental)

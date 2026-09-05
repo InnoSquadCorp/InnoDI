@@ -23,6 +23,8 @@ text may be refined between releases without changing the ID.
   the static and assisted lists.
 - `assisted-factory.input-partition-mismatch`: the factory lists omit,
   misclassify, or add an input compared with the child declaration.
+- `assisted-factory.access-level-mismatch`: the factory is more visible than
+  its child container or at least one child input bridge.
 
 ## Multibinding diagnostics
 

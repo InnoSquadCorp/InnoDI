@@ -539,6 +539,9 @@ struct DIContainerParser {
                 sourceOrder: sourceOrder,
                 name: memberName,
                 type: validatedBinding.typeAnnotation.type,
+                accessLevel: declarationAccessLevel(
+                    for: variable.modifiers
+                ),
                 scope: scope,
                 inputKind: arguments.inputKind,
                 isMultibinding: arguments.isMultibinding,
@@ -827,7 +830,12 @@ private func diagnoseInvalidContainerArguments(
 }
 
 private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {
-    let modifiers = decl.modifiers
+    declarationAccessLevel(for: decl.modifiers)
+}
+
+private func declarationAccessLevel(
+    for modifiers: DeclModifierListSyntax
+) -> String? {
     if modifiers.isEmpty {
         return nil
     }

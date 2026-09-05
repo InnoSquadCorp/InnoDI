@@ -3,6 +3,7 @@ import InnoDI
 @DIContainer(mainActor: true)
 struct AppContainer {
     @Input var repository: Repository
+    @Input(escaping: true) var callback: Callback
 
     @SubContainerFactory(
         SessionContainer.self,
@@ -10,6 +11,10 @@ struct AppContainer {
             (
                 child: \SessionContainer.repository,
                 parent: \AppContainer.repository
+            ),
+            (
+                child: \SessionContainer.callback,
+                parent: \AppContainer.callback
             ),
         ]
     )
