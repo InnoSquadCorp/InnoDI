@@ -244,10 +244,21 @@ standalone release assets.
   behavior, contributor order, and overrides. The superseded underscored SPI
   has been removed after public consumer migration.
 - Verified the public RFC 0006 runtime and SwiftUI host pilot in InnoSample
-  commit `db90dafa5e52ed37f96ead3b632aa16b45cf5ac5` against InnoDI
-  `eaee869c4518fd2cd102e6ec750a05cde16c50ac`. The People route passes the
+  commit `f53510b` against validated InnoDI code candidate
+  `28a95a5b146de6f79668e53156cece9aea3fa8c0`. The People route passes the
   consumer's full Xcode 27 gate, proves per-child shared-state isolation plus
   overrides, and replaces its manual state wrapper with `DIContainerHost`.
+- Added two more committed consumer pilots against that code candidate. BlPia
+  `787f419` passes Doctor over 160 Swift files, an unchanged second migration
+  pass, DAG validation, 10 test schemes, and a generic iOS/watch build. Lynceus
+  `61d3df4` passes Doctor over 81 Swift files, an unchanged second pass, a real
+  two-container full-root DAG, 41 tests, and its macOS build. Mulbyul was tested
+  without source changes and is deliberately not counted as a committed pilot.
+- Hardened migration and workspace analysis from real-consumer evidence:
+  ambiguous unqualified 6.0 vocabulary now fails closed (`dc34d14`), Doctor
+  recognizes direct Tuist package workspaces (`ac1124b`), and skipped hidden
+  files no longer suppress following source siblings during full-root graph
+  discovery (`28a95a5`).
 - Hardened Xcode 27 / Swift 6.4 release preparation: external-consumer
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of

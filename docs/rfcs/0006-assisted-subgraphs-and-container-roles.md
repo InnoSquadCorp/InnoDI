@@ -55,24 +55,26 @@ As of 2026-09-05:
 
 ### Exact consumer adoption snapshot
 
-The 6.0 candidate is `eaee869c4518fd2cd102e6ec750a05cde16c50ac`.
-`InnoDI-Doctor` analyzed the actual Swift/Tuist layouts and the consumer builds
-resolved that exact revision. A read-only Doctor result is configuration
-evidence; it is not by itself a runtime pilot.
+The validated 6.0 code candidate is
+`28a95a5b146de6f79668e53156cece9aea3fa8c0`. `InnoDI-Doctor` analyzed the
+actual Swift/Tuist layouts and the three committed consumer pilots resolved
+that exact revision. A read-only Doctor result is configuration evidence; it
+is not by itself a runtime pilot.
 
 | Consumer | Consumer state | Exact candidate evidence | Result |
 |---|---|---|---|
-| InnoSample | committed and pushed `db90dafa5e52ed37f96ead3b632aa16b45cf5ac5` | Doctor: 178 Swift files, 0 diagnostics/changes; DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory and `DIContainerHost` pilot verified locally. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. |
-| Mulbyul Apple | clean isolated worktree from `092ff9514695ceae5cfd490388e017fac331e30a`; original checkout preserved with user changes | 481 Swift files including copied ignored generated inputs, 0 migration changes; DAG; `Layers` macOS test; generic iOS app including watch build | Exact-revision source/build compatibility verified. The ignored generated sources were copied only to reproduce the existing Tuist input boundary. Doctor reports `doctor.plugin.missing`, and no committed runtime feature pilot was made, so this does not satisfy the second adopter promotion gate. |
-| BlPia Apple | isolated worktree from local committed `65850a6efb1c7c36302127bface39249a0cb878d`; original checkout and its divergence from `origin/main` preserved | 159 Swift files, 0 migration changes; DAG; generic iOS app build | The former seven legacy ownership blockers are resolved and the production graph builds. Doctor still reports `doctor.plugin.missing`; `LayersTests` stops on pre-existing missing `URLSessionProtocol`/`fetchTodosUseCase` test contracts, so the isolated proof is not counted as committed adoption. |
+| InnoSample | committed and pushed on main as `f53510b` | DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory and `DIContainerHost` pilot verified. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. The official `make verify-ci` passes; the broader non-CI app-test target still contains pre-existing stale coordinator/actor test code. |
+| BlPia Apple | committed and pushed branch pilot `787f419`; original dirty checkout preserved | Doctor: 160 Swift files, 0 diagnostics/changes; unchanged second pass; DAG; 10 test schemes; generic iOS and embedded watch build | A feature-root graph resolve now owns shared session state and an integration test proves onboarding-to-dashboard propagation. This is a committed adopter vote. |
+| Lynceus | committed and pushed branch pilot `61d3df4`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
+| Mulbyul Apple | original checkout and user changes preserved; no source commit or migration applied | Earlier isolated source/build compatibility tests only | User explicitly limited Mulbyul to testing without changes. It is not pinned to the final code candidate and is not counted as a committed adopter vote. |
 
 The original SPI pilot exposed same-target visibility and initializer-access
 gaps rather than hiding them. The public source-visible nested bridge passes
 the separate-file same-target `@MainActor` fixture and strict cross-module
 parent fixture. Whole-source validation rejects missing, duplicate, unknown,
 assisted-as-static, and public access-level mismatch contracts at the source
-declaration. The two dirty consumer repositories remain explicit adoption
-work, rather than being silently counted as successful pilots.
+declaration. The Mulbyul checkout remains explicit test-only evidence rather
+than being silently counted as a successful pilot.
 
 ## Problem definition
 
@@ -416,13 +418,14 @@ conflation that makes assisted inputs hard to explain and extend.
   shared/transient lifetime behavior, injection, and overrides. The
   underscored SPI was removed after the public path replaced it.
 - Pilot one InnoSample flow. The assisted factory and container-host migration
-  completed at consumer commit `db90daf` against InnoDI `eaee869`; the full
+  completed at consumer commit `f53510b` against InnoDI `28a95a5`; the full
   local consumer gate and per-child lifetime assertions pass without an SPI
   import, local wrapper, or manual SwiftUI state owner.
 
 ### Later 5.x — adoption runway
 
-- Pilot Mulbyul and BlPia flows against an exact package revision.
+- Pilot BlPia and Lynceus flows against an exact package revision; retain
+  Mulbyul as read-only/test-only evidence unless its owner later changes scope.
 - Freeze names only after expansion, strict-concurrency, graph, and consumer
   fixtures pass.
 - Ship deprecations and the idempotent rewrite after the RFC is Accepted.
@@ -447,15 +450,15 @@ conflation that makes assisted inputs hard to explain and extend.
 - Keep `@Multibinding` as the explicit local array declaration. Keyed and
   provider collections plus cross-module composition are explicit runtime
   contracts; automatic discovery and `@IntoCollection` are out of scope.
-- Remaining adoption question: which Mulbyul and BlPia product-owned flows will
-  become the two committed pilots after command-plugin wiring is added?
+- The two additional committed adopter votes are BlPia `787f419` and Lynceus
+  `61d3df4`. Mulbyul remains outside the mutation scope by explicit user
+  direction.
 
 ## Review gate
 
-This RFC remains Draft until maintainers record two more committed pilot
-results with plugin wiring, approve the chosen public spellings, and complete
-the required review cooldown. Migration coverage, schema-v4 review, strict
-toolchain/platform gates, macro/runtime performance evidence, and the
-conforming-counterexample review are recorded on the candidate. InnoSample is
-the committed runtime/host pilot; isolated Mulbyul and BlPia builds are useful
-compatibility evidence but are not counted as adopter promotion votes.
+This RFC remains Draft until maintainers approve the chosen public spellings
+and complete the required promotion-review cooldown. Migration coverage,
+schema-v4 review, strict toolchain/platform gates, macro/runtime performance
+evidence, conforming-counterexample review, and three committed consumer
+pilots are recorded on the candidate. Mulbyul remains read-only/test-only
+compatibility evidence and is not counted as an adopter promotion vote.
