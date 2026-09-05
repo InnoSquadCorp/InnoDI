@@ -1,9 +1,9 @@
 # RFC 0006 — Assisted subgraphs and container roles
 
-- **Status**: Accepted
+- **Status**: Draft (promotion review)
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-03
-- **Last updated**: 2026-09-05
+- **Last updated**: 2026-09-06
 - **Target release**: Experimental groundwork in 5.2.x; stable contract in 6.0.0
 - **Supersedes in part**: RFC 0004 macro-consolidation candidates 1 and 3
 
@@ -14,7 +14,7 @@ missing composition boundary: a child graph whose framework-owned dependencies
 come from its parent but whose runtime values are supplied when the feature is
 entered.
 
-The accepted release-defining surface is an **assisted subgraph factory**. A
+The proposed release-defining surface is an **assisted subgraph factory**. A
 child container declares ordinary container inputs separately from assisted
 inputs. The child macro generates the complete factory call signature; a
 parent only provides the child's static dependency contract. This keeps the
@@ -131,10 +131,10 @@ rendering, generated dependency contracts, and hierarchy validation.
 - A minimum platform-version increase unless an accepted implementation
   requires one.
 
-## Accepted public vocabulary
+## Proposed public vocabulary
 
-The following spelling is the accepted 6.0 contract. The semantic roles and
-their source representation are frozen for the release candidate.
+The following spelling is the candidate 6.0 contract. Implementation and
+evidence freeze it for promotion review; formal RFC acceptance remains pending.
 
 ```swift
 public enum ContainerRole {
@@ -424,9 +424,10 @@ conflation that makes assisted inputs hard to explain and extend.
 
 - Pilot BlPia and Lynceus flows against an exact package revision; retain
   Mulbyul as read-only/test-only evidence unless its owner later changes scope.
-- Names were frozen after expansion, strict-concurrency, graph, and consumer
-  fixtures passed.
-- Ship deprecations and the idempotent rewrite from this Accepted contract.
+- The candidate spelling was frozen after expansion, strict-concurrency,
+  graph, and consumer fixtures passed; formal acceptance remains pending.
+- After acceptance, ship deprecations and the idempotent rewrite from this
+  contract.
 
 ### 6.0.0 — stable contract
 
@@ -434,7 +435,7 @@ conflation that makes assisted inputs hard to explain and extend.
 - Publish graph JSON v4 and the final migration guide.
 - Require exact-tag external consumer validation before publication.
 
-## Accepted decisions and adopter evidence
+## Candidate decisions and adopter evidence
 
 - Keep `@SubContainerFactory` separate from fixed `@SubContainer`; factory
   ownership and fixed child ownership remain distinct graph contracts.
@@ -454,10 +455,11 @@ conflation that makes assisted inputs hard to explain and extend.
 
 ## Acceptance gate
 
-Maintainers accepted the chosen public spellings after the dedicated promotion
-pull request completed its required seven-calendar-day review cooldown.
+Maintainers may accept the chosen public spellings only after the dedicated
+promotion pull request completes its seven-calendar-day review cooldown, no
+earlier than `2026-09-12T12:54:47Z`, and receives human maintainer approval.
 Migration coverage, schema-v4 review, strict toolchain/platform gates,
 macro/runtime performance evidence, conforming-counterexample review, and
-three committed consumer pilots are recorded on the candidate. Mulbyul remains
-read-only/test-only compatibility evidence and is not counted as an adopter
-promotion vote.
+three committed consumer pilots are recorded on the candidate; the acceptance
+gate remains pending. Mulbyul remains read-only/test-only compatibility
+evidence and is not counted as an adopter promotion vote.

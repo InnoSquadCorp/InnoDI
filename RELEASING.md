@@ -218,11 +218,12 @@ standalone release assets.
 
 ### Highlights
 
-- Accepted [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
-  after its dedicated promotion pull request completed the required
-  seven-calendar-day cooldown. Assisted child factories, input/lifetime
-  separation, container-role consolidation, and deterministic multibinding
-  are frozen after three committed consumer pilots and the final gates passed.
+- Prepared the [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
+  promotion candidate. Its implementation is frozen by three committed
+  consumer pilots and the completed technical gates, but formal RFC acceptance
+  remains pending until the dedicated promotion pull request completes its
+  cooldown no earlier than `2026-09-12T12:54:47Z` and receives human maintainer
+  approval. This entry does not approve the RFC or the release.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v4 JSON artifacts.
