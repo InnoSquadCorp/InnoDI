@@ -80,6 +80,17 @@ if [[ "$USES_SPLIT_TEST_BUNDLES" -eq 1 ]]; then
         fi
         COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
     done
+else
+    # SwiftPM's combined test bundle links executable products referenced by a
+    # test target. InnoDI-Doctor intentionally keeps its command-line shim out
+    # of InnoDIDoctorCoreTests, so add that instrumented object explicitly on
+    # toolchains that still produce the combined package test bundle.
+    BINARY="$BUILD_DIR/InnoDI-Doctor"
+    if [[ ! -x "$BINARY" ]]; then
+        echo "::error::coverage executable not found: $BINARY" >&2
+        exit 1
+    fi
+    COVERAGE_OBJECT_ARGUMENTS+=("-object" "$BINARY")
 fi
 
 echo "Using ${#XCTEST_BUNDLES[@]} test coverage bundle(s)"

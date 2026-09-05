@@ -118,7 +118,11 @@ struct CoverageFloorContractTests {
         #expect(coverageCollector.contains("InnoDI*Tests.xctest"))
         #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-DependencyGraph"))
         #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-Migrate"))
-        #expect(coverageCollector.contains("$BUILD_DIR/InnoDI-Doctor"))
+        #expect(
+            coverageCollector.components(
+                separatedBy: "$BUILD_DIR/InnoDI-Doctor"
+            ).count - 1 == 2
+        )
         #expect(
             coverageCollector.contains(
                 "COVERAGE_OBJECT_ARGUMENTS+=(\"-object\" \"$BINARY\")"
