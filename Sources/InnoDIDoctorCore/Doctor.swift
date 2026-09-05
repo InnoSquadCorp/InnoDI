@@ -71,18 +71,30 @@ public struct InnoDIDoctor: Sendable {
     public func run(root: URL, apply: Bool, verify: Bool) throws -> DoctorReport {
         let canonicalRoot = root.standardizedFileURL
         var diagnostics: [DoctorDiagnostic] = []
-        let manifestURL = canonicalRoot.appendingPathComponent("Package.swift")
+        let workspace = doctorWorkspace(at: canonicalRoot)
+        let manifestURL = workspace.manifestURL
         let manifest: String?
-        do {
-            manifest = try String(contentsOf: manifestURL, encoding: .utf8)
-        } catch {
+        if let manifestURL {
+            do {
+                manifest = try String(contentsOf: manifestURL, encoding: .utf8)
+            } catch {
+                manifest = nil
+                diagnostics.append(.init(
+                    id: "doctor.package-manifest.missing",
+                    severity: .error,
+                    path: workspace.manifestPath,
+                    message: "\(workspace.manifestPath ?? "Package.swift") could not be read.",
+                    recommendation: "Restore a readable UTF-8 package manifest before running the doctor."
+                ))
+            }
+        } else {
             manifest = nil
             diagnostics.append(.init(
                 id: "doctor.package-manifest.missing",
                 severity: .error,
                 path: "Package.swift",
-                message: "Package.swift could not be read.",
-                recommendation: "Run the doctor at a Swift package root."
+                message: "Neither Package.swift nor Tuist/Package.swift could be read.",
+                recommendation: "Run the doctor at a Swift package or Tuist workspace root."
             ))
         }
 
@@ -91,7 +103,7 @@ public struct InnoDIDoctor: Sendable {
                 diagnostics.append(.init(
                     id: "doctor.toolchain.minimum",
                     severity: .error,
-                    path: "Package.swift:1",
+                    path: "\(workspace.manifestPath ?? "Package.swift"):1",
                     message: "The package declares Swift tools \(version.0).\(version.1), below InnoDI 6.0's Swift 6.2 floor.",
                     recommendation: "Upgrade the package toolchain deliberately before adopting InnoDI 6.0."
                 ))
@@ -99,7 +111,7 @@ public struct InnoDIDoctor: Sendable {
                 diagnostics.append(.init(
                     id: "doctor.toolchain.unknown",
                     severity: .error,
-                    path: "Package.swift:1",
+                    path: "\(workspace.manifestPath ?? "Package.swift"):1",
                     message: "The swift-tools-version declaration is missing or malformed.",
                     recommendation: "Declare // swift-tools-version: 6.2 or newer."
                 ))
@@ -129,11 +141,15 @@ public struct InnoDIDoctor: Sendable {
         }
 
         let usesContainers = try sourceTreeContains("@DIContainer", root: canonicalRoot)
-        if usesContainers, manifest?.contains("InnoDIDAGValidationPlugin") != true {
+        let declaresPlugin = try sourceTreeContains(
+            "InnoDIDAGValidationPlugin",
+            root: canonicalRoot
+        )
+        if usesContainers, !declaresPlugin {
             diagnostics.append(.init(
                 id: "doctor.plugin.missing",
                 severity: .warning,
-                path: "Package.swift",
+                path: workspace.manifestPath ?? "Package.swift",
                 message: "@DIContainer sources were found but the DAG validation plugin is not declared.",
                 recommendation: "Attach InnoDIDAGValidationPlugin to each container-owning target."
             ))
@@ -160,11 +176,14 @@ public struct InnoDIDoctor: Sendable {
 
         let verification: DoctorVerification
         if verify {
-            let result = try runBuild(root: canonicalRoot)
+            let result = try runVerification(
+                root: canonicalRoot,
+                kind: workspace.verificationKind
+            )
             verification = .init(
-                status: result == 0 ? .passed : .failed,
-                command: "swift build",
-                exitCode: result
+                status: result.exitCode == 0 ? .passed : .failed,
+                command: result.command,
+                exitCode: result.exitCode
             )
         } else {
             verification = .init(status: .notRun, command: nil, exitCode: nil)
@@ -183,6 +202,48 @@ public struct InnoDIDoctor: Sendable {
             verification: verification
         )
     }
+}
+
+private enum DoctorVerificationKind {
+    case swiftPackage
+    case tuist
+}
+
+private struct DoctorWorkspace {
+    let manifestURL: URL?
+    let manifestPath: String?
+    let verificationKind: DoctorVerificationKind
+}
+
+private func doctorWorkspace(at root: URL) -> DoctorWorkspace {
+    let fileManager = FileManager.default
+    let packageURL = root.appendingPathComponent("Package.swift")
+    let tuistPackageURL = root.appendingPathComponent("Tuist/Package.swift")
+    let hasTuistWorkspace = fileManager.fileExists(
+        atPath: root.appendingPathComponent("Workspace.swift").path
+    ) || fileManager.fileExists(
+        atPath: root.appendingPathComponent("Project.swift").path
+    )
+
+    if fileManager.isReadableFile(atPath: packageURL.path) {
+        return DoctorWorkspace(
+            manifestURL: packageURL,
+            manifestPath: "Package.swift",
+            verificationKind: hasTuistWorkspace ? .tuist : .swiftPackage
+        )
+    }
+    if fileManager.isReadableFile(atPath: tuistPackageURL.path) {
+        return DoctorWorkspace(
+            manifestURL: tuistPackageURL,
+            manifestPath: "Tuist/Package.swift",
+            verificationKind: .tuist
+        )
+    }
+    return DoctorWorkspace(
+        manifestURL: nil,
+        manifestPath: nil,
+        verificationKind: hasTuistWorkspace ? .tuist : .swiftPackage
+    )
 }
 
 private struct DoctorGraphFingerprint {
@@ -275,14 +336,35 @@ private func sourceTreeContains(_ needle: String, root: URL) throws -> Bool {
     return false
 }
 
-private func runBuild(root: URL) throws -> Int32 {
+private struct DoctorVerificationResult {
+    let command: String
+    let exitCode: Int32
+}
+
+private func runVerification(
+    root: URL,
+    kind: DoctorVerificationKind
+) throws -> DoctorVerificationResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["swift", "build"]
+    let arguments: [String]
+    let command: String
+    switch kind {
+    case .swiftPackage:
+        arguments = ["swift", "build"]
+        command = "swift build"
+    case .tuist:
+        arguments = ["tuist", "generate", "--no-open"]
+        command = "tuist generate --no-open"
+    }
+    process.arguments = arguments
     process.currentDirectoryURL = root
     process.standardOutput = FileHandle.standardError
     process.standardError = FileHandle.standardError
     try process.run()
     process.waitUntilExit()
-    return process.terminationStatus
+    return DoctorVerificationResult(
+        command: command,
+        exitCode: process.terminationStatus
+    )
 }

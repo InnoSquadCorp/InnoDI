@@ -12,16 +12,19 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
+    "declaration",
     "docComment",
     "functionSignature",
     "location",
     "names",
 }
-VOLATILE_RELATIONSHIP_KEYS = {"targetFallback"}
+VOLATILE_RELATIONSHIP_KEYS = {"sourceOrigin", "targetFallback"}
+IMPLICIT_GENERIC_CONSTRAINTS = {"s:s8CopyableP", "s:s9EscapableP"}
+TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS = {"s:s16SendableMetatypeP"}
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -84,21 +87,27 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
         "precise": symbol["identifier"]["precise"],
         "interfaceLanguage": symbol["identifier"]["interfaceLanguage"],
     }
-    normalized["declaration"] = normalize_declaration_fragments(
-        symbol.get("declarationFragments", [])
-    )
+    if "swiftGenerics" in normalized:
+        normalized["swiftGenerics"] = normalize_generic_context(
+            normalized["swiftGenerics"]
+        )
+    if "swiftExtension" in normalized:
+        normalized["swiftExtension"] = normalize_generic_context(
+            normalized["swiftExtension"]
+        )
     return normalized
 
 
-def normalize_declaration_fragments(fragments: list[dict[str, Any]]) -> str:
-    declaration = "".join(fragment.get("spelling", "") for fragment in fragments)
-    declaration = re.sub(r"\s+", " ", declaration).strip()
-    # Swift 6.2/6.3 spell `Any.Type?` as `(any Any.Type)?` in symbol graphs;
-    # Swift 6.4 emits the source-equivalent compact form. Keep one contract.
-    return declaration.replace("(any Any.Type)?", "Any.Type?").replace(
-        "any Any.Type",
-        "Any.Type",
-    )
+def normalize_generic_context(context: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(context)
+    constraints = normalized.get("constraints")
+    if isinstance(constraints, list):
+        normalized["constraints"] = [
+            constraint
+            for constraint in constraints
+            if constraint.get("rhsPrecise") not in IMPLICIT_GENERIC_CONSTRAINTS
+        ]
+    return normalized
 
 
 def product_graph_paths(output_directory: Path, module: str) -> list[Path]:
@@ -114,11 +123,22 @@ def is_product_declaration(symbol: dict[str, Any], module: str) -> bool:
 
 
 def normalize_relationship(relationship: dict[str, Any]) -> dict[str, Any]:
-    return {
+    normalized = {
         key: value
         for key, value in relationship.items()
         if key not in VOLATILE_RELATIONSHIP_KEYS
     }
+    if "swiftConstraints" in normalized:
+        constraints = [
+            constraint
+            for constraint in normalized["swiftConstraints"]
+            if constraint.get("rhsPrecise") not in IMPLICIT_GENERIC_CONSTRAINTS
+        ]
+        if constraints:
+            normalized["swiftConstraints"] = constraints
+        else:
+            normalized.pop("swiftConstraints")
+    return normalized
 
 
 def normalize_product_graph(output_directory: Path, module: str) -> dict[str, Any]:
@@ -145,6 +165,8 @@ def normalize_product_graph(output_directory: Path, module: str) -> dict[str, An
     for payload in payloads:
         for relationship in payload.get("relationships", []):
             if relationship.get("source") not in symbol_identifiers:
+                continue
+            if relationship.get("target") in TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS:
                 continue
             normalized = normalize_relationship(relationship)
             identity = json.dumps(normalized, sort_keys=True, separators=(",", ":"))

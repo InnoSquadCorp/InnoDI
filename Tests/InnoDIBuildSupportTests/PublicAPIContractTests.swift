@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 2)
+        #expect(payload["schemaVersion"] as? Int == 3)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
@@ -60,14 +60,23 @@ struct PublicAPIContractTests {
             return precise.contains("InnoDITesting")
         })
         #expect(testingSymbols.allSatisfy { symbol in
-            symbol["declaration"] is String
+            symbol["declaration"] == nil
                 && symbol["declarationFragments"] == nil
                 && symbol["functionSignature"] == nil
         })
         #expect(swiftUISymbols.allSatisfy { symbol in
-            symbol["declaration"] is String
+            symbol["declaration"] == nil
                 && symbol["declarationFragments"] == nil
                 && symbol["functionSignature"] == nil
+        })
+        #expect(graphs.allSatisfy { graph in
+            guard let relationships = graph["relationships"] as? [[String: Any]] else {
+                return false
+            }
+            return relationships.allSatisfy { relationship in
+                relationship["sourceOrigin"] == nil
+                    && relationship["target"] as? String != "s:s16SendableMetatypeP"
+            }
         })
     }
 

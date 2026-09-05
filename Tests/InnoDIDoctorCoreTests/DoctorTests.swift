@@ -72,6 +72,46 @@ struct DoctorTests {
         #expect(report.isHealthy)
     }
 
+    @Test("Tuist workspaces use the nested dependency manifest and project plugin declaration")
+    func diagnosesTuistWorkspace() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "innodi-doctor-tuist-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        let sources = root.appendingPathComponent("Sources/App", isDirectory: true)
+        let tuist = root.appendingPathComponent("Tuist", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: sources,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: tuist,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try Data("// workspace marker\n".utf8).write(
+            to: root.appendingPathComponent("Workspace.swift")
+        )
+        try Data("// InnoDIDAGValidationPlugin\n".utf8).write(
+            to: root.appendingPathComponent("Project.swift")
+        )
+        try Data("// swift-tools-version: 6.2\nimport PackageDescription\n".utf8).write(
+            to: tuist.appendingPathComponent("Package.swift")
+        )
+        try Data("import InnoDI\n@DIContainer struct App {}\n".utf8).write(
+            to: sources.appendingPathComponent("App.swift")
+        )
+
+        let report = try InnoDIDoctor().inspect(root: root)
+
+        #expect(!report.diagnostics.map(\.id).contains("doctor.package-manifest.missing"))
+        #expect(!report.diagnostics.map(\.id).contains("doctor.plugin.missing"))
+        #expect(report.scannedSwiftFileCount == 4)
+        #expect(report.isHealthy)
+    }
+
     @Test("CLI validates arguments and supports text and JSON diagnosis")
     func cliContracts() throws {
         #expect(DoctorCLI.run(arguments: ["--help"]) == 0)
