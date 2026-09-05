@@ -53,6 +53,101 @@ struct ReleaseCandidateScriptTests {
         #expect(result.exitCode == 0)
     }
 
+    @Test("6.x release requires RFC 0006 to be accepted")
+    func acceptedRFC0006IsRequired() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode == 0)
+        #expect(result.output.contains("Release candidate metadata validated"))
+    }
+
+    @Test("6.x release rejects a pending RFC 0006 document")
+    func pendingRFC0006DocumentIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+        try fixture.writeRFC0006(
+            status: "Draft (promotion review)",
+            indexStatus: "Accepted"
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(
+            result.output.contains(
+                "requires RFC 0006 to contain exactly one authoritative"
+            )
+        )
+    }
+
+    @Test("6.x release rejects a pending RFC 0006 index row")
+    func pendingRFC0006IndexRowIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+        try fixture.writeRFC0006(
+            status: "Accepted",
+            indexStatus: "Draft (promotion review)"
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(
+            result.output.contains(
+                "requires the RFC index to contain exactly one Accepted RFC 0006 row"
+            )
+        )
+    }
+
+    @Test("6.x release rejects a duplicate RFC 0006 status")
+    func duplicateRFC0006StatusIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+        try fixture.appendRFC0006Status("Accepted")
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(
+            result.output.contains(
+                "requires RFC 0006 to contain exactly one authoritative"
+            )
+        )
+    }
+
+    @Test("6.x release rejects a missing RFC 0006 document")
+    func missingRFC0006DocumentIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+        try FileManager.default.removeItem(
+            at: fixture.rootURL.appendingPathComponent(
+                "docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"
+            )
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("6.x release requires RFC 0006:"))
+    }
+
+    @Test("6.x release rejects a missing RFC index")
+    func missingRFCIndexIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+        try FileManager.default.removeItem(
+            at: fixture.rootURL.appendingPathComponent("docs/rfcs/README.md")
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("6.x release requires the RFC index:"))
+    }
+
     @Test(
         "Only stable unprefixed SemVer without leading zeroes is accepted",
         arguments: [
@@ -727,6 +822,13 @@ private struct ReleaseCandidateScriptFixture {
                 named: "Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md",
                 body: "## 4.x → \(Self.majorMinor(version))\n"
             )
+            if version.split(separator: ".").first == "6" {
+                try Self.writeRFC0006(
+                    at: rootURL,
+                    status: "Accepted",
+                    indexStatus: "Accepted"
+                )
+            }
 
             _ = try runCapturedCommand(
                 executable: "/usr/bin/env",
@@ -852,6 +954,23 @@ private struct ReleaseCandidateScriptFixture {
         try Self.writeMigrationGuide(at: rootURL, named: name, body: body)
     }
 
+    func writeRFC0006(status: String, indexStatus: String) throws {
+        try Self.writeRFC0006(
+            at: rootURL,
+            status: status,
+            indexStatus: indexStatus
+        )
+    }
+
+    func appendRFC0006Status(_ status: String) throws {
+        let rfcURL = rootURL.appendingPathComponent(
+            "docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"
+        )
+        var document = try String(contentsOf: rfcURL, encoding: .utf8)
+        document += "\n- **Status**: \(status)\n"
+        try document.write(to: rfcURL, atomically: true, encoding: .utf8)
+    }
+
     func convertReleasingToCRLF() throws {
         let releasingURL = rootURL.appendingPathComponent("RELEASING.md")
         let document = try String(contentsOf: releasingURL, encoding: .utf8)
@@ -970,6 +1089,41 @@ private struct ReleaseCandidateScriptFixture {
             withIntermediateDirectories: true
         )
         try body.write(to: guideURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func writeRFC0006(
+        at rootURL: URL,
+        status: String,
+        indexStatus: String
+    ) throws {
+        let rfcDirectory = rootURL
+            .appendingPathComponent("docs/rfcs", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: rfcDirectory,
+            withIntermediateDirectories: true
+        )
+        try """
+            # RFC 0006 — Assisted subgraphs and container roles
+
+            - **Status**: \(status)
+            """.write(
+                to: rfcDirectory.appendingPathComponent(
+                    "0006-assisted-subgraphs-and-container-roles.md"
+                ),
+                atomically: true,
+                encoding: .utf8
+            )
+        try """
+            # RFC index
+
+            | Number | Title | Status |
+            |---|---|---|
+            | 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | \(indexStatus) |
+            """.write(
+                to: rfcDirectory.appendingPathComponent("README.md"),
+                atomically: true,
+                encoding: .utf8
+            )
     }
 
     private static func majorMinor(_ version: String) -> String {

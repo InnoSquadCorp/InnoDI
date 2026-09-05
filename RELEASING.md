@@ -127,6 +127,9 @@ Before dispatching the `Release Gate` workflow:
     - update every installation reference in `README.md` and the six localized
       README variants to the exact version
     - leave exactly one matching release-notes section in this file
+    - for a 6.x release, record RFC 0006 as exactly `Accepted` in both the RFC
+      document and RFC index; the candidate validator rejects pending,
+      duplicated, missing, or inconsistent status records
 15. Push that final candidate to `main`, record its full 40-character commit
     SHA, and immediately dispatch `Release Gate` from `main` with the exact
     version and SHA. Do not create or push the release tag manually, and do not
@@ -224,6 +227,10 @@ standalone release assets.
   remains pending until the dedicated promotion pull request completes its
   cooldown no earlier than `2026-09-12T12:54:47Z` and receives human maintainer
   approval. This entry does not approve the RFC or the release.
+- Hardened the 6.x release-candidate validator so publication fails closed
+  unless RFC 0006 has exactly one `Accepted` status in both its authoritative
+  document and the RFC index. Pending, missing, duplicate, and inconsistent
+  records are covered by executable release-contract tests.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v4 JSON artifacts.

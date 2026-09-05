@@ -273,6 +273,47 @@ read -r \
 [[ "$UPGRADE_HAS_CONTENT" == "1" ]] || \
     fail "RELEASING.md subsection '### Upgrade Actions' must contain non-placeholder content"
 
+if [[ "${VERSION%%.*}" == "6" ]]; then
+    RFC_0006_FILE="$ROOT_DIR/docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"
+    RFC_INDEX_FILE="$ROOT_DIR/docs/rfcs/README.md"
+    [[ -f "$RFC_0006_FILE" ]] || \
+        fail "6.x release requires RFC 0006: docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"
+    [[ -f "$RFC_INDEX_FILE" ]] || \
+        fail "6.x release requires the RFC index: docs/rfcs/README.md"
+
+    read -r RFC_STATUS_COUNT RFC_ACCEPTED_STATUS_COUNT < <(
+        awk '
+            {
+                line = $0
+                sub(/\r$/, "", line)
+            }
+            line ~ /^- \*\*Status\*\*:/ { status_count++ }
+            line == "- **Status**: Accepted" { accepted_count++ }
+            END { print status_count + 0, accepted_count + 0 }
+        ' "$RFC_0006_FILE"
+    )
+    if [[ "$RFC_STATUS_COUNT" != "1" || "$RFC_ACCEPTED_STATUS_COUNT" != "1" ]]; then
+        fail "6.x release requires RFC 0006 to contain exactly one authoritative '- **Status**: Accepted' line"
+    fi
+
+    read -r RFC_INDEX_ROW_COUNT RFC_ACCEPTED_INDEX_ROW_COUNT < <(
+        awk '
+            {
+                line = $0
+                sub(/\r$/, "", line)
+            }
+            line ~ /^\| 0006 \|/ { row_count++ }
+            line == "| 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | Accepted |" {
+                accepted_count++
+            }
+            END { print row_count + 0, accepted_count + 0 }
+        ' "$RFC_INDEX_FILE"
+    )
+    if [[ "$RFC_INDEX_ROW_COUNT" != "1" || "$RFC_ACCEPTED_INDEX_ROW_COUNT" != "1" ]]; then
+        fail "6.x release requires the RFC index to contain exactly one Accepted RFC 0006 row"
+    fi
+fi
+
 README_FILES=(
     "README.md"
     "README.ko.md"
