@@ -326,6 +326,16 @@ extension DIContainerMacroTests {
         )
     }
 
+    @Test("Non-access modifiers use the default declaration access")
+    func nonAccessModifiersHaveNoDeclaredAccessLevel() throws {
+        let declaration = try #require(
+            Parser.parse(source: "final struct FinalContainer {}").statements.first?
+                .item.as(StructDeclSyntax.self)
+        )
+
+        #expect(declarationAccessLevel(for: declaration.modifiers) == nil)
+    }
+
     @Test("Direct generic containers emit the generic diagnostic")
     func directGenericContainerEmitsDedicatedDiagnostic() throws {
         let declaration = try #require(

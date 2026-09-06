@@ -832,7 +832,7 @@ private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {
     declarationAccessLevel(for: decl.modifiers)
 }
 
-private func declarationAccessLevel(
+func declarationAccessLevel(
     for modifiers: DeclModifierListSyntax
 ) -> String? {
     if modifiers.isEmpty {
