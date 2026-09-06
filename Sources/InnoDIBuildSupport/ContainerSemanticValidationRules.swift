@@ -155,6 +155,44 @@ func validateSubContainerBindings(
                 )
             )
         }
+
+        let writtenNames = subContainer.bindings.map(\.childInputName)
+        let writtenNameSet = Set(writtenNames)
+        let expectedNames = childContainer.inputMemberOrder.filter(
+            writtenNameSet.contains
+        )
+        if writtenNames.count == writtenNameSet.count,
+           writtenNames.allSatisfy(childContainer.inputMembers.contains),
+           writtenNames != expectedNames,
+           let mismatchIndex = zip(writtenNames, expectedNames)
+                .enumerated()
+                .first(where: { $0.element.0 != $0.element.1 })?
+                .offset {
+            let binding = subContainer.bindings[mismatchIndex]
+            issues.append(
+                ValidationIssue(
+                    code: MacroBuildDiagnosticContract.subBindingOrderCode,
+                    severity: .error,
+                    message: MacroBuildDiagnosticContract.subBindingOrderMessage(
+                        memberName: subContainer.memberName,
+                        childContainerName: childContainer.displayName
+                    ),
+                    location: binding.childLocation,
+                    notes: [
+                        ValidationIssueNote(
+                            message: "child @Input order: \(expectedNames.joined(separator: ", "))",
+                            location: childContainer.location
+                        )
+                    ],
+                    remediation: "Reorder bindings: to match the child @Input declaration order: \(expectedNames.joined(separator: ", ")).",
+                    metadata: [
+                        "childContainerPath": childContainer.path,
+                        "parentContainerPath": subContainer.parentContainerPath,
+                        "expectedChildInputOrder": expectedNames.joined(separator: ",")
+                    ]
+                )
+            )
+        }
     }
 
     return issues

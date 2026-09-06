@@ -286,6 +286,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   멤버에 매핑되지 않습니다.
 - `sub.unknown-child-input` — `bindings:` child key path가 child
   input에 매핑되지 않습니다.
+- `sub.binding-order` — 유효한 child input이지만 `bindings:` tuple 순서가
+  child의 source `@Input` 선언 순서와 다릅니다. 보고된 child key path부터
+  tuple을 다시 정렬하세요. Swift의 labeled argument는 선언 순서를 따라야 합니다.
 - `sub.bindings-conflicts-with-with` — 같은 `@SubContainer`에
   `bindings:`와 `with:`가 함께 나타났습니다 (wiring 형태는 상호
   배타적).

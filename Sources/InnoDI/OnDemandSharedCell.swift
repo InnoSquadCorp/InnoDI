@@ -8,7 +8,7 @@ import Foundation
 /// concurrent readers wait for the same result and same-thread re-entry traps
 /// immediately instead of deadlocking forever.
 @_documentation(visibility: internal)
-public final class _InnoDISharedCell<Value> {
+public final class _InnoDISharedCell<Value>: @unchecked Sendable {
     private enum State {
         case pending(() -> Value)
         case initializing(owner: ObjectIdentifier)
