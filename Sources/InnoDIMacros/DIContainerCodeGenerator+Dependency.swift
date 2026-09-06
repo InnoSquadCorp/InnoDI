@@ -107,13 +107,13 @@ internal func closureArgumentExpressions(
 /// the unresolved fallback when DAG validation is disabled.
 internal func dependencyExpression(
     for dependencyName: String,
-    resolvedValueBindings: [String: String],
+    resolvedDependencyExpressions: [String: ExprSyntax],
     taskBindings: [String: AsyncTaskBinding],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> ExprSyntax {
-    if let resolvedName = resolvedValueBindings[dependencyName] {
-        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
+    if let expression = resolvedDependencyExpressions[dependencyName] {
+        return expression
     }
 
     if let taskBinding = taskBindings[dependencyName] {

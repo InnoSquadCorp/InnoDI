@@ -2,7 +2,7 @@ import Foundation
 import InnoDI
 import Testing
 
-final class OnDemandCounter {
+final class OnDemandCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
 
@@ -21,7 +21,7 @@ final class OnDemandCounter {
     }
 }
 
-final class OnDemandService {
+final class OnDemandService: @unchecked Sendable {
     let identifier: Int
     init(identifier: Int) { self.identifier = identifier }
 }
@@ -150,6 +150,34 @@ struct OnDemandFixedParentContainer {
     var child: OnDemandFixedChildContainer
 }
 
+@DIContainer
+struct OnDemandAsyncOverrideContainer {
+    @Input var counter: OnDemandCounter
+
+    @Provide(
+        .shared,
+        initialization: .onDemand,
+        factory: { (counter: OnDemandCounter) in counter.make() }
+    )
+    var service: OnDemandService
+
+    @Provide(
+        .shared,
+        asyncFactory: { (service: OnDemandService) async in
+            service.identifier
+        }
+    )
+    var primary: Int
+
+    @Provide(
+        .shared,
+        asyncFactory: { (service: OnDemandService) async in
+            service.identifier * 10
+        }
+    )
+    var secondary: Int
+}
+
 @Suite("On-demand shared providers")
 struct OnDemandRuntimeTests {
     @Test("An unresolved on-demand provider releases its captured input with the container")
@@ -261,5 +289,35 @@ struct OnDemandRuntimeTests {
 
         try parent.prewarm(\OnDemandFixedParentContainer.service)
         #expect(counter.snapshot() == 1)
+    }
+
+    @Test("async overrides evaluate only dependencies used by live factories")
+    func asyncOverridesPreserveOnDemandDeferral() async {
+        let allOverrideCounter = OnDemandCounter()
+        let allOverridden = OnDemandAsyncOverrideContainer(
+            counter: allOverrideCounter,
+            primary: 7,
+            secondary: 8
+        )
+        #expect(await allOverridden.primary == 7)
+        #expect(await allOverridden.secondary == 8)
+        #expect(allOverrideCounter.snapshot() == 0)
+
+        let partialCounter = OnDemandCounter()
+        let partiallyOverridden = OnDemandAsyncOverrideContainer(
+            counter: partialCounter,
+            primary: 9
+        )
+        #expect(await partiallyOverridden.primary == 9)
+        #expect(await partiallyOverridden.secondary == 10)
+        // The live secondary task is the sole consumer of the shared
+        // on-demand dependency, regardless of task scheduling order.
+        #expect(partialCounter.snapshot() == 1)
+
+        let liveCounter = OnDemandCounter()
+        let live = OnDemandAsyncOverrideContainer(counter: liveCounter)
+        #expect(await live.primary == 1)
+        #expect(await live.secondary == 10)
+        #expect(liveCounter.snapshot() == 1)
     }
 }

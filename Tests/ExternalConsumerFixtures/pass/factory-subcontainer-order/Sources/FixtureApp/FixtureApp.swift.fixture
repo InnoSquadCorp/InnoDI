@@ -1,0 +1,65 @@
+import ChildKit
+import InnoDI
+
+struct Token: Sendable, Equatable { let value: Int }
+
+private func makeRequiredToken() throws -> Token { Token(value: 1) }
+private func makeOptionalToken() throws -> Token { Token(value: 4) }
+
+@DIContainer
+struct FactoryExpressionContainer {
+    @Provide(.shared, factory: try! makeRequiredToken())
+    var required: Token
+
+    @Provide(.shared, factory: true ? Token(value: 2) : Token(value: 3))
+    var selected: Token
+
+    @Provide(.transient, factory: try? makeOptionalToken())
+    var optional: Token?
+}
+
+@DIContainer
+struct CrossModuleParent {
+    @Input var parentFirst: CrossFirst
+    @Input var parentSecond: CrossSecond
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [
+            (child: \CrossModuleChild.second, parent: \CrossModuleParent.parentSecond),
+            (child: \CrossModuleChild.first, parent: \CrossModuleParent.parentFirst),
+        ]
+    )
+    var child: CrossModuleChild
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        let factory = FactoryExpressionContainer()
+        precondition(factory.required == Token(value: 1))
+        precondition(factory.selected == Token(value: 2))
+        precondition(factory.optional == Token(value: 4))
+
+        let same = SameFileParent(
+            parentFirst: SameFirst(value: 11),
+            parentSecond: SameSecond(value: 12)
+        )
+        precondition(same.child.second == SameSecond(value: 12))
+        precondition(same.child.first == SameFirst(value: 11))
+
+        let separate = SeparateParent(
+            parentFirst: SeparateFirst(value: 21),
+            parentSecond: SeparateSecond(value: 22)
+        )
+        precondition(separate.child.second == SeparateSecond(value: 22))
+        precondition(separate.child.first == SeparateFirst(value: 21))
+
+        let cross = CrossModuleParent(
+            parentFirst: CrossFirst(value: 31),
+            parentSecond: CrossSecond(value: 32)
+        )
+        precondition(cross.child.second == CrossSecond(value: 32))
+        precondition(cross.child.first == CrossFirst(value: 31))
+    }
+}

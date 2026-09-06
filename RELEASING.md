@@ -318,6 +318,10 @@ standalone release assets.
   reports request and owned-operation cancellation separately from failure,
   and retries a failed selected child plus its downstream in fresh generations
   while preserving ready explicit parent dependencies.
+- Generated override fallbacks now parenthesize precedence-sensitive raw factory ASTs, full-source
+  validation rejects out-of-order child `bindings:` at the first mismatching
+  key path, and async overrides no longer resolve dependencies used only by a
+  bypassed live factory.
 
 ## 5.1.0
 

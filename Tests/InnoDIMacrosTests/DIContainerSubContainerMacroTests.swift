@@ -595,7 +595,6 @@ extension DIContainerMacroTests {
 
         #expect(result.diagnostics.isEmpty)
         for generatedName in [
-            "_innoDIResolved_config",
             "_innoDITask_service",
             "_innoDILazyCell_request",
             "_innoDISubBuildCell_feature",

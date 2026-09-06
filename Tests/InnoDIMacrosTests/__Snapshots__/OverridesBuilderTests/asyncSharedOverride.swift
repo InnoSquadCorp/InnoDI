@@ -8,14 +8,13 @@ struct AppContainer {
     // MARK: - Initialization
     init(config: Config, service: Service? = nil) {
         self._storage_config = config
-        let _innoDIResolved_config = self._storage_config!
         let _innoDITask_service: _Concurrency.Task<Service, Swift.Never> = .init {
             if let override = service {
                 return override
             }
             return await { (config: Config) async in
                 Service(config: config)
-            }(_innoDIResolved_config)
+            }(config)
         }
         self._storage_task_service = _innoDITask_service
     }

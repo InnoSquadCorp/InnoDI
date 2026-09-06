@@ -315,6 +315,10 @@ Most frequently-hit codes:
   container member.
 - `sub.unknown-child-input` — `bindings:` child key path doesn't map to a
   child input.
+- `sub.binding-order` — `bindings:` contains valid child inputs but not in the
+  child's source `@Input` declaration order. Reorder the tuples starting at the
+  reported child key path; Swift requires labeled arguments in declaration
+  order.
 - `sub.bindings-conflicts-with-with` — `bindings:` and `with:` appear on the
   same `@SubContainer` (the wiring forms are mutually exclusive).
 - `sub.invalid-same-name-wiring` — `with:` is not a literal key-path array the

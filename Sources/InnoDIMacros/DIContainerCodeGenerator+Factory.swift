@@ -32,7 +32,7 @@ internal func makeFactoryExpr(
             )
             return makeClosureCallExpr(closure: closure, argumentExpressions: argumentExpressions)
         }
-        return factory
+        return parenthesizedExpr(factory)
     }
 
     if let initializer = member.initializer {
@@ -196,7 +196,7 @@ private func makeDetachedTransientFactoryExpr(
                 argumentExpressions: expressions
             )
         } else {
-            factoryExpression = factory
+            factoryExpression = parenthesizedExpr(factory)
         }
     } else if let initializer = member.initializer {
         factoryExpression = initializer
@@ -272,7 +272,7 @@ private func labeledDependencyArguments(
 
 internal func makeAsyncFactoryExpr(
     member: ProvideMemberModel,
-    resolvedValueBindings: [String: String],
+    resolvedDependencyExpressions: [String: ExprSyntax],
     taskBindings: [String: AsyncTaskBinding],
     deferredTargetNameSet: Set<String>,
     fallbackOverrideNames: Set<String>,
@@ -320,7 +320,7 @@ internal func makeAsyncFactoryExpr(
             }
             return try dependencyExpression(
                 for: ref.name,
-                resolvedValueBindings: resolvedValueBindings,
+                resolvedDependencyExpressions: resolvedDependencyExpressions,
                 taskBindings: taskBindings,
                 fallbackOverrideNames: fallbackOverrideNames,
                 allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback

@@ -303,7 +303,7 @@ private func makeInitDecl(
     )
 
     var statements: [CodeBlockItemSyntax] = []
-    var resolvedValueBindings: [String: String] = [:]
+    var resolvedDependencyExpressions: [String: ExprSyntax] = [:]
     var taskBindings: [String: AsyncTaskBinding] = [:]
     var availableDependencyExpressions: [String: ExprSyntax] = [:]
     let asyncResolvedTargetNames = Set(
@@ -347,13 +347,9 @@ private func makeInitDecl(
         }
 
         if asyncResolvedTargetNames.contains(member.name) {
-            let resolvedName = "_innoDIResolved_\(member.name)"
-            let resolvedDecl = letBinding(
-                name: resolvedName,
-                value: makeProviderStorageReadExpr(name: storageName)
+            resolvedDependencyExpressions[member.name] = ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier(member.name))
             )
-            statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
-            resolvedValueBindings[member.name] = resolvedName
         }
 
         if deferredTargetNameSet.contains(member.name) {
@@ -430,14 +426,23 @@ private func makeInitDecl(
         }
 
         if asyncResolvedTargetNames.contains(member.name) {
-            let resolvedName = "_innoDIResolved_\(member.name)"
-            let resolvedDecl = letBinding(
-                name: resolvedName,
-                value: availableDependencyExpressions[member.name]
-                    ?? makeProviderStorageReadExpr(name: storageName)
-            )
-            statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
-            resolvedValueBindings[member.name] = resolvedName
+            if member.initialization == .onDemand,
+               let expression = availableDependencyExpressions[member.name] {
+                // Keep the shared-cell read inside the async task's live
+                // factory branch so a direct async override does not trigger
+                // an otherwise unused on-demand dependency.
+                resolvedDependencyExpressions[member.name] = expression
+            } else {
+                let resolvedName = "_innoDIResolved_\(member.name)"
+                let resolvedDecl = letBinding(
+                    name: resolvedName,
+                    value: makeProviderStorageReadExpr(name: storageName)
+                )
+                statements.append(CodeBlockItemSyntax(item: .decl(resolvedDecl)))
+                resolvedDependencyExpressions[member.name] = ExprSyntax(
+                    DeclReferenceExprSyntax(baseName: .identifier(resolvedName))
+                )
+            }
         }
 
         if deferredTargetNameSet.contains(member.name) {
@@ -463,7 +468,7 @@ private func makeInitDecl(
         let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
         let createExpr = try makeAsyncFactoryExpr(
             member: member,
-            resolvedValueBindings: resolvedValueBindings,
+            resolvedDependencyExpressions: resolvedDependencyExpressions,
             taskBindings: taskBindings,
             deferredTargetNameSet: deferredTargetNameSet,
             fallbackOverrideNames: fallbackOverrideNames,

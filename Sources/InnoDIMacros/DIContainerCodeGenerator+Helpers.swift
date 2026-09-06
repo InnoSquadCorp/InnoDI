@@ -10,6 +10,29 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
+/// Wraps a precedence-sensitive expression in an explicit single-element
+/// parenthesized AST. Factory expressions are embedded inside override `??`
+/// expressions, where `try` and operator sequences are otherwise rejected or
+/// can be reassociated by the parser. Primary expressions remain unchanged so
+/// generated source keeps its stable spelling.
+internal func parenthesizedExpr(_ expression: ExprSyntax) -> ExprSyntax {
+    let requiresParentheses = expression.is(TryExprSyntax.self)
+        || expression.is(TernaryExprSyntax.self)
+        || expression.is(SequenceExprSyntax.self)
+
+    guard requiresParentheses else { return expression }
+
+    return ExprSyntax(
+        TupleExprSyntax(
+            leftParen: .leftParenToken(),
+            elements: LabeledExprListSyntax([
+                LabeledExprSyntax(expression: expression)
+            ]),
+            rightParen: .rightParenToken()
+        )
+    )
+}
+
 /// Builds `<optional> ?? <fallback>` nil-coalescing expression.
 internal func nilCoalescingExpr(optionalName: String, fallback: ExprSyntax) -> ExprSyntax {
     ExprSyntax(

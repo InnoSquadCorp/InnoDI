@@ -518,7 +518,9 @@ public struct FeatureRoot {
 ///   array the macro can read, for example `with: [\.config]` or `with: []`.
 /// - `bindings`: Optional explicit remapping tuples used when child `@Input`
 ///   labels differ from the parent member names. Each tuple spells
-///   `(child: \.childInput, parent: \.parentMember)`.
+///   `(child: \.childInput, parent: \.parentMember)`. List tuples in the
+///   child's `@Input` declaration order; the build validator reports the first
+///   out-of-order child key path before Swift diagnoses the generated call.
 /// - `featureRoot`: Optional SwiftUI root view type. When provided, the
 ///   parent container receives `<propertyName>RootView()`, which calls
 ///   `RootView(container: <propertyName>)`.
@@ -542,8 +544,9 @@ public struct FeatureRoot {
 /// explicit empty subset and generates `Child()`.
 /// Runtime variables or computed array elements are not evaluated by the macro.
 /// When `bindings:` is provided, each tuple rewrites the child label explicitly
-/// while reading from the selected parent member. Child-input verification is
-/// handled conservatively by the build-support validator across the module.
+/// while reading from the selected parent member. Child-input and declaration
+/// order verification is handled conservatively by the build-support validator
+/// across the complete visible source graph.
 /// The property name must be an unescaped Swift identifier. Backtick-escaped
 /// names are rejected because child storage, override slots, and SwiftUI helper
 /// identities are derived from that spelling.
