@@ -8,7 +8,7 @@ struct DoctorTests {
     @Test("read-only diagnosis reports toolchain, plugin, scope, and migration without writes")
     func readOnlyDiagnosis() throws {
         let root = try temporaryPackage(
-            manifest: "// swift-tools-version: 6.1\nimport PackageDescription\n",
+            manifest: packageManifest(swiftVersion: "6.1"),
             source: "import InnoDI\n@DIContainer struct App { @Provide(.input) var value: Int }"
         )
         defer { try? FileManager.default.removeItem(at: root) }
@@ -30,7 +30,7 @@ struct DoctorTests {
     @Test("explicit apply is idempotent and leaves verification separate")
     func applyAndSecondPass() throws {
         let root = try temporaryPackage(
-            manifest: "// swift-tools-version: 6.2\n// InnoDIDAGValidationPlugin\nimport PackageDescription\n",
+            manifest: packageManifest(swiftVersion: "6.2", appHasPlugin: true),
             source: "import InnoDI\n@DIContainer struct App { @Provide(.input) var value: Int }"
         )
         defer { try? FileManager.default.removeItem(at: root) }
@@ -41,7 +41,9 @@ struct DoctorTests {
         #expect(report.secondPassChangeCount == 0)
         #expect(report.verification.status == .notRun)
         #expect(report.graphVerification.status == .unchanged)
+        #expect(report.isHealthy)
         #expect(try String(contentsOf: root.appendingPathComponent("Sources/App/App.swift"), encoding: .utf8).contains("@Input"))
+        #expect(DoctorCLI.run(arguments: ["--root", root.path, "--apply"]) == 0)
     }
 
     @Test("opt-in verification builds a healthy package")
@@ -107,9 +109,9 @@ struct DoctorTests {
         let report = try InnoDIDoctor().inspect(root: root)
 
         #expect(!report.diagnostics.map(\.id).contains("doctor.package-manifest.missing"))
-        #expect(!report.diagnostics.map(\.id).contains("doctor.plugin.missing"))
+        #expect(report.diagnostics.map(\.id).contains("doctor.plugin.analysis-incomplete"))
         #expect(report.scannedSwiftFileCount == 4)
-        #expect(report.isHealthy)
+        #expect(!report.isHealthy)
     }
 
     @Test("Tuist direct-package workspaces use Tuist.swift without a second package manifest")
@@ -143,8 +145,70 @@ struct DoctorTests {
 
         #expect(!report.diagnostics.map(\.id).contains("doctor.package-manifest.missing"))
         #expect(!report.diagnostics.map(\.id).contains("doctor.toolchain.unknown"))
-        #expect(!report.diagnostics.map(\.id).contains("doctor.plugin.missing"))
+        #expect(report.diagnostics.map(\.id).contains("doctor.plugin.analysis-incomplete"))
+        #expect(!report.isHealthy)
+    }
+
+    @Test("comments and another target plugin cannot hide a missing target attachment")
+    func pluginRelationshipIsTargetScoped() throws {
+        let root = try temporaryPackage(
+            manifest: """
+            // swift-tools-version: 6.2
+            import PackageDescription
+            // InnoDIDAGValidationPlugin is intentionally only a comment here.
+            let package = Package(
+                name: "DoctorFixture",
+                targets: [
+                    .target(name: "App"),
+                    .target(
+                        name: "Other",
+                        plugins: [
+                            .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+                        ]
+                    )
+                ]
+            )
+            """,
+            source: "import InnoDI\n@DIContainer struct App {}"
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let report = try InnoDIDoctor().inspect(root: root)
+
+        let missing = try #require(
+            report.diagnostics.first { $0.id == "doctor.plugin.missing" }
+        )
+        #expect(missing.message.contains("Target 'App'"))
+        #expect(!missing.message.contains("Other"))
+        #expect(!report.isHealthy)
+    }
+
+    @Test("partial DIContainerRole migration applies and becomes healthy")
+    func partialContainerRoleMigration() throws {
+        let root = try temporaryPackage(
+            manifest: packageManifest(swiftVersion: "6.2", appHasPlugin: true),
+            source: """
+            import InnoDI
+            @DIContainerRole(role: ContainerRole.component)
+            struct App {
+                @Provide(.input) var value: Int
+            }
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let report = try InnoDIDoctor().run(root: root, apply: true, verify: false)
+        let migrated = try String(
+            contentsOf: root.appendingPathComponent("Sources/App/App.swift"),
+            encoding: .utf8
+        )
+
+        #expect(report.appliedChangePaths == ["Sources/App/App.swift"])
+        #expect(report.secondPassChangeCount == 0)
         #expect(report.isHealthy)
+        #expect(migrated.contains("@DIContainerRole"))
+        #expect(migrated.contains("@Input var value"))
+        #expect(!migrated.contains("@Provide(.input)"))
     }
 
     @Test("CLI validates arguments and supports text and JSON diagnosis")
@@ -217,5 +281,31 @@ struct DoctorTests {
         try Data(manifest.utf8).write(to: root.appendingPathComponent("Package.swift"))
         try Data(source.utf8).write(to: sources.appendingPathComponent("App.swift"))
         return root
+    }
+
+    private func packageManifest(
+        swiftVersion: String,
+        appHasPlugin: Bool = false
+    ) -> String {
+        let plugins = appHasPlugin
+            ? """
+            ,
+                        plugins: [
+                            .plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")
+                        ]
+            """
+            : ""
+        return """
+        // swift-tools-version: \(swiftVersion)
+        import PackageDescription
+        let package = Package(
+            name: "DoctorFixture",
+            targets: [
+                .target(
+                    name: "App"\(plugins)
+                )
+            ]
+        )
+        """
     }
 }
