@@ -192,8 +192,10 @@ let package = Package(
         .testTarget(
             name: "InnoDIMacrosTests",
             dependencies: [
+                "InnoDIDependencyGraphCore",
                 "InnoDIMacros",
                 "InnoDITestSupport",
+                "InnoDIWorkspaceAnalysis",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
             ],
