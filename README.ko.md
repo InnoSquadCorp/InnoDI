@@ -662,6 +662,14 @@ Swift array를 compiler assignability witness로 사용하므로 문자열 타�
 호출자 순서로 합치고 keyed collision을 거부합니다. `DIProviderCollection`과
 `DIKeyedProviderCollection`은 선택한 index 또는 key만 resolve합니다.
 
+factory로 만든 collection은 `@Provide(collection:)`의 닫힌 graph 계약을
+공개할 수 있습니다. `.ordered`, `.keyed`, `.providers`, `.keyedProviders`와
+literal `\Self.member` contributor를 사용하고 keyed entry는
+`.init(key: "id", contributor: \Self.member)`로 선언합니다. explicit empty도
+유효합니다. Graph JSON schema v6는 factory body나 module을 검색하지 않고
+key·순서·canonical contributor·contributor lifetime을 기록합니다. 중복 key는
+last-wins 대신 실패합니다.
+
 consumer target에서 매크로가 생성한 Swift 코드 확인:
 
 ```bash

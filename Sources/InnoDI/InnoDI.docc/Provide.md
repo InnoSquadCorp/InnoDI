@@ -127,6 +127,6 @@ targets constructed by `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>

@@ -6,8 +6,9 @@ import InnoDICore
 /// The schema is deliberately small and versioned so CI pipelines, IDE
 /// plugins, or web viewers can consume it without re-parsing Mermaid/DOT.
 ///
-/// Schema v5 adds canonical factory-argument and child-input binding pairs to
-/// the v4 provider semantics. Source locations remain diagnostic-only.
+/// Schema v6 adds explicit ordered/keyed collection contracts, including each
+/// canonical contributor and its declared provider lifetime, to the v5
+/// provider semantics. Source locations remain diagnostic-only.
 package func renderJSON(
     scope: GraphJSON.Scope,
     nodes: [DependencyGraphNode],
@@ -71,7 +72,7 @@ private func edgeKind(for edge: DependencyGraphEdge) -> GraphJSON.EdgeKind {
 /// Namespaces the JSON schema types so they stay close to the renderer
 /// and aren't accidentally reused for an unrelated payload.
 package enum GraphJSON {
-    package static let currentSchemaVersion = 5
+    package static let currentSchemaVersion = 6
 
     package struct Document: Codable, Equatable {
         package let schemaVersion: Int
@@ -126,6 +127,7 @@ package enum GraphJSON {
         package let dependencies: [String]
         package let dependencyBindings: [DependencyGraphProvider.DependencyBinding]
         package let containerBindings: [DependencyGraphProvider.ContainerBinding]
+        package let collection: DependencyGraphProvider.CollectionContract?
         package let source: Source
 
         package init(_ provider: DependencyGraphProvider) {
@@ -142,13 +144,14 @@ package enum GraphJSON {
             dependencies = provider.dependencies
             dependencyBindings = provider.dependencyBindings
             containerBindings = provider.containerBindings
+            collection = provider.collection
             source = Source(provider.source)
         }
 
         private enum CodingKeys: String, CodingKey {
             case id, containerID, name, type, role, lifetime, initialization
             case isolation, effect, inputKind, dependencies
-            case dependencyBindings, containerBindings, source
+            case dependencyBindings, containerBindings, collection, source
         }
 
         package init(from decoder: Decoder) throws {
@@ -171,6 +174,10 @@ package enum GraphJSON {
             containerBindings = try container.decode(
                 [DependencyGraphProvider.ContainerBinding].self,
                 forKey: .containerBindings
+            )
+            collection = try container.decodeIfPresent(
+                DependencyGraphProvider.CollectionContract.self,
+                forKey: .collection
             )
             source = try container.decode(Source.self, forKey: .source)
         }
@@ -200,7 +207,8 @@ package enum GraphJSON {
                 inputKind: inputKind,
                 dependencies: dependencies,
                 dependencyBindings: dependencyBindings,
-                containerBindings: containerBindings
+                containerBindings: containerBindings,
+                collection: collection
             )
         }
 
@@ -217,6 +225,7 @@ package enum GraphJSON {
             let dependencies: [String]
             let dependencyBindings: [DependencyGraphProvider.DependencyBinding]
             let containerBindings: [DependencyGraphProvider.ContainerBinding]
+            let collection: DependencyGraphProvider.CollectionContract?
         }
     }
 

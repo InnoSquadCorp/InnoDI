@@ -7,7 +7,7 @@ import Testing
 @testable import InnoDIDependencyGraphCore
 @testable import InnoDIDependencyGraphCLI
 
-@Suite("Graph JSON v5 contract")
+@Suite("Graph JSON v6 contract")
 struct GraphV3ContractTests {
     @Test("assisted inputs, factory ownership, and contributions are explicit")
     func collectsVersionThreeSemantics() throws {
@@ -103,7 +103,7 @@ struct GraphV3ContractTests {
             GraphJSON.Document.self,
             from: Data(rendered.utf8)
         )
-        #expect(document.schemaVersion == 5)
+        #expect(document.schemaVersion == 6)
         #expect(
             document.edges.contains {
                 $0.kind == .assistedFactoryOwnership
@@ -111,6 +111,15 @@ struct GraphV3ContractTests {
         )
         #expect(document.edges.filter { $0.kind == .contribution }.count == 2)
         #expect(document.providers.count == 7)
+        let interceptors = try #require(
+            document.providers.first { $0.name == "interceptors" }
+        )
+        #expect(interceptors.collection?.kind == .ordered)
+        #expect(interceptors.collection?.entries.map(\.order) == [0, 1])
+        #expect(
+            interceptors.collection?.entries.map(\.providerLifetime)
+                == [.shared, .transient]
+        )
         let session = try #require(
             document.providers.first { $0.name == "sessionID" }
         )
@@ -126,6 +135,125 @@ struct GraphV3ContractTests {
         #expect(childFactory.containerBindings[0].ownership == .assisted)
         #expect(childFactory.containerBindings[0].childInputID.hasSuffix(".repository"))
         #expect(childFactory.containerBindings[0].parentProviderID.hasSuffix(".repository"))
+    }
+
+    @Test("key order contributor and provider lifetime are explicit collection metadata")
+    func keyedProviderCollectionMetadataIsContractual() throws {
+        let baseline = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(.shared, factory: Auth()) var auth: Service
+            @Provide(.transient, factory: Logging()) var logging: Service
+            @Provide(
+                .transient,
+                collection: .keyedProviders([
+                    .init(key: "auth", contributor: \\Self.auth),
+                    .init(key: "logs", contributor: \\Self.logging),
+                ]),
+                factory: makeProviders()
+            )
+            var providers: DIKeyedProviderCollection<String, Service>
+        }
+        """)
+        let collection = try #require(
+            baseline.providers.first { $0.name == "providers" }?.collection
+        )
+        #expect(collection.kind == .keyedProviders)
+        #expect(collection.entries.map(\.key) == ["auth", "logs"])
+        #expect(collection.entries.map(\.order) == [0, 1])
+        #expect(collection.entries.map(\.providerLifetime) == [.shared, .transient])
+        #expect(collection.entries[0].providerID.hasSuffix(".auth"))
+        #expect(collection.entries[1].providerID.hasSuffix(".logging"))
+
+        let variants = [
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "primary", contributor: \\Self.auth),
+                    .init(key: "logs", contributor: \\Self.logging),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "logs", contributor: \\Self.logging),
+                    .init(key: "auth", contributor: \\Self.auth),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "auth", contributor: \\Self.logging),
+                    .init(key: "logs", contributor: \\Self.auth),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.transient, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "auth", contributor: \\Self.auth),
+                    .init(key: "logs", contributor: \\Self.logging),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+        ]
+
+        for source in variants {
+            let report = compareGraphDocuments(
+                before: baseline,
+                after: try graphDocument(source: source)
+            )
+            #expect(report.hasChanges)
+            #expect(report.changedProviders.contains {
+                $0.contains("providers") && $0.contains("collection ")
+            })
+        }
+    }
+
+    @Test("explicit empty collection metadata remains distinct from omission")
+    func explicitEmptyCollectionMetadataIsContractual() throws {
+        let explicit = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(
+                .transient,
+                collection: .keyedProviders([]),
+                factory: makeProviders()
+            )
+            var providers: DIKeyedProviderCollection<String, Service>
+        }
+        """)
+        let omitted = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(.transient, factory: makeProviders())
+            var providers: DIKeyedProviderCollection<String, Service>
+        }
+        """)
+
+        let contract = try #require(explicit.providers.first?.collection)
+        #expect(contract.kind == .keyedProviders)
+        #expect(contract.entries.isEmpty)
+        let report = compareGraphDocuments(before: explicit, after: omitted)
+        #expect(report.changedProviders.contains { $0.contains("collection ") })
     }
 
     @Test("human renderers expose inherited v3 semantics")

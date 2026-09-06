@@ -42,6 +42,12 @@ struct PendingMultibindingContribution {
     let order: Int
 }
 
+private struct PendingCollectionContract {
+    let providerID: String
+    let kind: DependencyGraphProvider.CollectionContract.Kind
+    let entries: [CollectionMetadataEntryArgument]
+}
+
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     var nodes: [DependencyGraphNode] = []
     var typeAliases: [SemanticTypeAliasRecord] = []
@@ -148,6 +154,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
         var requiredInputs: [String] = []
         var assistedInputs: [String] = []
+        var collectionContracts: [PendingCollectionContract] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
             guard let binding = varDecl.bindings.first,
@@ -269,9 +276,13 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             }
 
             if provide.isMultibinding {
+                let collectionProviderID = providerID(
+                    containerID: parentID,
+                    memberName: memberName
+                )
                 providers.append(
                     DependencyGraphProvider(
-                        id: providerID(containerID: parentID, memberName: memberName),
+                        id: collectionProviderID,
                         containerID: parentID,
                         name: memberName,
                         type: memberType,
@@ -295,6 +306,18 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         )
                     )
                 }
+                collectionContracts.append(
+                    PendingCollectionContract(
+                        providerID: collectionProviderID,
+                        kind: .ordered,
+                        entries: provide.dependencies.map {
+                            CollectionMetadataEntryArgument(
+                                key: nil,
+                                contributor: $0
+                            )
+                        }
+                    )
+                )
                 continue
             }
 
@@ -341,12 +364,63 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                     source: source
                 )
             )
+            if case let .parsed(kind, entries) =
+                provide.collectionMetadataParseState {
+                collectionContracts.append(
+                    PendingCollectionContract(
+                        providerID: providerID(
+                            containerID: parentID,
+                            memberName: memberName
+                        ),
+                        kind: graphCollectionKind(kind),
+                        entries: entries
+                    )
+                )
+            }
 
             guard provide.scope == .input else { continue }
             if provide.inputKind == .assisted {
                 assistedInputs.append(pattern.identifier.text)
             } else {
                 requiredInputs.append(pattern.identifier.text)
+            }
+        }
+
+        if !collectionContracts.isEmpty {
+            let providersByID = Dictionary(
+                uniqueKeysWithValues: providers
+                    .filter { $0.containerID == parentID }
+                    .map { ($0.id, $0) }
+            )
+            let contractsByProviderID = Dictionary(
+                uniqueKeysWithValues: collectionContracts.map { pending in
+                    let entries = pending.entries.enumerated().map {
+                        order, entry in
+                        let contributorID = providerID(
+                            containerID: parentID,
+                            memberName: entry.contributor
+                        )
+                        return DependencyGraphProvider.CollectionContract.Entry(
+                            key: entry.key,
+                            order: order,
+                            providerID: contributorID,
+                            providerLifetime: providersByID[contributorID]?.lifetime
+                        )
+                    }
+                    return (
+                        pending.providerID,
+                        DependencyGraphProvider.CollectionContract(
+                            kind: pending.kind,
+                            entries: entries
+                        )
+                    )
+                }
+            )
+            providers = providers.map { provider in
+                guard let contract = contractsByProviderID[provider.id] else {
+                    return provider
+                }
+                return provider.replacingCollectionContract(contract)
             }
         }
 
@@ -365,6 +439,17 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
     private func providerID(containerID: String, memberName: String) -> String {
         "\(containerID).\(memberName)"
+    }
+
+    private func graphCollectionKind(
+        _ kind: CollectionMetadataKindValue
+    ) -> DependencyGraphProvider.CollectionContract.Kind {
+        switch kind {
+        case .ordered: .ordered
+        case .keyed: .keyed
+        case .providers: .providers
+        case .keyedProviders: .keyedProviders
+        }
     }
 
     private func providerFactoryWiring(

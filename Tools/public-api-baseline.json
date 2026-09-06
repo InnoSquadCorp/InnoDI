@@ -289,6 +289,31 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI20DIProviderCollectionV",
           "target": "s:SK"
         },
@@ -435,6 +460,11 @@
         {
           "kind": "conformsTo",
           "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV",
           "target": "s:s8SendableP"
         },
         {
@@ -824,6 +854,66 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV12contributorsSays10AnyKeyPathCGvp",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV14keyedProvidersyACSayAA29DIKeyedCollectionContributionVGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV17keyedContributorsSayAA29DIKeyedCollectionContributionVGvp",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO14keyedProvidersyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO5keyedyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO7orderedyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO9providersyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4kindAC4KindOvp",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV5keyedyACSayAA29DIKeyedCollectionContributionVGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV7orderedyACSays10AnyKeyPathCGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV9providersyACSays10AnyKeyPathCGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI20DIProviderCollectionV10startIndexSivp",
           "target": "s:6InnoDI20DIProviderCollectionV"
         },
@@ -1141,6 +1231,21 @@
           "kind": "memberOf",
           "source": "s:6InnoDI27DIProviderEffectRequirementV6effectAA0cD0Ovp",
           "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV11contributors10AnyKeyPathCvp",
+          "target": "s:6InnoDI29DIKeyedCollectionContributionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s10AnyKeyPathCtcfc",
+          "target": "s:6InnoDI29DIKeyedCollectionContributionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV3keySSvp",
+          "target": "s:6InnoDI29DIKeyedCollectionContributionV"
         },
         {
           "kind": "memberOf",
@@ -3103,6 +3208,191 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DICollectionMetadata"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV12contributorsSays10AnyKeyPathCGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "contributors"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV14keyedProvidersyACSayAA29DIKeyedCollectionContributionVGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "keyedProviders(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV17keyedContributorsSayAA29DIKeyedCollectionContributionVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "keyedContributors"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO14keyedProvidersyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "keyedProviders"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO5keyedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "keyed"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO7orderedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "ordered"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO9providersyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "providers"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4kindAC4KindOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV5keyedyACSayAA29DIKeyedCollectionContributionVGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "keyed(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV7orderedyACSays10AnyKeyPathCGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "ordered(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV9providersyACSays10AnyKeyPathCGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "providers(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV"
           },
           "kind": {
@@ -4491,6 +4781,61 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV11contributors10AnyKeyPathCvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution",
+            "contributor"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s10AnyKeyPathCtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution",
+            "init(key:contributor:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV3keySSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution",
+            "key"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
           },
           "kind": {
@@ -4741,13 +5086,13 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7Provide__4with14initialization6effect7factory12asyncFactoryyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOAA16DIProviderEffectOypSgARtcfm"
+            "precise": "s:6InnoDI7Provide__4with14initialization6effect10collection7factory12asyncFactoryyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOAA16DIProviderEffectOAA20DICollectionMetadataVSgypSgAVtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "Provide(_:_:with:initialization:effect:factory:asyncFactory:)"
+            "Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)"
           ]
         },
         {

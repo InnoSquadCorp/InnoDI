@@ -26,5 +26,33 @@ enum FixtureApp {
         } catch let error as DIKeyedCollectionDuplicateError<String> {
             precondition(error.key == "a")
         }
+
+        precondition(ModuleAContributions.providerMetadata.kind == .keyedProviders)
+        precondition(
+            ModuleAContributions.providerMetadata.keyedContributors.map(\.key)
+                == ["a"]
+        )
+        precondition(ModuleBContributions.providerMetadata.kind == .keyedProviders)
+
+        let counter = CrossModuleCounter()
+        let providers = try DIKeyedProviderCollection.compose([
+            ModuleAContributions.providers(counter: counter),
+            .empty,
+            ModuleBContributions.providers(counter: counter),
+        ])
+        precondition(providers.map(\.key) == ["a", "b"])
+        precondition(providers[key: "b"]?.name == "b")
+        precondition(counter.count(for: "a") == 0)
+        precondition(counter.count(for: "b") == 1)
+
+        do {
+            _ = try DIKeyedProviderCollection.compose([
+                providers,
+                ModuleAContributions.providers(counter: counter),
+            ])
+            preconditionFailure("duplicate provider key must fail")
+        } catch let error as DIKeyedCollectionDuplicateError<String> {
+            precondition(error.key == "a")
+        }
     }
 }

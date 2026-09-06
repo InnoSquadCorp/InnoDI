@@ -34,6 +34,15 @@ A dependency graph is expressed as two flat collections:
 Normal factory parameters land on the default (all three booleans
 false) and behave as hard dependency edges.
 
+Provider records carry the construction contract that node edges cannot
+express: type, role, lifetime, initialization, isolation, effect, canonical
+factory bindings, child bindings, and optional collection metadata. Graph JSON
+schema v6 represents collection kind plus each entry's key (for keyed forms),
+zero-based order, canonical contributor provider ID, and the contributor's
+declared lifetime. Explicit empty metadata is serialized as an empty contract;
+omitted metadata stays absent. Consumers must reject duplicate keys, gaps in
+order, missing or cross-container contributors, and stale lifetime copies.
+
 ## Building an adjacency list for cycle detection
 
 `buildCycleDetectionAdjacency(nodes:edges:)` returns a dictionary

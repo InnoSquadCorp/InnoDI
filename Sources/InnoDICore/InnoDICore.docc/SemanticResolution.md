@@ -28,9 +28,7 @@ consumers that want to run custom validators (e.g. "no container may
 import FooService directly") can reuse this machinery to share the same
 resolution rules instead of re-implementing them.
 
-## Topics
-
-### Types
+## Package Types
 
 - `SemanticResolverIndex`
 - `SemanticNominalTypeRecord`

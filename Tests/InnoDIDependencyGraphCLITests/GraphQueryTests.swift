@@ -228,9 +228,9 @@ struct GraphQueryTests {
             GraphInspectionError.unsupportedSchema(
                 path: "graph-v2.json",
                 found: 2,
-                expected: 5
+                expected: 6
             ).errorDescription
-                == "Graph document 'graph-v2.json' uses schema v2; --diff currently requires schema v5."
+                == "Graph document 'graph-v2.json' uses schema v2; --diff currently requires schema v6."
         )
     }
 
@@ -309,7 +309,7 @@ struct GraphQueryTests {
         #expect(throws: GraphInspectionError.unsupportedSchema(
             path: fileURL.path,
             found: 2,
-            expected: 5
+            expected: 6
         )) {
             _ = try loadGraphJSONDocument(at: fileURL.path)
         }
@@ -320,7 +320,7 @@ struct GraphQueryTests {
         let payloads: [(String, String)] = [
             ("duplicate-node", """
             {
-              "schemaVersion": 5,
+              "schemaVersion": 6,
               "scope": { "primaryTargetID": "App", "rootPruning": "all" },
               "nodes": [
                 { "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] },
@@ -332,7 +332,7 @@ struct GraphQueryTests {
             """),
             ("dangling-edge", """
             {
-              "schemaVersion": 5,
+              "schemaVersion": 6,
               "scope": { "primaryTargetID": "App", "rootPruning": "all" },
               "nodes": [{ "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] }],
               "edges": [{ "from": "App", "to": "Missing", "kind": "hard" }],
@@ -341,7 +341,7 @@ struct GraphQueryTests {
             """),
             ("dangling-provider", """
             {
-              "schemaVersion": 5,
+              "schemaVersion": 6,
               "scope": { "primaryTargetID": "App", "rootPruning": "all" },
               "nodes": [{ "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] }],
               "edges": [],
@@ -352,6 +352,37 @@ struct GraphQueryTests {
                 "dependencies": [], "dependencyBindings": [], "containerBindings": [],
                 "source": { "path": "App.swift", "line": 1, "column": 1 }
               }]
+            }
+            """),
+            ("duplicate-collection-key", """
+            {
+              "schemaVersion": 6,
+              "scope": { "primaryTargetID": "App", "rootPruning": "all" },
+              "nodes": [{ "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] }],
+              "edges": [],
+              "providers": [
+                {
+                  "id": "App.auth", "containerID": "App", "name": "auth", "type": "Service",
+                  "role": "provider", "lifetime": "shared", "initialization": "eager",
+                  "isolation": "nonisolated", "effect": "sync", "dependencies": [],
+                  "dependencyBindings": [], "containerBindings": [],
+                  "source": { "path": "App.swift", "line": 1, "column": 1 }
+                },
+                {
+                  "id": "App.providers", "containerID": "App", "name": "providers", "type": "Providers",
+                  "role": "provider", "lifetime": "transient", "initialization": "onAccess",
+                  "isolation": "nonisolated", "effect": "sync", "dependencies": [],
+                  "dependencyBindings": [], "containerBindings": [],
+                  "collection": {
+                    "kind": "keyedProviders",
+                    "entries": [
+                      { "key": "same", "order": 0, "providerID": "App.auth", "providerLifetime": "shared" },
+                      { "key": "same", "order": 1, "providerID": "App.auth", "providerLifetime": "shared" }
+                    ]
+                  },
+                  "source": { "path": "App.swift", "line": 2, "column": 1 }
+                }
+              ]
             }
             """),
         ]
@@ -367,14 +398,14 @@ struct GraphQueryTests {
         }
     }
 
-    @Test("Schema v5 rejects missing provider binding metadata")
-    func rejectsMissingVersionFiveBindingMetadata() throws {
+    @Test("Schema v6 rejects missing provider binding metadata")
+    func rejectsMissingVersionSixBindingMetadata() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("innodi-graph-missing-bindings-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         let payload = """
         {
-          "schemaVersion": 5,
+          "schemaVersion": 6,
           "scope": { "primaryTargetID": "App", "rootPruning": "all" },
           "nodes": [{
             "id": "App", "displayName": "App", "semanticPath": "App",
@@ -393,6 +424,151 @@ struct GraphQueryTests {
 
         #expect(throws: DecodingError.self) {
             _ = try loadGraphJSONDocument(at: fileURL.path)
+        }
+    }
+
+    @Test("Schema v6 rejects every malformed collection contract dimension")
+    func rejectsMalformedCollectionContracts() throws {
+        let containerID = "App"
+        let contributorID = "App.auth"
+        let contributor = DependencyGraphProvider(
+            id: contributorID,
+            containerID: containerID,
+            name: "auth",
+            type: "Service",
+            role: .provider,
+            lifetime: .shared,
+            initialization: .eager,
+            isolation: .nonisolated,
+            effect: .sync,
+            source: .init(path: "App.swift", line: 1, column: 1)
+        )
+        let variants: [(
+            name: String,
+            contract: DependencyGraphProvider.CollectionContract,
+            expected: String
+        )] = [
+            (
+                "missing-key",
+                .init(
+                    kind: .keyed,
+                    entries: [
+                        .init(
+                            key: nil,
+                            order: 0,
+                            providerID: contributorID,
+                            providerLifetime: .shared
+                        ),
+                    ]
+                ),
+                "entry without a key"
+            ),
+            (
+                "unexpected-key",
+                .init(
+                    kind: .ordered,
+                    entries: [
+                        .init(
+                            key: "auth",
+                            order: 0,
+                            providerID: contributorID,
+                            providerLifetime: .shared
+                        ),
+                    ]
+                ),
+                "unexpected key"
+            ),
+            (
+                "order-gap",
+                .init(
+                    kind: .providers,
+                    entries: [
+                        .init(
+                            key: nil,
+                            order: 1,
+                            providerID: contributorID,
+                            providerLifetime: .shared
+                        ),
+                    ]
+                ),
+                "contiguous from zero"
+            ),
+            (
+                "missing-contributor",
+                .init(
+                    kind: .keyedProviders,
+                    entries: [
+                        .init(
+                            key: "missing",
+                            order: 0,
+                            providerID: "App.missing",
+                            providerLifetime: .transient
+                        ),
+                    ]
+                ),
+                "is missing or belongs to another container"
+            ),
+            (
+                "stale-lifetime",
+                .init(
+                    kind: .keyedProviders,
+                    entries: [
+                        .init(
+                            key: "auth",
+                            order: 0,
+                            providerID: contributorID,
+                            providerLifetime: .transient
+                        ),
+                    ]
+                ),
+                "stale lifetime metadata"
+            ),
+        ]
+
+        for variant in variants {
+            let collectionProvider = DependencyGraphProvider(
+                id: "App.collection",
+                containerID: containerID,
+                name: "collection",
+                type: "Collection",
+                role: .provider,
+                lifetime: .transient,
+                initialization: .onAccess,
+                isolation: .nonisolated,
+                effect: .sync,
+                collection: variant.contract,
+                source: .init(path: "App.swift", line: 2, column: 1)
+            )
+            let rendered = try renderJSON(
+                scope: .init(
+                    primaryTargetID: "App",
+                    rootPruning: .all
+                ),
+                nodes: [
+                    .init(
+                        id: containerID,
+                        displayName: "App",
+                        semanticPath: "App",
+                        isRoot: true,
+                        requiredInputs: []
+                    ),
+                ],
+                edges: [],
+                providers: [contributor, collectionProvider]
+            )
+            let fileURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "innodi-graph-collection-\(variant.name)-\(UUID().uuidString).json"
+                )
+            defer { try? FileManager.default.removeItem(at: fileURL) }
+            try Data(rendered.utf8).write(to: fileURL, options: .atomic)
+
+            do {
+                _ = try loadGraphJSONDocument(at: fileURL.path)
+                Issue.record("Expected malformed collection \(variant.name) to fail")
+            } catch {
+                #expect(error.localizedDescription.contains(variant.expected))
+            }
         }
     }
 

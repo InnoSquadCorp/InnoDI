@@ -41,6 +41,24 @@ text may be refined between releases without changing the ID.
 - `multibinding.type-mismatch`: a contributor's written type differs from the
   collection element type.
 
+## Explicit collection metadata diagnostics
+
+- `provide.invalid-collection-metadata`: `collection:` is not one of the
+  closed literal forms `.ordered([\Self.member])`,
+  `.providers([\Self.member])`,
+  `.keyed([.init(key: "id", contributor: \Self.member)])`, or
+  `.keyedProviders(...)`. Runtime variables, foreign factories, qualified
+  entry initializers, escaped/interpolated keys, and computed key paths are
+  rejected because the macro never evaluates code or factory bodies.
+- `provide.duplicate-collection-key`: a keyed metadata contract declares the
+  same literal key more than once. Rename or remove the duplicate; InnoDI has
+  no implicit last-wins behavior.
+- `provide.unknown-collection-contributor`: a metadata entry does not name a
+  different direct managed provider on the same container.
+- `provide.async-collection-contributor`: synchronous collection metadata
+  references an async provider. Introduce an explicit async aggregation
+  boundary instead of hiding async construction behind a synchronous group.
+
 The category prefix reflects the stage that emits the diagnostic:
 
 - `InnoDI.usage.*` — structural errors about *how* the macro is attached
