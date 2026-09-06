@@ -665,8 +665,10 @@ swift run InnoDI-Doctor --root . --json
 Swift package에서는 literal target source root와 plugin 배열을 parse하므로 주석,
 문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. Dynamic manifest와 Tuist
 target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. `--apply`는 migrator의
-atomic safety 검사를 명시적으로 사용하고 `--verify`는 별도 build를 허용합니다.
-report는 제안/적용 경로, apply 후 second-pass 상태, 검증 상태를 구분합니다.
+atomic safety 검사를 사용합니다. SwiftPM `--verify`는 `swift build`를 실행하고,
+Tuist 검증은 generate 후 `--scheme`과 `--destination`이 모두 명시된 경우에만 실제
+compile을 실행합니다. schema-v2 report는 generation/compilation의 exit, timeout,
+log tail을 분리해 generation만 성공한 상태를 build 성공으로 합산하지 않습니다.
 
 ## Collection 조합
 

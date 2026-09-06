@@ -3,7 +3,7 @@ import Testing
 
 @testable import InnoDIDoctorCore
 
-@Suite("InnoDI doctor")
+@Suite("InnoDI doctor", .serialized)
 struct DoctorTests {
     @Test("read-only diagnosis reports toolchain, plugin, scope, and migration without writes")
     func readOnlyDiagnosis() throws {
@@ -71,7 +71,74 @@ struct DoctorTests {
         #expect(report.verification.status == .passed)
         #expect(report.verification.command == "swift build")
         #expect(report.verification.exitCode == 0)
+        #expect(report.verification.generation.status == .notRun)
+        #expect(report.verification.compilation.status == .passed)
         #expect(report.isHealthy)
+    }
+
+    @Test("Tuist verification reports generation and actual compilation separately")
+    func verifiesTuistGenerationAndCompilation() throws {
+        let root = try temporaryTuistProject(
+            source: "public struct AppValue { public init() {} }"
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let report = try InnoDIDoctor().run(
+            root: root,
+            apply: false,
+            verify: true,
+            tuistScheme: "App",
+            destination: "platform=macOS"
+        )
+
+        #expect(report.verification.generation.status == .passed)
+        #expect(report.verification.compilation.status == .passed)
+        #expect(report.verification.compilation.command?.contains("xcodebuild") == true)
+        #expect(report.verification.compilation.timedOut == false)
+        #expect(report.verification.status == .passed)
+        #expect(report.isHealthy)
+    }
+
+    @Test("Tuist generation without an explicit build selection remains unverified")
+    func tuistRequiresExplicitBuildSelection() throws {
+        let root = try temporaryTuistProject(
+            source: "public struct AppValue { public init() {} }"
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let report = try InnoDIDoctor().run(
+            root: root,
+            apply: false,
+            verify: true
+        )
+
+        #expect(report.verification.generation.status == .passed)
+        #expect(report.verification.compilation.status == .unverified)
+        #expect(report.verification.status == .unverified)
+        #expect(!report.isHealthy)
+    }
+
+    @Test("Tuist generation success cannot hide compilation failure")
+    func tuistCompilationFailureFailsVerification() throws {
+        let root = try temporaryTuistProject(
+            source: "public let broken: String = 42"
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let report = try InnoDIDoctor().run(
+            root: root,
+            apply: false,
+            verify: true,
+            tuistScheme: "App",
+            destination: "platform=macOS"
+        )
+
+        #expect(report.verification.generation.status == .passed)
+        #expect(report.verification.compilation.status == .failed)
+        #expect(report.verification.compilation.exitCode != 0)
+        #expect(report.verification.compilation.outputTail?.contains("error:") == true)
+        #expect(report.verification.status == .failed)
+        #expect(!report.isHealthy)
     }
 
     @Test("Tuist workspaces use the nested dependency manifest and project plugin declaration")
@@ -307,5 +374,40 @@ struct DoctorTests {
             ]
         )
         """
+    }
+
+    private func temporaryTuistProject(source: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "innodi-doctor-tuist-build-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        let sources = root.appendingPathComponent("Sources/App", isDirectory: true)
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Tuist", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let project = """
+        import ProjectDescription
+
+        let project = Project(
+            name: "DoctorFixture",
+            targets: [
+                .target(
+                    name: "App",
+                    destinations: [.mac],
+                    product: .framework,
+                    bundleId: "dev.innosquad.doctorfixture",
+                    deploymentTargets: .macOS("13.0"),
+                    infoPlist: .default,
+                    sources: ["Sources/App/**"],
+                    settings: .settings(base: ["SWIFT_VERSION": "6.2"])
+                )
+            ]
+        )
+        """
+        try Data(project.utf8).write(to: root.appendingPathComponent("Project.swift"))
+        try Data(source.utf8).write(to: sources.appendingPathComponent("App.swift"))
+        return root
     }
 }
