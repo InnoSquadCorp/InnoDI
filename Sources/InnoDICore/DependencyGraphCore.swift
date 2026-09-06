@@ -41,6 +41,8 @@ package struct DependencyGraphProvider: Hashable, Sendable {
     package let effect: Effect
     package let inputKind: InputKind?
     package let dependencies: [String]
+    package let dependencyBindings: [DependencyBinding]
+    package let containerBindings: [ContainerBinding]
     package let source: SourceLocation
 
     package init(
@@ -55,6 +57,8 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         effect: Effect,
         inputKind: InputKind? = nil,
         dependencies: [String] = [],
+        dependencyBindings: [DependencyBinding] = [],
+        containerBindings: [ContainerBinding] = [],
         source: SourceLocation
     ) {
         self.id = id
@@ -68,6 +72,8 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         self.effect = effect
         self.inputKind = inputKind
         self.dependencies = dependencies
+        self.dependencyBindings = dependencyBindings
+        self.containerBindings = containerBindings
         self.source = source
     }
 
@@ -109,6 +115,50 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         case assisted
     }
 
+    /// One source-visible factory argument bound to a canonical provider.
+    /// `parameter` preserves the call-site label independently from the
+    /// selected provider identity, and `kind` preserves eager/deferred
+    /// construction semantics.
+    package struct DependencyBinding: Codable, Hashable, Sendable {
+        package let parameter: String
+        package let providerID: String
+        package let kind: FactoryDependencyKind
+
+        package init(
+            parameter: String,
+            providerID: String,
+            kind: FactoryDependencyKind
+        ) {
+            self.parameter = parameter
+            self.providerID = providerID
+            self.kind = kind
+        }
+    }
+
+    /// Canonical child-input ↔ parent-provider wiring for fixed and assisted
+    /// ownership. IDs are target/file-qualified graph IDs rather than display
+    /// names, so swapping either endpoint is contractual.
+    package struct ContainerBinding: Codable, Hashable, Sendable {
+        package let childInputID: String
+        package let parentProviderID: String
+        package let ownership: Ownership
+
+        package init(
+            childInputID: String,
+            parentProviderID: String,
+            ownership: Ownership
+        ) {
+            self.childInputID = childInputID
+            self.parentProviderID = parentProviderID
+            self.ownership = ownership
+        }
+
+        package enum Ownership: String, Codable, Hashable, Sendable {
+            case fixed
+            case assisted
+        }
+    }
+
     package struct SourceLocation: Hashable, Sendable {
         package let path: String
         package let line: Int
@@ -119,6 +169,29 @@ package struct DependencyGraphProvider: Hashable, Sendable {
             self.line = line
             self.column = column
         }
+    }
+}
+
+package extension DependencyGraphProvider {
+    func replacingContainerBindings(
+        _ bindings: [ContainerBinding]
+    ) -> DependencyGraphProvider {
+        DependencyGraphProvider(
+            id: id,
+            containerID: containerID,
+            name: name,
+            type: type,
+            role: role,
+            lifetime: lifetime,
+            initialization: initialization,
+            isolation: isolation,
+            effect: effect,
+            inputKind: inputKind,
+            dependencies: dependencies,
+            dependencyBindings: dependencyBindings,
+            containerBindings: bindings,
+            source: source
+        )
     }
 }
 
@@ -174,7 +247,7 @@ package struct DependencyGraphEdge: Hashable {
     /// regular `.input` wiring.
     package let isOwnership: Bool
     /// Assisted-factory ownership is distinct from fixed `@SubContainer`
-    /// ownership in graph schema v4, while remaining a hard ownership edge.
+    /// ownership in graph schema v5, while remaining a hard ownership edge.
     package let isAssistedFactoryOwnership: Bool
     /// Ordered collection contribution metadata. Contribution edges are
     /// self-edges on the owning container and are excluded from cycle checks.

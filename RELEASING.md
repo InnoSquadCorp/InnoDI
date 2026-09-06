@@ -240,11 +240,14 @@ standalone release assets.
   records are covered by executable release-contract tests.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
-  every rooted graph, and `--diff` compares two schema-v4 JSON artifacts.
+  every rooted graph, and `--diff` compares two schema-v5 JSON artifacts.
   `--diff ... --check-contract` turns that comparison into a CI gate: unchanged
   contracts exit 0 and any scope, node, or edge drift, including assisted input,
   assisted-factory ownership, or ordered contribution changes, exits 5 while
-  preserving the human-readable diff. Regenerate schema-v3 baselines before
+  preserving the human-readable diff. Schema v5 also treats canonical factory
+  parameter wiring and fixed/assisted child binding pairs as contract. It
+  rejects earlier schemas and missing binding metadata rather than treating
+  them as unchanged. Regenerate older baselines before
   comparing them with this release candidate.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
@@ -302,7 +305,7 @@ standalone release assets.
   the release gate. Arbitrary strings fail with a stable InnoDI diagnostic.
 - Added owned on-demand and async preparation scopes, a SwiftUI container host,
   concurrency-safe public testing support, explicit cross-module ordered/keyed
-  provider collections, schema-v4 provider contract queries, metadata-only
+  provider collections, schema-v5 provider contract queries, metadata-only
   bounded runtime tracing, and a read-only-first `InnoDI-Doctor` workflow for
   the 6.0 candidate.
 
