@@ -4,6 +4,11 @@ import InnoDIMigrationCore
 import InnoDIWorkspaceAnalysis
 import SwiftParser
 import SwiftSyntax
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 public struct DoctorDiagnostic: Codable, Equatable, Sendable {
     public enum Severity: String, Codable, Sendable { case info, warning, error }
@@ -16,11 +21,23 @@ public struct DoctorDiagnostic: Codable, Equatable, Sendable {
 }
 
 public struct DoctorVerification: Codable, Equatable, Sendable {
-    public enum Status: String, Codable, Sendable { case notRun, passed, failed }
+    public enum Status: String, Codable, Sendable {
+        case notRun, unverified, passed, failed
+    }
+
+    public struct Step: Codable, Equatable, Sendable {
+        public let status: Status
+        public let command: String?
+        public let exitCode: Int32?
+        public let timedOut: Bool
+        public let outputTail: String?
+    }
 
     public let status: Status
     public let command: String?
     public let exitCode: Int32?
+    public let generation: Step
+    public let compilation: Step
 }
 
 public struct DoctorGraphVerification: Codable, Equatable, Sendable {
@@ -38,7 +55,7 @@ public struct DoctorGraphVerification: Codable, Equatable, Sendable {
 }
 
 public struct DoctorReport: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public let schemaVersion: Int
     public let root: String
@@ -55,6 +72,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         diagnostics.isEmpty
             && secondPassChangeCount == 0
             && verification.status != .failed
+            && verification.status != .unverified
     }
 }
 
@@ -70,7 +88,13 @@ public struct InnoDIDoctor: Sendable {
     /// Runs the explicit diagnose→review/apply→verify workflow. `apply` uses
     /// `InnoDIMigrator`'s stale-file, symlink, nested-repository, atomic-write,
     /// and rollback protections. `verify` is opt-in because it executes a build.
-    public func run(root: URL, apply: Bool, verify: Bool) throws -> DoctorReport {
+    public func run(
+        root: URL,
+        apply: Bool,
+        verify: Bool,
+        tuistScheme: String? = nil,
+        destination: String? = nil
+    ) throws -> DoctorReport {
         let canonicalRoot = root.standardizedFileURL
         var diagnostics: [DoctorDiagnostic] = []
         let workspace = doctorWorkspace(at: canonicalRoot)
@@ -176,15 +200,26 @@ public struct InnoDIDoctor: Sendable {
         if verify {
             let result = try runVerification(
                 root: canonicalRoot,
-                kind: workspace.verificationKind
+                kind: workspace.verificationKind,
+                tuistScheme: tuistScheme,
+                destination: destination
+            )
+            verification = result
+        } else {
+            let notRun = DoctorVerification.Step(
+                status: .notRun,
+                command: nil,
+                exitCode: nil,
+                timedOut: false,
+                outputTail: nil
             )
             verification = .init(
-                status: result.exitCode == 0 ? .passed : .failed,
-                command: result.command,
-                exitCode: result.exitCode
+                status: .notRun,
+                command: nil,
+                exitCode: nil,
+                generation: notRun,
+                compilation: notRun
             )
-        } else {
-            verification = .init(status: .notRun, command: nil, exitCode: nil)
         }
 
         return DoctorReport(
@@ -547,35 +582,155 @@ private func pluginDiagnostics(
     return diagnostics
 }
 
-private struct DoctorVerificationResult {
-    let command: String
-    let exitCode: Int32
-}
-
 private func runVerification(
     root: URL,
-    kind: DoctorVerificationKind
-) throws -> DoctorVerificationResult {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    let arguments: [String]
-    let command: String
+    kind: DoctorVerificationKind,
+    tuistScheme: String?,
+    destination: String?
+) throws -> DoctorVerification {
+    let notRun = DoctorVerification.Step(
+        status: .notRun,
+        command: nil,
+        exitCode: nil,
+        timedOut: false,
+        outputTail: nil
+    )
     switch kind {
     case .swiftPackage:
-        arguments = ["swift", "build"]
-        command = "swift build"
+        let compilation = try runVerificationStep(
+            arguments: ["swift", "build"],
+            command: "swift build",
+            root: root
+        )
+        return DoctorVerification(
+            status: compilation.status,
+            command: compilation.command,
+            exitCode: compilation.exitCode,
+            generation: notRun,
+            compilation: compilation
+        )
     case .tuist:
-        arguments = ["tuist", "generate", "--no-open"]
-        command = "tuist generate --no-open"
+        let generation = try runVerificationStep(
+            arguments: ["tuist", "generate", "--no-open"],
+            command: "tuist generate --no-open",
+            root: root
+        )
+        guard generation.status == .passed else {
+            return DoctorVerification(
+                status: .failed,
+                command: generation.command,
+                exitCode: generation.exitCode,
+                generation: generation,
+                compilation: notRun
+            )
+        }
+        guard let tuistScheme, !tuistScheme.isEmpty,
+              let destination, !destination.isEmpty else {
+            let compilation = DoctorVerification.Step(
+                status: .unverified,
+                command: nil,
+                exitCode: nil,
+                timedOut: false,
+                outputTail: "Tuist compilation requires explicit --scheme and --destination values."
+            )
+            return DoctorVerification(
+                status: .unverified,
+                command: generation.command,
+                exitCode: nil,
+                generation: generation,
+                compilation: compilation
+            )
+        }
+        let workspaces = try FileManager.default.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: nil
+        ).filter { $0.pathExtension == "xcworkspace" }
+        guard workspaces.count == 1, let workspace = workspaces.first else {
+            let compilation = DoctorVerification.Step(
+                status: .unverified,
+                command: nil,
+                exitCode: nil,
+                timedOut: false,
+                outputTail: "Expected exactly one generated .xcworkspace; found \(workspaces.count)."
+            )
+            return DoctorVerification(
+                status: .unverified,
+                command: generation.command,
+                exitCode: nil,
+                generation: generation,
+                compilation: compilation
+            )
+        }
+        let derivedData = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "innodi-doctor-derived-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: derivedData) }
+        let command = "xcodebuild -workspace \(workspace.lastPathComponent) -scheme \(tuistScheme) -destination \(destination) build"
+        let compilation = try runVerificationStep(
+            arguments: [
+                "xcodebuild", "-workspace", workspace.path,
+                "-scheme", tuistScheme,
+                "-destination", destination,
+                "-derivedDataPath", derivedData.path,
+                "build",
+            ],
+            command: command,
+            root: root
+        )
+        return DoctorVerification(
+            status: compilation.status,
+            command: command,
+            exitCode: compilation.exitCode,
+            generation: generation,
+            compilation: compilation
+        )
     }
+}
+
+private func runVerificationStep(
+    arguments: [String],
+    command: String,
+    root: URL,
+    timeout: TimeInterval = 300
+) throws -> DoctorVerification.Step {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = arguments
     process.currentDirectoryURL = root
-    process.standardOutput = FileHandle.standardError
-    process.standardError = FileHandle.standardError
+    let logURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "innodi-doctor-log-\(UUID().uuidString)"
+    )
+    _ = FileManager.default.createFile(atPath: logURL.path, contents: nil)
+    let log = try FileHandle(forWritingTo: logURL)
+    defer {
+        try? log.close()
+        try? FileManager.default.removeItem(at: logURL)
+    }
+    process.standardOutput = log
+    process.standardError = log
     try process.run()
+    let deadline = Date().addingTimeInterval(timeout)
+    while process.isRunning, Date() < deadline {
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+    let timedOut = process.isRunning
+    if timedOut {
+        process.terminate()
+        Thread.sleep(forTimeInterval: 0.2)
+        if process.isRunning {
+            _ = kill(process.processIdentifier, SIGKILL)
+        }
+    }
     process.waitUntilExit()
-    return DoctorVerificationResult(
+    try log.synchronize()
+    let data = (try? Data(contentsOf: logURL)) ?? Data()
+    let tail = data.suffix(16_384)
+    return DoctorVerification.Step(
+        status: !timedOut && process.terminationStatus == 0 ? .passed : .failed,
         command: command,
-        exitCode: process.terminationStatus
+        exitCode: process.terminationStatus,
+        timedOut: timedOut,
+        outputTail: tail.isEmpty ? nil : String(decoding: tail, as: UTF8.self)
     )
 }
