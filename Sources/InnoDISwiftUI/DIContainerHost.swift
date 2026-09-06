@@ -45,6 +45,24 @@ public struct DIContainerHostHandle: Sendable {
     }
 }
 
+private struct DIContainerHostHandleEnvironmentKey: EnvironmentKey {
+    static let defaultValue: DIContainerHostHandle? = nil
+}
+
+public extension EnvironmentValues {
+    /// The lifecycle handle for the nearest ready ``DIContainerHost``.
+    ///
+    /// Generated feature-root helpers inject this value into their root view,
+    /// allowing route, document, or window UI to request an explicit close
+    /// without retaining its own owner. A missing value means the view is not
+    /// hosted by InnoDI. Do not call close from a transient `onDisappear`;
+    /// invoke it only from the actual owner-close path.
+    var innoDIContainerHostHandle: DIContainerHostHandle? {
+        get { self[DIContainerHostHandleEnvironmentKey.self] }
+        set { self[DIContainerHostHandleEnvironmentKey.self] = newValue }
+    }
+}
+
 /// Main-actor owner used by ``DIContainerHost``.
 ///
 /// The owner is public so lifecycle-heavy applications can test or coordinate
@@ -273,6 +291,7 @@ where Identity: Hashable & Sendable, Content: View, Loading: View, Failure: View
                 loading()
             case let .ready(_, container):
                 content(container, handle)
+                    .environment(\.innoDIContainerHostHandle, handle)
             case let .failed(_, error):
                 failure(error, handle)
             }

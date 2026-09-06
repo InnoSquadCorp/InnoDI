@@ -990,11 +990,24 @@ struct InnoDISwiftUIMacroTests {
             """#,
             expandedSource: ##"""
                 let preview = #Preview {
-                    let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
-                    ({
-                        container in
-                            container.dashboardRootView()
-                    })(__innodi_preview_container)
+                    InnoDISwiftUI.DIContainerHost(
+                        identity: false,
+                        factory: { _ in
+                            AppContainer(baseURL: "https://example.com")
+                        },
+                        content: { __innodi_preview_container, _ in
+                            ({
+                                container in
+                                    container.dashboardRootView()
+                            })(__innodi_preview_container)
+                        },
+                        loading: {
+                            SwiftUI.EmptyView()
+                        },
+                        failure: { _, _ in
+                            SwiftUI.EmptyView()
+                        }
+                    )
                 }
                 """##,
             macros: Self.macros
@@ -1011,11 +1024,24 @@ struct InnoDISwiftUIMacroTests {
             """#,
             expandedSource: ##"""
                 let preview = #Preview {
-                    let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
-                    ({
-                        container in
-                            container.dashboardRootView()
-                    })(__innodi_preview_container)
+                    InnoDISwiftUI.DIContainerHost(
+                        identity: false,
+                        factory: { _ in
+                            AppContainer(baseURL: "https://example.com")
+                        },
+                        content: { __innodi_preview_container, _ in
+                            ({
+                                container in
+                                    container.dashboardRootView()
+                            })(__innodi_preview_container)
+                        },
+                        loading: {
+                            SwiftUI.EmptyView()
+                        },
+                        failure: { _, _ in
+                            SwiftUI.EmptyView()
+                        }
+                    )
                 }
                 """##,
             macros: Self.macros

@@ -567,10 +567,14 @@ cross-module ownership에는 다음을 사용합니다.
 - `.innodi(container)`는 생성된 environment bridge를 view tree에 적용합니다.
 - `@DIEnvironmentBridge`는 container member를 SwiftUI environment key에 매핑합니다.
 - `@SubContainer(..., featureRoot:)`와 `featureRoots:`는 child container의
-  default 또는 named feature-root helper를 생성합니다.
+  default 또는 named feature-root helper를 생성합니다. `InnoDISwiftUI`를
+  import한 경우 생성 helper에 `identity:`를 전달하면 수동 State wrapper 없이
+  지연 host ownership을 사용하며, 기존 0-argument helper도 유지됩니다.
 - `DIContainerHost`는 fixed/assisted child를 route, document, window identity별로
   지연 생성해 소유합니다. 앱이 loading/failure/retry UI를 구성하고,
   `onDisappear` 대신 실제 close 경로에서 lifecycle handle을 호출합니다.
+- `#PreviewWithContainer`도 같은 lazy owner를 사용하며 동일 payload의 preview를
+  preview instance별로 분리합니다.
 - InnoDI 5.0에서는 deprecated compatibility macro인 `@DIFeatureRoot`를
   제거합니다. 한 property에 peer macro를 겹치지 않도록 `@SubContainer`의
   `featureRoot:` 또는 `featureRoots:` argument로 교체하세요.

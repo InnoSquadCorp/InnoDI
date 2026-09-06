@@ -313,6 +313,55 @@ private final class HostedContainer: @unchecked Sendable {
     }
 }
 
+@MainActor
+private final class GeneratedRootLifecycleProbe {
+    var creations = 0
+    var closures = 0
+    var lifecycle: DIContainerHostHandle?
+
+    func makeToken() -> Int {
+        creations += 1
+        return creations
+    }
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+fileprivate struct GeneratedRootFeatureContainer {
+    @Input var probe: GeneratedRootLifecycleProbe
+
+    @Provide(
+        .shared,
+        factory: { (probe: GeneratedRootLifecycleProbe) in probe.makeToken() }
+    )
+    var token: Int
+}
+
+@MainActor
+private struct GeneratedRootFeatureView: View {
+    @Environment(\.innoDIContainerHostHandle) private var lifecycle
+
+    let container: GeneratedRootFeatureContainer
+
+    var body: some View {
+        Text("token-\(container.token)")
+            .onAppear {
+                container.probe.lifecycle = lifecycle
+            }
+    }
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+fileprivate struct GeneratedRootParentContainer {
+    @Input var probe: GeneratedRootLifecycleProbe
+
+    @SubContainer(
+        scope: .transient,
+        with: [\GeneratedRootParentContainer.probe],
+        featureRoot: GeneratedRootFeatureView.self
+    )
+    var feature: GeneratedRootFeatureContainer
+}
+
 private enum HostFailure: Error {
     case expected
 }
@@ -717,6 +766,55 @@ struct DIContainerHostLifecycleTests {
     }
 
     #if os(macOS)
+    @Test("generated feature roots are lazy, identity-owned, and explicitly closed")
+    func generatedFeatureRootUsesHostOwnership() async throws {
+        let probe = GeneratedRootLifecycleProbe()
+        let parent = GeneratedRootParentContainer(probe: probe)
+        let close: DIContainerHostOwner<Int, GeneratedRootFeatureContainer>.Close = { container in
+            container.probe.closures += 1
+        }
+        let first = parent.featureRootView(identity: 1, close: close)
+
+        #expect(probe.creations == 0)
+        let hostingView = NSHostingView(rootView: first)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        for _ in 0..<100 {
+            hostingView.rootView = first
+            hostingView.layoutSubtreeIfNeeded()
+            await Task.yield()
+        }
+
+        try await waitUntil { probe.creations == 1 && probe.lifecycle != nil }
+        #expect(probe.creations == 1)
+        #expect(probe.closures == 0)
+
+        let second = parent.featureRootView(identity: 2, close: close)
+        hostingView.rootView = second
+        hostingView.layoutSubtreeIfNeeded()
+        try await waitUntil { probe.creations == 2 && probe.closures == 1 }
+
+        await probe.lifecycle?.close()
+        try await waitUntil { probe.closures == 2 }
+        #expect(probe.creations == 2)
+        _ = hostingView
+    }
+
+    @Test("same feature-root payload remains independent across mounted owners")
+    func generatedFeatureRootsKeepIndependentOwners() async throws {
+        let probe = GeneratedRootLifecycleProbe()
+        let parent = GeneratedRootParentContainer(probe: probe)
+        let first = NSHostingView(rootView: parent.featureRootView(identity: 7))
+        let second = NSHostingView(rootView: parent.featureRootView(identity: 7))
+        first.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        second.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        first.layoutSubtreeIfNeeded()
+        second.layoutSubtreeIfNeeded()
+
+        try await waitUntil { probe.creations == 2 }
+        #expect(probe.creations == 2)
+        _ = (first, second)
+    }
+
     @Test("mounted failure UI can retry and explicitly close the recovered container")
     func mountedFailureRetryAndClose() async throws {
         let probe = HostViewProbe()
