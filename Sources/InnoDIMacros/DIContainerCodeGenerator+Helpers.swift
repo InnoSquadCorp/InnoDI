@@ -15,7 +15,13 @@ internal func nilCoalescingExpr(optionalName: String, fallback: ExprSyntax) -> E
     ExprSyntax(
         InfixOperatorExprSyntax(
             leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(optionalName))),
-            operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
+            operator: BinaryOperatorExprSyntax(
+                operator: .binaryOperator(
+                    "??",
+                    leadingTrivia: .space,
+                    trailingTrivia: .space
+                )
+            ),
             rightOperand: fallback
         )
     )

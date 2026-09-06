@@ -344,7 +344,10 @@ public struct Lazy<T> {
 
 /// A factory handle that re-enters a `.transient` accessor on every call.
 /// Use `Provider<T>` when a factory parameter needs repeated access to a
-/// transient dependency without retaining the owning container.
+/// transient dependency without retaining the owning container. The generated
+/// handle retains only the dependency and override context required to rebuild
+/// `T`; it remains usable after the container value itself goes out of scope.
+/// Releasing the last copied handle releases that detached context.
 ///
 /// When a factory parameter is declared `Provider<T>`, InnoDI classifies the
 /// resulting DAG edge as a *provider edge*: like `Lazy<T>`, it is excluded

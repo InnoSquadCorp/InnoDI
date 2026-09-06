@@ -81,6 +81,38 @@ struct TransientProviderContainer {
     var processor: PayloadProcessor
 }
 
+private final class ProviderLifetimeInput {
+    let value: Int
+    init(value: Int) { self.value = value }
+}
+
+private final class ProviderLifetimeValue {
+    let input: ProviderLifetimeInput
+    init(input: ProviderLifetimeInput) { self.input = input }
+}
+
+private final class ProviderLifetimeOwner {
+    let values: InnoDI.Provider<ProviderLifetimeValue>
+    init(values: InnoDI.Provider<ProviderLifetimeValue>) {
+        self.values = values
+    }
+}
+
+@DIContainer
+fileprivate struct ProviderLifetimeContainer {
+    @Input var input: ProviderLifetimeInput
+
+    @Provide(.transient, factory: { (input: ProviderLifetimeInput) in
+        ProviderLifetimeValue(input: input)
+    })
+    var value: ProviderLifetimeValue
+
+    @Provide(.shared, factory: { (value: InnoDI.Provider<ProviderLifetimeValue>) in
+        ProviderLifetimeOwner(values: value)
+    })
+    var owner: ProviderLifetimeOwner
+}
+
 @Suite("Provider runtime")
 struct ProviderRuntimeTests {
     @Test("`.shared` factory sees a Provider that pumps fresh transient instances")
@@ -134,5 +166,23 @@ struct ProviderRuntimeTests {
         // container's input value.
         #expect(firstProcessor.next().input == PayloadInput(value: 1))
         #expect(secondProcessor.next().input == PayloadInput(value: 1))
+    }
+
+    @Test("An external Provider retains only its resolver context and releases it with the last handle")
+    func externalProviderOwnsDetachedResolverContext() {
+        weak var weakInput: ProviderLifetimeInput?
+        var provider: InnoDI.Provider<ProviderLifetimeValue>?
+
+        do {
+            let input = ProviderLifetimeInput(value: 42)
+            weakInput = input
+            let container = ProviderLifetimeContainer(input: input)
+            provider = container.owner.values
+        }
+
+        #expect(weakInput != nil)
+        #expect(provider?().input.value == 42)
+        provider = nil
+        #expect(weakInput == nil)
     }
 }

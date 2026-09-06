@@ -39,9 +39,10 @@ struct AppContainer {
                 _innoDILazyCell_request.resolve()
             })
         self._override_request = request
-        let _innoDILazySelf = self
         _innoDILazyCell_request.bindResolver {
-            _innoDILazySelf.request
+            request ?? { (config: Config) in
+                    Request(config: config)
+                }(config)
         }
     }
 

@@ -52,12 +52,10 @@ struct DIContainerCodeGenerator {
     ) throws -> [DeclSyntax] {
         var decls: [DeclSyntax] = []
 
-        // `.transient` sub-containers are backed by a stored
-        // builder closure that `_InnoDISubContainerAccessor` emits; the init
-        // assigns that closure using a `_innoDILazySelfForSub` snapshot so it can
-        // reach parent members on every invocation. The closure logic is
-        // generated inline by `makeSubContainerInitStatements` — no extra
-        // member-level decls are needed here.
+        // `.transient` sub-containers are backed by a stored builder closure
+        // that `_InnoDISubContainerAccessor` emits. The init connects it to a
+        // dependency-only resolver context after every peer is initialized;
+        // no whole-container snapshot is retained.
 
         decls.append(
             try generateInit(
@@ -177,15 +175,34 @@ private func makeInitDecl(
     let allowUnresolvedDependencyFallback = !validateDAGEnabled
     let fallbackOverrideNames = Set(sharedMembers.map(\.name) + transientMembers.map(\.name))
 
-    // Only deferred wrappers (`Lazy<T>` / `Provider<T>`) that are consumed
-    // from the synthesized init (`.shared` / `asyncFactory`) need local
-    // deferred-cell storage. Transient accessors emit `Lazy({ self.<name> })`
-    // / `Provider({ self.<name> })` directly and therefore do not need
-    // init-time boxes or late resolver bindings.
-    let initTimeDeferredSourceMembers = sharedMembers
-    let initTimeDeferredTargetNames = Set(
-        initTimeDeferredSourceMembers.flatMap { $0.softClosureDependencies + $0.providerClosureDependencies }
+    // Start with deferred wrappers consumed by shared construction. A
+    // transient target's detached resolver may itself contain deferred edges,
+    // so walk only the hard-transient portion reachable from those roots and
+    // add its Lazy/Provider targets. Unrelated transient accessors keep their
+    // allocation-free direct path.
+    let transientMembersByNameForDeferredPlanning = Dictionary(
+        uniqueKeysWithValues: transientMembers.map { ($0.name, $0) }
     )
+    var initTimeDeferredTargetNames = Set(
+        sharedMembers.flatMap {
+            $0.softClosureDependencies + $0.providerClosureDependencies
+        }
+    )
+    var pendingDetachedSourceNames = Array(initTimeDeferredTargetNames)
+    var visitedDetachedSourceNames = Set<String>()
+    while let name = pendingDetachedSourceNames.popLast() {
+        guard let transient = transientMembersByNameForDeferredPlanning[name],
+              !transient.isAsyncFactory,
+              visitedDetachedSourceNames.insert(name).inserted else {
+            continue
+        }
+        let nestedDeferredNames = transient.softClosureDependencies
+            + transient.providerClosureDependencies
+        initTimeDeferredTargetNames.formUnion(nestedDeferredNames)
+        pendingDetachedSourceNames.append(contentsOf: nestedDeferredNames)
+        pendingDetachedSourceNames.append(contentsOf: transient.hardClosureDependencies)
+        pendingDetachedSourceNames.append(contentsOf: transient.withDependencies)
+    }
     let allPossibleDeferredTargets = inputMembers + sharedMembers + transientMembers
     let deferredTargetMembers = allPossibleDeferredTargets.filter { member in
         initTimeDeferredTargetNames.contains(member.name)
@@ -485,9 +502,8 @@ private func makeInitDecl(
     //
     // `.transient` children capture a closure in `_innoDISubBuild_<name>`
     // (a `private let` peer emitted by `_InnoDISubContainerAccessor`). The
-    // closure captures a `_innoDILazySelfForSub` snapshot so it can read parent
-    // accessors as a fully-constructed value type — value-type copies of
-    // `self` are cheap and reflect the stable parent state.
+    // closure initially resolves through an init-local cell. Once every peer
+    // is initialized, that cell is bound to a dependency-only context below.
     let autoWireParentMemberNames = (inputMembers + sharedMembers + transientMembers).map(\.name)
     let onDemandParentMemberNames = Set(
         syncSharedMembers
@@ -521,25 +537,114 @@ private func makeInitDecl(
             statements.append(assignBuildClosure)
         }
 
-        // Snapshot `self` once, *after* every other stored property is
-        // assigned, so the closures we bind below can safely read parent
-        // accessors. The override wedges for every sub-container member
-        // and builder closures are assigned by the loop above, so `self`
-        // is fully initialized.
-        statements.append(
-            CodeBlockItemSyntax(item: .decl(letBinding(name: "_innoDILazySelfForSub", value: "self")))
+    }
+
+    // Build dependency-only contexts after every stored peer is initialized.
+    // Inputs are captured from their init parameters. Eager shared values are
+    // copied into locals; on-demand shared dependencies retain their cell and
+    // remain unevaluated until a transient resolver actually asks for them.
+    let transientDeferredTargetMembers = transientMembers.filter { deferredTargetNameSet.contains($0.name) }
+    if !transientDeferredTargetMembers.isEmpty || hasTransientSubContainer {
+        let transientMembersByName = Dictionary(
+            uniqueKeysWithValues: transientMembers.map { ($0.name, $0) }
         )
+        var detachedRequiredStableNames = Set<String>()
+        var pendingDetachedNames = transientDeferredTargetMembers.map(\.name)
+        for member in subContainerMembers where member.scope == .transient {
+            pendingDetachedNames.append(contentsOf: resolvedSubContainerArguments(
+                member: member,
+                autoWireParentMemberNames: autoWireParentMemberNames
+            ).map(\.parentName))
+        }
+        var visitedDetachedTransientNames = Set<String>()
+        while let name = pendingDetachedNames.popLast() {
+            guard let transient = transientMembersByName[name],
+                  !transient.isAsyncFactory else {
+                detachedRequiredStableNames.insert(name)
+                continue
+            }
+            guard visitedDetachedTransientNames.insert(name).inserted else {
+                continue
+            }
+            let hardNames = transient.hardClosureDependencies
+                + transient.withDependencies
+            pendingDetachedNames.append(contentsOf: hardNames)
+        }
+
+        var detachedStableExpressions: [String: ExprSyntax] = [:]
+        for member in inputMembers {
+            detachedStableExpressions[member.name] = ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier(member.name))
+            )
+        }
+        for member in syncSharedMembers
+            where detachedRequiredStableNames.contains(member.name) {
+            if member.initialization == .onDemand {
+                detachedStableExpressions[member.name] = "_innoDIOnDemand_\(raw: member.name).value()"
+            } else {
+                let localName = "_innoDIResolverValue_\(member.name)"
+                statements.append(
+                    CodeBlockItemSyntax(
+                        item: .decl(
+                            letBinding(
+                                name: localName,
+                                value: makeProviderStorageReadExpr(
+                                    name: "_storage_\(member.name)"
+                                )
+                            )
+                        )
+                    )
+                )
+                detachedStableExpressions[member.name] = ExprSyntax(
+                    DeclReferenceExprSyntax(baseName: .identifier(localName))
+                )
+            }
+        }
+
+        for member in transientDeferredTargetMembers {
+            let resolver = try makeDetachedTransientFactoryExpr(
+                member: member,
+                transientMembersByName: transientMembersByName,
+                stableExpressions: detachedStableExpressions,
+                deferredTargetNameSet: deferredTargetNameSet,
+                fallbackOverrideNames: fallbackOverrideNames,
+                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+            )
+            statements.append(
+                """
+                _innoDILazyCell_\(raw: member.name).bindResolver {
+                    \(resolver)
+                }
+                """
+            )
+        }
+
         for member in subContainerMembers where member.scope == .transient {
             let childTypeDesc = member.type.trimmedDescription
             let selectedArguments = resolvedSubContainerArguments(
                 member: member,
                 autoWireParentMemberNames: autoWireParentMemberNames
             )
+            var parentExpressions = detachedStableExpressions
+            for parentName in selectedArguments.map(\.parentName)
+                where parentExpressions[parentName] == nil {
+                guard let transient = transientMembersByName[parentName],
+                      !transient.isAsyncFactory else {
+                    continue
+                }
+                parentExpressions[parentName] = try makeDetachedTransientFactoryExpr(
+                    member: transient,
+                    transientMembersByName: transientMembersByName,
+                    stableExpressions: detachedStableExpressions,
+                    deferredTargetNameSet: deferredTargetNameSet,
+                    fallbackOverrideNames: fallbackOverrideNames,
+                    allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+                )
+            }
             let baseInitializer = subContainerInitializerExpr(
                 childType: member.type,
                 argumentMappings: selectedArguments,
-                parentMemberBaseName: "_innoDILazySelfForSub",
-                parentMemberPrefix: ""
+                parentMemberExpressions: parentExpressions
             )
             let overrideInitializer = subContainerInitializerExpr(
                 childType: member.type,
@@ -547,45 +652,20 @@ private func makeInitDecl(
                 trailingOverrideExpression: ExprSyntax(
                     DeclReferenceExprSyntax(baseName: .identifier("apply"))
                 ),
-                parentMemberBaseName: "_innoDILazySelfForSub",
-                parentMemberPrefix: ""
+                parentMemberExpressions: parentExpressions
             )
             let assignStmt: CodeBlockItemSyntax = """
                 _innoDISubBuildCell_\(raw: member.name).bindResolver { () -> \(raw: childTypeDesc) in
-                    if let direct = _innoDILazySelfForSub._override_sub_\(raw: member.name) {
+                    if let direct = \(raw: member.name) {
                         return direct
                     }
-                    if let apply = _innoDILazySelfForSub._override_sub_apply_\(raw: member.name) {
+                    if let apply = \(raw: member.overrideClosureName) {
                         return \(overrideInitializer)
                     }
                     return \(baseInitializer)
                 }
                 """
             statements.append(assignStmt)
-        }
-    }
-
-    // A transient Lazy/Provider target captures a fully initialized snapshot
-    // of the parent. Keep this after every SubContainer peer slot and build
-    // closure has been assigned; taking the snapshot earlier is illegal when
-    // a container combines deferred re-entry with a transient child.
-    let transientDeferredTargetMembers = transientMembers.filter { deferredTargetNameSet.contains($0.name) }
-    if !transientDeferredTargetMembers.isEmpty {
-        statements.append(
-            CodeBlockItemSyntax(item: .decl(letBinding(name: "_innoDILazySelf", value: "self")))
-        )
-        for member in transientDeferredTargetMembers {
-            statements.append(
-                CodeBlockItemSyntax(
-                    item: .expr(
-                        makeLazyCellBindExpr(
-                            name: member.name,
-                            accessorName: member.name,
-                            baseName: "_innoDILazySelf"
-                        )
-                    )
-                )
-            )
         }
     }
 
