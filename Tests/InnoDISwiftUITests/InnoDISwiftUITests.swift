@@ -337,6 +337,32 @@ private actor HostFactoryGate {
     }
 }
 
+private actor HostCloseGate {
+    private var started: Set<Int> = []
+    private var released: Set<Int> = []
+    private var waiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+
+    func close(_ identity: Int) async {
+        started.insert(identity)
+        if released.contains(identity) { return }
+        await withCheckedContinuation { continuation in
+            waiters[identity, default: []].append(continuation)
+        }
+    }
+
+    func hasStarted(_ identity: Int) -> Bool {
+        started.contains(identity)
+    }
+
+    func release(_ identity: Int) {
+        released.insert(identity)
+        let continuations = waiters.removeValue(forKey: identity) ?? []
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+}
+
 @MainActor
 private final class HostViewProbe {
     var failureHandle: DIContainerHostHandle?
@@ -412,6 +438,62 @@ struct DIContainerHostLifecycleTests {
         let snapshot = await probe.snapshot()
         #expect(snapshot.creations == [1: 1, 2: 1])
         #expect(snapshot.closures == [1: 1])
+    }
+
+    @Test("A→B→C replacement shares the cleanup barrier and preserves A's callback")
+    func rapidReplacementWaitsForOriginalGenerationCleanup() async throws {
+        let probe = HostLifecycleProbe()
+        let gate = HostCloseGate()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+
+        owner.start(
+            identity: 1,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(100 + container.identity)
+                await gate.close(container.identity)
+            }
+        )
+        try await waitUntilReady(owner, identity: 1)
+
+        owner.start(
+            identity: 2,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(200 + container.identity)
+            }
+        )
+        try await waitUntil { await gate.hasStarted(1) }
+        owner.start(
+            identity: 3,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(300 + container.identity)
+            }
+        )
+
+        for _ in 0..<100 { await Task.yield() }
+        if case let .loading(identity) = owner.phase {
+            #expect(identity == 3)
+        } else {
+            Issue.record("The newest generation must remain loading while A cleanup is blocked")
+        }
+        #expect(await probe.snapshot().creations == [1: 1])
+
+        await gate.release(1)
+        try await waitUntilReady(owner, identity: 3)
+        let snapshot = await probe.snapshot()
+        #expect(snapshot.creations == [1: 1, 3: 1])
+        #expect(snapshot.closures == [101: 1])
     }
 
     @Test("same payload can back independent window owners")
@@ -553,6 +635,67 @@ struct DIContainerHostLifecycleTests {
         try await waitUntil { await probe.snapshot().closures[12] == 1 }
 
         #expect(await probe.snapshot().closures == [12: 1])
+    }
+
+    @Test("A late cancelled candidate uses the callback captured by its own generation")
+    func cancelledCandidateUsesGenerationCloseCallback() async throws {
+        let gate = HostFactoryGate()
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+
+        owner.start(
+            identity: 21,
+            factory: { identity in
+                await gate.wait(for: identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(100 + container.identity)
+            }
+        )
+        await Task.yield()
+        owner.start(
+            identity: 22,
+            factory: { HostedContainer(identity: $0) },
+            close: { container in
+                await probe.closed(200 + container.identity)
+            }
+        )
+
+        await gate.release(21)
+        try await waitUntilReady(owner, identity: 22)
+        try await waitUntil { await probe.snapshot().closures[121] == 1 }
+        #expect(await probe.snapshot().closures == [121: 1])
+    }
+
+    @Test("Concurrent explicit close calls share one cleanup and close exactly once")
+    func concurrentCloseIsExactlyOnce() async throws {
+        let probe = HostLifecycleProbe()
+        let gate = HostCloseGate()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        owner.start(
+            identity: 31,
+            factory: { HostedContainer(identity: $0) },
+            close: { container in
+                await probe.closed(container.identity)
+                await gate.close(container.identity)
+            }
+        )
+        try await waitUntilReady(owner, identity: 31)
+
+        let first = Task { @MainActor in await owner.close() }
+        try await waitUntil { await gate.hasStarted(31) }
+        let second = Task { @MainActor in await owner.close() }
+        await gate.release(31)
+        await first.value
+        await second.value
+
+        #expect(await probe.snapshot().closures == [31: 1])
+        if case .idle = owner.phase {
+            // Expected.
+        } else {
+            Issue.record("Concurrent close must leave the owner idle")
+        }
     }
 
     @Test("starting the same failed identity creates a fresh generation")
