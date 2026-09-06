@@ -273,14 +273,14 @@ scope.
 
 ## Graph and diagnostic contract
 
-Graph JSON v5 records explicit assisted-input, factory-ownership, provider,
-canonical wiring, and contribution semantics. An assisted input is metadata on its owning
+Graph JSON v6 records explicit assisted-input, factory-ownership, provider,
+canonical wiring, contribution, and collection semantics. An assisted input is metadata on its owning
 container and is not a globally resolvable node. Factory ownership is a hard
 ownership edge from the parent container to the child container. Provider
 identity includes lifetime, initialization, isolation, effect, canonical
 factory-parameter targets and deferred kinds, child-input-to-parent-provider
-binding pairs, and contribution order while excluding source position from
-semantic diff.
+binding pairs, contribution order, and collection kind/key/order/contributor/
+lifetime while excluding source position from semantic diff.
 
 Required diagnostics include:
 
@@ -299,6 +299,11 @@ and `--diff`. These commands are migration evidence, not a reason to delay them
 until 6.0. `--diff ... --check-contract` must return 0 for an unchanged graph
 and a distinct exit code for any scope, node, or edge drift so CI cannot accept
 an unreviewed contract change.
+Container and provider selectors share one resolution gate: an unqualified
+cross-namespace collision must list both candidate sets and fail until the
+caller supplies `container:` or `provider:`. Exact graph IDs remain stable.
+Provider dependency paths use canonical binding IDs rather than assuming that
+factory parameter labels equal provider member names.
 
 ## Failure and recovery behavior
 

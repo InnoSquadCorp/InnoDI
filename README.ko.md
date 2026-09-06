@@ -616,6 +616,7 @@ swift run InnoDI-DependencyGraph --root . --validate-dag
 ```bash
 swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --why provider:App.AppContainer.client
 swift run InnoDI-DependencyGraph --root . --unused
 ```
 
@@ -628,13 +629,17 @@ swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 
 `--check-contract`는 scope, container, provider, edge 계약이 하나라도 바뀌면
 종료 코드 5를 반환하므로 CI에서 검토된 그래프 스냅샷 갱신만 허용할 수
-있습니다. schema v4 provider 레코드는 타입, lifetime, 초기화 정책, 격리,
-effect를 포함하며 source 줄/열 이동만으로는 계약 변경이 되지 않습니다.
+있습니다. schema v6 provider 레코드는 타입, lifetime, 초기화 정책, 격리,
+effect, canonical wiring, 명시적 collection 계약을 포함하며 source 줄/열
+이동만으로는 계약 변경이 되지 않습니다.
 이전 graph schema는 unchanged로 취급하지 않고 명시적으로 거부합니다.
 
 `--why App.AppContainer.client`처럼 provider selector도 `--why`와
 `--dependents`에서 사용할 수 있습니다. 결과는 provider 계약과 source 위치를
-포함합니다. runtime cache/override/async provenance는 opt-in `DITraceContext`와
+포함합니다. qualifier 없는 selector는 container/provider namespace를 함께
+확인합니다. 충돌하면 양쪽 후보를 보여 주며 `container:<selector>` 또는
+`provider:<selector>`로 명시해야 합니다. Exact graph ID의 직접 조회 동작은
+유지됩니다. runtime cache/override/async provenance는 opt-in `DITraceContext`와
 `DIBoundedTraceBuffer`로 수집하며, 비활성 경로에서는 ID, event, buffer를 만들지
 않고 입력값이나 오류 payload도 기록하지 않습니다. graph query가 출력한 stable
 provider ID를 `trace.withResolution(providerID: id) { ... }`에 전달하면 성공,

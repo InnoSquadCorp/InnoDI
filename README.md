@@ -656,6 +656,7 @@ every explicit root:
 ```bash
 swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --why provider:App.AppContainer.client
 swift run InnoDI-DependencyGraph --root . --unused
 ```
 
@@ -668,13 +669,18 @@ swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 
 `--check-contract` returns exit code 5 when any scope, container, provider, or
 edge contract changed, so CI can require an explicitly reviewed graph snapshot
-update. Schema v4 provider records include type, lifetime, initialization,
-isolation, and effect; source line/column movement alone is not a contract
-change. Older graph schemas are rejected rather than treated as unchanged.
+update. Schema v6 provider records include type, lifetime, initialization,
+isolation, effect, canonical wiring, and explicit collection contracts; source
+line/column movement alone is not a contract change. Older graph schemas are
+rejected rather than treated as unchanged.
 
 Provider selectors are accepted by `--why` and `--dependents`, for example
 `--why App.AppContainer.client`. Results include provider contracts and source
-locations. Runtime cache/override/async provenance is opt-in through
+locations. Unqualified selectors are resolved against both container and
+provider namespaces. A collision fails with both candidate lists; use
+`container:<selector>` or `provider:<selector>` to choose explicitly. Exact
+graph IDs retain their direct lookup behavior. Runtime cache/override/async
+provenance is opt-in through
 `DITraceContext` and `DIBoundedTraceBuffer`; disabled tracing allocates no ID,
 event, or buffer, and events contain no input values or error payloads. Copy
 the stable provider ID from the graph query and wrap a resolution with
