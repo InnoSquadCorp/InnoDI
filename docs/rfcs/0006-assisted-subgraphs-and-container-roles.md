@@ -376,7 +376,8 @@ conflation that makes assisted inputs hard to explain and extend.
 - **AC-600-008** (`FR-600-008`): A strict-concurrency external fixture proves
   contributor order, shared/transient lifetime behavior, and override flow.
 - **AC-600-009** (`FR-600-009`): Macro and graph tests reject invalid
-  contributions and graph JSON v5 records the ordered collection edges.
+  contributions and graph JSON v6 records ordered and keyed collection kind,
+  key, order, canonical contributor, and contributor lifetime.
 
 ## Traceability
 
@@ -385,12 +386,12 @@ conflation that makes assisted inputs hard to explain and extend.
 | FR-600-001 | AC-600-001, AC-600-002 | Child input model and generated `AssistedFactory` | The source-visible `@AssistedFactory` bridge passes separate-file same-target `@MainActor` and cross-module strict consumers with typed assisted calls, actor-correct override forwarding, and independent child shared storage |
 | FR-600-002 | AC-600-002, AC-600-003 | Parent factory ownership macro and build validator | `@SubContainerFactory` owns the shared factory provider; whole-source tests cover complete bindings plus missing, duplicate, unknown, and assisted-as-static failures |
 | FR-600-003 | AC-600-001 | Generated child construction and overrides | The public external-consumer fixtures and InnoSample People route create children with distinct `.shared` identities and verify override identity |
-| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v5 and renderers | Complete: nodes separate ordinary and assisted inputs; provider contracts and edges distinguish fixed ownership, assisted-factory ownership, canonical binding pairs, and ordered contributions; JSON diff includes provider semantics and contributor order and exits 5 on drift |
+| FR-600-004 | AC-600-003, AC-600-004 | Graph JSON v6 and renderers | Complete: nodes separate ordinary and assisted inputs; provider contracts and edges distinguish fixed ownership, assisted-factory ownership, canonical binding pairs, and collection contracts; JSON diff includes provider semantics and exits 5 on drift |
 | FR-600-005 | AC-600-005 | `@Input` parser, codegen, diagnostics, migrator | `@Input` and `@Input(.assisted)` normalize into the provider IR; generated input type aliases feed the assisted bridge without repeating source types |
 | FR-600-006 | AC-600-005, AC-600-006 | Container role parser and hierarchy validator | Complete candidate: `@DIContainerRole(role: ContainerRole.component/.root)` and `mainActor: true` synthesize the existing hierarchy and actor contracts without weakening legacy `@DIContainer` diagnostics; Swift 6.2 and 6.4 external lanes pass |
 | FR-600-007 | AC-600-005 | Schema-v1 report plus idempotent 6.0 rewrite rules | `InnoDIMigrationCoreTests` cover input, role, isolation, option preservation, write, and second-pass stability; the strict public component fixture compiles the migrated spelling |
 | FR-600-008 | AC-600-008 | Ordered collection binding code generation | Complete preparation implementation: public `@Multibinding` is injectable and overrideable; strict external runtime coverage proves order and shared/transient contributor lifetime behavior |
-| FR-600-009 | AC-600-009 | Multibinding diagnostics and graph JSON v5 contribution edges | Complete: macro and serialized whole-source validators cover invalid contributor contracts, while schema v5 records provider identity, canonical wiring, and order as contribution edges |
+| FR-600-009 | AC-600-009 | Collection diagnostics and graph JSON v6 contracts | Complete: macro validation covers invalid explicit collection metadata; schema v6 records kind, key, order, canonical contributor, and contributor lifetime while preserving ordered contribution edges |
 
 ## Staged delivery
 
@@ -416,7 +417,7 @@ conflation that makes assisted inputs hard to explain and extend.
   the probe was removed after the public bridge, validator, and InnoSample
   migration replaced its evidence.
 - Public `@Multibinding` generates one injectable ordered local collection from
-  contributor key paths. Macro, serialized build-validation, graph-v4, and
+  contributor key paths. Macro, serialized build-validation, graph-v6, and
   strict external runtime fixtures cover diagnostics, deterministic order,
   shared/transient lifetime behavior, injection, and overrides. The
   underscored SPI was removed after the public path replaced it.
@@ -437,7 +438,7 @@ conflation that makes assisted inputs hard to explain and extend.
 ### 6.0.0 — stable contract
 
 - Remove the superseded markers and `.input` provider spelling.
-- Publish graph JSON v4 and the final migration guide.
+- Publish graph JSON v6 and the final migration guide.
 - Require exact-tag external consumer validation before publication.
 
 ## Candidate decisions and adopter evidence
@@ -463,7 +464,7 @@ conflation that makes assisted inputs hard to explain and extend.
 Maintainers may accept the chosen public spellings only after the dedicated
 promotion pull request completes its seven-calendar-day review cooldown, no
 earlier than `2026-09-12T12:54:47Z`, and receives human maintainer approval.
-Migration coverage, schema-v5 review, strict toolchain/platform gates,
+Migration coverage, schema-v6 review, strict toolchain/platform gates,
 macro/runtime performance evidence, conforming-counterexample review, and
 three committed consumer pilots are recorded on the candidate; the acceptance
 gate remains pending. Mulbyul's exact promotion-head read-only run records the

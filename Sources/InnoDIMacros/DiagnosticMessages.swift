@@ -93,6 +93,40 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func provideInvalidCollectionMetadata() -> Self {
+        Self(
+            "@Provide(collection:) requires .ordered([\\Self.member]), .providers([\\Self.member]), .keyed([.init(key: \"id\", contributor: \\Self.member)]), or .keyedProviders(...) with only literal entries.",
+            code: .provideInvalidCollectionMetadata
+        )
+    }
+
+    static func provideDuplicateCollectionKey(key: String) -> Self {
+        Self(
+            "@Provide(collection:) key '\(key)' appears more than once. Keyed collection contracts reject duplicates; there is no implicit last-wins rule.",
+            code: .provideDuplicateCollectionKey
+        )
+    }
+
+    static func provideUnknownCollectionContributor(
+        memberName: String,
+        contributorName: String
+    ) -> Self {
+        Self(
+            "@Provide member '\(memberName)' collection metadata references unknown direct dependency '\(contributorName)'.",
+            code: .provideUnknownCollectionContributor
+        )
+    }
+
+    static func provideAsyncCollectionContributor(
+        memberName: String,
+        contributorName: String
+    ) -> Self {
+        Self(
+            "@Provide member '\(memberName)' collection metadata cannot synchronously expose async contributor '\(contributorName)'.",
+            code: .provideAsyncCollectionContributor
+        )
+    }
+
     static func multibindingEmptyContributors() -> Self {
         Self(
             "@Multibinding requires at least one contributor.",

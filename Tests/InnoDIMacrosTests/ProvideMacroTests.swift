@@ -160,6 +160,80 @@ struct ProvideMacroTests {
         #expect(args.dependenciesParseState == .invalid)
     }
 
+    @Test("Provide parser preserves explicit keyed provider collection metadata")
+    func parseProvideCollectionMetadata() throws {
+        let source = """
+        @Provide(
+            .transient,
+            collection: .keyedProviders([
+                .init(key: "auth", contributor: \\Self.auth),
+                .init(key: "logs", contributor: \\Self.logging),
+            ]),
+            factory: makeProviders()
+        )
+        var providers: DIKeyedProviderCollection<String, Service>
+
+        @Provide(.transient, collection: .keyed([]), factory: makeEmpty())
+        var empty: DIKeyedCollection<String, Service>
+
+        @Provide(.transient, collection: metadata, factory: makeInvalid())
+        var invalid: [Service]
+
+        @Provide(.transient, collection: Foreign.keyed([]), factory: makeInvalid())
+        var foreignFactory: [Service]
+
+        @Provide(
+            .transient,
+            collection: .keyed([
+                DIKeyedCollectionContribution.init(
+                    key: "qualified",
+                    contributor: \\Self.auth
+                ),
+            ]),
+            factory: makeInvalid()
+        )
+        var qualifiedEntry: [Service]
+
+        @Provide(
+            .transient,
+            collection: .keyed([
+                .init(key: "escaped\\nkey", contributor: \\Self.auth),
+            ]),
+            factory: makeInvalid()
+        )
+        var escapedKey: [Service]
+        """
+
+        let declarations = Parser.parse(source: source).statements.compactMap {
+            $0.item.as(VariableDeclSyntax.self)
+        }
+        let parsed = declarations.map { declaration in
+            parseProvideArguments(
+                declaration.attributes.first!.as(AttributeSyntax.self)!
+            )
+        }
+
+        #expect(
+            parsed[0].collectionMetadataParseState == .parsed(
+                kind: .keyedProviders,
+                entries: [
+                    .init(key: "auth", contributor: "auth"),
+                    .init(key: "logs", contributor: "logging"),
+                ]
+            )
+        )
+        #expect(
+            parsed[1].collectionMetadataParseState == .parsed(
+                kind: .keyed,
+                entries: []
+            )
+        )
+        #expect(parsed[2].collectionMetadataParseState == .invalid)
+        #expect(parsed[3].collectionMetadataParseState == .invalid)
+        #expect(parsed[4].collectionMetadataParseState == .invalid)
+        #expect(parsed[5].collectionMetadataParseState == .invalid)
+    }
+
     @Test("Transient dependency resolution reports every semantic outcome directly")
     func transientDependencyResolutionOutcomes() throws {
         let container = try #require(

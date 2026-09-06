@@ -187,6 +187,80 @@ struct JSONRendererTests {
         #expect(decoded.edges.isEmpty)
     }
 
+    @Test("collection contracts serialize key order contributor and lifetime")
+    func collectionContract() throws {
+        let containerID = "swiftpm:root-package:App::AppContainer"
+        let contributorID = "\(containerID).auth"
+        let providers = [
+            DependencyGraphProvider(
+                id: contributorID,
+                containerID: containerID,
+                name: "auth",
+                type: "Service",
+                role: .provider,
+                lifetime: .shared,
+                initialization: .eager,
+                isolation: .nonisolated,
+                effect: .sync,
+                source: .init(path: "Sources/App.swift", line: 2, column: 5)
+            ),
+            DependencyGraphProvider(
+                id: "\(containerID).providers",
+                containerID: containerID,
+                name: "providers",
+                type: "DIKeyedProviderCollection<String, Service>",
+                role: .provider,
+                lifetime: .transient,
+                initialization: .onAccess,
+                isolation: .nonisolated,
+                effect: .sync,
+                collection: .init(
+                    kind: .keyedProviders,
+                    entries: [
+                        .init(
+                            key: "auth",
+                            order: 0,
+                            providerID: contributorID,
+                            providerLifetime: .shared
+                        ),
+                    ]
+                ),
+                source: .init(path: "Sources/App.swift", line: 3, column: 5)
+            ),
+        ]
+        let rendered = try renderJSON(
+            scope: scope,
+            nodes: [],
+            edges: [],
+            providers: providers
+        )
+        let data = Data(rendered.utf8)
+        let decoded = try JSONDecoder().decode(GraphJSON.Document.self, from: data)
+        let contract = try #require(
+            decoded.providers.first { $0.name == "providers" }?.collection
+        )
+
+        #expect(contract.kind == .keyedProviders)
+        #expect(contract.entries.map(\.key) == ["auth"])
+        #expect(contract.entries.map(\.order) == [0])
+        #expect(contract.entries.map(\.providerID) == [contributorID])
+        #expect(contract.entries.map(\.providerLifetime) == [.shared])
+
+        let rawDocument = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let rawProviders = try #require(
+            rawDocument["providers"] as? [[String: Any]]
+        )
+        let rawProvider = try #require(
+            rawProviders.first { $0["name"] as? String == "providers" }
+        )
+        let rawCollection = try #require(
+            rawProvider["collection"] as? [String: Any]
+        )
+        #expect(Set(rawCollection.keys) == ["entries", "kind"])
+    }
+
     @Test("Canonical JSON is independent of collector order")
     func canonicalOrdering() throws {
         let (nodes, edges) = makeGraph()

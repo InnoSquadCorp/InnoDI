@@ -6,6 +6,7 @@ import Testing
 private protocol CollectionService: Sendable { var name: String { get } }
 private struct AlphaService: CollectionService { let name = "alpha" }
 private struct BetaService: CollectionService { let name = "beta" }
+private struct CollectionCatalog { var alpha: any CollectionService }
 
 @Suite("DI collection composition")
 struct DICollectionCompositionTests {
@@ -57,6 +58,25 @@ struct DICollectionCompositionTests {
         ])
         #expect(keyed[key: "a"] == 1)
         #expect(counter.snapshot() == [1, 1])
+    }
+
+    @Test("collection metadata preserves public kind key and contributor identity")
+    func collectionMetadataContract() {
+        let keyed = DICollectionMetadata.keyedProviders([
+            .init(key: "alpha", contributor: \CollectionCatalog.alpha),
+        ])
+        let empty = DICollectionMetadata.ordered([])
+
+        #expect(keyed.kind == .keyedProviders)
+        #expect(keyed.contributors.isEmpty)
+        #expect(keyed.keyedContributors.map(\.key) == ["alpha"])
+        #expect(
+            keyed.keyedContributors.first?.contributor
+                == \CollectionCatalog.alpha
+        )
+        #expect(empty.kind == .ordered)
+        #expect(empty.contributors.isEmpty)
+        #expect(empty.keyedContributors.isEmpty)
     }
 }
 

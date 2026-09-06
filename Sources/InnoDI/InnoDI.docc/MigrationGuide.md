@@ -264,13 +264,37 @@ The superseded SPI was removed after public `@Multibinding` replaced its
 ordered-collection contract. Pinned preparation consumers must migrate to the
 public spelling before adopting 6.0.
 
-Graph JSON consumers must opt into schema v5 for 6.0. In addition to the v4
+Keyed, provider-backed, or otherwise factory-built collections declare their
+graph identity separately from runtime composition:
+
+```swift
+@Provide(
+    .transient,
+    collection: .keyedProviders([
+        .init(key: "auth", contributor: \Self.auth),
+        .init(key: "logging", contributor: \Self.logging),
+    ]),
+    factory: makeProviders()
+)
+var providers: DIKeyedProviderCollection<String, any Service>
+```
+
+Only the closed literal forms `.ordered`, `.keyed`, `.providers`, and
+`.keyedProviders` are accepted at `@Provide(collection:)`. An explicit empty
+array is valid and remains distinct from omitted metadata. Keys, order,
+canonical contributor IDs, and the contributors' declared lifetimes are graph
+contract; InnoDI does not inspect factory bodies, discover module members, or
+apply an implicit last-wins rule.
+
+Graph JSON consumers must opt into schema v6 for 6.0. In addition to the v4
 provider contract, v5 records every factory parameter's canonical provider ID
 and eager, `Lazy`, or `Provider` kind. Fixed and assisted child ownership also
-records canonical child-input-to-parent-provider binding pairs. Source line and
-column changes remain diagnostic-only, while endpoint or deferred-kind changes
-are contractual. The CLI rejects older documents and v5 providers missing the
-new binding arrays, so regenerate both baselines before enabling
+records canonical child-input-to-parent-provider binding pairs. Schema v6 adds
+explicit collection kind, key, order, contributor ID, and contributor lifetime.
+Source line and column changes remain diagnostic-only, while endpoint,
+deferred-kind, or collection metadata changes are contractual. The CLI rejects
+older documents, providers missing binding arrays, and malformed collection
+metadata, so regenerate both baselines before enabling
 `--check-contract` on this version.
 
 ---

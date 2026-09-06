@@ -240,14 +240,16 @@ standalone release assets.
   records are covered by executable release-contract tests.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
-  every rooted graph, and `--diff` compares two schema-v5 JSON artifacts.
+  every rooted graph, and `--diff` compares two schema-v6 JSON artifacts.
   `--diff ... --check-contract` turns that comparison into a CI gate: unchanged
   contracts exit 0 and any scope, node, or edge drift, including assisted input,
   assisted-factory ownership, or ordered contribution changes, exits 5 while
-  preserving the human-readable diff. Schema v5 also treats canonical factory
+  preserving the human-readable diff. Schema v6 treats canonical factory
   parameter wiring and fixed/assisted child binding pairs as contract. It
-  rejects earlier schemas and missing binding metadata rather than treating
-  them as unchanged. Regenerate older baselines before
+  additionally records explicit collection kind, keys, order, contributor IDs,
+  and contributor lifetimes. It rejects earlier schemas, missing binding
+  metadata, and malformed collection contracts rather than treating them as
+  unchanged. Regenerate older baselines before
   comparing them with this release candidate.
 - Completed generated-mock stub preflight across properties, ordinary returns,
   untyped and typed throwing functions, and generic handlers. Setup state is
@@ -274,7 +276,7 @@ standalone release assets.
   otherwise reject override forwarding as a non-Sendable actor crossing.
 - Added public `@Multibinding` for one injectable deterministic ordered
   collection from explicit local synchronous providers with the same written
-  type. Macro, serialized validation, graph-v4, and strict external-consumer
+  type. Macro, serialized validation, graph-v6, and strict external-consumer
   tests cover invalid contributors, injection, shared/transient lifetime
   behavior, contributor order, and overrides. The superseded underscored SPI
   has been removed after public consumer migration.
@@ -316,9 +318,14 @@ standalone release assets.
   the release gate. Arbitrary strings fail with a stable InnoDI diagnostic.
 - Added owned on-demand and async preparation scopes, a SwiftUI container host,
   concurrency-safe public testing support, explicit cross-module ordered/keyed
-  provider collections, schema-v5 provider contract queries, metadata-only
+  provider collections, schema-v6 provider contract queries, metadata-only
   bounded runtime tracing, and a read-only-first `InnoDI-Doctor` workflow for
   the 6.0 candidate.
+- Added `@Provide(collection:)` closed metadata for factory-built ordered,
+  keyed, value, and provider collections. Key identity, order, canonical
+  contributor, and declared contributor lifetime are contractual across graph
+  artifacts; explicit empty is valid, duplicates fail, and no factory-body or
+  module discovery is performed.
 - Async preparation now rejects already-cancelled waiters before factory start,
   reports request and owned-operation cancellation separately from failure,
   and retries a failed selected child plus its downstream in fresh generations

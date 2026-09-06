@@ -442,7 +442,7 @@ func usageText() -> String {
       --analysis-manifest <path> Target-scoped SwiftPM analysis manifest input
       --root-pruning <mode>      Required render scope: all or roots
       --format <fmt>             Output format: mermaid (default), dot, ascii, json
-                                 JSON schema v5 requires --analysis-manifest
+                                 JSON schema v6 requires --analysis-manifest
       --output <file>            Output file path (default: stdout; use - for stdout)
       --validate-dag             Validate the full selected target scope; cannot be pruned
       --why <container>          Show a shortest root-to-container inclusion path
@@ -486,7 +486,7 @@ extension ArgumentsError {
         case .formatWithValidation:
             return "Error: --format is not supported with --validate-dag"
         case .jsonRequiresAnalysisManifest:
-            return "Error: JSON schema v5 requires --analysis-manifest <path>"
+            return "Error: JSON schema v6 requires --analysis-manifest <path>"
         case .incompatibleMaintenanceOption(let option):
             return "Error: Option \(option) is not supported with maintenance commands"
         case .incompatibleQueryOption(let option):

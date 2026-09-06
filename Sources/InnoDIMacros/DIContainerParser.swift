@@ -502,6 +502,30 @@ struct DIContainerParser {
         if arguments.operationalEffect == nil {
             hadArgumentErrors = true
         }
+        if arguments.collectionMetadataParseState.isInvalid {
+            context.emit(
+                SimpleDiagnostic.provideInvalidCollectionMetadata(),
+                at: Syntax(attribute)
+            )
+            hadArgumentErrors = true
+        }
+        if case let .parsed(kind, entries) =
+            arguments.collectionMetadataParseState,
+           kind == .keyed || kind == .keyedProviders {
+            var seenKeys: Set<String> = []
+            for entry in entries {
+                guard let key = entry.key else { continue }
+                if !seenKeys.insert(key).inserted {
+                    context.emit(
+                        SimpleDiagnostic.provideDuplicateCollectionKey(
+                            key: key
+                        ),
+                        at: Syntax(attribute)
+                    )
+                    hadArgumentErrors = true
+                }
+            }
+        }
         if arguments.isMultibinding,
            case let .parsed(contributors) = arguments.dependenciesParseState {
             if Set(contributors).count != contributors.count {
@@ -547,6 +571,8 @@ struct DIContainerParser {
                 scope: scope,
                 initialization: initialization,
                 operationalEffect: operationalEffect,
+                collectionMetadataParseState:
+                    arguments.collectionMetadataParseState,
                 inputKind: arguments.inputKind,
                 isMultibinding: arguments.isMultibinding,
                 factory: arguments.factoryExpr,

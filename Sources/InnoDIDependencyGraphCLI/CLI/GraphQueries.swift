@@ -198,6 +198,9 @@ private func validateGraphJSONDocument(
             reason: "duplicate provider ID '\(duplicate)'"
         )
     }
+    let providersByID = Dictionary(
+        uniqueKeysWithValues: document.providers.map { ($0.id, $0) }
+    )
     for provider in document.providers {
         guard validNodeIDs.contains(provider.containerID) else {
             throw GraphInspectionError.invalidDocument(
@@ -210,6 +213,50 @@ private func validateGraphJSONDocument(
                 path: path,
                 reason: "provider '\(provider.id)' has an invalid source location"
             )
+        }
+        if let collection = provider.collection {
+            let expectsKeys = collection.kind == .keyed
+                || collection.kind == .keyedProviders
+            let keys = collection.entries.compactMap(\.key)
+            if expectsKeys, keys.count != collection.entries.count {
+                throw GraphInspectionError.invalidDocument(
+                    path: path,
+                    reason: "provider '\(provider.id)' keyed collection has an entry without a key"
+                )
+            }
+            if !expectsKeys, !keys.isEmpty {
+                throw GraphInspectionError.invalidDocument(
+                    path: path,
+                    reason: "provider '\(provider.id)' ordered collection has an unexpected key"
+                )
+            }
+            if let duplicate = firstDuplicate(in: keys) {
+                throw GraphInspectionError.invalidDocument(
+                    path: path,
+                    reason: "provider '\(provider.id)' repeats collection key '\(duplicate)'"
+                )
+            }
+            for (index, entry) in collection.entries.enumerated() {
+                guard entry.order == index else {
+                    throw GraphInspectionError.invalidDocument(
+                        path: path,
+                        reason: "provider '\(provider.id)' collection order must be contiguous from zero"
+                    )
+                }
+                guard let contributor = providersByID[entry.providerID],
+                      contributor.containerID == provider.containerID else {
+                    throw GraphInspectionError.invalidDocument(
+                        path: path,
+                        reason: "provider '\(provider.id)' collection contributor '\(entry.providerID)' is missing or belongs to another container"
+                    )
+                }
+                guard entry.providerLifetime == contributor.lifetime else {
+                    throw GraphInspectionError.invalidDocument(
+                        path: path,
+                        reason: "provider '\(provider.id)' collection contributor '\(entry.providerID)' has stale lifetime metadata"
+                    )
+                }
+            }
         }
     }
 }
@@ -392,6 +439,7 @@ private func providerChangeDescription(
     append("dependencies", before.dependencies, after.dependencies)
     append("dependencyBindings", before.dependencyBindings, after.dependencyBindings)
     append("containerBindings", before.containerBindings, after.containerBindings)
+    append("collection", before.collection, after.collection)
     return changes.joined(separator: "; ")
 }
 

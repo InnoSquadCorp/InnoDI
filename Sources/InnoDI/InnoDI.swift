@@ -39,6 +39,80 @@ public enum DIProviderEffect: String, Equatable, Hashable, Sendable {
     case sideEffect
 }
 
+/// One explicitly keyed contributor used by ``DICollectionMetadata``.
+///
+/// The key must be a static string literal when this value appears inside
+/// `@Provide(collection:)`. The contributor must use the canonical
+/// `\Self.member` spelling. InnoDI records this source contract in the graph;
+/// it never searches an arbitrary factory body for dictionary literals.
+/// The unchecked conformance covers immutable `AnyKeyPath` references, which
+/// the SDK does not currently declare `Sendable`; this type exposes no mutation.
+public struct DIKeyedCollectionContribution: @unchecked Sendable {
+    public let key: String
+    public let contributor: AnyKeyPath
+
+    public init(key: String, contributor: AnyKeyPath) {
+        self.key = key
+        self.contributor = contributor
+    }
+}
+
+/// Explicit graph metadata for a collection returned by `@Provide`.
+///
+/// These values are source-visible so a module can publish the same nominal
+/// contract across source and binary boundaries. Membership and ordering are
+/// always caller-authored; InnoDI performs no module scanning or implicit
+/// last-wins merge.
+/// Its unchecked conformance is limited to the immutable key paths stored by
+/// the contribution values; the metadata object exposes no mutation.
+public struct DICollectionMetadata: @unchecked Sendable {
+    public enum Kind: String, Equatable, Hashable, Sendable {
+        case ordered
+        case keyed
+        case providers
+        case keyedProviders
+    }
+
+    public let kind: Kind
+    public let contributors: [AnyKeyPath]
+    public let keyedContributors: [DIKeyedCollectionContribution]
+
+    public static func ordered(_ contributors: [AnyKeyPath]) -> Self {
+        Self(kind: .ordered, contributors: contributors)
+    }
+
+    public static func keyed(
+        _ contributors: [DIKeyedCollectionContribution]
+    ) -> Self {
+        Self(kind: .keyed, keyedContributors: contributors)
+    }
+
+    public static func providers(_ contributors: [AnyKeyPath]) -> Self {
+        Self(kind: .providers, contributors: contributors)
+    }
+
+    public static func keyedProviders(
+        _ contributors: [DIKeyedCollectionContribution]
+    ) -> Self {
+        Self(kind: .keyedProviders, keyedContributors: contributors)
+    }
+
+    private init(kind: Kind, contributors: [AnyKeyPath]) {
+        self.kind = kind
+        self.contributors = contributors
+        keyedContributors = []
+    }
+
+    private init(
+        kind: Kind,
+        keyedContributors: [DIKeyedCollectionContribution]
+    ) {
+        self.kind = kind
+        contributors = []
+        self.keyedContributors = keyedContributors
+    }
+}
+
 /// One provider that a strict override profile requires callers to replace.
 public struct DIProviderEffectRequirement: Equatable, Hashable, Sendable {
     public let providerName: String
@@ -245,6 +319,9 @@ public macro _InnoDIAssistedFactoryMetadata(
 ///     generated `Overrides` builder report this provider as required to an
 ///     opt-in strict `InnoDITesting` profile until its override slot is set.
 ///     InnoDI does not infer this value from the factory closure.
+///   - collection: Explicit ordered/keyed and value/provider collection graph
+///     metadata. The literal contract is validated against direct providers;
+///     arbitrary factory contents are never inspected to infer membership.
 ///   - factory: Synchronous factory expression. Only a root closure literal's
 ///     named parameters declare sibling DI edges; other expressions are opaque.
 ///   - asyncFactory: Explicit `async` or `async throws` factory closure for
@@ -257,6 +334,7 @@ public macro Provide(
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
     effect: DIProviderEffect = .none,
+    collection: DICollectionMetadata? = nil,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 ) = #externalMacro(module: "InnoDIMacros", type: "ProvideMacro")

@@ -43,6 +43,7 @@ package struct DependencyGraphProvider: Hashable, Sendable {
     package let dependencies: [String]
     package let dependencyBindings: [DependencyBinding]
     package let containerBindings: [ContainerBinding]
+    package let collection: CollectionContract?
     package let source: SourceLocation
 
     package init(
@@ -59,6 +60,7 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         dependencies: [String] = [],
         dependencyBindings: [DependencyBinding] = [],
         containerBindings: [ContainerBinding] = [],
+        collection: CollectionContract? = nil,
         source: SourceLocation
     ) {
         self.id = id
@@ -74,6 +76,7 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         self.dependencies = dependencies
         self.dependencyBindings = dependencyBindings
         self.containerBindings = containerBindings
+        self.collection = collection
         self.source = source
     }
 
@@ -159,6 +162,46 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         }
     }
 
+    /// Explicit collection semantics authored at the provider declaration.
+    /// Entry order is contractual; keyed forms additionally carry a stable
+    /// string key. Contributor lifetime comes from the referenced canonical
+    /// provider rather than from an arbitrary collection factory body.
+    package struct CollectionContract: Codable, Hashable, Sendable {
+        package let kind: Kind
+        package let entries: [Entry]
+
+        package init(kind: Kind, entries: [Entry]) {
+            self.kind = kind
+            self.entries = entries
+        }
+
+        package enum Kind: String, Codable, Hashable, Sendable {
+            case ordered
+            case keyed
+            case providers
+            case keyedProviders
+        }
+
+        package struct Entry: Codable, Hashable, Sendable {
+            package let key: String?
+            package let order: Int
+            package let providerID: String
+            package let providerLifetime: Lifetime?
+
+            package init(
+                key: String?,
+                order: Int,
+                providerID: String,
+                providerLifetime: Lifetime?
+            ) {
+                self.key = key
+                self.order = order
+                self.providerID = providerID
+                self.providerLifetime = providerLifetime
+            }
+        }
+    }
+
     package struct SourceLocation: Hashable, Sendable {
         package let path: String
         package let line: Int
@@ -190,6 +233,29 @@ package extension DependencyGraphProvider {
             dependencies: dependencies,
             dependencyBindings: dependencyBindings,
             containerBindings: bindings,
+            collection: collection,
+            source: source
+        )
+    }
+
+    func replacingCollectionContract(
+        _ contract: CollectionContract?
+    ) -> DependencyGraphProvider {
+        DependencyGraphProvider(
+            id: id,
+            containerID: containerID,
+            name: name,
+            type: type,
+            role: role,
+            lifetime: lifetime,
+            initialization: initialization,
+            isolation: isolation,
+            effect: effect,
+            inputKind: inputKind,
+            dependencies: dependencies,
+            dependencyBindings: dependencyBindings,
+            containerBindings: containerBindings,
+            collection: contract,
             source: source
         )
     }
@@ -247,7 +313,7 @@ package struct DependencyGraphEdge: Hashable {
     /// regular `.input` wiring.
     package let isOwnership: Bool
     /// Assisted-factory ownership is distinct from fixed `@SubContainer`
-    /// ownership in graph schema v5, while remaining a hard ownership edge.
+    /// ownership in graph schema v6, while remaining a hard ownership edge.
     package let isAssistedFactoryOwnership: Bool
     /// Ordered collection contribution metadata. Contribution edges are
     /// self-edges on the owning container and are excluded from cycle checks.

@@ -207,14 +207,23 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ## 5.x → 6.0 그래프 계약
 
-Graph JSON consumer는 schema v5로 옮겨야 합니다. v5는 v4 provider 계약에
+`@Multibinding`으로 표현할 수 없는 keyed/provider collection은
+`@Provide(collection:)`에 `.ordered`, `.keyed`, `.providers`,
+`.keyedProviders` 중 하나의 닫힌 literal metadata를 선언합니다. keyed entry는
+`.init(key: "id", contributor: \Self.member)`만 허용하며 explicit empty는
+metadata 생략과 구별됩니다. key·순서·canonical contributor ID·실제 provider
+lifetime은 graph 계약입니다. InnoDI는 factory body나 module을 검색하지 않고
+암묵적 last-wins도 적용하지 않습니다.
+
+Graph JSON consumer는 schema v6로 옮겨야 합니다. v5는 v4 provider 계약에
 더해 각 factory parameter의 canonical provider ID와 eager/`Lazy`/`Provider`
 종류를 기록합니다. fixed/assisted child ownership도 child input ID와 parent
-provider ID의 binding pair를 직렬화합니다. 줄과 열 이동은 계속 진단
-metadata로만 취급하지만 endpoint나 deferred kind 변경은 계약 변경입니다.
-`--diff`는 이전 schema와 새 binding 배열이 누락된 v5 provider를 명시적으로
-거부하므로 `--check-contract`를 켜기 전에 before/after baseline을 모두 같은
-6.0 도구로 다시 만드세요.
+provider ID의 binding pair를 직렬화합니다. v6는 collection kind, key, 순서,
+contributor ID, contributor lifetime을 추가합니다. 줄과 열 이동은 계속 진단
+metadata로만 취급하지만 endpoint, deferred kind, collection metadata 변경은
+계약 변경입니다. `--diff`는 이전 schema, binding 배열 누락, 잘못된 collection
+metadata를 명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after
+baseline을 모두 같은 6.0 도구로 다시 만드세요.
 
 ---
 

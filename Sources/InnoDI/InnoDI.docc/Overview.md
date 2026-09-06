@@ -83,7 +83,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 ### Symbols
 
 - ``DIContainer(validateDAG:)``
-- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``
