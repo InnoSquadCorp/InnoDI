@@ -10,6 +10,13 @@ import InnoDICore
 import SwiftDiagnostics
 
 extension SimpleDiagnostic {
+    static func provideUnknownEffect(_ name: String) -> Self {
+        Self(
+            "Unknown @Provide effect classification '\(name)'. Valid values are .none and .sideEffect.",
+            code: .provideUnknownEffect
+        )
+    }
+
     static func provideUnknownInitialization(_ name: String) -> Self {
         Self(
             "Unknown @Provide initialization policy '\(name)'. Valid policies are .eager and .onDemand.",

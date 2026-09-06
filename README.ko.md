@@ -172,6 +172,10 @@ SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
 생성된 `Sendable` mock, 재사용 override preset, strict interaction 검증이 필요한
 테스트 또는 프리뷰 지원 target에만 `InnoDITesting`을 추가하세요. 이 product는
 `InnoDI`에만 의존하며 Swift Testing이나 SwiftSyntax에는 의존하지 않습니다.
+`@Provide(effect: .sideEffect, ...)`로 명시한 provider는 생성 override 요구사항도
+노출합니다. 컨테이너를 만들기 전에 typed preset을 검증하면 미설정 live factory
+실행을 차단할 수 있습니다. 표시하지 않은 opaque factory를 순수하거나 effectful한
+것으로 추론하지 않으며 production 기본 동작은 바뀌지 않습니다.
 
 InnoDI 컨테이너 또는 standalone `@DIEnvironmentBridge`를 선언하는 모든 target에
 build-time validation plugin을 연결합니다. 이는 선택적인 graph 시각화 단계가

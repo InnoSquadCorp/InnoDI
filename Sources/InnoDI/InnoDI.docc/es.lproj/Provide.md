@@ -35,6 +35,7 @@ indebido de InnoDI.
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
@@ -110,6 +111,6 @@ rechazan targets construidos mediante `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>

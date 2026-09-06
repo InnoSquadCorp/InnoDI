@@ -326,6 +326,12 @@ standalone release assets.
   overload, hosted content receives an explicit lifecycle handle through the
   SwiftUI environment, and `#PreviewWithContainer` constructs lazily through
   the same generation owner. Existing direct and manual host APIs remain.
+- Added explicit `@Provide(effect: .sideEffect)` metadata and generated
+  `Overrides` completeness reporting. Test and preview targets can use
+  `InnoDITesting` strict preflight to reject missing effect overrides before a
+  live factory runs; recording mode returns the same deterministic report.
+  Unmarked opaque factories remain unclassified, and production construction
+  does not enable this opt-in policy globally.
 
 ## 5.1.0
 

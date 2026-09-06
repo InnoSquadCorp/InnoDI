@@ -91,6 +91,9 @@ Most frequently-hit codes:
   declare external values with `@Input`.
 - `provide.unknown-initialization` — `initialization:` is not `.eager` or
   `.onDemand`.
+- `provide.unknown-effect` — `effect:` is not `.none` or `.sideEffect`.
+  Use a literal supported classification; arbitrary expressions are not
+  evaluated or inferred by the macro.
 - `provide.initialization-invalid-scope` — `.onDemand` was used with a scope
   other than `.shared`.
 - `provide.ondemand-async-unsupported` — `.onDemand` was combined with

@@ -20,6 +20,20 @@ profile returns the same report without failing the test.
 Each application starts from the caller's value, so presets do not introduce
 global or task-local state.
 
+For a provider declared with `@Provide(effect: .sideEffect, ...)`, its generated
+`Overrides` conforms to an effect-validation protocol. Apply a preset and call
+`validated(base:profile:)` on ``DIOverridePreset`` before constructing the container:
+
+```swift
+let overrides = try offlinePreset.validated(base: AppContainer.Overrides())
+let container = AppContainer { $0 = overrides }
+```
+
+The strict profile throws ``DIMissingEffectOverrideError`` before any live
+factory runs. The recording profile returns the same sorted
+``DIOverrideEffectReport`` without failing. InnoDI never guesses whether an
+arbitrary closure has side effects, so unmarked providers remain unverified.
+
 ## Topics
 
 ### Concurrent mock storage
@@ -35,6 +49,9 @@ global or task-local state.
 - ``DIInteractionReport``
 - ``DIInteractionViolationError``
 - ``DIInteractionConfigurationError``
+- ``DIOverrideEffectValidation``
+- ``DIOverrideEffectReport``
+- ``DIMissingEffectOverrideError``
 - ``DITestEffectProfile``
 - ``DIEffectViolationPolicy``
 
