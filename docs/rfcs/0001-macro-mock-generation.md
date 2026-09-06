@@ -3,7 +3,7 @@
 - **Status**: Accepted (experimental); available on `main` as opt-in
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
-- **Last updated**: 2026-09-06
+- **Last updated**: 2026-09-07
 - **Target release**: Experimental until the published GA criteria
   pass (not a 5.0 blocker)
 
@@ -12,10 +12,10 @@
 | Question | Answer |
 |---|---|
 | Generic protocols | Protocol genericity expressed through associated types remains unsupported; generic method requirements are supported through erased handlers. |
-| Generic methods | Supported in the experimental implementation with erased handler closures and preserved generic clauses. |
+| Generic methods | Supported in the experimental implementation with erased handler closures and preserved generic clauses. Generic typed-throws requirements fail closed because erasure cannot preserve their failure type. |
 | Associated types | Candidate direction is explicit pinning via `@GenerateMock(associatedTypes: ...)`; it is not implemented while cross-module resolution remains unsettled. |
 | Actor protocols | Protocol-level `@MainActor` is supported. Custom global actors and individually isolated requirements fail closed and remain outside the current GA scope. |
-| Mutation tracking | Generated mocks expose reset-safe call and stub state. `Sendable` protocols use lock-backed storage from `InnoDITesting` with atomic snapshots. |
+| Mutation tracking | Generated mocks expose explicit stub-setup state independently from optional values, plus call snapshots. `Sendable` protocols use lock-backed storage from `InnoDITesting`; generated reset semantics are tracked separately by the 6.0 remediation plan. |
 | Snapshot of call args | Generated `Call` structs preserve written parameter types. `Sendable` protocol records require `Sendable` fields; generic methods alone use documented handler erasure. No implicit `Equatable` or `Any` fallback is synthesized. |
 
 ## Summary
@@ -206,10 +206,15 @@ RFC revisions.
       consumer ([`8a80f66`](https://github.com/InnoSquadCorp/InnoDI/commit/8a80f6646da8df146100750d58f2894d1adf5720))
 - [x] `Sendable` protocols use `InnoDITesting` lock-backed state without
       unchecked conformance; protocol-level `@MainActor`, typed throws,
-      100-call concurrency, missing-stub preflight, and interaction validation
+      100-call concurrency, complete missing-stub preflight, and interaction validation
       compile and run in the
       [`generate-mock-module-shadow`](../../Tests/ExternalConsumerFixtures/pass/generate-mock-module-shadow/Sources/FixtureApp/FixtureApp.swift.fixture)
       strict consumer
+- [x] Required ordinary returns, untyped and typed throws, properties, and
+      generic handlers share one generated preflight contract; optional `nil`
+      is distinct from missing setup, unnamed parameters receive legal body
+      identifiers, and generic typed throws/static properties fail on the
+      source attribute without partial conformance
 - [ ] Associated-type protocols (per RFC `Initial answers to open questions`,
       with `@GenerateMock(associatedTypes: ...)` syntax)
 - [ ] Custom global-actor and individually isolated requirements — currently

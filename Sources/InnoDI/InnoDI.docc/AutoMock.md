@@ -29,6 +29,7 @@ read recorded calls back:
 let mock = UserServiceMock()
 mock.prefix = "test"
 mock.fetchResult = .success("hello")
+try DIStubValidation.requireAllStubbed(mock.missingStubSelectors)
 
 let value = try await mock.fetch(id: "42")
 #expect(value == "hello")
@@ -58,7 +59,7 @@ For each supported protocol member the macro emits the following:
   name.
 * **`func name(args) throws` (Void return)** — adds a single
   `var nameThrownError: Error?` hook the generated body re-throws when
-  set.
+  set. Assign `nil` explicitly to mark the success behavior as configured.
 * **`func name(args) async throws -> T`** — combines the two cases.
 * **`func name(args) throws(Failure) -> T`** — preserves the typed error in
   `Result<T, Failure>?`. Because the macro cannot invent an arbitrary
@@ -68,7 +69,8 @@ For each supported protocol member the macro emits the following:
 * **Generic functions** — the generated method preserves generic clauses and
   stores an erased `([Any]) -> Any` handler, with matching `async` / `throws`
   effects when needed. Tests cast through the generic return type at the call
-  boundary.
+  boundary. Generic typed-throws requirements remain unsupported because
+  erasing their handler would lose the declared failure type.
 * **`mutating` requirements** — supported through the generated `final class`
   mock; the synthesized method does not need to be marked `mutating`.
 * **Access level** — mocks for `private` and `fileprivate` protocols inherit
@@ -86,9 +88,13 @@ For each supported protocol member the macro emits the following:
 * **Actor isolation** — a protocol-level `@MainActor` annotation is copied to
   the generated mock class, keeping all mutable test state on the main actor.
 * **Interaction validation** — every generated mock with functions exposes
-  `recordedCallCounts`; typed-throws mocks also expose
-  `missingStubSelectors`. Pass both to `DIInteractionValidation` for strict or
-  recording-only verification.
+  `recordedCallCounts`. Every property, value-returning function, throwing
+  function, and generic handler contributes to `missingStubSelectors` until
+  its generated slot is assigned. The setup flag is separate from optional
+  storage, so assigning a legitimate `nil` property or optional return marks
+  that stub as configured. Run `DIStubValidation.requireAllStubbed` before the
+  operation, then pass the same selectors and `recordedCallCounts` to
+  `DIInteractionValidation` for strict or recording-only verification.
 
 ## Currently unsupported
 
@@ -104,7 +110,8 @@ when any of these appear, because that would generate a broken conformance:
 * `subscript` requirements (no stable lowering yet).
 * `inout` parameters (call-record storage would need a copy policy).
 * `rethrows` requirements. Typed `throws(ErrorType)` is supported for
-  non-generic requirements.
+  non-generic requirements; generic typed-throws requirements fail at the
+  source attribute instead of emitting a partial conformance.
 * Opaque `some` return types.
 * Associated types — hand-roll those mocks until the RFC settles on the
   pinning and cross-module resolution path.
