@@ -15,7 +15,7 @@
 | Generic methods | Supported in the experimental implementation with erased handler closures and preserved generic clauses. Generic typed-throws requirements fail closed because erasure cannot preserve their failure type. |
 | Associated types | Candidate direction is explicit pinning via `@GenerateMock(associatedTypes: ...)`; it is not implemented while cross-module resolution remains unsettled. |
 | Actor protocols | Protocol-level `@MainActor` is supported. Custom global actors and individually isolated requirements fail closed and remain outside the current GA scope. |
-| Mutation tracking | Generated mocks expose explicit stub-setup state independently from optional values, plus call snapshots. `Sendable` protocols use lock-backed storage from `InnoDITesting`; generated reset semantics are tracked separately by the 6.0 remediation plan. |
+| Mutation tracking | Generated mocks expose explicit stub-setup state independently from optional values, generation-tagged call records, atomic aggregate snapshots, and typed `.calls`/`.all` reset. `Sendable` protocols use one lock-backed linearization region from `InnoDITesting`; `@MainActor` mocks use actor serialization. |
 | Snapshot of call args | Generated `Call` structs preserve written parameter types. `Sendable` protocol records require `Sendable` fields; generic methods alone use documented handler erasure. No implicit `Equatable` or `Any` fallback is synthesized. |
 
 ## Summary
@@ -138,8 +138,10 @@ mixed real/mock graphs.
 - **Actor protocols**: how should we model protocols with actor
   isolation inherited from `@globalActor`? Likely a separate mode
   (`.actor` vs `.sendableStruct`).
-- **Mutation tracking**: call records grow unbounded per test. Do we
-  need a `reset()` helper, or leave lifecycle to the test author?
+- **Mutation tracking (resolved for the experimental shape)**: generated
+  `.calls` and `.all` reset scopes close a numbered call generation and return
+  its aggregate snapshot. This bounds reusable-mock history without conflating
+  call cleanup with stub cleanup.
 - **Snapshot of call args**: some types are hard to `Equatable`. A
   fallback "opaque" call record that stores `Any` may be useful, but
   loses `#expect` comparison ergonomics.
@@ -215,6 +217,12 @@ RFC revisions.
       is distinct from missing setup, unnamed parameters receive legal body
       identifiers, and generic typed throws/static properties fail on the
       source attribute without partial conformance
+- [x] Generated mocks expose typed `.calls` and `.all` reset scopes, a returned
+      pre-reset generation snapshot, and generation-tagged call records.
+      The strict external consumer verifies 100 racing calls, reset, and
+      snapshots without lost or duplicated generation counts; calls-only reset
+      preserves stubs and full reset restores missing-stub state for both
+      `Sendable` and `@MainActor` mocks.
 - [ ] Associated-type protocols (per RFC `Initial answers to open questions`,
       with `@GenerateMock(associatedTypes: ...)` syntax)
 - [ ] Custom global-actor and individually isolated requirements — currently

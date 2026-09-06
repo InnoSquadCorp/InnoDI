@@ -5932,6 +5932,11 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:13InnoDITesting22DIOverrideEffectReportV",
           "target": "s:SQ"
         },
@@ -6159,6 +6164,21 @@
           "kind": "memberOf",
           "source": "s:13InnoDITesting20DIConcurrentValueBoxCyACyxGxcfc",
           "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateC18withCriticalRegionyxxs6UInt64VYbKXEKs8SendableRzlF",
+          "target": "s:13InnoDITesting21DIConcurrentMockStateC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateC5resetyxxs6UInt64VYbKXEKs8SendableRzlF",
+          "target": "s:13InnoDITesting21DIConcurrentMockStateC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateCACycfc",
+          "target": "s:13InnoDITesting21DIConcurrentMockStateC"
         },
         {
           "kind": "memberOf",
@@ -6932,6 +6952,95 @@
               }
             ]
           }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIConcurrentMockState"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateC18withCriticalRegionyxxs6UInt64VYbKXEKs8SendableRzlF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentMockState",
+            "withCriticalRegion(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Result",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Result"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateC5resetyxxs6UInt64VYbKXEKs8SendableRzlF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIConcurrentMockState",
+            "reset(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Result",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Result"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateCACycfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIConcurrentMockState",
+            "init()"
+          ]
         },
         {
           "accessLevel": "public",

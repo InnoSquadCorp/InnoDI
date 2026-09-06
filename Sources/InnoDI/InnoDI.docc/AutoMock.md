@@ -37,6 +37,10 @@ let value = try await mock.fetch(id: "42")
 
 mock.reset()
 #expect(mock.resetCalls.count == 1)
+
+let completed = mock.innoDIReset(.calls)
+#expect(completed.generation == 0)
+#expect(completed.recordedCallCounts["reset"] == 1)
 ```
 
 ## Generated shape
@@ -95,6 +99,33 @@ For each supported protocol member the macro emits the following:
   that stub as configured. Run `DIStubValidation.requireAllStubbed` before the
   operation, then pass the same selectors and `recordedCallCounts` to
   `DIInteractionValidation` for strict or recording-only verification.
+* **Reset** — every non-empty generated mock exposes
+  `innoDIReset(_:)`, `innoDICallHistoryGeneration`, and
+  `innoDICallHistorySnapshot`. Use `.calls` to clear call history while
+  retaining configured stubs, or `.all` to clear calls and return every stub
+  to the missing state. Each call record includes its generation.
+
+## Reset and generation semantics
+
+`innoDIReset(_:)` returns the atomic snapshot of the generation it closes,
+then advances the mock to the next generation. This makes a racing call
+deterministic: it appears either in the returned old-generation count or in
+the new generation, never both. `innoDICallHistorySnapshot` reads the current
+generation and every selector count as one aggregate operation.
+
+For `Sendable` mocks, call recording, aggregate snapshots, stub access, and
+reset share one `DIConcurrentMockState` critical region. For `@MainActor`
+mocks, MainActor serialization supplies the same ordering. Ordinary mocks keep
+their documented single-executor contract; callers must not access them from
+multiple executors concurrently.
+
+A method is assigned to the generation active when its call record and stub
+value are captured. Work performed after that point remains part of the
+invocation that already started; reset does not cancel arbitrary user work.
+`.calls` preserves every stub and setup flag. `.all` resets the backing value
+and setup flag together, so `missingStubSelectors` reports the member again
+after reset. Generated helper-name collisions fail closed rather than silently
+shadowing a protocol requirement.
 
 ## Currently unsupported
 

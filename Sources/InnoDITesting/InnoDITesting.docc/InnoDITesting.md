@@ -10,6 +10,12 @@ inherits `Sendable` uses ``DIConcurrentValueBox`` in its generated mock, while
 ``DIConcurrentCallRecorder`` is available to hand-written mocks. Both provide
 locked snapshots without unchecked conformance.
 
+Generated mocks also expose typed `.calls` and `.all` reset scopes. Every call
+record carries a generation, reset returns the atomic snapshot it closes, and
+the current aggregate is available through `innoDICallHistorySnapshot`.
+`Sendable` mocks route calls, snapshots, stub access, and reset through
+``DIConcurrentMockState``; `@MainActor` mocks rely on actor serialization.
+
 Typed-throws mocks expose `missingStubSelectors`, and every generated mock with
 function requirements exposes `recordedCallCounts`. Validate those values with
 ``DIInteractionValidation`` before and after the operation. The default
@@ -40,6 +46,7 @@ arbitrary closure has side effects, so unmarked providers remain unverified.
 
 - ``DIConcurrentValueBox``
 - ``DIConcurrentCallRecorder``
+- ``DIConcurrentMockState``
 
 ### Stub and interaction validation
 
