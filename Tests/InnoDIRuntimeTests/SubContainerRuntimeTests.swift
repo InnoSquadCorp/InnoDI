@@ -166,6 +166,21 @@ struct OverrideTransientBindingsParentContainer {
     var feature: OverrideTransientBindingsChild
 }
 
+private final class TransientChildLifetimeInput {}
+
+@DIContainer
+fileprivate struct TransientChildLifetimeChild {
+    @Input var lifetime: TransientChildLifetimeInput
+}
+
+@DIContainer
+fileprivate struct TransientChildLifetimeParent {
+    @Input var lifetime: TransientChildLifetimeInput
+
+    @SubContainer(scope: .transient)
+    var child: TransientChildLifetimeChild
+}
+
 @Suite("SubContainer runtime")
 struct SubContainerRuntimeTests {
     // MARK: - Scope behaviour
@@ -188,6 +203,20 @@ struct SubContainerRuntimeTests {
         // Each accessor invocation runs `_innoDISubBuild_child`, which
         // rebuilds the whole child, including a new `.shared` store.
         #expect(first.store !== second.store)
+    }
+
+    @Test("A transient child builder releases its dependency context with the parent")
+    func transientChildBuilderDoesNotRetainParentSnapshot() {
+        weak var weakInput: TransientChildLifetimeInput?
+
+        do {
+            let input = TransientChildLifetimeInput()
+            weakInput = input
+            let parent = TransientChildLifetimeParent(lifetime: input)
+            #expect(parent.child.lifetime === input)
+        }
+
+        #expect(weakInput == nil)
     }
 
     // MARK: - Input propagation

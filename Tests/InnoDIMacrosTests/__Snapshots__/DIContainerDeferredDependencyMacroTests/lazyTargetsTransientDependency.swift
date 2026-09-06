@@ -36,9 +36,10 @@ struct AppContainer {
                 _innoDILazyCell_service.resolve()
             })
         self._override_service = service
-        let _innoDILazySelf = self
         _innoDILazyCell_service.bindResolver {
-            _innoDILazySelf.service
+            service ?? {
+                Service()
+            }()
         }
     }
 

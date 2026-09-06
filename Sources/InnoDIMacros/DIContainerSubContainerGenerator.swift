@@ -142,14 +142,17 @@ internal func subContainerInitializerExpr(
     onDemandParentMemberNames: Set<String> = [],
     trailingOverrideExpression: ExprSyntax? = nil,
     parentMemberBaseName: String = "self",
-    parentMemberPrefix: String = "_storage_"
+    parentMemberPrefix: String = "_storage_",
+    parentMemberExpressions: [String: ExprSyntax] = [:]
 ) -> ExprSyntax {
     let totalArgumentCount = argumentMappings.count + (trailingOverrideExpression == nil ? 0 : 1)
     var arguments: [LabeledExprSyntax] = argumentMappings.enumerated().map { index, mapping in
         let hasTrailingOverride = trailingOverrideExpression != nil
         let isLast = index == argumentMappings.count - 1 && !hasTrailingOverride
         let parentExpression: ExprSyntax
-        if parentMemberPrefix == "_storage_" {
+        if let expression = parentMemberExpressions[mapping.parentName] {
+            parentExpression = expression
+        } else if parentMemberPrefix == "_storage_" {
             let storageRead = makeProviderStorageReadExpr(
                 name: "\(parentMemberPrefix)\(mapping.parentName)",
                 baseName: parentMemberBaseName

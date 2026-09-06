@@ -58,6 +58,20 @@ private final class TestSendableBox<Value>: @unchecked Sendable {
     init(_ value: Value) { self.value = value }
 }
 
+private final class OnDemandLifetimeInput {}
+
+@DIContainer
+fileprivate struct OnDemandLifetimeContainer {
+    @Input var input: OnDemandLifetimeInput
+
+    @Provide(
+        .shared,
+        initialization: .onDemand,
+        factory: { (input: OnDemandLifetimeInput) in input }
+    )
+    var value: OnDemandLifetimeInput
+}
+
 @DIContainer
 struct OnDemandContainer {
     @Input var counter: OnDemandCounter
@@ -138,6 +152,19 @@ struct OnDemandFixedParentContainer {
 
 @Suite("On-demand shared providers")
 struct OnDemandRuntimeTests {
+    @Test("An unresolved on-demand provider releases its captured input with the container")
+    func unresolvedOnDemandProviderReleasesLastOwner() {
+        weak var weakInput: OnDemandLifetimeInput?
+
+        do {
+            let input = OnDemandLifetimeInput()
+            weakInput = input
+            _ = OnDemandLifetimeContainer(input: input)
+        }
+
+        #expect(weakInput == nil)
+    }
+
     @Test("construction waits for first access and container copies share identity")
     func lazyConstructionAndCopySemantics() {
         let counter = OnDemandCounter()

@@ -89,7 +89,7 @@ extension DIContainerMacroTests {
         )
     }
 
-    @Test("`.transient` sub-container binds a build closure captured from a self snapshot")
+    @Test("`.transient` sub-container binds a dependency-only build context")
     func subContainerTransientBuildsFreshChild() {
         assertMacroExpansionSnapshot(
             """
@@ -598,9 +598,7 @@ extension DIContainerMacroTests {
             "_innoDIResolved_config",
             "_innoDITask_service",
             "_innoDILazyCell_request",
-            "_innoDILazySelf",
             "_innoDISubBuildCell_feature",
-            "_innoDILazySelfForSub",
             "_innoDIApplyOverrides",
             "_innoDIOverrides",
             "_innoDIOperation",
@@ -615,6 +613,8 @@ extension DIContainerMacroTests {
             "_subBuildCell_feature",
             "let _lazySelf =",
             "let _lazySelfForSub =",
+            "_innoDILazySelf",
+            "_innoDILazySelfForSub",
         ] {
             #expect(!result.expansion.contains(obsoleteName))
         }

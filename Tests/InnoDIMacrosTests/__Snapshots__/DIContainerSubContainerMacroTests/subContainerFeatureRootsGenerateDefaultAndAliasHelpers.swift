@@ -35,15 +35,14 @@ public struct AppContainer {
         self._innoDISubBuild_feature = {
             _innoDISubBuildCell_feature.resolve()
         }
-        let _innoDILazySelfForSub = self
         _innoDISubBuildCell_feature.bindResolver { () -> FeatureContainer in
-            if let direct = _innoDILazySelfForSub._override_sub_feature {
+            if let direct = feature {
                 return direct
             }
-            if let apply = _innoDILazySelfForSub._override_sub_apply_feature {
-                return .init(config: _innoDILazySelfForSub.config, apply)
+            if let apply = featureOverrides {
+                return .init(config: config, apply)
             }
-            return .init(config: _innoDILazySelfForSub.config)
+            return .init(config: config)
         }
     }
 
