@@ -129,6 +129,73 @@ struct ProvideMacroTests {
         #expect(args.dependenciesParseState == .invalid)
     }
 
+    @Test("Transient dependency resolution reports every semantic outcome directly")
+    func transientDependencyResolutionOutcomes() throws {
+        let container = try #require(
+            Parser.parse(
+                source: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.input)
+                    var dependency: Dependency
+
+                    @Provide(.transient, factory: { (missing: Dependency) in Service() })
+                    var invalid: Service
+
+                    @Provide(.transient, factory: Service())
+                    var valid: Service
+                }
+                """
+            ).statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let variables = container.memberBlock.members.compactMap {
+            $0.decl.as(VariableDeclSyntax.self)
+        }
+        let invalid = try #require(variables.first {
+            $0.bindings.first?.pattern.trimmedDescription == "invalid"
+        })
+        let valid = try #require(variables.first {
+            $0.bindings.first?.pattern.trimmedDescription == "valid"
+        })
+        let invalidAttribute = try #require(
+            invalid.attributes.first?.as(AttributeSyntax.self)
+        )
+        let validAttribute = try #require(
+            valid.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let unresolved = transientDependencyResolutionFailure(
+            declaration: invalid,
+            parseResult: parseProvideArguments(invalidAttribute),
+            memberName: "invalid"
+        )
+        #expect(
+            unresolved?.diagnostic(memberName: "invalid")?.diagnosticID
+                == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "provide.unresolved-factory-parameter"
+                )
+        )
+
+        let missingMember = transientDependencyResolutionFailure(
+            declaration: valid,
+            parseResult: parseProvideArguments(validAttribute),
+            memberName: "detached"
+        )
+        guard case .missingMember? = missingMember else {
+            Issue.record("Expected a missing-member result")
+            return
+        }
+
+        #expect(
+            transientDependencyResolutionFailure(
+                declaration: valid,
+                parseResult: parseProvideArguments(validAttribute),
+                memberName: "valid"
+            ) == nil
+        )
+    }
+
     @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
     func parseClosureParameterNamesSkipsWildcard() throws {
         let source = """

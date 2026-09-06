@@ -623,7 +623,7 @@ func enclosingDIContainerInfo(
     return nil
 }
 
-private enum TransientDependencyResolutionFailure {
+enum TransientDependencyResolutionFailure {
     case unresolvedWithDependency(String)
     case unresolvedFactoryParameter(String)
     case missingMember
@@ -646,7 +646,7 @@ private enum TransientDependencyResolutionFailure {
     }
 }
 
-private func transientDependencyResolutionFailure(
+func transientDependencyResolutionFailure(
     declaration: some DeclSyntaxProtocol,
     parseResult: ProvideArguments,
     memberName: String
