@@ -523,7 +523,11 @@ public struct FeatureRoot {
 ///   out-of-order child key path before Swift diagnoses the generated call.
 /// - `featureRoot`: Optional SwiftUI root view type. When provided, the
 ///   parent container receives `<propertyName>RootView()`, which calls
-///   `RootView(container: <propertyName>)`.
+///   `RootView(container: <propertyName>)`. Targets that import
+///   `InnoDISwiftUI` also receive an identity-taking overload backed by
+///   `DIContainerHost`; use that overload for route, document, and window
+///   ownership so transient children are created only after mount and reused
+///   across redraws. The zero-argument helper remains source-compatible.
 /// - `featureRoots`: Optional list of SwiftUI root view declarations. Use
 ///   `FeatureRoot(View.self)` for the default helper or
 ///   `FeatureRoot(View.self, as: "alias")` for `aliasRootView()`.

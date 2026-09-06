@@ -606,10 +606,14 @@ contract:
 - `.innodi(container)` applies a generated environment bridge to a view tree.
 - `@DIEnvironmentBridge` maps container members into SwiftUI environment keys.
 - `@SubContainer(..., featureRoot:)` and `featureRoots:` generate default or
-  named feature-root helpers for child containers.
+  named feature-root helpers for child containers. When `InnoDISwiftUI` is
+  imported, pass `identity:` to the generated helper to get lazy host ownership
+  without adding a manual State wrapper; the zero-argument helper remains.
 - `DIContainerHost` lazily owns fixed or assisted children by route, document,
   or window identity. Applications compose loading/failure/retry UI and call
   its lifecycle handle from the actual close path instead of `onDisappear`.
+- `#PreviewWithContainer` uses the same lazy owner and keeps equal preview
+  payloads isolated by preview instance.
 - InnoDI 5.0 removes the deprecated `@DIFeatureRoot` compatibility macro.
   Replace it with the `@SubContainer` arguments so helper generation stays in
   the container macro pipeline and does not stack peer macros on one property.

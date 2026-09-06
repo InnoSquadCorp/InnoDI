@@ -4683,6 +4683,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp",
+          "target": "s:7SwiftUI17EnvironmentValuesV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF",
           "target": "s:7SwiftUI4ViewP"
         },
@@ -5522,6 +5527,24 @@
             "DIEnvironmentBridging",
             "InnoDIEnvironmentBridgeModifier"
           ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "EnvironmentValues",
+            "innoDIContainerHostHandle"
+          ],
+          "swiftExtension": {
+            "extendedModule": "SwiftUICore",
+            "typeKind": "swift.struct"
+          }
         },
         {
           "accessLevel": "public",

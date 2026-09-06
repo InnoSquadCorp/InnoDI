@@ -322,6 +322,10 @@ standalone release assets.
   validation rejects out-of-order child `bindings:` at the first mismatching
   key path, and async overrides no longer resolve dependencies used only by a
   bypassed live factory.
+- Feature-root helpers now include an identity-taking `DIContainerHost`
+  overload, hosted content receives an explicit lifecycle handle through the
+  SwiftUI environment, and `#PreviewWithContainer` constructs lazily through
+  the same generation owner. Existing direct and manual host APIs remain.
 
 ## 5.1.0
 
