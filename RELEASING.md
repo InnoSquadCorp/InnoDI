@@ -250,7 +250,11 @@ standalone release assets.
   and contributor lifetimes. It rejects earlier schemas, missing binding
   metadata, and malformed collection contracts rather than treating them as
   unchanged. Regenerate older baselines before
-  comparing them with this release candidate.
+  comparing them with this candidate. Query selectors now check container and
+  provider namespaces together. Cross-namespace collisions list both candidate
+  sets and require `container:` or `provider:`; exact graph IDs remain stable,
+  and provider dependents follow canonical binding IDs rather than parameter
+  labels.
 - Completed generated-mock stub preflight across properties, ordinary returns,
   untyped and typed throwing functions, and generic handlers. Setup state is
   independent from optional storage, so an explicitly stubbed `nil` is not

@@ -297,6 +297,11 @@ older documents, providers missing binding arrays, and malformed collection
 metadata, so regenerate both baselines before enabling
 `--check-contract` on this version.
 
+`--why` and `--dependents` now resolve unqualified selectors against container
+and provider namespaces together. If one spelling names both kinds, the query
+fails with both candidate lists. Retry with `container:<selector>` or
+`provider:<selector>`. Exact graph IDs continue to select their existing target.
+
 ---
 
 ## 4.x → 5.0

@@ -75,7 +75,14 @@ struct GraphQueryTests {
             initialization: .onAccess,
             isolation: .nonisolated,
             effect: .sync,
-            dependencies: ["client"],
+            dependencies: ["renamedClient"],
+            dependencyBindings: [
+                .init(
+                    parameter: "renamedClient",
+                    providerID: "Data::DataContainer.client",
+                    kind: .hard
+                ),
+            ],
             source: .init(path: "Sources/Data.swift", line: 18, column: 5)
         ),
     ]
@@ -138,6 +145,64 @@ struct GraphQueryTests {
         #expect(dependents.contains("Data::DataContainer.repository (distance 1"))
     }
 
+    @Test("container and provider namespace collisions require an explicit qualifier")
+    func namespaceCollision() throws {
+        let collidingContainer = DependencyGraphNode(
+            id: "Services::client",
+            displayName: "client",
+            semanticPath: "Services.client",
+            isRoot: false,
+            requiredInputs: []
+        )
+        let collidingNodes = nodes + [collidingContainer]
+
+        #expect(
+            throws: GraphInspectionError.ambiguousTarget(
+                selector: "client",
+                containerCandidates: ["Services::client"],
+                providerCandidates: ["Data::DataContainer.client"]
+            )
+        ) {
+            try renderGraphQuery(
+                .why("client"),
+                nodes: collidingNodes,
+                edges: edges,
+                providers: providers
+            )
+        }
+
+        let container = try renderGraphQuery(
+            .dependents("container:client"),
+            nodes: collidingNodes,
+            edges: edges,
+            providers: providers
+        )
+        let provider = try renderGraphQuery(
+            .why("provider:client"),
+            nodes: collidingNodes,
+            edges: edges,
+            providers: providers
+        )
+        let exactProvider = try renderGraphQuery(
+            .why("Data::DataContainer.client"),
+            nodes: collidingNodes,
+            edges: edges,
+            providers: providers
+        )
+        let exactContainer = try renderGraphQuery(
+            .dependents("Services::client"),
+            nodes: collidingNodes,
+            edges: edges,
+            providers: providers
+        )
+
+        #expect(container == "Dependents of client (0)\n")
+        #expect(exactContainer == container)
+        #expect(provider.contains("Why provider Data::DataContainer.client"))
+        #expect(provider.contains("Source: Sources/Data.swift:12:5"))
+        #expect(exactProvider == provider)
+    }
+
     @Test("Unused reports nodes outside every root-reachable graph")
     func unusedQuery() throws {
         let output = try renderGraphQuery(
@@ -157,7 +222,7 @@ struct GraphQueryTests {
 
     @Test("Queries reject missing, ambiguous, rootless, and unreachable selections")
     func queryFailures() {
-        #expect(throws: GraphInspectionError.nodeNotFound(selector: "Missing")) {
+        #expect(throws: GraphInspectionError.targetNotFound(selector: "Missing")) {
             try renderGraphQuery(.why("Missing"), nodes: nodes, edges: edges)
         }
 
@@ -209,11 +274,23 @@ struct GraphQueryTests {
                 == "No container matches 'Missing'. Use an exact graph ID, semantic path, or display name."
         )
         #expect(
+            GraphInspectionError.targetNotFound(selector: "Missing").errorDescription
+                == "No container or provider matches 'Missing'. Use an exact graph ID or qualify the selector with container: or provider:."
+        )
+        #expect(
             GraphInspectionError.ambiguousNode(
                 selector: "ServiceContainer",
                 candidates: ["FeatureA::ServiceContainer", "FeatureB::ServiceContainer"]
             ).errorDescription
                 == "Container selector 'ServiceContainer' is ambiguous. Candidates: FeatureA::ServiceContainer, FeatureB::ServiceContainer"
+        )
+        #expect(
+            GraphInspectionError.ambiguousTarget(
+                selector: "client",
+                containerCandidates: ["Feature::client"],
+                providerCandidates: ["Data::DataContainer.client"]
+            ).errorDescription
+                == "Graph selector 'client' matches both namespaces. Containers: Feature::client; providers: Data::DataContainer.client. Qualify it with container: or provider:."
         )
         #expect(
             GraphInspectionError.noRoots.errorDescription

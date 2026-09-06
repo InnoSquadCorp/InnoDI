@@ -432,7 +432,7 @@ func usageText() -> String {
     """
     Usage: InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --root-pruning <all|roots> [--format <mermaid|dot|ascii|json>] [--output <file>]
            InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) --validate-dag [--output <file>]
-           InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) (--why <container> | --dependents <container> | --unused) [--output <file>]
+           InnoDI-DependencyGraph (--root <path> | --analysis-manifest <path>) (--why <selector> | --dependents <selector> | --unused) [--output <file>]
            InnoDI-DependencyGraph --diff <before.json> <after.json> [--check-contract] [--output <file>]
            InnoDI-DependencyGraph [--root <path>] --diagnose-lock [<scratch-path>]
            InnoDI-DependencyGraph [--root <path>] --cache-stats [<state-path>]
@@ -445,10 +445,11 @@ func usageText() -> String {
                                  JSON schema v6 requires --analysis-manifest
       --output <file>            Output file path (default: stdout; use - for stdout)
       --validate-dag             Validate the full selected target scope; cannot be pruned
-      --why <container>          Show a shortest root-to-container inclusion path
-      --dependents <container>   List direct and transitive dependents
+      --why <selector>           Explain a container path or provider contract
+      --dependents <selector>    List direct and transitive dependents
+                                 Use container:<value> or provider:<value> when names collide
       --unused                   List containers unreachable from every explicit root
-      --diff <before> <after>    Compare two graph JSON v5 documents
+      --diff <before> <after>    Compare two graph JSON v6 documents
       --check-contract           With --diff, exit 5 when any graph contract changed
       --diagnose-lock [path]     Inspect validation lock state (default: <root>/.build)
       --cache-stats [path]       Aggregate validation cache metrics

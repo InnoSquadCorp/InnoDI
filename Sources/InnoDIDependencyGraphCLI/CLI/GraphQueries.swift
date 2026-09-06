@@ -11,6 +11,12 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
     case invalidDocument(path: String, reason: String)
     case providerNotFound(selector: String)
     case ambiguousProvider(selector: String, candidates: [String])
+    case targetNotFound(selector: String)
+    case ambiguousTarget(
+        selector: String,
+        containerCandidates: [String],
+        providerCandidates: [String]
+    )
 
     var errorDescription: String? {
         switch self {
@@ -30,8 +36,21 @@ enum GraphInspectionError: Error, Equatable, LocalizedError {
             return "No provider matches '\(selector)'. Use container.member or an exact provider ID."
         case .ambiguousProvider(let selector, let candidates):
             return "Provider selector '\(selector)' is ambiguous. Candidates: \(candidates.joined(separator: ", "))"
+        case .targetNotFound(let selector):
+            return "No container or provider matches '\(selector)'. Use an exact graph ID or qualify the selector with container: or provider:."
+        case .ambiguousTarget(
+            let selector,
+            let containerCandidates,
+            let providerCandidates
+        ):
+            return "Graph selector '\(selector)' matches both namespaces. Containers: \(containerCandidates.joined(separator: ", ")); providers: \(providerCandidates.joined(separator: ", ")). Qualify it with container: or provider:."
         }
     }
+}
+
+private enum ResolvedGraphQueryTarget {
+    case container(DependencyGraphNode)
+    case provider(DependencyGraphProvider)
 }
 
 func renderGraphQuery(
@@ -42,29 +61,115 @@ func renderGraphQuery(
 ) throws -> String {
     switch query {
     case .why(let selector):
-        if looksLikeProviderSelector(selector, providers: providers) {
-            return try renderProviderWhy(selector: selector, nodes: nodes, providers: providers)
+        switch try resolveGraphQueryTarget(
+            selector: selector,
+            nodes: nodes,
+            providers: providers
+        ) {
+        case .container(let target):
+            return try renderWhyQuery(
+                target: target,
+                originalSelector: selector,
+                nodes: nodes,
+                edges: edges
+            )
+        case .provider(let target):
+            return renderProviderWhy(provider: target)
         }
-        return try renderWhyQuery(selector: selector, nodes: nodes, edges: edges)
     case .dependents(let selector):
-        if looksLikeProviderSelector(selector, providers: providers) {
-            return try renderProviderDependents(selector: selector, nodes: nodes, providers: providers)
+        switch try resolveGraphQueryTarget(
+            selector: selector,
+            nodes: nodes,
+            providers: providers
+        ) {
+        case .container(let target):
+            return renderDependentsQuery(
+                target: target,
+                nodes: nodes,
+                edges: edges
+            )
+        case .provider(let target):
+            return renderProviderDependents(
+                target: target,
+                providers: providers
+            )
         }
-        return try renderDependentsQuery(selector: selector, nodes: nodes, edges: edges)
     case .unused:
         return try renderUnusedQuery(nodes: nodes, edges: edges)
     }
 }
 
-private func looksLikeProviderSelector(
-    _ selector: String,
+private func resolveGraphQueryTarget(
+    selector: String,
+    nodes: [DependencyGraphNode],
     providers: [DependencyGraphProvider]
-) -> Bool {
-    providers.contains { provider in
-        provider.id == selector || provider.name == selector
-            || provider.id.hasSuffix(".\(selector)")
-            || selector.hasSuffix(".\(provider.name)")
+) throws -> ResolvedGraphQueryTarget {
+    if selector.hasPrefix("container:") {
+        return .container(
+            try resolveGraphNode(
+                selector: String(selector.dropFirst("container:".count)),
+                nodes: nodes
+            )
+        )
     }
+    if selector.hasPrefix("provider:") {
+        return .provider(
+            try resolveProvider(
+                selector: String(selector.dropFirst("provider:".count)),
+                nodes: nodes,
+                providers: providers
+            )
+        )
+    }
+
+    let exactNodes = nodes.filter { $0.id == selector }
+    let exactProviders = providers.filter { $0.id == selector }
+    if !exactNodes.isEmpty || !exactProviders.isEmpty {
+        return try selectGraphQueryTarget(
+            selector: selector,
+            nodes: exactNodes,
+            providers: exactProviders
+        )
+    }
+
+    return try selectGraphQueryTarget(
+        selector: selector,
+        nodes: bestNodeMatches(selector: selector, nodes: nodes),
+        providers: providerMatches(
+            selector: selector,
+            nodes: nodes,
+            providers: providers
+        )
+    )
+}
+
+private func selectGraphQueryTarget(
+    selector: String,
+    nodes: [DependencyGraphNode],
+    providers: [DependencyGraphProvider]
+) throws -> ResolvedGraphQueryTarget {
+    if !nodes.isEmpty, !providers.isEmpty {
+        throw GraphInspectionError.ambiguousTarget(
+            selector: selector,
+            containerCandidates: nodes.map(\.id).sorted(),
+            providerCandidates: providers.map(\.id).sorted()
+        )
+    }
+    if nodes.count == 1 { return .container(nodes[0]) }
+    if nodes.count > 1 {
+        throw GraphInspectionError.ambiguousNode(
+            selector: selector,
+            candidates: nodes.map(\.id).sorted()
+        )
+    }
+    if providers.count == 1 { return .provider(providers[0]) }
+    if providers.count > 1 {
+        throw GraphInspectionError.ambiguousProvider(
+            selector: selector,
+            candidates: providers.map(\.id).sorted()
+        )
+    }
+    throw GraphInspectionError.targetNotFound(selector: selector)
 }
 
 private func resolveProvider(
@@ -72,14 +177,11 @@ private func resolveProvider(
     nodes: [DependencyGraphNode],
     providers: [DependencyGraphProvider]
 ) throws -> DependencyGraphProvider {
-    let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-    let matches = providers.filter { provider in
-        guard let node = nodesByID[provider.containerID] else { return false }
-        return provider.id == selector
-            || "\(node.semanticPath).\(provider.name)" == selector
-            || "\(node.displayName).\(provider.name)" == selector
-            || provider.name == selector
-    }
+    let matches = providerMatches(
+        selector: selector,
+        nodes: nodes,
+        providers: providers
+    )
     if matches.count == 1 { return matches[0] }
     if matches.count > 1 {
         throw GraphInspectionError.ambiguousProvider(
@@ -90,13 +192,25 @@ private func resolveProvider(
     throw GraphInspectionError.providerNotFound(selector: selector)
 }
 
-private func renderProviderWhy(
+private func providerMatches(
     selector: String,
     nodes: [DependencyGraphNode],
     providers: [DependencyGraphProvider]
-) throws -> String {
-    let provider = try resolveProvider(selector: selector, nodes: nodes, providers: providers)
-    let dependencies = provider.dependencies.map { "\(provider.containerID).\($0)" }
+) -> [DependencyGraphProvider] {
+    let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+    return providers.filter { provider in
+        guard let node = nodesByID[provider.containerID] else { return false }
+        return provider.id == selector
+            || "\(node.semanticPath).\(provider.name)" == selector
+            || "\(node.displayName).\(provider.name)" == selector
+            || provider.name == selector
+    }
+}
+
+private func renderProviderWhy(
+    provider: DependencyGraphProvider
+) -> String {
+    let dependencies = canonicalDependencyIDs(for: provider)
     var lines = [
         "Why provider \(provider.id)",
         "- Source: \(provider.source.path):\(provider.source.line):\(provider.source.column)",
@@ -112,11 +226,9 @@ private func renderProviderWhy(
 }
 
 private func renderProviderDependents(
-    selector: String,
-    nodes: [DependencyGraphNode],
+    target: DependencyGraphProvider,
     providers: [DependencyGraphProvider]
-) throws -> String {
-    let target = try resolveProvider(selector: selector, nodes: nodes, providers: providers)
+) -> String {
     let providersByID = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
     var distances = [target.id: 0]
     var queue = [target.id]
@@ -126,9 +238,7 @@ private func renderProviderDependents(
         cursor += 1
         let nextDistance = (distances[dependencyID] ?? 0) + 1
         for candidate in providers where distances[candidate.id] == nil {
-            let candidateDependencies = candidate.dependencies.map {
-                "\(candidate.containerID).\($0)"
-            }
+            let candidateDependencies = canonicalDependencyIDs(for: candidate)
             if candidateDependencies.contains(dependencyID) {
                 distances[candidate.id] = nextDistance
                 queue.append(candidate.id)
@@ -147,6 +257,15 @@ private func renderProviderDependents(
         "- \($0.id) (distance \(distances[$0.id] ?? 0), source \($0.source.path):\($0.source.line):\($0.source.column))"
     })
     return lines.joined(separator: "\n") + "\n"
+}
+
+private func canonicalDependencyIDs(
+    for provider: DependencyGraphProvider
+) -> [String] {
+    if !provider.dependencyBindings.isEmpty {
+        return provider.dependencyBindings.map(\.providerID)
+    }
+    return provider.dependencies.map { "\(provider.containerID).\($0)" }
 }
 
 func loadGraphJSONDocument(at path: String) throws -> GraphJSON.Document {
@@ -444,11 +563,11 @@ private func providerChangeDescription(
 }
 
 private func renderWhyQuery(
-    selector: String,
+    target: DependencyGraphNode,
+    originalSelector: String,
     nodes: [DependencyGraphNode],
     edges: [DependencyGraphEdge]
 ) throws -> String {
-    let target = try resolveGraphNode(selector: selector, nodes: nodes)
     let roots = nodes.filter(\.isRoot).sorted { $0.id < $1.id }
     guard !roots.isEmpty else { throw GraphInspectionError.noRoots }
 
@@ -473,7 +592,9 @@ private func renderWhyQuery(
     }
 
     guard visited.contains(target.id) else {
-        throw GraphInspectionError.unreachableFromRoots(selector: selector)
+        throw GraphInspectionError.unreachableFromRoots(
+            selector: originalSelector
+        )
     }
 
     let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
@@ -497,11 +618,10 @@ private func renderWhyQuery(
 }
 
 private func renderDependentsQuery(
-    selector: String,
+    target: DependencyGraphNode,
     nodes: [DependencyGraphNode],
     edges: [DependencyGraphEdge]
-) throws -> String {
-    let target = try resolveGraphNode(selector: selector, nodes: nodes)
+) -> String {
     let incomingByDestination = Dictionary(grouping: edges, by: \.toID)
         .mapValues { $0.sorted(by: graphEdgeCanonicalOrder) }
     var queue = [target.id]
@@ -565,19 +685,28 @@ private func resolveGraphNode(
     selector: String,
     nodes: [DependencyGraphNode]
 ) throws -> DependencyGraphNode {
-    for keyPath in [\DependencyGraphNode.id, \.semanticPath, \.displayName] {
-        let matches = nodes.filter { $0[keyPath: keyPath] == selector }
-        if matches.count == 1 {
-            return matches[0]
-        }
-        if matches.count > 1 {
-            throw GraphInspectionError.ambiguousNode(
-                selector: selector,
-                candidates: matches.map(\.id).sorted()
-            )
-        }
+    let matches = bestNodeMatches(selector: selector, nodes: nodes)
+    if matches.count == 1 {
+        return matches[0]
+    }
+    if matches.count > 1 {
+        throw GraphInspectionError.ambiguousNode(
+            selector: selector,
+            candidates: matches.map(\.id).sorted()
+        )
     }
     throw GraphInspectionError.nodeNotFound(selector: selector)
+}
+
+private func bestNodeMatches(
+    selector: String,
+    nodes: [DependencyGraphNode]
+) -> [DependencyGraphNode] {
+    for keyPath in [\DependencyGraphNode.id, \.semanticPath, \.displayName] {
+        let matches = nodes.filter { $0[keyPath: keyPath] == selector }
+        if !matches.isEmpty { return matches }
+    }
+    return []
 }
 
 private func queryLabel(

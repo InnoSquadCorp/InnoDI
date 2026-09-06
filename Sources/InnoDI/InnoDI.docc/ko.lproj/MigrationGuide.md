@@ -225,6 +225,11 @@ metadata로만 취급하지만 endpoint, deferred kind, collection metadata 변�
 metadata를 명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after
 baseline을 모두 같은 6.0 도구로 다시 만드세요.
 
+`--why`와 `--dependents`는 qualifier 없는 selector를 container와 provider
+namespace에서 함께 확인합니다. 같은 spelling이 양쪽에 존재하면 후보 목록과
+함께 실패하므로 `container:<selector>` 또는 `provider:<selector>`로 다시
+조회하세요. Exact graph ID는 기존 대상을 그대로 선택합니다.
+
 ---
 
 ## 4.x → 5.0
