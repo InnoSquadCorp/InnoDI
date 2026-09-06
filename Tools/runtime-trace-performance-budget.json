@@ -3,5 +3,8 @@
   "iterations": 1000000,
   "enabledIterations": 20000,
   "disabledNetNanosecondsPerResolution": 210.0,
-  "enabledNanosecondsPerEvent": 600.0
+  "enabledNanosecondsPerEvent": 600.0,
+  "saturatedNanosecondsPerEvent": 2500.0,
+  "snapshotNanosecondsPerRetainedEvent": 5000.0,
+  "contendedNanosecondsPerEvent": 5000.0
 }

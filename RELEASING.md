@@ -72,8 +72,11 @@ Before dispatching the `Release Gate` workflow:
      `Perf History` run on the same `macos-26` / Xcode 26.6 image used by CI;
      do not replace it with a developer-machine measurement.
    - Run `Tools/measure-runtime-trace-performance.sh` to enforce the separate
-     disabled-resolution and enabled-event budgets. This microbenchmark does
-     not replace an actual consumer runtime pilot.
+     disabled-resolution, enabled-event, saturated-ring, snapshot, and
+     writer-plus-snapshot contention budgets. The report keeps snapshot cost
+     separate from record cost and covers capacities 64, 4,096, and 65,536.
+     Do not replace these CI budgets with a developer-machine measurement.
+     This microbenchmark does not replace an actual consumer runtime pilot.
 10. Generate DocC:
     - `Tools/generate-docc.sh`
     - package `.build/docc/InnoDI` with

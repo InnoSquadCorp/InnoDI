@@ -147,6 +147,69 @@ struct DITracingTests {
         #expect(Set(snapshot.events.map(\.instanceID)).count == 100)
     }
 
+    @Test(
+        "saturated buffers preserve newest-first insertion order at production capacities",
+        arguments: [64, 4_096, 65_536]
+    )
+    func saturatedBufferOrder(capacity: Int) {
+        let buffer = DIBoundedTraceBuffer(capacity: capacity)
+        let total = capacity + 17
+
+        for index in 0..<total {
+            buffer.record(
+                DITraceEvent(
+                    providerID: "App.provider\(index)",
+                    instanceID: UUID(),
+                    kind: .success,
+                    uptimeNanoseconds: UInt64(index)
+                )
+            )
+        }
+
+        let snapshot = buffer.snapshot()
+        #expect(snapshot.events.count == capacity)
+        #expect(snapshot.droppedEventCount == 17)
+        #expect(snapshot.events.map(\.uptimeNanoseconds) == (17..<total).map(UInt64.init))
+    }
+
+    @Test("snapshots remain coherent while a writer repeatedly wraps the ring")
+    func concurrentSnapshotsRemainCoherent() async {
+        let capacity = 4_096
+        let total = capacity * 16
+        let buffer = DIBoundedTraceBuffer(capacity: capacity)
+        let writer = Task.detached {
+            for index in 0..<total {
+                buffer.record(
+                    DITraceEvent(
+                        providerID: "App.provider\(index)",
+                        instanceID: UUID(),
+                        kind: .success,
+                        uptimeNanoseconds: UInt64(index)
+                    )
+                )
+            }
+        }
+
+        for _ in 0..<512 {
+            let snapshot = buffer.snapshot()
+            #expect(snapshot.events.count <= capacity)
+            #expect(snapshot.events.count + snapshot.droppedEventCount <= total)
+            #expect(
+                zip(snapshot.events, snapshot.events.dropFirst()).allSatisfy {
+                    $0.uptimeNanoseconds < $1.uptimeNanoseconds
+                }
+            )
+            await Task.yield()
+        }
+        await writer.value
+
+        let final = buffer.snapshot()
+        #expect(final.events.count == capacity)
+        #expect(final.droppedEventCount == total - capacity)
+        #expect(final.events.first?.uptimeNanoseconds == UInt64(total - capacity))
+        #expect(final.events.last?.uptimeNanoseconds == UInt64(total - 1))
+    }
+
     @Test("resolution spans report every terminal outcome without payloads")
     func resolutionOutcomesAreMetadataOnly() async throws {
         let secretCanary = "token-super-secret-42"
