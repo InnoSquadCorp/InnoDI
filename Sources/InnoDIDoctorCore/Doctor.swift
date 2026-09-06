@@ -2,6 +2,8 @@ import Foundation
 import InnoDIDependencyGraphCore
 import InnoDIMigrationCore
 import InnoDIWorkspaceAnalysis
+import SwiftParser
+import SwiftSyntax
 
 public struct DoctorDiagnostic: Codable, Equatable, Sendable {
     public enum Severity: String, Codable, Sendable { case info, warning, error }
@@ -51,7 +53,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
     public var isHealthy: Bool {
         diagnostics.isEmpty
-            && proposedChangePaths.isEmpty
+            && secondPassChangeCount == 0
             && verification.status != .failed
     }
 }
@@ -146,20 +148,10 @@ public struct InnoDIDoctor: Sendable {
             ))
         }
 
-        let usesContainers = try sourceTreeContains("@DIContainer", root: canonicalRoot)
-        let declaresPlugin = try sourceTreeContains(
-            "InnoDIDAGValidationPlugin",
-            root: canonicalRoot
-        )
-        if usesContainers, !declaresPlugin {
-            diagnostics.append(.init(
-                id: "doctor.plugin.missing",
-                severity: .warning,
-                path: workspace.manifestPath ?? "Package.swift",
-                message: "@DIContainer sources were found but the DAG validation plugin is not declared.",
-                recommendation: "Attach InnoDIDAGValidationPlugin to each container-owning target."
-            ))
-        }
+        diagnostics.append(contentsOf: try pluginDiagnostics(
+            root: canonicalRoot,
+            workspace: workspace
+        ))
 
         let proposed = plan.changes.map(\.path).sorted()
         var applied: [String] = []
@@ -372,12 +364,13 @@ private func declaredSwiftVersion(
     return nil
 }
 
-private func sourceTreeContains(_ needle: String, root: URL) throws -> Bool {
+private func swiftSourceURLs(root: URL) throws -> [URL] {
     guard let enumerator = FileManager.default.enumerator(
         at: root,
         includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
         options: [.skipsHiddenFiles, .skipsPackageDescendants]
-    ) else { return false }
+    ) else { return [] }
+    var urls: [URL] = []
     for case let url as URL in enumerator {
         if [".build", "Derived", "InnoDI.xcodeproj"].contains(url.lastPathComponent) {
             enumerator.skipDescendants()
@@ -385,10 +378,173 @@ private func sourceTreeContains(_ needle: String, root: URL) throws -> Bool {
         }
         guard url.pathExtension == "swift",
               (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true,
-              let source = try? String(contentsOf: url, encoding: .utf8) else { continue }
-        if source.contains(needle) { return true }
+              !["Package.swift", "Package@swift-6.swift"].contains(url.lastPathComponent)
+        else { continue }
+        urls.append(url)
     }
-    return false
+    return urls.sorted { $0.path < $1.path }
+}
+
+private struct DoctorPackageTarget {
+    let name: String
+    let sourceRoot: String
+    let pluginStatus: DoctorPluginStatus
+}
+
+private enum DoctorPluginStatus { case attached, missing, unknown }
+
+private final class DoctorPackageManifestCollector: SyntaxVisitor {
+    private(set) var targets: [DoctorPackageTarget] = []
+
+    override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
+        super.init(viewMode: viewMode)
+    }
+
+    override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
+        guard let member = node.calledExpression.as(MemberAccessExprSyntax.self),
+              member.base == nil,
+              ["target", "executableTarget", "testTarget"].contains(
+                member.declName.baseName.text
+              ),
+              let name = stringArgument("name", in: node.arguments) else {
+            return .visitChildren
+        }
+        let kind = member.declName.baseName.text
+        let defaultRoot = kind == "testTarget" ? "Tests/\(name)" : "Sources/\(name)"
+        let sourceRoot = stringArgument("path", in: node.arguments) ?? defaultRoot
+        let plugins = node.arguments.first { $0.label?.text == "plugins" }?.expression
+        targets.append(DoctorPackageTarget(
+            name: name,
+            sourceRoot: standardizedRelativePath(sourceRoot),
+            pluginStatus: pluginStatus(plugins)
+        ))
+        return .skipChildren
+    }
+
+    private func pluginStatus(_ expression: ExprSyntax?) -> DoctorPluginStatus {
+        guard let expression else { return .missing }
+        guard let array = expression.as(ArrayExprSyntax.self) else { return .unknown }
+        for element in array.elements {
+            guard let call = element.expression.as(FunctionCallExprSyntax.self),
+                  let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+                  member.declName.baseName.text == "plugin" else { continue }
+            if stringArgument("name", in: call.arguments) == "InnoDIDAGValidationPlugin" {
+                return .attached
+            }
+        }
+        return .missing
+    }
+
+    private func stringArgument(
+        _ label: String,
+        in arguments: LabeledExprListSyntax
+    ) -> String? {
+        guard let expression = arguments.first(where: { $0.label?.text == label })?.expression,
+              let literal = expression.as(StringLiteralExprSyntax.self),
+              literal.segments.count == 1,
+              case .stringSegment(let segment) = literal.segments.first else {
+            return nil
+        }
+        return segment.content.text
+    }
+}
+
+private final class DoctorContainerCollector: SyntaxVisitor {
+    private(set) var containsContainer = false
+
+    init() { super.init(viewMode: .sourceAccurate) }
+
+    override func visit(_ node: AttributeSyntax) -> SyntaxVisitorContinueKind {
+        let name = node.attributeName.trimmedDescription
+        if name == "DIContainer" || name.hasSuffix(".DIContainer")
+            || name == "DIContainerRole" || name.hasSuffix(".DIContainerRole") {
+            containsContainer = true
+        }
+        return .skipChildren
+    }
+}
+
+private func standardizedRelativePath(_ path: String) -> String {
+    NSString(string: path).standardizingPath.trimmingCharacters(
+        in: CharacterSet(charactersIn: "/")
+    )
+}
+
+private func pluginDiagnostics(
+    root: URL,
+    workspace: DoctorWorkspace
+) throws -> [DoctorDiagnostic] {
+    let containerPaths = try swiftSourceURLs(root: root).compactMap { url -> String? in
+        guard let source = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+        let collector = DoctorContainerCollector()
+        collector.walk(Parser.parse(source: source))
+        guard collector.containsContainer else { return nil }
+        let canonicalRootPath = root.resolvingSymlinksInPath().path
+        let canonicalFilePath = url.resolvingSymlinksInPath().path
+        guard canonicalFilePath.hasPrefix(canonicalRootPath + "/") else {
+            return nil
+        }
+        return standardizedRelativePath(
+            String(canonicalFilePath.dropFirst(canonicalRootPath.count + 1))
+        )
+    }
+    guard !containerPaths.isEmpty else { return [] }
+
+    guard case .swiftPackage = workspace.verificationKind,
+          let manifestURL = workspace.manifestURL,
+          manifestURL.lastPathComponent == "Package.swift",
+          let manifest = try? String(contentsOf: manifestURL, encoding: .utf8) else {
+        return [.init(
+            id: "doctor.plugin.analysis-incomplete",
+            severity: .error,
+            path: workspace.manifestPath,
+            message: "Container-owning targets could not be mapped to literal plugin declarations.",
+            recommendation: "Use a literal target/plugin declaration or verify every container-owning target manually."
+        )]
+    }
+
+    let collector = DoctorPackageManifestCollector()
+    collector.walk(Parser.parse(source: manifest))
+    var diagnostics: [DoctorDiagnostic] = []
+    for path in containerPaths {
+        let matches = collector.targets.filter {
+            path == $0.sourceRoot || path.hasPrefix($0.sourceRoot + "/")
+        }.sorted { $0.sourceRoot.count > $1.sourceRoot.count }
+        guard let target = matches.first,
+              matches.dropFirst().first?.sourceRoot.count != target.sourceRoot.count else {
+            diagnostics.append(.init(
+                id: "doctor.plugin.analysis-incomplete",
+                severity: .error,
+                path: path,
+                message: "The container source could not be mapped to exactly one literal package target.",
+                recommendation: "Use literal target name/path declarations, then rerun Doctor."
+            ))
+            continue
+        }
+        switch target.pluginStatus {
+        case .attached:
+            break
+        case .missing:
+            diagnostics.append(.init(
+                id: "doctor.plugin.missing",
+                severity: .warning,
+                path: workspace.manifestPath ?? "Package.swift",
+                message: "Target '\(target.name)' owns container source '\(path)' but does not attach InnoDIDAGValidationPlugin.",
+                recommendation: "Attach InnoDIDAGValidationPlugin to target '\(target.name)'."
+            ))
+        case .unknown:
+            diagnostics.append(.init(
+                id: "doctor.plugin.analysis-incomplete",
+                severity: .error,
+                path: workspace.manifestPath ?? "Package.swift",
+                message: "Target '\(target.name)' uses a non-literal plugin declaration that Doctor cannot prove.",
+                recommendation: "Use a literal plugins array or verify the target manually."
+            ))
+        }
+    }
+    return diagnostics
 }
 
 private struct DoctorVerificationResult {

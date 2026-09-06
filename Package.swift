@@ -131,6 +131,8 @@ let package = Package(
                 "InnoDIDependencyGraphCore",
                 "InnoDIMigrationCore",
                 "InnoDIWorkspaceAnalysis",
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
         ),
         .executableTarget(

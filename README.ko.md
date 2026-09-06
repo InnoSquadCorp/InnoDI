@@ -662,9 +662,11 @@ swift run InnoDI-Doctor --root . --json
 ```
 
 기본 모드는 resolve, build, write, cache 삭제, process 종료를 하지 않습니다.
-`--apply`는 migrator의 atomic safety 검사를 명시적으로 사용하고 `--verify`는
-별도로 `swift build`를 허용합니다. report는 제안/적용 경로, 두 번째 실행의
-idempotency, 검증 상태를 구분합니다.
+Swift package에서는 literal target source root와 plugin 배열을 parse하므로 주석,
+문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. Dynamic manifest와 Tuist
+target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. `--apply`는 migrator의
+atomic safety 검사를 명시적으로 사용하고 `--verify`는 별도 build를 허용합니다.
+report는 제안/적용 경로, apply 후 second-pass 상태, 검증 상태를 구분합니다.
 
 ## Collection 조합
 

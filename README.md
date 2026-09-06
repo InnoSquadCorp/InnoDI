@@ -704,12 +704,13 @@ swift run InnoDI-Doctor --root . --json
 ```
 
 The default mode does not resolve, build, write, delete caches, or stop
-processes. Swift package roots and Tuist workspaces with a nested
-`Tuist/Package.swift` are detected without resolution. `--apply` explicitly
-uses the migrator's atomic safety checks, and `--verify` separately opts into
-`swift build` or `tuist generate --no-open` for the detected workspace. Reports
-distinguish proposed and applied paths, second-pass idempotency, and
-verification status.
+processes. For Swift packages, Doctor parses literal target source roots and
+plugin arrays, so a comment, string, or another target's plugin cannot hide a
+missing attachment. Dynamic manifests and Tuist target mappings remain
+explicitly incomplete instead of being reported healthy. `--apply` uses the
+migrator's atomic safety checks, and `--verify` separately opts into a build.
+Reports distinguish proposed and applied paths, post-apply second-pass state,
+and verification status.
 
 ## Collection Composition
 
