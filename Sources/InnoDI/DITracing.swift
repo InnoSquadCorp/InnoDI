@@ -459,28 +459,42 @@ public final class DIBoundedTraceBuffer: DITraceSink, @unchecked Sendable {
 
     private let capacity: Int
     private let lock = NSLock()
-    private var events: [DITraceEvent] = []
+    private var storage: [DITraceEvent?]
+    private var startIndex = 0
+    private var eventCount = 0
     private var droppedEventCount = 0
 
     public init(capacity: Int) {
         precondition(capacity > 0, "DIBoundedTraceBuffer capacity must be positive")
         self.capacity = capacity
-        events.reserveCapacity(capacity)
+        storage = Array(repeating: nil, count: capacity)
     }
 
     public func record(_ event: DITraceEvent) {
         lock.lock()
         defer { lock.unlock() }
-        if events.count == capacity {
-            events.removeFirst()
+        if eventCount == capacity {
+            storage[startIndex] = event
+            startIndex = (startIndex + 1) % capacity
             droppedEventCount += 1
+            return
         }
-        events.append(event)
+        let insertionIndex = (startIndex + eventCount) % capacity
+        storage[insertionIndex] = event
+        eventCount += 1
     }
 
     public func snapshot() -> Snapshot {
         lock.lock()
         defer { lock.unlock() }
+        var events: [DITraceEvent] = []
+        events.reserveCapacity(eventCount)
+        for offset in 0..<eventCount {
+            let index = (startIndex + offset) % capacity
+            if let event = storage[index] {
+                events.append(event)
+            }
+        }
         return Snapshot(events: events, droppedEventCount: droppedEventCount)
     }
 }

@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 
 @inline(never)
@@ -7,12 +8,12 @@ private func control(_ providerID: String) -> Int {
 
 @inline(never)
 private func disabledResolution(
-    _ context: DITraceContext,
-    providerID: String
+    _ owner: _InnoDITraceOwner,
+    member: String
 ) -> Int {
-    let instanceID = context.start(providerID: providerID)
-    context.record(.success, providerID: providerID, instanceID: instanceID)
-    return instanceID == nil ? providerID.utf8.count : 0
+    let span = owner.start(member: member)
+    owner.finish(.success, span: span)
+    return span == nil ? member.utf8.count : 0
 }
 
 @main
@@ -30,10 +31,15 @@ private enum RuntimeTraceBenchmark {
         }
 
         let providerID = "Benchmark.AppContainer.client"
+        let member = "client"
+        let disabledOwner = _InnoDITraceOwner(
+            context: .disabled,
+            containerType: RuntimeTraceBenchmark.self
+        )
         var checksum = 0
         for _ in 0..<10_000 {
             checksum &+= control(providerID)
-            checksum &+= disabledResolution(.disabled, providerID: providerID)
+            checksum &+= disabledResolution(disabledOwner, member: member)
         }
 
         let controlStart = DispatchTime.now().uptimeNanoseconds
@@ -44,24 +50,84 @@ private enum RuntimeTraceBenchmark {
 
         let disabledStart = DispatchTime.now().uptimeNanoseconds
         for _ in 0..<iterations {
-            checksum &+= disabledResolution(.disabled, providerID: providerID)
+            checksum &+= disabledResolution(disabledOwner, member: member)
         }
         let disabledElapsed = DispatchTime.now().uptimeNanoseconds - disabledStart
 
         let buffer = DIBoundedTraceBuffer(capacity: enabledIterations * 2)
-        let enabled = DITraceContext(sink: buffer)
+        let enabledOwner = _InnoDITraceOwner(
+            context: DITraceContext(sink: buffer),
+            containerType: RuntimeTraceBenchmark.self
+        )
         let enabledStart = DispatchTime.now().uptimeNanoseconds
         for _ in 0..<enabledIterations {
-            let instanceID = enabled.start(providerID: providerID)
-            enabled.record(
-                .success,
-                providerID: providerID,
-                instanceID: instanceID
-            )
+            let span = enabledOwner.start(member: member)
+            enabledOwner.finish(.success, span: span)
         }
         let enabledElapsed = DispatchTime.now().uptimeNanoseconds - enabledStart
         let recordedEventCount = buffer.snapshot().events.count
         checksum &+= recordedEventCount
+
+        let capacities = [64, 4_096, 65_536]
+        var saturatedMeasurements: [[String: Any]] = []
+        for capacity in capacities {
+            let resolutionCount = capacity + enabledIterations
+            let saturatedBuffer = DIBoundedTraceBuffer(capacity: capacity)
+            let owner = _InnoDITraceOwner(
+                context: DITraceContext(sink: saturatedBuffer),
+                containerType: RuntimeTraceBenchmark.self
+            )
+            let start = DispatchTime.now().uptimeNanoseconds
+            for _ in 0..<resolutionCount {
+                let span = owner.start(member: member)
+                owner.finish(.success, span: span)
+            }
+            let elapsed = DispatchTime.now().uptimeNanoseconds - start
+            let snapshotStart = DispatchTime.now().uptimeNanoseconds
+            let snapshot = saturatedBuffer.snapshot()
+            let snapshotElapsed = DispatchTime.now().uptimeNanoseconds - snapshotStart
+            let emittedEventCount = resolutionCount * 2
+            checksum &+= snapshot.events.count
+            checksum &+= snapshot.droppedEventCount
+            saturatedMeasurements.append([
+                "capacity": capacity,
+                "emittedEventCount": emittedEventCount,
+                "retainedEventCount": snapshot.events.count,
+                "droppedEventCount": snapshot.droppedEventCount,
+                "nanosecondsPerEvent": Double(elapsed) / Double(emittedEventCount),
+                "snapshotNanosecondsPerRetainedEvent":
+                    Double(snapshotElapsed) / Double(snapshot.events.count),
+            ])
+        }
+
+        let contentionCapacity = 4_096
+        let writerCount = 4
+        let snapshotCount = 512
+        let resolutionsPerWriter = max(1, enabledIterations / writerCount)
+        let contendedBuffer = DIBoundedTraceBuffer(capacity: contentionCapacity)
+        let contendedOwner = _InnoDITraceOwner(
+            context: DITraceContext(sink: contendedBuffer),
+            containerType: RuntimeTraceBenchmark.self
+        )
+        let contentionStart = DispatchTime.now().uptimeNanoseconds
+        DispatchQueue.concurrentPerform(iterations: writerCount + 1) { worker in
+            if worker == writerCount {
+                for _ in 0..<snapshotCount {
+                    _ = contendedBuffer.snapshot()
+                }
+            } else {
+                let writerMember = "writer\(worker)"
+                for _ in 0..<resolutionsPerWriter {
+                    let span = contendedOwner.start(member: writerMember)
+                    contendedOwner.finish(.success, span: span)
+                }
+            }
+        }
+        let contentionElapsed = DispatchTime.now().uptimeNanoseconds - contentionStart
+        let contendedEventCount = writerCount * resolutionsPerWriter * 2
+        let contendedSnapshot = contendedBuffer.snapshot()
+        checksum &+= contendedSnapshot.events.count
+        checksum &+= contendedSnapshot.droppedEventCount
 
         let disabledNet = disabledElapsed > controlElapsed
             ? disabledElapsed - controlElapsed : 0
@@ -74,6 +140,17 @@ private enum RuntimeTraceBenchmark {
             "enabledNanosecondsPerEvent":
                 Double(enabledElapsed) / Double(enabledIterations * 2),
             "recordedEventCount": recordedEventCount,
+            "saturatedMeasurements": saturatedMeasurements,
+            "contention": [
+                "capacity": contentionCapacity,
+                "writerCount": writerCount,
+                "snapshotCount": snapshotCount,
+                "emittedEventCount": contendedEventCount,
+                "retainedEventCount": contendedSnapshot.events.count,
+                "droppedEventCount": contendedSnapshot.droppedEventCount,
+                "nanosecondsPerEvent":
+                    Double(contentionElapsed) / Double(contendedEventCount),
+            ],
             "checksum": checksum,
         ]
         let data = try JSONSerialization.data(
