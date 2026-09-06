@@ -47,8 +47,9 @@ reviewable while moving failure detection earlier.
 - Macro validation catches local mistakes at expansion time.
 - Build validation and the graph CLI catch cross-file, cross-module, and global graph issues.
 - `InnoDISwiftUI` removes repetitive root-boundary environment wiring.
-- `InnoDITesting` provides opt-in concurrency-safe mock storage, interaction
-  validation, and typed override presets for test and preview targets.
+- `InnoDITesting` provides opt-in concurrency-safe mock storage, generation-
+  aware reset, interaction validation, and typed override presets for test and
+  preview targets.
 
 InnoDI is not a runtime state machine. Runtime state belongs in your app layer
 or companion frameworks such as `InnoFlow`, `InnoRouter`, and `InnoNetwork`.
@@ -181,6 +182,9 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 Add `InnoDITesting` only to test or preview-support targets that use generated
 `Sendable` mocks, reusable override presets, or strict interaction validation.
 It depends on `InnoDI` but does not depend on Swift Testing or SwiftSyntax.
+Generated mocks distinguish `.calls` reset, which preserves stubs, from `.all`,
+which returns stubs to the missing state. The returned generation snapshot
+linearizes calls that race with reset.
 Providers explicitly marked `@Provide(effect: .sideEffect, ...)` also expose
 generated override requirements: validate a typed preset before constructing
 the container to prevent an unconfigured live factory from running. Unmarked

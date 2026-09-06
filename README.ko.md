@@ -47,7 +47,8 @@ InnoDI는 DI wiring을 명시적이고 리뷰 가능한 상태로 유지하면�
 - build validation과 graph CLI가 cross-file, cross-module, global graph 문제를 잡습니다.
 - `InnoDISwiftUI`가 루트 경계의 반복적인 environment wiring을 줄여줍니다.
 - `InnoDITesting`이 테스트·프리뷰 target에 동시성 안전 mock 저장소,
-  interaction 검증, typed override preset을 선택적으로 제공합니다.
+  generation 기반 reset, interaction 검증, typed override preset을 선택적으로
+  제공합니다.
 
 InnoDI는 runtime state machine이 아닙니다. 런타임 상태는 앱 레이어나
 `InnoFlow`, `InnoRouter`, `InnoNetwork` 같은 companion framework에 두는
@@ -172,6 +173,9 @@ SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
 생성된 `Sendable` mock, 재사용 override preset, strict interaction 검증이 필요한
 테스트 또는 프리뷰 지원 target에만 `InnoDITesting`을 추가하세요. 이 product는
 `InnoDI`에만 의존하며 Swift Testing이나 SwiftSyntax에는 의존하지 않습니다.
+생성 mock의 `.calls` reset은 stub을 유지하고 `.all`은 stub을 미설정 상태로
+되돌립니다. 반환되는 generation snapshot은 reset과 경합한 호출의 순서를
+선형화합니다.
 `@Provide(effect: .sideEffect, ...)`로 명시한 provider는 생성 override 요구사항도
 노출합니다. 컨테이너를 만들기 전에 typed preset을 검증하면 미설정 live factory
 실행을 차단할 수 있습니다. 표시하지 않은 opaque factory를 순수하거나 effectful한

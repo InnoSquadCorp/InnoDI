@@ -5,6 +5,16 @@ private struct RecordedCall: Equatable, Sendable {
     let value: Int
 }
 
+private struct GenerationCall: Equatable, Sendable {
+    let generation: UInt64
+    let value: Int
+}
+
+private struct GenerationReset: Equatable, Sendable {
+    let generation: UInt64
+    let count: Int
+}
+
 private struct PresetOverrides {
     var endpoint = "live"
     var retries = 0
@@ -90,6 +100,67 @@ struct InnoDITestingTests {
         #expect(box.snapshot() == 100)
         box.replace(with: 7)
         #expect(box.snapshot() == 7)
+    }
+
+    @Test("concurrent mock state linearizes calls snapshots and reset generations")
+    func concurrentMockState() async {
+        let state = DIConcurrentMockState()
+        let calls = DIConcurrentValueBox<[GenerationCall]>([])
+        let reset = DIConcurrentValueBox<GenerationReset?>(nil)
+        let snapshots = DIConcurrentValueBox<[GenerationReset]>([])
+
+        await withTaskGroup(of: Void.self) { group in
+            for value in 0..<100 {
+                group.addTask {
+                    state.withCriticalRegion { generation in
+                        calls.update {
+                            $0.append(.init(
+                                generation: generation,
+                                value: value
+                            ))
+                        }
+                    }
+                }
+            }
+            group.addTask {
+                let captured = state.reset { generation in
+                    let captured = GenerationReset(
+                        generation: generation,
+                        count: calls.snapshot().count
+                    )
+                    calls.replace(with: [])
+                    return captured
+                }
+                reset.replace(with: captured)
+            }
+            group.addTask {
+                for _ in 0..<100 {
+                    let snapshot = state.withCriticalRegion { generation in
+                        GenerationReset(
+                            generation: generation,
+                            count: calls.snapshot().count
+                        )
+                    }
+                    snapshots.update { $0.append(snapshot) }
+                }
+            }
+        }
+
+        let previous = reset.snapshot()
+        let current = state.withCriticalRegion { generation in
+            GenerationReset(
+                generation: generation,
+                count: calls.snapshot().count
+            )
+        }
+        #expect(previous?.generation == 0)
+        #expect(current.generation == 1)
+        #expect((previous?.count ?? 0) + current.count == 100)
+        #expect(calls.snapshot().allSatisfy { $0.generation == 1 })
+        #expect(Set(calls.snapshot().map(\.value)).count == current.count)
+        #expect(snapshots.snapshot().allSatisfy {
+            (0...1).contains($0.generation) && $0.count >= 0
+        })
     }
 
     @Test("typed presets compose left to right without cross-test state")

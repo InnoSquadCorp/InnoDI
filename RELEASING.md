@@ -255,6 +255,11 @@ standalone release assets.
   reported as missing. Unnamed parameters now receive legal body identifiers;
   unsupported generic typed throws and static properties fail at the source
   attribute without emitting a partial conformance.
+- Added generation-aware reset to actual generated mocks. `.calls` atomically
+  closes and returns the current call-history snapshot while preserving stubs;
+  `.all` also returns every stub to its missing state. `Sendable` mocks use one
+  shared critical region, and `@MainActor` mocks use actor serialization, so a
+  racing call belongs to exactly one generation.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
   and diagnostics without including original or migrated source bodies.
