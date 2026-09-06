@@ -11,10 +11,22 @@ provider와 전이 의존성만 준비합니다. 의존성이 실패하면 downs
 시작하지 않고 차단한 provider ID와 함께 `blocked`로 보고합니다. 선택하지 않은
 provider는 실행하지 않습니다.
 
-실패 뒤에만 ``DIAsyncScope/retry()``를 호출할 수 있습니다. 재시도는 새로운
-generation에서 시작하며 이전 local 결과와 섞이지 않습니다. InnoDI가 소유하는
-범위는 전달된 operation으로 만든 작업뿐입니다. 서비스 내부에서 별도로 만든
-작업은 해당 서비스가 관리해야 하며 취소는 협조적으로 동작합니다.
+선택 준비 결과에 `failed` 또는 `cancelled`가 있으면
+``DIAsyncPreparationPlan/retry(_:)``로 재시도합니다. 실패 provider와 선택된
+downstream만 함께 새 generation으로 전환하고 준비된 부모 의존성은 유지합니다.
+영향 범위에 실행 중이거나 닫힌 provider가 있으면 아무 generation도 바꾸기 전에
+재시도를 거부합니다. 개별 ``DIAsyncScope/retry()``는 해당 scope가 실패했거나
+소유 작업이 취소된 뒤에만 호출합니다.
+
+이미 취소된 task는 factory를 시작하지 않습니다. waiter 또는 prepare 요청 하나를
+취소하면 그 요청만 `cancelled`로 보고하며 owner의 공통 작업은 유지합니다. 소유
+작업이 `CancellationError`를 던지면 scope도 `cancelled`가 되고 재시도할 수
+있습니다. 재시도는 새로운 generation에서 시작하며 이전 child 결과와 섞이지
+않습니다. InnoDI가 소유하는 범위는 전달된 operation으로 만든 작업뿐입니다.
+서비스 내부에서 별도로 만든 작업은 해당 서비스가 관리해야 하며 취소는
+협조적으로 동작합니다.
 
 상태 보고서는 provider ID, generation, 상태, 오류의 reflected type만 기록합니다.
-오류 값, 입력 값, token, 기타 애플리케이션 payload는 직렬화하지 않습니다.
+직접 waiter에는 원본 오류를 돌려주지만 보고서는 오류 값, 입력 값, token, 기타
+애플리케이션 payload를 직렬화하지 않습니다. 취소 결과에는 오류 payload가
+없습니다.

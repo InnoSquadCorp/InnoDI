@@ -428,6 +428,11 @@
           "target": "s:SQ"
         },
         {
+          "kind": "defaultImplementationOf",
+          "source": "s:6InnoDI16DIAsyncPreparingPAAE21resetForSubgraphRetryyyYaKF",
+          "target": "s:6InnoDI16DIAsyncPreparingP21resetForSubgraphRetryyyYaKF"
+        },
+        {
           "kind": "memberOf",
           "source": "s:6InnoDI11DIInputKindO8assistedyA2CmF",
           "target": "s:6InnoDI11DIInputKindO"
@@ -460,6 +465,11 @@
         {
           "kind": "memberOf",
           "source": "s:6InnoDI12DIAsyncScopeC10providerIDSSvp",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyKF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
@@ -859,6 +869,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO9cancelledyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI21DIAsyncProviderStatusV5stateAC5StateOvp",
           "target": "s:6InnoDI21DIAsyncProviderStatusV"
         },
@@ -885,6 +900,11 @@
         {
           "kind": "memberOf",
           "source": "s:6InnoDI22DIAsyncPreparationPlanV5nodesACSayAA0cD4NodeVG_tKcfc",
+          "target": "s:6InnoDI22DIAsyncPreparationPlanV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV5retryyAA0cD6ReportVSaySSGYaKF",
           "target": "s:6InnoDI22DIAsyncPreparationPlanV"
         },
         {
@@ -930,6 +950,11 @@
         {
           "kind": "memberOf",
           "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7runningyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO9cancelledyA2EmF",
           "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
         },
         {
@@ -1044,7 +1069,17 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17retryWhileRunningyACSS_tcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO20retryRequiresFailureyACSaySSG_tcACmF",
           "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
         },
         {
@@ -1095,6 +1130,11 @@
         {
           "kind": "requirementOf",
           "source": "s:6InnoDI16DIAsyncPreparingP10providerIDSSvp",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP21resetForSubgraphRetryyyYaKF",
           "target": "s:6InnoDI16DIAsyncPreparingP"
         },
         {
@@ -1329,6 +1369,37 @@
             "DIAsyncScope",
             "providerID"
           ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncScope",
+            "resetForSubgraphRetry()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
         },
         {
           "accessLevel": "public",
@@ -2024,6 +2095,20 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP21resetForSubgraphRetryyyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "resetForSubgraphRetry()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP5closeyyYaF"
           },
           "kind": {
@@ -2075,6 +2160,24 @@
             "DIAsyncPreparing",
             "prepare()"
           ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingPAAE21resetForSubgraphRetryyyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "resetForSubgraphRetry()"
+          ],
+          "swiftExtension": {
+            "extendedModule": "InnoDI",
+            "typeKind": "swift.protocol"
+          }
         },
         {
           "accessLevel": "public",
@@ -3216,6 +3319,21 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO9cancelledyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "cancelled"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5stateAC5StateOvp"
           },
           "kind": {
@@ -3333,6 +3451,20 @@
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "init(nodes:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationPlanV5retryyAA0cD6ReportVSaySSGYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlan",
+            "retry(_:)"
           ]
         },
         {
@@ -3477,6 +3609,21 @@
             "DIAsyncPreparationEntry",
             "Disposition",
             "running"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO9cancelledyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "cancelled"
           ]
         },
         {
@@ -4085,6 +4232,20 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17retryWhileRunningyACSS_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "retryWhileRunning(providerID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF"
           },
           "kind": {
@@ -4093,6 +4254,20 @@
           "pathComponents": [
             "DIAsyncPreparationPlanError",
             "unknownDependency(providerID:dependencyID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO20retryRequiresFailureyACSaySSG_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "retryRequiresFailure(selectedProviderIDs:)"
           ]
         },
         {
