@@ -302,6 +302,25 @@ and provider namespaces together. If one spelling names both kinds, the query
 fails with both candidate lists. Retry with `container:<selector>` or
 `provider:<selector>`. Exact graph IDs continue to select their existing target.
 
+### Generated runtime tracing
+
+6.0 container initializers, component dependency initializers, and
+`withOverrides` overloads add a final defaulted `_innoDITrace:` parameter.
+Existing calls remain source-compatible because the default is
+``DITraceContext/disabled``. To correlate runtime events with schema-v6 graph
+providers, construct a ``DITraceContext`` with the graph target ID keyed by the
+runtime module name and pass it when creating the container. Generated
+providers then record factory starts and terminal outcomes, overrides, cache
+hits, and async/on-demand wait relationships without copying provider IDs into
+application code.
+
+Trace event decoders must accept the 6.0 fields `ownerID`, `generation`,
+`origin`, `relatedProviderID`, and `relatedInstanceID`, plus the new
+`waitStart` and `waitEnd` kinds. Events remain metadata-only: provider identity,
+UUIDs, generation, origin, relation, kind, and monotonic time are present;
+input values, results, tokens, error values, and service descriptions are not.
+Runtime work started opaquely inside a factory is outside automatic tracing.
+
 ---
 
 ## 4.x → 5.0

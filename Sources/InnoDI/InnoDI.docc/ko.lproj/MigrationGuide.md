@@ -230,6 +230,24 @@ namespace에서 함께 확인합니다. 같은 spelling이 양쪽에 존재하�
 함께 실패하므로 `container:<selector>` 또는 `provider:<selector>`로 다시
 조회하세요. Exact graph ID는 기존 대상을 그대로 선택합니다.
 
+### 생성 코드의 runtime trace
+
+6.0 컨테이너 initializer, component dependency initializer,
+`withOverrides` overload에는 마지막에 기본값이 있는 `_innoDITrace:` 파라미터가
+추가됩니다. 기본값이 ``DITraceContext/disabled``이므로 기존 호출은
+source-compatible합니다. runtime event를 schema-v6 graph provider와 연결하려면
+graph target ID를 runtime module 이름으로 매핑한 ``DITraceContext``를 만들고
+컨테이너 생성 시 전달하세요. 생성 provider가 factory 시작과 terminal 결과,
+override, cache hit, async/on-demand wait 관계를 자동 기록하므로 application
+코드에 provider ID를 복사할 필요가 없습니다.
+
+Trace event decoder는 6.0의 `ownerID`, `generation`, `origin`,
+`relatedProviderID`, `relatedInstanceID` 필드와 `waitStart`, `waitEnd` kind를
+허용해야 합니다. Event에는 provider identity, UUID, generation, origin, 관계,
+kind, monotonic time만 있으며 input, result, token, error 값, service 설명은
+포함하지 않습니다. Factory 내부에서 불투명하게 시작한 runtime 작업은 자동
+trace 범위 밖입니다.
+
 ---
 
 ## 4.x → 5.0

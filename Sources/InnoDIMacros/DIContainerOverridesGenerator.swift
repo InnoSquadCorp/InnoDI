@@ -205,6 +205,22 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
         params.append(param)
     }
 
+    params.append(
+        FunctionParameterSyntax(
+            firstName: .identifier("_innoDITrace"),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(stringLiteral: "DITraceContext"),
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(
+                value: ExprSyntax(
+                    MemberAccessExprSyntax(name: .identifier("disabled"))
+                )
+            ),
+            trailingComma: .commaToken()
+        )
+    )
+
     // Final unnamed trailing closure parameter. Main-actor containers carry
     // isolation on the closure type as well as on the initializer:
     //   _ _innoDIApplyOverrides: [@MainActor] (inout Overrides) -> Void
@@ -278,10 +294,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
             (sub.overrideClosureName, sub.overrideClosureName)
         ]
     }
-    let totalArgCount = allForwardingMembers.count + subForwardingPairs.count
-
-    for (index, member) in allForwardingMembers.enumerated() {
-        let isLast = index == allForwardingMembers.count - 1 && subForwardingPairs.isEmpty
+    for member in allForwardingMembers {
         let valueExpr: ExprSyntax
         if member.scope == .input {
             // Input parameter forwarded from the outer init.
@@ -301,14 +314,12 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
                 label: .identifier(member.name),
                 colon: .colonToken(),
                 expression: valueExpr,
-                trailingComma: isLast ? nil : .commaToken()
+                trailingComma: .commaToken()
             )
         )
     }
 
-    for (index, pair) in subForwardingPairs.enumerated() {
-        let runningIndex = allForwardingMembers.count + index
-        let isLast = runningIndex == totalArgCount - 1
+    for pair in subForwardingPairs {
         let valueExpr = ExprSyntax(
             MemberAccessExprSyntax(
                 base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIOverrides"))),
@@ -320,10 +331,22 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
                 label: .identifier(pair.label),
                 colon: .colonToken(),
                 expression: valueExpr,
-                trailingComma: isLast ? nil : .commaToken()
+                trailingComma: .commaToken()
             )
         )
     }
+
+
+    callArgs.append(
+        LabeledExprSyntax(
+            label: .identifier("_innoDITrace"),
+            colon: .colonToken(),
+            expression: ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier("_innoDITrace"))
+            ),
+            trailingComma: nil
+        )
+    )
 
     let selfInitCall = FunctionCallExprSyntax(
         calledExpression: ExprSyntax(

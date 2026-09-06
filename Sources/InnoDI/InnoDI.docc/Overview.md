@@ -62,6 +62,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:lock-safety>
 - <doc:DAGValidation>
 - <doc:AsyncPreparation>
+- <doc:RuntimeTracing>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
 

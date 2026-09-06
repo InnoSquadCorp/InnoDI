@@ -56,6 +56,22 @@ private func makeWithOverridesMethod(
         params.append(param)
     }
 
+    params.append(
+        FunctionParameterSyntax(
+            firstName: .identifier("_innoDITrace"),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(stringLiteral: "DITraceContext"),
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(
+                value: ExprSyntax(
+                    MemberAccessExprSyntax(name: .identifier("disabled"))
+                )
+            ),
+            trailingComma: .commaToken()
+        )
+    )
+
     let applyOverridesParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
         secondName: .identifier("_innoDIApplyOverrides"),
@@ -136,6 +152,16 @@ private func makeWithOverridesMethod(
             )
         )
     }
+    callArgs.append(
+        LabeledExprSyntax(
+            label: .identifier("_innoDITrace"),
+            colon: .colonToken(),
+            expression: ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier("_innoDITrace"))
+            ),
+            trailingComma: .commaToken()
+        )
+    )
     callArgs.append(
         LabeledExprSyntax(
             expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIApplyOverrides")))

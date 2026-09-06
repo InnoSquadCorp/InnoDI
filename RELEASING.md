@@ -255,6 +255,13 @@ standalone release assets.
   sets and require `container:` or `provider:`; exact graph IDs remain stable,
   and provider dependents follow canonical binding IDs rather than parameter
   labels.
+- Connected generated providers to opt-in runtime tracing. Container,
+  component, override, on-demand, transient, and async paths now carry the
+  canonical schema-v6 provider identity, container owner, and generation;
+  start/terminal, override, cache-hit, and wait relationships are emitted
+  automatically. The disabled default still avoids UUID/event/buffer
+  allocation, events remain metadata-only, and opaque work started inside a
+  service is deliberately outside the trace boundary.
 - Completed generated-mock stub preflight across properties, ordinary returns,
   untyped and typed throwing functions, and generic handlers. Setup state is
   independent from optional storage, so an explicitly stubbed `nil` is not

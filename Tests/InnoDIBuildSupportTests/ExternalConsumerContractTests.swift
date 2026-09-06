@@ -340,7 +340,7 @@ struct ExternalConsumerContractTests {
         )
     }
 
-    @Test("External fixture scratch follows the SwiftSyntax build mode")
+    @Test("External fixture scratch isolates build mode and expectation")
     func externalFixtureScratchFollowsBuildMode() throws {
         let macroOnly = try externalConsumerFixture(
             named: "basic-container",
@@ -349,6 +349,10 @@ struct ExternalConsumerContractTests {
         let plugin = try externalConsumerFixture(
             named: "generated-qualifier-usage-sensitive-shadows",
             expectation: .pass
+        )
+        let failingPlugin = try externalConsumerFixture(
+            named: "generated-qualifier-usage-sensitive-collisions",
+            expectation: .fail
         )
         let scratchRoot = URL(fileURLWithPath: "/tmp/innodi-external-scratch-test")
         let defaultRoot = externalConsumerScratchRoot(environment: [:])
@@ -381,6 +385,11 @@ struct ExternalConsumerContractTests {
                 == externalConsumerScratchPath(for: plugin, under: scratchRoot)
         )
         #endif
+        #expect(plugin.scratchProfile == failingPlugin.scratchProfile)
+        #expect(
+            externalConsumerScratchPath(for: plugin, under: scratchRoot)
+                != externalConsumerScratchPath(for: failingPlugin, under: scratchRoot)
+        )
     }
 }
 
@@ -622,9 +631,12 @@ private func materializeExternalConsumerFixture(
     return destinationURL
 }
 
-/// A stable scratch root lets independent contract tests and repeated local
-/// invocations reuse SwiftPM-validated dependency products. The materialized
-/// consumer roots remain disposable, so their own sources are always checked.
+/// A stable scratch root lets repeated local invocations reuse SwiftPM-validated
+/// dependency products. Pass, fail, and signature consumers remain isolated so
+/// a successful plugin command cannot be reused for an intentionally failing
+/// package (or vice versa) when their generated target graphs are identical.
+/// The materialized consumer roots remain disposable, so their own sources are
+/// always checked inside that expectation boundary.
 /// `swift package clean` removes the default cache when a true cold run is
 /// required; CI can also supply an isolated absolute override.
 private func externalConsumerScratchRoot(
@@ -645,6 +657,7 @@ private func externalConsumerScratchPath(
     under root: URL
 ) -> URL {
     externalConsumerScratchPath(for: fixture.scratchProfile, under: root)
+        .appendingPathComponent(fixture.expectation.rawValue, isDirectory: true)
 }
 
 private func externalConsumerScratchPath(

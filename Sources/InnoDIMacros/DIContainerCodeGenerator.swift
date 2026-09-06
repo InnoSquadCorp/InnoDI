@@ -156,6 +156,7 @@ private func makePrewarmDecl(
 /// `await <task>.value` (or `try await`) references in the correct order.
 internal struct AsyncTaskBinding {
     let name: String
+    let providerName: String
     let isThrowing: Bool
 }
 
@@ -211,11 +212,7 @@ private func makeInitDecl(
     let deferredTargetNameSet = Set(deferredTargetMembers.map(\.name))
     let hasTransientSubContainer = subContainerMembers.contains(where: { $0.scope == .transient })
 
-    for (index, member) in inputMembers.enumerated() {
-        let isLast = index == inputMembers.count - 1
-            && sharedMembers.isEmpty
-            && transientMembers.isEmpty
-            && subContainerMembers.isEmpty
+    for member in inputMembers {
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -223,15 +220,12 @@ private func makeInitDecl(
             type: inputParameterType(for: member),
             ellipsis: nil,
             defaultValue: nil,
-            trailingComma: isLast ? nil : .commaToken()
+            trailingComma: .commaToken()
         )
         params.append(param)
     }
 
-    for (index, member) in sharedMembers.enumerated() {
-        let isLast = index == sharedMembers.count - 1
-            && transientMembers.isEmpty
-            && subContainerMembers.isEmpty
+    for member in sharedMembers {
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -239,14 +233,12 @@ private func makeInitDecl(
             type: optionalParameterType(for: member.type),
             ellipsis: nil,
             defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
-            trailingComma: isLast ? nil : .commaToken()
+            trailingComma: .commaToken()
         )
         params.append(param)
     }
 
-    for (index, member) in transientMembers.enumerated() {
-        let isLast = index == transientMembers.count - 1
-            && subContainerMembers.isEmpty
+    for member in transientMembers {
         let param = FunctionParameterSyntax(
             firstName: .identifier(member.name),
             secondName: nil,
@@ -254,7 +246,7 @@ private func makeInitDecl(
             type: optionalParameterType(for: member.type),
             ellipsis: nil,
             defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
-            trailingComma: isLast ? nil : .commaToken()
+            trailingComma: .commaToken()
         )
         params.append(param)
     }
@@ -265,8 +257,7 @@ private func makeInitDecl(
     // (`<name>Overrides: ((inout Child._InnoDIMountOverrides) -> Void)? = nil`). Both
     // default to `nil` so existing call sites stay unchanged; the Overrides
     // builder threads named values in via the convenience init.
-    for (index, member) in subContainerMembers.enumerated() {
-        let isLastMember = index == subContainerMembers.count - 1
+    for member in subContainerMembers {
         let directType = optionalParameterType(for: member.type)
         let childTypeDescription = member.type.trimmedDescription
         let applyTypeSyntax = overrideApplyClosureType(
@@ -293,10 +284,26 @@ private func makeInitDecl(
             type: applyTypeSyntax,
             ellipsis: nil,
             defaultValue: InitializerClauseSyntax(value: NilLiteralExprSyntax()),
-            trailingComma: isLastMember ? nil : .commaToken()
+            trailingComma: .commaToken()
         )
         params.append(applyParam)
     }
+
+    params.append(
+        FunctionParameterSyntax(
+            firstName: .identifier("_innoDITrace"),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(stringLiteral: "DITraceContext"),
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(
+                value: ExprSyntax(
+                    MemberAccessExprSyntax(name: .identifier("disabled"))
+                )
+            ),
+            trailingComma: nil
+        )
+    )
 
     let signature = FunctionSignatureSyntax(
         parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params))
@@ -323,6 +330,25 @@ private func makeInitDecl(
         statements.append(
             CodeBlockItemSyntax(item: .decl(makeDeferredCellSupportDecl()))
         )
+    }
+
+    if !syncSharedMembers.isEmpty
+        || !asyncSharedMembers.isEmpty
+        || !transientMembers.isEmpty {
+        statements.append(
+            """
+            let _innoDITraceOwner = _InnoDITraceOwner(
+                context: _innoDITrace,
+                containerType: Self.self
+            )
+            """
+        )
+        for member in syncSharedMembers where member.initialization != .onDemand {
+            statements.append("self._innoDITraceOwner_\(raw: member.name) = _innoDITraceOwner")
+        }
+        for member in asyncSharedMembers + transientMembers {
+            statements.append("self._innoDITraceOwner_\(raw: member.name) = _innoDITraceOwner")
+        }
     }
 
     // Declare one local reference box per soft-target member. These boxes are
@@ -378,9 +404,16 @@ private func makeInitDecl(
             let typeDescription = member.type.trimmedDescription
             let declaration: CodeBlockItemSyntax = """
                 let \(raw: cellName): InnoDI._InnoDISharedCell<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
-                    InnoDI._InnoDISharedCell(value: _innoDIOverride)
+                    InnoDI._InnoDISharedCell(
+                        traceOwner: _innoDITraceOwner,
+                        providerName: "\(raw: member.name)",
+                        value: _innoDIOverride
+                    )
                 } else {
-                    InnoDI._InnoDISharedCell { \(factoryExpr) }
+                    InnoDI._InnoDISharedCell(
+                        traceOwner: _innoDITraceOwner,
+                        providerName: "\(raw: member.name)"
+                    ) { \(factoryExpr) }
                 }
                 """
             statements.append(declaration)
@@ -397,14 +430,24 @@ private func makeInitDecl(
             let valueExpression: ExprSyntax = "\(raw: cellName).value()"
             availableDependencyExpressions[member.name] = valueExpression
         } else {
-            let initializerExpr = ExprSyntax(
-                InfixOperatorExprSyntax(
-                    leftOperand: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(member.name))),
-                    operator: BinaryOperatorExprSyntax(operator: .binaryOperator("??")),
-                    rightOperand: factoryExpr
-                )
-            )
-            statements.append(CodeBlockItemSyntax(item: .expr(assignExprWithValue(targetName: storageName, value: initializerExpr))))
+            let traceSpanName = "_innoDITraceSpan_\(member.name)"
+            let resolvedValueName = "_innoDIResolved_\(member.name)"
+            let initialization: CodeBlockItemSyntax = """
+                if let _innoDIOverride = \(raw: member.name) {
+                    self.\(raw: storageName) = _innoDITraceOwner.overridden(
+                        member: "\(raw: member.name)",
+                        value: _innoDIOverride
+                    )
+                } else {
+                    let \(raw: traceSpanName) = _innoDITraceOwner.start(
+                        member: "\(raw: member.name)"
+                    )
+                    let \(raw: resolvedValueName) = \(factoryExpr)
+                    _innoDITraceOwner.finish(.success, span: \(raw: traceSpanName))
+                    self.\(raw: storageName) = \(raw: resolvedValueName)
+                }
+                """
+            statements.append(initialization)
             if onDemandHardDependencyNames.contains(member.name) {
                 let localName = "_innoDIOnDemandDependency_\(member.name)"
                 statements.append(
@@ -464,6 +507,7 @@ private func makeInitDecl(
 
     for member in asyncSharedMembers {
         let taskName = "_innoDITask_\(member.name)"
+        let traceSpanName = "_innoDITraceSpan_\(member.name)"
         let successType = taskSuccessTypeDescription(for: member.type)
         let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
         let createExpr = try makeAsyncFactoryExpr(
@@ -475,14 +519,22 @@ private func makeInitDecl(
             allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
         )
 
-        let awaited = ExprSyntax(AwaitExprSyntax(expression: createExpr))
         let awaitedFactoryExpr: ExprSyntax = member.asyncFactoryIsThrowing
-            ? ExprSyntax(TryExprSyntax(expression: awaited))
-            : awaited
+            ? "try await \(createExpr)"
+            : "await \(createExpr)"
+
+        let traceSpanDecl: DeclSyntax = """
+            let \(raw: traceSpanName) = _innoDITraceOwner.start(
+                member: "\(raw: member.name)"
+            )
+            """
+        statements.append(CodeBlockItemSyntax(item: .decl(traceSpanDecl)))
 
         let taskDecl = makeAsyncTaskDecl(
             taskName: taskName,
             overrideName: member.name,
+            providerName: member.name,
+            traceSpanName: traceSpanName,
             successType: successType,
             failureType: failureType,
             awaitedFactoryExpr: awaitedFactoryExpr
@@ -492,7 +544,11 @@ private func makeInitDecl(
         let storageName = "_storage_task_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: taskName))))
 
-        taskBindings[member.name] = AsyncTaskBinding(name: taskName, isThrowing: member.asyncFactoryIsThrowing)
+        taskBindings[member.name] = AsyncTaskBinding(
+            name: taskName,
+            providerName: member.name,
+            isThrowing: member.asyncFactoryIsThrowing
+        )
     }
 
     for member in transientMembers {

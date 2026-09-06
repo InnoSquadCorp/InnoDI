@@ -847,8 +847,16 @@ struct ProvideMacroTests {
 
         let peerGenerated = peerDecls.map(\.description).joined(separator: "\n")
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
-        #expect(peerGenerated == "private var _storage_task_service: _Concurrency.Task<Service, Swift.Never>? = nil")
-        #expect(accessorGenerated == #"getasync{return await _storage_task_service!.value}"#)
+        #expect(
+            peerGenerated == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _storage_task_service: _Concurrency.Task<Service, Swift.Never>? = nil
+            """
+        )
+        #expect(
+            accessorGenerated
+                == #"getasync{let value = await _storage_task_service!.valueself._innoDITraceOwner_service.cacheHit(member: "service")return value}"#
+        )
     }
 
     @Test("Compiler support storage peer covers every provider scope and recovery")
@@ -873,7 +881,10 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _storage_service: Service? = nil"
+            ) == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _storage_service: Service? = nil
+            """
         )
         #expect(
             try supportPeerStorage(
@@ -884,7 +895,10 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _storage_task_service: _Concurrency.Task<Service, Swift.Error>? = nil"
+            ) == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _storage_task_service: _Concurrency.Task<Service, Swift.Error>? = nil
+            """
         )
         #expect(
             try supportPeerStorage(
@@ -895,7 +909,10 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _override_service: Service? = nil"
+            ) == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _override_service: Service? = nil
+            """
         )
         #expect(
             try supportPeerStorage(
@@ -1089,7 +1106,13 @@ struct ProvideMacroTests {
         #expect(attachedRoles.contains("@attached(accessor)"))
         #expect(
             attachedRoles.contains(
-                "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))"
+                """
+                @attached(
+                    peer,
+                    names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_),
+                        prefixed(_innoDITraceOwner_)
+                )
+                """
             )
         )
     }
