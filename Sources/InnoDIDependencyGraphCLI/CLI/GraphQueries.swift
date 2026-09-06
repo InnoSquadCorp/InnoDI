@@ -151,14 +151,17 @@ private func renderProviderDependents(
 
 func loadGraphJSONDocument(at path: String) throws -> GraphJSON.Document {
     let data = try Data(contentsOf: URL(fileURLWithPath: path))
-    let document = try JSONDecoder().decode(GraphJSON.Document.self, from: data)
-    guard document.schemaVersion == GraphJSON.currentSchemaVersion else {
+    struct SchemaHeader: Decodable { let schemaVersion: Int }
+    let decoder = JSONDecoder()
+    let header = try decoder.decode(SchemaHeader.self, from: data)
+    guard header.schemaVersion == GraphJSON.currentSchemaVersion else {
         throw GraphInspectionError.unsupportedSchema(
             path: path,
-            found: document.schemaVersion,
+            found: header.schemaVersion,
             expected: GraphJSON.currentSchemaVersion
         )
     }
+    let document = try decoder.decode(GraphJSON.Document.self, from: data)
     try validateGraphJSONDocument(document, path: path)
     return document
 }
@@ -387,6 +390,8 @@ private func providerChangeDescription(
     append("effect", before.effect.rawValue, after.effect.rawValue)
     append("inputKind", before.inputKind?.rawValue ?? "none", after.inputKind?.rawValue ?? "none")
     append("dependencies", before.dependencies, after.dependencies)
+    append("dependencyBindings", before.dependencyBindings, after.dependencyBindings)
+    append("containerBindings", before.containerBindings, after.containerBindings)
     return changes.joined(separator: "; ")
 }
 

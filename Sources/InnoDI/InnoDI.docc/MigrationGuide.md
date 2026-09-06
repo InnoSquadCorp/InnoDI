@@ -264,14 +264,14 @@ The superseded SPI was removed after public `@Multibinding` replaced its
 ordered-collection contract. Pinned preparation consumers must migrate to the
 public spelling before adopting 6.0.
 
-Graph JSON consumers must opt into schema v4 for 6.0. In addition to the v3
-assisted-input, factory-ownership, and ordered-contribution fields, v4 emits a
-`providers` array. Each provider records its stable container/member identity,
-written type, role, lifetime, initialization policy, isolation, effect,
-dependencies, and source location. Contract comparison intentionally ignores
-source line and column changes while detecting changes to every semantic
-field. The CLI rejects older documents for `--diff`, so regenerate both
-baselines before enabling `--check-contract` on this version.
+Graph JSON consumers must opt into schema v5 for 6.0. In addition to the v4
+provider contract, v5 records every factory parameter's canonical provider ID
+and eager, `Lazy`, or `Provider` kind. Fixed and assisted child ownership also
+records canonical child-input-to-parent-provider binding pairs. Source line and
+column changes remain diagnostic-only, while endpoint or deferred-kind changes
+are contractual. The CLI rejects older documents and v5 providers missing the
+new binding arrays, so regenerate both baselines before enabling
+`--check-contract` on this version.
 
 ---
 

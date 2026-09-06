@@ -228,9 +228,9 @@ struct GraphQueryTests {
             GraphInspectionError.unsupportedSchema(
                 path: "graph-v2.json",
                 found: 2,
-                expected: 4
+                expected: 5
             ).errorDescription
-                == "Graph document 'graph-v2.json' uses schema v2; --diff currently requires schema v4."
+                == "Graph document 'graph-v2.json' uses schema v2; --diff currently requires schema v5."
         )
     }
 
@@ -309,18 +309,18 @@ struct GraphQueryTests {
         #expect(throws: GraphInspectionError.unsupportedSchema(
             path: fileURL.path,
             found: 2,
-            expected: 4
+            expected: 5
         )) {
             _ = try loadGraphJSONDocument(at: fileURL.path)
         }
     }
 
     @Test("Graph diff rejects duplicate identities and dangling references")
-    func rejectsMalformedVersionFourDocuments() throws {
+    func rejectsMalformedCurrentDocuments() throws {
         let payloads: [(String, String)] = [
             ("duplicate-node", """
             {
-              "schemaVersion": 4,
+              "schemaVersion": 5,
               "scope": { "primaryTargetID": "App", "rootPruning": "all" },
               "nodes": [
                 { "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] },
@@ -332,7 +332,7 @@ struct GraphQueryTests {
             """),
             ("dangling-edge", """
             {
-              "schemaVersion": 4,
+              "schemaVersion": 5,
               "scope": { "primaryTargetID": "App", "rootPruning": "all" },
               "nodes": [{ "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] }],
               "edges": [{ "from": "App", "to": "Missing", "kind": "hard" }],
@@ -341,7 +341,7 @@ struct GraphQueryTests {
             """),
             ("dangling-provider", """
             {
-              "schemaVersion": 4,
+              "schemaVersion": 5,
               "scope": { "primaryTargetID": "App", "rootPruning": "all" },
               "nodes": [{ "id": "App", "displayName": "App", "semanticPath": "App", "isRoot": true, "requiredInputs": [] }],
               "edges": [],
@@ -349,7 +349,8 @@ struct GraphQueryTests {
                 "id": "Missing.value", "containerID": "Missing", "name": "value", "type": "Int",
                 "role": "input", "lifetime": "external", "initialization": "external",
                 "isolation": "nonisolated", "effect": "sync", "inputKind": "container",
-                "dependencies": [], "source": { "path": "App.swift", "line": 1, "column": 1 }
+                "dependencies": [], "dependencyBindings": [], "containerBindings": [],
+                "source": { "path": "App.swift", "line": 1, "column": 1 }
               }]
             }
             """),
@@ -363,6 +364,35 @@ struct GraphQueryTests {
             #expect(throws: GraphInspectionError.self) {
                 _ = try loadGraphJSONDocument(at: fileURL.path)
             }
+        }
+    }
+
+    @Test("Schema v5 rejects missing provider binding metadata")
+    func rejectsMissingVersionFiveBindingMetadata() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("innodi-graph-missing-bindings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let payload = """
+        {
+          "schemaVersion": 5,
+          "scope": { "primaryTargetID": "App", "rootPruning": "all" },
+          "nodes": [{
+            "id": "App", "displayName": "App", "semanticPath": "App",
+            "isRoot": true, "requiredInputs": [], "assistedInputs": []
+          }],
+          "edges": [],
+          "providers": [{
+            "id": "App.value", "containerID": "App", "name": "value", "type": "Int",
+            "role": "input", "lifetime": "external", "initialization": "external",
+            "isolation": "nonisolated", "effect": "sync", "inputKind": "container",
+            "dependencies": [], "source": { "path": "App.swift", "line": 1, "column": 1 }
+          }]
+        }
+        """
+        try Data(payload.utf8).write(to: fileURL, options: .atomic)
+
+        #expect(throws: DecodingError.self) {
+            _ = try loadGraphJSONDocument(at: fileURL.path)
         }
     }
 

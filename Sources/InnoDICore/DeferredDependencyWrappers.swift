@@ -12,7 +12,7 @@ package enum DeferredDependencyWrapperKind: String {
 /// macro and the build-time graph must agree on whether one factory parameter
 /// is eager, lazy, or provider-backed before either layer applies its own
 /// availability or container-resolution policy.
-package enum FactoryDependencyKind: String, Equatable, Hashable, Sendable {
+package enum FactoryDependencyKind: String, Codable, Equatable, Hashable, Sendable {
     case hard
     case lazy
     case provider
