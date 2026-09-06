@@ -383,7 +383,11 @@ public macro SubContainerFactory(
 /// by `@DIContainer`. Application code must not attach this macro manually.
 @_documentation(visibility: internal)
 @attached(accessor)
-@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))
+@attached(
+    peer,
+    names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_),
+        prefixed(_innoDITraceOwner_)
+)
 public macro _InnoDIProvideAccessor(
     recovery: Bool
 ) = #externalMacro(module: "InnoDIMacros", type: "InnoDIProvideAccessorMacro")

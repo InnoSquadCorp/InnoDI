@@ -320,6 +320,7 @@ internal func makeAsyncFactoryExpr(
             }
             return try dependencyExpression(
                 for: ref.name,
+                consumerProviderName: member.name,
                 resolvedDependencyExpressions: resolvedDependencyExpressions,
                 taskBindings: taskBindings,
                 fallbackOverrideNames: fallbackOverrideNames,

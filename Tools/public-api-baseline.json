@@ -86,6 +86,36 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SE"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:Se"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI14DIPrewarmErrorO",
           "target": "s:SH"
         },
@@ -569,17 +599,32 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV10generations6UInt64Vvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV10instanceID10Foundation4UUIDVvp",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind17uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOs6UInt64Vtcfc",
+          "source": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind05ownerF010generation6origin015relatedProviderF00l8InstanceF017uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOAOSgs6UInt64VAC6OriginOSgSSSgArTtcfc",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
           "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV10providerIDSSvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV17relatedInstanceID10Foundation4UUIDVSgvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV17relatedProviderIDSSSgvp",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
@@ -614,6 +659,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO7waitEndyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV4KindO8cacheHityA2EmF",
           "target": "s:6InnoDI12DITraceEventV4KindO"
         },
@@ -624,7 +674,47 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO9waitStartyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV4kindAC4KindOvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO17containerOverrideyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO4waityA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO5cacheyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO7factoryyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6originAC6OriginOSgvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV7ownerID10Foundation4UUIDVvp",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
@@ -664,7 +754,7 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI14DITraceContextV4sinkAcA0C4Sink_p_tcfc",
+          "source": "s:6InnoDI14DITraceContextV4sink17targetIDsByModule10generationAcA0C4Sink_p_SDyS2SGs6UInt64Vtcfc",
           "target": "s:6InnoDI14DITraceContextV"
         },
         {
@@ -1789,6 +1879,20 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV10generations6UInt64Vvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "generation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV10instanceID10Foundation4UUIDVvp"
           },
           "kind": {
@@ -1803,14 +1907,14 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind17uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOs6UInt64Vtcfc"
+            "precise": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind05ownerF010generation6origin015relatedProviderF00l8InstanceF017uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOAOSgs6UInt64VAC6OriginOSgSSSgArTtcfc"
           },
           "kind": {
             "identifier": "swift.init"
           },
           "pathComponents": [
             "DITraceEvent",
-            "init(providerID:instanceID:kind:uptimeNanoseconds:)"
+            "init(providerID:instanceID:kind:ownerID:generation:origin:relatedProviderID:relatedInstanceID:uptimeNanoseconds:)"
           ]
         },
         {
@@ -1825,6 +1929,34 @@
           "pathComponents": [
             "DITraceEvent",
             "providerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV17relatedInstanceID10Foundation4UUIDVSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "relatedInstanceID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV17relatedProviderIDSSSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "relatedProviderID"
           ]
         },
         {
@@ -1919,6 +2051,21 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO7waitEndyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "waitEnd"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO8cacheHityA2EmF"
           },
           "kind": {
@@ -1949,6 +2096,21 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO9waitStartyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "waitStart"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4kindAC4KindOvp"
           },
           "kind": {
@@ -1957,6 +2119,108 @@
           "pathComponents": [
             "DITraceEvent",
             "kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO17containerOverrideyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "containerOverride"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO4waityA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "wait"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO5cacheyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "cache"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO7factoryyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "factory"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6originAC6OriginOSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "origin"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV7ownerID10Foundation4UUIDVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "ownerID"
           ]
         },
         {
@@ -2157,14 +2421,14 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI14DITraceContextV4sinkAcA0C4Sink_p_tcfc"
+            "precise": "s:6InnoDI14DITraceContextV4sink17targetIDsByModule10generationAcA0C4Sink_p_SDyS2SGs6UInt64Vtcfc"
           },
           "kind": {
             "identifier": "swift.init"
           },
           "pathComponents": [
             "DITraceContext",
-            "init(sink:)"
+            "init(sink:targetIDsByModule:generation:)"
           ]
         },
         {

@@ -273,12 +273,38 @@ struct HierarchyMacroTests {
                         _ _innoDIApplyOverrides: (inout Overrides) -> Void = { _ in
                         }
                     ) {
-                        self.init(config: _innoDIDependencies.config, _innoDIApplyOverrides)
+                        self.init(config: _innoDIDependencies.config, _innoDITrace: .disabled, _innoDIApplyOverrides)
                     }
 
-                    public init(config: FeatureConfig, service: (any FeatureServiceProtocol)? = nil) {
+                    public init(
+                        dependencies _innoDIDependencies: any FeatureContainerDependencies,
+                        _innoDITrace: DITraceContext,
+                        _ _innoDIApplyOverrides: (inout Overrides) -> Void = { _ in
+                        }
+                    ) {
+                        self.init(config: _innoDIDependencies.config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
+                    }
+
+                    public init(config: FeatureConfig, service: (any FeatureServiceProtocol)? = nil, _innoDITrace: DITraceContext = .disabled) {
+                        let _innoDITraceOwner = _InnoDITraceOwner(
+                            context: _innoDITrace,
+                            containerType: Self.self
+                        )
+                        self._innoDITraceOwner_service = _innoDITraceOwner
                         self._storage_config = config
-                        self._storage_service = service ?? FeatureService()
+                        if let _innoDIOverride = service {
+                            self._storage_service = _innoDITraceOwner.overridden(
+                                member: "service",
+                                value: _innoDIOverride
+                            )
+                        } else {
+                            let _innoDITraceSpan_service = _innoDITraceOwner.start(
+                                member: "service"
+                            )
+                            let _innoDIResolved_service = FeatureService()
+                            _innoDITraceOwner.finish(.success, span: _innoDITraceSpan_service)
+                            self._storage_service = _innoDIResolved_service
+                        }
                     }
 
                     // MARK: - Overrides Builder
@@ -289,33 +315,33 @@ struct HierarchyMacroTests {
                     public typealias _InnoDIMountOverrides = Overrides
 
                     // MARK: - Convenience Init with Overrides
-                    public init(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void) {
+                    public init(config: FeatureConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void) {
                         var _innoDIOverrides = Self.Overrides()
                         _innoDIApplyOverrides(&_innoDIOverrides)
-                        self.init(config: config, service: _innoDIOverrides.service)
+                        self.init(config: config, service: _innoDIOverrides.service, _innoDITrace: _innoDITrace)
                     }
 
                     // MARK: - withOverrides
-                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
-                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                    public static func withOverrides<OperationResult>(config: FeatureConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (throws)
-                    public static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
-                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                    public static func withOverrides<OperationResult>(config: FeatureConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return try _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async)
-                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
-                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return await _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
-                        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+                    public nonisolated(nonsending) static func withOverrides<OperationResult>(config: FeatureConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+                        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return try await _innoDIOperation(_innoDIContainer)
                     }
                 }
@@ -439,7 +465,7 @@ struct HierarchyMacroTests {
         )
 
         #expect(peers.count == 1)
-        #expect(members.count == 1)
+        #expect(members.count == 2)
         #expect(extensions.count == 1)
         #expect(dependencies.attributes.trimmedDescription == "@_Concurrency.MainActor")
         #expect(initializer.attributes.trimmedDescription == "@_Concurrency.MainActor")

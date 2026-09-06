@@ -641,10 +641,18 @@ effect, canonical wiring, 명시적 collection 계약을 포함하며 source 줄
 `provider:<selector>`로 명시해야 합니다. Exact graph ID의 직접 조회 동작은
 유지됩니다. runtime cache/override/async provenance는 opt-in `DITraceContext`와
 `DIBoundedTraceBuffer`로 수집하며, 비활성 경로에서는 ID, event, buffer를 만들지
-않고 입력값이나 오류 payload도 기록하지 않습니다. graph query가 출력한 stable
-provider ID를 `trace.withResolution(providerID: id) { ... }`에 전달하면 성공,
-실패, 협조적 취소가 같은 runtime instance ID로 연결됩니다. cache hit와
-override 지점은 `record`로 명시적 terminal event를 추가할 수 있습니다.
+않고 입력값이나 오류 payload도 기록하지 않습니다. graph artifact의 target ID를
+`DITraceContext(sink:targetIDsByModule:generation:)`에 넣고 생성 컨테이너의
+`_innoDITrace:` 인자로 context를 전달합니다.
+
+생성된 eager, on-demand, transient, async, override, cache-hit, wait 경로가 이제
+자동으로 event를 보냅니다. runtime module에 target mapping이 있으면
+`providerID`는 schema-v6 graph ID와 일치하고, 없으면 reflection으로 얻은
+module-qualified container path를 사용합니다. `ownerID`는 컨테이너 인스턴스,
+`generation`은 재생성 세대, `instanceID`는 start와 terminal/cache/wait event를
+연결합니다. wait event는 관련 provider와 instance도 기록합니다. InnoDI는
+service factory 내부에서 시작한 task를 추적하지 않습니다. 생성 코드 밖의
+경계는 `withResolution(providerID:)`와 `record`로 직접 계측할 수 있습니다.
 
 migration 또는 도입 전 read-only doctor를 실행합니다.
 

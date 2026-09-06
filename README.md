@@ -680,13 +680,21 @@ locations. Unqualified selectors are resolved against both container and
 provider namespaces. A collision fails with both candidate lists; use
 `container:<selector>` or `provider:<selector>` to choose explicitly. Exact
 graph IDs retain their direct lookup behavior. Runtime cache/override/async
-provenance is opt-in through
-`DITraceContext` and `DIBoundedTraceBuffer`; disabled tracing allocates no ID,
-event, or buffer, and events contain no input values or error payloads. Copy
-the stable provider ID from the graph query and wrap a resolution with
-`trace.withResolution(providerID: id) { ... }`; success, failure, and
-cooperative cancellation then share one runtime instance ID. Cache-hit and
-override sites can append their explicit terminal event with `record`.
+provenance is opt-in through `DITraceContext` and `DIBoundedTraceBuffer`;
+disabled tracing allocates no ID, event, or buffer, and events contain no input
+values or error payloads. Copy the target ID from the graph artifact into
+`DITraceContext(sink:targetIDsByModule:generation:)`, then pass that context to
+a generated container's `_innoDITrace:` argument.
+
+Generated eager, on-demand, transient, async, override, cache-hit, and wait
+paths now emit automatically. `providerID` matches schema-v6 graph IDs when
+the runtime module has a target mapping; otherwise it falls back to the
+reflected module-qualified container path. `ownerID` separates container
+instances, `generation` separates rebuilds, and `instanceID` joins a start to
+its terminal/cache/wait events. Wait events also name the related provider and
+instance. InnoDI never introspects tasks started inside a service factory.
+Manual instrumentation through `withResolution(providerID:)` and `record`
+remains available for non-generated boundaries.
 
 Run the read-only workspace doctor before migration or adoption:
 
