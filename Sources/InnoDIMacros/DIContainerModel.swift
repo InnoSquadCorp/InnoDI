@@ -269,6 +269,7 @@ struct ProvideMemberModel {
     let accessLevel: String?
     let scope: ProvideScope
     let initialization: ProvideInitializationValue
+    let operationalEffect: ProvideOperationalEffectValue
     let inputKind: InputKindValue
     let isMultibinding: Bool
     let factory: ExprSyntax?

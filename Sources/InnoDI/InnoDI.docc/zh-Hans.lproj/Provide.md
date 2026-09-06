@@ -31,6 +31,7 @@ declaration 和 accessor 上生成的 isolation attribute 属于内部 compiler 
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )

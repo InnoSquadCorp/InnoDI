@@ -23,6 +23,9 @@ internal func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [P
 
 internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax {
     let candidates = overrideCandidateMembers(model)
+    let effectCandidates = candidates.filter {
+        $0.operationalEffect == .sideEffect
+    }
     let subs = model.subContainerMembers
 
     let modifiers = accessModifiers(model.accessLevel)
@@ -78,10 +81,65 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         memberDecls.append(MemberBlockItemSyntax(decl: applySlot))
     }
 
+    if !effectCandidates.isEmpty {
+        let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
+        let requirements = effectCandidates.map {
+            "InnoDI.DIProviderEffectRequirement(providerName: \"\($0.name)\", effect: .sideEffect)"
+        }.joined(separator: ", ")
+        let checks = effectCandidates.map { member in
+            """
+                    if self.\(member.name) == nil {
+                        missing.append(
+                            InnoDI.DIProviderEffectRequirement(
+                                providerName: "\(member.name)",
+                                effect: .sideEffect
+                            )
+                        )
+                    }
+            """
+        }.joined(separator: "\n")
+
+        memberDecls.append(
+            MemberBlockItemSyntax(
+                decl: DeclSyntax(
+                    stringLiteral: "\(accessPrefix)static let requiredEffectOverrides: [InnoDI.DIProviderEffectRequirement] = [\(requirements)]"
+                )
+            )
+        )
+        memberDecls.append(
+            MemberBlockItemSyntax(
+                decl: DeclSyntax(
+                    stringLiteral: """
+                    \(accessPrefix)var missingEffectOverrides: [InnoDI.DIProviderEffectRequirement] {
+                        var missing: [InnoDI.DIProviderEffectRequirement] = []
+                    \(checks)
+                        return missing
+                    }
+                    """
+                )
+            )
+        )
+    }
+
+    let inheritanceClause: InheritanceClauseSyntax? = effectCandidates.isEmpty
+        ? nil
+        : InheritanceClauseSyntax(
+            inheritedTypes: InheritedTypeListSyntax([
+                InheritedTypeSyntax(
+                    type: TypeSyntax(
+                        stringLiteral: model.options.mainActor
+                            ? "InnoDI.DIMainActorOverrideEffectValidating"
+                            : "InnoDI.DIOverrideEffectValidating"
+                    )
+                )
+            ])
+        )
+
     let structDecl = StructDeclSyntax(
         attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         name: .identifier("Overrides"),
+        inheritanceClause: inheritanceClause,
         memberBlock: MemberBlockSyntax(
             members: MemberBlockItemListSyntax(memberDecls)
         )

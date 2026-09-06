@@ -126,6 +126,26 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI17DIAsyncScopeErrorO",
           "target": "s:SQ"
         },
@@ -404,6 +424,21 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV",
           "target": "s:SQ"
         },
@@ -631,6 +666,16 @@
           "kind": "memberOf",
           "source": "s:6InnoDI16DIInitializationO8onDemandyA2CmF",
           "target": "s:6InnoDI16DIInitializationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI16DIProviderEffectO04sideD0yA2CmF",
+          "target": "s:6InnoDI16DIProviderEffectO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI16DIProviderEffectO4noneyA2CmF",
+          "target": "s:6InnoDI16DIProviderEffectO"
         },
         {
           "kind": "memberOf",
@@ -1084,6 +1129,21 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV12providerName6effectACSS_AA0cD0Otcfc",
+          "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV12providerNameSSvp",
+          "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV6effectAA0cD0Ovp",
+          "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyACyxGx_tcfc",
           "target": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
         },
@@ -1156,6 +1216,26 @@
           "kind": "requirementOf",
           "source": "s:6InnoDI16DIAsyncPreparingP7prepareAA0C14ProviderStatusVyYaF",
           "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI26DIOverrideEffectValidatingP07missingD9OverridesSayAA010DIProviderD11RequirementVGvp",
+          "target": "s:6InnoDI26DIOverrideEffectValidatingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI26DIOverrideEffectValidatingP08requiredD9OverridesSayAA010DIProviderD11RequirementVGvpZ",
+          "target": "s:6InnoDI26DIOverrideEffectValidatingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI35DIMainActorOverrideEffectValidatingP07missingF9OverridesSayAA010DIProviderF11RequirementVGvp",
+          "target": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI35DIMainActorOverrideEffectValidatingP08requiredF9OverridesSayAA010DIProviderF11RequirementVGvpZ",
+          "target": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
         }
       ],
       "symbols": [
@@ -2218,6 +2298,47 @@
           "pathComponents": [
             "DIInitialization",
             "onDemand"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIProviderEffectO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIProviderEffect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIProviderEffectO04sideD0yA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIProviderEffect",
+            "sideEffect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIProviderEffectO4noneyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIProviderEffect",
+            "none"
           ]
         },
         {
@@ -4177,6 +4298,47 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI26DIOverrideEffectValidatingP"
+          },
+          "kind": {
+            "identifier": "swift.protocol"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidating"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI26DIOverrideEffectValidatingP07missingD9OverridesSayAA010DIProviderD11RequirementVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidating",
+            "missingEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI26DIOverrideEffectValidatingP08requiredD9OverridesSayAA010DIProviderD11RequirementVGvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidating",
+            "requiredEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
           },
           "kind": {
@@ -4274,6 +4436,61 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV12providerName6effectACSS_AA0cD0Otcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement",
+            "init(providerName:effect:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV12providerNameSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement",
+            "providerName"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV6effectAA0cD0Ovp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement",
+            "effect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
           },
           "kind": {
@@ -4355,6 +4572,47 @@
           "pathComponents": [
             "DIKeyedCollectionDuplicateError",
             "key"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+          },
+          "kind": {
+            "identifier": "swift.protocol"
+          },
+          "pathComponents": [
+            "DIMainActorOverrideEffectValidating"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP07missingF9OverridesSayAA010DIProviderF11RequirementVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMainActorOverrideEffectValidating",
+            "missingEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP08requiredF9OverridesSayAA010DIProviderF11RequirementVGvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIMainActorOverrideEffectValidating",
+            "requiredEffectOverrides"
           ]
         },
         {
@@ -4483,13 +4741,13 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7Provide__4with14initialization7factory12asyncFactoryyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOypSgAOtcfm"
+            "precise": "s:6InnoDI7Provide__4with14initialization6effect7factory12asyncFactoryyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOAA16DIProviderEffectOypSgARtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "pathComponents": [
-            "Provide(_:_:with:initialization:factory:asyncFactory:)"
+            "Provide(_:_:with:initialization:effect:factory:asyncFactory:)"
           ]
         },
         {
@@ -5674,6 +5932,16 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
           "target": "s:SH"
         },
@@ -5724,6 +5992,26 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:s23CustomStringConvertibleP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
           "target": "s:SQ"
         },
@@ -5765,6 +6053,16 @@
         {
           "kind": "memberOf",
           "source": "s:13InnoDITesting16DIOverridePresetV8combined4with4nameACyxGAG_SSSgtF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE9validated4base7profilexx_AA06DITestF7ProfileVtKF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI35DIMainActorOverrideEffectValidatingRzlE9validated4base7profilexx_AA06DITestI7ProfileVtKF",
           "target": "s:13InnoDITesting16DIOverridePresetV"
         },
         {
@@ -5814,12 +6112,17 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV07missingD8OverrideAA23DIEffectViolationPolicyOvp",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:13InnoDITesting19DITestEffectProfileV11missingStubAA23DIEffectViolationPolicyOvp",
           "target": "s:13InnoDITesting19DITestEffectProfileV"
         },
         {
           "kind": "memberOf",
-          "source": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStubAcA23DIEffectViolationPolicyO_AGtcfc",
+          "source": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStub0hD8OverrideAcA23DIEffectViolationPolicyO_A2Htcfc",
           "target": "s:13InnoDITesting19DITestEffectProfileV"
         },
         {
@@ -5856,6 +6159,21 @@
           "kind": "memberOf",
           "source": "s:13InnoDITesting20DIConcurrentValueBoxCyACyxGxcfc",
           "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV11isSatisfiedSbvp",
+          "target": "s:13InnoDITesting22DIOverrideEffectReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV7missingACSay0A2DI010DIProviderD11RequirementVG_tcfc",
+          "target": "s:13InnoDITesting22DIOverrideEffectReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV7missingSay0A2DI010DIProviderD11RequirementVGvp",
+          "target": "s:13InnoDITesting22DIOverrideEffectReportV"
         },
         {
           "kind": "memberOf",
@@ -5919,6 +6237,16 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI019DIMainActorOverrideD10ValidatingRzlFZ",
+          "target": "s:13InnoDITesting26DIOverrideEffectValidationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI0cD10ValidatingRzlFZ",
+          "target": "s:13InnoDITesting26DIOverrideEffectValidationO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:13InnoDITesting27DIInteractionViolationErrorV11descriptionSSvp",
           "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
         },
@@ -5931,6 +6259,21 @@
           "kind": "memberOf",
           "source": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAcA0C6ReportV_tcfc",
           "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV11descriptionSSvp",
+          "target": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAA010DIOverrideD6ReportVvp",
+          "target": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAcA010DIOverrideD6ReportV_tcfc",
+          "target": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
         },
         {
           "kind": "memberOf",
@@ -6068,6 +6411,92 @@
             "combined(with:name:)"
           ],
           "swiftGenerics": {
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE9validated4base7profilexx_AA06DITestF7ProfileVtKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "validated(base:profile:)"
+          ],
+          "swiftExtension": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "extendedModule": "InnoDITesting",
+            "typeKind": "swift.struct"
+          },
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI35DIMainActorOverrideEffectValidatingRzlE9validated4base7profilexx_AA06DITestI7ProfileVtKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "pathComponents": [
+            "DIOverridePreset",
+            "validated(base:profile:)"
+          ],
+          "swiftExtension": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
+            "extendedModule": "InnoDITesting",
+            "typeKind": "swift.struct"
+          },
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
             "parameters": [
               {
                 "depth": 0,
@@ -6259,6 +6688,20 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV07missingD8OverrideAA23DIEffectViolationPolicyOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "missingEffectOverride"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DITestEffectProfileV11missingStubAA23DIEffectViolationPolicyOvp"
           },
           "kind": {
@@ -6273,14 +6716,14 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStubAcA23DIEffectViolationPolicyO_AGtcfc"
+            "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStub0hD8OverrideAcA23DIEffectViolationPolicyO_A2Htcfc"
           },
           "kind": {
             "identifier": "swift.init"
           },
           "pathComponents": [
             "DITestEffectProfile",
-            "init(unexpectedCall:missingStub:)"
+            "init(unexpectedCall:missingStub:missingEffectOverride:)"
           ]
         },
         {
@@ -6489,6 +6932,61 @@
               }
             ]
           }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV11isSatisfiedSbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport",
+            "isSatisfied"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV7missingACSay0A2DI010DIProviderD11RequirementVG_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport",
+            "init(missing:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV7missingSay0A2DI010DIProviderD11RequirementVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport",
+            "missing"
+          ]
         },
         {
           "accessLevel": "public",
@@ -6823,6 +7321,81 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting26DIOverrideEffectValidationO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI019DIMainActorOverrideD10ValidatingRzlFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidation",
+            "validate(_:profile:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI0cD10ValidatingRzlFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidation",
+            "validate(_:profile:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting27DIInteractionViolationErrorV"
           },
           "kind": {
@@ -6871,6 +7444,61 @@
           },
           "pathComponents": [
             "DIInteractionViolationError",
+            "init(report:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV11descriptionSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError",
+            "description"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAA010DIOverrideD6ReportVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError",
+            "report"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAcA010DIOverrideD6ReportV_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError",
             "init(report:)"
           ]
         },

@@ -181,6 +181,11 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 Add `InnoDITesting` only to test or preview-support targets that use generated
 `Sendable` mocks, reusable override presets, or strict interaction validation.
 It depends on `InnoDI` but does not depend on Swift Testing or SwiftSyntax.
+Providers explicitly marked `@Provide(effect: .sideEffect, ...)` also expose
+generated override requirements: validate a typed preset before constructing
+the container to prevent an unconfigured live factory from running. Unmarked
+opaque factories are not inferred as pure or effectful, and production defaults
+remain unchanged.
 
 Attach the build-time validation plugin to every target that declares InnoDI
 containers or a standalone `@DIEnvironmentBridge`. This is a required part of

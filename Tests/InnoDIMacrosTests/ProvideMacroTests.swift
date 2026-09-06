@@ -56,8 +56,39 @@ struct ProvideMacroTests {
 
         let args = parseProvideArguments(attr)
         #expect(args.scope == .shared)
+        #expect(args.operationalEffect?.rawValue == "none")
         let factoryExpr = try #require(args.factoryExpr)
         #expect(factoryExpr.trimmedDescription == "SomeType()")
+    }
+
+    @Test("Provide parser preserves explicit and invalid effect metadata")
+    func parseProvideOperationalEffect() throws {
+        let source = """
+        @Provide(.shared, effect: .sideEffect, factory: SomeType())
+        var live: SomeProtocol
+
+        @Provide(.shared, effect: dynamicEffect, factory: SomeType())
+        var invalid: SomeProtocol
+        """
+
+        let parsed = Parser.parse(source: source)
+        let declarations = parsed.statements.compactMap {
+            $0.item.as(VariableDeclSyntax.self)
+        }
+        let liveAttribute = try #require(
+            declarations.first?.attributes.first?.as(AttributeSyntax.self)
+        )
+        let invalidAttribute = try #require(
+            declarations.last?.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let live = parseProvideArguments(liveAttribute)
+        #expect(live.operationalEffect == .sideEffect)
+        #expect(live.operationalEffectName == "sideEffect")
+
+        let invalid = parseProvideArguments(invalidAttribute)
+        #expect(invalid.operationalEffect == nil)
+        #expect(invalid.operationalEffectName == "dynamicEffect")
     }
 
     @Test
@@ -891,6 +922,21 @@ struct ProvideMacroTests {
             }
             """,
             expectedCodes: [InnoDIDiagnosticCode.provideUnknownInitialization.messageID],
+            macros: Self.macros
+        )
+    }
+
+    @Test("Unknown operational effect is rejected with a stable diagnostic")
+    func unknownOperationalEffectDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, effect: .eventually, factory: Service())
+                var service: Service
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.provideUnknownEffect.messageID],
             macros: Self.macros
         )
     }

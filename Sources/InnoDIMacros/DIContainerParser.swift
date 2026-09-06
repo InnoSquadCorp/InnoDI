@@ -499,6 +499,9 @@ struct DIContainerParser {
         if arguments.initialization == nil {
             hadArgumentErrors = true
         }
+        if arguments.operationalEffect == nil {
+            hadArgumentErrors = true
+        }
         if arguments.isMultibinding,
            case let .parsed(contributors) = arguments.dependenciesParseState {
             if Set(contributors).count != contributors.count {
@@ -511,7 +514,8 @@ struct DIContainerParser {
         }
         guard !hadArgumentErrors,
               let scope = arguments.scope,
-              let initialization = arguments.initialization else {
+              let initialization = arguments.initialization,
+              let operationalEffect = arguments.operationalEffect else {
             // ProvideMacro owns the terminal unknown-scope diagnostic; this
             // parser only fails closed so invalid members cannot reach codegen.
             return .failure
@@ -542,6 +546,7 @@ struct DIContainerParser {
                 ),
                 scope: scope,
                 initialization: initialization,
+                operationalEffect: operationalEffect,
                 inputKind: arguments.inputKind,
                 isMultibinding: arguments.isMultibinding,
                 factory: arguments.factoryExpr,

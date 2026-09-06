@@ -149,8 +149,12 @@ struct ChildType {
     @Input var config: Int
 }
 
-struct FeatureRootView {
+struct FeatureRootView: View {
     let container: ChildType
+
+    var body: some View {
+        EmptyView()
+    }
 }
 
 enum FixtureTypes {

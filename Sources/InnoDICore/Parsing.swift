@@ -21,6 +21,13 @@ public enum ProvideInitializationValue: String, Equatable, Sendable {
     case onDemand
 }
 
+/// Explicit operational-effect classification for strict test overrides.
+/// This is source metadata only; InnoDI never infers it from a factory body.
+public enum ProvideOperationalEffectValue: String, Equatable, Sendable {
+    case none
+    case sideEffect
+}
+
 /// Semantic source of a container input.
 ///
 /// Container inputs are supplied when the container itself is constructed.
@@ -119,6 +126,12 @@ public struct ProvideArguments {
     public let initializationName: String?
     /// Explicit initialization expression, when present.
     public let initializationExpr: ExprSyntax?
+    /// Explicit operational-effect classification.
+    public let operationalEffect: ProvideOperationalEffectValue?
+    /// Raw operational-effect spelling for diagnostics.
+    public let operationalEffectName: String?
+    /// Explicit operational-effect expression, when present.
+    public let operationalEffectExpr: ExprSyntax?
     /// Factory expression passed via `factory:`.
     public let factoryExpr: ExprSyntax?
     /// Asynchronous factory expression passed via `asyncFactory:`.
@@ -169,6 +182,9 @@ public struct ProvideArguments {
         initialization: ProvideInitializationValue? = .eager,
         initializationName: String? = ProvideInitializationValue.eager.rawValue,
         initializationExpr: ExprSyntax? = nil,
+        operationalEffect: ProvideOperationalEffectValue? = ProvideOperationalEffectValue.none,
+        operationalEffectName: String? = ProvideOperationalEffectValue.none.rawValue,
+        operationalEffectExpr: ExprSyntax? = nil,
         factoryExpr: ExprSyntax?,
         asyncFactoryExpr: ExprSyntax? = nil,
         asyncFactoryIsThrowing: Bool = false,
@@ -188,6 +204,9 @@ public struct ProvideArguments {
         self.initialization = initialization
         self.initializationName = initializationName
         self.initializationExpr = initializationExpr
+        self.operationalEffect = operationalEffect
+        self.operationalEffectName = operationalEffectName
+        self.operationalEffectExpr = operationalEffectExpr
         self.factoryExpr = factoryExpr
         self.asyncFactoryExpr = asyncFactoryExpr
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
@@ -475,6 +494,19 @@ private func isSupportedProvideScopeReference(_ expression: MemberAccessExprSynt
     }
 }
 
+private func isSupportedProvideEffectReference(_ expression: MemberAccessExprSyntax) -> Bool {
+    guard let base = expression.base else {
+        return true
+    }
+
+    switch base.trimmedDescription {
+    case "DIProviderEffect", "InnoDI.DIProviderEffect":
+        return true
+    default:
+        return false
+    }
+}
+
 public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
     let managedAttributeName = attributeBaseName(attribute.attributeName)
     if managedAttributeName == "Input" {
@@ -493,6 +525,9 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var initialization: ProvideInitializationValue? = .eager
     var initializationName: String? = ProvideInitializationValue.eager.rawValue
     var initializationExpr: ExprSyntax?
+    var operationalEffect: ProvideOperationalEffectValue? = ProvideOperationalEffectValue.none
+    var operationalEffectName: String? = ProvideOperationalEffectValue.none.rawValue
+    var operationalEffectExpr: ExprSyntax?
     var asyncFactoryExpr: ExprSyntax?
     var asyncFactoryIsThrowing = false
     var escaping: Bool = false
@@ -528,6 +563,26 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     asyncFactoryExpr = argument.expression
                     if let closure = argument.expression.as(ClosureExprSyntax.self) {
                         asyncFactoryIsThrowing = closure.signature?.effectSpecifiers?.throwsClause != nil
+                    }
+                    continue
+                }
+                if label == "effect" {
+                    operationalEffectExpr = argument.expression
+                    operationalEffectName = argument.expression.trimmedDescription
+                    if let member = argument.expression.as(
+                        MemberAccessExprSyntax.self
+                    ) {
+                        let name = member.declName.baseName.text
+                        operationalEffectName = name
+                        if isSupportedProvideEffectReference(member) {
+                            operationalEffect = ProvideOperationalEffectValue(
+                                rawValue: name
+                            )
+                        } else {
+                            operationalEffect = nil
+                        }
+                    } else {
+                        operationalEffect = nil
                     }
                     continue
                 }
@@ -585,6 +640,9 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         initialization: initialization,
         initializationName: initializationName,
         initializationExpr: initializationExpr,
+        operationalEffect: operationalEffect,
+        operationalEffectName: operationalEffectName,
+        operationalEffectExpr: operationalEffectExpr,
         factoryExpr: factoryExpr,
         asyncFactoryExpr: asyncFactoryExpr,
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,

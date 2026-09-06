@@ -63,7 +63,7 @@ graph tooling에 초점을 둡니다.
 ### Symbols
 
 - ``DIContainer(validateDAG:)``
-- ``Provide(_:_:with:initialization:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``

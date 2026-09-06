@@ -33,6 +33,7 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )

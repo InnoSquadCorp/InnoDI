@@ -62,6 +62,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   받습니다. 외부 값은 `@Input`으로 선언하세요.
 - `provide.unknown-initialization` — `initialization:`이 `.eager` 또는
   `.onDemand`가 아닙니다.
+- `provide.unknown-effect` — `effect:`가 `.none` 또는 `.sideEffect`가 아닙니다.
+  지원되는 literal 분류를 사용하세요. 매크로는 임의 표현식을 평가하거나
+  부작용을 추론하지 않습니다.
 - `provide.initialization-invalid-scope` — `.shared`가 아닌 scope에
   `.onDemand`를 사용했습니다.
 - `provide.ondemand-async-unsupported` — `.onDemand`와 `asyncFactory:`를 함께

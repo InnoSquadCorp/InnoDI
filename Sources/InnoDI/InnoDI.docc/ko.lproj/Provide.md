@@ -32,10 +32,18 @@ Swift 자체의 structural diagnostic도 발생할 수 있습니다.
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
 ```
+
+`effect:`는 추론된 동작이 아니라 명시적인 테스트·프리뷰 metadata입니다. 실제
+네트워크, 영속 저장소, 프로세스, 디바이스처럼 외부에서 관찰 가능한 provider는
+`.sideEffect`로 표시하세요. 그러면 생성된 `Overrides`가 opt-in
+`InnoDITesting` 검증에 필요한 override를 노출합니다. 기본 `.none`은 “strict
+override가 필요하다고 분류하지 않음”이라는 뜻이며 opaque factory가 순수하다는
+증명이 아닙니다. Production 생성에는 strict 검증이 자동 적용되지 않습니다.
 
 ## Input 값과 escaping 함수
 
@@ -108,6 +116,6 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>

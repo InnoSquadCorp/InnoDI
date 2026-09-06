@@ -98,6 +98,74 @@ public enum DIStubValidation {
     }
 }
 
+/// Deterministic preflight result for effect-marked provider overrides.
+public struct DIOverrideEffectReport: Equatable, Sendable {
+    public let missing: [DIProviderEffectRequirement]
+
+    public init(missing: [DIProviderEffectRequirement]) {
+        self.missing = missing.sorted {
+            if $0.providerName == $1.providerName {
+                return $0.effect.rawValue < $1.effect.rawValue
+            }
+            return $0.providerName < $1.providerName
+        }
+    }
+
+    public var isSatisfied: Bool { missing.isEmpty }
+}
+
+/// Stops strict test or preview setup before an effect-marked live factory runs.
+public struct DIMissingEffectOverrideError: Error, Equatable, Sendable,
+    CustomStringConvertible {
+    public let report: DIOverrideEffectReport
+
+    public init(report: DIOverrideEffectReport) {
+        self.report = report
+    }
+
+    public var description: String {
+        let names = report.missing.map(\.providerName).joined(separator: ", ")
+        return "Missing InnoDI effect overrides: \(names)"
+    }
+}
+
+/// Validates generated override metadata without constructing the container.
+public enum DIOverrideEffectValidation {
+    @discardableResult
+    public static func validate<Overrides: DIOverrideEffectValidating>(
+        _ overrides: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> DIOverrideEffectReport {
+        try validate(
+            missing: overrides.missingEffectOverrides,
+            profile: profile
+        )
+    }
+
+    @MainActor
+    @discardableResult
+    public static func validate<Overrides: DIMainActorOverrideEffectValidating>(
+        _ overrides: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> DIOverrideEffectReport {
+        try validate(
+            missing: overrides.missingEffectOverrides,
+            profile: profile
+        )
+    }
+
+    private static func validate(
+        missing: [DIProviderEffectRequirement],
+        profile: DITestEffectProfile
+    ) throws -> DIOverrideEffectReport {
+        let report = DIOverrideEffectReport(missing: missing)
+        if profile.missingEffectOverride == .fail, !report.isSatisfied {
+            throw DIMissingEffectOverrideError(report: report)
+        }
+        return report
+    }
+}
+
 /// A deterministic summary of missing stubs and call-count mismatches.
 public struct DIInteractionReport: Equatable, Sendable {
     public let missingStubSelectors: [String]
@@ -242,6 +310,34 @@ public struct DIOverridePreset<Overrides>: Sendable {
     }
 }
 
+extension DIOverridePreset where Overrides: DIOverrideEffectValidating {
+    /// Applies this preset to a caller-owned builder, then validates it before
+    /// the caller constructs a container.
+    public func validated(
+        base: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> Overrides {
+        var overrides = base
+        apply(to: &overrides)
+        try DIOverrideEffectValidation.validate(overrides, profile: profile)
+        return overrides
+    }
+}
+
+extension DIOverridePreset where Overrides: DIMainActorOverrideEffectValidating {
+    /// Main-actor counterpart for containers declared with `mainActor: true`.
+    @MainActor
+    public func validated(
+        base: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> Overrides {
+        var overrides = base
+        apply(to: &overrides)
+        try DIOverrideEffectValidation.validate(overrides, profile: profile)
+        return overrides
+    }
+}
+
 public enum DIEffectViolationPolicy: String, Equatable, Sendable {
     case fail
     case record
@@ -251,22 +347,27 @@ public enum DIEffectViolationPolicy: String, Equatable, Sendable {
 public struct DITestEffectProfile: Equatable, Sendable {
     public let unexpectedCall: DIEffectViolationPolicy
     public let missingStub: DIEffectViolationPolicy
+    public let missingEffectOverride: DIEffectViolationPolicy
 
     public init(
         unexpectedCall: DIEffectViolationPolicy,
-        missingStub: DIEffectViolationPolicy
+        missingStub: DIEffectViolationPolicy,
+        missingEffectOverride: DIEffectViolationPolicy = .fail
     ) {
         self.unexpectedCall = unexpectedCall
         self.missingStub = missingStub
+        self.missingEffectOverride = missingEffectOverride
     }
 
     public static let strict = Self(
         unexpectedCall: .fail,
-        missingStub: .fail
+        missingStub: .fail,
+        missingEffectOverride: .fail
     )
 
     public static let recording = Self(
         unexpectedCall: .record,
-        missingStub: .record
+        missingStub: .record,
+        missingEffectOverride: .record
     )
 }

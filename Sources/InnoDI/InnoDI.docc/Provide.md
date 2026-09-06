@@ -36,10 +36,18 @@ diagnostic.
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
 ```
+
+`effect:` is explicit test/preview metadata, not inferred behavior. Mark a live
+network, persistence, process, device, or similarly observable provider as
+`.sideEffect`. Its generated `Overrides` builder then exposes the requirement
+to opt-in `InnoDITesting` validation. The default `.none` means “not classified
+as requiring a strict override”; it does not prove that an opaque factory is
+pure. Production construction never enables strict validation automatically.
 
 ## Input Values and Escaping Functions
 
@@ -119,6 +127,6 @@ targets constructed by `asyncFactory:`.
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>
