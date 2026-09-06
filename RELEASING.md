@@ -314,6 +314,10 @@ standalone release assets.
   provider collections, schema-v5 provider contract queries, metadata-only
   bounded runtime tracing, and a read-only-first `InnoDI-Doctor` workflow for
   the 6.0 candidate.
+- Async preparation now rejects already-cancelled waiters before factory start,
+  reports request and owned-operation cancellation separately from failure,
+  and retries a failed selected child plus its downstream in fresh generations
+  while preserving ready explicit parent dependencies.
 
 ## 5.1.0
 
