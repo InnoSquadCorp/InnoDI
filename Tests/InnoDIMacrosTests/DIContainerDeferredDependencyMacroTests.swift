@@ -159,6 +159,39 @@ extension DIContainerMacroTests {
         )
     }
 
+    @Test("Provider<T> detaches nested transient type factories from the container")
+    func providerInSharedFactoryDetachesNestedTransientTypeFactories() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, Request.self, with: [\\Self.config])
+                var request: Request
+
+                @Provide(.transient, Processor.self, with: [\\Self.request])
+                var processor: Processor
+
+                @Provide(.shared, factory: { (processor: Provider<Processor>) in
+                    ProcessorLogger(processors: processor)
+                })
+                var logger: ProcessorLogger
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "processor ?? Processor(request: request ?? Request(config: config))"
+            )
+        )
+        #expect(!result.expansion.contains("_lazySelf"))
+    }
+
     @Test("Provider<T> factory parameter works in a transient accessor (no init box needed)")
     func providerInTransientAccessorFactory() {
         // Transient-in-transient Provider: the processor's factory receives

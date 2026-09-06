@@ -262,6 +262,7 @@ struct MechanicalFixItTests {
         process.arguments = [
             "swift", "build", "--package-path", fixture.path,
             "--scratch-path", fixture.appendingPathComponent("build").path,
+            "--jobs", "1",
             "-Xswiftc", "-strict-concurrency=complete",
             "-Xswiftc", "-warnings-as-errors",
         ]

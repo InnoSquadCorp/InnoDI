@@ -1,4 +1,6 @@
 import InnoDI
+import InnoDISwiftUI
+import SwiftUI
 
 public struct FeatureConfig: Sendable {
     public init() {}
@@ -74,12 +76,16 @@ public enum MainActorFeatureNamespace {
     }
 }
 
-public struct MainActorFeatureScene {
+public struct MainActorFeatureScene: View {
     public let container: MainActorFeatureContainer
 
     @MainActor
     public init(container: MainActorFeatureContainer) {
         self.container = container
+    }
+
+    public var body: some View {
+        EmptyView()
     }
 }
 

@@ -3,6 +3,17 @@ import Testing
 
 @testable import InnoDIDoctorCore
 
+private let tuistIntegrationTestsAreAvailable = ProcessInfo.processInfo.environment["PATH"]?
+    .split(separator: ":")
+    .map(String.init)
+    .contains { directory in
+        FileManager.default.isExecutableFile(
+            atPath: URL(fileURLWithPath: directory)
+                .appendingPathComponent("tuist")
+                .path
+        )
+    } == true
+
 @Suite("InnoDI doctor", .serialized)
 struct DoctorTests {
     @Test("read-only diagnosis reports toolchain, plugin, scope, and migration without writes")
@@ -76,7 +87,10 @@ struct DoctorTests {
         #expect(report.isHealthy)
     }
 
-    @Test("Tuist verification reports generation and actual compilation separately")
+    @Test(
+        "Tuist verification reports generation and actual compilation separately",
+        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
+    )
     func verifiesTuistGenerationAndCompilation() throws {
         let root = try temporaryTuistProject(
             source: "public struct AppValue { public init() {} }"
@@ -99,7 +113,10 @@ struct DoctorTests {
         #expect(report.isHealthy)
     }
 
-    @Test("Tuist generation without an explicit build selection remains unverified")
+    @Test(
+        "Tuist generation without an explicit build selection remains unverified",
+        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
+    )
     func tuistRequiresExplicitBuildSelection() throws {
         let root = try temporaryTuistProject(
             source: "public struct AppValue { public init() {} }"
@@ -118,7 +135,10 @@ struct DoctorTests {
         #expect(!report.isHealthy)
     }
 
-    @Test("Tuist generation success cannot hide compilation failure")
+    @Test(
+        "Tuist generation success cannot hide compilation failure",
+        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
+    )
     func tuistCompilationFailureFailsVerification() throws {
         let root = try temporaryTuistProject(
             source: "public let broken: String = 42"
