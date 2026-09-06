@@ -66,7 +66,7 @@ is not by itself a runtime pilot.
 | InnoSample | committed and pushed on main as `ec88716` | Doctor: 178 Swift files, 0 proposed/applied/second-pass changes; migration check; DAG; Remote 16 tests; feature 25 tests; generic iOS and embedded watch build | Public assisted-factory, `DIContainerHost`, `@Input`, and explicit container-role pilot verified. The People route proves per-child `.shared` isolation, override identity, host loading/failure/retry, and removes the manual state wrapper. The official `make verify-ci` passes. |
 | BlPia Apple | committed and pushed branch pilot `c12560d`; original dirty checkout preserved | Doctor: 160 Swift files, 0 diagnostics/changes; unchanged second pass; DAG; 10 test schemes; generic iOS and embedded watch build | The final strict hierarchy gate detected seven factory-created containers incorrectly marked as cross-module `component` ownership; the pilot now uses `local` roles for those `@Provide`-owned containers and passes the full gate. This is a committed adopter vote. |
 | Lynceus | committed and pushed branch pilot `3edb77b`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
-| Mulbyul Apple | original checkout and user changes preserved; no source commit or migration applied | Earlier isolated source/build compatibility tests only | User explicitly limited Mulbyul to testing without changes. It is not pinned to the final code candidate and is not counted as a committed adopter vote. |
+| Mulbyul Apple | original checkout and user changes preserved at committed HEAD `092ff951`; no source commit or migration applied | A fresh isolated clone generated its Tuist workspace against promotion head `2da86f7`; the aggregate test build then stopped at `DomainContainer.swift:5` because 6.0 replaces legacy `@Provide(.input)` with `@Input`. Read-only Doctor scanned 481 Swift files, proposed one safe path, and failed closed on nine unqualified ownership paths without writing. | This is explicit negative compatibility and migration-boundary evidence, not a committed adopter vote. |
 
 The original SPI pilot exposed same-target visibility and initializer-access
 gaps rather than hiding them. The public source-visible nested bridge passes
@@ -74,7 +74,10 @@ the separate-file same-target `@MainActor` fixture and strict cross-module
 parent fixture. Whole-source validation rejects missing, duplicate, unknown,
 assisted-as-static, and public access-level mismatch contracts at the source
 declaration. The Mulbyul checkout remains explicit test-only evidence rather
-than being silently counted as a successful pilot.
+than being silently counted as a successful pilot. Its isolated failure proves
+that an unchanged 5.x consumer requires the documented 6.0 source migration;
+it does not justify restoring the removed legacy spelling or mutating the
+owner's working tree.
 
 ## Problem definition
 
@@ -461,5 +464,6 @@ earlier than `2026-09-12T12:54:47Z`, and receives human maintainer approval.
 Migration coverage, schema-v4 review, strict toolchain/platform gates,
 macro/runtime performance evidence, conforming-counterexample review, and
 three committed consumer pilots are recorded on the candidate; the acceptance
-gate remains pending. Mulbyul remains read-only/test-only compatibility
-evidence and is not counted as an adopter promotion vote.
+gate remains pending. Mulbyul's exact promotion-head read-only run records the
+expected `@Provide(.input)` source break plus fail-closed Doctor diagnostics;
+it remains test-only evidence and is not counted as an adopter promotion vote.

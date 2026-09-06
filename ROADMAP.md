@@ -304,6 +304,12 @@ Delivery order:
    the public migration path replaced it.
 4. Validate InnoSample, BlPia, and Lynceus adoption against exact revisions;
    keep Mulbyul read-only/test-only per its owner boundary.
+   A fresh isolated Mulbyul HEAD `092ff951` run generated the Tuist workspace
+   against promotion head `2da86f7`, then stopped at the documented 6.0
+   `@Provide(.input)` to `@Input` source break. Read-only Doctor reported one
+   safe proposal and nine fail-closed ownership ambiguities without touching
+   the original checkout; this remains negative compatibility evidence rather
+   than an adopter vote.
    InnoSample is the committed public runtime and SwiftUI host pilot: consumer
    commit `ec88716` resolves InnoDI `f1a3eac`, passes its Xcode 27
    `make verify-ci` gate, and proves per-child shared-state isolation,
