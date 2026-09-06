@@ -21,6 +21,16 @@ protocol ScreenAPI {
     var title: String { get set }
 }
 
+@GenerateMock
+protocol CompletePreflightAPI {
+    var optionalValue: String? { get set }
+    func value() -> String
+    func fetch() throws -> String
+    func refresh() throws
+    func decode<T>(_ type: T.Type) -> T
+    func combine(_: Int, _: Int) -> Int
+}
+
 @main
 struct FixtureApp {
     @MainActor
@@ -69,5 +79,25 @@ struct FixtureApp {
         let screen = ScreenAPIMock()
         screen.title = "Preview"
         precondition(screen.title == "Preview")
+
+        let complete = CompletePreflightAPIMock()
+        precondition(Set(complete.missingStubSelectors) == Set([
+            "optionalValue", "value", "fetch", "refresh",
+            "decodeUnlabeledTType", "combine",
+        ]))
+        complete.optionalValue = nil
+        complete.valueReturnValue = "value"
+        complete.fetchResult = .success("fetched")
+        complete.refreshThrownError = nil
+        complete.decodeUnlabeledTTypeHandler = { _ in "decoded" }
+        complete.combineReturnValue = 3
+        try! DIStubValidation.requireAllStubbed(complete.missingStubSelectors)
+        precondition(complete.optionalValue == nil)
+        precondition(complete.value() == "value")
+        precondition(try! complete.fetch() == "fetched")
+        try! complete.refresh()
+        let decoded: String = complete.decode(String.self)
+        precondition(decoded == "decoded")
+        precondition(complete.combine(1, 2) == 3)
     }
 }

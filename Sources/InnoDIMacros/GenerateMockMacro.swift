@@ -84,11 +84,14 @@ public struct GenerateMockMacro: PeerMacro {
                     unsupportedMembers.append(function.name.text)
                 }
             } else if let variable = member.decl.as(VariableDeclSyntax.self) {
-                if let snippet = renderVariableMock(
+                if let rendered = renderVariableMock(
                     variable: variable,
                     concurrent: usesConcurrentStorage
                 ) {
-                    bodyLines.append(snippet)
+                    bodyLines.append(rendered.snippet)
+                    missingStubExpressions.append(
+                        rendered.missingStubExpression
+                    )
                 } else {
                     unsupportedMembers.append(
                         variable.bindings.first?.pattern.trimmedDescription ?? "<unknown>"

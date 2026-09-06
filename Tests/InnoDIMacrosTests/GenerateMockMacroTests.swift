@@ -156,10 +156,13 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("final class GreeterMock"))
         #expect(!peer.contains("@unchecked Sendable"))
         #expect(peer.contains("private var __innodi_prefix_hba8821b572531e29StubValue: String?"))
+        #expect(peer.contains("private var __innodi_prefix_hba8821b572531e29IsStubbed = false"))
         #expect(peer.contains("var prefix: String {"))
         #expect(peer.contains("__innodi_prefix_hba8821b572531e29StubValue = newValue"))
         #expect(peer.contains("private(set) var greetCalls"))
         #expect(peer.contains("var greetReturnValue: String?"))
+        #expect(peer.contains("!__innodi_greetIsStubbed ? \"greet\" : nil"))
+        #expect(peer.contains("!__innodi_prefix_hba8821b572531e29IsStubbed ? \"prefix\" : nil"))
         #expect(peer.contains("var recordedCallCounts: [String: Int]"))
         #expect(peer.contains("\"greet\": greetCalls.count"))
         #expect(peer.contains("func greet(name: String) -> String"))
@@ -229,7 +232,9 @@ struct GenerateMockMacroTests {
         #expect(peer.contains("DIConcurrentValueBox<Error?>(nil)"))
         #expect(peer.contains("return try __innodi_fetchResultBox.snapshot().get()"))
         #expect(peer.contains("if let error = __innodi_refreshThrownErrorBox.snapshot()"))
-        #expect(peer.contains("loadResult == nil ? \"load\" : nil"))
+        #expect(peer.contains("!__innodi_loadStubbedBox.snapshot() ? \"load\" : nil"))
+        #expect(peer.contains("!__innodi_fetchStubbedBox.snapshot() ? \"fetch\" : nil"))
+        #expect(peer.contains("!__innodi_refreshStubbedBox.snapshot() ? \"refresh\" : nil"))
     }
 
     @Test("GenerateMock rejects unsupported concurrent and member-isolated shapes")
@@ -535,8 +540,8 @@ struct GenerateMockMacroTests {
         )
         let peer = peers.first?.description ?? ""
 
-        #expect(peer.contains("var fetchIdStringResult: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchIdStringResult\"))"))
-        #expect(peer.contains("var fetchPageIntResult: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchPageIntResult\"))"))
+        #expect(peer.contains("private var __innodi_fetchIdStringResultStorage: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchIdStringResult\"))"))
+        #expect(peer.contains("private var __innodi_fetchPageIntResultStorage: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchPageIntResult\"))"))
     }
 
     @Test("GenerateMock keeps unnamed call-record fields unique")
@@ -565,6 +570,7 @@ struct GenerateMockMacroTests {
 
         #expect(peer.contains("let value1: Int"))
         #expect(peer.contains("let value2: String"))
+        #expect(peer.contains("func transform(_ value1: Int, _ value2: String) -> String"))
         #expect(peer.contains("transformCalls.append(.init(value1: value1, value2: value2))"))
     }
 
@@ -711,7 +717,84 @@ struct GenerateMockMacroTests {
 
         #expect(peer.contains("func decode<T>(_ type: T.Type) -> T"))
         #expect(peer.contains("var decodeUnlabeledTTypeHandler: (([Any]) -> Any)?"))
+        #expect(peer.contains("!__innodi_decodeUnlabeledTTypeIsStubbed ? \"decodeUnlabeledTType\" : nil"))
         #expect(peer.contains("guard let value = rawValue as? T"))
+    }
+
+    @Test("GenerateMock preflight covers every required stub category")
+    func generateMockPreflightCoversRequiredStubs() throws {
+        let parsed = SwiftParser.Parser.parse(source: """
+        enum Failure: Error { case unavailable }
+
+        @GenerateMock
+        protocol CompleteAPI {
+            var optionalValue: String? { get set }
+            func value() -> String
+            func fetch() throws -> String
+            func refresh() throws
+            func typed() throws(Failure) -> String
+            func decode<T>(_ type: T.Type) -> T
+        }
+        """)
+        let decl = try #require(
+            parsed.statements.compactMap {
+                $0.item.as(ProtocolDeclSyntax.self)
+            }.first
+        )
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+        let peer = try #require(peers.first?.description)
+
+        #expect(context.diagnostics.isEmpty)
+        for selector in [
+            "optionalValue", "value", "fetch", "refresh", "typed",
+            "decodeUnlabeledTType",
+        ] {
+            #expect(peer.contains("? \"\(selector)\" : nil"))
+        }
+    }
+
+    @Test("GenerateMock rejects generic typed throws and static properties")
+    func generateMockRejectsUnsupportedMatrixAtAttribute() throws {
+        let parsed = SwiftParser.Parser.parse(source: """
+        enum Failure: Error { case unavailable }
+
+        @GenerateMock
+        protocol UnsupportedMatrix {
+            static var shared: String { get }
+            func decode<T>(_ type: T.Type) throws(Failure) -> T
+        }
+        """)
+        let decl = try #require(
+            parsed.statements.compactMap {
+                $0.item.as(ProtocolDeclSyntax.self)
+            }.first
+        )
+        let attr = try #require(decl.attributes.first?.as(AttributeSyntax.self))
+        let context = TestMacroExpansionContext()
+        let peers = try GenerateMockMacro.expansion(
+            of: attr,
+            providingPeersOf: decl,
+            in: context
+        )
+
+        #expect(peers.isEmpty)
+        #expect(context.diagnostics.count == 1)
+        let diagnostic = try #require(context.diagnostics.first)
+        #expect(diagnostic.node.position == attr.position)
+        #expect(diagnostic.message.contains("shared"))
+        #expect(diagnostic.message.contains("decode"))
+        #expect(
+            diagnostic.diagnosticID == MessageID(
+                domain: "InnoDI.validation",
+                id: "mock.unsupported-member"
+            )
+        )
     }
 
     @Test("GenerateMock refuses signatures it cannot lower without broken conformance")

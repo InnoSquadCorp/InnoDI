@@ -249,6 +249,12 @@ standalone release assets.
   rejects earlier schemas and missing binding metadata rather than treating
   them as unchanged. Regenerate older baselines before
   comparing them with this release candidate.
+- Completed generated-mock stub preflight across properties, ordinary returns,
+  untyped and typed throwing functions, and generic handlers. Setup state is
+  independent from optional storage, so an explicitly stubbed `nil` is not
+  reported as missing. Unnamed parameters now receive legal body identifiers;
+  unsupported generic typed throws and static properties fail at the source
+  attribute without emitting a partial conformance.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
   and diagnostics without including original or migrated source bodies.
