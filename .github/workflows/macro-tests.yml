@@ -230,9 +230,10 @@ jobs:
         with:
           version: "26.6"
       - name: Run thread sanitizer suite
-        # Fresh-consumer contracts launch separate swift processes that do not
-        # inherit this sanitizer. They run in the exhaustive/toolchain lanes;
-        # keep this job focused on code that is actually instrumented.
+        # Fresh-consumer and mechanical fix-it build contracts launch separate
+        # swift processes that do not inherit this sanitizer. They run in the
+        # exhaustive/toolchain lanes; keep this job focused on code that is
+        # actually instrumented.
         run: >-
           swift test
           --scratch-path .build/main-tsan
@@ -241,6 +242,7 @@ jobs:
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+          --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
       - name: Run address sanitizer suite
         run: >-
           swift test
@@ -250,6 +252,7 @@ jobs:
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+          --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
   swift-62-compatibility:
     name: Swift 6.2 compatibility

@@ -108,6 +108,11 @@ struct CIWorkflowHardeningTests {
         )
         #expect(
             job.components(
+                separatedBy: "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
+            ).count - 1 == 2
+        )
+        #expect(
+            job.components(
                 separatedBy: "-Xswiftc -strict-concurrency=complete"
             ).count - 1 == 2
         )
