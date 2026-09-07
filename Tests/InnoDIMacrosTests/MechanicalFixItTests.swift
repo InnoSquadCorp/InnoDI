@@ -272,7 +272,10 @@ struct MechanicalFixItTests {
             "-Xswiftc", "-strict-concurrency=complete",
             "-Xswiftc", "-warnings-as-errors",
         ]
-        let build = try runCapturedProcess(process, timeoutSeconds: 180)
+        // A cold SwiftSyntax source build on the slowest supported hosted
+        // runner can take longer than three minutes. Keep a bounded timeout,
+        // but leave enough headroom for the deterministic source-build path.
+        let build = try runCapturedProcess(process, timeoutSeconds: 360)
         #expect(build.exitCode == 0, Comment(rawValue: build.combinedOutput))
 
         let snapshot = try loadWorkspaceSourceSnapshot(rootPath: fixture.path)
