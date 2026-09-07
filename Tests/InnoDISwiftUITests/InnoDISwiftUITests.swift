@@ -910,11 +910,14 @@ struct DIContainerHostLifecycleTests {
     private func waitUntil(
         _ condition: @escaping @MainActor () async -> Bool
     ) async throws {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: .seconds(5))
-        while !(await condition()) {
-            guard clock.now < deadline else { throw HostFailure.expected }
-            await Task.yield()
+        // Sanitizers can suspend this main-actor test task behind the rest of
+        // the suite for longer than a wall-clock deadline. Bound the number of
+        // resumptions instead, so every check gives the lifecycle operation a
+        // real scheduling opportunity before the test fails.
+        for _ in 0..<500 {
+            if await condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
         }
+        throw HostFailure.expected
     }
 }
