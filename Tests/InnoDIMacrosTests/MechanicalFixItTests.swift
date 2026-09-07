@@ -263,6 +263,12 @@ struct MechanicalFixItTests {
             "swift", "build", "--package-path", fixture.path,
             "--scratch-path", fixture.appendingPathComponent("build").path,
             "--jobs", "1",
+            // SwiftPM 6.3.3 can schedule a nested local-package target before
+            // its experimental SwiftSyntax prebuilt is materialized when the
+            // outer test process is using the same package graph. This fixture
+            // validates the applied source edit, not prebuilt selection, so a
+            // deterministic source build is the appropriate contract here.
+            "--disable-experimental-prebuilts",
             "-Xswiftc", "-strict-concurrency=complete",
             "-Xswiftc", "-warnings-as-errors",
         ]
