@@ -232,11 +232,18 @@ standalone release assets.
 ### Highlights
 
 - Prepared the [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
-  promotion candidate. Its implementation is frozen by three committed
-  consumer pilots and the completed technical gates, but formal RFC acceptance
-  remains pending until the dedicated promotion pull request completes its
-  cooldown no earlier than `2026-09-12T12:54:47Z` and receives human maintainer
-  approval. This entry does not approve the RFC or the release.
+  promotion candidate. Its implementation is frozen by repository contracts
+  and three committed consumer pilots, but formal RFC acceptance still requires
+  human maintainer review on the dedicated promotion pull request. This entry
+  does not approve the RFC or the release.
+- Re-audited all 46 excellence requirements and 25 follow-up findings against
+  code candidate `6332864ea83743fd5fec99c95b98a91b1b06ae8b`. A clean Swift 6.4
+  strict coverage run passed 355 tests in 37 suites with package line coverage
+  90.28% and `InnoDIMacros` 90.75% (floor 90.70%). Public API, graph schema v6,
+  DocC, localized README, link, validation-escape-hatch, fatal-trap, alias and
+  runtime trace performance contracts also passed. The synchronized exact
+  branch HEAD is rechecked by the release-validation matrix and consumers;
+  merge, tag, and publication remain separate NOT RUN gates.
 - Hardened the 6.x release-candidate validator so publication fails closed
   unless RFC 0006 has exactly one `Accepted` status in both its authoritative
   document and the RFC index. Pending, missing, duplicate, and inconsistent
@@ -307,6 +314,17 @@ standalone release assets.
   Swift files, an unchanged second pass, a real
   two-container full-root DAG, 41 tests, and its macOS build. Mulbyul was tested
   without source changes and is deliberately not counted as a committed pilot.
+- Refreshed the consumer boundary for the T42 candidate in isolated clones.
+  InnoSample passes exact resolution, DAG, Remote tests, leaf/root features and
+  generic iOS/watch builds. BlPia passes layer/feature/app tests and iOS build
+  after explicitly linking trace runtime support into static test bundles.
+  Lynceus passes format, Tuist sync, macOS build and all tests; Doctor correctly
+  marks its helper-based Tuist target mapping analysis-incomplete instead of
+  healthy. Mulbyul committed HEAD `092ff951` remains test-only: its isolated
+  `Layers` build reaches the expected legacy `@Provide(.input)` source break,
+  while read-only Doctor reports 481 files, one proposal and 11 errors without
+  applying a change. The original Mulbyul and mixed BlPia checkouts are
+  preserved.
 - Hardened migration and workspace analysis from real-consumer evidence:
   ambiguous unqualified 6.0 vocabulary now fails closed (`dc34d14`), Doctor
   recognizes direct Tuist package workspaces (`ac1124b`), and skipped hidden

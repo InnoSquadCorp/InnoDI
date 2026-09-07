@@ -68,6 +68,19 @@ is not by itself a runtime pilot.
 | Lynceus | committed and pushed branch pilot `3edb77b`; original main checkout unchanged | Doctor: 81 Swift files, 0 diagnostics/changes; unchanged second pass; actual 2-container full-root DAG; 41 tests; macOS build | Fully qualified role/input/provide/subcontainer vocabulary and command-plugin analysis pass. This is a committed adopter vote. |
 | Mulbyul Apple | original checkout and user changes preserved at committed HEAD `092ff951`; no source commit or migration applied | A fresh isolated clone generated its Tuist workspace against promotion head `2da86f7`; the aggregate test build then stopped at `DomainContainer.swift:5` because 6.0 replaces legacy `@Provide(.input)` with `@Input`. Read-only Doctor scanned 481 Swift files, proposed one safe path, and failed closed on nine unqualified ownership paths without writing. | This is explicit negative compatibility and migration-boundary evidence, not a committed adopter vote. |
 
+T42 addendum (2026-09-07): the follow-up implementation tree at `6332864`
+revalidates the same product contract after the 25-item audit remediation.
+InnoSample passes exact resolution, DAG, tests and iOS/watch builds in a clean
+clone. BlPia and Lynceus pass their generated-project builds/tests on refreshed
+pilot branches; BlPia explicitly links tracing into static test bundles and
+Lynceus Doctor reports helper-based Tuist mapping as analysis-incomplete rather
+than a false healthy result. Mulbyul remains unmodified: an isolated `Layers`
+build reaches the expected `@Provide(.input)` source break and read-only Doctor
+reports 481 files, one proposal, nine ownership blockers plus two workspace
+analysis errors, with zero applied paths. The document-synchronized exact
+branch HEAD is rerun through remote and consumer gates; this evidence does not
+change RFC status or authorize publication.
+
 The original SPI pilot exposed same-target visibility and initializer-access
 gaps rather than hiding them. The public source-visible nested bridge passes
 the separate-file same-target `@MainActor` fixture and strict cross-module
