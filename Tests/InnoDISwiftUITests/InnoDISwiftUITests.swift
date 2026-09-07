@@ -367,14 +367,20 @@ private enum HostFailure: Error {
 }
 
 private actor HostFactoryGate {
+    private var started: Set<Int> = []
     private var released: Set<Int> = []
     private var waiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     func wait(for identity: Int) async {
+        started.insert(identity)
         if released.contains(identity) { return }
         await withCheckedContinuation { continuation in
             waiters[identity, default: []].append(continuation)
         }
+    }
+
+    func hasStarted(_ identity: Int) -> Bool {
+        started.contains(identity)
     }
 
     func release(_ identity: Int) {
@@ -673,7 +679,7 @@ struct DIContainerHostLifecycleTests {
             },
             close: close
         )
-        await Task.yield()
+        try await waitUntil { await gate.hasStarted(12) }
         owner.start(
             identity: 13,
             factory: { HostedContainer(identity: $0) },
@@ -702,7 +708,7 @@ struct DIContainerHostLifecycleTests {
                 await probe.closed(100 + container.identity)
             }
         )
-        await Task.yield()
+        try await waitUntil { await gate.hasStarted(21) }
         owner.start(
             identity: 22,
             factory: { HostedContainer(identity: $0) },

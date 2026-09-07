@@ -257,6 +257,11 @@ struct ReleaseWorkflowContractTests {
         )
         #expect(
             releaseGateJob.components(
+                separatedBy: "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
+            ).count - 1 == 2
+        )
+        #expect(
+            releaseGateJob.components(
                 separatedBy: "-Xswiftc -strict-concurrency=complete"
             ).count - 1 >= 2
         )
