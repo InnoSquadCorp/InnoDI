@@ -21,6 +21,13 @@ public enum ProvideInitializationValue: String, Equatable, Sendable {
     case onDemand
 }
 
+/// Explicit operational-effect classification for strict test overrides.
+/// This is source metadata only; InnoDI never infers it from a factory body.
+public enum ProvideOperationalEffectValue: String, Equatable, Sendable {
+    case none
+    case sideEffect
+}
+
 /// Semantic source of a container input.
 ///
 /// Container inputs are supplied when the container itself is constructed.
@@ -103,6 +110,55 @@ public enum KeyPathArrayArgumentParseState: Equatable, Sendable {
     }
 }
 
+/// Explicit collection shape declared by `@Provide(collection:)`.
+public enum CollectionMetadataKindValue: String, Equatable, Sendable {
+    case ordered
+    case keyed
+    case providers
+    case keyedProviders
+}
+
+/// One source-authored collection contribution. `key` is absent for ordered
+/// collections and present for keyed collections.
+public struct CollectionMetadataEntryArgument: Equatable, Sendable {
+    public let key: String?
+    public let contributor: String
+
+    public init(key: String?, contributor: String) {
+        self.key = key
+        self.contributor = contributor
+    }
+}
+
+/// Literal parse state for `@Provide(collection:)`.
+public enum CollectionMetadataParseState: Equatable, Sendable {
+    case omitted
+    case parsed(
+        kind: CollectionMetadataKindValue,
+        entries: [CollectionMetadataEntryArgument]
+    )
+    case invalid
+
+    public var isInvalid: Bool {
+        if case .invalid = self { return true }
+        return false
+    }
+
+    public var entries: [CollectionMetadataEntryArgument] {
+        if case let .parsed(_, entries) = self { return entries }
+        return []
+    }
+
+    public var hasArgument: Bool {
+        switch self {
+        case .omitted:
+            return false
+        case .parsed, .invalid:
+            return true
+        }
+    }
+}
+
 /// Parsed arguments extracted from a single `@Provide` attribute.
 public struct ProvideArguments {
     /// Parsed scope value (`.shared`, `.input`, `.transient`) when available.
@@ -119,6 +175,15 @@ public struct ProvideArguments {
     public let initializationName: String?
     /// Explicit initialization expression, when present.
     public let initializationExpr: ExprSyntax?
+    /// Explicit operational-effect classification.
+    public let operationalEffect: ProvideOperationalEffectValue?
+    /// Raw operational-effect spelling for diagnostics.
+    public let operationalEffectName: String?
+    /// Explicit operational-effect expression, when present.
+    public let operationalEffectExpr: ExprSyntax?
+    /// Explicit collection graph metadata. Omitted is distinct from a parsed
+    /// empty collection contract.
+    public let collectionMetadataParseState: CollectionMetadataParseState
     /// Factory expression passed via `factory:`.
     public let factoryExpr: ExprSyntax?
     /// Asynchronous factory expression passed via `asyncFactory:`.
@@ -156,12 +221,25 @@ public struct ProvideArguments {
     ///   - scope: Parsed scope value.
     ///   - scopeName: Raw scope name text.
     ///   - scopeExpr: Explicit scope expression, when supplied.
+    ///   - initialization: Parsed initialization policy.
+    ///   - initializationName: Raw initialization policy spelling.
+    ///   - initializationExpr: Explicit initialization expression.
+    ///   - operationalEffect: Parsed operational-effect classification.
+    ///   - operationalEffectName: Raw operational-effect spelling.
+    ///   - operationalEffectExpr: Explicit operational-effect expression.
+    ///   - collectionMetadataParseState: Parsed explicit collection contract.
     ///   - factoryExpr: Parsed factory expression.
     ///   - asyncFactoryExpr: Parsed async factory expression.
     ///   - asyncFactoryIsThrowing: Whether the async factory closure throws.
     ///   - escaping: Explicit escaping-input opt-in value.
+    ///   - escapingParseState: Literal parse state for `escaping:`.
     ///   - typeExpr: Positional type expression.
     ///   - dependencies: Parsed dependency names from `with:`.
+    ///   - dependencyLabels: Constructor labels paired with dependencies.
+    ///   - dependenciesParseState: Literal parse state for `with:`.
+    ///   - inputKind: Container-time or assisted input timing.
+    ///   - assistedFactoryChildType: Child type owned by an assisted factory.
+    ///   - isMultibinding: Whether this is an ordered multibinding provider.
     public init(
         scope: ProvideScope?,
         scopeName: String?,
@@ -169,6 +247,10 @@ public struct ProvideArguments {
         initialization: ProvideInitializationValue? = .eager,
         initializationName: String? = ProvideInitializationValue.eager.rawValue,
         initializationExpr: ExprSyntax? = nil,
+        operationalEffect: ProvideOperationalEffectValue? = ProvideOperationalEffectValue.none,
+        operationalEffectName: String? = ProvideOperationalEffectValue.none.rawValue,
+        operationalEffectExpr: ExprSyntax? = nil,
+        collectionMetadataParseState: CollectionMetadataParseState = .omitted,
         factoryExpr: ExprSyntax?,
         asyncFactoryExpr: ExprSyntax? = nil,
         asyncFactoryIsThrowing: Bool = false,
@@ -188,6 +270,10 @@ public struct ProvideArguments {
         self.initialization = initialization
         self.initializationName = initializationName
         self.initializationExpr = initializationExpr
+        self.operationalEffect = operationalEffect
+        self.operationalEffectName = operationalEffectName
+        self.operationalEffectExpr = operationalEffectExpr
+        self.collectionMetadataParseState = collectionMetadataParseState
         self.factoryExpr = factoryExpr
         self.asyncFactoryExpr = asyncFactoryExpr
         self.asyncFactoryIsThrowing = asyncFactoryIsThrowing
@@ -271,6 +357,9 @@ public struct SubContainerAttributeInfo {
     ///   - scopeName: Raw textual scope spelling or expression fragment.
     ///   - dependencies: Parsed dependency names from `with:`.
     ///   - hasWithDependencies: Whether `with:` appeared in the source.
+    ///   - sameNameWiring: Literal parse state for same-name wiring.
+    ///   - bindings: Explicit child-input to parent-member bindings.
+    ///   - bindingsParseState: Literal parse state for `bindings:`.
     public init(
         scope: SubContainerScopeValue?,
         scopeName: String?,
@@ -360,9 +449,14 @@ public struct DIContainerAttributeInfo {
     /// Creates a parsed `@DIContainer` attribute model.
     ///
     /// - Parameters:
+    ///   - role: Normalized 6.0 container role.
+    ///   - roleArgumentIsValid: Whether `role:` used a supported named token.
     ///   - root: Root flag.
     ///   - validateDAG: DAG validation flag.
     ///   - mainActor: Main actor isolation flag.
+    ///   - rootParseState: Literal parse state for legacy `root:`.
+    ///   - validateDAGParseState: Literal parse state for `validateDAG:`.
+    ///   - mainActorParseState: Literal parse state for `mainActor:`.
     public init(
         role: DIContainerRoleValue = .local,
         roleArgumentIsValid: Bool = true,
@@ -475,6 +569,19 @@ private func isSupportedProvideScopeReference(_ expression: MemberAccessExprSynt
     }
 }
 
+private func isSupportedProvideEffectReference(_ expression: MemberAccessExprSyntax) -> Bool {
+    guard let base = expression.base else {
+        return true
+    }
+
+    switch base.trimmedDescription {
+    case "DIProviderEffect", "InnoDI.DIProviderEffect":
+        return true
+    default:
+        return false
+    }
+}
+
 public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArguments {
     let managedAttributeName = attributeBaseName(attribute.attributeName)
     if managedAttributeName == "Input" {
@@ -493,6 +600,10 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
     var initialization: ProvideInitializationValue? = .eager
     var initializationName: String? = ProvideInitializationValue.eager.rawValue
     var initializationExpr: ExprSyntax?
+    var operationalEffect: ProvideOperationalEffectValue? = ProvideOperationalEffectValue.none
+    var operationalEffectName: String? = ProvideOperationalEffectValue.none.rawValue
+    var operationalEffectExpr: ExprSyntax?
+    var collectionMetadataParseState: CollectionMetadataParseState = .omitted
     var asyncFactoryExpr: ExprSyntax?
     var asyncFactoryIsThrowing = false
     var escaping: Bool = false
@@ -529,6 +640,31 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                     if let closure = argument.expression.as(ClosureExprSyntax.self) {
                         asyncFactoryIsThrowing = closure.signature?.effectSpecifiers?.throwsClause != nil
                     }
+                    continue
+                }
+                if label == "effect" {
+                    operationalEffectExpr = argument.expression
+                    operationalEffectName = argument.expression.trimmedDescription
+                    if let member = argument.expression.as(
+                        MemberAccessExprSyntax.self
+                    ) {
+                        let name = member.declName.baseName.text
+                        operationalEffectName = name
+                        if isSupportedProvideEffectReference(member) {
+                            operationalEffect = ProvideOperationalEffectValue(
+                                rawValue: name
+                            )
+                        } else {
+                            operationalEffect = nil
+                        }
+                    } else {
+                        operationalEffect = nil
+                    }
+                    continue
+                }
+                if label == "collection" {
+                    collectionMetadataParseState =
+                        parseCollectionMetadataArgument(argument.expression)
                     continue
                 }
                 if label == "escaping" {
@@ -585,6 +721,10 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
         initialization: initialization,
         initializationName: initializationName,
         initializationExpr: initializationExpr,
+        operationalEffect: operationalEffect,
+        operationalEffectName: operationalEffectName,
+        operationalEffectExpr: operationalEffectExpr,
+        collectionMetadataParseState: collectionMetadataParseState,
         factoryExpr: factoryExpr,
         asyncFactoryExpr: asyncFactoryExpr,
         asyncFactoryIsThrowing: asyncFactoryIsThrowing,
@@ -724,10 +864,118 @@ public func parseInputArguments(_ attribute: AttributeSyntax) -> ProvideArgument
 }
 
 /// `@Provide` is declared with `[AnyKeyPath]`, so Swift cannot infer the root of
-/// `\.member`. InnoDI 5.0 requires the canonical `\Self.member` spelling.
+/// `\.member`. InnoDI 6.0 requires the canonical `\Self.member` spelling.
 /// Unlike a bare container identifier, `Self` cannot be shadowed by a nested
 /// typealias that silently changes the key path's semantic root while codegen
 /// still resolves the final member name against the enclosing container.
+private func parseCollectionMetadataArgument(
+    _ expression: ExprSyntax
+) -> CollectionMetadataParseState {
+    guard let call = expression.as(FunctionCallExprSyntax.self),
+          let callee = call.calledExpression.as(MemberAccessExprSyntax.self),
+          isSupportedCollectionMetadataReference(callee),
+          let kind = CollectionMetadataKindValue(
+            rawValue: callee.declName.baseName.text
+          ),
+          call.arguments.count == 1,
+          let argument = call.arguments.first,
+          argument.label == nil else {
+        return .invalid
+    }
+
+    switch kind {
+    case .ordered, .providers:
+        guard case let .parsed(contributors) =
+                parseQualifiedKeyPathArrayArgumentState(argument.expression)
+        else {
+            return .invalid
+        }
+        return .parsed(
+            kind: kind,
+            entries: contributors.map {
+                CollectionMetadataEntryArgument(key: nil, contributor: $0)
+            }
+        )
+
+    case .keyed, .keyedProviders:
+        guard let array = argument.expression.as(ArrayExprSyntax.self) else {
+            return .invalid
+        }
+        var entries: [CollectionMetadataEntryArgument] = []
+        for element in array.elements {
+            guard let entryCall = element.expression.as(
+                FunctionCallExprSyntax.self
+            ),
+            let entryCallee = entryCall.calledExpression.as(
+                MemberAccessExprSyntax.self
+            ),
+            entryCallee.base == nil,
+            entryCallee.declName.baseName.text == "init",
+            entryCall.arguments.count == 2 else {
+                return .invalid
+            }
+
+            var key: String?
+            var contributor: String?
+            for entryArgument in entryCall.arguments {
+                switch entryArgument.label?.text {
+                case "key":
+                    guard key == nil,
+                          let literal = entryArgument.expression.as(
+                            StringLiteralExprSyntax.self
+                          ),
+                          literal.segments.count == 1,
+                          let segment = literal.segments.first?.as(
+                            StringSegmentSyntax.self
+                          ),
+                          !segment.content.text.contains("\\") else {
+                        return .invalid
+                    }
+                    key = segment.content.text
+                case "contributor":
+                    guard contributor == nil,
+                          let keyPath = entryArgument.expression.as(
+                            KeyPathExprSyntax.self
+                          ),
+                          keyPath.root?.trimmedDescription == "Self",
+                          keyPath.components.count == 1,
+                          let property = finalKeyPathComponentName(
+                            from: entryArgument.expression
+                          ) else {
+                        return .invalid
+                    }
+                    contributor = property
+                default:
+                    return .invalid
+                }
+            }
+            guard let key, let contributor else { return .invalid }
+            entries.append(
+                CollectionMetadataEntryArgument(
+                    key: key,
+                    contributor: contributor
+                )
+            )
+        }
+        return .parsed(kind: kind, entries: entries)
+    }
+}
+
+private func isSupportedCollectionMetadataReference(
+    _ expression: MemberAccessExprSyntax
+) -> Bool {
+    guard let base = expression.base else {
+        return true
+    }
+
+    switch base.trimmedDescription {
+    case "DICollectionMetadata", "InnoDI.DICollectionMetadata":
+        return true
+    default:
+        return false
+    }
+}
+
 private func parseQualifiedKeyPathArrayArgumentState(
     _ expression: ExprSyntax
 ) -> KeyPathArrayArgumentParseState {

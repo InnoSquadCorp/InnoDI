@@ -499,6 +499,33 @@ struct DIContainerParser {
         if arguments.initialization == nil {
             hadArgumentErrors = true
         }
+        if arguments.operationalEffect == nil {
+            hadArgumentErrors = true
+        }
+        if arguments.collectionMetadataParseState.isInvalid {
+            context.emit(
+                SimpleDiagnostic.provideInvalidCollectionMetadata(),
+                at: Syntax(attribute)
+            )
+            hadArgumentErrors = true
+        }
+        if case let .parsed(kind, entries) =
+            arguments.collectionMetadataParseState,
+           kind == .keyed || kind == .keyedProviders {
+            var seenKeys: Set<String> = []
+            for entry in entries {
+                guard let key = entry.key else { continue }
+                if !seenKeys.insert(key).inserted {
+                    context.emit(
+                        SimpleDiagnostic.provideDuplicateCollectionKey(
+                            key: key
+                        ),
+                        at: Syntax(attribute)
+                    )
+                    hadArgumentErrors = true
+                }
+            }
+        }
         if arguments.isMultibinding,
            case let .parsed(contributors) = arguments.dependenciesParseState {
             if Set(contributors).count != contributors.count {
@@ -511,7 +538,8 @@ struct DIContainerParser {
         }
         guard !hadArgumentErrors,
               let scope = arguments.scope,
-              let initialization = arguments.initialization else {
+              let initialization = arguments.initialization,
+              let operationalEffect = arguments.operationalEffect else {
             // ProvideMacro owns the terminal unknown-scope diagnostic; this
             // parser only fails closed so invalid members cannot reach codegen.
             return .failure
@@ -542,6 +570,9 @@ struct DIContainerParser {
                 ),
                 scope: scope,
                 initialization: initialization,
+                operationalEffect: operationalEffect,
+                collectionMetadataParseState:
+                    arguments.collectionMetadataParseState,
                 inputKind: arguments.inputKind,
                 isMultibinding: arguments.isMultibinding,
                 factory: arguments.factoryExpr,
@@ -832,7 +863,7 @@ private func containerAccessLevel(for decl: some DeclGroupSyntax) -> String? {
     declarationAccessLevel(for: decl.modifiers)
 }
 
-private func declarationAccessLevel(
+func declarationAccessLevel(
     for modifiers: DeclModifierListSyntax
 ) -> String? {
     if modifiers.isEmpty {

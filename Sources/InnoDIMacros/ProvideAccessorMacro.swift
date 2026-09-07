@@ -72,6 +72,7 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
         switch parseResult.scope {
         case .transient:
             return [
+                providerTraceOwnerPeerDecl(name: memberName),
                 providerStoragePeerDecl(
                     name: "_override_\(memberName)",
                     type: type
@@ -80,6 +81,7 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
         case .shared:
             if parseResult.asyncFactoryExpr != nil {
                 return [
+                    providerTraceOwnerPeerDecl(name: memberName),
                     providerTaskStoragePeerDecl(
                         name: "_storage_task_\(memberName)",
                         successType: taskSuccessTypeDescription(for: type),
@@ -98,6 +100,7 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
                 ]
             }
             return [
+                providerTraceOwnerPeerDecl(name: memberName),
                 providerStoragePeerDecl(
                     name: "_storage_\(memberName)",
                     type: type
@@ -269,10 +272,11 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
                 return isolateProvideAccessors([
                     makeGetter(
                         statements: [
-                            awaitedReturnStmt(
-                                expr: valueExpr,
-                                isThrowing: parseResult.asyncFactoryIsThrowing
-                            )
+                            parseResult.asyncFactoryIsThrowing
+                                ? "let value = try await \(valueExpr)"
+                                : "let value = await \(valueExpr)",
+                            "self._innoDITraceOwner_\(raw: memberName).cacheHit(member: \"\(raw: memberName)\")",
+                            "return value"
                         ],
                         isAsync: true,
                         isThrowing: parseResult.asyncFactoryIsThrowing
@@ -288,13 +292,21 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             }
 
             return isolateProvideAccessors(
-                [storedProvideGetter(storageName: "_storage_\(memberName)")],
+                [storedProvideGetter(
+                    storageName: "_storage_\(memberName)",
+                    providerName: memberName,
+                    tracesCacheHit: true
+                )],
                 isMainActor: isMainActor
             )
 
         case .input:
             return isolateProvideAccessors(
-                [storedProvideGetter(storageName: "_storage_\(memberName)")],
+                [storedProvideGetter(
+                    storageName: "_storage_\(memberName)",
+                    providerName: memberName,
+                    tracesCacheHit: false
+                )],
                 isMainActor: isMainActor
             )
 
@@ -351,19 +363,30 @@ func parseProvideAccessorRecovery(_ attribute: AttributeSyntax) -> Bool? {
     return InnoDICore.parseBoolArgument(recoveryArgument.expression).value
 }
 
-private func storedProvideGetter(storageName: String) -> AccessorDeclSyntax {
-    makeGetter(
-        statements: [
-            returnStmt(
-                expr: ExprSyntax(
-                    ForceUnwrapExprSyntax(
-                        expression: DeclReferenceExprSyntax(
-                            baseName: .identifier(storageName)
-                        )
+private func storedProvideGetter(
+    storageName: String,
+    providerName: String,
+    tracesCacheHit: Bool
+) -> AccessorDeclSyntax {
+    var statements: [CodeBlockItemSyntax] = []
+    if tracesCacheHit {
+        statements.append(
+            "self._innoDITraceOwner_\(raw: providerName).cacheHit(member: \"\(raw: providerName)\")"
+        )
+    }
+    statements.append(
+        returnStmt(
+            expr: ExprSyntax(
+                ForceUnwrapExprSyntax(
+                    expression: DeclReferenceExprSyntax(
+                        baseName: .identifier(storageName)
                     )
                 )
             )
-        ],
+        )
+    )
+    return makeGetter(
+        statements: statements,
         isAsync: false,
         isThrowing: false
     )
@@ -397,7 +420,14 @@ private func makeTransientProvideAccessors(
         return []
     }
 
-    let overrideCheck = overrideCheckStmt(overrideName: overrideName)
+    let overrideCheck: CodeBlockItemSyntax = """
+        if let override = self.\(raw: overrideName) {
+            return self._innoDITraceOwner_\(raw: memberName).overridden(
+                member: "\(raw: memberName)",
+                value: override
+            )
+        }
+        """
 
     if parseResult.isMultibinding {
         let elements = parseResult.dependencies.map {
@@ -408,7 +438,13 @@ private func makeTransientProvideAccessors(
             makeGetter(
                 statements: [
                     overrideCheck,
-                    returnStmt(expr: collection),
+                    """
+                    return self._innoDITraceOwner_\(raw: memberName).withResolution(
+                        member: "\(raw: memberName)"
+                    ) {
+                        \(collection)
+                    }
+                    """,
                 ],
                 isAsync: false,
                 isThrowing: false
@@ -456,10 +492,21 @@ private func makeTransientProvideAccessors(
             makeGetter(
                 statements: [
                     overrideCheck,
-                    awaitedReturnStmt(
-                        expr: createExpr,
-                        isThrowing: parseResult.asyncFactoryIsThrowing
-                    )
+                    parseResult.asyncFactoryIsThrowing
+                        ? """
+                          return try await self._innoDITraceOwner_\(raw: memberName).withResolution(
+                              member: "\(raw: memberName)"
+                          ) {
+                              try await \(createExpr)
+                          }
+                          """
+                        : """
+                          return await self._innoDITraceOwner_\(raw: memberName).withResolution(
+                              member: "\(raw: memberName)"
+                          ) {
+                              await \(createExpr)
+                          }
+                          """
                 ],
                 isAsync: true,
                 isThrowing: parseResult.asyncFactoryIsThrowing
@@ -531,7 +578,13 @@ private func makeTransientProvideAccessors(
         makeGetter(
             statements: [
                 overrideCheck,
-                returnStmt(expr: createExpr)
+                """
+                return self._innoDITraceOwner_\(raw: memberName).withResolution(
+                    member: "\(raw: memberName)"
+                ) {
+                    \(createExpr)
+                }
+                """
             ],
             isAsync: false,
             isThrowing: false
@@ -623,7 +676,7 @@ func enclosingDIContainerInfo(
     return nil
 }
 
-private enum TransientDependencyResolutionFailure {
+enum TransientDependencyResolutionFailure {
     case unresolvedWithDependency(String)
     case unresolvedFactoryParameter(String)
     case missingMember
@@ -646,7 +699,7 @@ private enum TransientDependencyResolutionFailure {
     }
 }
 
-private func transientDependencyResolutionFailure(
+func transientDependencyResolutionFailure(
     declaration: some DeclSyntaxProtocol,
     parseResult: ProvideArguments,
     memberName: String

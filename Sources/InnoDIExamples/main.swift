@@ -12,9 +12,9 @@ struct UserService {
     let client: APIClient
 }
 
-@DIContainer(root: true)
+@DIContainerRole(role: ContainerRole.root)
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: Config
 
     @Provide(.shared, factory: { (config: Config) in APIClient(baseURL: config.baseURL) })

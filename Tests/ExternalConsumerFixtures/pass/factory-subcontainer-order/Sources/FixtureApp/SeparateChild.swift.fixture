@@ -1,0 +1,10 @@
+import InnoDI
+
+struct SeparateSecond: Sendable, Equatable { let value: Int }
+struct SeparateFirst: Sendable, Equatable { let value: Int }
+
+@DIContainer
+struct SeparateChild {
+    @Input var second: SeparateSecond
+    @Input var first: SeparateFirst
+}

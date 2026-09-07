@@ -232,6 +232,10 @@ jobs:
         run: Tools/run-coverage-gate.sh
 
       - name: Run sanitizer suites
+        # Consumer and mechanical fix-it build contracts spawn separate SwiftPM
+        # processes that are not sanitizer-instrumented. Coverage and toolchain
+        # lanes own those end-to-end builds; this suite exercises instrumented
+        # code only.
         run: |
           set -euo pipefail
           swift test \
@@ -240,14 +244,16 @@ jobs:
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors \
             --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
-            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+            --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
           swift test \
             --scratch-path .build/release-asan \
             --sanitize=address \
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors \
             --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
-            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+            --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
       - name: Upload coverage diagnostics
         if: ${{ always() && hashFiles('coverage/summary.json') != '' }}

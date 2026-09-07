@@ -139,7 +139,9 @@ package struct GeneratedQualifierUsage {
         }
 
         var fileScopeExtensions: Set<GeneratedQualifierRequirement> = []
-        if findInnoDIAttribute(named: "DIComponent", in: attributes) != nil
+        if options?.role == .component
+            || options?.role == .root
+            || findInnoDIAttribute(named: "DIComponent", in: attributes) != nil
             || findInnoDIAttribute(
                 named: "DIHierarchyRoot",
                 in: attributes

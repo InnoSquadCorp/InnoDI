@@ -10,6 +10,13 @@ import InnoDICore
 import SwiftDiagnostics
 
 extension SimpleDiagnostic {
+    static func provideUnknownEffect(_ name: String) -> Self {
+        Self(
+            "Unknown @Provide effect classification '\(name)'. Valid values are .none and .sideEffect.",
+            code: .provideUnknownEffect
+        )
+    }
+
     static func provideUnknownInitialization(_ name: String) -> Self {
         Self(
             "Unknown @Provide initialization policy '\(name)'. Valid policies are .eager and .onDemand.",
@@ -83,6 +90,40 @@ extension SimpleDiagnostic {
         Self(
             "@Multibinding requires one literal array of canonical direct-member key paths such as [\\Self.auth, \\Self.logging].",
             code: .multibindingInvalidContributors
+        )
+    }
+
+    static func provideInvalidCollectionMetadata() -> Self {
+        Self(
+            "@Provide(collection:) requires .ordered([\\Self.member]), .providers([\\Self.member]), .keyed([.init(key: \"id\", contributor: \\Self.member)]), or .keyedProviders(...) with only literal entries.",
+            code: .provideInvalidCollectionMetadata
+        )
+    }
+
+    static func provideDuplicateCollectionKey(key: String) -> Self {
+        Self(
+            "@Provide(collection:) key '\(key)' appears more than once. Keyed collection contracts reject duplicates; there is no implicit last-wins rule.",
+            code: .provideDuplicateCollectionKey
+        )
+    }
+
+    static func provideUnknownCollectionContributor(
+        memberName: String,
+        contributorName: String
+    ) -> Self {
+        Self(
+            "@Provide member '\(memberName)' collection metadata references unknown direct dependency '\(contributorName)'.",
+            code: .provideUnknownCollectionContributor
+        )
+    }
+
+    static func provideAsyncCollectionContributor(
+        memberName: String,
+        contributorName: String
+    ) -> Self {
+        Self(
+            "@Provide member '\(memberName)' collection metadata cannot synchronously expose async contributor '\(contributorName)'.",
+            code: .provideAsyncCollectionContributor
         )
     }
 
@@ -207,21 +248,21 @@ extension SimpleDiagnostic {
 
     static func provideInputInvalidConfiguration() -> Self {
         Self(
-            "@Provide(.input) should not include a factory, type, or initializer.",
+            "@Input cannot include a factory, type, or initializer.",
             code: .provideInputInvalidConfiguration
         )
     }
 
     static func provideEscapingInvalidScope(memberName: String) -> Self {
         Self(
-            "@Provide member '\(memberName)' may use escaping: true only with the .input scope.",
+            "Only @Input member '\(memberName)' may use escaping: true.",
             code: .provideEscapingInvalidScope
         )
     }
 
     static func provideEscapingNonFunctionType(memberName: String) -> Self {
         Self(
-            "@Provide(.input, escaping: true) member '\(memberName)' must use a non-optional function type or a typealias that resolves to one.",
+            "@Input(escaping: true) member '\(memberName)' must use a non-optional function type or a typealias that resolves to one.",
             code: .provideEscapingNonFunctionType
         )
     }
@@ -307,7 +348,7 @@ extension SimpleDiagnostic {
 
     static func provideAsyncFactoryInvalidScope() -> Self {
         Self(
-            "@Provide(.input) should not include asyncFactory.",
+            "@Input cannot include asyncFactory.",
             code: .provideAsyncFactoryInvalidScope
         )
     }
@@ -423,7 +464,7 @@ extension SimpleDiagnostic {
         memberName: String
     ) -> Self {
         Self(
-            "@Provide member '\(memberName)' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.",
+            "@Provide member '\(memberName)' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.",
             code: .provideRequiresDirectContainerMember
         )
     }
@@ -432,7 +473,7 @@ extension SimpleDiagnostic {
         memberName: String
     ) -> Self {
         Self(
-            "@Provide member '\(memberName)' cannot be declared inside #if in InnoDI 5.0. Move the declaration outside conditional compilation and branch inside its factory or injected implementation instead.",
+            "@Provide member '\(memberName)' cannot be declared inside #if in InnoDI 6.0. Move the declaration outside conditional compilation and branch inside its factory or injected implementation instead.",
             code: .provideConditionalDeclarationUnsupported
         )
     }
@@ -450,7 +491,7 @@ extension SimpleDiagnostic {
         memberName: String
     ) -> Self {
         Self(
-            "@SubContainer member '\(memberName)' cannot be declared inside #if in InnoDI 5.0. Move the declaration outside conditional compilation and branch inside the child container or its injected implementation instead.",
+            "@SubContainer member '\(memberName)' cannot be declared inside #if in InnoDI 6.0. Move the declaration outside conditional compilation and branch inside the child container or its injected implementation instead.",
             code: .subConditionalDeclarationUnsupported
         )
     }
@@ -459,7 +500,7 @@ extension SimpleDiagnostic {
         memberName: String
     ) -> Self {
         Self(
-            "@SubContainer member '\(memberName)' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.",
+            "@SubContainer member '\(memberName)' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.",
             code: .subRequiresDirectContainerMember
         )
     }
@@ -577,28 +618,28 @@ extension SimpleDiagnostic {
 
     static func componentRequiresContainer() -> Self {
         Self(
-            "@DIComponent can only be attached to a type that also declares @DIContainer.",
+            "@DIComponent was removed in InnoDI 6.0. Replace the stacked declaration with @DIContainerRole(role: ContainerRole.component).",
             code: .componentRequiresContainer
         )
     }
 
     static func componentEscapedTargetUnsupported(name: String) -> Self {
         Self(
-            "@DIComponent target '\(name)' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name.",
+            "Component-role container '\(name)' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name.",
             code: .componentEscapedTargetUnsupported
         )
     }
 
     static func componentOverridesBuilderRequired() -> Self {
         Self(
-            "@DIComponent requires the synthesized Overrides builder from @DIContainer. Rename or remove the user-defined Overrides type; custom Overrides types are unsupported in InnoDI 5.0.",
+            "A component-role container requires the synthesized Overrides builder. Rename or remove the user-defined Overrides type; custom Overrides types are unsupported in InnoDI 6.0.",
             code: .componentOverridesBuilderRequired
         )
     }
 
     static func hierarchyRootRequiresContainer() -> Self {
         Self(
-            "@DIHierarchyRoot can only be attached to a type that also declares @DIContainer.",
+            "@DIHierarchyRoot was removed in InnoDI 6.0. Replace the stacked declaration with @DIContainerRole(role: ContainerRole.root).",
             code: .hierarchyRootRequiresContainer
         )
     }
@@ -683,14 +724,14 @@ extension SimpleDiagnostic {
 
     static func containerUnmanagedStoredProperty(memberName: String) -> Self {
         Self(
-            "Stored instance member '\(memberName)' is not managed by @DIContainer. Annotate every stored instance member with @Provide or @SubContainer, or make it a computed or type property, so InnoDI can synthesize a complete initializer in 5.0.",
+            "Stored instance member '\(memberName)' is not managed by @DIContainer. Annotate every stored instance member with @Input, @Provide, or @SubContainer, or make it a computed or type property, so InnoDI can synthesize a complete initializer in 6.0.",
             code: .containerUnmanagedStoredProperty
         )
     }
 
     static func containerOverridesNameConflict(kind: String) -> Self {
         Self(
-            "A nested 'Overrides' \(kind) is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 5.0.",
+            "A nested 'Overrides' \(kind) is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 6.0.",
             code: .containerOverridesNameConflict
         )
     }
@@ -839,7 +880,7 @@ extension SimpleDiagnostic {
         kind: String
     ) -> Self {
         Self(
-            "@DIEnvironmentBridge supports only struct, class, and enum declarations in InnoDI 5.0; '\(name)' is declared as \(kind). Move the environment bridge to a supported nominal type.",
+            "@DIEnvironmentBridge supports only struct, class, and enum declarations in InnoDI 6.0; '\(name)' is declared as \(kind). Move the environment bridge to a supported nominal type.",
             code: .swiftUIEnvironmentBridgeUnsupportedDeclarationKind
         )
     }
@@ -855,7 +896,7 @@ extension SimpleDiagnostic {
 
     static func swiftUIEnvironmentBridgeParameterPackUnsupported() -> Self {
         Self(
-            "@DIEnvironmentBridge does not support targets with generic parameter packs in InnoDI 5.0. Use ordinary generic parameters or attach the bridge to a non-generic adapter type.",
+            "@DIEnvironmentBridge does not support targets with generic parameter packs in InnoDI 6.0. Use ordinary generic parameters or attach the bridge to a non-generic adapter type.",
             code: .swiftUIEnvironmentBridgeParameterPackUnsupported
         )
     }
@@ -911,7 +952,7 @@ extension SimpleDiagnostic {
         parentMemberName: String
     ) -> Self {
         Self(
-            "@SubContainer(scope: .shared) '\(memberName)' cannot read parent member '\(parentMemberName)' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so '\(parentMemberName)' is .shared or .input.",
+            "@SubContainer(scope: .shared) '\(memberName)' cannot read parent member '\(parentMemberName)' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so '\(parentMemberName)' is .shared or @Input.",
             code: .subSharedParentMustNotBeTransient
         )
     }
@@ -993,7 +1034,7 @@ extension SimpleDiagnostic {
         let listed = memberNames.prefix(5).joined(separator: ", ")
         let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
         return Self(
-            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Custom global actors, individually actor-isolated requirements, associated types, protocol inheritance other than AnyObject or Sendable, unsupported requirement modifiers, subscripts, rethrows, inout parameters, opaque return types, and generic requirements on Sendable protocols need a hand-written mock until the RFC 0001 support matrix expands.",
+            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Custom global actors, individually actor-isolated requirements, associated types, protocol inheritance other than AnyObject or Sendable, unsupported requirement modifiers, subscripts, rethrows, inout parameters, opaque return types, generic requirements on Sendable protocols, and generic typed-throws requirements need a hand-written mock until the RFC 0001 support matrix expands.",
             code: .generateMockUnsupportedMember,
             severity: .warning
         )

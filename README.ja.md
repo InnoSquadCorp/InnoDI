@@ -15,7 +15,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -67,7 +67,7 @@ feature 内の局所的な runtime value は `swift-dependencies` や小さな f
 おすすめのレイヤリングは「生成は InnoDI、呼び出し単位の一時 override は
 `swift-dependencies`」という分離です。composition root で
 `@Dependency(\.date)` などの `DependencyKey` を解決し、その値を container の
-`.input` スロットへ渡します。テストは
+`@Input` スロットへ渡します。テストは
 `withDependencies { $0.date = .constant(...) } operation:` で 1 つの呼び出し
 ツリーだけを差し替え、container を作り直したり validated graph を再検証する
 必要はありません。InnoDI の container レベル `Overrides` builder は偽の
@@ -205,7 +205,7 @@ Swift source 全体を検証するため、cross-project container reference も
 Xcode plugin API は Tuist の完全な cross-project target dependency topology を公開
 しません。そのため 5.1 fallback は full-source DAG と declaration validation を
 維持しますが、Xcode だけですべての module-edge hierarchy rule を証明できません。
-`@DIComponent` / `@DIHierarchyRoot` の module relation が release gate の場合は、
+`@DIContainerRole(role: ContainerRole.component)` / `@DIContainerRole(role: ContainerRole.root)` の module relation が release gate の場合は、
 topology-aware な SwiftPM または CI hierarchy check を維持してください。
 multi-destination variant が同じ plugin work directory を共有するため output file は
 宣言せず、Xcode が validation command を毎 build 実行すると表示する場合があります。
@@ -228,7 +228,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -271,7 +271,7 @@ var apiClient: any APIClientProtocol
 4. `sync` / `throws` / `async` / `async throws` の `withOverrides`
 
 管理対象メンバーがない場合も含め、すべてのコンテナが完全な overrides
-scaffolding を生成します。ユーザー定義のネスト `Overrides` 型は InnoDI 5.0
+scaffolding を生成します。ユーザー定義のネスト `Overrides` 型は InnoDI 6.0
 ではサポートされず、`container.overrides-name-conflict` が発生します。mount
 可能な override ABI を macro が所有できるよう、その宣言を改名してください。
 
@@ -290,9 +290,9 @@ drift を防ぎます。
 `class`、`actor`、`enum`、`protocol`、直接アノテーションした `extension`、
 extension 内にネストされた struct は拒否されます。関数、クロージャ、
 アクセサ、`switch` case など、実行可能またはローカルなコードスコープ内の
-宣言も拒否されます。この境界は `@DIComponent` を併用した宣言にも適用されます。
+宣言も拒否されます。この境界は `@DIContainerRole(role: ContainerRole.component)` を併用した宣言にも適用されます。
 ランタイムまたは型固有の状態は、protocol dependency または
-`@Provide(.input)` の背後に移してください。
+`@Input` の背後に移してください。
 
 明示的な `private` container も、sibling container が生成 mount surface に
 アクセスできないため拒否されます。同一 file 内の mount には `fileprivate`、
@@ -304,16 +304,17 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 拒否します。container を宣言するすべての target に plugin を接続してください。
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | パラメータ | 既定値 | 意味 |
 |---|---|---|
-| `root` | `false` | グラフ描画の入口フラグです。root が存在する場合、Mermaid、DOT、ASCII 出力は root から到達可能なノードとエッジに限定されます。 |
+| `role` | `@DIContainerRole` では必須 | `ContainerRole.local`、`.component`、`.root` のいずれかです。root role はグラフ到達性の起点、component role はモジュール間 mount contract を定義します。 |
 | `validateDAG` | `true` | global DAG validation とマクロの local graph-derived チェックを有効にします。`false` は global DAG と local cycle を無効化しますが、宣言検証と明示的な sibling edge の effect compatibility は継続します。 |
-| `mainActor` | `false` | 依存関係 accessor、生成されるすべての initializer、`Overrides`、convenience initializer・`withOverrides`・child override・component mount で使う `applyOverrides` 関数型、4 つの `withOverrides` operation closure、feature-root helper を `@MainActor` に隔離します。`@DIComponent` を併用すると、生成される `<Container>Dependencies` protocol と `init(dependencies:_:)` も隔離され、専用の `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。メインアクター外から利用するには明示的な actor hop が必要です。UI ルートコンテナ向けです。 |
+| `mainActor` | `false` | 依存関係 accessor、生成されるすべての initializer、`Overrides`、convenience initializer・`withOverrides`・child override・component mount で使う `applyOverrides` 関数型、4 つの `withOverrides` operation closure、feature-root helper を `@MainActor` に隔離します。`@DIContainerRole(role: ContainerRole.component)` を併用すると、生成される `<Container>Dependencies` protocol と `init(dependencies:_:)` も隔離され、専用の `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。メインアクター外から利用するには明示的な actor hop が必要です。UI ルートコンテナ向けです。 |
 
-5.0 の generic component mounting helper は 2 つの marker protocol を区別する
+6.0 の generic component mounting helper は 2 つの marker protocol を区別する
 必要があります。通常の component には `_InnoDIComponentMountable` を維持し、
 `mainActor: true` component には `_InnoDIMainActorComponentMountable` constraint
 と `@MainActor` override closure を持つ `@MainActor` overload を追加してください。
@@ -326,7 +327,7 @@ direct `await` は `withOverrides` operation result のように、隔離され�
 
 ### `@Provide` とスコープ
 
-InnoDI 5.0 では、`@Provide` は `@DIContainer` を付与した同じ supported struct
+InnoDI 6.0 では、`@Provide` は `@DIContainer` を付与した同じ supported struct
 の direct かつ plain な stored instance `var` にのみ指定できます。`let`、
 computed/observed property、`lazy`、`weak`、`unowned`、`static`/`class`、
 standalone、間接的な nested usage は拒否されます。生成される provider accessor
@@ -336,7 +337,7 @@ Provider declaration の attribute と access control も closed contract です
 Property wrapper、conditional/unknown attribute、`private(set)` などの setter
 access modifier、custom global-actor attribute は拒否されます。`@Provide` 以外の
 source-written property-level attribute は許可されず、`@MainActor` も含まれます。
-actor isolation は `@DIContainer(mainActor: true)` で指定してください。provider
+actor isolation は `@DIContainerRole(role: ContainerRole.local, mainActor: true)` で指定してください。provider
 declaration と accessor に InnoDI が生成する isolation attribute は internal
 compiler support です。完全な `@Provide` member declaration を `#if` 内に置く形も
 `provide.conditional-declaration-unsupported` で拒否されます。宣言は条件の外に
@@ -385,15 +386,15 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | Scope | 意味 | 構築ルール |
 |---|---|---|
-| `.input` | コンテナ初期化時に外部から渡す依存関係 | `factory:`、`asyncFactory:`、`Type.self`、property initializer、`with:` をすべて宣言しない |
+| `@Input` | コンテナ初期化時に外部から渡す依存関係 | `factory:`、`asyncFactory:`、`Type.self`、property initializer、`with:` をすべて宣言しない |
 | `.shared` | コンテナ単位で 1 回生成して再利用 | `factory:`、`asyncFactory:`、`Type.self`、property initializer のうち正確に 1 つを宣言 |
 | `.transient` | アクセスのたびに再生成 | `factory:`、`asyncFactory:`、`Type.self`、property initializer のうち正確に 1 つを宣言 |
 
@@ -401,13 +402,13 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
 
 - `.shared` / `.transient` では `factory:`、`asyncFactory:`、`Type.self`、
   property initializer の 4 つの construction source は相互排他です。
-- `.input` はすべての construction source と `with:` を拒否します。
-- 生成される `.input` initializer parameter は宣言型 `T` の eager value です。
+- `@Input` はすべての construction source と `with:` を拒否します。
+- 生成される `@Input` initializer parameter は宣言型 `T` の eager value です。
   Swift は通常どおり initializer call の前に `try` / `await` argument expression
   を評価します。直接記述された non-optional function type は自動検出され、
   escaping parameter として生成されます。non-optional function type が typealias
-  の背後にある場合は `@Provide(.input, escaping: true)` を使用してください。
-  `escaping:` は literal Bool で、`.input` でのみ有効です。明らかな nonfunction
+  の背後にある場合は `@Input(escaping: true)` を使用してください。
+  `escaping:` は literal Bool で、`@Input` でのみ有効です。明らかな nonfunction
   / optional-function shape は拒否され、保守的に許可された identifier/member
   alias が実際には non-optional function でない場合、Swift 自身の diagnostic
   が発生することがあります。
@@ -545,8 +546,8 @@ var feature: FeatureContainer
 
 モジュールをまたぐ ownership には:
 
-- `@DIComponent`
-- `@DIHierarchyRoot`
+- `@DIContainerRole(role: ContainerRole.component)`
+- `@DIContainerRole(role: ContainerRole.root)`
 
 ## SwiftUI Helper
 

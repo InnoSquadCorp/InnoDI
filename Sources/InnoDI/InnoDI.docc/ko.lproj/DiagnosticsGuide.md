@@ -23,8 +23,8 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 대부분의 진단은 메시지 안에 fix를 직접 담고 있습니다. 반복적으로
 보게 되는 패턴은 다음과 같습니다.
 
-- **"`@Provide(.shared, …)` / `.transient` / `.input`을 사용하세요."** —
-  선언된 프로퍼티에 대해 scope 인자가 잘못된 경우입니다.
+- **"`@Provide(.shared, …)`, `@Provide(.transient, …)`, 또는 `@Input`을 사용하세요."** —
+  선언이 의도한 수명주기와 일치하지 않는 경우입니다.
 - **"`Lazy<T>`를 직접 표기하세요."** — deferred wrapper에 대해
   `typealias`를 썼습니다. 매크로는 syntax를 읽기 때문에, alias된 형태는
   silent하게 hard edge가 됩니다.
@@ -47,7 +47,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   accessor를 생성하지 않습니다.
 - `provide.escaped-identifier-unsupported` — direct provider property 또는
   root factory dependency parameter가 backtick으로 감싼 escaped identifier를
-  사용합니다. Unescaped identifier로 이름을 바꾸세요. InnoDI 5.0은 unescaped
+  사용합니다. Unescaped identifier로 이름을 바꾸세요. InnoDI 6.0은 unescaped
   spelling만 storage와 lookup identity로 사용하며 peer 생성 전에 실패합니다.
 - `provide.named-property-required` — 바인딩에 이름이 있어야 합니다.
 - `provide.explicit-type-required` — 바인딩에 타입 어노테이션이 있어야
@@ -58,22 +58,25 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.iuo-type-unsupported` — 명시적 property type이 implicitly
   unwrapped optional `T!`입니다. Storage와 sibling wiring의 optionality 계약을
   하나로 만들도록 명시적인 `T` 또는 `T?`로 바꾸세요.
-- `provide.unknown-scope` — `.shared` / `.transient` / `.input`만
-  받습니다.
+- `provide.unknown-scope` — `@Provide`는 `.shared` 또는 `.transient`만
+  받습니다. 외부 값은 `@Input`으로 선언하세요.
 - `provide.unknown-initialization` — `initialization:`이 `.eager` 또는
   `.onDemand`가 아닙니다.
+- `provide.unknown-effect` — `effect:`가 `.none` 또는 `.sideEffect`가 아닙니다.
+  지원되는 literal 분류를 사용하세요. 매크로는 임의 표현식을 평가하거나
+  부작용을 추론하지 않습니다.
 - `provide.initialization-invalid-scope` — `.shared`가 아닌 scope에
   `.onDemand`를 사용했습니다.
 - `provide.ondemand-async-unsupported` — `.onDemand`와 `asyncFactory:`를 함께
   사용했습니다. 비동기 작업에 명시적 prepare·취소·재시도 소유권이 필요하면
   ``DIAsyncScope``를 사용하세요.
-- `provide.input-invalid-configuration` — `.input` 멤버는 factory,
+- `provide.input-invalid-configuration` — `@Input` 멤버는 factory,
   type, async factory, dependency wiring 설정을 가질 수 없습니다.
-- `provide.escaping-invalid-scope` — `.input`이 아닌 scope에서
+- `provide.escaping-invalid-scope` — `@Input`이 아닌 scope에서
   `escaping: true`를 사용했습니다. `.shared` / `.transient`에서는 제거하세요.
   Escaping input 저장만 지원되는 용도입니다.
 - `provide.escaping-nonfunction-type` — 명백한 nonfunction 또는 optional
-  function type 형태에 `@Provide(.input, escaping: true)`를 사용했습니다. Alias
+  function type 형태에 `@Input(escaping: true)`를 사용했습니다. Alias
   뒤에 숨은 non-optional function type에만 사용하세요. 매크로는 alias를 해석할 수
   없어 identifier/member type을 보수적으로 허용하므로, 실제 alias가 non-optional
   function type이 아니면 Swift 자체 진단이 추가될 수 있습니다.
@@ -90,7 +93,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   property initializer와 함께 사용했습니다. `with:`는 `Type.self` wiring에서만
   사용하고 factory closure의 edge는 이름 있는 파라미터로 선언하세요.
 - `provide.async-factory-invalid-scope` — `asyncFactory:`는 `.shared`와
-  `.transient`에서 유효하지만 `.input`에서는 사용할 수 없습니다.
+  `.transient`에서 유효하지만 `@Input`에서는 사용할 수 없습니다.
 - `provide.async-factory-must-be-async` — 주어진 closure가 `async`가
   아닙니다.
 - `provide.factory-must-be-sync` — `factory:`에 `async` closure가
@@ -111,7 +114,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   `weak`, `unowned`, `static`/`class`, setter-access modifier, property wrapper,
   conditional/unknown attribute를 제거하세요. `@Provide` 외에 source에 직접 쓰는
   property-level attribute는 지원하지 않으며 `@MainActor`도 포함됩니다. Actor
-  격리는 `@DIContainer(mainActor: true)`로 요청하세요. Provider 선언과 accessor에
+  격리는 `@DIContainerRole(role: ContainerRole.local, mainActor: true)`로 요청하세요. Provider 선언과 accessor에
   InnoDI가 생성한 격리 attribute는 내부 compiler support입니다.
 - `provide.conditional-declaration-unsupported` — `@Provide` 선언 전체가
   `#if` 안에 있습니다. 선언은 conditional compilation 밖으로 옮기고 factory나
@@ -150,7 +153,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.lazy-eager-call` — `Lazy<T>`가 `.shared` construction 시점에
   호출되어 soft edge가 다시 eager edge가 됐습니다.
 - `provide.provider-non-transient-target` — `Provider<T>`가 `.shared`
-  또는 `.input`로 해소됐습니다. provider는 `.transient` target이 필요합니다.
+  또는 `@Input` 멤버로 해소됐습니다. provider는 `.transient` target이 필요합니다.
 - `provide.provider-unsupported-target` — `Provider<T>`가 async transient
   멤버를 가리킵니다. provider handle은 동기 방식입니다.
 - `provide.provider-eager-call` — `Provider<T>`가 construction 시점에
@@ -166,7 +169,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 - `container.unsupported-declaration-kind` — `@DIContainer`가 class, actor,
   enum, protocol, extension 등 struct가 아닌 선언에 직접 붙었습니다.
-  경계를 비제네릭 struct로 옮기고 런타임 상태는 `.input` 멤버로
+  경계를 비제네릭 struct로 옮기고 런타임 상태는 `@Input` 멤버로
   주입하세요.
 - `container.private-access-unsupported` — 컨테이너가 명시적으로 `private`라서
   sibling container가 생성된 mount surface에 접근할 수 없습니다. 같은 파일에서
@@ -181,7 +184,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.local-declaration-unsupported` — 컨테이너가 함수, closure,
   initializer, accessor, switch case, local block 같은 실행 스코프 안에
   선언됐습니다. file scope 또는 비제네릭 nominal 선언 안으로 옮기세요.
-  generic 함수 안에 타입을 중첩하거나 local container에 `@DIComponent` 같은
+  generic 함수 안에 타입을 중첩하거나 local container에 component/root role 같은
   attached-extension macro를 함께 적용하는 등 Swift 언어 자체가 허용하지
   않는 위치에서는 Swift compiler 진단이 함께 나올 수 있습니다.
   현재 Swift toolchain은 computed-property body 안 타입의 attached macro
@@ -199,16 +202,16 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   없으므로, 같은 파일 또는 다른 파일 extension의 initializer는 필수
   `InnoDIDAGValidationPlugin` full-source pass가 진단합니다.
 - `container.unmanaged-stored-property` — stored instance member에 `@Provide`와
-  `@SubContainer`가 모두 없습니다. 빈 컨테이너까지 전체 initializer를 InnoDI 5.0이
+  `@SubContainer`가 모두 없습니다. 빈 컨테이너까지 전체 initializer를 InnoDI 6.0이
   소유하므로 annotation을 추가하거나 computed/static property로 바꾸세요.
 - `container.overrides-name-conflict` — 사용자의 nested `Overrides`
-  타입이 필수 합성 빌더와 충돌합니다. InnoDI 5.0에서는 오류로 처리하므로
+  타입이 필수 합성 빌더와 충돌합니다. InnoDI 6.0에서는 오류로 처리하므로
   사용자 선언의 이름을 바꾸세요. 진단 전용 recovery initializer가 mount된
   child container에서 무관한 Swift argument 오류가 연쇄되는 것을 막습니다.
 - `container.prewarm-name-conflict` — on-demand 컨테이너에 `prewarm`이라는
   direct value 또는 function이 이미 있습니다. 생성되는 선택적 prewarm API가
   모호하지 않도록 이름을 바꾸세요.
-- `container.mainactor-conflict` — `@DIContainer(mainActor: true)`가 container
+- `container.mainactor-conflict` — main-actor `@DIContainerRole`이 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
   제거하거나 `mainActor` 생성을 비활성화하세요.
 - `container.mainactor-nonisolated-member` — `@Provide` 또는 `@SubContainer`
@@ -286,6 +289,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   멤버에 매핑되지 않습니다.
 - `sub.unknown-child-input` — `bindings:` child key path가 child
   input에 매핑되지 않습니다.
+- `sub.binding-order` — 유효한 child input이지만 `bindings:` tuple 순서가
+  child의 source `@Input` 선언 순서와 다릅니다. 보고된 child key path부터
+  tuple을 다시 정렬하세요. Swift의 labeled argument는 선언 순서를 따라야 합니다.
 - `sub.bindings-conflicts-with-with` — 같은 `@SubContainer`에
   `bindings:`와 `with:`가 함께 나타났습니다 (wiring 형태는 상호
   배타적).
@@ -303,7 +309,7 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 ## 그래프 단위 진단 (build plugin)
 
-- `graph.dependency-cycle` — 글로벌 DAG (`@DIComponent` 그래프 전반)에서
+- `graph.dependency-cycle` — 글로벌 DAG (component-role 그래프 전반)에서
   cycle이 감지됐습니다.
 - `graph.ambiguous-container-reference` — 한 이름이 여러 컨테이너에
   매칭됐습니다.
@@ -371,22 +377,22 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   `fileprivate`로 넓어집니다.
 - `swiftui.environment-bridge-parameter-pack-unsupported` — bridge target이
   generic parameter pack을 선언합니다. 일반 generic parameter를 사용하거나
-  bridge를 non-generic adapter type으로 옮기세요. InnoDI 5.0은 Swift의
+  bridge를 non-generic adapter type으로 옮기세요. InnoDI 6.0은 Swift의
   variadic-generics runtime에서 trap 가능한 modifier 생성을 fail closed합니다.
 
 ## Component / Hierarchy 진단
 
-- `component.escaped-target-unsupported` — `@DIComponent` 대상이 backtick으로
+- `component.escaped-target-unsupported` — component-role 대상이 backtick으로
   감싼 escaped identifier를 사용합니다. 생성되는 `<Container>Dependencies`
   peer가 하나의 canonical Swift 이름을 갖도록 타입을 unescaped identifier로
   바꾸세요. 이 진단은 peer macro만 소유하며 member와 extension role은 진단
   사본이나 잘못된 support 선언을 만들지 않고 fail closed합니다.
-- `component.requires-container` — `@DIComponent`는
-  `@DIContainer`로 표시된 타입에 부착되어야 합니다.
-- `component.overrides-builder-required` — `@DIComponent`는 합성된
+- `component.requires-container` — legacy `@DIComponent`는 지원되는
+  component `@DIContainerRole` 타입으로 이주해야 합니다.
+- `component.overrides-builder-required` — component role은 합성된
   overrides 빌더가 필요합니다.
-- `hierarchy-root.requires-container` — `@DIHierarchyRoot`는
-  `@DIContainer` 타입에 부착되어야 합니다.
+- `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot`는 지원되는
+  root `@DIContainerRole` 타입으로 이주해야 합니다.
 
 ## Mock generation 진단
 

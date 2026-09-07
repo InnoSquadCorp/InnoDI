@@ -107,26 +107,28 @@ internal func closureArgumentExpressions(
 /// the unresolved fallback when DAG validation is disabled.
 internal func dependencyExpression(
     for dependencyName: String,
-    resolvedValueBindings: [String: String],
+    consumerProviderName: String,
+    resolvedDependencyExpressions: [String: ExprSyntax],
     taskBindings: [String: AsyncTaskBinding],
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> ExprSyntax {
-    if let resolvedName = resolvedValueBindings[dependencyName] {
-        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(resolvedName)))
+    if let expression = resolvedDependencyExpressions[dependencyName] {
+        return expression
     }
 
     if let taskBinding = taskBindings[dependencyName] {
-        // <taskBinding.name>.value
-        let valueAccess = MemberAccessExprSyntax(
-            base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(taskBinding.name))),
-            declName: DeclReferenceExprSyntax(baseName: .identifier("value"))
+        let prefix = taskBinding.isThrowing ? "try await" : "await"
+        return ExprSyntax(
+            stringLiteral: """
+            \(prefix) _innoDITraceOwner.withWait(
+                member: "\(consumerProviderName)",
+                forMember: "\(taskBinding.providerName)"
+            ) {
+                \(prefix) \(taskBinding.name).value
+            }
+            """
         )
-        let awaited = ExprSyntax(AwaitExprSyntax(expression: ExprSyntax(valueAccess)))
-        if taskBinding.isThrowing {
-            return ExprSyntax(TryExprSyntax(expression: awaited))
-        }
-        return awaited
     }
 
     return try unresolvedInitDependencyFallbackExpression(

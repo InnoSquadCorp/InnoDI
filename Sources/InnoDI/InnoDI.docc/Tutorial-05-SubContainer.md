@@ -26,7 +26,7 @@ struct FeatureService {
 
 @DIContainer
 struct FeatureContainer {
-    @Provide(.input)
+    @Input
     var config: AppConfig
 
     @Provide(.shared, FeatureService.self, with: [\Self.config])
@@ -35,7 +35,7 @@ struct FeatureContainer {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: AppConfig
 
     @SubContainer(scope: .shared, with: [\AppContainer.config])
@@ -74,7 +74,7 @@ print(container.feature.service.describe())
   `overrides.feature = FeatureContainer(config: testConfig)`.
 * Forward an overrides block instead:
   `overrides.featureOverrides = { $0.service = FeatureService(config: testConfig) }`.
-* Stack the child with `@DIComponent` for cross-module ownership and
+* Give the child `@DIContainerRole(role: ContainerRole.component)` for cross-module ownership and
   re-read <doc:DIContainer> for the cross-module surface.
 
 ## Where to go next

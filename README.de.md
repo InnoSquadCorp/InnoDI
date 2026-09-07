@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -69,7 +69,7 @@ fur lokale Runtime-Werte innerhalb von Features.
 Das Layering-Muster, das sich bewahrt, trennt *Konstruktion* (InnoDI) von
 *kurzlebigen, aufrufgebundenen Overrides* (`swift-dependencies`). Der
 Composition Root lost einen `DependencyKey` auf (z. B. `@Dependency(\.date)`)
-und reicht den Wert als `.input` Slot an den Container weiter; Tests ersetzen
+und reicht den Wert als `@Input` Slot an den Container weiter; Tests ersetzen
 ihn pro Aufruf-Baum mit
 `withDependencies { $0.date = .constant(...) } operation:`, ohne den Container
 oder seinen validierten Graph neu zu erzeugen. Der container-weite
@@ -215,7 +215,7 @@ projektuebergreifende Container-Referenzen im Source-DAG enthalten sind.
 Die Xcode-Plugin-API stellt Tuists vollstaendige projektuebergreifende Target-
 Dependency-Topologie nicht bereit. Der 5.1-Fallback bewahrt daher Full-Source-
 DAG- und Declaration-Validation, kann aber nicht jede Module-Edge-Hierarchy-
-Regel allein aus Xcode beweisen. Wenn `@DIComponent` / `@DIHierarchyRoot`-
+Regel allein aus Xcode beweisen. Wenn `@DIContainerRole(role: ContainerRole.component)` / `@DIContainerRole(role: ContainerRole.root)`-
 Modulbeziehungen ein Release Gate sind, behalten Sie einen topology-aware
 SwiftPM- oder CI-Hierarchy-Check bei. Da Multi-Destination-Varianten dasselbe
 Plugin Work Directory teilen, werden keine Output Files deklariert; Xcode kann
@@ -239,7 +239,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -283,7 +283,7 @@ var apiClient: any APIClientProtocol
 
 Jeder Container, auch ohne verwaltete Member, erzeugt die vollstandige
 Overrides-Oberflache. Ein benutzerdefinierter verschachtelter Typ `Overrides`
-ist in InnoDI 5.0 nicht unterstutzt und erzeugt
+ist in InnoDI 6.0 nicht unterstutzt und erzeugt
 `container.overrides-name-conflict`; benennen Sie ihn um, damit das Makro die
 mountbare Override-ABI besitzen kann.
 
@@ -303,9 +303,9 @@ Parameter oder eine `where`-Klausel besitzen. `class`, `actor`, `enum`,
 `protocol`, direkt annotierte `extension`-Deklarationen und in Extensions
 verschachtelte Structs werden abgelehnt. Das gilt auch fur Deklarationen in
 ausfuhrbaren oder lokalen Scopes, darunter Funktionen, Closures, Accessors und
-`switch`-Falle. Diese Grenze gilt ebenso bei kombiniertem `@DIComponent`.
+`switch`-Falle. Diese Grenze gilt ebenso bei kombiniertem `@DIContainerRole(role: ContainerRole.component)`.
 Verschieben Sie Laufzeit- oder
-typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Provide(.input)`.
+typspezifischen Zustand hinter Protokollabhangigkeiten oder `@Input`.
 
 Ein explizit `private` deklarierter Container wird ebenfalls abgelehnt, weil
 Sibling-Container seine generierte Mount-Oberflache nicht erreichen. Verwenden
@@ -319,16 +319,17 @@ Quellbaum und erzwingen die Ablehnung dieses Randfalls. Binden Sie das Plugin an
 jedes Target an, das Container deklariert.
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | Parameter | Default | Bedeutung |
 |---|---|---|
-| `root` | `false` | Nur Render-Einstieg fur den Graphen. Wenn mindestens eine Root existiert, wird Mermaid-, DOT- und ASCII-Ausgabe auf die von den Roots erreichbaren Knoten und Kanten reduziert. |
+| `role` | fur `@DIContainerRole` erforderlich | `ContainerRole.local`, `.component` oder `.root`. Die Root-Rolle definiert den Einstieg fur Graph-Erreichbarkeit; die Component-Rolle den modulubergreifenden Mount-Vertrag. |
 | `validateDAG` | `true` | Aktiviert globale DAG-Validierung plus die lokalen graph-derived Checks des Makros. `false` uberspringt globale DAG- und lokale cycle-Checks; Deklarationsvalidierung und Effektkompatibilitat expliziter Sibling-Kanten bleiben aktiv. |
-| `mainActor` | `false` | Isoliert Dependency-Accessors, alle generierten Initialisierer, `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die Operations-Closures aller vier `withOverrides`-Overloads sowie Feature-Root-Helper mit `@MainActor`. Zusammen mit `@DIComponent` werden auch das generierte `<Container>Dependencies`-Protokoll und `init(dependencies:_:)` isoliert; die Component konformiert dem dedizierten Protokoll `_InnoDIMainActorComponentMountable`. Components ohne diese Option verwenden weiterhin `_InnoDIComponentMountable`. Zugriffe außerhalb des Main Actors erfordern einen expliziten Actor-Wechsel. Für UI-Root-Container empfohlen. |
+| `mainActor` | `false` | Isoliert Dependency-Accessors, alle generierten Initialisierer, `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die Operations-Closures aller vier `withOverrides`-Overloads sowie Feature-Root-Helper mit `@MainActor`. Zusammen mit `@DIContainerRole(role: ContainerRole.component)` werden auch das generierte `<Container>Dependencies`-Protokoll und `init(dependencies:_:)` isoliert; die Component konformiert dem dedizierten Protokoll `_InnoDIMainActorComponentMountable`. Components ohne diese Option verwenden weiterhin `_InnoDIComponentMountable`. Zugriffe außerhalb des Main Actors erfordern einen expliziten Actor-Wechsel. Für UI-Root-Container empfohlen. |
 
-Generische Component-Mounting-Helper müssen in 5.0 zwischen beiden
+Generische Component-Mounting-Helper müssen in 6.0 zwischen beiden
 Markerprotokollen unterscheiden. Behalten Sie `_InnoDIComponentMountable` für
 gewöhnliche Components bei und ergänzen Sie für `mainActor: true` eine
 `@MainActor`-Überladung mit `_InnoDIMainActorComponentMountable`-Constraint und
@@ -342,7 +343,7 @@ Ergebnis, nicht zum Transport des Containers aus dem Actor heraus.
 
 ### `@Provide` und Scopes
 
-InnoDI 5.0 unterstützt `@Provide` nur auf einer direkten, einfachen,
+InnoDI 6.0 unterstützt `@Provide` nur auf einer direkten, einfachen,
 gespeicherten Instanz-`var` in demselben unterstützten struct mit
 `@DIContainer`. `let`, computed oder observed Properties, `lazy`, `weak`,
 `unowned`, `static`/`class`, eigenständige und indirekt verschachtelte
@@ -354,7 +355,7 @@ geschlossenen Vertrag. Property Wrapper, bedingte oder unbekannte Attribute,
 Setter-Zugriffsmodifikatoren wie `private(set)` und eigene Global-Actor-
 Attribute werden abgelehnt. Außer `@Provide` selbst ist kein im Quelltext
 geschriebenes Property-Level-Attribut erlaubt; das schließt `@MainActor` ein.
-Fordern Sie Actor-Isolation mit `@DIContainer(mainActor: true)` an. Die von
+Fordern Sie Actor-Isolation mit `@DIContainerRole(role: ContainerRole.local, mainActor: true)` an. Die von
 InnoDI auf Provider-Deklaration und Accessor erzeugten Isolationsattribute
 dienen ausschließlich der internen Compiler-Unterstützung. Eine vollständige
 `@Provide`-Member-Deklaration in `#if` wird ebenfalls mit
@@ -408,15 +409,15 @@ und verwendet die Exit-Codes `0` (clean), `1` (Änderungen erforderlich) und
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | Scope | Bedeutung | Konstruktionsregeln |
 |---|---|---|
-| `.input` | Externe Abhangigkeit beim Container-Init | Deklariert weder `factory:`, `asyncFactory:`, `Type.self`, Property-Initializer noch `with:` |
+| `@Input` | Externe Abhangigkeit beim Container-Init | Deklariert weder `factory:`, `asyncFactory:`, `Type.self`, Property-Initializer noch `with:` |
 | `.shared` | Einmal pro Container-Instanz erzeugt und wiederverwendet | Deklariert genau eine Quelle: `factory:`, `asyncFactory:`, `Type.self` oder Property-Initializer |
 | `.transient` | Bei jedem Zugriff neu erzeugt | Deklariert genau eine Quelle: `factory:`, `asyncFactory:`, `Type.self` oder Property-Initializer |
 
@@ -424,14 +425,14 @@ Weitere Regeln:
 
 - Für `.shared` / `.transient` schließen sich `factory:`, `asyncFactory:`,
   `Type.self` und Property-Initializer als vier Construction-Quellen aus.
-- `.input` lehnt jede Construction-Quelle und `with:` ab.
-- Generierte `.input`-Initializer-Parameter sind eager Werte des deklarierten
+- `@Input` lehnt jede Construction-Quelle und `with:` ab.
+- Generierte `@Input`-Initializer-Parameter sind eager Werte des deklarierten
   Typs `T`; Swift wertet `try`- / `await`-Argumentausdrücke wie üblich vor dem
   Initializer-Aufruf aus. Direkt geschriebene non-optionale Funktionstypen
   werden automatisch erkannt und als escaping Parameter erzeugt. Ist ein
   non-optionaler Funktionstyp hinter einem Typealias verborgen, verwenden Sie
-  `@Provide(.input, escaping: true)`. `escaping:` muss ein literales Bool sein
-  und ist nur für `.input` gültig. Offensichtliche Nichtfunktions- und optionale
+  `@Input(escaping: true)`. `escaping:` muss ein literales Bool sein
+  und ist nur für `@Input` gültig. Offensichtliche Nichtfunktions- und optionale
   Funktionsformen werden abgelehnt; löst sich ein konservativ akzeptierter
   Identifier-/Member-Alias nicht als non-optionale Funktion auf, kann Swift
   eine eigene Diagnose ausgeben.
@@ -573,8 +574,8 @@ Wichtige Regeln:
 
 Fur cross-module Ownership:
 
-- `@DIComponent`
-- `@DIHierarchyRoot`
+- `@DIContainerRole(role: ContainerRole.component)`
+- `@DIContainerRole(role: ContainerRole.root)`
 
 ## SwiftUI-Hilfen
 

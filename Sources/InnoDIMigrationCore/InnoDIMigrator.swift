@@ -121,6 +121,8 @@ public struct InnoDIMigrator {
         beforeWritingChange: ((MigrationFileChange, Int) throws -> Void)?
     ) throws -> MigrationPlan {
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
+        let anchoredRoot = try AnchoredMigrationRoot(url: root)
+        defer { anchoredRoot.close() }
         let plan = try plan(root: root)
         guard mode == .write, plan.canWrite else {
             return plan
@@ -131,6 +133,8 @@ public struct InnoDIMigrator {
         // package in a partially migrated state.
         let fileManager = FileManager.default
         for change in plan.changes {
+            let file = try anchoredFile(for: change.path, under: anchoredRoot)
+            defer { file.close() }
             let fileURL = root.appendingPathComponent(change.path)
             let directoryURL = fileURL.deletingLastPathComponent()
             guard fileManager.isWritableFile(atPath: fileURL.path(percentEncoded: false)),
@@ -140,20 +144,11 @@ public struct InnoDIMigrator {
                     reason: "The file or its containing directory is not writable."
                 )
             }
-            let currentData: Data
-            do {
-                currentData = try Data(contentsOf: fileURL)
-            } catch {
-                throw MigrationError.cannotWrite(
-                    path: change.path,
-                    reason: "Could not re-read the source during write preflight: \(error.localizedDescription)"
-                )
-            }
-            let plannedData = try encodedData(
+            guard try source(
                 change.originalSource,
-                for: change
-            )
-            guard currentData == plannedData else {
+                for: change,
+                matchesContentsOf: file
+            ) else {
                 throw MigrationError.cannotWrite(
                     path: change.path,
                     reason: "The source changed while the migration plan was being prepared; no files were written."
@@ -163,30 +158,35 @@ public struct InnoDIMigrator {
 
         var writtenChanges: [MigrationFileChange] = []
         for (index, change) in plan.changes.enumerated() {
-            let fileURL = root.appendingPathComponent(change.path)
             do {
                 try beforeWritingChange?(change, index)
+                let file = try anchoredFile(for: change.path, under: anchoredRoot)
+                defer { file.close() }
                 guard try source(
                     change.originalSource,
                     for: change,
-                    matchesContentsOf: fileURL
+                    matchesContentsOf: file
                 ) else {
                     throw MigrationError.cannotWrite(
                         path: change.path,
                         reason: "The source changed after write preflight; the remaining files were not written."
                     )
                 }
-                try write(change.migratedSource, for: change, to: fileURL)
+                try write(change.migratedSource, for: change, to: file)
                 writtenChanges.append(change)
             } catch {
                 var rollbackFailures: [String] = []
                 for written in writtenChanges.reversed() {
-                    let writtenURL = root.appendingPathComponent(written.path)
                     do {
+                        let writtenFile = try anchoredFile(
+                            for: written.path,
+                            under: anchoredRoot
+                        )
+                        defer { writtenFile.close() }
                         guard try source(
                             written.migratedSource,
                             for: written,
-                            matchesContentsOf: writtenURL
+                            matchesContentsOf: writtenFile
                         ) else {
                             rollbackFailures.append(written.path)
                             continue
@@ -194,7 +194,7 @@ public struct InnoDIMigrator {
                         try write(
                             written.originalSource,
                             for: written,
-                            to: writtenURL
+                            to: writtenFile
                         )
                     } catch {
                         rollbackFailures.append(written.path)

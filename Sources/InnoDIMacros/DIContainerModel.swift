@@ -269,6 +269,8 @@ struct ProvideMemberModel {
     let accessLevel: String?
     let scope: ProvideScope
     let initialization: ProvideInitializationValue
+    let operationalEffect: ProvideOperationalEffectValue
+    let collectionMetadataParseState: CollectionMetadataParseState
     let inputKind: InputKindValue
     let isMultibinding: Bool
     let factory: ExprSyntax?
@@ -290,6 +292,10 @@ struct ProvideMemberModel {
 
     var explicitDependencies: [String] {
         deduplicateStrings(withDependencies + closureDependencies)
+    }
+
+    var collectionMetadataEntries: [CollectionMetadataEntryArgument] {
+        collectionMetadataParseState.entries
     }
 
     var graphDependencyCandidates: [String] {

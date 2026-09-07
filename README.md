@@ -15,7 +15,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -47,8 +47,9 @@ reviewable while moving failure detection earlier.
 - Macro validation catches local mistakes at expansion time.
 - Build validation and the graph CLI catch cross-file, cross-module, and global graph issues.
 - `InnoDISwiftUI` removes repetitive root-boundary environment wiring.
-- `InnoDITesting` provides opt-in concurrency-safe mock storage, interaction
-  validation, and typed override presets for test and preview targets.
+- `InnoDITesting` provides opt-in concurrency-safe mock storage, generation-
+  aware reset, interaction validation, and typed override presets for test and
+  preview targets.
 
 InnoDI is not a runtime state machine. Runtime state belongs in your app layer
 or companion frameworks such as `InnoFlow`, `InnoRouter`, and `InnoNetwork`.
@@ -76,7 +77,7 @@ inside feature logic when scoped runtime values are the better abstraction.
 The layering pattern that works well is to keep InnoDI in charge of construction and
 let `swift-dependencies` carry the ephemeral, per-call overrides. The composition
 root resolves a `DependencyKey` (for example `@Dependency(\.date)`) and passes the
-value into the container as an `.input` slot; tests use
+value into the container as an `@Input` slot; tests use
 `withDependencies { $0.date = .constant(...) } operation:` to swap that value for a
 single call tree without rebuilding the container or its validated graph. InnoDI's
 container-level `Overrides` builder remains the right tool for app-wide swaps such
@@ -181,6 +182,14 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 Add `InnoDITesting` only to test or preview-support targets that use generated
 `Sendable` mocks, reusable override presets, or strict interaction validation.
 It depends on `InnoDI` but does not depend on Swift Testing or SwiftSyntax.
+Generated mocks distinguish `.calls` reset, which preserves stubs, from `.all`,
+which returns stubs to the missing state. The returned generation snapshot
+linearizes calls that race with reset.
+Providers explicitly marked `@Provide(effect: .sideEffect, ...)` also expose
+generated override requirements: validate a typed preset before constructing
+the container to prevent an unconfigured live factory from running. Unmarked
+opaque factories are not inferred as pure or effectful, and production defaults
+remain unchanged.
 
 Attach the build-time validation plugin to every target that declares InnoDI
 containers or a standalone `@DIEnvironmentBridge`. This is a required part of
@@ -222,7 +231,7 @@ The Xcode plugin API does not expose Tuist's complete cross-project target
 dependency topology. The 5.1 fallback therefore preserves full-source DAG and
 declaration validation but cannot prove every module-edge hierarchy rule from
 Xcode alone; keep a topology-aware SwiftPM or CI hierarchy check when
-`@DIComponent` / `@DIHierarchyRoot` module relationships are a release gate.
+component/root `@DIContainerRole` module relationships are a release gate.
 Xcode validation intentionally declares no output files because
 multi-destination variants share a plugin work directory, so Xcode may report
 that the validation command runs during every build.
@@ -245,7 +254,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -284,7 +293,7 @@ Start with these documents in order:
 
 `@DIContainer` synthesizes:
 
-1. A primary `init(...)` with required `.input` parameters and optional
+1. A primary `init(...)` with required `@Input` parameters and optional
    overrides for `.shared`, `.transient`, and `@SubContainer` members.
 2. A nested `Overrides` type.
 3. A convenience `init(<inputs...>, _ applyOverrides: (inout Overrides) -> Void)`.
@@ -293,7 +302,7 @@ Start with these documents in order:
 
 Every container, including one with no managed members, synthesizes the full
 overrides scaffolding. A user-declared nested `Overrides` type is unsupported
-in InnoDI 5.0 and emits `container.overrides-name-conflict`; rename it so the
+in InnoDI 6.0 and emits `container.overrides-name-conflict`; rename it so the
 macro can own the mountable override ABI.
 
 The macro also emits the reserved compiler-support alias
@@ -305,16 +314,17 @@ Every stored instance member in a container must use `@Provide` or
 the generated initializer complete and prevents memberwise-initializer drift.
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `root` | `false` | Graph-render entry flag only. If any roots exist, Mermaid, DOT, and ASCII output is pruned to the union of root-reachable nodes and edges. |
+| `role` | required for `@DIContainerRole` | `ContainerRole.local`, `.component`, or `.root`. Root role selects graph-render reachability; component role exposes the cross-module mount contract. |
 | `validateDAG` | `true` | Enables global DAG validation plus the macro's local graph-derived checks. `false` skips global DAG and local cycle checks, but declaration validation and effect compatibility on explicit sibling edges still run. |
-| `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIComponent`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
+| `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIContainerRole(role: ContainerRole.component)`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
 
-In 5.0, generic component-mounting helpers must distinguish the two marker
+In 6.0, generic component-mounting helpers must distinguish the two marker
 protocols. Keep `_InnoDIComponentMountable` for ordinary components and add an
 `@MainActor` overload constrained to `_InnoDIMainActorComponentMountable`, with
 an `@MainActor` override closure, for `mainActor: true` components.
@@ -331,15 +341,14 @@ the type manually without the macro. The macro diagnoses initializers in the
 annotated body; the required build plugin diagnoses same-file and cross-file
 extension initializers before compilation.
 
-InnoDI 5.0 supports `@DIContainer` only on an effectively non-generic `struct`
+InnoDI 6.0 supports `@DIContainer` only on an effectively non-generic `struct`
 declared at file scope or as a member of non-generic nominal declarations.
 Neither the struct nor an enclosing nominal declaration may introduce generic
 parameters or a generic `where` clause. Classes, actors, enums, protocols,
 extension declarations, structs declared inside extensions, and structs in
 executable scopes such as functions, closures, accessors, or switch cases are
-rejected. The same boundary applies when `@DIComponent` is stacked on the
-container. Move runtime or type-specific state behind injected protocol
-dependencies or `@Provide(.input)` values.
+rejected. The same boundary applies to `@DIContainerRole`. Move runtime or
+type-specific state behind injected protocol dependencies or `@Input` values.
 
 An explicitly `private` container is also rejected because sibling containers
 cannot access its generated mount surface. Use `fileprivate` for file-local
@@ -350,15 +359,14 @@ attached macro on a type declared inside a computed-property body. The InnoDI
 build-validation plugin and dependency-graph CLI scan the full source tree and
 enforce the same local-scope rejection for that compiler edge case. They also
 see sibling extensions that compiler-plugin macro input omits. Attach the plugin
-to every target that declares containers when adopting the 5.0 declaration
+to every target that declares containers when adopting the 6.0 declaration
 contract. Without that full-source preflight, extension custom initializers can
-bypass the policy, and a local container stacked with companion macros such as
-`@DIComponent` can surface compiler or companion-macro errors in addition to,
-or instead of, the stable InnoDI diagnostic.
+bypass the policy, and an invalid local role container can surface compiler or
+macro errors in addition to, or instead of, the stable InnoDI diagnostic.
 
 ### `@Provide` and scopes
 
-InnoDI 5.0 supports `@Provide` only on a direct, plain, stored instance `var` in
+InnoDI 6.0 supports `@Provide` only on a direct, plain, stored instance `var` in
 the same supported `struct` that carries `@DIContainer`. `let`, computed or
 observed properties, `lazy`, `weak`, `unowned`, `static`/`class`, standalone,
 and indirectly nested uses are rejected. InnoDI owns the generated provider
@@ -369,7 +377,7 @@ Property wrappers, conditional or unknown attributes, setter access modifiers
 such as `private(set)`, and global-actor attributes are rejected. Besides
 `@Provide` itself, no source-written property-level attribute is supported.
 This prohibition includes `@MainActor`; request actor isolation with
-`@DIContainer(mainActor: true)`. The isolation attributes InnoDI generates on
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`. The isolation attributes InnoDI generates on
 the provider declaration and accessor remain internal compiler support. A
 complete `@Provide` member declaration inside `#if` is also rejected with
 `provide.conditional-declaration-unsupported`; keep the declaration
@@ -416,15 +424,15 @@ uses exit codes `0` (clean), `1` (changes required), and `2` (blocked).
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | Scope | Meaning | Construction rules |
 |---|---|---|
-| `.input` | External dependency supplied at container initialization | Declares no `factory:`, `asyncFactory:`, `Type.self`, property initializer, or `with:` |
+| `@Input` | External dependency supplied at container initialization | Declares no `factory:`, `asyncFactory:`, `Type.self`, property initializer, or `with:` |
 | `.shared` | Created once per container instance and reused | Declares exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer |
 | `.transient` | Recreated on every access | Declares exactly one of `factory:`, `asyncFactory:`, `Type.self`, or a property initializer |
 
@@ -432,14 +440,14 @@ Additional rules:
 
 - The four construction sources—`factory:`, `asyncFactory:`, `Type.self`, and
   a property initializer—are mutually exclusive for `.shared` and `.transient`.
-- `.input` rejects every construction source and rejects `with:`.
-- Generated `.input` initializer parameters are eager values of the declared
+- `@Input` rejects every construction source and rejects `with:`.
+- Generated `@Input` initializer parameters are eager values of the declared
   type `T`; Swift evaluates `try` / `await` argument expressions before the
   initializer call as usual. Directly spelled non-optional function types are
   detected automatically and emitted as escaping parameters. For a
   non-optional function type hidden behind a typealias, write
-  `@Provide(.input, escaping: true)`. `escaping:` must be a literal Boolean and
-  is valid only for `.input`. Obvious nonfunction and optional-function shapes
+  `@Input(escaping: true)`. `escaping:` must be a literal Boolean and
+  is valid only for `@Input`. Obvious nonfunction and optional-function shapes
   are rejected; if an accepted identifier/member alias does not actually
   resolve to a non-optional function, Swift may emit its own diagnostic.
 - `asyncFactory` is supported for `.shared` and `.transient` and must be an
@@ -531,7 +539,7 @@ Important details:
 - Input-only containers still synthesize an empty builder.
 - If a child container is input-only, `<name>Overrides` closures still compile
   and execute as no-ops until the child gains overrideable members.
-- A container must not declare its own nested `Overrides` type. InnoDI 5.0
+- A container must not declare its own nested `Overrides` type. InnoDI 6.0
   rejects that collision instead of emitting a partial, non-mountable API.
 
 ## `Lazy<T>` and `Provider<T>`
@@ -596,8 +604,8 @@ Key rules:
 
 Cross-module ownership uses:
 
-- `@DIComponent` for mountable child containers
-- `@DIHierarchyRoot` for rooted workspace-level validation
+- `@DIContainerRole(role: ContainerRole.component)` for mountable child containers
+- `@DIContainerRole(role: ContainerRole.root)` for rooted workspace-level validation
 
 ## SwiftUI Helpers
 
@@ -607,17 +615,21 @@ contract:
 - `.innodi(container)` applies a generated environment bridge to a view tree.
 - `@DIEnvironmentBridge` maps container members into SwiftUI environment keys.
 - `@SubContainer(..., featureRoot:)` and `featureRoots:` generate default or
-  named feature-root helpers for child containers.
+  named feature-root helpers for child containers. When `InnoDISwiftUI` is
+  imported, pass `identity:` to the generated helper to get lazy host ownership
+  without adding a manual State wrapper; the zero-argument helper remains.
 - `DIContainerHost` lazily owns fixed or assisted children by route, document,
   or window identity. Applications compose loading/failure/retry UI and call
   its lifecycle handle from the actual close path instead of `onDisappear`.
+- `#PreviewWithContainer` uses the same lazy owner and keeps equal preview
+  payloads isolated by preview instance.
 - InnoDI 5.0 removes the deprecated `@DIFeatureRoot` compatibility macro.
   Replace it with the `@SubContainer` arguments so helper generation stays in
   the container macro pipeline and does not stack peer macros on one property.
 
-Use `@DIContainer(mainActor: true)` for UI-root containers when you want the
-generated container API isolated to the main actor. A paired `@DIComponent`
-also isolates its `<Container>Dependencies` protocol, `init(dependencies:_:)`,
+Use `@DIContainerRole(role: ContainerRole.local, mainActor: true)` for a local
+UI root whose generated API must be main-actor isolated. A component role with
+`mainActor: true` also isolates its `<Container>Dependencies` protocol, `init(dependencies:_:)`,
 and override-application closure types, and conforms to the dedicated
 `_InnoDIMainActorComponentMountable` protocol. Ordinary components continue to
 use `_InnoDIComponentMountable`. Keep non-`Sendable` construction and use on
@@ -644,6 +656,7 @@ every explicit root:
 ```bash
 swift run InnoDI-DependencyGraph --root . --why FeatureContainer
 swift run InnoDI-DependencyGraph --root . --dependents NetworkContainer
+swift run InnoDI-DependencyGraph --root . --why provider:App.AppContainer.client
 swift run InnoDI-DependencyGraph --root . --unused
 ```
 
@@ -656,19 +669,32 @@ swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 
 `--check-contract` returns exit code 5 when any scope, container, provider, or
 edge contract changed, so CI can require an explicitly reviewed graph snapshot
-update. Schema v4 provider records include type, lifetime, initialization,
-isolation, and effect; source line/column movement alone is not a contract
-change. Older graph schemas are rejected rather than treated as unchanged.
+update. Schema v6 provider records include type, lifetime, initialization,
+isolation, effect, canonical wiring, and explicit collection contracts; source
+line/column movement alone is not a contract change. Older graph schemas are
+rejected rather than treated as unchanged.
 
 Provider selectors are accepted by `--why` and `--dependents`, for example
 `--why App.AppContainer.client`. Results include provider contracts and source
-locations. Runtime cache/override/async provenance is opt-in through
-`DITraceContext` and `DIBoundedTraceBuffer`; disabled tracing allocates no ID,
-event, or buffer, and events contain no input values or error payloads. Copy
-the stable provider ID from the graph query and wrap a resolution with
-`trace.withResolution(providerID: id) { ... }`; success, failure, and
-cooperative cancellation then share one runtime instance ID. Cache-hit and
-override sites can append their explicit terminal event with `record`.
+locations. Unqualified selectors are resolved against both container and
+provider namespaces. A collision fails with both candidate lists; use
+`container:<selector>` or `provider:<selector>` to choose explicitly. Exact
+graph IDs retain their direct lookup behavior. Runtime cache/override/async
+provenance is opt-in through `DITraceContext` and `DIBoundedTraceBuffer`;
+disabled tracing allocates no ID, event, or buffer, and events contain no input
+values or error payloads. Copy the target ID from the graph artifact into
+`DITraceContext(sink:targetIDsByModule:generation:)`, then pass that context to
+a generated container's `_innoDITrace:` argument.
+
+Generated eager, on-demand, transient, async, override, cache-hit, and wait
+paths now emit automatically. `providerID` matches schema-v6 graph IDs when
+the runtime module has a target mapping; otherwise it falls back to the
+reflected module-qualified container path. `ownerID` separates container
+instances, `generation` separates rebuilds, and `instanceID` joins a start to
+its terminal/cache/wait events. Wait events also name the related provider and
+instance. InnoDI never introspects tasks started inside a service factory.
+Manual instrumentation through `withResolution(providerID:)` and `record`
+remains available for non-generated boundaries.
 
 Run the read-only workspace doctor before migration or adoption:
 
@@ -678,12 +704,15 @@ swift run InnoDI-Doctor --root . --json
 ```
 
 The default mode does not resolve, build, write, delete caches, or stop
-processes. Swift package roots and Tuist workspaces with a nested
-`Tuist/Package.swift` are detected without resolution. `--apply` explicitly
-uses the migrator's atomic safety checks, and `--verify` separately opts into
-`swift build` or `tuist generate --no-open` for the detected workspace. Reports
-distinguish proposed and applied paths, second-pass idempotency, and
-verification status.
+processes. For Swift packages, Doctor parses literal target source roots and
+plugin arrays, so a comment, string, or another target's plugin cannot hide a
+missing attachment. Dynamic manifests and Tuist target mappings remain
+explicitly incomplete instead of being reported healthy. `--apply` uses the
+migrator's atomic safety checks. SwiftPM `--verify` runs `swift build`; Tuist
+verification first runs generation and only runs compilation when `--scheme`
+and `--destination` are explicit. Schema-v2 reports keep generation and
+compilation exit, timeout, and log-tail evidence separate, so generation alone
+is never a successful build.
 
 ## Collection Composition
 
@@ -694,6 +723,14 @@ type guesses. `DICollectionGroup` and `DIKeyedCollection` compose explicitly
 exported module outputs in caller order and reject keyed collisions.
 `DIProviderCollection` and `DIKeyedProviderCollection` resolve only a selected
 index or key.
+
+Factory-built collections can publish the same closed graph contract with
+`@Provide(collection:)`. Use `.ordered`, `.keyed`, `.providers`, or
+`.keyedProviders` with literal `\Self.member` contributors; keyed entries use
+`.init(key: "id", contributor: \Self.member)`. Explicit empty metadata is valid.
+Graph JSON schema v6 records key, order, canonical contributor, and contributor
+lifetime without inspecting factory bodies or discovering module members.
+Duplicate keys fail instead of using last-wins behavior.
 
 Inspect the Swift generated by macros for a consumer target:
 

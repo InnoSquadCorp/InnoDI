@@ -64,7 +64,7 @@ InnoDI bleibt deterministisch, indem einige Grenzen explizit gesetzt werden.
   Mounting, die Operations-Closures aller vier `withOverrides`-Overloads sowie
   generierte Feature-Root-Helper. Dies ist die bevorzugte Form für UI-Root-
   Container.
-- Zusammen mit `@DIComponent` werden das generierte Dependency-Protokoll,
+- Mit der Component-Rolle von `@DIContainerRole` werden das generierte Dependency-Protokoll,
   `init(dependencies:_:)` und der Override-Closure-Typ mit `@MainActor`
   isoliert; die Component konformiert dem dedizierten Protokoll
   `_InnoDIMainActorComponentMountable`. Gewöhnliche Components verwenden

@@ -72,8 +72,11 @@ Before dispatching the `Release Gate` workflow:
      `Perf History` run on the same `macos-26` / Xcode 26.6 image used by CI;
      do not replace it with a developer-machine measurement.
    - Run `Tools/measure-runtime-trace-performance.sh` to enforce the separate
-     disabled-resolution and enabled-event budgets. This microbenchmark does
-     not replace an actual consumer runtime pilot.
+     disabled-resolution, enabled-event, saturated-ring, snapshot, and
+     writer-plus-snapshot contention budgets. The report keeps snapshot cost
+     separate from record cost and covers capacities 64, 4,096, and 65,536.
+     Do not replace these CI budgets with a developer-machine measurement.
+     This microbenchmark does not replace an actual consumer runtime pilot.
 10. Generate DocC:
     - `Tools/generate-docc.sh`
     - package `.build/docc/InnoDI` with
@@ -87,6 +90,13 @@ Before dispatching the `Release Gate` workflow:
     - repository is public
     - `Package.swift` is at the root
     - `swift package dump-package` succeeds with the current Swift toolchain
+    - On the release-candidate PR, apply the maintainer-only
+      `release-validation` label. The label makes every subsequent PR update run
+      the read-only exhaustive, sanitizer, Swift 6.2/6.4, Apple-platform, and
+      renamed-checkout lanes before merge. Remove the label when the PR is no
+      longer a release candidate. `workflow_dispatch` provides the same
+      read-only validation for branches after this workflow entry point exists
+      on the default branch. Neither path publishes a tag or performance history.
 13. Complete the GitHub-side publication controls:
     - enable immutable releases for the repository
     - add an active branch ruleset with no bypass actors or exclusions that
@@ -127,6 +137,9 @@ Before dispatching the `Release Gate` workflow:
     - update every installation reference in `README.md` and the six localized
       README variants to the exact version
     - leave exactly one matching release-notes section in this file
+    - for a 6.x release, record RFC 0006 as exactly `Accepted` in both the RFC
+      document and RFC index; the candidate validator rejects pending,
+      duplicated, missing, or inconsistent status records
 15. Push that final candidate to `main`, record its full 40-character commit
     SHA, and immediately dispatch `Release Gate` from `main` with the exact
     version and SHA. Do not create or push the release tag manually, and do not
@@ -218,19 +231,58 @@ standalone release assets.
 
 ### Highlights
 
-- Opened [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
-  for the staged 6.0 preparation train. The Draft keeps 5.x groundwork
-  additive while assisted child factories, input/lifetime separation, and
-  container-role consolidation are validated in real consumers before the
-  breaking surface is frozen.
+- Prepared the [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
+  promotion candidate. Its implementation is frozen by repository contracts
+  and three committed consumer pilots, but formal RFC acceptance still requires
+  human maintainer review on the dedicated promotion pull request. This entry
+  does not approve the RFC or the release.
+- Re-audited all 46 excellence requirements and 25 follow-up findings against
+  code candidate `6332864ea83743fd5fec99c95b98a91b1b06ae8b`. A clean Swift 6.4
+  strict coverage run passed 355 tests in 37 suites with package line coverage
+  90.28% and `InnoDIMacros` 90.75% (floor 90.70%). Public API, graph schema v6,
+  DocC, localized README, link, validation-escape-hatch, fatal-trap, alias and
+  runtime trace performance contracts also passed. The synchronized exact
+  branch HEAD is rechecked by the release-validation matrix and consumers;
+  merge, tag, and publication remain separate NOT RUN gates.
+- Hardened the 6.x release-candidate validator so publication fails closed
+  unless RFC 0006 has exactly one `Accepted` status in both its authoritative
+  document and the RFC index. Pending, missing, duplicate, and inconsistent
+  records are covered by executable release-contract tests.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
-  every rooted graph, and `--diff` compares two schema-v4 JSON artifacts.
+  every rooted graph, and `--diff` compares two schema-v6 JSON artifacts.
   `--diff ... --check-contract` turns that comparison into a CI gate: unchanged
   contracts exit 0 and any scope, node, or edge drift, including assisted input,
   assisted-factory ownership, or ordered contribution changes, exits 5 while
-  preserving the human-readable diff. Regenerate schema-v3 baselines before
-  comparing them with this release candidate.
+  preserving the human-readable diff. Schema v6 treats canonical factory
+  parameter wiring and fixed/assisted child binding pairs as contract. It
+  additionally records explicit collection kind, keys, order, contributor IDs,
+  and contributor lifetimes. It rejects earlier schemas, missing binding
+  metadata, and malformed collection contracts rather than treating them as
+  unchanged. Regenerate older baselines before
+  comparing them with this candidate. Query selectors now check container and
+  provider namespaces together. Cross-namespace collisions list both candidate
+  sets and require `container:` or `provider:`; exact graph IDs remain stable,
+  and provider dependents follow canonical binding IDs rather than parameter
+  labels.
+- Connected generated providers to opt-in runtime tracing. Container,
+  component, override, on-demand, transient, and async paths now carry the
+  canonical schema-v6 provider identity, container owner, and generation;
+  start/terminal, override, cache-hit, and wait relationships are emitted
+  automatically. The disabled default still avoids UUID/event/buffer
+  allocation, events remain metadata-only, and opaque work started inside a
+  service is deliberately outside the trace boundary.
+- Completed generated-mock stub preflight across properties, ordinary returns,
+  untyped and typed throwing functions, and generic handlers. Setup state is
+  independent from optional storage, so an explicitly stubbed `nil` is not
+  reported as missing. Unnamed parameters now receive legal body identifiers;
+  unsupported generic typed throws and static properties fail at the source
+  attribute without emitting a partial conformance.
+- Added generation-aware reset to actual generated mocks. `.calls` atomically
+  closes and returns the current call-history snapshot while preserving stubs;
+  `.all` also returns every stub to its missing state. `Sendable` mocks use one
+  shared critical region, and `@MainActor` mocks use actor serialization, so a
+  racing call belongs to exactly one generation.
 - Added `InnoDI-Migrate --report` for deterministic schema-v1 JSON inventories
   before migration writes. Reports expose paths, stable codes, counts, status,
   and diagnostics without including original or migrated source bodies.
@@ -245,21 +297,34 @@ standalone release assets.
   otherwise reject override forwarding as a non-Sendable actor crossing.
 - Added public `@Multibinding` for one injectable deterministic ordered
   collection from explicit local synchronous providers with the same written
-  type. Macro, serialized validation, graph-v4, and strict external-consumer
+  type. Macro, serialized validation, graph-v6, and strict external-consumer
   tests cover invalid contributors, injection, shared/transient lifetime
   behavior, contributor order, and overrides. The superseded underscored SPI
   has been removed after public consumer migration.
 - Verified the public RFC 0006 runtime and SwiftUI host pilot in InnoSample
-  commit `f53510b` against validated InnoDI code candidate
-  `28a95a5b146de6f79668e53156cece9aea3fa8c0`. The People route passes the
+  commit `ec88716` against validated InnoDI code candidate
+  `f1a3eaccf19bfc43164de3621c9197c731d92342`. The People route passes the
   consumer's full Xcode 27 gate, proves per-child shared-state isolation plus
   overrides, and replaces its manual state wrapper with `DIContainerHost`.
 - Added two more committed consumer pilots against that code candidate. BlPia
-  `787f419` passes Doctor over 160 Swift files, an unchanged second migration
-  pass, DAG validation, 10 test schemes, and a generic iOS/watch build. Lynceus
-  `61d3df4` passes Doctor over 81 Swift files, an unchanged second pass, a real
+  `c12560d` passes Doctor over 160 Swift files, an unchanged second migration
+  pass, DAG validation, 10 test schemes, and a generic iOS/watch build; the
+  strict hierarchy gate also corrected seven manually provided containers from
+  `component` to `local` ownership. Lynceus `3edb77b` passes Doctor over 81
+  Swift files, an unchanged second pass, a real
   two-container full-root DAG, 41 tests, and its macOS build. Mulbyul was tested
   without source changes and is deliberately not counted as a committed pilot.
+- Refreshed the consumer boundary for the T42 candidate in isolated clones.
+  InnoSample passes exact resolution, DAG, Remote tests, leaf/root features and
+  generic iOS/watch builds. BlPia passes layer/feature/app tests and iOS build
+  after explicitly linking trace runtime support into static test bundles.
+  Lynceus passes format, Tuist sync, macOS build and all tests; Doctor correctly
+  marks its helper-based Tuist target mapping analysis-incomplete instead of
+  healthy. Mulbyul committed HEAD `092ff951` remains test-only: its isolated
+  `Layers` build reaches the expected legacy `@Provide(.input)` source break,
+  while read-only Doctor reports 481 files, one proposal and 11 errors without
+  applying a change. The original Mulbyul and mixed BlPia checkouts are
+  preserved.
 - Hardened migration and workspace analysis from real-consumer evidence:
   ambiguous unqualified 6.0 vocabulary now fails closed (`dc34d14`), Doctor
   recognizes direct Tuist package workspaces (`ac1124b`), and skipped hidden
@@ -285,9 +350,32 @@ standalone release assets.
   the release gate. Arbitrary strings fail with a stable InnoDI diagnostic.
 - Added owned on-demand and async preparation scopes, a SwiftUI container host,
   concurrency-safe public testing support, explicit cross-module ordered/keyed
-  provider collections, schema-v4 provider contract queries, metadata-only
+  provider collections, schema-v6 provider contract queries, metadata-only
   bounded runtime tracing, and a read-only-first `InnoDI-Doctor` workflow for
   the 6.0 candidate.
+- Added `@Provide(collection:)` closed metadata for factory-built ordered,
+  keyed, value, and provider collections. Key identity, order, canonical
+  contributor, and declared contributor lifetime are contractual across graph
+  artifacts; explicit empty is valid, duplicates fail, and no factory-body or
+  module discovery is performed.
+- Async preparation now rejects already-cancelled waiters before factory start,
+  reports request and owned-operation cancellation separately from failure,
+  and retries a failed selected child plus its downstream in fresh generations
+  while preserving ready explicit parent dependencies.
+- Generated override fallbacks now parenthesize precedence-sensitive raw factory ASTs, full-source
+  validation rejects out-of-order child `bindings:` at the first mismatching
+  key path, and async overrides no longer resolve dependencies used only by a
+  bypassed live factory.
+- Feature-root helpers now include an identity-taking `DIContainerHost`
+  overload, hosted content receives an explicit lifecycle handle through the
+  SwiftUI environment, and `#PreviewWithContainer` constructs lazily through
+  the same generation owner. Existing direct and manual host APIs remain.
+- Added explicit `@Provide(effect: .sideEffect)` metadata and generated
+  `Overrides` completeness reporting. Test and preview targets can use
+  `InnoDITesting` strict preflight to reject missing effect overrides before a
+  live factory runs; recording mode returns the same deterministic report.
+  Unmarked opaque factories remain unclassified, and production construction
+  does not enable this opt-in policy globally.
 
 ## 5.1.0
 

@@ -42,7 +42,7 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 
 ## Declaration Order
 
-- `.input` 멤버는 항상 사용 가능합니다.
+- `@Input` 멤버는 항상 사용 가능합니다.
 - sync `.shared`는 input과 이전 sync shared를 참조할 수 있습니다.
 - async `.shared`는 input, sync shared, 이전 async shared를 참조할 수 있습니다.
 - `.transient`는 어떤 멤버도 참조할 수 있지만 이름 해석은 여전히 엄격합니다.
@@ -66,7 +66,7 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
   쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure,
   생성된 feature-root helper를 격리합니다. UI 루트 컨테이너에 권장되는
   형태입니다.
-- `@DIComponent`와 함께 사용하면 생성된 dependency protocol,
+- component 역할의 `@DIContainerRole`을 사용하면 생성된 dependency protocol,
   `init(dependencies:_:)`, override 적용 closure 타입이 `@MainActor`로 격리되고,
   component는 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다.
   일반 component는 비격리 `_InnoDIComponentMountable` protocol을 계속 사용합니다.

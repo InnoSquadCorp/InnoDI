@@ -1,0 +1,17 @@
+import InnoDI
+
+public struct CrossSecond: Sendable, Equatable {
+    public let value: Int
+    public init(value: Int) { self.value = value }
+}
+
+public struct CrossFirst: Sendable, Equatable {
+    public let value: Int
+    public init(value: Int) { self.value = value }
+}
+
+@DIContainer
+public struct CrossModuleChild {
+    @Input public var second: CrossSecond
+    @Input public var first: CrossFirst
+}

@@ -28,7 +28,7 @@ struct CIWorkflowHardeningTests {
         )
     }
 
-    @Test("PR and main validation have explicit latency budgets")
+    @Test("PR and exhaustive validation have explicit latency budgets")
     func validationLanesStaySeparated() throws {
         let workflow = try String(
             contentsOf: packageRootURL()
@@ -63,14 +63,14 @@ struct CIWorkflowHardeningTests {
         #expect(!fastJob.contains("--enable-code-coverage"))
         #expect(!fastJob.contains("Tools/measure-macro-performance.sh"))
 
-        #expect(exhaustiveJob.contains("name: Exhaustive main contracts"))
-        #expect(exhaustiveJob.contains("if: github.event_name == 'push'"))
+        #expect(exhaustiveJob.contains("name: Exhaustive release contracts"))
+        #expect(exhaustiveJob.contains(releaseValidationCondition))
         #expect(exhaustiveJob.contains("Tools/run-coverage-gate.sh"))
         #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
     }
 
-    @Test("Main CI runs isolated thread and address sanitizer suites")
+    @Test("Exhaustive CI runs isolated thread and address sanitizer suites")
     func mainCIRunsSanitizers() throws {
         let workflow = try String(
             contentsOf: packageRootURL()
@@ -89,7 +89,7 @@ struct CIWorkflowHardeningTests {
         let job = workflow[jobStart.lowerBound..<nextJobStart.lowerBound]
 
         #expect(job.contains("name: Thread and address sanitizers (Xcode 26.6)"))
-        #expect(job.contains("if: github.event_name == 'push'"))
+        #expect(job.contains(releaseValidationCondition))
         #expect(job.contains("timeout-minutes: 120"))
         #expect(job.contains("version: \"26.6\""))
         #expect(job.contains("--scratch-path .build/main-tsan"))
@@ -108,6 +108,11 @@ struct CIWorkflowHardeningTests {
         )
         #expect(
             job.components(
+                separatedBy: "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
+            ).count - 1 == 2
+        )
+        #expect(
+            job.components(
                 separatedBy: "-Xswiftc -strict-concurrency=complete"
             ).count - 1 == 2
         )
@@ -116,6 +121,41 @@ struct CIWorkflowHardeningTests {
                 separatedBy: "-Xswiftc -warnings-as-errors"
             ).count - 1 == 2
         )
+    }
+
+    @Test("Manual dispatch runs every read-only release lane without publishing history")
+    func manualReleaseCandidateValidationIsReadOnly() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let jobsStart = try #require(workflow.range(of: "\njobs:\n"))
+        let workflowPolicy = workflow[..<jobsStart.lowerBound]
+        let exhaustiveConditionCount = workflow.components(
+            separatedBy: releaseValidationCondition
+        ).count - 1
+        let appendStart = try #require(
+            workflow.range(of: "  append-perf-history:\n")
+        )
+        let appendJob = workflow[appendStart.lowerBound...]
+
+        #expect(workflowPolicy.contains("  workflow_dispatch:\n"))
+        #expect(
+            workflowPolicy.contains(
+                "types: [opened, synchronize, reopened, labeled, unlabeled]"
+            )
+        )
+        #expect(exhaustiveConditionCount == 6)
+        #expect(
+            appendJob.contains(
+                "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+            )
+        )
+    }
+
+    private var releaseValidationCondition: String {
+        "if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')"
     }
 
     @Test("Main CI keeps an explicit Xcode 27 compatibility lane")

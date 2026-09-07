@@ -179,6 +179,7 @@ private func collectDependencyGraphWithDiagnostics(
     }
 
     var ownershipEdges: [DependencyGraphEdge] = []
+    var resolvedContainerBindings: [String: [DependencyGraphProvider.ContainerBinding]] = [:]
     var ownershipSemanticIssues: [SemanticContainerReferenceIssue] = []
     var ownershipFallbackMatchedReferences: [String] = []
     let ownershipEligibleContainerIDsBySemanticPath = validateDAG
@@ -224,6 +225,11 @@ private func collectDependencyGraphWithDiagnostics(
                     reference.ownershipKind == .assistedFactory
             )
         )
+        resolvedContainerBindings["\(reference.parentID).\(reference.memberName)"] = containerBindings(
+            reference: reference,
+            childContainerID: resolvedID,
+            providers: collector.providers
+        )
     }
 
     let contributionEdges = collector.multibindingContributions.map {
@@ -235,7 +241,12 @@ private func collectDependencyGraphWithDiagnostics(
         edges: deduplicateEdges(
             usageCollector.edges + ownershipEdges + contributionEdges
         ),
-        providers: normalizeProviders(collector.providers),
+        providers: normalizeProviders(collector.providers.map { provider in
+            guard let bindings = resolvedContainerBindings[provider.id] else {
+                return provider
+            }
+            return provider.replacingContainerBindings(bindings)
+        }),
         semanticIssues: usageCollector.semanticIssues + ownershipSemanticIssues,
         identityCollisions: []
     )
@@ -355,6 +366,8 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
     )
     var edges: [DependencyGraphEdge] = []
     var semanticIssues: [SemanticContainerReferenceIssue] = []
+    var resolvedContainerBindings: [String: [DependencyGraphProvider.ContainerBinding]] = [:]
+    let allCollectedProviders = collectedSources.flatMap(\.providers)
 
     for collectedSource in collectedSources {
         let resolver = resolutionIndex.resolver(
@@ -411,6 +424,11 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
                         reference.ownershipKind == .assistedFactory
                 )
             )
+            resolvedContainerBindings["\(reference.parentID).\(reference.memberName)"] = containerBindings(
+                reference: reference,
+                childContainerID: resolvedID,
+                providers: allCollectedProviders
+            )
         }
     }
 
@@ -418,11 +436,49 @@ private func collectTargetScopedDependencyGraphWithDiagnostics(
         nodes: nodes,
         edges: sortedGraphEdges(deduplicateEdges(edges)),
         providers: normalizeProviders(
-            collectedSources.flatMap(\.providers)
+            allCollectedProviders.map { provider in
+                guard let bindings = resolvedContainerBindings[provider.id]
+                else { return provider }
+                return provider.replacingContainerBindings(bindings)
+            }
         ),
         semanticIssues: semanticIssues,
         identityCollisions: identityCollisions
     )
+}
+
+private func containerBindings(
+    reference: PendingSubContainerReference,
+    childContainerID: String,
+    providers: [DependencyGraphProvider]
+) -> [DependencyGraphProvider.ContainerBinding] {
+    let pairs: [SubContainerBindingArgument]
+    if reference.usesImplicitSameNameWiring {
+        pairs = providers
+            .filter {
+                $0.containerID == childContainerID
+                    && $0.role == .input
+                    && $0.inputKind == .container
+            }
+            .map {
+                SubContainerBindingArgument(
+                    childName: $0.name,
+                    parentName: $0.name
+                )
+            }
+    } else {
+        pairs = reference.bindingPairs
+    }
+
+    let ownership: DependencyGraphProvider.ContainerBinding.Ownership =
+        reference.ownershipKind == .assistedFactory ? .assisted : .fixed
+    return pairs.map { pair in
+        DependencyGraphProvider.ContainerBinding(
+            childInputID: "\(childContainerID).\(pair.childName)",
+            parentProviderID: "\(reference.parentID).\(pair.parentName)",
+            ownership: ownership
+        )
+    }
 }
 
 private func contributionEdge(
@@ -522,7 +578,7 @@ private func rootPruningWithoutRootsFailure() -> DependencyGraphCommandResult {
     DependencyGraphCommandResult(
         exitCode: DependencyGraphCoreExitCode.dagValidationFailure,
         stdout: "",
-        stderr: "[graph.root-pruning-no-roots] Root pruning requires at least one @DIContainer(root: true) declaration.\n"
+        stderr: "[graph.root-pruning-no-roots] Root pruning requires at least one @DIContainerRole(role: ContainerRole.root) declaration.\n"
     )
 }
 

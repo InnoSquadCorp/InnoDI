@@ -1,13 +1,13 @@
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'ClassContainer' is declared as a class. Convert it to a struct and inject runtime state through @Provide(.input).
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'ActorContainer' is declared as an actor. Convert it to a struct and inject runtime state through @Provide(.input).
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'EnumContainer' is declared as an enum. Convert it to a struct and inject runtime state through @Provide(.input).
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'ProtocolContainer' is declared as a protocol. Convert it to a struct and inject runtime state through @Provide(.input).
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'ExtendedContainer' is declared as an extension. Convert it to a struct and inject runtime state through @Provide(.input).
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'GenericContainer' declares generic parameters. Move type-specific behavior behind an injected dependency.
-@DIContainer supports only non-generic structs in InnoDI 5.0; 'NestedContainer' is nested in generic context 'GenericOuter<Value>'. Move type-specific behavior behind an injected dependency.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'ClassContainer' is declared as a class. Convert it to a struct and inject runtime state through @Input.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'ActorContainer' is declared as an actor. Convert it to a struct and inject runtime state through @Input.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'EnumContainer' is declared as an enum. Convert it to a struct and inject runtime state through @Input.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'ProtocolContainer' is declared as a protocol. Convert it to a struct and inject runtime state through @Input.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'ExtendedContainer' is declared as an extension. Convert it to a struct and inject runtime state through @Input.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'GenericContainer' declares generic parameters. Move type-specific behavior behind an injected dependency.
+@DIContainer supports only non-generic structs in InnoDI 6.0; 'NestedContainer' is nested in generic context 'GenericOuter<Value>'. Move type-specific behavior behind an injected dependency.
 @DIContainer cannot prove that 'ExtensionNestedContainer' has a non-generic context because it is declared inside extension 'ExtensionOuter'. Move the container to file scope or a non-generic nominal declaration.
-@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'LocalContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
-@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'ClosureContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
-@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'CaseContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
-@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'LocalComponent' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
+@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 6.0; 'LocalContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
+@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 6.0; 'ClosureContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
+@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 6.0; 'CaseContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
+@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 6.0; 'LocalComponent' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration.
 local type cannot have attached extension macro

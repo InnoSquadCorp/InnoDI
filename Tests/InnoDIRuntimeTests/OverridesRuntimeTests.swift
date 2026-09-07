@@ -24,7 +24,7 @@ struct ViewModel: Sendable {
 
 @DIContainer
 struct RuntimeContainer {
-    @Provide(.input)
+    @Input
     var userID: String
 
     @Provide(.shared, factory: { LiveAPIClient() })

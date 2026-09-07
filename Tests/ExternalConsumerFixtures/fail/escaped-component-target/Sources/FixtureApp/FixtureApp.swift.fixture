@@ -1,9 +1,8 @@
 import InnoDI
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 struct `default` {
-    @Provide(.input) var value: Int
+    @Input var value: Int
 }
 
 @main

@@ -19,6 +19,17 @@ enum SharedFailure: Error { case unavailable }
 @GenerateMock
 protocol ScreenAPI {
     var title: String { get set }
+    func render(value: Int) -> Int
+}
+
+@GenerateMock
+protocol CompletePreflightAPI {
+    var optionalValue: String? { get set }
+    func value() -> String
+    func fetch() throws -> String
+    func refresh() throws
+    func decode<T>(_ type: T.Type) -> T
+    func combine(_: Int, _: Int) -> Int
 }
 
 @main
@@ -66,8 +77,98 @@ struct FixtureApp {
             expectedCallCounts: ["greet": 100, "load": 2]
         )
 
+        let firstGeneration = shared.innoDIReset(.calls)
+        precondition(firstGeneration.generation == 0)
+        precondition(firstGeneration.recordedCallCounts == [
+            "greet": 100,
+            "load": 2,
+        ])
+        precondition(shared.innoDICallHistoryGeneration == 1)
+        precondition(shared.greetCalls.isEmpty && shared.loadCalls.isEmpty)
+        precondition(shared.missingStubSelectors.isEmpty)
+        precondition(shared.greet(value: -1) == 1)
+
+        let resetSnapshot = DIConcurrentValueBox<SharedGreeterMock.InnoDICallHistorySnapshot?>(nil)
+        let observedSnapshots = DIConcurrentValueBox<[SharedGreeterMock.InnoDICallHistorySnapshot]>([])
+        await withTaskGroup(of: Void.self) { group in
+            for value in 0..<100 {
+                group.addTask {
+                    precondition(shared.greet(value: value) == 1)
+                }
+            }
+            group.addTask {
+                resetSnapshot.replace(with: shared.innoDIReset(.calls))
+            }
+            group.addTask {
+                for _ in 0..<100 {
+                    let snapshot = shared.innoDICallHistorySnapshot
+                    observedSnapshots.update { $0.append(snapshot) }
+                }
+            }
+        }
+        let concurrentReset = resetSnapshot.snapshot()!
+        let currentSnapshot = shared.innoDICallHistorySnapshot
+        precondition(concurrentReset.generation == 1)
+        precondition(currentSnapshot.generation == 2)
+        precondition(
+            concurrentReset.recordedCallCounts["greet", default: 0]
+                + currentSnapshot.recordedCallCounts["greet", default: 0]
+                == 101
+        )
+        precondition(concurrentReset.recordedCallCounts["load", default: 0] == 0)
+        precondition(currentSnapshot.recordedCallCounts["load", default: 0] == 0)
+        precondition(shared.greetCalls.allSatisfy { $0.generation == 2 })
+        precondition(Set(shared.greetCalls.map(\.value)).count == shared.greetCalls.count)
+        precondition(observedSnapshots.snapshot().allSatisfy {
+            (1...2).contains($0.generation)
+                && $0.recordedCallCounts["greet", default: 0] >= 0
+        })
+
+        let fullReset = shared.innoDIReset(.all)
+        precondition(fullReset.generation == 2)
+        precondition(shared.innoDICallHistoryGeneration == 3)
+        precondition(shared.greetCalls.isEmpty && shared.loadCalls.isEmpty)
+        precondition(Set(shared.missingStubSelectors) == Set(["greet", "load"]))
+
         let screen = ScreenAPIMock()
         screen.title = "Preview"
+        screen.renderReturnValue = 7
         precondition(screen.title == "Preview")
+        await withTaskGroup(of: Void.self) { group in
+            for value in 0..<100 {
+                group.addTask { @MainActor in
+                    precondition(screen.render(value: value) == 7)
+                }
+            }
+        }
+        precondition(screen.renderCalls.count == 100)
+        precondition(screen.renderCalls.allSatisfy { $0.generation == 0 })
+        let screenCalls = screen.innoDIReset(.calls)
+        precondition(screenCalls.recordedCallCounts == ["render": 100])
+        precondition(screen.title == "Preview")
+        precondition(screen.render(value: 101) == 7)
+        let screenAll = screen.innoDIReset(.all)
+        precondition(screenAll.recordedCallCounts == ["render": 1])
+        precondition(Set(screen.missingStubSelectors) == Set(["title", "render"]))
+
+        let complete = CompletePreflightAPIMock()
+        precondition(Set(complete.missingStubSelectors) == Set([
+            "optionalValue", "value", "fetch", "refresh",
+            "decodeUnlabeledTType", "combine",
+        ]))
+        complete.optionalValue = nil
+        complete.valueReturnValue = "value"
+        complete.fetchResult = .success("fetched")
+        complete.refreshThrownError = nil
+        complete.decodeUnlabeledTTypeHandler = { _ in "decoded" }
+        complete.combineReturnValue = 3
+        try! DIStubValidation.requireAllStubbed(complete.missingStubSelectors)
+        precondition(complete.optionalValue == nil)
+        precondition(complete.value() == "value")
+        precondition(try! complete.fetch() == "fetched")
+        try! complete.refresh()
+        let decoded: String = complete.decode(String.self)
+        precondition(decoded == "decoded")
+        precondition(complete.combine(1, 2) == 3)
     }
 }

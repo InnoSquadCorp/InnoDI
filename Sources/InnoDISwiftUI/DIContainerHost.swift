@@ -45,6 +45,24 @@ public struct DIContainerHostHandle: Sendable {
     }
 }
 
+private struct DIContainerHostHandleEnvironmentKey: EnvironmentKey {
+    static let defaultValue: DIContainerHostHandle? = nil
+}
+
+public extension EnvironmentValues {
+    /// The lifecycle handle for the nearest ready ``DIContainerHost``.
+    ///
+    /// Generated feature-root helpers inject this value into their root view,
+    /// allowing route, document, or window UI to request an explicit close
+    /// without retaining its own owner. A missing value means the view is not
+    /// hosted by InnoDI. Do not call close from a transient `onDisappear`;
+    /// invoke it only from the actual owner-close path.
+    var innoDIContainerHostHandle: DIContainerHostHandle? {
+        get { self[DIContainerHostHandleEnvironmentKey.self] }
+        set { self[DIContainerHostHandleEnvironmentKey.self] = newValue }
+    }
+}
+
 /// Main-actor owner used by ``DIContainerHost``.
 ///
 /// The owner is public so lifecycle-heavy applications can test or coordinate
@@ -63,23 +81,26 @@ where Identity: Hashable & Sendable {
     private var generation: UInt64 = 0
     private var operation: Task<Void, Never>?
     private var currentContainer: Container?
+    private var currentContainerClose: Close?
     private var factory: Factory?
     private var closeOperation: Close?
+    private var cleanupBarrier: Task<Void, Never>?
 
     public init() {}
 
     /// Starts the identity if it is not already loading or ready.
     ///
-    /// Repeating this call during SwiftUI redraw is a no-op. A different
-    /// identity first closes the old generation and then creates the new one.
+    /// Repeating this call during SwiftUI redraw is a no-op and does not
+    /// replace the active generation's factory or close callback. A different
+    /// identity first closes the old generation with the callback captured
+    /// when that generation started, then creates the new one. All known
+    /// cleanup is serialized; a close hook that does not return deliberately
+    /// keeps replacement publication pending.
     public func start(
         identity newIdentity: Identity,
         factory newFactory: @escaping Factory,
         close newClose: @escaping Close = { _ in }
     ) {
-        factory = newFactory
-        closeOperation = newClose
-
         if identity == newIdentity {
             switch phase {
             case .loading, .ready:
@@ -89,15 +110,25 @@ where Identity: Hashable & Sendable {
             }
         }
 
-        begin(identity: newIdentity)
+        begin(
+            identity: newIdentity,
+            factory: newFactory,
+            close: newClose
+        )
     }
 
     /// Retries the failed identity in a new generation.
     ///
     /// Calling this method outside the failed phase is a no-op.
     public func retry() {
-        guard case let .failed(failedIdentity, _) = phase else { return }
-        begin(identity: failedIdentity)
+        guard case let .failed(failedIdentity, _) = phase,
+              let factory,
+              let closeOperation else { return }
+        begin(
+            identity: failedIdentity,
+            factory: factory,
+            close: closeOperation
+        )
     }
 
     /// Cancels an in-flight generation, closes a ready container, and returns
@@ -109,44 +140,68 @@ where Identity: Hashable & Sendable {
         identity = nil
 
         let container = currentContainer
+        let containerClose = currentContainerClose
         currentContainer = nil
+        currentContainerClose = nil
         phase = .idle
 
-        if let container, let closeOperation {
-            await closeOperation(container)
+        if let container, let containerClose {
+            await scheduleCleanup(
+                container: container,
+                close: containerClose
+            ).value
+        } else {
+            await cleanupBarrier?.value
         }
     }
 
-    private func begin(identity newIdentity: Identity) {
+    private func begin(
+        identity newIdentity: Identity,
+        factory newFactory: @escaping Factory,
+        close newClose: @escaping Close
+    ) {
         generation &+= 1
         let requestedGeneration = generation
         operation?.cancel()
 
         let oldContainer = currentContainer
-        let oldClose = closeOperation
+        let oldClose = currentContainerClose
         currentContainer = nil
+        currentContainerClose = nil
         identity = newIdentity
+        factory = newFactory
+        closeOperation = newClose
         phase = .loading(identity: newIdentity)
 
-        precondition(factory != nil && closeOperation != nil)
-        let factory = factory.unsafelyUnwrapped
-        let close = closeOperation.unsafelyUnwrapped
+        let cleanup: Task<Void, Never>?
+        if let oldContainer, let oldClose {
+            cleanup = scheduleCleanup(
+                container: oldContainer,
+                close: oldClose
+            )
+        } else {
+            cleanup = cleanupBarrier
+        }
 
         operation = Task { @MainActor [weak self] in
-            if let oldContainer, let oldClose {
-                await oldClose(oldContainer)
-            }
+            await cleanup?.value
 
-            guard let self, requestedGeneration == generation else { return }
+            guard let self,
+                  !Task.isCancelled,
+                  requestedGeneration == generation else { return }
 
             do {
-                let candidate = try await factory(newIdentity)
+                let candidate = try await newFactory(newIdentity)
                 guard !Task.isCancelled, requestedGeneration == generation else {
-                    await close(candidate)
+                    await scheduleCleanup(
+                        container: candidate,
+                        close: newClose
+                    ).value
                     return
                 }
 
                 currentContainer = candidate
+                currentContainerClose = newClose
                 phase = .ready(identity: newIdentity, container: candidate)
             } catch is CancellationError {
                 guard requestedGeneration == generation else { return }
@@ -157,6 +212,24 @@ where Identity: Hashable & Sendable {
                 phase = .failed(identity: newIdentity, error: error)
             }
         }
+    }
+
+    /// Serializes all known container cleanup. A close hook that never
+    /// returns deliberately keeps replacement publication and explicit close
+    /// pending: the host cannot prove the previous generation is closed and
+    /// does not bypass that ownership boundary. Cancelling a generation never
+    /// cancels its already-started cleanup task.
+    private func scheduleCleanup(
+        container: Container,
+        close: @escaping Close
+    ) -> Task<Void, Never> {
+        let previous = cleanupBarrier
+        let cleanup = Task { @MainActor in
+            await previous?.value
+            await close(container)
+        }
+        cleanupBarrier = cleanup
+        return cleanup
     }
 }
 
@@ -218,6 +291,7 @@ where Identity: Hashable & Sendable, Content: View, Loading: View, Failure: View
                 loading()
             case let .ready(_, container):
                 content(container, handle)
+                    .environment(\.innoDIContainerHostHandle, handle)
             case let .failed(_, error):
                 failure(error, handle)
             }

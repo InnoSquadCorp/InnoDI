@@ -4,13 +4,13 @@ struct DeferredConsumer {
     let response: Lazy<Int>
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct QualifierShadowContainer {
     struct Swift {}
     enum _Concurrency {}
     typealias InnoDI = Int
 
-    @Provide(.input)
+    @Input
     var request: Int
 
     @Provide(

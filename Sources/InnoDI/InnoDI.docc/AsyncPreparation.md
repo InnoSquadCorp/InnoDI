@@ -31,12 +31,25 @@ let plan = try DIAsyncPreparationPlan(nodes: [
 let report = try await plan.prepare(["App.profile"])
 ```
 
-Call ``DIAsyncScope/retry()`` only after failure. It advances to a clean
-generation; previously returned values are not mixed into the new local
-scope. InnoDI owns only the task created from the supplied operation. Tasks
-created internally by an application service remain that service's
-responsibility, and cancellation remains cooperative.
+Use ``DIAsyncPreparationPlan/retry(_:)`` after a selected preparation reports
+`failed` or `cancelled`. The plan advances the failed provider and its selected
+downstream dependants together, while preserving ready parent dependencies.
+It rejects a retry before changing anything when an affected provider is still
+running or has been closed. Call ``DIAsyncScope/retry()`` directly only after
+that individual scope fails or its owned operation is cancelled.
+
+A task that is already cancelled does not start a factory. Cancelling one
+waiter or preparation request reports `cancelled` for that request without
+cancelling shared owner work. An owned operation that throws
+`CancellationError` moves the scope to `cancelled` and can be retried. Each
+retry advances to a clean generation; previously returned child values are not
+mixed into the replacement subgraph.
+
+InnoDI owns only the task created from the supplied operation. Tasks created
+internally by an application service remain that service's responsibility, and
+cancellation remains cooperative.
 
 The status report records only a provider ID, generation, state, and reflected
-error *type*. It never serializes error values, input values, tokens, or other
-application payloads.
+error *type*. Direct waiters still receive the original application error, but
+the report never serializes error values, input values, tokens, or other
+application payloads. Cancellation is reported without an error payload.

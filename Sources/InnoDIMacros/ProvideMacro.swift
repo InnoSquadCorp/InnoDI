@@ -79,6 +79,16 @@ public struct ProvideMacro: PeerMacro {
             )
             return []
         }
+        if parseResult.operationalEffect == nil {
+            context.emit(
+                SimpleDiagnostic.provideUnknownEffect(
+                    parseResult.operationalEffectName ?? "<unknown>"
+                ),
+                at: parseResult.operationalEffectExpr.map(Syntax.init)
+                    ?? Syntax(attribute)
+            )
+            return []
+        }
 
         if varDecl.bindings.count == 1,
            let identifier = varDecl.bindings.first?

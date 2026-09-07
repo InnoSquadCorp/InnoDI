@@ -45,5 +45,5 @@ nodes share an id — it keeps canonicalization idempotent even there.
 
 ### Public API
 
-- `analyzeDependencyCycles(adjacency:depthLimit:)`
-- `detectDependencyCycles(adjacency:depthLimit:)`
+- ``analyzeDependencyCycles(adjacency:depthLimit:)``
+- ``detectDependencyCycles(adjacency:depthLimit:)``

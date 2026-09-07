@@ -56,8 +56,39 @@ struct ProvideMacroTests {
 
         let args = parseProvideArguments(attr)
         #expect(args.scope == .shared)
+        #expect(args.operationalEffect?.rawValue == "none")
         let factoryExpr = try #require(args.factoryExpr)
         #expect(factoryExpr.trimmedDescription == "SomeType()")
+    }
+
+    @Test("Provide parser preserves explicit and invalid effect metadata")
+    func parseProvideOperationalEffect() throws {
+        let source = """
+        @Provide(.shared, effect: .sideEffect, factory: SomeType())
+        var live: SomeProtocol
+
+        @Provide(.shared, effect: dynamicEffect, factory: SomeType())
+        var invalid: SomeProtocol
+        """
+
+        let parsed = Parser.parse(source: source)
+        let declarations = parsed.statements.compactMap {
+            $0.item.as(VariableDeclSyntax.self)
+        }
+        let liveAttribute = try #require(
+            declarations.first?.attributes.first?.as(AttributeSyntax.self)
+        )
+        let invalidAttribute = try #require(
+            declarations.last?.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let live = parseProvideArguments(liveAttribute)
+        #expect(live.operationalEffect == .sideEffect)
+        #expect(live.operationalEffectName == "sideEffect")
+
+        let invalid = parseProvideArguments(invalidAttribute)
+        #expect(invalid.operationalEffect == nil)
+        #expect(invalid.operationalEffectName == "dynamicEffect")
     }
 
     @Test
@@ -127,6 +158,147 @@ struct ProvideMacroTests {
         let args = parseProvideArguments(attr)
         #expect(args.dependencies.isEmpty)
         #expect(args.dependenciesParseState == .invalid)
+    }
+
+    @Test("Provide parser preserves explicit keyed provider collection metadata")
+    func parseProvideCollectionMetadata() throws {
+        let source = """
+        @Provide(
+            .transient,
+            collection: .keyedProviders([
+                .init(key: "auth", contributor: \\Self.auth),
+                .init(key: "logs", contributor: \\Self.logging),
+            ]),
+            factory: makeProviders()
+        )
+        var providers: DIKeyedProviderCollection<String, Service>
+
+        @Provide(.transient, collection: .keyed([]), factory: makeEmpty())
+        var empty: DIKeyedCollection<String, Service>
+
+        @Provide(.transient, collection: metadata, factory: makeInvalid())
+        var invalid: [Service]
+
+        @Provide(.transient, collection: Foreign.keyed([]), factory: makeInvalid())
+        var foreignFactory: [Service]
+
+        @Provide(
+            .transient,
+            collection: .keyed([
+                DIKeyedCollectionContribution.init(
+                    key: "qualified",
+                    contributor: \\Self.auth
+                ),
+            ]),
+            factory: makeInvalid()
+        )
+        var qualifiedEntry: [Service]
+
+        @Provide(
+            .transient,
+            collection: .keyed([
+                .init(key: "escaped\\nkey", contributor: \\Self.auth),
+            ]),
+            factory: makeInvalid()
+        )
+        var escapedKey: [Service]
+        """
+
+        let declarations = Parser.parse(source: source).statements.compactMap {
+            $0.item.as(VariableDeclSyntax.self)
+        }
+        let parsed = declarations.map { declaration in
+            parseProvideArguments(
+                declaration.attributes.first!.as(AttributeSyntax.self)!
+            )
+        }
+
+        #expect(
+            parsed[0].collectionMetadataParseState == .parsed(
+                kind: .keyedProviders,
+                entries: [
+                    .init(key: "auth", contributor: "auth"),
+                    .init(key: "logs", contributor: "logging"),
+                ]
+            )
+        )
+        #expect(
+            parsed[1].collectionMetadataParseState == .parsed(
+                kind: .keyed,
+                entries: []
+            )
+        )
+        #expect(parsed[2].collectionMetadataParseState == .invalid)
+        #expect(parsed[3].collectionMetadataParseState == .invalid)
+        #expect(parsed[4].collectionMetadataParseState == .invalid)
+        #expect(parsed[5].collectionMetadataParseState == .invalid)
+    }
+
+    @Test("Transient dependency resolution reports every semantic outcome directly")
+    func transientDependencyResolutionOutcomes() throws {
+        let container = try #require(
+            Parser.parse(
+                source: """
+                @DIContainer
+                struct AppContainer {
+                    @Provide(.input)
+                    var dependency: Dependency
+
+                    @Provide(.transient, factory: { (missing: Dependency) in Service() })
+                    var invalid: Service
+
+                    @Provide(.transient, factory: Service())
+                    var valid: Service
+                }
+                """
+            ).statements.first?.item.as(StructDeclSyntax.self)
+        )
+        let variables = container.memberBlock.members.compactMap {
+            $0.decl.as(VariableDeclSyntax.self)
+        }
+        let invalid = try #require(variables.first {
+            $0.bindings.first?.pattern.trimmedDescription == "invalid"
+        })
+        let valid = try #require(variables.first {
+            $0.bindings.first?.pattern.trimmedDescription == "valid"
+        })
+        let invalidAttribute = try #require(
+            invalid.attributes.first?.as(AttributeSyntax.self)
+        )
+        let validAttribute = try #require(
+            valid.attributes.first?.as(AttributeSyntax.self)
+        )
+
+        let unresolved = transientDependencyResolutionFailure(
+            declaration: invalid,
+            parseResult: parseProvideArguments(invalidAttribute),
+            memberName: "invalid"
+        )
+        #expect(
+            unresolved?.diagnostic(memberName: "invalid")?.diagnosticID
+                == MessageID(
+                    domain: "InnoDI.validation",
+                    id: "provide.unresolved-factory-parameter"
+                )
+        )
+
+        let missingMember = transientDependencyResolutionFailure(
+            declaration: valid,
+            parseResult: parseProvideArguments(validAttribute),
+            memberName: "detached"
+        )
+        guard case .missingMember? = missingMember else {
+            Issue.record("Expected a missing-member result")
+            return
+        }
+
+        #expect(
+            transientDependencyResolutionFailure(
+                declaration: valid,
+                parseResult: parseProvideArguments(validAttribute),
+                memberName: "valid"
+            ) == nil
+        )
     }
 
     @Test("Closure parameter parser skips wildcard placeholders and keeps named args")
@@ -675,8 +847,16 @@ struct ProvideMacroTests {
 
         let peerGenerated = peerDecls.map(\.description).joined(separator: "\n")
         let accessorGenerated = accessors.map(\.description).joined(separator: "\n")
-        #expect(peerGenerated == "private var _storage_task_service: _Concurrency.Task<Service, Swift.Never>? = nil")
-        #expect(accessorGenerated == #"getasync{return await _storage_task_service!.value}"#)
+        #expect(
+            peerGenerated == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _storage_task_service: _Concurrency.Task<Service, Swift.Never>? = nil
+            """
+        )
+        #expect(
+            accessorGenerated
+                == #"getasync{let value = await _storage_task_service!.valueself._innoDITraceOwner_service.cacheHit(member: "service")return value}"#
+        )
     }
 
     @Test("Compiler support storage peer covers every provider scope and recovery")
@@ -701,7 +881,10 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _storage_service: Service? = nil"
+            ) == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _storage_service: Service? = nil
+            """
         )
         #expect(
             try supportPeerStorage(
@@ -712,7 +895,10 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _storage_task_service: _Concurrency.Task<Service, Swift.Error>? = nil"
+            ) == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _storage_task_service: _Concurrency.Task<Service, Swift.Error>? = nil
+            """
         )
         #expect(
             try supportPeerStorage(
@@ -723,7 +909,10 @@ struct ProvideMacroTests {
                     var service: Service
                 }
                 """
-            ) == "private var _override_service: Service? = nil"
+            ) == """
+            private var _innoDITraceOwner_service: _InnoDITraceOwner = .disabled
+            private var _override_service: Service? = nil
+            """
         )
         #expect(
             try supportPeerStorage(
@@ -828,6 +1017,21 @@ struct ProvideMacroTests {
         )
     }
 
+    @Test("Unknown operational effect is rejected with a stable diagnostic")
+    func unknownOperationalEffectDiagnostic() {
+        assertMacroExpansionDiagnosticCodes(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, effect: .eventually, factory: Service())
+                var service: Service
+            }
+            """,
+            expectedCodes: [InnoDIDiagnosticCode.provideUnknownEffect.messageID],
+            macros: Self.macros
+        )
+    }
+
     @Test("On-demand initialization rejects transient providers")
     func onDemandTransientDiagnostic() {
         assertMacroExpansionDiagnosticCodes(
@@ -902,7 +1106,13 @@ struct ProvideMacroTests {
         #expect(attachedRoles.contains("@attached(accessor)"))
         #expect(
             attachedRoles.contains(
-                "@attached(peer, names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_))"
+                """
+                @attached(
+                    peer,
+                    names: prefixed(_storage_), prefixed(_storage_task_), prefixed(_override_),
+                        prefixed(_innoDITraceOwner_)
+                )
+                """
             )
         )
     }

@@ -2,9 +2,11 @@ name: Macro Tests
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -81,8 +83,8 @@ jobs:
           if-no-files-found: error
 
   macro-tests:
-    name: Exhaustive main contracts
-    if: github.event_name == 'push'
+    name: Exhaustive release contracts
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -215,7 +217,7 @@ jobs:
 
   sanitizers:
     name: Thread and address sanitizers (Xcode 26.6)
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 120
     steps:
@@ -228,9 +230,10 @@ jobs:
         with:
           version: "26.6"
       - name: Run thread sanitizer suite
-        # Fresh-consumer contracts launch separate swift processes that do not
-        # inherit this sanitizer. They run in the exhaustive/toolchain lanes;
-        # keep this job focused on code that is actually instrumented.
+        # Fresh-consumer and mechanical fix-it build contracts launch separate
+        # swift processes that do not inherit this sanitizer. They run in the
+        # exhaustive/toolchain lanes; keep this job focused on code that is
+        # actually instrumented.
         run: >-
           swift test
           --scratch-path .build/main-tsan
@@ -239,6 +242,7 @@ jobs:
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+          --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
       - name: Run address sanitizer suite
         run: >-
           swift test
@@ -248,10 +252,11 @@ jobs:
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+          --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
   swift-62-compatibility:
     name: Swift 6.2 compatibility
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -270,7 +275,7 @@ jobs:
 
   xcode-27-compatibility:
     name: Xcode 27 compatibility preview
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
@@ -296,7 +301,7 @@ jobs:
 
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -336,7 +341,7 @@ jobs:
           done
 
   path-identity:
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 30
     steps:

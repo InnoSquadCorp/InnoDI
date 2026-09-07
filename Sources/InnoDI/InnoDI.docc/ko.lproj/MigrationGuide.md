@@ -207,12 +207,46 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ## 5.x → 6.0 그래프 계약
 
-Graph JSON consumer는 schema v4로 옮겨야 합니다. v4의 `providers` 배열은
-안정적인 container/member ID와 작성된 타입, 역할, lifetime, 초기화 정책,
-actor 격리, effect, dependency, source 위치를 기록합니다. 계약 비교는 줄과
-열 이동은 무시하지만 의미 필드 변경은 검출합니다. `--diff`는 이전 schema를
-명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after baseline을
-모두 같은 6.0 도구로 다시 만드세요.
+`@Multibinding`으로 표현할 수 없는 keyed/provider collection은
+`@Provide(collection:)`에 `.ordered`, `.keyed`, `.providers`,
+`.keyedProviders` 중 하나의 닫힌 literal metadata를 선언합니다. keyed entry는
+`.init(key: "id", contributor: \Self.member)`만 허용하며 explicit empty는
+metadata 생략과 구별됩니다. key·순서·canonical contributor ID·실제 provider
+lifetime은 graph 계약입니다. InnoDI는 factory body나 module을 검색하지 않고
+암묵적 last-wins도 적용하지 않습니다.
+
+Graph JSON consumer는 schema v6로 옮겨야 합니다. v5는 v4 provider 계약에
+더해 각 factory parameter의 canonical provider ID와 eager/`Lazy`/`Provider`
+종류를 기록합니다. fixed/assisted child ownership도 child input ID와 parent
+provider ID의 binding pair를 직렬화합니다. v6는 collection kind, key, 순서,
+contributor ID, contributor lifetime을 추가합니다. 줄과 열 이동은 계속 진단
+metadata로만 취급하지만 endpoint, deferred kind, collection metadata 변경은
+계약 변경입니다. `--diff`는 이전 schema, binding 배열 누락, 잘못된 collection
+metadata를 명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after
+baseline을 모두 같은 6.0 도구로 다시 만드세요.
+
+`--why`와 `--dependents`는 qualifier 없는 selector를 container와 provider
+namespace에서 함께 확인합니다. 같은 spelling이 양쪽에 존재하면 후보 목록과
+함께 실패하므로 `container:<selector>` 또는 `provider:<selector>`로 다시
+조회하세요. Exact graph ID는 기존 대상을 그대로 선택합니다.
+
+### 생성 코드의 runtime trace
+
+6.0 컨테이너 initializer, component dependency initializer,
+`withOverrides` overload에는 마지막에 기본값이 있는 `_innoDITrace:` 파라미터가
+추가됩니다. 기본값이 ``DITraceContext/disabled``이므로 기존 호출은
+source-compatible합니다. runtime event를 schema-v6 graph provider와 연결하려면
+graph target ID를 runtime module 이름으로 매핑한 ``DITraceContext``를 만들고
+컨테이너 생성 시 전달하세요. 생성 provider가 factory 시작과 terminal 결과,
+override, cache hit, async/on-demand wait 관계를 자동 기록하므로 application
+코드에 provider ID를 복사할 필요가 없습니다.
+
+Trace event decoder는 6.0의 `ownerID`, `generation`, `origin`,
+`relatedProviderID`, `relatedInstanceID` 필드와 `waitStart`, `waitEnd` kind를
+허용해야 합니다. Event에는 provider identity, UUID, generation, origin, 관계,
+kind, monotonic time만 있으며 input, result, token, error 값, service 설명은
+포함하지 않습니다. Factory 내부에서 불투명하게 시작한 runtime 작업은 자동
+trace 범위 밖입니다.
 
 ---
 
