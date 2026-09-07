@@ -87,17 +87,16 @@ struct DoctorTests {
         #expect(report.isHealthy)
     }
 
-    @Test(
-        "Tuist verification reports generation and actual compilation separately",
-        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
-    )
+    @Test("Tuist verification reports generation and compilation separately")
     func verifiesTuistGenerationAndCompilation() throws {
         let root = try temporaryTuistProject(
             source: "public struct AppValue { public init() {} }"
         )
         defer { try? FileManager.default.removeItem(at: root) }
+        let tools = try fakeVerificationTools(xcodebuildExitCode: 0)
+        defer { try? FileManager.default.removeItem(at: tools.root) }
 
-        let report = try InnoDIDoctor().run(
+        let report = try tools.doctor.run(
             root: root,
             apply: false,
             verify: true,
@@ -113,17 +112,16 @@ struct DoctorTests {
         #expect(report.isHealthy)
     }
 
-    @Test(
-        "Tuist generation without an explicit build selection remains unverified",
-        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
-    )
+    @Test("Tuist generation without an explicit build selection remains unverified")
     func tuistRequiresExplicitBuildSelection() throws {
         let root = try temporaryTuistProject(
             source: "public struct AppValue { public init() {} }"
         )
         defer { try? FileManager.default.removeItem(at: root) }
+        let tools = try fakeVerificationTools(xcodebuildExitCode: 0)
+        defer { try? FileManager.default.removeItem(at: tools.root) }
 
-        let report = try InnoDIDoctor().run(
+        let report = try tools.doctor.run(
             root: root,
             apply: false,
             verify: true
@@ -135,17 +133,16 @@ struct DoctorTests {
         #expect(!report.isHealthy)
     }
 
-    @Test(
-        "Tuist generation success cannot hide compilation failure",
-        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
-    )
+    @Test("Tuist generation success cannot hide compilation failure")
     func tuistCompilationFailureFailsVerification() throws {
         let root = try temporaryTuistProject(
             source: "public let broken: String = 42"
         )
         defer { try? FileManager.default.removeItem(at: root) }
+        let tools = try fakeVerificationTools(xcodebuildExitCode: 1)
+        defer { try? FileManager.default.removeItem(at: tools.root) }
 
-        let report = try InnoDIDoctor().run(
+        let report = try tools.doctor.run(
             root: root,
             apply: false,
             verify: true,
@@ -159,6 +156,29 @@ struct DoctorTests {
         #expect(report.verification.compilation.outputTail?.contains("error:") == true)
         #expect(report.verification.status == .failed)
         #expect(!report.isHealthy)
+    }
+
+    @Test(
+        "Installed Tuist generates and compiles a real macOS workspace",
+        .disabled(if: !tuistIntegrationTestsAreAvailable, "Tuist is not installed")
+    )
+    func realTuistIntegrationBuilds() throws {
+        let root = try temporaryTuistProject(
+            source: "public struct AppValue { public init() {} }"
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let report = try InnoDIDoctor().run(
+            root: root,
+            apply: false,
+            verify: true,
+            tuistScheme: "App",
+            destination: "platform=macOS"
+        )
+
+        #expect(report.verification.status == .passed)
+        #expect(report.verification.generation.status == .passed)
+        #expect(report.verification.compilation.status == .passed)
     }
 
     @Test("Tuist workspaces use the nested dependency manifest and project plugin declaration")
@@ -429,5 +449,59 @@ struct DoctorTests {
         try Data(project.utf8).write(to: root.appendingPathComponent("Project.swift"))
         try Data(source.utf8).write(to: sources.appendingPathComponent("App.swift"))
         return root
+    }
+
+    private struct FakeVerificationTools {
+        let root: URL
+        let doctor: InnoDIDoctor
+    }
+
+    private func fakeVerificationTools(
+        xcodebuildExitCode: Int32
+    ) throws -> FakeVerificationTools {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "innodi-doctor-tools-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: true
+        )
+
+        let tuist = root.appendingPathComponent("tuist")
+        let xcodebuild = root.appendingPathComponent("xcodebuild")
+        try writeExecutable(
+            """
+            #!/bin/sh
+            set -eu
+            test "$1" = "generate"
+            test "$2" = "--no-open"
+            mkdir -p DoctorFixture.xcworkspace
+            """,
+            to: tuist
+        )
+        try writeExecutable(
+            """
+            #!/bin/sh
+            echo "\(xcodebuildExitCode == 0 ? "fake xcodebuild success" : "error: fake xcodebuild failure")" >&2
+            exit \(xcodebuildExitCode)
+            """,
+            to: xcodebuild
+        )
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "\(root.path):/usr/bin:/bin"
+        return FakeVerificationTools(
+            root: root,
+            doctor: InnoDIDoctor(verificationEnvironment: environment)
+        )
+    }
+
+    private func writeExecutable(_ contents: String, to url: URL) throws {
+        try Data(contents.utf8).write(to: url)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: url.path
+        )
     }
 }

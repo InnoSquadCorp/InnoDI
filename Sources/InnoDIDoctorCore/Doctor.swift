@@ -77,7 +77,15 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 }
 
 public struct InnoDIDoctor: Sendable {
-    public init() {}
+    private let verificationEnvironment: [String: String]?
+
+    public init() {
+        verificationEnvironment = nil
+    }
+
+    init(verificationEnvironment: [String: String]) {
+        self.verificationEnvironment = verificationEnvironment
+    }
 
     /// Performs source/config inspection without package resolution, builds,
     /// downloads, writes, cache deletion, or process termination.
@@ -202,7 +210,8 @@ public struct InnoDIDoctor: Sendable {
                 root: canonicalRoot,
                 kind: workspace.verificationKind,
                 tuistScheme: tuistScheme,
-                destination: destination
+                destination: destination,
+                environment: verificationEnvironment
             )
             verification = result
         } else {
@@ -586,7 +595,8 @@ private func runVerification(
     root: URL,
     kind: DoctorVerificationKind,
     tuistScheme: String?,
-    destination: String?
+    destination: String?,
+    environment: [String: String]?
 ) throws -> DoctorVerification {
     let notRun = DoctorVerification.Step(
         status: .notRun,
@@ -600,7 +610,8 @@ private func runVerification(
         let compilation = try runVerificationStep(
             arguments: ["swift", "build"],
             command: "swift build",
-            root: root
+            root: root,
+            environment: environment
         )
         return DoctorVerification(
             status: compilation.status,
@@ -613,7 +624,8 @@ private func runVerification(
         let generation = try runVerificationStep(
             arguments: ["tuist", "generate", "--no-open"],
             command: "tuist generate --no-open",
-            root: root
+            root: root,
+            environment: environment
         )
         guard generation.status == .passed else {
             return DoctorVerification(
@@ -676,7 +688,8 @@ private func runVerification(
                 "build",
             ],
             command: command,
-            root: root
+            root: root,
+            environment: environment
         )
         return DoctorVerification(
             status: compilation.status,
@@ -692,12 +705,16 @@ private func runVerificationStep(
     arguments: [String],
     command: String,
     root: URL,
+    environment: [String: String]?,
     timeout: TimeInterval = 300
 ) throws -> DoctorVerification.Step {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = arguments
     process.currentDirectoryURL = root
+    if let environment {
+        process.environment = environment
+    }
     let logURL = FileManager.default.temporaryDirectory.appendingPathComponent(
         "innodi-doctor-log-\(UUID().uuidString)"
     )
