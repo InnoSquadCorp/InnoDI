@@ -16,6 +16,23 @@ private func disabledResolution(
     return span == nil ? member.utf8.count : 0
 }
 
+private final class WriterTimingBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var elapsedNanoseconds: [UInt64] = []
+
+    func record(_ elapsed: UInt64) {
+        lock.lock()
+        elapsedNanoseconds.append(elapsed)
+        lock.unlock()
+    }
+
+    var maximumElapsedNanoseconds: UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return elapsedNanoseconds.max() ?? 0
+    }
+}
+
 @main
 private enum RuntimeTraceBenchmark {
     static func main() throws {
@@ -102,10 +119,14 @@ private enum RuntimeTraceBenchmark {
 
         let contentionCapacity = 4_096
         let writerCount = 4
-        let snapshotCount = 512
+        // One full-buffer observation per 625 emitted events keeps the reader
+        // continuously relevant without letting a post-writer snapshot tail
+        // dominate the writer-latency measurement.
+        let snapshotCount = 64
         let contentionSampleCount = 5
         let resolutionsPerWriter = max(1, enabledIterations / writerCount)
         let contendedEventCount = writerCount * resolutionsPerWriter * 2
+        let eventsPerWriter = resolutionsPerWriter * 2
         var contentionMeasurements: [[String: Any]] = []
         for _ in 0..<contentionSampleCount {
             let contendedBuffer = DIBoundedTraceBuffer(capacity: contentionCapacity)
@@ -113,6 +134,7 @@ private enum RuntimeTraceBenchmark {
                 context: DITraceContext(sink: contendedBuffer),
                 containerType: RuntimeTraceBenchmark.self
             )
+            let writerTimings = WriterTimingBox()
             let contentionStart = DispatchTime.now().uptimeNanoseconds
             DispatchQueue.concurrentPerform(iterations: writerCount + 1) { worker in
                 if worker == writerCount {
@@ -121,10 +143,13 @@ private enum RuntimeTraceBenchmark {
                     }
                 } else {
                     let writerMember = "writer\(worker)"
+                    let writerStart = DispatchTime.now().uptimeNanoseconds
                     for _ in 0..<resolutionsPerWriter {
                         let span = contendedOwner.start(member: writerMember)
                         contendedOwner.finish(.success, span: span)
                     }
+                    let writerElapsed = DispatchTime.now().uptimeNanoseconds - writerStart
+                    writerTimings.record(writerElapsed)
                 }
             }
             let contentionElapsed = DispatchTime.now().uptimeNanoseconds - contentionStart
@@ -136,9 +161,12 @@ private enum RuntimeTraceBenchmark {
                 "writerCount": writerCount,
                 "snapshotCount": snapshotCount,
                 "emittedEventCount": contendedEventCount,
+                "eventsPerWriter": eventsPerWriter,
                 "retainedEventCount": contendedSnapshot.events.count,
                 "droppedEventCount": contendedSnapshot.droppedEventCount,
                 "nanosecondsPerEvent":
+                    Double(writerTimings.maximumElapsedNanoseconds) / Double(eventsPerWriter),
+                "wallNanosecondsPerEvent":
                     Double(contentionElapsed) / Double(contendedEventCount),
             ])
         }

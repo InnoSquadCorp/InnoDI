@@ -489,8 +489,14 @@ public final class DIBoundedTraceBuffer: DITraceSink, @unchecked Sendable {
         defer { lock.unlock() }
         var events: [DITraceEvent] = []
         events.reserveCapacity(eventCount)
-        for offset in 0..<eventCount {
-            let index = (startIndex + offset) % capacity
+        let tailCount = min(eventCount, capacity - startIndex)
+        for index in startIndex..<(startIndex + tailCount) {
+            if let event = storage[index] {
+                events.append(event)
+            }
+        }
+        let headCount = eventCount - tailCount
+        for index in 0..<headCount {
             if let event = storage[index] {
                 events.append(event)
             }
