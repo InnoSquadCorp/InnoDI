@@ -90,14 +90,21 @@ contention = report.get("contentionMeasurements")
 if not isinstance(contention, list) or len(contention) != 5:
     raise SystemExit("runtime trace benchmark must report five writer and snapshot contention samples")
 for index, item in enumerate(contention, start=1):
+    if item.get("writerCount") != 4 or item.get("snapshotCount") != 64:
+        raise SystemExit(f"runtime trace contention sample {index} changed the enforced workload")
+    if item.get("eventsPerWriter", 0) * item.get("writerCount", 0) != item.get("emittedEventCount"):
+        raise SystemExit(f"runtime trace contention sample {index} has inconsistent writer accounting")
     if item.get("retainedEventCount") != item.get("capacity"):
         raise SystemExit(f"runtime trace contention sample {index} did not saturate the buffer")
     if item.get("droppedEventCount") != item.get("emittedEventCount") - item.get("capacity"):
         raise SystemExit(f"runtime trace contention sample {index} lost ring-buffer accounting")
     value = item.get("nanosecondsPerEvent")
-    if not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
-        raise SystemExit(f"runtime trace contention sample {index} is invalid")
+    wall = item.get("wallNanosecondsPerEvent")
+    for name, measurement in (("writer", value), ("wall", wall)):
+        if not isinstance(measurement, (int, float)) or not math.isfinite(measurement) or measurement < 0:
+            raise SystemExit(f"runtime trace contention sample {index} {name} measurement is invalid")
 contended = min(item["nanosecondsPerEvent"] for item in contention)
+contended_wall = min(item["wallNanosecondsPerEvent"] for item in contention)
 if contended > contended_budget:
     raise SystemExit("contended runtime trace overhead exceeds its budget")
 print(
@@ -109,7 +116,7 @@ print(
     f"snapshot-max={max(item['snapshotNanosecondsPerRetainedEvent'] for item in saturated):.2f} ns/event "
     f"(budget {snapshot_budget:.2f}), "
     f"contended-min={contended:.2f} ns/event across {len(contention)} samples "
-    f"(budget {contended_budget:.2f})"
+    f"(budget {contended_budget:.2f}), wall-min={contended_wall:.2f} ns/event"
 )
 if disabled > disabled_budget:
     raise SystemExit("disabled runtime trace overhead exceeds its budget")
