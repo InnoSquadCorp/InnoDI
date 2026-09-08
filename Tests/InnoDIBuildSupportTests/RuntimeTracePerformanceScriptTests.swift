@@ -34,9 +34,10 @@ struct RuntimeTracePerformanceScriptTests {
 
         #expect(script.contains("[64, 4096, 65536]"))
         #expect(script.contains("lost ring-buffer accounting"))
-        #expect(script.contains("writer and snapshot contention"))
+        #expect(script.contains("five writer and snapshot contention samples"))
         #expect(script.contains("snapshot overhead exceeds its budget"))
         #expect(script.contains("contended runtime trace overhead exceeds its budget"))
+        #expect(script.contains("min(item[\"nanosecondsPerEvent\"] for item in contention)"))
     }
 
     @Test("Benchmark uses the generated-provider trace owner path")
@@ -53,5 +54,7 @@ struct RuntimeTracePerformanceScriptTests {
         #expect(source.contains("owner.finish(.success"))
         #expect(source.contains("DispatchQueue.concurrentPerform"))
         #expect(source.contains("saturatedMeasurements"))
+        #expect(source.contains("contentionSampleCount = 5"))
+        #expect(source.contains("contentionMeasurements"))
     }
 }

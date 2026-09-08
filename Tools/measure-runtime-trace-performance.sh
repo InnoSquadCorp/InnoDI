@@ -86,16 +86,18 @@ for item in saturated:
     if snapshot_cost > snapshot_budget:
         raise SystemExit(f"runtime trace snapshot overhead exceeds its budget at capacity {capacity}")
 
-contention = report.get("contention")
-if not isinstance(contention, dict):
-    raise SystemExit("runtime trace benchmark must report writer and snapshot contention")
-if contention.get("retainedEventCount") != contention.get("capacity"):
-    raise SystemExit("runtime trace contention did not saturate the buffer")
-if contention.get("droppedEventCount") != contention.get("emittedEventCount") - contention.get("capacity"):
-    raise SystemExit("runtime trace contention lost ring-buffer accounting")
-contended = contention.get("nanosecondsPerEvent")
-if not isinstance(contended, (int, float)) or not math.isfinite(contended) or contended < 0:
-    raise SystemExit("runtime trace contention measurement is invalid")
+contention = report.get("contentionMeasurements")
+if not isinstance(contention, list) or len(contention) != 5:
+    raise SystemExit("runtime trace benchmark must report five writer and snapshot contention samples")
+for index, item in enumerate(contention, start=1):
+    if item.get("retainedEventCount") != item.get("capacity"):
+        raise SystemExit(f"runtime trace contention sample {index} did not saturate the buffer")
+    if item.get("droppedEventCount") != item.get("emittedEventCount") - item.get("capacity"):
+        raise SystemExit(f"runtime trace contention sample {index} lost ring-buffer accounting")
+    value = item.get("nanosecondsPerEvent")
+    if not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        raise SystemExit(f"runtime trace contention sample {index} is invalid")
+contended = min(item["nanosecondsPerEvent"] for item in contention)
 if contended > contended_budget:
     raise SystemExit("contended runtime trace overhead exceeds its budget")
 print(
@@ -106,7 +108,8 @@ print(
     f"(budget {saturated_budget:.2f}), "
     f"snapshot-max={max(item['snapshotNanosecondsPerRetainedEvent'] for item in saturated):.2f} ns/event "
     f"(budget {snapshot_budget:.2f}), "
-    f"contended={contended:.2f} ns/event (budget {contended_budget:.2f})"
+    f"contended-min={contended:.2f} ns/event across {len(contention)} samples "
+    f"(budget {contended_budget:.2f})"
 )
 if disabled > disabled_budget:
     raise SystemExit("disabled runtime trace overhead exceeds its budget")
