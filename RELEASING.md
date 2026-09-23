@@ -265,6 +265,12 @@ standalone release assets.
   `recoveryPaths`; migration's read-only report remains schema v1.
 - `DIContainerHostOwner.close()` releases stored factory/close captures before
   suspension, without clearing a reentrant new generation's callbacks (R03).
+- Subgraph retry now reserves library-owned scopes before checking states and
+  commits all affected generations before release (R04/R05). Selected custom
+  `DIAsyncPreparing` providers fail with `nonTransactionalProvider` before any
+  mutation; prepare/close support remains. `DIAsyncScope` status/retry/reset/close
+  are explicitly asynchronous, including calls made from actor-isolated code.
+  Concrete, existential, and generic reset calls now share the same semantics.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v6 JSON artifacts.

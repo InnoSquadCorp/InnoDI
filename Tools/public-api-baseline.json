@@ -564,17 +564,17 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyKF",
+          "source": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyYaKF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC5closeyyF",
+          "source": "s:6InnoDI12DIAsyncScopeC5closeyyYaF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC5retryyyKF",
+          "source": "s:6InnoDI12DIAsyncScopeC5retryyyYaKF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
@@ -584,7 +584,7 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyF",
+          "source": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyYaF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
@@ -1309,6 +1309,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO24nonTransactionalProvideryACSS_tcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI27DIProviderEffectRequirementV12providerName6effectACSS_AA0cD0Otcfc",
           "target": "s:6InnoDI27DIProviderEffectRequirementV"
         },
@@ -1649,7 +1654,7 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyKF"
+            "precise": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyYaKF"
           },
           "kind": {
             "identifier": "swift.method"
@@ -1680,7 +1685,7 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC5closeyyF"
+            "precise": "s:6InnoDI12DIAsyncScopeC5closeyyYaF"
           },
           "kind": {
             "identifier": "swift.method"
@@ -1711,7 +1716,7 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC5retryyyKF"
+            "precise": "s:6InnoDI12DIAsyncScopeC5retryyyYaKF"
           },
           "kind": {
             "identifier": "swift.method"
@@ -1773,7 +1778,7 @@
           "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyF"
+            "precise": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyYaF"
           },
           "kind": {
             "identifier": "swift.method"
@@ -4984,6 +4989,20 @@
           "pathComponents": [
             "DIAsyncPreparationPlanError",
             "retryRequiresFailure(selectedProviderIDs:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO24nonTransactionalProvideryACSS_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "nonTransactionalProvider(providerID:)"
           ]
         },
         {
