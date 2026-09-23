@@ -710,7 +710,10 @@ processes. For Swift packages, Doctor parses literal target source roots and
 plugin arrays, so a comment, string, or another target's plugin cannot hide a
 missing attachment. Dynamic manifests and Tuist target mappings remain
 explicitly incomplete instead of being reported healthy. `--apply` uses the
-migrator's atomic safety checks. SwiftPM `--verify` runs `swift build`; Tuist
+migrator's preserving atomic-exchange checks. Successful writes retain displaced
+files at reported `RECOVERY` paths; review those files after closing editors
+before removing them. Doctor schema v3 includes `recoveryPaths`.
+SwiftPM `--verify` runs `swift build`; Tuist
 verification first runs generation and only runs compilation when `--scheme`
 and `--destination` are explicit. Schema-v2 reports keep generation and
 compilation exit, timeout, and log-tail evidence separate, so generation alone

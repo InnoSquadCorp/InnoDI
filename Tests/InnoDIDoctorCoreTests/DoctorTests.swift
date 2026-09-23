@@ -70,6 +70,10 @@ struct DoctorTests {
         let report = try InnoDIDoctor().run(root: root, apply: true, verify: false)
 
         #expect(report.appliedChangePaths == ["Sources/App/App.swift"])
+        #expect(report.schemaVersion == 3)
+        #expect(report.recoveryPaths.count == 1)
+        let recovery = root.appendingPathComponent(try #require(report.recoveryPaths.first))
+        #expect(try String(contentsOf: recovery, encoding: .utf8).contains("@Provide(.input)"))
         #expect(report.secondPassChangeCount == 0)
         #expect(report.verification.status == .notRun)
         #expect(report.graphVerification.status == .unchanged)

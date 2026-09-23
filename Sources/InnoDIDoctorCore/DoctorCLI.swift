@@ -5,7 +5,7 @@ public enum DoctorCLI {
     Usage: InnoDI-Doctor --root <path> [--json] [--apply] [--verify] [--scheme <name> --destination <specifier>]
 
       default    Read-only source/config diagnosis; no resolution or build
-      --json     Emit schema-v2 structured output
+      --json     Emit schema-v3 structured output (including recovery paths)
       --apply    Apply only safe InnoDI migrations after full preflight
       --verify   Run swift build, or Tuist generation and compilation
       --scheme   Explicit Tuist-generated Xcode scheme required for compilation
@@ -60,6 +60,9 @@ public enum DoctorCLI {
                     print("  Recommendation: \(item.recommendation)")
                 }
                 print("Proposed: \(report.proposedChangePaths.count), applied: \(report.appliedChangePaths.count), second-pass: \(report.secondPassChangeCount)")
+                for path in report.recoveryPaths {
+                    print("RECOVERY \(path) [migrate.preserved-source]")
+                }
                 print("Graph: \(report.graphVerification.status.rawValue)")
                 print("Verification: \(report.verification.status.rawValue)")
                 print("  Generation: \(report.verification.generation.status.rawValue)")

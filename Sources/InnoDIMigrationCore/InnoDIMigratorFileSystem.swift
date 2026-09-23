@@ -46,9 +46,11 @@ extension InnoDIMigrator {
 
     func write(
         _ source: String,
+        replacing expectedSource: String,
         for change: MigrationFileChange,
-        to file: AnchoredMigrationFile
-    ) throws {
+        to file: AnchoredMigrationFile,
+        beforePublish: (() throws -> Void)? = nil
+    ) throws -> String {
         let data = try encodedData(source, for: change)
         let originalDescriptor = Darwin.openat(
             file.directoryDescriptor,
@@ -61,23 +63,28 @@ extension InnoDIMigrator {
                 reason: "Could not open the verified source before replacement: \(String(cString: strerror(errno)))."
             )
         }
+        defer { Darwin.close(originalDescriptor) }
         var originalStatus = stat()
-        guard Darwin.fstat(originalDescriptor, &originalStatus) == 0 else {
+        guard Darwin.fstat(originalDescriptor, &originalStatus) == 0,
+              originalStatus.st_mode & S_IFMT == S_IFREG else {
             let reason = String(cString: strerror(errno))
-            Darwin.close(originalDescriptor)
             throw MigrationError.cannotWrite(
                 path: change.path,
                 reason: "Could not inspect the verified source before replacement: \(reason)."
             )
         }
-        Darwin.close(originalDescriptor)
-
-        let temporaryName = ".innodi-migrate-\(UUID().uuidString)"
+        // After the exchange this name owns the displaced directory entry.
+        // Keep it even on success: a non-cooperating editor may still write
+        // through an already-open descriptor after our last content check.
+        let temporaryName = ".innodi-migrate-recovery-\(file.name)-\(UUID().uuidString)"
+        let recoveryPath = (change.path as NSString).deletingLastPathComponent
+        let relativeRecoveryPath = recoveryPath.isEmpty
+            ? temporaryName : "\(recoveryPath)/\(temporaryName)"
         let temporaryDescriptor = Darwin.openat(
             file.directoryDescriptor,
             temporaryName,
             O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
-            originalStatus.st_mode & 0o7777
+            0o600
         )
         guard temporaryDescriptor >= 0 else {
             throw MigrationError.cannotWrite(
@@ -100,6 +107,7 @@ extension InnoDIMigrator {
             var base = bytes.baseAddress
             while remaining > 0 {
                 let written = Darwin.write(temporaryDescriptor, base, remaining)
+                if written < 0, errno == EINTR { continue }
                 guard written > 0 else {
                     throw MigrationError.cannotWrite(
                         path: change.path,
@@ -110,30 +118,67 @@ extension InnoDIMigrator {
                 base = base?.advanced(by: written)
             }
         }
+        // open(O_CREAT, mode) is filtered by umask; restore the source mode
+        // explicitly after writing (which may itself clear special bits).
+        guard Darwin.fchmod(temporaryDescriptor, originalStatus.st_mode & 0o7777) == 0 else {
+            throw MigrationError.cannotWrite(
+                path: change.path,
+                reason: "Could not preserve the source permissions: \(String(cString: strerror(errno)))."
+            )
+        }
         guard Darwin.fsync(temporaryDescriptor) == 0 else {
             throw MigrationError.cannotWrite(
                 path: change.path,
                 reason: "Could not synchronize the anchored temporary file: \(String(cString: strerror(errno)))."
             )
         }
+        try beforePublish?()
         let renameResult = temporaryName.withCString { temporaryPointer in
             file.name.withCString { destinationPointer in
-                Darwin.renameat(
+                Darwin.renameatx_np(
                     file.directoryDescriptor,
                     temporaryPointer,
                     file.directoryDescriptor,
-                    destinationPointer
+                    destinationPointer,
+                    UInt32(RENAME_SWAP)
                 )
             }
         }
         guard renameResult == 0 else {
             throw MigrationError.cannotWrite(
                 path: change.path,
-                reason: "Could not replace the source in its anchored directory: \(String(cString: strerror(errno)))."
+                reason: "Could not atomically exchange the source in its anchored directory: \(String(cString: strerror(errno))). No overwrite fallback was attempted."
             )
         }
         shouldRemoveTemporary = false
-        _ = Darwin.fsync(file.directoryDescriptor)
+        do {
+            let displaced = AnchoredMigrationFile(
+                directoryDescriptor: file.directoryDescriptor,
+                name: temporaryName
+            )
+            var displacedStatus = stat()
+            guard Darwin.fstatat(file.directoryDescriptor, temporaryName, &displacedStatus, AT_SYMLINK_NOFOLLOW) == 0,
+                  displacedStatus.st_dev == originalStatus.st_dev,
+                  displacedStatus.st_ino == originalStatus.st_ino,
+                  try self.source(expectedSource, for: change, matchesContentsOf: displaced) else {
+                throw MigrationError.cannotWrite(
+                    path: change.path,
+                    reason: "Concurrent source replacement or edit detected during publication."
+                )
+            }
+            guard Darwin.fsync(file.directoryDescriptor) == 0 else {
+                throw MigrationError.cannotWrite(
+                    path: change.path,
+                    reason: "Could not synchronize the source directory: \(String(cString: strerror(errno)))."
+                )
+            }
+        } catch {
+            throw MigrationError.cannotWrite(
+                path: change.path,
+                reason: "\(migrationErrorDescription(error)) The displaced entry is preserved at \(relativeRecoveryPath). The source may contain migration output; review both paths. No automatic conflict overwrite was attempted."
+            )
+        }
+        return relativeRecoveryPath
     }
 
     func source(

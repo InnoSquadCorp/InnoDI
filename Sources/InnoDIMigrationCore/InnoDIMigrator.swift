@@ -118,7 +118,8 @@ public struct InnoDIMigrator {
     func run(
         root: URL,
         mode: MigrationMode,
-        beforeWritingChange: ((MigrationFileChange, Int) throws -> Void)?
+        beforeWritingChange: ((MigrationFileChange, Int) throws -> Void)?,
+        beforePublishingChange: ((MigrationFileChange, Bool) throws -> Void)? = nil
     ) throws -> MigrationPlan {
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
         let anchoredRoot = try AnchoredMigrationRoot(url: root)
@@ -157,6 +158,7 @@ public struct InnoDIMigrator {
         }
 
         var writtenChanges: [MigrationFileChange] = []
+        var recoveryPaths: [String] = []
         for (index, change) in plan.changes.enumerated() {
             do {
                 try beforeWritingChange?(change, index)
@@ -172,7 +174,13 @@ public struct InnoDIMigrator {
                         reason: "The source changed after write preflight; the remaining files were not written."
                     )
                 }
-                try write(change.migratedSource, for: change, to: file)
+                recoveryPaths.append(try write(
+                    change.migratedSource,
+                    replacing: change.originalSource,
+                    for: change,
+                    to: file,
+                    beforePublish: { try beforePublishingChange?(change, false) }
+                ))
                 writtenChanges.append(change)
             } catch {
                 var rollbackFailures: [String] = []
@@ -191,13 +199,15 @@ public struct InnoDIMigrator {
                             rollbackFailures.append(written.path)
                             continue
                         }
-                        try write(
+                        recoveryPaths.append(try write(
                             written.originalSource,
+                            replacing: written.migratedSource,
                             for: written,
-                            to: writtenFile
-                        )
+                            to: writtenFile,
+                            beforePublish: { try beforePublishingChange?(written, true) }
+                        ))
                     } catch {
-                        rollbackFailures.append(written.path)
+                        rollbackFailures.append("\(written.path): \(migrationErrorDescription(error))")
                     }
                 }
                 let rollbackNote = rollbackFailures.isEmpty
@@ -205,10 +215,15 @@ public struct InnoDIMigrator {
                     : "Rollback also failed for: \(rollbackFailures.joined(separator: ", "))."
                 throw MigrationError.cannotWrite(
                     path: change.path,
-                    reason: "\(migrationErrorDescription(error)) \(rollbackNote)"
+                    reason: "\(migrationErrorDescription(error)) \(rollbackNote) Retained recovery files: \(recoveryPaths.joined(separator: ", "))."
                 )
             }
         }
-        return plan
+        return MigrationPlan(
+            scannedFileCount: plan.scannedFileCount,
+            changes: plan.changes,
+            diagnostics: plan.diagnostics,
+            recoveryPaths: recoveryPaths
+        )
     }
 }

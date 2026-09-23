@@ -55,7 +55,7 @@ public struct DoctorGraphVerification: Codable, Equatable, Sendable {
 }
 
 public struct DoctorReport: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
 
     public let schemaVersion: Int
     public let root: String
@@ -64,6 +64,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     public let scannedSwiftFileCount: Int
     public let proposedChangePaths: [String]
     public let appliedChangePaths: [String]
+    public let recoveryPaths: [String]
     public let secondPassChangeCount: Int
     public let graphVerification: DoctorGraphVerification
     public let verification: DoctorVerification
@@ -196,9 +197,11 @@ public struct InnoDIDoctor: Sendable {
 
         let proposed = plan.changes.map(\.path).sorted()
         var applied: [String] = []
+        var recoveryPaths: [String] = []
         if apply, plan.canWrite {
-            _ = try InnoDIMigrator().run(root: canonicalRoot, mode: .write)
+            let appliedPlan = try InnoDIMigrator().run(root: canonicalRoot, mode: .write)
             applied = proposed
+            recoveryPaths = appliedPlan.recoveryPaths
         }
         let secondPass = try InnoDIMigrator().plan(root: canonicalRoot)
         let graphAfter = try? graphFingerprint(root: canonicalRoot)
@@ -248,6 +251,7 @@ public struct InnoDIDoctor: Sendable {
             scannedSwiftFileCount: plan.scannedFileCount,
             proposedChangePaths: proposed,
             appliedChangePaths: applied,
+            recoveryPaths: recoveryPaths,
             secondPassChangeCount: secondPass.changes.count,
             graphVerification: graphVerification,
             verification: verification

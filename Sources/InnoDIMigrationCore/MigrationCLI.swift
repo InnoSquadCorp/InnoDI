@@ -13,7 +13,7 @@ public enum MigrationCLI {
       --report       Emit a schema-v1 JSON migration report without source bodies
       --output <path>
                      Write the report atomically (default: stdout; use - for stdout)
-      --write        Apply all safe migrations after a full-tree preflight
+      --write        Apply migrations and retain displaced files for recovery
       --help, -h     Show this help
     """
 
@@ -63,6 +63,9 @@ public enum MigrationCLI {
             case .write:
                 for change in plan.changes {
                     print("MIGRATED \(change.path) [migrate.source-update]")
+                }
+                for path in plan.recoveryPaths {
+                    print("RECOVERY \(path) [migrate.preserved-source]")
                 }
                 print("Migrated \(plan.changes.count) file(s).")
                 return 0
