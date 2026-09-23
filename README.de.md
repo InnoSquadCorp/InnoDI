@@ -627,6 +627,15 @@ in Xcode weiterhin der schnellste Weg.
 
 Release- und Upgrade-Notizen stehen in [RELEASING.md](RELEASING.md).
 
+Fehlende oder fremde Referenzen, ungueltige Ownership und unvollstaendige
+Child-Bindings scheitern auch beim Self-Diff. Abfragen folgen den Parent-Bindings
+jedes Mounts; mehrere Mounts desselben Child-Typs bleiben getrennt.
+
+Migration bewahrt alte Dateien auch bei Erfolg unter `RECOVERY` auf. Editor
+schliessen, beide Dateien pruefen und erst dann unnoetige Kopien entfernen.
+POSIX-Modi bleiben erhalten, ACL/xattr sind nicht garantiert. Doctor schema v3
+enthaelt `recoveryPaths`.
+
 ## Collection Composition
 
 Die 6.0-Vertrage fur Collection Composition, Provider Collections und Key-Kollisionen sind im englischen README dokumentiert.

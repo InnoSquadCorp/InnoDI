@@ -653,6 +653,14 @@ Tools/generate-docc.sh
 
 Las notas de release y de upgrade viven en [RELEASING.md](RELEASING.md).
 
+Las referencias inexistentes o de otro container, la ownership invalida y los
+bindings incompletos se rechazan incluso en self-diff. Las consultas siguen los
+parent bindings de cada mount sin mezclar mounts del mismo tipo de child.
+
+La migracion conserva los archivos anteriores en `RECOVERY` incluso si termina
+bien. Cierra el editor y revisa ambos archivos antes de eliminar copias. Conserva
+los modos POSIX, sin garantizar ACL/xattr. Doctor schema v3 incluye `recoveryPaths`.
+
 ## Collection Composition
 
 Los contratos 6.0 de composition, provider collections y colisiones de claves se documentan en el README en ingles.

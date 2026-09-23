@@ -559,6 +559,14 @@ consumer 的常规 build cache 不会被修改。只检查一个声明时，Xcod
 
 发布说明与升级说明统一放在 [RELEASING.md](RELEASING.md)。
 
+缺失或跨 container 的引用、错误的 ownership 和不完整的 child binding，
+即使 self-diff 也会被拒绝。查询按各 mount 的 parent binding 追踪依赖，
+不会混合同一 child type 的不同 mount。
+
+迁移成功后也会在 `RECOVERY` 路径保留旧文件。关闭编辑器并检查两个文件后，
+再删除不需要的副本。保留 POSIX mode，但不保证 ACL/xattr。
+Doctor schema v3 包含 `recoveryPaths`。
+
 ## Collection Composition
 
 有关 6.0 collection composition、provider collection 与 keyed collision 契约，请参阅英文 README。

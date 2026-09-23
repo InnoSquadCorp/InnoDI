@@ -612,6 +612,14 @@ Tools/dump-macro-expansions.sh \
 
 Release notes и upgrade notes находятся в [RELEASING.md](RELEASING.md).
 
+Отсутствующие и чужие ссылки, неверная ownership и неполные child bindings
+отклоняются даже при self-diff. Запросы следуют parent bindings каждого mount,
+не смешивая несколько mounts одного child type.
+
+Миграция сохраняет старые файлы по путям `RECOVERY` даже при успехе. Закройте
+редактор и проверьте оба файла перед удалением ненужных копий. POSIX mode
+сохраняется, ACL/xattr не гарантируются. Doctor schema v3 содержит `recoveryPaths`.
+
 ## Collection Composition
 
 Контракты 6.0 для composition, provider collections и конфликтов ключей описаны в английском README.

@@ -598,6 +598,14 @@ InnoDI の checkout からスクリプトを実行し、`--package-path` を con
 
 リリースノートとアップグレードノートは [RELEASING.md](RELEASING.md) にあります。
 
+不明・別 container の参照、不正な ownership、不完全な child binding は
+self-diff でも拒否します。問い合わせは mount ごとの parent binding を辿り、
+同じ child type の複数 mount を混同しません。
+
+Migration は成功時も旧ファイルを `RECOVERY` パスに保持します。editor を
+閉じて両方を確認してから不要なコピーを削除してください。POSIX mode は維持
+しますが ACL/xattr は保証しません。Doctor schema v3 は `recoveryPaths` を含みます。
+
 ## Collection Composition
 
 6.0 の collection composition、provider collection、keyed collision contract の詳細は英語版 README を参照してください。

@@ -635,6 +635,10 @@ swift run InnoDI-DependencyGraph --diff before.json after.json --check-contract
 effect, canonical wiring, 명시적 collection 계약을 포함하며 source 줄/열
 이동만으로는 계약 변경이 되지 않습니다.
 이전 graph schema는 unchanged로 취급하지 않고 명시적으로 거부합니다.
+존재하지 않거나 다른 container에 속한 참조, 잘못된 child ownership,
+누락된 child input binding도 self-diff를 포함해 거부합니다.
+질의는 각 child mount·assisted factory의 parent binding을 따라가며,
+같은 child type을 여러 번 mount해도 연결을 합치지 않습니다.
 
 `--why App.AppContainer.client`처럼 provider selector도 `--why`와
 `--dependents`에서 사용할 수 있습니다. 결과는 provider 계약과 source 위치를
@@ -667,7 +671,10 @@ swift run InnoDI-Doctor --root . --json
 Swift package에서는 literal target source root와 plugin 배열을 parse하므로 주석,
 문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. Dynamic manifest와 Tuist
 target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. `--apply`는 migrator의
-atomic safety 검사를 사용합니다. SwiftPM `--verify`는 `swift build`를 실행하고,
+atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
+보존하므로 editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요.
+POSIX mode는 유지하지만 ACL/xattr 보존이나 파일시스템 전체 트랜잭션은 보장하지 않습니다.
+SwiftPM `--verify`는 `swift build`를 실행하고,
 Tuist 검증은 generate 후 `--scheme`과 `--destination`이 모두 명시된 경우에만 실제
 compile을 실행합니다. schema-v3 report는 migration 복구 경로와 generation/compilation의 exit, timeout,
 log tail을 분리해 generation만 성공한 상태를 build 성공으로 합산하지 않습니다.
