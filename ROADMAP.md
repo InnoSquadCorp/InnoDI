@@ -4,6 +4,15 @@ This document tracks the live roadmap after the 4.0.0 baseline, the 4.1.0
 release-hardening pass, and the 4.2.0 wiring/observability simplification
 release.
 
+## Current 6.0.0 candidate
+
+The [final-hardening plan](docs/plans/6.0.0-final-hardening.md) tracks the
+September 22 audit findings, the selected rejection of deferred ownership
+cycles, and new candidate-bound verification. Earlier shipped-version and
+T42 pass records below/elsewhere remain historical; they do not approve this
+candidate for release. Mulbyul is the only product-consumer verification in
+scope and its original working tree remains test-only and unchanged.
+
 ## Shipped in 4.0.0
 
 InnoDI 4.0.0 now treats the following capabilities as the stable baseline:

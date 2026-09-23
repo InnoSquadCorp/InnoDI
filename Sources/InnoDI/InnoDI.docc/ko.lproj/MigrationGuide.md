@@ -301,14 +301,23 @@ swift run InnoDI-Migrate --root . --check
 실행한 뒤 deterministic schema-v1 JSON inventory를 표준 출력 또는 `--output`으로
 지정한 경로에 atomic하게 기록합니다. 리포트에는 상대 경로, 안정적인 code, count,
 status, diagnostic message만 포함하며 원본 또는 변환된 source 본문은 포함하지
-않습니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 첫
-atomic file replacement 전에
-전체 source tree를 parse하고 preflight하며 기존 UTF-8 BOM을 보존합니다. 소유권이
-모호한 attribute, 지원하지 않는 legacy argument, parse error, source symlink,
-동시에 변경된 source를 만나면 exit code `2`로 fail-closed합니다. Preflight
-실패는 아무 파일도 쓰지 않습니다. Write 도중 감지한 변경이 있으면 tool 출력과
-여전히 정확히 일치하는 파일만 rollback하므로 감지된 외부 편집은 덮어쓰지
-않습니다. 소유권이 모호하면 먼저 attribute의 실제 owning module을 확인하세요.
+않습니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 먼저
+전체 source tree를 parse·preflight하고 UTF-8 BOM과 POSIX mode를 보존합니다.
+소유권이 모호한 attribute, 지원하지 않는 legacy argument, parse error,
+source symlink 등 preflight 실패는 파일을 쓰지 않습니다.
+
+게시 시 원본과 staged 파일을 atomic exchange하고 기존 파일을 같은 디렉터리의
+`.innodi-migrate-recovery-<name>-<UUID>` 경로에 남깁니다. 성공해도 `RECOVERY`
+파일을 삭제하지 않으므로 editor의 기존 FD를 통한 늦은 저장도 복구할 수 있습니다.
+editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요. 이 복구 파일은
+Swift 입력이나 다음 migration 대상이 아닙니다. 게시 중 충돌은 exit `2`와 복구
+경로를 보고하며, source에는 tool 출력이 남을 수 있습니다. 다른 저장을 덮어쓸
+수 있는 자동 복원은 하지 않습니다. 앞서 쓴 파일도 tool 출력과 일치할 때만 같은
+교환 절차로 rollback합니다. Atomic exchange 미지원 파일시스템은 덮어쓰기
+rename으로 대체하지 않고 실패합니다. ACL/xattr 보존이나 전체 파일시스템
+트랜잭션은 보장하지 않습니다. Doctor schema v3에는 `recoveryPaths`가 포함됩니다.
+
+소유권이 모호하면 먼저 attribute의 실제 owning module을 확인하세요.
 InnoDI 소유 선언이라면 `@InnoDI.DIContainer`와 `@InnoDI.Provide`, 또는
 `@InnoDI.SubContainer`와 `@InnoDISwiftUI.DIFeatureRoot`처럼 짝이 되는 macro
 전체를 module-qualified 형태로 바꾼 뒤 다시 실행하세요. Scanner는 `.build`,

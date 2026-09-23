@@ -43,6 +43,13 @@ declared lifetime. Explicit empty metadata is serialized as an empty contract;
 omitted metadata stays absent. Consumers must reject duplicate keys, gaps in
 order, missing or cross-container contributors, and stale lifetime copies.
 
+Canonical provider adjacency also includes parent IDs from fixed-child and
+assisted-factory bindings. Bindings belong to each mount, not globally to the
+child type. Queries and cycle validation share this adjacency. JSON loading
+checks factory targets, mount ownership, parent/child container identity, and
+complete ordinary child input coverage before comparing contracts; an invalid
+document does not become valid by comparing it with itself.
+
 ## Building an adjacency list for cycle detection
 
 `buildCycleDetectionAdjacency(nodes:edges:)` returns a dictionary

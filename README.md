@@ -719,7 +719,7 @@ files at reported `RECOVERY` paths; review those files after closing editors
 before removing them. Doctor schema v3 includes `recoveryPaths`.
 SwiftPM `--verify` runs `swift build`; Tuist
 verification first runs generation and only runs compilation when `--scheme`
-and `--destination` are explicit. Schema-v2 reports keep generation and
+and `--destination` are explicit. Schema-v3 reports keep generation and
 compilation exit, timeout, and log-tail evidence separate, so generation alone
 is never a successful build.
 
