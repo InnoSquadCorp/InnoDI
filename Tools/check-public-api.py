@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -87,6 +87,8 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
         "precise": symbol["identifier"]["precise"],
         "interfaceLanguage": symbol["identifier"]["interfaceLanguage"],
     }
+    if "functionSignature" in symbol:
+        normalized["parameterDefaults"] = parameter_defaults(symbol)
     if "swiftGenerics" in normalized:
         normalized["swiftGenerics"] = normalize_generic_context(
             normalized["swiftGenerics"]
@@ -96,6 +98,39 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
             normalized["swiftExtension"]
         )
     return normalized
+
+
+def parameter_defaults(symbol: dict[str, Any]) -> list[bool]:
+    """Keep call-site optionality, not toolchain-rendered declaration text.
+
+    Swift's parameter signature omits defaults, but its full declaration marks
+    each external parameter and includes the default assignment in text fragments.
+    Types cannot contain a single assignment; generic same-type constraints use
+    ==. Default expressions (including closures/strings with commas or equals)
+    need not be parsed or retained to detect removal of a default.
+    """
+    parameters = symbol["functionSignature"].get("parameters", [])
+    groups: list[list[str]] = []
+    previous_kind = None
+    for fragment in symbol.get("declarationFragments", []):
+        # Subscripts without external labels emit only internalParam. A named
+        # argument's internalParam immediately follows its externalParam and
+        # belongs to the same group.
+        if fragment["kind"] == "externalParam" or (
+            fragment["kind"] == "internalParam" and previous_kind != "externalParam"
+        ):
+            groups.append([])
+        elif groups and fragment["kind"] == "text":
+            groups[-1].append(fragment["spelling"])
+        if fragment["spelling"].strip():
+            previous_kind = fragment["kind"]
+    if len(groups) != len(parameters):
+        raise ValueError(
+            "Cannot recover default-argument contract for "
+            + symbol["identifier"]["precise"]
+            + ": " + repr(symbol.get("declarationFragments"))
+        )
+    return [bool(re.search(r"(?<![=<>!])=(?!=)", "".join(group))) for group in groups]
 
 
 def normalize_generic_context(context: dict[str, Any]) -> dict[str, Any]:

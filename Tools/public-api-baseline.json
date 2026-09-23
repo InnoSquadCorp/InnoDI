@@ -1448,6 +1448,9 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            true
+          ],
           "pathComponents": [
             "DIContainer(validateDAG:)"
           ]
@@ -1515,6 +1518,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DITraceSink",
             "record(_:)"
@@ -1570,6 +1576,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "FeatureRoot",
             "init(_:as:)"
@@ -1614,6 +1624,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIAsyncScope",
             "init(providerID:operation:)"
@@ -1659,6 +1673,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "resetForSubgraphRetry()"
@@ -1690,6 +1705,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "close()"
@@ -1721,6 +1737,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "retry()"
@@ -1752,6 +1769,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "value()"
@@ -1783,6 +1801,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "status()"
@@ -1814,6 +1833,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "prepare()"
@@ -1917,6 +1937,17 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
           "pathComponents": [
             "DITraceEvent",
             "init(providerID:instanceID:kind:ownerID:generation:origin:relatedProviderID:relatedInstanceID:uptimeNanoseconds:)"
@@ -2237,6 +2268,7 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "GenerateMock()"
           ]
@@ -2250,6 +2282,9 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "Multibinding(_:)"
           ]
@@ -2263,6 +2298,13 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            true,
+            true,
+            true,
+            true
+          ],
           "pathComponents": [
             "SubContainer(scope:with:bindings:featureRoot:featureRoots:)"
           ]
@@ -2371,6 +2413,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "withResolution(providerID:_:)"
@@ -2394,6 +2440,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "withResolution(providerID:_:)"
@@ -2417,6 +2467,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "emit(_:)"
@@ -2431,6 +2484,11 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            true,
+            true
+          ],
           "pathComponents": [
             "DITraceContext",
             "init(sink:targetIDsByModule:generation:)"
@@ -2445,6 +2503,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "start(providerID:)"
@@ -2459,6 +2520,11 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "record(_:providerID:instanceID:)"
@@ -2501,6 +2567,11 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "AssistedFactory(_:static:assisted:)"
           ]
@@ -2514,6 +2585,11 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            true,
+            true
+          ],
           "pathComponents": [
             "DIContainerRole(role:mainActor:validateDAG:)"
           ]
@@ -2554,6 +2630,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "resetForSubgraphRetry()"
@@ -2568,6 +2645,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "close()"
@@ -2582,6 +2660,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "retry()"
@@ -2596,6 +2675,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "status()"
@@ -2610,6 +2690,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "prepare()"
@@ -2624,6 +2705,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "resetForSubgraphRetry()"
@@ -2838,6 +2920,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionGroup",
             "compose(_:)"
@@ -2875,6 +2960,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionGroup",
             "init(_:)"
@@ -2898,6 +2986,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionGroup",
             "subscript(_:)"
@@ -2976,6 +3067,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "subscript(key:)"
@@ -3060,6 +3154,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "Entry",
@@ -3189,6 +3287,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "compose(_:)"
@@ -3245,6 +3346,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "subscript(_:)"
@@ -3287,6 +3391,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "init(_:)"
@@ -3370,6 +3477,10 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "SubContainerFactory(_:bindings:)"
           ]
@@ -3396,6 +3507,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIBoundedTraceBuffer",
             "record(_:)"
@@ -3454,6 +3568,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIBoundedTraceBuffer",
             "init(capacity:)"
@@ -3468,6 +3585,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIBoundedTraceBuffer",
             "snapshot()"
@@ -3509,6 +3627,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionMetadata",
             "keyedProviders(_:)"
@@ -3625,6 +3746,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionMetadata",
             "keyed(_:)"
@@ -3639,6 +3763,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionMetadata",
             "ordered(_:)"
@@ -3653,6 +3780,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionMetadata",
             "providers(_:)"
@@ -3740,6 +3870,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIProviderCollection",
             "compose(_:)"
@@ -3800,6 +3933,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIProviderCollection",
             "init(_:)"
@@ -3823,6 +3959,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIProviderCollection",
             "subscript(_:)"
@@ -3873,6 +4012,12 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIAsyncProviderStatus",
             "init(providerID:generation:state:errorDescription:)"
@@ -4073,6 +4218,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIAsyncPreparationNode",
             "init(provider:dependencies:)"
@@ -4114,6 +4263,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "close(_:)"
@@ -4128,6 +4280,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "init(nodes:)"
@@ -4142,6 +4297,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "retry(_:)"
@@ -4156,6 +4314,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "prepare(_:)"
@@ -4183,6 +4344,12 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIAsyncPreparationEntry",
             "init(providerID:status:disposition:blockingDependencies:)"
@@ -4370,6 +4537,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationReport",
             "init(selectedProviderIDs:entries:)"
@@ -4481,6 +4652,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "subscript(key:)"
@@ -4565,6 +4739,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "Entry",
@@ -4608,6 +4783,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "Entry",
@@ -4722,6 +4901,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "compose(_:)"
@@ -4778,6 +4960,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "subscript(_:)"
@@ -4820,6 +5005,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "init(_:)"
@@ -5027,6 +5215,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIProviderEffectRequirement",
             "init(providerName:effect:)"
@@ -5096,6 +5288,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollectionContribution",
             "init(key:contributor:)"
@@ -5160,6 +5356,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollectionDuplicateError",
             "init(key:)"
@@ -5274,6 +5473,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "Lazy",
             "callAsFunction()"
@@ -5297,6 +5497,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "Lazy",
             "init(_:)"
@@ -5320,6 +5523,10 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            true,
+            true
+          ],
           "pathComponents": [
             "Input(_:escaping:)"
           ]
@@ -5374,6 +5581,16 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
           "pathComponents": [
             "Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)"
           ]
@@ -5409,6 +5626,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "Provider",
             "callAsFunction()"
@@ -5432,6 +5650,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "Provider",
             "init(_:)"
@@ -5836,6 +6057,14 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "DIContainerHost",
             "init(identity:factory:close:content:loading:failure:)"
@@ -5911,6 +6140,9 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIEnvironmentBridge(_:)"
           ]
@@ -6007,6 +6239,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostOwner",
             "close()"
@@ -6063,6 +6296,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostOwner",
             "retry()"
@@ -6105,6 +6339,11 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIContainerHostOwner",
             "start(identity:factory:close:)"
@@ -6189,6 +6428,7 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostOwner",
             "init()"
@@ -6328,6 +6568,10 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "PreviewWithContainer(_:_:)"
           ],
@@ -6368,6 +6612,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostHandle",
             "close()"
@@ -6382,6 +6627,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostHandle",
             "retry()"
@@ -6441,6 +6687,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "View",
             "innodiServices(from:)"
@@ -6476,6 +6725,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "View",
             "innodi(_:)"
@@ -6971,6 +7223,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "callAsFunction(_:)"
@@ -6994,6 +7249,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "init(name:apply:)"
@@ -7031,6 +7290,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "apply(to:)"
@@ -7054,6 +7316,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "combined(with:name:)"
@@ -7077,6 +7343,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "validated(base:profile:)"
@@ -7120,6 +7390,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "validated(base:profile:)"
@@ -7176,6 +7450,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIStubValidation",
             "requireAllStubbed(_:)"
@@ -7217,6 +7494,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIMissingStubError",
             "init(selectors:)"
@@ -7286,6 +7566,11 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "DIInteractionReport",
             "init(missingStubSelectors:missingCallCounts:unexpectedCallCounts:)"
@@ -7369,6 +7654,11 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DITestEffectProfile",
             "init(unexpectedCall:missingStub:missingEffectOverride:)"
@@ -7455,6 +7745,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentValueBox",
             "update(_:)"
@@ -7497,6 +7790,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentValueBox",
             "replace(with:)"
@@ -7528,6 +7824,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentValueBox",
             "snapshot()"
@@ -7559,6 +7856,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentValueBox",
             "init(_:)"
@@ -7603,6 +7903,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentMockState",
             "withCriticalRegion(_:)"
@@ -7634,6 +7937,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentMockState",
             "reset(_:)"
@@ -7665,6 +7971,7 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentMockState",
             "init()"
@@ -7706,6 +8013,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIOverrideEffectReport",
             "init(missing:)"
@@ -7788,6 +8098,12 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            true,
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIInteractionValidation",
             "validate(missingStubSelectors:recordedCallCounts:expectedCallCounts:profile:)"
@@ -7878,6 +8194,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "Entry",
@@ -7939,6 +8259,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "reset()"
@@ -7970,6 +8291,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "record(_:)"
@@ -8001,6 +8325,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "snapshot()"
@@ -8032,6 +8357,7 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "init()"
@@ -8076,6 +8402,10 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIOverrideEffectValidation",
             "validate(_:profile:)"
@@ -8107,6 +8437,10 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIOverrideEffectValidation",
             "validate(_:profile:)"
@@ -8179,6 +8513,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIInteractionViolationError",
             "init(report:)"
@@ -8234,6 +8571,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIMissingEffectOverrideError",
             "init(report:)"
@@ -8275,6 +8615,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIInteractionConfigurationError",
             "init(selector:)"
@@ -8297,5 +8640,5 @@
       ]
     }
   ],
-  "schemaVersion": 3
+  "schemaVersion": 4
 }
