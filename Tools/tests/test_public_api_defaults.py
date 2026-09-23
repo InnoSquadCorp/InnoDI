@@ -59,6 +59,26 @@ class PublicAPIDefaultTests(unittest.TestCase):
             self.assertNotEqual(GATE.normalize_symbol(old), GATE.normalize_symbol(new))
             self.assertEqual(GATE.parameter_defaults(old), [True])
             self.assertEqual(GATE.parameter_defaults(new), [False])
+            # Macro symbol graphs before Swift 6.4 can omit functionSignature.
+            # Use compiler-produced declaration fragments to ensure the schema
+            # variation never drops or invents default-argument metadata.
+            for declaration in (old, new):
+                macro = copy.deepcopy(declaration)
+                macro["kind"]["identifier"] = "swift.macro"
+                legacy = copy.deepcopy(macro)
+                del legacy["functionSignature"]
+                self.assertEqual(GATE.normalize_symbol(macro), GATE.normalize_symbol(legacy))
+            empty_macro = copy.deepcopy(old)
+            empty_macro["kind"]["identifier"] = "swift.macro"
+            empty_macro["functionSignature"]["parameters"] = []
+            empty_macro["declarationFragments"] = [
+                {"kind": "keyword", "spelling": "macro"},
+                {"kind": "identifier", "spelling": "Probe"},
+                {"kind": "text", "spelling": "()"},
+            ]
+            legacy_empty = copy.deepcopy(empty_macro)
+            del legacy_empty["functionSignature"]
+            self.assertEqual(GATE.normalize_symbol(empty_macro), GATE.normalize_symbol(legacy_empty))
             for name, expected in {
                 "init(value:)": [True], "subscript(_:)": [True],
                 "tuple(_:build:)": [True, True], "generic(_:list:)": [False, True],

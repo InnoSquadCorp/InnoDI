@@ -15,6 +15,7 @@ def valid_report():
     observations = [
         {"round": r, "start": 1000 * r + 200, "end": 1000 * r + 600,
          "retainedEventCount": 4096,
+         "observedEmittedEventCount": (5000 * r // 64) * 8,
          "writers": [{"writer": w, "start": 1000 * r + 100,
                       "end": 1000 * r + 700} for w in range(4)]}
         for r in range(64)
@@ -29,8 +30,8 @@ def valid_report():
             "recordedEventCount": 40000, "disabledNetNanosecondsPerResolution": 1,
             "enabledNanosecondsPerEvent": 1,
             "saturatedMeasurements": [
-                {"capacity": c, "emittedEventCount": c + 40000, "retainedEventCount": c,
-                 "droppedEventCount": 40000, "nanosecondsPerEvent": 1,
+                {"capacity": c, "emittedEventCount": 2 * c + 40000, "retainedEventCount": c,
+                 "droppedEventCount": c + 40000, "nanosecondsPerEvent": 1,
                  "snapshotNanosecondsPerRetainedEvent": 1} for c in [64, 4096, 65536]],
             "contentionMeasurements": [copy.deepcopy(sample) for _ in range(5)]}
 
@@ -62,7 +63,8 @@ class TraceReportGateTests(unittest.TestCase):
 
     def test_invalid_workloads(self):
         for mutation in ["empty", "tail", "unpaced", "missing", "prefill", "accounting",
-                         "writer", "count", "timing", "nan", "boolean", "schema"]:
+                         "writer", "count", "timing", "nan", "boolean", "schema",
+                         "early-progress", "late-progress", "missing-progress", "saturated-boolean"]:
             with self.subTest(mutation=mutation):
                 report = valid_report()
                 sample = report["contentionMeasurements"][0]
@@ -82,6 +84,10 @@ class TraceReportGateTests(unittest.TestCase):
                 if mutation == "nan": report["enabledNanosecondsPerEvent"] = float("nan")
                 if mutation == "boolean": report["disabledNetNanosecondsPerResolution"] = True
                 if mutation == "schema": report["schemaVersion"] = 1
+                if mutation == "early-progress": observations[-1]["observedEmittedEventCount"] = 0
+                if mutation == "late-progress": observations[0]["observedEmittedEventCount"] = 40000
+                if mutation == "missing-progress": del observations[0]["observedEmittedEventCount"]
+                if mutation == "saturated-boolean": report["saturatedMeasurements"][0]["nanosecondsPerEvent"] = True
                 self.check(report)
 
     def test_every_budget(self):

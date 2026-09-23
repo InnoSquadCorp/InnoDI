@@ -87,7 +87,9 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
         "precise": symbol["identifier"]["precise"],
         "interfaceLanguage": symbol["identifier"]["interfaceLanguage"],
     }
-    if "functionSignature" in symbol:
+    # Older symbol-graph emitters omit functionSignature for macros, including
+    # parameterless ones. Their declaration fragments still carry defaults.
+    if "functionSignature" in symbol or symbol["kind"]["identifier"] == "swift.macro":
         normalized["parameterDefaults"] = parameter_defaults(symbol)
     if "swiftGenerics" in normalized:
         normalized["swiftGenerics"] = normalize_generic_context(
@@ -109,10 +111,14 @@ def parameter_defaults(symbol: dict[str, Any]) -> list[bool]:
     ==. Default expressions (including closures/strings with commas or equals)
     need not be parsed or retained to detect removal of a default.
     """
-    parameters = symbol["functionSignature"].get("parameters", [])
+    signature = symbol.get("functionSignature")
+    parameters = signature.get("parameters", []) if signature is not None else None
+    fragments = symbol.get("declarationFragments")
+    if not isinstance(fragments, list) or not fragments:
+        raise ValueError("Missing declaration fragments for " + symbol["identifier"]["precise"])
     groups: list[list[str]] = []
     previous_kind = None
-    for fragment in symbol.get("declarationFragments", []):
+    for fragment in fragments:
         # Subscripts without external labels emit only internalParam. A named
         # argument's internalParam immediately follows its externalParam and
         # belongs to the same group.
@@ -124,7 +130,7 @@ def parameter_defaults(symbol: dict[str, Any]) -> list[bool]:
             groups[-1].append(fragment["spelling"])
         if fragment["spelling"].strip():
             previous_kind = fragment["kind"]
-    if len(groups) != len(parameters):
+    if parameters is not None and len(groups) != len(parameters):
         raise ValueError(
             "Cannot recover default-argument contract for "
             + symbol["identifier"]["precise"]
@@ -267,6 +273,11 @@ def summarize_difference(baseline: dict[str, Any], current: dict[str, Any]) -> N
             ):
                 for identifier in identifiers:
                     print(f"  {label}: {identifier}", file=sys.stderr)
+                    if label == "changed":
+                        old, new = old_symbols[identifier], new_symbols[identifier]
+                        for key in sorted(old.keys() | new.keys()):
+                            if old.get(key) != new.get(key):
+                                print(f"    {key}: {old.get(key)!r} -> {new.get(key)!r}", file=sys.stderr)
 
         if old_graph["relationships"] != new_graph["relationships"]:
             print(f"[{graph_name}] relationships changed", file=sys.stderr)

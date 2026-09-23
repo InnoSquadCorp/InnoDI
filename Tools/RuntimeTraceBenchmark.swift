@@ -19,7 +19,7 @@ private func disabledResolution(
 private final class WriterTimingBox: @unchecked Sendable {
     private let lock = NSLock()
     private var intervals: [Int: [Int: (UInt64, UInt64)]] = [:]
-    private var snapshots: [Int: (UInt64, UInt64, Int)] = [:]
+    private var snapshots: [Int: (UInt64, UInt64, Int, Int)] = [:]
 
     func record(writer: Int, round: Int, start: UInt64, end: UInt64) {
         lock.lock()
@@ -27,9 +27,9 @@ private final class WriterTimingBox: @unchecked Sendable {
         lock.unlock()
     }
 
-    func recordSnapshot(round: Int, start: UInt64, end: UInt64, retained: Int) {
+    func recordSnapshot(round: Int, start: UInt64, end: UInt64, retained: Int, emitted: Int) {
         lock.lock()
-        snapshots[round] = (start, end, retained)
+        snapshots[round] = (start, end, retained, emitted)
         lock.unlock()
     }
 
@@ -51,7 +51,8 @@ private final class WriterTimingBox: @unchecked Sendable {
                 return ["writer": writer, "start": interval.0, "end": interval.1]
             }
             return ["round": round, "start": snapshot.0, "end": snapshot.1,
-                    "retainedEventCount": snapshot.2, "writers": writers]
+                    "retainedEventCount": snapshot.2, "observedEmittedEventCount": snapshot.3,
+                    "writers": writers]
         }
     }
 }
@@ -201,7 +202,8 @@ private enum RuntimeTraceBenchmark {
                             let end = DispatchTime.now().uptimeNanoseconds
                             writerTimings.recordSnapshot(
                                 round: round, start: start, end: end,
-                                retained: snapshot.events.count
+                                retained: snapshot.events.count,
+                                emitted: snapshot.events.count + snapshot.droppedEventCount - contentionCapacity
                             )
                         } else {
                             let writerMember = "writer\(worker)"

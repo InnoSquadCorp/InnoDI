@@ -27,6 +27,8 @@ import json, math, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 if data.get("schemaVersion") != 1:
     raise SystemExit("runtime trace budget schemaVersion must equal 1")
+if any(type(data.get(key)) is not int or data[key] <= 0 for key in ("iterations", "enabledIterations")):
+    raise SystemExit("runtime trace budget iterations must be positive integers")
 values = [
     data.get("iterations"),
     data.get("enabledIterations"),
