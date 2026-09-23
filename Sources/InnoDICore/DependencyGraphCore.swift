@@ -46,6 +46,19 @@ package struct DependencyGraphProvider: Hashable, Sendable {
     package let collection: CollectionContract?
     package let source: SourceLocation
 
+    /// Direct dependencies of this provider instance. Child inputs belong to
+    /// a type-level declaration and may be mounted more than once; connect a
+    /// mount to its own parent bindings, never all mounts through that input.
+    package var canonicalDependencyIDs: [String] {
+        let factoryIDs = dependencyBindings.isEmpty
+            ? dependencies.map { "\(containerID).\($0)" }
+            : dependencyBindings.map(\.providerID)
+        let candidates = factoryIDs + containerBindings.map(\.parentProviderID)
+            + (collection?.entries.map(\.providerID) ?? [])
+        var seen: Set<String> = []
+        return candidates.filter { seen.insert($0).inserted }
+    }
+
     package init(
         id: String,
         containerID: String,

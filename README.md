@@ -674,11 +674,15 @@ edge contract changed, so CI can require an explicitly reviewed graph snapshot
 update. Schema v6 provider records include type, lifetime, initialization,
 isolation, effect, canonical wiring, and explicit collection contracts; source
 line/column movement alone is not a contract change. Older graph schemas are
-rejected rather than treated as unchanged.
+rejected rather than treated as unchanged. Missing or foreign provider references,
+invalid child ownership, and incomplete child input bindings also fail validation,
+even when a graph is compared with itself.
 
 Provider selectors are accepted by `--why` and `--dependents`, for example
 `--why App.AppContainer.client`. Results include provider contracts and source
-locations. Unqualified selectors are resolved against both container and
+locations. Parent dependencies include fixed child and assisted-factory input
+bindings on each mount; multiple mounts of the same child remain independent.
+Unqualified selectors are resolved against both container and
 provider namespaces. A collision fails with both candidate lists; use
 `container:<selector>` or `provider:<selector>` to choose explicitly. Exact
 graph IDs retain their direct lookup behavior. Runtime cache/override/async
