@@ -333,6 +333,20 @@ jobs:
       - name: Enforce macro performance baseline
         run: Tools/measure-macro-performance.sh --enforce
 
+      - name: Enforce candidate runtime trace performance
+        env:
+          INNODI_RUNTIME_TRACE_EXPECTED_SHA: ${{ inputs.commit_sha }}
+          INNODI_RUNTIME_TRACE_REPORT: build/release-runtime-trace-performance-report.json
+        run: Tools/measure-runtime-trace-performance.sh
+
+      - name: Upload runtime trace diagnostics
+        if: ${{ always() && hashFiles('build/release-runtime-trace-performance-report.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-runtime-trace-${{ inputs.commit_sha }}
+          path: build/release-runtime-trace-performance-report.json
+          if-no-files-found: error
+
       - name: Generate release artifacts
         env:
           VERSION: ${{ inputs.version }}

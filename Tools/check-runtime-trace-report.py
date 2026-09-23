@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Fail closed on workload evidence before applying unchanged trace budgets."""
 
-import json, math, sys
+import json, math, re, sys
 report = json.load(open(sys.argv[1], encoding="utf-8"))
+if not re.fullmatch(r"[0-9a-f]{40}", report.get("candidateSHA", "")):
+    raise SystemExit("runtime trace report needs its exact candidate SHA")
+if type(report.get("sourceTreeClean")) is not bool or not report.get("compilerVersion"):
+    raise SystemExit("runtime trace report needs source cleanliness and compiler provenance")
+expected_sha = sys.argv[7] if len(sys.argv) > 7 else ""
+if expected_sha and (report["candidateSHA"] != expected_sha or not report["sourceTreeClean"]):
+    raise SystemExit("runtime trace report is not from the clean exact release candidate")
 for key in ("iterations", "enabledIterations"):
     if type(report.get(key)) is not int or report[key] <= 0:
         raise SystemExit("runtime trace iterations must be positive integers")

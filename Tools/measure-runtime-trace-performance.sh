@@ -4,6 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+CANDIDATE_SHA="$(git rev-parse HEAD)"
+EXPECTED_SHA="${INNODI_RUNTIME_TRACE_EXPECTED_SHA:-}"
+SOURCE_TREE_CLEAN=false
+if [[ -z "$(git status --porcelain --untracked-files=all)" ]]; then
+  SOURCE_TREE_CLEAN=true
+fi
+if [[ -n "$EXPECTED_SHA" ]] && { [[ "$EXPECTED_SHA" != "$CANDIDATE_SHA" ]] || [[ "$SOURCE_TREE_CLEAN" != true ]]; }; then
+  echo "runtime trace requires a clean checkout of the exact candidate SHA" >&2
+  exit 1
+fi
+COMPILER_VERSION="$(swiftc --version)"
+
 BUDGET_FILE="${INNODI_RUNTIME_TRACE_BUDGET:-Tools/runtime-trace-performance-budget.json}"
 OUTPUT_FILE="${INNODI_RUNTIME_TRACE_REPORT:-build/runtime-trace-performance-report.json}"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/innodi-runtime-trace.XXXXXX")"
@@ -40,7 +52,15 @@ mkdir -p "$(dirname "$OUTPUT_FILE")"
 "$TEMP_DIR/runtime-trace-benchmark" \
   --iterations "$ITERATIONS" \
   --enabled-iterations "$ENABLED_ITERATIONS" \
+  --candidate-sha "$CANDIDATE_SHA" \
+  --source-tree-clean "$SOURCE_TREE_CLEAN" \
+  --compiler-version "$COMPILER_VERSION" \
   > "$OUTPUT_FILE"
+
+if [[ -n "$EXPECTED_SHA" ]] && { [[ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]] || [[ -n "$(git status --porcelain --untracked-files=all)" ]]; }; then
+  echo "runtime trace candidate changed while measuring" >&2
+  exit 1
+fi
 
 python3 Tools/check-runtime-trace-report.py \
   "$OUTPUT_FILE" \
@@ -48,4 +68,5 @@ python3 Tools/check-runtime-trace-report.py \
   "$ENABLED_BUDGET" \
   "$SATURATED_BUDGET" \
   "$SNAPSHOT_BUDGET" \
-  "$CONTENDED_BUDGET"
+  "$CONTENDED_BUDGET" \
+  "$EXPECTED_SHA"

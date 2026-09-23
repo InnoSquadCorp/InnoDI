@@ -245,6 +245,9 @@ private enum RuntimeTraceBenchmark {
             ? disabledElapsed - controlElapsed : 0
         let report: [String: Any] = [
             "schemaVersion": 2,
+            "candidateSHA": argument("--candidate-sha", in: arguments) ?? "",
+            "sourceTreeClean": argument("--source-tree-clean", in: arguments) == "true",
+            "compilerVersion": argument("--compiler-version", in: arguments) ?? "",
             "iterations": iterations,
             "enabledIterations": enabledIterations,
             "disabledNetNanosecondsPerResolution":
