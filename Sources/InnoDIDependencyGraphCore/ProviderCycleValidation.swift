@@ -8,14 +8,7 @@ package func providerCycleFailure(
     let knownIDs = Set(providers.map(\.id))
     var adjacency: [String: [String]] = [:]
     for provider in providers {
-        let dependencies = provider.dependencyBindings.isEmpty
-            ? provider.dependencies.map { "\(provider.containerID).\($0)" }
-            : provider.dependencyBindings.map(\.providerID)
-        // A mounted child depends on its parent bindings, not on every other
-        // mount of the same child type. Do not conflate child input instances.
-        let boundParents = provider.containerBindings.map(\.parentProviderID)
-        let contributors = provider.collection?.entries.map(\.providerID) ?? []
-        adjacency[provider.id] = Array(Set(dependencies + boundParents + contributors))
+        adjacency[provider.id] = provider.canonicalDependencyIDs
             .filter { knownIDs.contains($0) }.sorted()
     }
     let result = analyzeDependencyCycles(adjacency: adjacency)

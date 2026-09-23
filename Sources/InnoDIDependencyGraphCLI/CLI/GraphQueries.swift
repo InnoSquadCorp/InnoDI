@@ -262,10 +262,7 @@ private func renderProviderDependents(
 private func canonicalDependencyIDs(
     for provider: DependencyGraphProvider
 ) -> [String] {
-    if !provider.dependencyBindings.isEmpty {
-        return provider.dependencyBindings.map(\.providerID)
-    }
-    return provider.dependencies.map { "\(provider.containerID).\($0)" }
+    provider.canonicalDependencyIDs
 }
 
 func loadGraphJSONDocument(at path: String) throws -> GraphJSON.Document {
@@ -320,6 +317,7 @@ private func validateGraphJSONDocument(
     let providersByID = Dictionary(
         uniqueKeysWithValues: document.providers.map { ($0.id, $0) }
     )
+    try validateGraphBindingReferences(document, providersByID: providersByID, path: path)
     for provider in document.providers {
         guard validNodeIDs.contains(provider.containerID) else {
             throw GraphInspectionError.invalidDocument(

@@ -287,7 +287,10 @@ standalone release assets.
   provider namespaces together. Cross-namespace collisions list both candidate
   sets and require `container:` or `provider:`; exact graph IDs remain stable,
   and provider dependents follow canonical binding IDs rather than parameter
-  labels.
+  labels. Fixed-child and assisted-factory queries also follow canonical parent
+  input bindings per mount. JSON validation rejects dangling/foreign references,
+  invalid ownership, and incomplete ordinary child input coverage before diffing,
+  including identical invalid inputs.
 - Connected generated providers to opt-in runtime tracing. Container,
   component, override, on-demand, transient, and async paths now carry the
   canonical schema-v6 provider identity, container owner, and generation;
