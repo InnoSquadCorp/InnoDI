@@ -27,7 +27,7 @@ struct RuntimeTracePerformanceScriptTests {
     func scriptCoverage() throws {
         let script = try String(
             contentsOf: packageRootURL().appendingPathComponent(
-                "Tools/measure-runtime-trace-performance.sh"
+                "Tools/check-runtime-trace-report.py"
             ),
             encoding: .utf8
         )
@@ -55,12 +55,25 @@ struct RuntimeTracePerformanceScriptTests {
         #expect(source.contains("_InnoDITraceOwner("))
         #expect(source.contains("owner.start(member:"))
         #expect(source.contains("owner.finish(.success"))
-        #expect(source.contains("DispatchQueue.concurrentPerform"))
+        #expect(source.contains("Thread.detachNewThread"))
+        #expect(source.contains("barrier.wait()"))
+        #expect(source.contains("recordSnapshot("))
         #expect(source.contains("saturatedMeasurements"))
         #expect(source.contains("contentionSampleCount = 5"))
         #expect(source.contains("snapshotCount = 64"))
         #expect(source.contains("contentionMeasurements"))
         #expect(source.contains("WriterTimingBox"))
         #expect(source.contains("wallNanosecondsPerEvent"))
+    }
+
+    @Test("Report gate rejects empty, tail-only, unpaced, and over-budget fixtures")
+    func executableReportGate() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "Tools/tests/test_runtime_trace_report.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
     }
 }

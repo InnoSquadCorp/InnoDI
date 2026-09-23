@@ -18,18 +18,66 @@ private func disabledResolution(
 
 private final class WriterTimingBox: @unchecked Sendable {
     private let lock = NSLock()
-    private var elapsedNanoseconds: [UInt64] = []
+    private var intervals: [Int: [Int: (UInt64, UInt64)]] = [:]
+    private var snapshots: [Int: (UInt64, UInt64, Int)] = [:]
 
-    func record(_ elapsed: UInt64) {
+    func record(writer: Int, round: Int, start: UInt64, end: UInt64) {
         lock.lock()
-        elapsedNanoseconds.append(elapsed)
+        intervals[writer, default: [:]][round] = (start, end)
+        lock.unlock()
+    }
+
+    func recordSnapshot(round: Int, start: UInt64, end: UInt64, retained: Int) {
+        lock.lock()
+        snapshots[round] = (start, end, retained)
         lock.unlock()
     }
 
     var maximumElapsedNanoseconds: UInt64 {
         lock.lock()
         defer { lock.unlock() }
-        return elapsedNanoseconds.max() ?? 0
+        return intervals.values.map { rounds in
+            rounds.values.reduce(UInt64(0)) { $0 + $1.1 - $1.0 }
+        }.max() ?? 0
+    }
+
+    var observations: [[String: Any]] {
+        lock.lock()
+        defer { lock.unlock() }
+        return snapshots.keys.sorted().map { round in
+            let snapshot = snapshots[round]!
+            let writers = intervals.keys.sorted().compactMap { writer -> [String: Any]? in
+                guard let interval = intervals[writer]?[round] else { return nil }
+                return ["writer": writer, "start": interval.0, "end": interval.1]
+            }
+            return ["round": round, "start": snapshot.0, "end": snapshot.1,
+                    "retainedEventCount": snapshot.2, "writers": writers]
+        }
+    }
+}
+
+/// Dedicated benchmark threads rendezvous outside measured writer intervals.
+/// Each round observes a full ring during a distinct 1/64 slice of the writes.
+private final class RoundBarrier: @unchecked Sendable {
+    private let condition = NSCondition()
+    private let participants: Int
+    private var arrivals = 0
+    private var generation = 0
+
+    init(participants: Int) { self.participants = participants }
+
+    func wait() {
+        condition.lock()
+        let previous = generation
+        arrivals += 1
+        if arrivals == participants {
+            arrivals = 0
+            generation += 1
+            condition.broadcast()
+        } else {
+            while generation == previous { condition.wait() }
+        }
+        condition.unlock()
     }
 }
 
@@ -119,12 +167,11 @@ private enum RuntimeTraceBenchmark {
 
         let contentionCapacity = 4_096
         let writerCount = 4
-        // One full-buffer observation per 625 emitted events keeps the reader
-        // continuously relevant without letting a post-writer snapshot tail
-        // dominate the writer-latency measurement.
+        // Prefill is separate from measurement. Per-round timestamps prove
+        // actual overlap; barrier membership alone is not overlap evidence.
         let snapshotCount = 64
         let contentionSampleCount = 5
-        let resolutionsPerWriter = max(1, enabledIterations / writerCount)
+        let resolutionsPerWriter = max(snapshotCount, enabledIterations / writerCount)
         let contendedEventCount = writerCount * resolutionsPerWriter * 2
         let eventsPerWriter = resolutionsPerWriter * 2
         var contentionMeasurements: [[String: Any]] = []
@@ -134,24 +181,45 @@ private enum RuntimeTraceBenchmark {
                 context: DITraceContext(sink: contendedBuffer),
                 containerType: RuntimeTraceBenchmark.self
             )
+            for _ in 0..<(contentionCapacity / 2) {
+                let span = contendedOwner.start(member: member)
+                contendedOwner.finish(.success, span: span)
+            }
             let writerTimings = WriterTimingBox()
+            let barrier = RoundBarrier(participants: writerCount + 1)
+            let completion = DispatchGroup()
             let contentionStart = DispatchTime.now().uptimeNanoseconds
-            DispatchQueue.concurrentPerform(iterations: writerCount + 1) { worker in
-                if worker == writerCount {
-                    for _ in 0..<snapshotCount {
-                        _ = contendedBuffer.snapshot()
+            for worker in 0...writerCount {
+                completion.enter()
+                Thread.detachNewThread {
+                    defer { completion.leave() }
+                    for round in 0..<snapshotCount {
+                        barrier.wait()
+                        if worker == writerCount {
+                            let start = DispatchTime.now().uptimeNanoseconds
+                            let snapshot = contendedBuffer.snapshot()
+                            let end = DispatchTime.now().uptimeNanoseconds
+                            writerTimings.recordSnapshot(
+                                round: round, start: start, end: end,
+                                retained: snapshot.events.count
+                            )
+                        } else {
+                            let writerMember = "writer\(worker)"
+                            let lower = resolutionsPerWriter * round / snapshotCount
+                            let upper = resolutionsPerWriter * (round + 1) / snapshotCount
+                            let start = DispatchTime.now().uptimeNanoseconds
+                            for _ in lower..<upper {
+                                let span = contendedOwner.start(member: writerMember)
+                                contendedOwner.finish(.success, span: span)
+                            }
+                            let end = DispatchTime.now().uptimeNanoseconds
+                            writerTimings.record(writer: worker, round: round, start: start, end: end)
+                        }
+                        barrier.wait()
                     }
-                } else {
-                    let writerMember = "writer\(worker)"
-                    let writerStart = DispatchTime.now().uptimeNanoseconds
-                    for _ in 0..<resolutionsPerWriter {
-                        let span = contendedOwner.start(member: writerMember)
-                        contendedOwner.finish(.success, span: span)
-                    }
-                    let writerElapsed = DispatchTime.now().uptimeNanoseconds - writerStart
-                    writerTimings.record(writerElapsed)
                 }
             }
+            completion.wait()
             let contentionElapsed = DispatchTime.now().uptimeNanoseconds - contentionStart
             let contendedSnapshot = contendedBuffer.snapshot()
             checksum &+= contendedSnapshot.events.count
@@ -160,6 +228,8 @@ private enum RuntimeTraceBenchmark {
                 "capacity": contentionCapacity,
                 "writerCount": writerCount,
                 "snapshotCount": snapshotCount,
+                "prefillEventCount": contentionCapacity,
+                "observations": writerTimings.observations,
                 "emittedEventCount": contendedEventCount,
                 "eventsPerWriter": eventsPerWriter,
                 "retainedEventCount": contendedSnapshot.events.count,
@@ -174,7 +244,7 @@ private enum RuntimeTraceBenchmark {
         let disabledNet = disabledElapsed > controlElapsed
             ? disabledElapsed - controlElapsed : 0
         let report: [String: Any] = [
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "iterations": iterations,
             "enabledIterations": enabledIterations,
             "disabledNetNanosecondsPerResolution":
