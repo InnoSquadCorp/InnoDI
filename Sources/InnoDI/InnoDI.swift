@@ -392,15 +392,15 @@ public macro _InnoDIProvideAccessor(
     recovery: Bool
 ) = #externalMacro(module: "InnoDIMacros", type: "InnoDIProvideAccessorMacro")
 
-/// A lazy reference to another container-managed dependency, used to break
-/// otherwise-valid dependency cycles without restructuring.
+/// A deferred reference to another dependency in an acyclic container graph.
 ///
 /// When a factory parameter is declared `Lazy<T>`, InnoDI classifies the
 /// resulting DAG edge as a *soft edge*: the dependency is resolved on demand
-/// at call time rather than during container initialization, and the edge is
-/// omitted from cycle detection. This lets authors express real
-/// mutually-referential graphs like ViewModel↔Coordinator without the macro
-/// rejecting the container.
+/// at call time rather than during container initialization. Soft edges still
+/// participate in cycle detection: their retained resolver contexts can form
+/// ownership cycles even when the wrapper is never called. InnoDI 6.0 rejects
+/// such graphs, including with `validateDAG: false`. Move shared state into a
+/// separate dependency or otherwise restructure ownership to remove cycles.
 ///
 /// ```swift
 /// @DIContainer
@@ -411,7 +411,7 @@ public macro _InnoDIProvideAccessor(
 ///     @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) })
 ///     var a: CoordinatorA
 ///
-///     @Provide(.shared, factory: { (a: CoordinatorA) in CoordinatorB(a: a) })
+///     @Provide(.shared, factory: CoordinatorB())
 ///     var b: CoordinatorB
 /// }
 /// ```
@@ -445,7 +445,7 @@ public macro _InnoDIProvideAccessor(
 /// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
 /// > this on every build and uploads the JSON report) to enumerate
 /// > cross-file aliases workspace-wide. A renamed alias the scanner
-/// > flags silently behaves as a hard edge and disables cycle escape —
+/// > flags silently behaves as a hard edge and disables deferred wiring —
 /// > prefer the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at
 /// > every factory parameter site.
 public struct Lazy<T> {
@@ -473,8 +473,8 @@ public struct Lazy<T> {
 /// Releasing the last copied handle releases that detached context.
 ///
 /// When a factory parameter is declared `Provider<T>`, InnoDI classifies the
-/// resulting DAG edge as a *provider edge*: like `Lazy<T>`, it is excluded
-/// from cycle detection, but the validator additionally requires the target
+/// resulting DAG edge as a *provider edge*: like `Lazy<T>`, it participates
+/// in cycle detection. The validator additionally requires the target
 /// member to have `.transient` scope so that `.callAsFunction()` semantics
 /// stay aligned with transient re-entry. Live containers typically produce a
 /// new instance on each call, but test overrides may still return a stored

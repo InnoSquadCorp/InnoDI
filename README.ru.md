@@ -319,7 +319,7 @@ dependency-graph CLI сканируют полное дерево исходно
 | Параметр | По умолчанию | Значение |
 |---|---|---|
 | `role` | обязателен для `@DIContainerRole` | `ContainerRole.local`, `.component` или `.root`. Роль root задаёт начало достижимости графа, а component — межмодульный контракт монтирования. |
-| `validateDAG` | `true` | Включает global DAG validation и локальные graph-derived проверки macro. При `false` отключаются global DAG и локальные cycle-проверки, но продолжаются проверка деклараций и совместимость эффектов явных sibling edges. |
+| `validateDAG` | `true` | Включает global DAG и локальные graph-derived проверки. Даже при `false` проверяются локальные циклы владения, декларации и эффекты явных sibling edges. |
 | `mainActor` | `false` | Изолирует с помощью `@MainActor` аксессоры зависимостей, все сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides` для convenience initializer, `withOverrides`, overrides дочерних контейнеров и mounting компонентов, операционные замыкания всех четырёх overload `withOverrides` и feature-root helpers. При совместном использовании с `@DIContainerRole(role: ContainerRole.component)` также изолируются сгенерированные protocol `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без этой опции продолжают использовать `_InnoDIComponentMountable`. Для использования вне главного актора требуется явный actor hop. Рекомендуется для корневых UI-контейнеров. |
 
 В 6.0 generic helpers для mounting компонентов должны различать два marker
@@ -472,7 +472,7 @@ InnoDI валидирует в несколько слоев:
 3. Global DAG validation
 
 `validateDAG: false` — это намеренно узкий opt-out. Он отключает global DAG и
-локальные cycle/graph-derived проверки, но не проверку деклараций и не
+локальные проверки доступности, но не циклы владения, проверку деклараций и не
 совместимость эффектов явных sibling edges из root closure или `with:`.
 
 ## Overrides Builder
@@ -502,7 +502,7 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 
 ## `Lazy<T>` и `Provider<T>`
 
-- `Lazy<T>` создает soft edge и используется как выход из cycle detection.
+- `Lazy<T>` откладывает разрешение зависимости в ациклическом графе. В 6.0 циклы с `Lazy<T>` / `Provider<T>` запрещены даже при `validateDAG: false`.
 - `Provider<T>` повторно входит в `.transient` зависимость при каждом вызове.
 
 ```swift

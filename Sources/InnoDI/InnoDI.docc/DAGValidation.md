@@ -10,12 +10,13 @@ from leaking into a production release.
 
 `validateDAG: false` disables exactly two layers:
 
-1. The macro's local cycle and other graph-derived availability diagnostics.
+1. The macro's graph-derived availability diagnostics (not ownership cycles).
 2. The container's contribution to global DAG validation
    (`swift run InnoDI-DependencyGraph --root . --validate-dag`).
 
 It does **not** disable any of the following:
 
+- Local ownership-cycle detection, including `Lazy<T>` and `Provider<T>` edges.
 - Structural macro diagnostics (scope rules, missing factories, declaration
   order availability, async factory validity).
 - The direct, plain, stored instance-`var` declaration contract for
@@ -31,16 +32,15 @@ key paths. Their sync/async/throwing compatibility remains mandatory with
 `validateDAG: false`. Non-closure factories and property initializers are
 opaque zero-edge sources and must not refer to sibling container members.
 
-A consumer with `validateDAG: false` therefore keeps declaration and effect
-safety, but loses the part of the contract that prevents a real cycle from
-reaching production.
+A consumer with `validateDAG: false` keeps local ownership-cycle, declaration,
+and effect safety, but loses cross-container global graph checks.
 
 ## When Opting Out Is Acceptable
 
 The flag is reasonable in narrow cases:
 
-- A staging build or feature-flag fixture that intentionally wires a temporary
-  cycle that will be removed before merge.
+- A staging build or feature-flag fixture with temporarily unavailable wiring.
+  Local cycles remain errors and cannot be enabled with this flag.
 - Ad-hoc reproduction containers used only inside a single test or a
   scratchpad executable that ships with the repository but never with the
   product.
@@ -59,9 +59,9 @@ constraint and silently widens.
 - "I just want CI to be faster." (Use the synthetic-consumer benchmark to
   size the actual cost first; the global DAG validator caches its analysis
   through the build plugin and is rarely the bottleneck.)
-- Avoiding a diagnostic that exposes a real cycle. The fix is to break the
-  cycle with `Lazy<T>` or `Provider<T>`, restructure the graph, or split the
-  container — not to silence the validator.
+- Avoiding a diagnostic that exposes a real cycle. Restructure the graph or
+  split shared state into an independent dependency. `Lazy<T>` and `Provider<T>`
+  defer resolution but do not exempt ownership cycles.
 
 If you reach for `validateDAG: false` to "make the warning go away", revert
 the change and treat the diagnostic as the source of truth.

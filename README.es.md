@@ -328,7 +328,7 @@ que declare contenedores.
 | Parametro | Default | Significado |
 |---|---|---|
 | `role` | obligatorio en `@DIContainerRole` | `ContainerRole.local`, `.component` o `.root`. El rol root define el inicio de alcance del grafo; el rol component define el contrato de montaje entre módulos. |
-| `validateDAG` | `true` | Activa la validacion global del DAG y los checks graph-derived locales. Con `false` se omiten el DAG global y los ciclos locales, pero siguen la validacion de declaraciones y la compatibilidad de efectos en edges sibling explicitos. |
+| `validateDAG` | `true` | Activa el DAG global y los checks graph-derived locales. Incluso con `false` se validan los ciclos locales de propiedad, las declaraciones y los efectos de edges sibling explicitos. |
 | `mainActor` | `false` | Aplica `@MainActor` a los accessors de dependencias, todos los inicializadores generados, `Overrides`, los tipos de closure `applyOverrides` usados por los inicializadores de conveniencia, `withOverrides`, los overrides de child containers y el mounting de componentes, las closures de operación de los cuatro overloads `withOverrides` y los helpers de feature root. Con `@DIContainerRole(role: ContainerRole.component)`, también aísla el protocolo `<Container>Dependencies` y `init(dependencies:_:)` generados, y usa la conformidad dedicada `_InnoDIMainActorComponentMountable`. Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`. El uso fuera del actor principal requiere un salto explícito. Recomendado para contenedores raíz de UI. |
 
 En 6.0, los helpers genéricos de mounting deben distinguir ambos protocolos
@@ -490,7 +490,7 @@ InnoDI valida contenedores en capas:
 3. Validacion global del DAG
 
 `validateDAG: false` es un opt-out intencionalmente estrecho. Excluye el DAG
-global y los checks graph-derived de ciclo local, pero no la validacion de
+global y los checks locales de disponibilidad, pero no los ciclos locales de propiedad ni la validacion de
 declaraciones ni la compatibilidad de efectos en edges sibling explicitos de
 closures raiz o `with:`.
 
@@ -523,8 +523,8 @@ Puntos importantes:
 
 ## `Lazy<T>` y `Provider<T>`
 
-Usa `Lazy<T>` cuando una factory necesita una referencia diferida que debe
-quedar fuera de la deteccion de ciclos.
+Usa `Lazy<T>` para referencias diferidas en un grafo aciclico. En 6.0 los ciclos
+con `Lazy<T>` o `Provider<T>` se rechazan incluso con `validateDAG: false`.
 
 Usa `Provider<T>` cuando una factory necesita reingresar a una dependencia
 `.transient` en cada llamada.

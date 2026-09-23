@@ -77,8 +77,8 @@ repeatedly:
 - **"Spell `Lazy<T>` directly."** — a `typealias` was used for a deferred
   wrapper; the macro reads syntax, so aliased forms silently become hard
   edges.
-- **"Wrap one factory parameter in `Lazy<T>`."** — a dependency cycle can be
-  broken without restructuring by deferring one edge.
+- **"Restructure the graph to remove the cycle."** — `Lazy<T>` and
+  `Provider<T>` defer resolution, not ownership; cyclic graphs are rejected.
 - **"Remove the user-defined `Overrides` type."** — the container's nested
   type collides with the synthesized overrides builder.
 - **"Use named parameters on the root factory closure."** — sibling DI edges
@@ -240,8 +240,9 @@ Most frequently-hit codes:
   emit additional diagnostics for an accessor-local component.
 - `container.unknown-dependency` — a referenced name doesn't map to any
   container member.
-- `container.dependency-cycle` — hard cycle detected; break with `Lazy<T>`
-  or `Provider<T>`, or restructure ownership.
+- `container.dependency-cycle` — ownership cycle detected, including deferred
+  `Lazy<T>` / `Provider<T>` edges. Restructure ownership; `validateDAG: false`
+  does not suppress this safety check.
 - `container.custom-init-unsupported` — `@DIContainer` already synthesizes
   an initializer; remove the user-written one. An initializer in the annotated
   body is diagnosed by the macro. Initializers in same-file or cross-file

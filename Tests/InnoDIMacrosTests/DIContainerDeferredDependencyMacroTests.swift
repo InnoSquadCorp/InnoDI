@@ -10,9 +10,9 @@ import Testing
 @testable import InnoDIMacros
 
 extension DIContainerMacroTests {
-    @Test("Lazy<T> factory parameter breaks a two-shared cycle without restructuring")
-    func lazyBreaksTwoCycleAcrossShared() {
-        assertMacroExpansionSnapshot(
+    @Test("Lazy<T> does not exempt a shared ownership cycle")
+    func lazyRejectsTwoCycleAcrossShared() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
@@ -27,14 +27,14 @@ extension DIContainerMacroTests {
                 var b: CoordinatorB
             }
             """,
-            matches: "lazyBreaksTwoCycleAcrossShared",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }
 
-    @Test("Qualified InnoDI.Lazy uses shadow-safe contextual construction")
-    func qualifiedLazyBreaksTwoCycleAcrossShared() {
-        assertMacroExpansionSnapshot(
+    @Test("Qualified InnoDI.Lazy also rejects ownership cycles")
+    func qualifiedLazyRejectsTwoCycleAcrossShared() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
@@ -49,18 +49,14 @@ extension DIContainerMacroTests {
                 var b: CoordinatorB
             }
             """,
-            matches: "qualifiedLazyBreaksTwoCycleAcrossShared",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }
 
-    @Test("Lazy<T> breaks a three-shared cycle as long as at least one edge is soft")
-    func lazyBreaksThreeCycle() {
-        // Cycle: a → c (soft), c → b (hard), b → a (hard). The soft edge on
-        // `a` makes the hard-only adjacency a linear chain b→a, c→b, so
-        // cycle detection passes while declaration-order availability still
-        // holds for every hard reference.
-        assertMacroExpansionSnapshot(
+    @Test("A deferred edge cannot hide a three-shared ownership cycle")
+    func lazyRejectsThreeCycle() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
@@ -80,7 +76,7 @@ extension DIContainerMacroTests {
                 var c: C
             }
             """,
-            matches: "lazyBreaksThreeCycle",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }
@@ -313,8 +309,8 @@ extension DIContainerMacroTests {
     @Test("Provider<T> forward reference does not count as a cycle or unavailable edge")
     func providerDoesNotCountAsCycle() {
         // `logger` declared before `request` and references it forward via
-        // Provider — hard-only adjacency is empty on that edge, so no cycle
-        // and no `provide.unavailable-dependency-reference`.
+        // Provider. The graph is acyclic; deferral still allows forward
+        // references without `provide.unavailable-dependency-reference`.
         assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
@@ -623,7 +619,7 @@ extension DIContainerMacroTests {
         )
     }
 
-    @Test("Cycle without Lazy still fails validation with the Lazy hint")
+    @Test("Hard dependency cycles remain rejected")
     func cycleWithoutLazyStillFails() {
         assertMacroExpansionDiagnosticCodes(
             """
@@ -648,8 +644,8 @@ extension DIContainerMacroTests {
     }
 
     @Test
-    func validateDAGFalseSkipsCycleValidation() {
-        assertMacroExpansionSnapshot(
+    func validateDAGFalseStillRejectsCycle() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer(validateDAG: false)
             struct AppContainer {
@@ -664,7 +660,7 @@ extension DIContainerMacroTests {
                 var serviceB: ServiceB
             }
             """,
-            matches: "validateDAGFalseSkipsCycleValidation",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }

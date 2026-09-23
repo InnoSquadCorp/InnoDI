@@ -326,7 +326,7 @@ jedes Target an, das Container deklariert.
 | Parameter | Default | Bedeutung |
 |---|---|---|
 | `role` | fur `@DIContainerRole` erforderlich | `ContainerRole.local`, `.component` oder `.root`. Die Root-Rolle definiert den Einstieg fur Graph-Erreichbarkeit; die Component-Rolle den modulubergreifenden Mount-Vertrag. |
-| `validateDAG` | `true` | Aktiviert globale DAG-Validierung plus die lokalen graph-derived Checks des Makros. `false` uberspringt globale DAG- und lokale cycle-Checks; Deklarationsvalidierung und Effektkompatibilitat expliziter Sibling-Kanten bleiben aktiv. |
+| `validateDAG` | `true` | Aktiviert globale DAG-Validierung und lokale graph-derived Checks. Lokale Besitzzyklen, Deklarationen und Effekte expliziter Sibling-Kanten werden auch bei `false` geprüft. |
 | `mainActor` | `false` | Isoliert Dependency-Accessors, alle generierten Initialisierer, `Overrides`, die `applyOverrides`-Funktionstypen von Convenience-Initialisierern, `withOverrides`, Child-Overrides und Component-Mounting, die Operations-Closures aller vier `withOverrides`-Overloads sowie Feature-Root-Helper mit `@MainActor`. Zusammen mit `@DIContainerRole(role: ContainerRole.component)` werden auch das generierte `<Container>Dependencies`-Protokoll und `init(dependencies:_:)` isoliert; die Component konformiert dem dedizierten Protokoll `_InnoDIMainActorComponentMountable`. Components ohne diese Option verwenden weiterhin `_InnoDIComponentMountable`. Zugriffe außerhalb des Main Actors erfordern einen expliziten Actor-Wechsel. Für UI-Root-Container empfohlen. |
 
 Generische Component-Mounting-Helper müssen in 6.0 zwischen beiden
@@ -486,7 +486,7 @@ InnoDI validiert in drei Schichten:
 3. Globale DAG-Validierung
 
 `validateDAG: false` ist absichtlich eng gefasst. Es deaktiviert globale DAG-
-und lokale cycle-/graph-derived Checks, aber weder die Deklarationsvalidierung
+und lokale Availability-Checks, aber weder lokale Besitzzyklusprüfungen noch die Deklarationsvalidierung
 noch die Effektkompatibilität expliziter root-Closure-/`with:`-Sibling-Kanten.
 
 ## Overrides Builder
@@ -516,7 +516,7 @@ und laufen als No-op.
 
 ## `Lazy<T>` und `Provider<T>`
 
-- `Lazy<T>` erzeugt eine Soft-Edge und ist fur Zyklus-Flucht gedacht.
+- `Lazy<T>` verzögert die Auflösung in einem azyklischen Graphen. In 6.0 werden Zyklen mit `Lazy<T>` oder `Provider<T>` auch bei `validateDAG: false` abgelehnt.
 - `Provider<T>` tritt bei jedem Aufruf erneut in eine `.transient`-Abhangigkeit ein.
 
 ```swift

@@ -10,17 +10,8 @@ struct Lazy<T> {
 
 // MARK: - Fixtures
 //
-// ViewModel ↔ Coordinator is the canonical two-cycle: the coordinator needs
-// the view model to drive transitions, and the view model needs the
-// coordinator to request navigation. Without the Lazy escape hatch, one of
-// these has to be mutated post-construction or restructured — InnoDI's
-// cycle detector rejects the container outright.
-//
-// With `Lazy<T>`, we break the cycle by deferring the resolution of `b` on
-// the `a` side: `a`'s factory stores the Lazy wrapper without invoking it,
-// so `CoordinatorA` is constructed before `b` exists. Once init has written
-// `_storage_b`, the `_innoDILazyCell_b` box is populated and any later
-// `a.resolveB()` returns the shared `.shared` instance.
+// Deferred forward references remain supported in acyclic graphs. Cycles
+// are compile-fail fixtures, not runtime fixtures that intentionally leak.
 
 final class CoordinatorA {
     private let _b: InnoDI.Lazy<CoordinatorB>
@@ -28,13 +19,10 @@ final class CoordinatorA {
     func resolveB() -> CoordinatorB { _b() }
 }
 
-final class CoordinatorB {
-    let a: CoordinatorA
-    init(a: CoordinatorA) { self.a = a }
-}
+final class CoordinatorB {}
 
 @DIContainer
-struct LazyCycleContainer {
+struct LazyAcyclicContainer {
     // Declare the soft-target side first. `a`'s factory receives the Lazy
     // wrapper and stores it — the wrapper resolves `b` only when invoked at
     // call time, by which point init has fully populated `_innoDILazyCell_b`.
@@ -43,9 +31,7 @@ struct LazyCycleContainer {
     })
     var a: CoordinatorA
 
-    @Provide(.shared, factory: { (a: CoordinatorA) in
-        CoordinatorB(a: a)
-    })
+    @Provide(.shared, factory: CoordinatorB())
     var b: CoordinatorB
 }
 
@@ -76,26 +62,22 @@ struct LazyTransientContainer {
 
 // MARK: - Tests
 
-/// Runtime coverage for the `Lazy<T>` cycle escape hatch.
+/// Runtime coverage for acyclic `Lazy<T>` ownership.
 ///
 /// The macro's expansion is covered by snapshot tests under
 /// `Tests/InnoDIMacrosTests/`. These tests assert that the generated init
 /// actually *runs*: deferred cell wiring is populated, Lazy resolution returns
 /// the shared `.shared` identity, and forward factory references compile
 /// cleanly end-to-end.
-@Suite("@DIContainer Lazy cycle escape")
+@Suite("@DIContainer Lazy acyclic ownership")
 struct LazyRuntimeTests {
-    @Test("Two-shared cycle resolves through Lazy with preserved identity")
-    func twoCycleResolvesViaLazy() {
-        let container = LazyCycleContainer()
+    @Test("Deferred forward reference preserves shared identity")
+    func forwardReferenceResolvesViaLazy() {
+        let container = LazyAcyclicContainer()
 
         let a = container.a
         let b = container.b
 
-        // `b.a` is the eagerly-injected CoordinatorA.
-        // `a.resolveB()` goes through the Lazy back to the same CoordinatorB
-        // instance stored in `_storage_b`.
-        #expect(b.a === a)
         #expect(a.resolveB() === b)
 
         // Repeated resolution returns the same shared `b` — Lazy does not
@@ -105,9 +87,40 @@ struct LazyRuntimeTests {
 
     @Test("Accessor retrieves the same shared identity across calls")
     func sharedIdentityAcrossAccessorCalls() {
-        let container = LazyCycleContainer()
+        let container = LazyAcyclicContainer()
         #expect(container.a === container.a)
         #expect(container.b === container.b)
+    }
+
+    @Test("Copied containers and escaped lazy owners release the last context")
+    func escapedLazyOwnerLifetime() {
+        var container: LazyAcyclicContainer? = LazyAcyclicContainer()
+        var copy = container
+        var escapedOwner = container?.a
+        weak var weakOwner = container?.a
+        weak var weakTarget = container?.b
+        container = nil
+        #expect(copy?.a === escapedOwner)
+        copy = nil
+        #expect(escapedOwner?.resolveB() === weakTarget)
+        #expect(weakOwner != nil)
+        escapedOwner = nil
+        #expect(weakOwner == nil)
+        #expect(weakTarget == nil)
+        weakOwner = nil
+        weakTarget = nil
+    }
+
+    @Test("Uncalled lazy resolver context is released with the last container")
+    func uncalledLazyContextIsReleased() {
+        var container: LazyAcyclicContainer? = LazyAcyclicContainer()
+        weak var weakOwner = container?.a
+        weak var weakTarget = container?.b
+        container = nil
+        #expect(weakOwner == nil)
+        #expect(weakTarget == nil)
+        weakOwner = nil
+        weakTarget = nil
     }
 
     @Test("Shared -> Lazy<Transient> resolves a fresh transient instance per call")
