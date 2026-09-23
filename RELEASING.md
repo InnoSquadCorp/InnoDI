@@ -371,6 +371,11 @@ standalone release assets.
   diagnostics now preserve exact toolchain-specific compiler output, while the
   public API guard tracks only source-authored product declarations instead of
   SDK symbols re-exported by toolchain-specific SwiftUI symbol graphs. The
+  schema-v4 API baseline also preserves a per-parameter default-presence vector:
+  removing a default now fails even when the symbol identity does not change.
+  Declaration formatting and default-expression values are not API identity;
+  executable compiler/consumer fixtures verify the omitted-argument contract.
+  The
   coverage collector now accepts both the combined package test bundle used by
   earlier toolchains and Swift 6.4's per-target test bundles, including public
   executable entry points without lowering any checked-in floor.

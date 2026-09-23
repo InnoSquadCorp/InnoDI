@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 3)
+        #expect(payload["schemaVersion"] as? Int == 4)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
@@ -78,6 +78,19 @@ struct PublicAPIContractTests {
                     && relationship["target"] as? String != "s:s16SendableMetatypeP"
             }
         })
+        let symbols = graphs.flatMap { $0["symbols"] as? [[String: Any]] ?? [] }
+        #expect(symbols.contains { ($0["parameterDefaults"] as? [Bool])?.contains(true) == true })
+    }
+
+    @Test("Compiler graphs preserve defaults that real consumers require")
+    func compilerDefaultArgumentContract() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "Tools/tests/test_public_api_defaults.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
     }
 
     @Test("PR, main, and release workflows enforce the same baseline")
