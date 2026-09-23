@@ -16,9 +16,9 @@ A dependency graph is expressed as two flat collections:
   that created the edge), and semantic flags that describe the edge's
   semantics:
 
-  - `isSoft` — `Lazy<T>` parameter. Excluded from cycle detection, rendered
+  - `isSoft` — `Lazy<T>` parameter. Included in cycle detection, rendered
     dashed.
-  - `isProvider` — `Provider<T>` parameter. Excluded from cycle detection,
+  - `isProvider` — `Provider<T>` parameter. Included in cycle detection,
     rendered with a dotted glyph.
   - `isOwnership` — parent-owned `@SubContainer`. Participates in cycle
     detection (child construction happens during parent init) and is
@@ -47,9 +47,8 @@ order, missing or cross-container contributors, and stale lifetime copies.
 
 `buildCycleDetectionAdjacency(nodes:edges:)` returns a dictionary
 suitable for ``detectDependencyCycles(adjacency:depthLimit:)``. The
-helper intentionally drops soft and provider edges so the cycle detector
-sees only the hard-edged core — matching the macro-level per-container
-validator's DFS.
+helper includes soft and provider edges: deferred resolver contexts retain
+their dependencies. This matches the macro-level ownership-cycle check.
 
 Ordered contribution annotations are also dropped: they describe collection
 membership within one container rather than a container construction edge.

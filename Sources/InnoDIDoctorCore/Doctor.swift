@@ -160,6 +160,15 @@ public struct InnoDIDoctor: Sendable {
 
         let plan = try InnoDIMigrator().plan(root: canonicalRoot)
         let graphBefore = try? graphFingerprint(root: canonicalRoot)
+        if let cycleFailure = graphBefore?.cycleFailure {
+            diagnostics.append(.init(
+                id: "container.dependency-cycle",
+                severity: .error,
+                path: nil,
+                message: cycleFailure,
+                recommendation: "Restructure ownership to remove the cycle. Lazy<T> and Provider<T> defer resolution but do not exempt cycles."
+            ))
+        }
         diagnostics.append(contentsOf: plan.diagnostics.map {
             DoctorDiagnostic(
                 id: $0.code,
@@ -312,6 +321,7 @@ private func doctorWorkspace(at root: URL) -> DoctorWorkspace {
 
 private struct DoctorGraphFingerprint {
     let providers: [String: String]
+    let cycleFailure: String?
 }
 
 private func graphFingerprint(root: URL) throws -> DoctorGraphFingerprint {
@@ -335,7 +345,8 @@ private func graphFingerprint(root: URL) throws -> DoctorGraphFingerprint {
                 provider.dependencies.joined(separator: ","),
             ].joined(separator: "|")
             return (provider.id, semantic)
-        })
+        }),
+        cycleFailure: providerCycleFailure(providers: graph.providers)?.stderr
     )
 }
 

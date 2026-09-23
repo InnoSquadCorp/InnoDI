@@ -327,7 +327,7 @@ preflight가 없으면 extension custom initializer가 정책을 우회할 수 �
 | 파라미터 | 기본값 | 의미 |
 |---|---|---|
 | `role` | `@DIContainerRole`에서 필수 | `ContainerRole.local`, `.component`, `.root` 중 하나입니다. Root role은 그래프 도달성 시작점을, component role은 모듈 간 마운트 계약을 정의합니다. |
-| `validateDAG` | `true` | global DAG validation과 매크로의 local graph-derived 검증을 켭니다. `false`면 global DAG와 local cycle 검증은 건너뛰지만, 선언 검증과 명시적 sibling edge의 효과 호환성 검증은 계속 동작합니다. |
+| `validateDAG` | `true` | global DAG와 local graph-derived 검증을 켭니다. `false`여도 로컬 소유권 순환, 선언, 명시적 sibling edge의 효과 호환성 검사는 유지됩니다. |
 | `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIContainerRole(role: ContainerRole.component)`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
 
 6.0의 generic component mounting helper는 두 marker protocol을 구분해야
@@ -482,7 +482,7 @@ InnoDI는 여러 단계에서 컨테이너를 검증합니다.
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
 
 `validateDAG: false`는 의도적으로 좁은 opt-out입니다. global DAG validation과
-local cycle 같은 graph-derived 검증만 건너뜁니다. 선언 검증과 root 클로저 또는
+local availability 같은 graph-derived 검증만 건너뜁니다. 로컬 소유권 순환·선언 검증과 root 클로저 또는
 `with:`가 만든 명시적 sibling edge의 효과 호환성 검증은 꺼지지 않습니다.
 
 ## Overrides 빌더
@@ -515,7 +515,9 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 
 ## `Lazy<T>`와 `Provider<T>`
 
-사이클 검출에서 제외되는 지연 참조가 필요하면 `Lazy<T>`를 사용합니다.
+비순환 그래프에서 지연 참조가 필요하면 `Lazy<T>`를 사용합니다.
+6.0은 `Lazy<T>` / `Provider<T>`가 포함된 순환도 거부합니다.
+지연 생성은 소유권 순환을 끊지 않으며 `validateDAG: false`도 이를 허용하지 않습니다.
 
 `.transient` 의존성을 호출할 때마다 다시 진입해야 하면 `Provider<T>`를
 사용합니다.

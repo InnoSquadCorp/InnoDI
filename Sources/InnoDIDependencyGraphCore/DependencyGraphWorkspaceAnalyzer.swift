@@ -104,6 +104,10 @@ package func validateDependencyGraph(snapshot: WorkspaceSourceSnapshot) -> Depen
         )
     }
 
+    if let failure = providerCycleFailure(providers: collection.providers) {
+        return failure
+    }
+
     return validateDependencyGraph(
         nodes: collection.nodes,
         edges: collection.edges,

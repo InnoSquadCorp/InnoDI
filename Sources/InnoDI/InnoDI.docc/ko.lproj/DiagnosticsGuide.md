@@ -194,8 +194,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   함께 적용한 companion macro의 추가 진단이 발생할 수 있습니다.
 - `container.unknown-dependency` — 참조된 이름이 어떤 컨테이너
   멤버에도 매핑되지 않습니다.
-- `container.dependency-cycle` — hard cycle이 감지됐습니다. `Lazy<T>`
-  또는 `Provider<T>`로 끊거나 ownership을 재구성하세요.
+- `container.dependency-cycle` — `Lazy<T>` / `Provider<T>` 간선을 포함한
+  소유권 순환이 감지됐습니다. 그래프를 재구성하세요. 이 안전 검사는
+  `validateDAG: false`로도 비활성화되지 않습니다.
 - `container.custom-init-unsupported` — `@DIContainer`는 이미
   initializer를 합성합니다. 사용자가 작성한 것을 제거하세요. annotation body의
   initializer는 macro가 진단합니다. compiler-plugin macro 입력에는 sibling extension이

@@ -16,6 +16,27 @@ private let tuistIntegrationTestsAreAvailable = ProcessInfo.processInfo.environm
 
 @Suite("InnoDI doctor", .serialized)
 struct DoctorTests {
+    @Test("Doctor reports deferred ownership cycles without applying changes")
+    func diagnosesDeferredOwnershipCycle() throws {
+        let source = """
+        import InnoDI
+        @DIContainer(validateDAG: false) struct Container {
+            @Provide(.shared, factory: { (b: Provider<B>) in A(b: b) }) var a: A
+            @Provide(.transient, factory: { (a: Lazy<A>) in B(a: a) }) var b: B
+        }
+        """
+        let root = try temporaryPackage(
+            manifest: packageManifest(swiftVersion: "6.2", appHasPlugin: true),
+            source: source
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = try InnoDIDoctor().inspect(root: root)
+        #expect(!report.isHealthy)
+        #expect(report.diagnostics.contains { $0.id == "container.dependency-cycle" })
+        #expect(report.appliedChangePaths.isEmpty)
+        #expect(try String(contentsOf: root.appendingPathComponent("Sources/App/App.swift"), encoding: .utf8) == source)
+    }
+
     @Test("read-only diagnosis reports toolchain, plugin, scope, and migration without writes")
     func readOnlyDiagnosis() throws {
         let root = try temporaryPackage(

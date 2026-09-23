@@ -291,7 +291,7 @@ dependency-graph CLI 会扫描完整 source tree，并拒绝这个边界情况�
 | 参数 | 默认值 | 含义 |
 |---|---|---|
 | `role` | `@DIContainerRole` 必填 | 取 `ContainerRole.local`、`.component` 或 `.root`。root role 定义图可达性的入口，component role 定义跨模块挂载契约。 |
-| `validateDAG` | `true` | 开启全局 DAG 校验以及宏的本地 graph-derived 校验。设为 `false` 会跳过全局 DAG 和本地 cycle 校验，但声明校验与显式 sibling edge 的效果兼容性校验仍会执行。 |
+| `validateDAG` | `true` | 开启全局 DAG 和本地 graph-derived 校验。即使设为 `false`，本地所有权循环、声明和显式 sibling edge 的效果兼容性校验仍会执行。 |
 | `mainActor` | `false` | 为依赖访问器、所有生成的初始化器、`Overrides`、convenience initializer、`withOverrides`、子容器 override 与 component mounting 所使用的 `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作闭包以及 feature-root helper 应用 `@MainActor` 隔离。与 `@DIContainerRole(role: ContainerRole.component)` 搭配时，生成的 `<Container>Dependencies` 协议和 `init(dependencies:_:)` 也会被隔离，并改为遵循专用协议 `_InnoDIMainActorComponentMountable`。未使用该选项的普通组件继续遵循 `_InnoDIComponentMountable`。主执行器之外的使用者需要显式 hop。推荐用于 UI 根容器。 |
 
 在 6.0 中，generic component mounting helper 必须区分这两个 marker protocol。
@@ -424,8 +424,8 @@ InnoDI 分层校验：
 2. Build validation
 3. Global DAG validation
 
-`validateDAG: false` 是刻意收窄的 opt-out。它只跳过全局 DAG 以及本地 cycle
-等 graph-derived 校验，不会关闭声明校验，也不会跳过根 closure 或 `with:`
+`validateDAG: false` 是刻意收窄的 opt-out。它只跳过全局 DAG 以及本地可用性
+等 graph-derived 校验，不会关闭本地所有权循环和声明校验，也不会跳过根 closure 或 `with:`
 产生的显式 sibling edge 的效果兼容性校验。
 
 ## Overrides Builder
@@ -453,7 +453,7 @@ closure 依然可以编译，并作为 no-op 运行。
 
 ## `Lazy<T>` 与 `Provider<T>`
 
-- `Lazy<T>` 用于把依赖边变成 soft edge，从而跳出 cycle detection。
+- `Lazy<T>` 在无环图中延迟解析依赖。6.0 拒绝包含 `Lazy<T>` / `Provider<T>` 的循环，即使设置 `validateDAG: false` 也不例外。
 - `Provider<T>` 用于每次调用时重新进入 `.transient` 依赖。
 
 ```swift

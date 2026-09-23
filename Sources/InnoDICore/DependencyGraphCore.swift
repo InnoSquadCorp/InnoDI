@@ -289,20 +289,12 @@ package struct DependencyGraphEdge: Hashable {
     package let fromID: String
     package let toID: String
     package let label: String?
-    /// Soft edges are excluded from global DAG cycle detection and rendered
-    /// with a dashed style. They originate from factory parameters typed
-    /// `Lazy<T>`, InnoDI's soft-edge escape hatch. The current container
-    /// collector does not yet populate member-level edges, so this field is
-    /// primarily future-proofing — but renderers and `runDAGValidation`
-    /// already respect it so downstream collectors can emit soft edges the
-    /// moment they have the information.
+    /// Lazy edges defer resolution, not ownership. They participate in cycle
+    /// detection and retain a dashed rendering style.
     package let isSoft: Bool
     /// Provider edges originate from factory parameters typed `Provider<T>`.
-    /// They are also excluded from cycle detection, but rendered
-    /// with a dotted style to distinguish "deferred but repeat-callable"
-    /// semantics from `Lazy<T>`'s one-shot deferral. Like `isSoft`, the
-    /// container collector does not yet emit member-level provider edges, but
-    /// the plumbing is ready end-to-end.
+    /// They participate in cycle detection and are rendered with a dotted
+    /// style to distinguish transient re-entry from `Lazy<T>` deferral.
     package let isProvider: Bool
     /// Ownership edges represent a `@SubContainer` relationship — the parent
     /// container owns (either caches for `.shared` or re-builds for
@@ -396,18 +388,15 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
 
 /// Builds a DFS adjacency list for global DAG cycle detection.
 ///
-/// Deferred edges are intentionally excluded: `isSoft` (`Lazy<T>`) resolves
-/// a one-shot value after construction, and `isProvider` (`Provider<T>`)
-/// resolves a fresh transient on every call. Both
-/// kinds participate in rendering but not in cycle detection, matching the
-/// per-container validator's hard-only DFS.
+/// Deferred edges participate because their resolver contexts are retained.
+/// Deferring construction does not make a cyclic ownership graph safe.
 ///
 /// Ownership edges stay hard even if a merged edge still carries deferred
 /// flags from upstream callers — parent-owned child construction happens at
 /// init time, so ownership must participate in cycle detection.
 ///
 /// The returned adjacency includes every input node as a key (empty list if
-/// it has no outgoing hard edges) so callers can reason about isolated nodes
+/// it has no outgoing dependency edges) so callers can reason about isolated nodes
 /// uniformly.
 package func buildCycleDetectionAdjacency(
     nodes: [DependencyGraphNode],
@@ -417,8 +406,7 @@ package func buildCycleDetectionAdjacency(
     for node in nodes {
         adjacency[node.id] = []
     }
-    for edge in edges where !edge.isContribution
-        && (edge.isOwnership || (!edge.isSoft && !edge.isProvider)) {
+    for edge in edges where !edge.isContribution {
         adjacency[edge.fromID, default: []].append(edge.toID)
     }
     return adjacency

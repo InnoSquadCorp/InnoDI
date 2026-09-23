@@ -1,0 +1,1 @@
+Dependency cycle detected in container: a -> b -> a. Restructure the graph to remove the cycle; Lazy<T> and Provider<T> defer construction but do not break ownership cycles.

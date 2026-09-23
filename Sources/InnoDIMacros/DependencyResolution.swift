@@ -97,28 +97,14 @@ struct DependencyResolutionContext {
         )
     }
 
-    /// Same as `graphDependencies(forMemberAt:)` but drops edges that are
-    /// classified as `.soft` (`Lazy<T>`) or `.provider` (`Provider<T>`).
-    ///
-    /// The validator's cycle-detection DFS uses this variant so a graph that
-    /// would otherwise be rejected as cyclic can compile as long as each
-    /// cycle has at least one deferred edge — either `Lazy<T>` for
-    /// one-shot deferral or `Provider<T>` for repeated resolution of a
-    /// transient target. `with:` key-path dependencies remain hard; only
-    /// closure parameters can express lazy/provider wiring.
-    func hardGraphDependencies(forMemberAt index: Int) -> [String] {
+    /// Ownership edges include deferred handles and unavailable forward
+    /// references. Availability is diagnosed separately; it must not hide a
+    /// reference cycle, including when other graph diagnostics are disabled.
+    func cycleDependencies(forMemberAt index: Int) -> [String] {
         guard members.indices.contains(index) else { return [] }
         let member = members[index]
-        let availableNames = availableNames(forMemberAt: index)
-        let deferredNames = Set(member.softClosureDependencies)
-            .union(member.providerClosureDependencies)
-
-        let hardCandidates = member.graphDependencyCandidates.filter { !deferredNames.contains($0) }
-
         return deduplicateStrings(
-            hardCandidates.filter { name in
-                knownNames.contains(name) && availableNames.contains(name)
-            }
+            member.graphDependencyCandidates.filter { knownNames.contains($0) }
         )
     }
 }

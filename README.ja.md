@@ -311,7 +311,7 @@ extension 内にネストされた struct は拒否されます。関数、ク�
 | パラメータ | 既定値 | 意味 |
 |---|---|---|
 | `role` | `@DIContainerRole` では必須 | `ContainerRole.local`、`.component`、`.root` のいずれかです。root role はグラフ到達性の起点、component role はモジュール間 mount contract を定義します。 |
-| `validateDAG` | `true` | global DAG validation とマクロの local graph-derived チェックを有効にします。`false` は global DAG と local cycle を無効化しますが、宣言検証と明示的な sibling edge の effect compatibility は継続します。 |
+| `validateDAG` | `true` | global DAG と local graph-derived チェックを有効にします。`false` でもローカル所有権の循環、宣言、明示的 sibling edge の effect compatibility は検証されます。 |
 | `mainActor` | `false` | 依存関係 accessor、生成されるすべての initializer、`Overrides`、convenience initializer・`withOverrides`・child override・component mount で使う `applyOverrides` 関数型、4 つの `withOverrides` operation closure、feature-root helper を `@MainActor` に隔離します。`@DIContainerRole(role: ContainerRole.component)` を併用すると、生成される `<Container>Dependencies` protocol と `init(dependencies:_:)` も隔離され、専用の `_InnoDIMainActorComponentMountable` protocol に準拠します。このオプションを使わない通常の component は `_InnoDIComponentMountable` を引き続き使用します。メインアクター外から利用するには明示的な actor hop が必要です。UI ルートコンテナ向けです。 |
 
 6.0 の generic component mounting helper は 2 つの marker protocol を区別する
@@ -459,7 +459,7 @@ InnoDI は次の層で検証します。
 3. Global DAG validation
 
 `validateDAG: false` は限定的な opt-out です。global DAG validation と local
-cycle などの graph-derived チェックのみを無効にします。宣言検証や、root
+availability の graph-derived チェックのみを無効にします。ローカル所有権の循環や宣言検証、root
 closure / `with:` が作る明示的 sibling edge の effect compatibility は無効に
 なりません。
 
@@ -489,7 +489,7 @@ input-only コンテナも空の builder を生成します。子コンテナが
 
 ## `Lazy<T>` と `Provider<T>`
 
-- `Lazy<T>` は soft edge を作り、cycle detection から外したいときに使います。
+- `Lazy<T>` は非循環グラフで遅延参照を作ります。6.0 では `Lazy<T>` / `Provider<T>` を含む循環も拒否され、`validateDAG: false` でも許可されません。
 - `Provider<T>` は `.transient` 依存に毎回再入するために使います。
 
 ```swift

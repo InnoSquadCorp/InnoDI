@@ -321,7 +321,7 @@ the generated initializer complete and prevents memberwise-initializer drift.
 | Parameter | Default | Meaning |
 |---|---|---|
 | `role` | required for `@DIContainerRole` | `ContainerRole.local`, `.component`, or `.root`. Root role selects graph-render reachability; component role exposes the cross-module mount contract. |
-| `validateDAG` | `true` | Enables global DAG validation plus the macro's local graph-derived checks. `false` skips global DAG and local cycle checks, but declaration validation and effect compatibility on explicit sibling edges still run. |
+| `validateDAG` | `true` | Enables global DAG validation plus local graph-derived checks. `false` skips global DAG and local availability checks; local ownership-cycle, declaration, and explicit sibling effect checks remain mandatory. |
 | `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIContainerRole(role: ContainerRole.component)`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
 
 In 6.0, generic component-mounting helpers must distinguish the two marker
@@ -509,7 +509,7 @@ InnoDI validates containers in layers:
    - `swift run InnoDI-DependencyGraph --root . --validate-dag`
 
 `validateDAG: false` is intentionally narrow. It opts a container out of global
-DAG validation plus local cycle and other graph-derived checks. It does not
+DAG validation plus local graph-derived availability checks. It does not disable local ownership-cycle checks or
 disable declaration validation or effect compatibility on explicit
 root-closure/`with:` sibling edges.
 
@@ -544,8 +544,10 @@ Important details:
 
 ## `Lazy<T>` and `Provider<T>`
 
-Use `Lazy<T>` when a factory needs a deferred reference that should be excluded
-from cycle detection.
+Use `Lazy<T>` when a factory needs a deferred reference in an acyclic graph.
+InnoDI 6.0 rejects cycles containing `Lazy<T>` or `Provider<T>`, even with
+`validateDAG: false`: delaying resolution does not break retained ownership.
+Move shared state into a separate dependency or restructure the graph.
 
 Use `Provider<T>` when a factory needs to re-enter a `.transient` dependency on
 every call.

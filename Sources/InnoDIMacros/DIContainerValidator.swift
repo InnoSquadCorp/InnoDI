@@ -38,7 +38,6 @@ struct DIContainerValidator {
             resolutionContext: resolutionContext,
             memberByName: memberByName,
             locallyValidMemberNames: locallyValidMemberNames,
-            dagValidationEnabled: dagValidationEnabled,
             context: context
         ) || hadErrors
         hadErrors = validateReservedDeclarationNames(
@@ -122,30 +121,28 @@ struct DIContainerValidator {
         return hadErrors
     }
 
-    /// Local hard-edge cycle detection over locally valid members.
+    /// Ownership cycles are unsafe even when construction is deferred.
+    /// This safety check is not disabled by the graph-diagnostics opt-out.
     private static func validateDependencyCycles(
         model: DIContainerExpansionModel,
         resolutionContext: DependencyResolutionContext,
         memberByName: [String: ProvideMemberModel],
         locallyValidMemberNames: Set<String>,
-        dagValidationEnabled: Bool,
         context: some MacroExpansionContext
     ) -> Bool {
         var hadErrors = false
-        if dagValidationEnabled {
+        do {
             var adjacency: [String: [String]] = [:]
             for index in model.members.indices {
                 let member = model.members[index]
                 guard member.hasLocallyValidConstructionConfiguration else {
                     continue
                 }
-                // Exclude deferred edges (`Lazy<T>` / `Provider<T>`) from
-                // cycle detection so intentionally-broken graphs compile
-                // cleanly. The corresponding hard-only graph still
-                // participates in declaration-order availability checks via
-                // status(…).
+                // Deferred handles retain their resolver context. Include
+                // every declared edge, including forward/self references,
+                // independently of construction-order availability.
                 let dependencies = resolutionContext
-                    .hardGraphDependencies(forMemberAt: index)
+                    .cycleDependencies(forMemberAt: index)
                     .filter { locallyValidMemberNames.contains($0) }
                 adjacency[member.name] = deduplicateStrings(dependencies)
             }

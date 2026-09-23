@@ -248,6 +248,14 @@ standalone release assets.
   unless RFC 0006 has exactly one `Accepted` status in both its authoritative
   document and the RFC index. Pending, missing, duplicate, and inconsistent
   records are covered by executable release-contract tests.
+- **6.0 breaking ownership correction (R02):** `Lazy<T>` and `Provider<T>`
+  no longer exempt dependency cycles. Local cycles are compile errors even
+  with `validateDAG: false`; global DAG checks also include deferred edges.
+  Migrate mutual references by extracting shared state or restructuring the
+  graph. Acyclic forward references, transient re-entry, and escaped handle
+  lifetime remain supported. No explicit scope-close API is introduced.
+  Earlier candidate test/performance passes above do not cover this correction;
+  see [final hardening](docs/plans/6.0.0-final-hardening.md).
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v6 JSON artifacts.

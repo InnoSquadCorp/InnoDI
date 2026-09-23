@@ -681,7 +681,7 @@ extension SimpleDiagnostic {
 
     static func containerDependencyCycle(path: String) -> Self {
         Self(
-            "Dependency cycle detected in container: \(path). To break this cycle without restructuring, wrap one factory parameter in Lazy<T>.",
+            "Dependency cycle detected in container: \(path). Restructure the graph to remove the cycle; Lazy<T> and Provider<T> defer construction but do not break ownership cycles.",
             code: .containerDependencyCycle
         )
     }
@@ -973,7 +973,7 @@ extension SimpleDiagnostic {
         aliasName: String
     ) -> Self {
         Self(
-            "Spell 'Provider<T>' (or 'InnoDI.Provider<T>') directly — the macro cannot follow typealiases, so parameter '\(parameterName)' typed '\(aliasName)' is treated as a hard edge and loses the '.transient'-target rule plus the cycle-detection exemption.",
+            "Spell 'Provider<T>' (or 'InnoDI.Provider<T>') directly — the macro cannot follow typealiases, so parameter '\(parameterName)' typed '\(aliasName)' is treated as a hard edge and loses deferred wiring and the '.transient'-target rule.",
             code: .provideProviderAliased,
             severity: .warning
         )
