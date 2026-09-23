@@ -75,6 +75,12 @@ Before dispatching the `Release Gate` workflow:
      disabled-resolution, enabled-event, saturated-ring, snapshot, and
      writer-plus-snapshot contention budgets. The report keeps snapshot cost
      separate from record cost and covers capacities 64, 4,096, and 65,536.
+     Schema-v2 reports prefill the contention ring separately, then pace 64
+     full-buffer observations across 64 writer rounds. Raw monotonic intervals
+     must prove at least eight overlapping observations in each quarter of
+     every sample. Writer timings exclude rendezvous waits, not snapshot lock
+     contention. Empty reads, post-writer-only reads, missing intervals, and
+     inconsistent counts fail before the unchanged latency budgets are applied.
      Do not replace these CI budgets with a developer-machine measurement.
      This microbenchmark does not replace an actual consumer runtime pilot.
 10. Generate DocC:
