@@ -5,7 +5,8 @@ import json, math, re, sys
 report = json.load(open(sys.argv[1], encoding="utf-8"))
 if not re.fullmatch(r"[0-9a-f]{40}", report.get("candidateSHA", "")):
     raise SystemExit("runtime trace report needs its exact candidate SHA")
-if type(report.get("sourceTreeClean")) is not bool or not report.get("compilerVersion"):
+if (type(report.get("sourceTreeClean")) is not bool
+        or not isinstance(report.get("compilerVersion"), str) or not report["compilerVersion"].strip()):
     raise SystemExit("runtime trace report needs source cleanliness and compiler provenance")
 expected_sha = sys.argv[7] if len(sys.argv) > 7 else ""
 if expected_sha and (report["candidateSHA"] != expected_sha or not report["sourceTreeClean"]):
@@ -28,6 +29,9 @@ enabled_budget = float(sys.argv[3])
 saturated_budget = float(sys.argv[4])
 snapshot_budget = float(sys.argv[5])
 contended_budget = float(sys.argv[6])
+if not all(math.isfinite(budget) and budget > 0 for budget in
+           [disabled_budget, enabled_budget, saturated_budget, snapshot_budget, contended_budget]):
+    raise SystemExit("runtime trace budgets must be finite positive numbers")
 saturated = report.get("saturatedMeasurements")
 if not isinstance(saturated, list) or [item.get("capacity") for item in saturated] != [64, 4096, 65536]:
     raise SystemExit("runtime trace benchmark must report every saturated capacity")
@@ -38,10 +42,12 @@ for item in saturated:
     dropped = item.get("droppedEventCount")
     record_cost = item.get("nanosecondsPerEvent")
     snapshot_cost = item.get("snapshotNanosecondsPerRetainedEvent")
+    if emitted != (capacity + report["enabledIterations"]) * 2:
+        raise SystemExit("runtime trace saturated sample changed the enforced event count")
     if retained != capacity or dropped != emitted - capacity:
         raise SystemExit(f"runtime trace capacity {capacity} lost ring-buffer accounting")
     for name, value in (("saturated", record_cost), ("snapshot", snapshot_cost)):
-        if not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0:
             raise SystemExit(f"runtime trace {name} measurement is invalid")
     if record_cost > saturated_budget:
         raise SystemExit(f"saturated runtime trace overhead exceeds its budget at capacity {capacity}")
@@ -73,6 +79,12 @@ for index, item in enumerate(contention, start=1):
     for round_index, observation in enumerate(observations):
         if observation.get("round") != round_index or observation.get("retainedEventCount") != 4096:
             raise SystemExit("runtime trace snapshot did not observe the full ring in every round")
+        observed_events = observation.get("observedEmittedEventCount")
+        resolutions = item["eventsPerWriter"] // 2
+        lower = (resolutions * round_index // 64) * 8
+        upper = (resolutions * (round_index + 1) // 64) * 8
+        if type(observed_events) is not int or not lower <= observed_events <= upper:
+            raise SystemExit("runtime trace snapshot did not observe paced writer progress")
         start, end = observation.get("start"), observation.get("end")
         writers = observation.get("writers", [])
         if len(writers) != 4 or [w.get("writer") for w in writers] != [0, 1, 2, 3]:

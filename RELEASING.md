@@ -76,7 +76,8 @@ Before dispatching the `Release Gate` workflow:
      writer-plus-snapshot contention budgets. The report keeps snapshot cost
      separate from record cost and covers capacities 64, 4,096, and 65,536.
      Schema-v2 reports prefill the contention ring separately, then pace 64
-     full-buffer observations across 64 writer rounds. Raw monotonic intervals
+     full-buffer observations across 64 writer rounds. Observed event totals
+     must fall within each round's writer-progress range. Raw monotonic intervals
      must prove at least eight overlapping observations in each quarter of
      every sample. Writer timings exclude rendezvous waits, not snapshot lock
      contention. Empty reads, post-writer-only reads, missing intervals, and
@@ -381,6 +382,8 @@ standalone release assets.
   removing a default now fails even when the symbol identity does not change.
   Declaration formatting and default-expression values are not API identity;
   executable compiler/consumer fixtures verify the omitted-argument contract.
+  Macro defaults are recovered even when older compiler symbol graphs omit
+  `functionSignature`; missing metadata is not silently treated as no defaults.
   The
   coverage collector now accepts both the combined package test bundle used by
   earlier toolchains and Swift 6.4's per-target test bundles, including public
