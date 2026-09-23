@@ -45,9 +45,9 @@ public protocol DIAsyncPreparing: Sendable {
 }
 
 public extension DIAsyncPreparing {
-    /// Resets this provider when an enclosing preparation plan retries a
-    /// failed child subgraph. Custom providers retain source compatibility by
-    /// delegating to their existing failure-only retry behavior.
+    /// Compatibility default for manually resetting a custom provider.
+    /// Delegates to failure-only retry; transactional plan retry requires a
+    /// library-owned scope and does not call this default implementation.
     func resetForSubgraphRetry() async throws {
         try await retry()
     }
@@ -60,6 +60,16 @@ public enum DIAsyncPreparationPlanError: Error, Equatable, Sendable {
     case dependencyCycle([String])
     case retryRequiresFailure(selectedProviderIDs: [String])
     case retryWhileRunning(providerID: String)
+    case nonTransactionalProvider(providerID: String)
+}
+
+/// Only library-owned scopes can guarantee that close, value, status, and
+/// standalone retry all respect the same reservation. Custom preparation
+/// providers cannot opt in accidentally via a default protocol witness.
+private protocol DIAsyncRetryParticipant: DIAsyncPreparing {
+    func reserveForRetry(_ token: UUID) async throws -> DIAsyncProviderStatus
+    func commitReservedRetry(_ token: UUID) async
+    func releaseRetryReservation(_ token: UUID) async
 }
 
 /// One provider and its explicit asynchronous preparation dependencies.
@@ -219,55 +229,89 @@ public struct DIAsyncPreparationPlan: Sendable {
     /// together with only its selected downstream dependants.
     ///
     /// Ready parent dependencies outside that affected child subgraph retain
-    /// their values and generations. The complete retry set is preflighted
-    /// before any provider is reset so a running or closed provider cannot
-    /// leave the graph partially advanced.
+    /// their values and generations. All selected library-owned scopes are
+    /// reserved before preflight. Commit cannot fail after the first reset;
+    /// competing close/value/retry/status calls wait for reservation release.
+    /// Custom `DIAsyncPreparing` implementations support prepare/close, but
+    /// plan retry rejects them before mutation with `nonTransactionalProvider`.
     public func retry(
         _ selectedProviderIDs: [String]
     ) async throws -> DIAsyncPreparationReport {
+        try await retry(selectedProviderIDs, beforeCommit: nil)
+    }
+
+    // Internal synchronization seam for deterministic transaction regressions.
+    func retry(
+        _ selectedProviderIDs: [String],
+        beforeCommit: (@Sendable () async throws -> Void)?
+    ) async throws -> DIAsyncPreparationReport {
         let selected = try transitiveSelection(selectedProviderIDs)
+        var participants: [String: any DIAsyncRetryParticipant] = [:]
+        // Verify every participant before acquiring or changing anything.
+        for id in selected.sorted() {
+            guard let participant = providers[id] as? any DIAsyncRetryParticipant else {
+                throw DIAsyncPreparationPlanError.nonTransactionalProvider(providerID: id)
+            }
+            participants[id] = participant
+        }
+        let token = UUID()
+        var reserved: [any DIAsyncRetryParticipant] = []
         var statusByID: [String: DIAsyncProviderStatus] = [:]
-        for id in topologicalOrder where selected.contains(id) {
-            if let provider = providers[id] {
-                statusByID[id] = await provider.status()
+        do {
+            // A shared provider has the same immutable ID in every plan.
+            // Total ordering prevents overlapping plans from deadlocking.
+            for id in selected.sorted() {
+                guard let participant = participants[id] else { continue }
+                statusByID[id] = try await participant.reserveForRetry(token)
+                reserved.append(participant)
             }
-        }
 
-        let retryRoots = Set(statusByID.compactMap { id, status in
-            switch status.state {
-            case .failed, .cancelled: id
-            case .idle, .running, .ready, .closed: nil
-            }
-        })
-        guard !retryRoots.isEmpty else {
-            throw DIAsyncPreparationPlanError.retryRequiresFailure(
-                selectedProviderIDs: selectedProviderIDs
-            )
-        }
-
-        var retrySet = retryRoots
-        for id in topologicalOrder where selected.contains(id) {
-            if dependencies[id, default: []].contains(where: retrySet.contains) {
-                retrySet.insert(id)
-            }
-        }
-
-        for id in topologicalOrder where retrySet.contains(id) {
-            guard let status = statusByID[id] else { continue }
-            switch status.state {
-            case .running:
-                throw DIAsyncPreparationPlanError.retryWhileRunning(
-                    providerID: id
+            let retryRoots = Set(statusByID.compactMap { id, status in
+                switch status.state {
+                case .failed, .cancelled: id
+                case .idle, .running, .ready, .closed: nil
+                }
+            })
+            guard !retryRoots.isEmpty else {
+                throw DIAsyncPreparationPlanError.retryRequiresFailure(
+                    selectedProviderIDs: selectedProviderIDs
                 )
-            case .closed:
-                throw DIAsyncScopeError.closed(providerID: id)
-            case .idle, .ready, .failed, .cancelled:
-                break
             }
-        }
 
-        for id in topologicalOrder.reversed() where retrySet.contains(id) {
-            try await providers[id]?.resetForSubgraphRetry()
+            var retrySet = retryRoots
+            for id in topologicalOrder where selected.contains(id) {
+                if dependencies[id, default: []].contains(where: retrySet.contains) {
+                    retrySet.insert(id)
+                }
+            }
+
+            for id in topologicalOrder where retrySet.contains(id) {
+                guard let status = statusByID[id] else { continue }
+                switch status.state {
+                case .running:
+                    throw DIAsyncPreparationPlanError.retryWhileRunning(providerID: id)
+                case .closed:
+                    throw DIAsyncScopeError.closed(providerID: id)
+                case .idle, .ready, .failed, .cancelled:
+                    break
+                }
+            }
+
+            try await beforeCommit?()
+            try Task.checkCancellation()
+            // From here through release, no user code or throwing reset is
+            // called. Cancellation cannot strand a partially committed set.
+            for id in topologicalOrder.reversed() where retrySet.contains(id) {
+                await participants[id]?.commitReservedRetry(token)
+            }
+        } catch {
+            for participant in reserved.reversed() {
+                await participant.releaseRetryReservation(token)
+            }
+            throw error
+        }
+        for participant in reserved.reversed() {
+            await participant.releaseRetryReservation(token)
         }
         return try await prepare(selectedProviderIDs)
     }
@@ -331,7 +375,7 @@ public struct DIAsyncPreparationPlan: Sendable {
 /// Cancelling a caller cancels only that wait. Calling ``close()`` cancels the
 /// owned task, resumes every waiter, and permanently prevents new work.
 /// ``retry()`` is available after failure and advances to a clean generation.
-public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
+public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryParticipant {
     public typealias Operation = @Sendable () async throws -> Value
 
     private enum Phase {
@@ -350,13 +394,20 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
     private var ownedTask: Task<Value, any Error>?
     private var waiters: [UUID: CheckedContinuation<Value, any Error>] = [:]
     private var cancelledWaiters: Set<UUID> = []
+    private var retryReservation: UUID?
+    private var reservationWaiters: [CheckedContinuation<Void, Never>] = []
 
     public init(providerID: String, operation: @escaping Operation) {
         self.providerID = providerID
         self.operation = operation
     }
 
-    public func status() -> DIAsyncProviderStatus {
+    public func status() async -> DIAsyncProviderStatus {
+        await waitForRetryReservation()
+        return currentStatus()
+    }
+
+    private func currentStatus() -> DIAsyncProviderStatus {
         switch phase {
         case .idle:
             makeStatus(.idle)
@@ -375,6 +426,8 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
 
     public func value() async throws -> Value {
         try Task.checkCancellation()
+        await waitForRetryReservation()
+        try Task.checkCancellation()
         let waiterID = UUID()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -389,15 +442,18 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
         do {
             _ = try await value()
         } catch is CancellationError {
+            await waitForRetryReservation()
             return makeStatus(.cancelled)
         } catch {
             // The status carries bounded provenance without retaining or
             // serializing arbitrary user error payloads.
         }
-        return status()
+        return await status()
     }
 
-    public func retry() throws {
+    public func retry() async throws {
+        await waitForRetryReservation()
+        try Task.checkCancellation()
         switch phase {
         case .failed, .cancelled:
             generation += 1
@@ -410,7 +466,9 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
         }
     }
 
-    public func resetForSubgraphRetry() throws {
+    public func resetForSubgraphRetry() async throws {
+        await waitForRetryReservation()
+        try Task.checkCancellation()
         switch phase {
         case .idle, .ready, .failed, .cancelled:
             generation += 1
@@ -425,7 +483,8 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
         }
     }
 
-    public func close() {
+    public func close() async {
+        await waitForRetryReservation()
         guard case .closed = phase else {
             phase = .closed
             ownedTask?.cancel()
@@ -441,6 +500,36 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
             }
             return
         }
+    }
+
+    private func waitForRetryReservation() async {
+        while retryReservation != nil {
+            await withCheckedContinuation { reservationWaiters.append($0) }
+        }
+    }
+
+    fileprivate func reserveForRetry(_ token: UUID) async throws -> DIAsyncProviderStatus {
+        try Task.checkCancellation()
+        await waitForRetryReservation()
+        try Task.checkCancellation()
+        retryReservation = token
+        return currentStatus()
+    }
+
+    fileprivate func commitReservedRetry(_ token: UUID) {
+        // Only the owning plan calls this after validating the reserved state.
+        precondition(retryReservation == token)
+        generation += 1
+        phase = .idle
+        ownedTask = nil
+    }
+
+    fileprivate func releaseRetryReservation(_ token: UUID) {
+        precondition(retryReservation == token)
+        retryReservation = nil
+        let pending = reservationWaiters
+        reservationWaiters.removeAll()
+        for waiter in pending { waiter.resume() }
     }
 
     private func register(
@@ -490,12 +579,12 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
         ownedTask = task
         Task {
             do {
-                finish(
+                await finish(
                     generation: taskGeneration,
                     result: .success(try await task.value)
                 )
             } catch {
-                finish(
+                await finish(
                     generation: taskGeneration,
                     result: .failure(error)
                 )
@@ -506,7 +595,8 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing {
     private func finish(
         generation completedGeneration: Int,
         result: Result<Value, any Error>
-    ) {
+    ) async {
+        await waitForRetryReservation()
         guard completedGeneration == generation,
               case .running = phase else {
             return

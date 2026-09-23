@@ -18,6 +18,23 @@ downstream만 함께 새 generation으로 전환하고 준비된 부모 의존�
 재시도를 거부합니다. 개별 ``DIAsyncScope/retry()``는 해당 scope가 실패했거나
 소유 작업이 취소된 뒤에만 호출합니다.
 
+재시도는 선택된 `DIAsyncScope`를 provider ID 순서대로 예약한 뒤 상태를
+검증합니다. 영향받는 generation을 모두 변경한 후 예약을 해제하며,
+`value`·`status`·개별 retry/reset·완료·close는 이 경계를 기다립니다.
+commit 전 취소는 아무것도 변경하지 않고 예약을 해제합니다. commit 중 취소가
+일부 generation만 변경된 상태를 남기지는 않습니다. commit 이후의 prepare는
+일반적인 취소·실패·종료 결과를 보고할 수 있습니다.
+
+사용자 정의 `DIAsyncPreparing`은 prepare/close에 계속 사용할 수 있지만,
+plan retry는 `nonTransactionalProvider`로 변경 전에 거부합니다. 사용자 reset의
+부분 실패를 안전하게 되돌릴 수 없기 때문입니다. 트랜잭션 재시도에는 소유 작업을
+`DIAsyncScope`로 감싸 사용하세요.
+
+`resetForSubgraphRetry()`는 concrete·existential·generic 호출 모두 명시적인
+`async throws`이며 idle/ready/failed/cancelled에서 초기화하고 running/closed는
+거부합니다. 실패 전용 `retry()`와는 별개입니다. 예약 대기가 있으므로 actor 내부에서도
+status/retry/reset/close는 비동기 호출입니다.
+
 이미 취소된 task는 factory를 시작하지 않습니다. waiter 또는 prepare 요청 하나를
 취소하면 그 요청만 `cancelled`로 보고하며 owner의 공통 작업은 유지합니다. 소유
 작업이 `CancellationError`를 던지면 scope도 `cancelled`가 되고 재시도할 수
