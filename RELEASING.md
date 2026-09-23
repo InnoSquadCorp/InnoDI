@@ -256,6 +256,13 @@ standalone release assets.
   lifetime remain supported. No explicit scope-close API is introduced.
   Earlier candidate test/performance passes above do not cover this correction;
   see [final hardening](docs/plans/6.0.0-final-hardening.md).
+- Migration publication and rollback now use a preserving atomic exchange
+  (R01/R09), never an unconditional overwriting rename. Every displaced entry
+  remains at a reported recovery path, including after success, so late writes
+  through open editor descriptors are retained. A conflict exits nonzero and
+  requires review of source and recovery paths; no unsafe restore is attempted.
+  POSIX source modes are restored independently of umask. Doctor schema v3 adds
+  `recoveryPaths`; migration's read-only report remains schema v1.
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v6 JSON artifacts.
