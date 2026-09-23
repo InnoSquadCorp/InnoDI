@@ -263,6 +263,8 @@ standalone release assets.
   requires review of source and recovery paths; no unsafe restore is attempted.
   POSIX source modes are restored independently of umask. Doctor schema v3 adds
   `recoveryPaths`; migration's read-only report remains schema v1.
+- `DIContainerHostOwner.close()` releases stored factory/close captures before
+  suspension, without clearing a reentrant new generation's callbacks (R03).
 - Added graph explainability commands: `--why` traces a shortest root path,
   `--dependents` reports reverse impact, `--unused` finds containers outside
   every rooted graph, and `--diff` compares two schema-v6 JSON artifacts.

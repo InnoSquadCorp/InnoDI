@@ -132,12 +132,18 @@ where Identity: Hashable & Sendable {
     }
 
     /// Cancels an in-flight generation, closes a ready container, and returns
-    /// to ``DIContainerHostPhase/idle``. Repeated closes are idempotent.
+    /// to ``DIContainerHostPhase/idle``. Releases stored factory and close
+    /// captures; an in-flight factory still owns its context until it returns
+    /// and its late candidate is cleaned up. Repeated closes are idempotent.
     public func close() async {
         generation &+= 1
         operation?.cancel()
         operation = nil
         identity = nil
+        // Clear before publishing idle or awaiting cleanup: a new start may
+        // re-enter during either operation and must retain its own callbacks.
+        factory = nil
+        closeOperation = nil
 
         let container = currentContainer
         let containerClose = currentContainerClose
