@@ -81,6 +81,12 @@ Before dispatching the `Release Gate` workflow:
      every sample. Writer timings exclude rendezvous waits, not snapshot lock
      contention. Empty reads, post-writer-only reads, missing intervals, and
      inconsistent counts fail before the unchanged latency budgets are applied.
+     Release Gate executes this script with `INNODI_RUNTIME_TRACE_EXPECTED_SHA`
+     set to the dispatch candidate and retains a SHA-named diagnostic artifact.
+     The report records SHA, clean/dirty source state, and compiler version;
+     wrong-SHA or dirty release candidates fail before benchmark compilation.
+     Staging depends on this non-optional gate. Local dirty-tree measurements
+     remain labeled as such and are not release evidence.
      Do not replace these CI budgets with a developer-machine measurement.
      This microbenchmark does not replace an actual consumer runtime pilot.
 10. Generate DocC:

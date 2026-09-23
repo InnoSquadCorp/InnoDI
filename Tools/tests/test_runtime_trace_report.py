@@ -25,6 +25,7 @@ def valid_report():
               "droppedEventCount": 40000, "nanosecondsPerEvent": 3.84,
               "wallNanosecondsPerEvent": 2, "observations": observations}
     return {"schemaVersion": 2, "iterations": 1000000, "enabledIterations": 20000,
+            "candidateSHA": "a" * 40, "sourceTreeClean": True, "compilerVersion": "fixture compiler",
             "recordedEventCount": 40000, "disabledNetNanosecondsPerResolution": 1,
             "enabledNanosecondsPerEvent": 1,
             "saturatedMeasurements": [
@@ -35,17 +36,29 @@ def valid_report():
 
 
 class TraceReportGateTests(unittest.TestCase):
-    def check(self, report, passes=False):
+    def check(self, report, passes=False, expected_sha=""):
         with tempfile.TemporaryDirectory(prefix="innodi-trace-contract-") as directory:
             path = Path(directory) / "report.json"
             path.write_text(json.dumps(report))
             result = subprocess.run([sys.executable, str(GATE), str(path),
-                                     "210", "600", "2500", "5000", "5000"],
+                                     "210", "600", "2500", "5000", "5000", expected_sha],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode == 0, passes, result.stdout + result.stderr)
 
     def test_valid(self):
         self.check(valid_report(), passes=True)
+        self.check(valid_report(), passes=True, expected_sha="a" * 40)
+
+    def test_candidate_provenance(self):
+        self.check(valid_report(), expected_sha="b" * 40)
+        for key in ["candidateSHA", "sourceTreeClean", "compilerVersion"]:
+            report = valid_report()
+            del report[key]
+            self.check(report, expected_sha="a" * 40)
+        report = valid_report()
+        report["sourceTreeClean"] = False
+        self.check(report, expected_sha="a" * 40)
+        self.check(report, passes=True)  # Local dirty measurements are labeled, not release evidence.
 
     def test_invalid_workloads(self):
         for mutation in ["empty", "tail", "unpaced", "missing", "prefill", "accounting",
