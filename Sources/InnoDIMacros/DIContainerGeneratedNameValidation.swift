@@ -36,6 +36,18 @@ enum ManagedGeneratedSymbolShape {
     case provide(scope: ProvideScope, isAsync: Bool)
     case subContainer(scope: SubContainerScopeValue)
 
+    /// A conservative superset used only to rule out collisions before
+    /// parsing every sibling's full provider arguments. A possible collision
+    /// still goes through the original scope/configuration-aware validation.
+    static let possiblePrefixes: Set<String> = Set([
+        Self.provide(scope: .input, isAsync: false),
+        .provide(scope: .shared, isAsync: false),
+        .provide(scope: .shared, isAsync: true),
+        .provide(scope: .transient, isAsync: false),
+        .subContainer(scope: .shared),
+        .subContainer(scope: .transient),
+    ].flatMap { $0.symbolNames(for: "") })
+
     func symbolNames(for memberName: String) -> [String] {
         switch self {
         case .provide(.input, _):
@@ -120,9 +132,30 @@ func generatedPeerSymbolCollisions(
 func hasGeneratedPeerSymbolCollision(
     in declaration: some DeclGroupSyntax
 ) -> Bool {
-    hasGeneratedPeerSymbolCollision(
+    let names = declaration.memberBlock.members.compactMap { member -> String? in
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              variable.bindings.count == 1,
+              let identifier = variable.bindings.first?.pattern.as(IdentifierPatternSyntax.self) else {
+            return nil
+        }
+        return unescapedInnoDIIdentifierName(identifier.identifier)
+    }
+    guard hasPotentialGeneratedPeerSymbolCollision(memberNames: names) else {
+        return false
+    }
+    return hasGeneratedPeerSymbolCollision(
         sources: rawManagedGeneratedSymbolSources(in: declaration)
     )
+}
+
+func hasPotentialGeneratedPeerSymbolCollision(memberNames: [String]) -> Bool {
+    var claims = Set<String>()
+    for name in memberNames {
+        for prefix in ManagedGeneratedSymbolShape.possiblePrefixes {
+            if !claims.insert(prefix + name).inserted { return true }
+        }
+    }
+    return false
 }
 
 private func hasGeneratedPeerSymbolCollision(

@@ -621,7 +621,6 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                 }
                 if label == "initialization" {
                     initializationExpr = argument.expression
-                    initializationName = argument.expression.trimmedDescription
                     if let member = argument.expression.as(
                         MemberAccessExprSyntax.self
                     ) {
@@ -631,6 +630,7 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                             rawValue: name
                         )
                     } else {
+                        initializationName = argument.expression.trimmedDescription
                         initialization = nil
                     }
                     continue
@@ -644,7 +644,6 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                 }
                 if label == "effect" {
                     operationalEffectExpr = argument.expression
-                    operationalEffectName = argument.expression.trimmedDescription
                     if let member = argument.expression.as(
                         MemberAccessExprSyntax.self
                     ) {
@@ -658,6 +657,7 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                             operationalEffect = nil
                         }
                     } else {
+                        operationalEffectName = argument.expression.trimmedDescription
                         operationalEffect = nil
                     }
                     continue
@@ -695,14 +695,13 @@ public func parseProvideArguments(_ attribute: AttributeSyntax) -> ProvideArgume
                 // confusing an explicit value with an omitted `.shared`.
                 if scopeExpr == nil {
                     scopeExpr = argument.expression
-                    scopeName = argument.expression.trimmedDescription
-
-                    if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self) {
+                    if let memberAccess = argument.expression.as(MemberAccessExprSyntax.self),
+                       isSupportedProvideScopeReference(memberAccess) {
                         let name = memberAccess.declName.baseName.text
-                        if isSupportedProvideScopeReference(memberAccess) {
-                            scopeName = name
-                            scope = ProvideScope(rawValue: name)
-                        }
+                        scopeName = name
+                        scope = ProvideScope(rawValue: name)
+                    } else {
+                        scopeName = argument.expression.trimmedDescription
                     }
                 }
             }
