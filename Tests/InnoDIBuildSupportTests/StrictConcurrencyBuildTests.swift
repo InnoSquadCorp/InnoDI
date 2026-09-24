@@ -552,7 +552,8 @@ func runStrictConcurrencyBuild(
 
 func runExternalConsumerExecutable(
     packageURL: URL,
-    scratchPath: URL? = nil
+    scratchPath: URL? = nil,
+    executable: String = "FixtureApp"
 ) throws -> StrictConcurrencyBuildResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -570,7 +571,7 @@ func runExternalConsumerExecutable(
     }
     arguments.append(contentsOf: [
         "--skip-build",
-        "FixtureApp",
+        executable,
     ])
     process.arguments = arguments
     process.currentDirectoryURL = packageRootURL()

@@ -5,6 +5,42 @@ import InnoDITestSupport
 
 @Suite("External SwiftPM consumer contracts", .serialized, .tags(.slow))
 struct ExternalConsumerContractTests {
+    @Test("Release smoke sources build and run before publication")
+    func releaseSmokeFixturesBuildAndRun() throws {
+        let sourceURL = packageRootURL().appendingPathComponent("Tests/RemoteConsumerSmoke")
+        let fixture = ExternalConsumerFixture(
+            name: "release-remote-smoke",
+            sourceURL: sourceURL,
+            expectation: .pass,
+            scratchProfile: try externalConsumerScratchProfile(for: sourceURL)
+        )
+        // Compile the exact publication sources against this checkout before
+        // merge. Only the dependency locator changes; the main-only remote
+        // workflow still independently proves the published revision pin.
+        let packageURL = try materializeExternalConsumerFixture(fixture, localizingRemoteRevision: true)
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let scratchPath = externalConsumerScratchPath(for: fixture, under: externalConsumerScratchRoot())
+        let build = try runStrictConcurrencyBuild(packageURL: packageURL, scratchPath: scratchPath)
+        let output = build.stdout + "\n" + build.stderr
+        #expect(!build.timedOut, Comment(rawValue: output))
+        #expect(build.exitCode == 0, Comment(rawValue: output))
+        assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+        guard !build.timedOut, build.exitCode == 0 else { return }
+        for (executable, expectedOutput) in [
+            ("MacroOnlyApp", "macro-only remote consumer OK"),
+            ("ValidatedApp", "DAG-plugin remote consumer OK"),
+        ] {
+            let result = try runExternalConsumerExecutable(
+                packageURL: packageURL,
+                scratchPath: scratchPath,
+                executable: executable
+            )
+            #expect(!result.timedOut)
+            #expect(result.exitCode == 0, Comment(rawValue: result.stdout + result.stderr))
+            #expect(result.stdout.contains(expectedOutput))
+        }
+    }
+
     @Test("Same-target assisted factory bridge builds and runs")
     func sameTargetAssistedFactoryBuilds() throws {
         let fixture = try externalConsumerFixture(
@@ -569,7 +605,8 @@ private func externalConsumerScratchProfile(
 }
 
 private func materializeExternalConsumerFixture(
-    _ fixture: ExternalConsumerFixture
+    _ fixture: ExternalConsumerFixture,
+    localizingRemoteRevision: Bool = false
 ) throws -> URL {
     let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent(
         "InnoDI-ExternalConsumer-\(fixture.expectation.rawValue)-\(fixture.name)-\(UUID().uuidString)",
@@ -628,6 +665,18 @@ private func materializeExternalConsumerFixture(
         )
 
         var contents = try String(contentsOf: sourceURL, encoding: .utf8)
+        if localizingRemoteRevision, outputRelativePath == "Package.swift" {
+            let dependency = try NSRegularExpression(
+                pattern: #"\.package\(\s*url:\s*"https://github\.com/InnoSquadCorp/InnoDI\.git",\s*revision:\s*"\{\{INNODI_REVISION\}\}"\s*\)"#
+            )
+            let matches = dependency.matches(in: contents, range: NSRange(contents.startIndex..., in: contents))
+            guard matches.count == 1,
+                  let range = Range(matches[0].range, in: contents) else {
+                throw ExternalConsumerFixtureError.unexpectedTemplate("remote revision dependency in \(relativePath)")
+            }
+            let path = escapedSwiftString(packageRootURL().path(percentEncoded: false))
+            contents.replaceSubrange(range, with: ".package(name: \"InnoDI\", path: \"\(path)\")")
+        }
         contents = contents.replacingOccurrences(
             of: "{{INNODI_PACKAGE_PATH}}",
             with: escapedSwiftString(packageRootURL().path(percentEncoded: false))
@@ -642,7 +691,10 @@ private func materializeExternalConsumerFixture(
         try contents.write(to: outputURL, atomically: true, encoding: .utf8)
     }
 
-    for requiredPath in ["Package.swift", "Sources/FixtureApp/FixtureApp.swift"] {
+    let requiredPaths = localizingRemoteRevision
+        ? ["Package.swift", "Sources/MacroOnlyApp/main.swift", "Sources/ValidatedApp/main.swift"]
+        : ["Package.swift", "Sources/FixtureApp/FixtureApp.swift"]
+    for requiredPath in requiredPaths {
         let requiredURL = destinationURL.appendingPathComponent(requiredPath)
         guard FileManager.default.fileExists(
             atPath: requiredURL.path(percentEncoded: false)
