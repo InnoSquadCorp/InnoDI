@@ -1,6 +1,16 @@
 import Dispatch
 import Foundation
 
+#if canImport(os)
+import os
+
+// Stable-address, nonrecursive locking is available at every supported Apple
+// deployment target. All acquisition/release pairs below are synchronous.
+private typealias DITraceLock = OSAllocatedUnfairLock<Void>
+#else
+private typealias DITraceLock = NSLock
+#endif
+
 /// A metadata-only dependency-resolution event. Input values, error payloads,
 /// tokens, and service descriptions are intentionally absent from this type.
 public struct DITraceEvent: Codable, Equatable, Sendable {
@@ -205,13 +215,19 @@ public struct _InnoDITraceOwner: Sendable {
 
     private final class State: @unchecked Sendable {
         let ownerID = UUID()
-        private let lock = NSLock()
+        private let lock = DITraceLock()
         private var latestSpans: [String: Span] = [:]
 
-        func store(_ span: Span, member: String) {
+        func start(member: String, containerID: String, instanceID: UUID) -> Span {
             lock.lock()
+            defer { lock.unlock() }
+            // The provider's semantic ID is immutable for this owner. Reuse
+            // that string, not the span identity: every resolution still gets
+            // its own UUID and replaces the latest span under the same lock.
+            let providerID = latestSpans[member]?.providerID ?? "\(containerID).\(member)"
+            let span = Span(providerID: providerID, instanceID: instanceID)
             latestSpans[member] = span
-            lock.unlock()
+            return span
         }
 
         func span(member: String) -> Span? {
@@ -264,15 +280,12 @@ public struct _InnoDITraceOwner: Sendable {
     }
 
     public func start(member: String) -> Span? {
-        guard let state, let providerID = providerID(member: member) else {
-            return nil
-        }
+        guard let state else { return nil }
         let instanceID = UUID()
-        let span = Span(providerID: providerID, instanceID: instanceID)
-        state.store(span, member: member)
+        let span = state.start(member: member, containerID: containerID, instanceID: instanceID)
         context.record(
             DITraceEvent(
-                providerID: providerID,
+                providerID: span.providerID,
                 instanceID: instanceID,
                 kind: .start,
                 ownerID: state.ownerID,
@@ -458,49 +471,41 @@ public final class DIBoundedTraceBuffer: DITraceSink, @unchecked Sendable {
     }
 
     private let capacity: Int
-    private let lock = NSLock()
-    private var storage: [DITraceEvent?]
+    private let lock = DITraceLock()
+    private var storage: [DITraceEvent]
     private var startIndex = 0
-    private var eventCount = 0
     private var droppedEventCount = 0
 
     public init(capacity: Int) {
         precondition(capacity > 0, "DIBoundedTraceBuffer capacity must be positive")
         self.capacity = capacity
-        storage = Array(repeating: nil, count: capacity)
+        storage = []
+        storage.reserveCapacity(capacity)
     }
 
     public func record(_ event: DITraceEvent) {
         lock.lock()
         defer { lock.unlock() }
-        if eventCount == capacity {
+        if storage.count == capacity {
             storage[startIndex] = event
-            startIndex = (startIndex + 1) % capacity
+            startIndex += 1
+            if startIndex == capacity { startIndex = 0 }
             droppedEventCount += 1
             return
         }
-        let insertionIndex = (startIndex + eventCount) % capacity
-        storage[insertionIndex] = event
-        eventCount += 1
+        storage.append(event)
     }
 
     public func snapshot() -> Snapshot {
         lock.lock()
         defer { lock.unlock() }
         var events: [DITraceEvent] = []
-        events.reserveCapacity(eventCount)
-        let tailCount = min(eventCount, capacity - startIndex)
-        for index in startIndex..<(startIndex + tailCount) {
-            if let event = storage[index] {
-                events.append(event)
-            }
-        }
-        let headCount = eventCount - tailCount
-        for index in 0..<headCount {
-            if let event = storage[index] {
-                events.append(event)
-            }
-        }
+        events.reserveCapacity(storage.count)
+        // Only initialized events occupy the ring. Copy its two contiguous
+        // segments in bulk instead of unwrapping and appending every slot
+        // while all writers are waiting for this lock.
+        events.append(contentsOf: storage[startIndex...])
+        events.append(contentsOf: storage[..<startIndex])
         return Snapshot(events: events, droppedEventCount: droppedEventCount)
     }
 }
