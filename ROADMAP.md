@@ -281,10 +281,11 @@ ordered by user-facing trust risk first.
 ## 6.0 Preparation Train
 
 [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) defines
-the proposed 6.0 contract: child-owned assisted factories, separate input and
+the accepted 6.0 contract: child-owned assisted factories, separate input and
 provider-lifetime declarations, explicit container roles, and deterministic
-compile-time multibinding. Its implementation is frozen for promotion review;
-formal RFC acceptance remains pending.
+compile-time multibinding. The repository owner approved the public syntax and
+documented 5.x spelling replacements on 2026-09-24. PR review/merge and release
+publication remain separate gates.
 
 Delivery order:
 
@@ -331,13 +332,13 @@ Delivery order:
    initializer, hierarchy, actor, and strict external-consumer contracts.
    The compiler/toolchain contract is frozen for the code candidate; BlPia
    `c12560d` and Lynceus `3edb77b` provide the two additional committed pilot
-   votes. This evidence freezes the candidate implementation, while formal RFC
-   acceptance remains pending.
-6. Pending: accept and freeze the RFC only after diagnostics, graph schema,
-   migration, strict-concurrency, consumer, and macro-performance gates pass,
-   the promotion pull request completes its cooldown, and a maintainer grants
-   human approval.
-7. Remove superseded declarations and publish graph JSON v4 in 6.0.0.
+   votes. This evidence froze the candidate implementation; the owner accepted
+   its public syntax on 2026-09-24.
+6. Accepted: RFC 0006 records the explicit owner design decision on 2026-09-24,
+   after the promotion PR's seven-day cooldown. The library-only code candidate
+   passed its diagnostics, schema, migration, supported-toolchain and calibrated
+   performance gates. This is not GitHub PR approval, merge or release approval.
+7. Remove superseded declarations and publish graph JSON v6 in 6.0.0.
 
 The exact-revision inventory for step 4 is recorded in RFC 0006. InnoSample is
 committed and pushed on main. BlPia and Lynceus are committed and pushed branch
