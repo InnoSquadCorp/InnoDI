@@ -36,9 +36,12 @@ jobs:
         # repeating them on every PR dominated feedback time without adding
         # local semantic coverage. All in-process unit, macro-expansion, graph,
         # runtime, migration, and release-contract tests still run here with
-        # production diagnostics.
+        # production diagnostics. Independent cases run serially so synchronous
+        # process fixtures cannot starve another test's async deadline; tasks
+        # and contention assertions inside each test remain concurrent.
         run: >-
           swift test
+          --no-parallel
           -Xswiftc -strict-concurrency=complete
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
@@ -65,9 +68,11 @@ jobs:
             Tools/report-validate-dag-escape-hatches.sh
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Escape Hatch Report
+        # release-validation PRs also run the exhaustive job. Preserve both
+        # immutable reports instead of colliding with its canonical names.
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: escape-hatch-report
+          name: escape-hatch-report-fast-pr
           path: build/escape-hatch-report.json
           if-no-files-found: error
       - name: Report Deferred-Wrapper Alias Findings
@@ -78,7 +83,7 @@ jobs:
       - name: Upload Deferred-Wrapper Alias Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: deferred-aliases-report
+          name: deferred-aliases-report-fast-pr
           path: build/deferred-aliases.json
           if-no-files-found: error
 
@@ -236,6 +241,7 @@ jobs:
         # actually instrumented.
         run: >-
           swift test
+          --no-parallel
           --scratch-path .build/main-tsan
           --sanitize=thread
           -Xswiftc -strict-concurrency=complete
@@ -246,6 +252,7 @@ jobs:
       - name: Run address sanitizer suite
         run: >-
           swift test
+          --no-parallel
           --scratch-path .build/main-asan
           --sanitize=address
           -Xswiftc -strict-concurrency=complete

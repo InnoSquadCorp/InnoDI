@@ -245,6 +245,7 @@ struct ReleaseWorkflowContractTests {
         #expect(releaseGateJob.contains("--sanitize=thread"))
         #expect(releaseGateJob.contains("--scratch-path .build/release-asan"))
         #expect(releaseGateJob.contains("--sanitize=address"))
+        #expect(releaseGateJob.components(separatedBy: "--no-parallel").count - 1 == 2)
         #expect(
             releaseGateJob.components(
                 separatedBy: "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
