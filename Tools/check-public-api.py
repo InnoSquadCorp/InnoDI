@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -87,6 +87,7 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
         "precise": symbol["identifier"]["precise"],
         "interfaceLanguage": symbol["identifier"]["interfaceLanguage"],
     }
+    normalized["declarationContract"] = declaration_contract(symbol)
     # Older symbol-graph emitters omit functionSignature for macros, including
     # parameterless ones. Their declaration fragments still carry defaults.
     if "functionSignature" in symbol or symbol["kind"]["identifier"] == "swift.macro":
@@ -100,6 +101,67 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
             normalized["swiftExtension"]
         )
     return normalized
+
+
+def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
+    """Retain actor isolation, accessor capability, and self-mutation semantics.
+
+    Compiler declaration fragments carry facts missing from USRs and method
+    signatures. Keep their semantic tokens, not toolchain-rendered full text.
+    Inferred actor attributes are emitted on members as well as their owner.
+    """
+    fragments = symbol.get("declarationFragments")
+    if not isinstance(fragments, list) or not fragments:
+        raise ValueError("Missing declaration fragments for " + symbol["identifier"]["precise"])
+    declaration_keywords = {"func", "init", "deinit", "var", "let", "subscript", "class",
+                            "struct", "enum", "actor", "protocol", "typealias", "associatedtype",
+                            "case", "macro", "operator", "precedencegroup"}
+    prefix = []
+    for fragment in fragments:
+        if fragment["kind"] == "keyword" and fragment["spelling"] in declaration_keywords:
+            break
+        prefix.append(fragment)
+    for index, fragment in enumerate(prefix):
+        if fragment["kind"] == "attribute" and fragment["spelling"] == "@":
+            following = next((part for part in prefix[index + 1:] if part["spelling"].strip()), None)
+            if following is None or "preciseIdentifier" not in following:
+                raise ValueError("Missing named-attribute identity for " + symbol["identifier"]["precise"])
+    # A referenced type in an attribute is a stable identity (including custom
+    # global actors). Plain attributes like availability have dedicated graph
+    # records and are deliberately not compared as rendered text.
+    attributes = sorted({fragment["preciseIdentifier"] for fragment in prefix
+                         if fragment["kind"] == "attribute" and "preciseIdentifier" in fragment})
+    prefix_text = "".join(fragment["spelling"] for fragment in prefix)
+    isolation = re.findall(r"\bnonisolated(?:\s*\(\s*(?:unsafe|nonsending)\s*\))?|\bisolated\b|@concurrent\b", prefix_text)
+    contract: dict[str, Any] = {
+        "namedAttributes": attributes,
+        "isolationModifiers": sorted({re.sub(r"\s+", "", value) for value in isolation}),
+    }
+    kind = symbol["kind"]["identifier"]
+    if kind == "swift.method":
+        contract["mutating"] = bool(re.search(r"\bmutating\b", prefix_text))
+    if kind in {"swift.property", "swift.type.property", "swift.subscript", "swift.type.subscript"}:
+        text = "".join(fragment["spelling"] for fragment in fragments)
+        keywords = {fragment["spelling"] for fragment in fragments if fragment["kind"] == "keyword"}
+        accessors = re.search(r"\{([^{}]*)\}\s*$", text)
+        if accessors:
+            body = accessors.group(1)
+            if not re.search(r"\bget\b", body):
+                raise ValueError("Unknown accessor contract for " + symbol["identifier"]["precise"])
+            contract["writable"] = bool(re.search(r"\bset\b", body))
+            contract["mutatingGetter"] = bool(re.search(r"\bmutating\s+get\b", body))
+            contract["nonmutatingSetter"] = bool(re.search(r"\bnonmutating\s+set\b", body))
+        elif "let" in keywords:
+            contract["writable"] = False
+            contract["mutatingGetter"] = False
+            contract["nonmutatingSetter"] = False
+        elif "var" in keywords:
+            contract["writable"] = True
+            contract["mutatingGetter"] = False
+            contract["nonmutatingSetter"] = False
+        else:
+            raise ValueError("Missing accessor contract for " + symbol["identifier"]["precise"])
+    return contract
 
 
 def parameter_defaults(symbol: dict[str, Any]) -> list[bool]:

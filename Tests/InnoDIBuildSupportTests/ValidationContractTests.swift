@@ -6,6 +6,23 @@ import Testing
 
 @Suite("ValidationContract")
 struct ValidationContractTests {
+    @Test("Validation ordering source is comment-only and stable on identical outcomes", arguments: [Int32(0), Int32(1)])
+    func validationOrderingSource(_ exitCode: Int32) throws {
+        let fixture = try makeContractFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        let result = ValidationCommandResult(exitCode: exitCode, stdout: "", stderr: "")
+        let url = fixture.outputURL.appendingPathComponent("_InnoDIDAGValidation.generated.swift")
+        try writeSwiftOrderingSource(signature: "abc123", result: result, to: fixture.outputURL)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "// InnoDI DAG validation: abc123 (exit \(exitCode)).\n")
+        let fixedDate = Date(timeIntervalSince1970: 1_000)
+        try FileManager.default.setAttributes([.modificationDate: fixedDate], ofItemAtPath: url.path)
+        try writeSwiftOrderingSource(signature: "abc123", result: result, to: fixture.outputURL)
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect(attributes[.modificationDate] as? Date == fixedDate)
+        try writeSwiftOrderingSource(signature: "def456", result: result, to: fixture.outputURL)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "// InnoDI DAG validation: def456 (exit \(exitCode)).\n")
+    }
+
     @Test("Validation metrics artifact JSON schema stays stable")
     func validationMetricsArtifactJSONGolden() throws {
         #expect(ValidationMetricsArtifact.currentVersion == 4)
@@ -18,6 +35,17 @@ struct ValidationContractTests {
     func validationMarkdownSummaryGolden() {
         let actual = ValidationLogging.renderMarkdownSummary(for: contractArtifact())
         #expect(actual == expectedContractMarkdownSummary)
+    }
+
+    @Test("Mixed cache summaries describe content verification without claiming all files hit")
+    func metadataHitsRequireFreshContentProof() {
+        let actual = ValidationLogging.renderMarkdownSummary(
+            for: contractArtifact(reasonCodes: [.cacheHitMetadata, .cacheMissContentChanged])
+        )
+        #expect(actual.contains("At least one file with unchanged metadata"))
+        #expect(actual.contains("after a fresh raw content hash match"))
+        #expect(actual.contains("At least one file changed content"))
+        #expect(!actual.contains("All scanned files reused"))
     }
 
     @Test("Shared-run cache keys stay version salted")
@@ -53,6 +81,8 @@ struct ValidationContractTests {
         #expect(persistedSummary == ValidationLogging.renderMarkdownSummary(for: outcome.metricsArtifact))
         #expect(persistedMetrics.version == ValidationMetricsArtifact.currentVersion)
         #expect(persistedMetrics.humanSummarySource == "dag-validation-summary.md")
+        #expect(!FileManager.default.fileExists(atPath: fixture.outputURL
+            .appendingPathComponent("_InnoDIDAGValidation.generated.swift").path))
     }
 }
 
@@ -197,16 +227,18 @@ private let expectedContractMarkdownSummary =
     - Note: See child (`Child.swift:2:1`)
     """ + "\n\n\n"
 
-private func contractArtifact() -> ValidationMetricsArtifact {
+private func contractArtifact(
+    reasonCodes: [ValidationReasonCode] = [
+        .cacheMissContentChanged,
+        .liveRunSemanticValidation,
+        .liveRunDAGValidation
+    ]
+) -> ValidationMetricsArtifact {
     ValidationMetricsArtifact(
         signature: "abc123",
         wasCached: false,
         resultExitCode: 1,
-        reasonCodes: [
-            .cacheMissContentChanged,
-            .liveRunSemanticValidation,
-            .liveRunDAGValidation
-        ],
+        reasonCodes: reasonCodes,
         signatureMetrics: ValidationSignatureMetrics(
             scannedFileCount: 5,
             metadataCacheHitCount: 1,

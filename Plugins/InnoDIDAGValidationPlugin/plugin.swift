@@ -25,7 +25,8 @@ struct InnoDIDAGValidationPlugin: BuildToolPlugin {
             outputDirectory: outputDirectory,
             targetName: target.name,
             manifest: manifest,
-            declaresOutputs: true
+            declaresOutputs: true,
+            ordersSwiftCompilation: primaryTarget is SwiftSourceModuleTarget
         )
     }
 
@@ -51,7 +52,8 @@ extension InnoDIDAGValidationPlugin: XcodeBuildToolPlugin {
             outputDirectory: outputDirectory,
             targetName: target.displayName,
             manifest: manifest,
-            declaresOutputs: false
+            declaresOutputs: false,
+            ordersSwiftCompilation: false
         )
     }
 }
@@ -77,7 +79,8 @@ private func makeBuildCommands(
     outputDirectory: URL,
     targetName: String,
     manifest: WorkspaceAnalysisManifestV1,
-    declaresOutputs: Bool
+    declaresOutputs: Bool,
+    ordersSwiftCompilation: Bool
 ) throws -> [Command] {
     let stateDirectory = outputDirectory.appending(
         path: "innodi-dag-validation-state",
@@ -102,7 +105,14 @@ private func makeBuildCommands(
             // variant commands collide. The coordinator still writes its
             // diagnostics into the sandboxed work directory; Xcode variants
             // intentionally run as always-out-of-date validation gates.
-            outputFiles: declaresOutputs ? [
+            outputFiles: declaresOutputs ? (ordersSwiftCompilation ? [
+                // A Swift input creates an explicit compile dependency. With
+                // only report/resource outputs, SwiftPM's Xcode build engine
+                // may fail compilation and cancel this gate before it emits
+                // its structured diagnostic on a warm build.
+                // Do not introduce Swift sources into a Clang-only target.
+                outputDirectory.appending(path: "_InnoDIDAGValidation.generated.swift"),
+            ] : []) + [
                 outputDirectory.appending(path: "dag-validation-stamp.txt"),
                 outputDirectory.appending(path: "dag-validation-metrics.json"),
                 outputDirectory.appending(path: "dag-validation-summary.md"),

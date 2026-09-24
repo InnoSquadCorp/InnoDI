@@ -42,6 +42,7 @@ struct ValidationOutcomeWriter {
     let signatureCollectionMilliseconds: Double
     let coordinatorStartTime: TimeInterval
     let outputDirectory: URL
+    let emitsSwiftOrderingSource: Bool
     let verboseLoggingEnabled: Bool
 
     var signature: String {
@@ -58,6 +59,9 @@ struct ValidationOutcomeWriter {
             result: result,
             to: outputDirectory
         )
+        if emitsSwiftOrderingSource {
+            try writeSwiftOrderingSource(signature: signature, result: result, to: outputDirectory)
+        }
         let combinedReasonCodes = Array(
             Set(signatureCollection.reasonCodes + sharedRunRecord.reasonCodes)
         )

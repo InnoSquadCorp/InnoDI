@@ -716,53 +716,27 @@ private func runVerification(
     }
 }
 
-private func runVerificationStep(
+func runVerificationStep(
     arguments: [String],
     command: String,
     root: URL,
     environment: [String: String]?,
     timeout: TimeInterval = 300
 ) throws -> DoctorVerification.Step {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = arguments
-    process.currentDirectoryURL = root
-    if let environment {
-        process.environment = environment
-    }
-    let logURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "innodi-doctor-log-\(UUID().uuidString)"
+    let result = try runWorkspaceTool(
+        executable: "/usr/bin/env", arguments: arguments, directory: root,
+        environment: environment ?? ProcessInfo.processInfo.environment,
+        timeout: timeout, mergeOutput: true
     )
-    _ = FileManager.default.createFile(atPath: logURL.path, contents: nil)
-    let log = try FileHandle(forWritingTo: logURL)
-    defer {
-        try? log.close()
-        try? FileManager.default.removeItem(at: logURL)
-    }
-    process.standardOutput = log
-    process.standardError = log
-    try process.run()
-    let deadline = Date().addingTimeInterval(timeout)
-    while process.isRunning, Date() < deadline {
-        Thread.sleep(forTimeInterval: 0.05)
-    }
-    let timedOut = process.isRunning
-    if timedOut {
-        process.terminate()
-        Thread.sleep(forTimeInterval: 0.2)
-        if process.isRunning {
-            _ = kill(process.processIdentifier, SIGKILL)
-        }
-    }
-    process.waitUntilExit()
-    try log.synchronize()
-    let data = (try? Data(contentsOf: logURL)) ?? Data()
-    let tail = data.suffix(16_384)
+    let marker = "[output truncated]\n"
+    let tail = result.outputTruncated
+        ? marker + String(decoding: result.stdout.utf8.suffix(16_384 - marker.utf8.count), as: UTF8.self)
+        : result.stdout
     return DoctorVerification.Step(
-        status: !timedOut && process.terminationStatus == 0 ? .passed : .failed,
+        status: !result.timedOut && result.exitCode == 0 ? .passed : .failed,
         command: command,
-        exitCode: process.terminationStatus,
-        timedOut: timedOut,
-        outputTail: tail.isEmpty ? nil : String(decoding: tail, as: UTF8.self)
+        exitCode: result.exitCode,
+        timedOut: result.timedOut,
+        outputTail: tail.isEmpty ? nil : tail
     )
 }

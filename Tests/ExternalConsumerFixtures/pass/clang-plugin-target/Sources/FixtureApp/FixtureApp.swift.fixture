@@ -1,0 +1,8 @@
+import CProbe
+
+@main
+struct FixtureApp {
+    static func main() {
+        precondition(cProbeValue() == 42)
+    }
+}

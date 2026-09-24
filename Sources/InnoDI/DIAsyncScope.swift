@@ -346,26 +346,40 @@ public struct DIAsyncPreparationPlan: Sendable {
         var marks: [String: Mark] = [:]
         var path: [String] = []
         var result: [String] = []
-
-        func visit(_ id: String) throws {
-            if marks[id] == .visited { return }
-            if marks[id] == .visiting {
-                let cycleStart = path.firstIndex(of: id) ?? 0
-                throw DIAsyncPreparationPlanError.dependencyCycle(
-                    Array(path[cycleStart...]) + [id]
-                )
-            }
+        // Keep traversal state on the heap. Recursive DFS exhausts the native
+        // stack on a valid long chain before it can return a plan or diagnostic.
+        struct Frame {
+            let id: String
+            var nextDependency = 0
+        }
+        var stack: [Frame] = []
+        for id in declarationOrder where marks[id] == nil {
             marks[id] = .visiting
             path.append(id)
-            for dependency in dependencies[id, default: []] {
-                try visit(dependency)
+            stack.append(Frame(id: id))
+            while let frame = stack.last {
+                let children = dependencies[frame.id, default: []]
+                guard frame.nextDependency < children.count else {
+                    stack.removeLast()
+                    path.removeLast()
+                    marks[frame.id] = .visited
+                    result.append(frame.id)
+                    continue
+                }
+                let dependency = children[frame.nextDependency]
+                stack[stack.count - 1].nextDependency += 1
+                if marks[dependency] == .visited { continue }
+                if marks[dependency] == .visiting {
+                    let cycleStart = path.firstIndex(of: dependency) ?? 0
+                    throw DIAsyncPreparationPlanError.dependencyCycle(
+                        Array(path[cycleStart...]) + [dependency]
+                    )
+                }
+                marks[dependency] = .visiting
+                path.append(dependency)
+                stack.append(Frame(id: dependency))
             }
-            _ = path.popLast()
-            marks[id] = .visited
-            result.append(id)
         }
-
-        for id in declarationOrder { try visit(id) }
         return result
     }
 }
@@ -374,6 +388,8 @@ public struct DIAsyncPreparationPlan: Sendable {
 ///
 /// Cancelling a caller cancels only that wait. Calling ``close()`` cancels the
 /// owned task, resumes every waiter, and permanently prevents new work.
+/// It also releases the scope's factory captures. Already-running work retains
+/// its own captures until it returns, even if it ignores cancellation.
 /// ``retry()`` is available after failure and advances to a clean generation.
 public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryParticipant {
     public typealias Operation = @Sendable () async throws -> Value
@@ -388,7 +404,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public nonisolated let providerID: String
-    private let operation: Operation
+    private var operation: Operation?
     private var generation = 0
     private var phase: Phase = .idle
     private var ownedTask: Task<Value, any Error>?
@@ -487,6 +503,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         await waitForRetryReservation()
         guard case .closed = phase else {
             phase = .closed
+            operation = nil
             ownedTask?.cancel()
             ownedTask = nil
             let currentWaiters = waiters.values
@@ -552,9 +569,13 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
                 throwing: DIAsyncScopeError.closed(providerID: providerID)
             )
         case .idle, .running:
+            guard let operation else {
+                continuation.resume(throwing: DIAsyncScopeError.closed(providerID: providerID))
+                return
+            }
             waiters[waiterID] = continuation
             if case .idle = phase {
-                startOwnedTask()
+                startOwnedTask(operation: operation)
             }
         }
     }
@@ -571,10 +592,9 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         waiter.resume(throwing: CancellationError())
     }
 
-    private func startOwnedTask() {
+    private func startOwnedTask(operation: @escaping Operation) {
         phase = .running
         let taskGeneration = generation
-        let operation = operation
         let task = Task { try await operation() }
         ownedTask = task
         Task {

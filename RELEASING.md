@@ -48,8 +48,8 @@ Before dispatching the `Release Gate` workflow:
    - `Tools/check-public-api.py`
    - Refresh `Tools/public-api-baseline.json` with
      `Tools/check-public-api.py --update` only after reviewing an intentional
-     SemVer-visible change. The baseline covers both library products,
-     including public macros and extensions on SwiftUI types.
+     API or normalization-schema change. The baseline covers all three public
+     library products, including public macros and extensions on SwiftUI types.
 7. Validate the Apple Privacy Manifests bundled with the embedded products:
    - `plutil -lint Sources/InnoDI/PrivacyInfo.xcprivacy`
    - `plutil -lint Sources/InnoDISwiftUI/PrivacyInfo.xcprivacy`
@@ -244,11 +244,48 @@ standalone release assets.
 
 ### Highlights
 
+- Follow-up hardening of the c7 review candidate:
+  - Validation reads and hashes source bytes before reusing any AST digest,
+    including metadata-identical edits. Digest-cache version 7 invalidates old
+    records; `metadata-hit` now means matching metadata **and** verified bytes.
+  - Public API baseline schema 6 retains named actor attributes, isolation,
+    public setter availability, mutating methods/getters and nonmutating
+    setters (including subscripts). Real compiler/consumer fixtures cover
+    breaking changes and formatting-only controls; no public symbols were
+    added or removed by this baseline update.
+  - Detached transient resolvers share typed dependency-only factory code
+    instead of recursively duplicating diamond dependency paths. Each call
+    still creates fresh transient values; overrides, lazy resolution and
+    escaped-handle ownership remain unchanged.
+  - Async preparation uses iterative traversal for deep valid/cyclic graphs,
+    preserving declaration-order traversal and reverse close order.
+  - Permanent async-scope close releases its stored factory captures. An
+    already-running operation retains its own captures until it returns.
+  - SwiftPM DAG validation emits a comment-only generated Swift input so the
+    consumer compiler waits for the gate instead of racing and cancelling its
+    structured diagnostics on warm builds. Clang targets retain report-only
+    outputs; Xcode's multi-destination always-run gate remains unchanged.
+  - Doctor verification and Graphviz use owned process groups and bounded
+    in-memory output tails (16 KiB per stream; merged for Doctor). Doctor keeps
+    its 300-second timeout; Graphviz now has a 30-second timeout. Group cleanup
+    has a 200 ms TERM grace then KILL, and signalled exit codes use 128+signal.
+    Descendants that deliberately leave the owned group are not forcibly
+    discovered or terminated. This is not a sandbox for untrusted commands.
+    Closed caller standard streams are normalized before spawn so child
+    output remains correctly separated or merged.
+  These changes do not migrate standalone products, approve a new performance
+  baseline, or constitute release approval. Upgrading existing 5.x consumers
+  is not a prerequisite for publishing the 6.0 library.
+- SampleApp resolves its local dependency and DAG plugin using the checkout
+  directory's normalized SwiftPM identity, matching the other examples.
+  Renamed-checkout CI now tests and runs SampleApp as well as building the
+  SwiftUI examples; no canonical `InnoDI` directory name is required.
 - Prepared the [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
-  promotion candidate. Its implementation is frozen by repository contracts
-  and three committed consumer pilots, but formal RFC acceptance still requires
-  human maintainer review on the dedicated promotion pull request. This entry
-  does not approve the RFC or the release.
+  promotion candidate. Repository contracts and historical consumer pilots
+  document the design; the current library-only candidate must pass its own
+  gates. Formal RFC acceptance still requires human maintainer review on the
+  dedicated promotion pull request. This entry does not approve the RFC or the
+  release.
 - Re-audited all 46 excellence requirements and 25 follow-up findings against
   code candidate `6332864ea83743fd5fec99c95b98a91b1b06ae8b`. A clean Swift 6.4
   strict coverage run passed 355 tests in 37 suites with package line coverage

@@ -284,6 +284,8 @@ struct CIWorkflowHardeningTests {
         #expect(!job.contains("--filter StrictConcurrencyBuildTests\n"))
         #expect(!job.contains("--filter ExternalConsumerContractTests\n"))
         #expect(job.contains("swift build --scratch-path \"$scratch_path\""))
+        #expect(job.contains("cd Examples/SampleApp && swift test --scratch-path \"$scratch_path\""))
+        #expect(job.contains("swift run --scratch-path \"$scratch_path\" --skip-build SampleApp"))
     }
 
     @Test("Main CI measures macro performance once and appends history on Ubuntu")
