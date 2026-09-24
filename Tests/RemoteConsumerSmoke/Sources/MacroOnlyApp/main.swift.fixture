@@ -6,7 +6,7 @@ struct Service: Sendable {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var seed: Int
 
     @Provide(.shared, factory: { (seed: Int) in Service(value: seed) })
