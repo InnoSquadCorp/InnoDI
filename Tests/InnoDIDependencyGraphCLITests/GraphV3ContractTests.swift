@@ -7,7 +7,7 @@ import Testing
 @testable import InnoDIDependencyGraphCore
 @testable import InnoDIDependencyGraphCLI
 
-@Suite("Graph JSON v4 contract")
+@Suite("Graph JSON v6 contract")
 struct GraphV3ContractTests {
     @Test("assisted inputs, factory ownership, and contributions are explicit")
     func collectsVersionThreeSemantics() throws {
@@ -103,7 +103,7 @@ struct GraphV3ContractTests {
             GraphJSON.Document.self,
             from: Data(rendered.utf8)
         )
-        #expect(document.schemaVersion == 4)
+        #expect(document.schemaVersion == 6)
         #expect(
             document.edges.contains {
                 $0.kind == .assistedFactoryOwnership
@@ -111,6 +111,15 @@ struct GraphV3ContractTests {
         )
         #expect(document.edges.filter { $0.kind == .contribution }.count == 2)
         #expect(document.providers.count == 7)
+        let interceptors = try #require(
+            document.providers.first { $0.name == "interceptors" }
+        )
+        #expect(interceptors.collection?.kind == .ordered)
+        #expect(interceptors.collection?.entries.map(\.order) == [0, 1])
+        #expect(
+            interceptors.collection?.entries.map(\.providerLifetime)
+                == [.shared, .transient]
+        )
         let session = try #require(
             document.providers.first { $0.name == "sessionID" }
         )
@@ -119,6 +128,132 @@ struct GraphV3ContractTests {
         #expect(session.inputKind == .assisted)
         #expect(session.initialization == .assisted)
         #expect(session.source.path == "Sources/App/Containers.swift")
+        let childFactory = try #require(
+            document.providers.first { $0.name == "child" }
+        )
+        #expect(childFactory.containerBindings.count == 1)
+        #expect(childFactory.containerBindings[0].ownership == .assisted)
+        #expect(childFactory.containerBindings[0].childInputID.hasSuffix(".repository"))
+        #expect(childFactory.containerBindings[0].parentProviderID.hasSuffix(".repository"))
+    }
+
+    @Test("key order contributor and provider lifetime are explicit collection metadata")
+    func keyedProviderCollectionMetadataIsContractual() throws {
+        let baseline = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(.shared, factory: Auth()) var auth: Service
+            @Provide(.transient, factory: Logging()) var logging: Service
+            @Provide(
+                .transient,
+                collection: .keyedProviders([
+                    .init(key: "auth", contributor: \\Self.auth),
+                    .init(key: "logs", contributor: \\Self.logging),
+                ]),
+                factory: makeProviders()
+            )
+            var providers: DIKeyedProviderCollection<String, Service>
+        }
+        """)
+        let collection = try #require(
+            baseline.providers.first { $0.name == "providers" }?.collection
+        )
+        #expect(collection.kind == .keyedProviders)
+        #expect(collection.entries.map(\.key) == ["auth", "logs"])
+        #expect(collection.entries.map(\.order) == [0, 1])
+        #expect(collection.entries.map(\.providerLifetime) == [.shared, .transient])
+        #expect(collection.entries[0].providerID.hasSuffix(".auth"))
+        #expect(collection.entries[1].providerID.hasSuffix(".logging"))
+
+        let variants = [
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "primary", contributor: \\Self.auth),
+                    .init(key: "logs", contributor: \\Self.logging),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "logs", contributor: \\Self.logging),
+                    .init(key: "auth", contributor: \\Self.auth),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "auth", contributor: \\Self.logging),
+                    .init(key: "logs", contributor: \\Self.auth),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+            """
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.transient, factory: Auth()) var auth: Service
+                @Provide(.transient, factory: Logging()) var logging: Service
+                @Provide(.transient, collection: .keyedProviders([
+                    .init(key: "auth", contributor: \\Self.auth),
+                    .init(key: "logs", contributor: \\Self.logging),
+                ]), factory: makeProviders())
+                var providers: DIKeyedProviderCollection<String, Service>
+            }
+            """,
+        ]
+
+        for source in variants {
+            let report = compareGraphDocuments(
+                before: baseline,
+                after: try graphDocument(source: source)
+            )
+            #expect(report.hasChanges)
+            #expect(report.changedProviders.contains {
+                $0.contains("providers") && $0.contains("collection ")
+            })
+        }
+    }
+
+    @Test("explicit empty collection metadata remains distinct from omission")
+    func explicitEmptyCollectionMetadataIsContractual() throws {
+        let explicit = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(
+                .transient,
+                collection: .keyedProviders([]),
+                factory: makeProviders()
+            )
+            var providers: DIKeyedProviderCollection<String, Service>
+        }
+        """)
+        let omitted = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Provide(.transient, factory: makeProviders())
+            var providers: DIKeyedProviderCollection<String, Service>
+        }
+        """)
+
+        let contract = try #require(explicit.providers.first?.collection)
+        #expect(contract.kind == .keyedProviders)
+        #expect(contract.entries.isEmpty)
+        let report = compareGraphDocuments(before: explicit, after: omitted)
+        #expect(report.changedProviders.contains { $0.contains("collection ") })
     }
 
     @Test("human renderers expose inherited v3 semantics")
@@ -272,6 +407,159 @@ struct GraphV3ContractTests {
                 "Expected provider diff to name \(field)"
             )
         }
+    }
+
+    @Test("factory parameter target and deferred kind are contractual")
+    func factoryParameterBindingIsContractual() throws {
+        let baseline = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var primary: Int
+            @Input var secondary: Int
+            @Provide(.shared, factory: { (primary: Int) in Service(primary) })
+            var service: Service
+        }
+        """)
+        let targetChanged = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var primary: Int
+            @Input var secondary: Int
+            @Provide(.shared, factory: { (secondary: Int) in Service(secondary) })
+            var service: Service
+        }
+        """)
+        let kindChanged = try graphDocument(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var primary: Int
+            @Input var secondary: Int
+            @Provide(.shared, factory: { (primary: Lazy<Int>) in Service(primary()) })
+            var service: Service
+        }
+        """)
+
+        let service = try #require(
+            baseline.providers.first { $0.name == "service" }
+        )
+        #expect(service.dependencies == ["primary"])
+        #expect(service.dependencyBindings.count == 1)
+        #expect(service.dependencyBindings[0].parameter == "primary")
+        #expect(service.dependencyBindings[0].providerID.hasSuffix(".primary"))
+        #expect(service.dependencyBindings[0].kind == .hard)
+
+        for variant in [targetChanged, kindChanged] {
+            let report = compareGraphDocuments(before: baseline, after: variant)
+            #expect(report.hasChanges)
+            #expect(report.changedProviders.contains {
+                $0.contains("dependencyBindings ")
+            })
+        }
+    }
+
+    @Test("fixed child input to parent provider pairs are contractual")
+    func fixedChildBindingPairsAreContractual() throws {
+        let baseline = try graphDocument(source: """
+        @DIContainer
+        struct ChildContainer {
+            @Input var first: Int
+            @Input var second: Int
+        }
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var first: Int
+            @Input var second: Int
+            @SubContainer(scope: .shared, bindings: [
+                (child: \\ChildContainer.first, parent: \\AppContainer.first),
+                (child: \\ChildContainer.second, parent: \\AppContainer.second),
+            ])
+            var child: ChildContainer
+        }
+        """)
+        let swapped = try graphDocument(source: """
+        @DIContainer
+        struct ChildContainer {
+            @Input var first: Int
+            @Input var second: Int
+        }
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var first: Int
+            @Input var second: Int
+            @SubContainer(scope: .shared, bindings: [
+                (child: \\ChildContainer.first, parent: \\AppContainer.second),
+                (child: \\ChildContainer.second, parent: \\AppContainer.first),
+            ])
+            var child: ChildContainer
+        }
+        """)
+
+        let child = try #require(
+            baseline.providers.first { $0.name == "child" }
+        )
+        #expect(child.containerBindings.count == 2)
+        #expect(child.containerBindings.allSatisfy { $0.ownership == .fixed })
+        #expect(child.containerBindings[0].childInputID.hasSuffix(".first"))
+        #expect(child.containerBindings[0].parentProviderID.hasSuffix(".first"))
+
+        let report = compareGraphDocuments(before: baseline, after: swapped)
+        #expect(report.hasChanges)
+        #expect(report.changedProviders.contains {
+            $0.contains("containerBindings ")
+        })
+    }
+
+    @Test("implicit same-name wiring records only child inputs across files")
+    func implicitSameNameWiringUsesChildInputs() throws {
+        let root = URL(fileURLWithPath: "/workspace")
+        let childSource = Parser.parse(source: """
+        @DIContainer
+        struct ChildContainer {
+            @Input var repository: Repository
+            @Input(.assisted) var requestID: Int
+        }
+        """)
+        let appSource = Parser.parse(source: """
+        @DIContainer(root: true)
+        struct AppContainer {
+            @Input var repository: Repository
+            @Provide(.shared, factory: Metrics()) var metrics: Metrics
+            @SubContainer(scope: .shared) var child: ChildContainer
+        }
+        """)
+        let snapshot = WorkspaceSourceSnapshot(
+            rootPath: root.path,
+            rootURL: root,
+            files: [
+                WorkspaceSourceFile(
+                    relativePath: "Sources/App/AppContainer.swift",
+                    fileURL: root.appendingPathComponent(
+                        "Sources/App/AppContainer.swift"
+                    ),
+                    syntax: appSource
+                ),
+                WorkspaceSourceFile(
+                    relativePath: "Sources/App/ChildContainer.swift",
+                    fileURL: root.appendingPathComponent(
+                        "Sources/App/ChildContainer.swift"
+                    ),
+                    syntax: childSource
+                ),
+            ]
+        )
+
+        let graph = collectDependencyGraph(snapshot: snapshot, validateDAG: true)
+        let child = try #require(graph.providers.first { $0.name == "child" })
+        #expect(child.containerBindings.count == 1)
+        let binding = try #require(child.containerBindings.first)
+
+        #expect(binding.ownership == .fixed)
+        #expect(binding.childInputID.hasSuffix("#ChildContainer.repository"))
+        #expect(binding.parentProviderID.hasSuffix("#AppContainer.repository"))
+        #expect(!child.containerBindings.contains {
+            $0.childInputID.hasSuffix(".requestID")
+                || $0.parentProviderID.hasSuffix(".metrics")
+        })
     }
 
     @Test("source line movement is diagnostic-only")

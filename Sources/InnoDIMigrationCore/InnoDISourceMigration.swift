@@ -201,11 +201,13 @@ private final class MigratableProvideCollector: SyntaxVisitor {
             guard let attribute = element.as(AttributeSyntax.self) else {
                 return false
             }
-            return isInnoDIAttribute(
-                attribute,
-                named: "DIContainer",
-                context: attributeContext
-            )
+            return ["DIContainer", "DIContainerRole"].contains { name in
+                isInnoDIAttribute(
+                    attribute,
+                    named: name,
+                    context: attributeContext
+                )
+            }
         }
         if isContainer {
             let collector = ConditionalContainerProvideCollector(

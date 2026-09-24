@@ -61,8 +61,10 @@ struct DIContainerMacroTests {
 
         #expect(result.diagnostics.isEmpty)
         #expect(result.expansion.contains("var apiClient: APIClient"))
-        #expect(result.expansion.contains("init(apiClient: APIClient? = nil)"))
-        #expect(result.expansion.contains("self._storage_apiClient = apiClient ?? APIClient()"))
+        #expect(result.expansion.contains("init(apiClient: APIClient? = nil, _innoDITrace:"))
+        #expect(result.expansion.contains("_innoDITraceOwner.start("))
+        #expect(result.expansion.contains("_innoDITraceOwner.finish(.success"))
+        #expect(result.expansion.contains("APIClient()"))
     }
 
     @Test("On-demand shared dependencies use a copy-shared cell")
@@ -85,7 +87,8 @@ struct DIContainerMacroTests {
 
         #expect(result.diagnostics.isEmpty)
         #expect(result.expansion.contains("InnoDI._InnoDISharedCell<APIClient> ="))
-        #expect(result.expansion.contains("InnoDI._InnoDISharedCell {"))
+        #expect(result.expansion.contains("InnoDI._InnoDISharedCell("))
+        #expect(result.expansion.contains("providerName: \"apiClient\""))
         #expect(result.expansion.contains("}(config)"))
         #expect(result.expansion.contains("self._storage_apiClient = _innoDIOnDemand_apiClient"))
         #expect(result.expansion.contains("func prewarm(_ providers: Swift.PartialKeyPath<Self>...) throws"))
@@ -107,7 +110,7 @@ struct DIContainerMacroTests {
 
         #expect(result.diagnostics.isEmpty)
         #expect(result.expansion.contains("var apiClient: APIClient"))
-        #expect(result.expansion.contains("init(apiClient: APIClient? = nil)"))
+        #expect(result.expansion.contains("init(apiClient: APIClient? = nil, _innoDITrace:"))
         #expect(result.expansion.contains("self._override_apiClient = apiClient"))
     }
 
@@ -126,7 +129,9 @@ struct DIContainerMacroTests {
 
         #expect(result.diagnostics.isEmpty)
         #expect(result.expansion.contains("var apiClient: APIClient?"))
-        #expect(result.expansion.contains("self._storage_apiClient = apiClient ?? APIClient()"))
+        #expect(result.expansion.contains("_innoDITraceOwner.start("))
+        #expect(result.expansion.contains("_innoDITraceOwner.finish(.success"))
+        #expect(result.expansion.contains("APIClient()"))
     }
 
     @Test("Explicit any protocol shared dependency keeps existential storage")
@@ -210,8 +215,25 @@ struct DIContainerMacroTests {
                     var apiClient: APIClient
 
                     // MARK: - Initialization
-                    package init(apiClient: APIClient? = nil) {
-                        self._storage_apiClient = apiClient ?? APIClient()
+                    package init(apiClient: APIClient? = nil, _innoDITrace: DITraceContext = .disabled) {
+                        let _innoDITraceOwner = _InnoDITraceOwner(
+                            context: _innoDITrace,
+                            containerType: Self.self
+                        )
+                        self._innoDITraceOwner_apiClient = _innoDITraceOwner
+                        if let _innoDIOverride = apiClient {
+                            self._storage_apiClient = _innoDITraceOwner.overridden(
+                                member: "apiClient",
+                                value: _innoDIOverride
+                            )
+                        } else {
+                            let _innoDITraceSpan_apiClient = _innoDITraceOwner.start(
+                                member: "apiClient"
+                            )
+                            let _innoDIResolved_apiClient = APIClient()
+                            _innoDITraceOwner.finish(.success, span: _innoDITraceSpan_apiClient)
+                            self._storage_apiClient = _innoDIResolved_apiClient
+                        }
                     }
 
                     // MARK: - Overrides Builder
@@ -222,33 +244,33 @@ struct DIContainerMacroTests {
                     package typealias _InnoDIMountOverrides = Overrides
 
                     // MARK: - Convenience Init with Overrides
-                    package init(_ _innoDIApplyOverrides: (inout Overrides) -> Void) {
+                    package init(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void) {
                         var _innoDIOverrides = Self.Overrides()
                         _innoDIApplyOverrides(&_innoDIOverrides)
-                        self.init(apiClient: _innoDIOverrides.apiClient)
+                        self.init(apiClient: _innoDIOverrides.apiClient, _innoDITrace: _innoDITrace)
                     }
 
                     // MARK: - withOverrides
-                    package static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
-                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                    package static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+                        let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (throws)
-                    package static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
-                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                    package static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+                        let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return try _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async)
-                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
-                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+                        let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return await _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
-                        let _innoDIContainer = Self(_innoDIApplyOverrides)
+                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+                        let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return try await _innoDIOperation(_innoDIContainer)
                     }
                 }

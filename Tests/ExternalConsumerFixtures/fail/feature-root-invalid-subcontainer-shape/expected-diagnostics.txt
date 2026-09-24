@@ -1,1 +1,1 @@
-@SubContainer member 'child' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 5.0.
+@SubContainer member 'child' must be declared as a direct stored instance var in a supported @DIContainer struct in InnoDI 6.0.

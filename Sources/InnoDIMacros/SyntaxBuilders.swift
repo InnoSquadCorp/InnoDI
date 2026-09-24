@@ -48,6 +48,10 @@ internal func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyn
 
 // MARK: - Storage peer declarations
 
+internal func providerTraceOwnerPeerDecl(name: String) -> DeclSyntax {
+    "private var _innoDITraceOwner_\(raw: name): _InnoDITraceOwner = .disabled"
+}
+
 /// Builds a `private let <name>: <type>` (or `: <type>?`) peer decl — the
 /// canonical storage field shape emitted by the `@Provide` macro.
 internal func storagePeerDecl(
@@ -567,6 +571,8 @@ private func makeDeferredWrapperExpr(resolverExpression: ExprSyntax) -> ExprSynt
 internal func makeAsyncTaskDecl(
     taskName: String,
     overrideName: String,
+    providerName: String,
+    traceSpanName: String,
     successType: String,
     failureType: String,
     awaitedFactoryExpr: ExprSyntax
@@ -577,10 +583,37 @@ internal func makeAsyncTaskDecl(
     )
 
     // .init { ... }
+    let overrideStatement: CodeBlockItemSyntax = """
+        if let override = \(raw: overrideName) {
+            return _innoDITraceOwner.overridden(
+                member: \(literal: providerName),
+                value: override,
+                span: \(raw: traceSpanName)
+            )
+        }
+        """
+    let resolutionStatement: CodeBlockItemSyntax
+    if failureType == "Error" {
+        resolutionStatement = """
+            return try await _innoDITraceOwner.withResolution(
+                span: \(raw: traceSpanName)
+            ) {
+                \(awaitedFactoryExpr)
+            }
+            """
+    } else {
+        resolutionStatement = """
+            return await _innoDITraceOwner.withResolution(
+                span: \(raw: traceSpanName)
+            ) {
+                \(awaitedFactoryExpr)
+            }
+            """
+    }
     let closure = ClosureExprSyntax(
         statements: CodeBlockItemListSyntax([
-            overrideCheckStmt(overrideName: overrideName),
-            returnStmt(expr: awaitedFactoryExpr)
+            overrideStatement,
+            resolutionStatement
         ])
     )
     let taskCall = FunctionCallExprSyntax(

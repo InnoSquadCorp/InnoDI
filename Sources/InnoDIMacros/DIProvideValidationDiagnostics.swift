@@ -318,7 +318,7 @@ internal func makeUnresolvedWithDependencyDiagnostic(
 
     let fixIts = makeReplaceSyntaxTextFixIts(
         syntax: reference.map { Syntax($0.anchorExpression) },
-        replacementCandidates: candidates.available.map { "\\.\($0)" },
+        replacementCandidates: candidates.available.map { "\\Self.\($0)" },
         code: .provideUnresolvedWithDependency,
         label: "Replace key path"
     )
@@ -490,69 +490,6 @@ private func makeRenameTokenFixIts(
         )
     ]
 }
-
-internal func makeSubAutoWiringAmbiguousFixIts(
-    attribute: AttributeSyntax,
-    parentMemberNames: [String]
-) -> [FixIt] {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
-          !arguments.isEmpty else {
-        return []
-    }
-
-    var seen = Set<String>()
-    let candidates = parentMemberNames.filter { name in
-        guard !name.isEmpty else { return false }
-        return seen.insert(name).inserted
-    }
-
-    let withListBody: String
-    if candidates.isEmpty {
-        // No parent members at all is unusual (the validator only fires when
-        // there are 2+ candidates), but be defensive: still offer the
-        // explicit empty-subset spelling that calls `Child()`.
-        withListBody = ""
-    } else {
-        withListBody = candidates.map(renderKeyPathComponent).joined(separator: ", ")
-    }
-
-    let insertion = ", with: [\(withListBody)]"
-    let position = arguments.endPositionBeforeTrailingTrivia
-    return [
-        FixIt(
-            message: SimpleFixIt(
-                "Add explicit with: [...] listing parent members",
-                code: .subAutoWiringAmbiguous,
-                suffix: "insert-with"
-            ),
-            changes: [
-                .replaceText(
-                    range: position..<position,
-                    with: insertion,
-                    in: Syntax(attribute.root)
-                )
-            ]
-        )
-    ]
-}
-
-private func renderKeyPathComponent(_ name: String) -> String {
-    let unescaped = name.trimmingIdentifierBackticks
-    if swiftEscapeRequiredKeywords.contains(unescaped) {
-        return "\\.`\(unescaped)`"
-    }
-    return "\\.\(name)"
-}
-
-private extension String {
-    var trimmingIdentifierBackticks: String {
-        guard first == "`", last == "`", count >= 2 else {
-            return self
-        }
-        return String(dropFirst().dropLast())
-    }
-}
-
 
 private func makeReplaceSyntaxTextFixIts(
     syntax: Syntax?,

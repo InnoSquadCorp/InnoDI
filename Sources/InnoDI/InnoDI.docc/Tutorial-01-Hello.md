@@ -31,7 +31,7 @@ print(container.greeter.hello())
 ## What the macro does
 
 * `@DIContainer` synthesizes `init()`, a nested `Overrides` builder, and four
-  `withOverrides` helpers. With no `.input` members, the primary initializer
+  `withOverrides` helpers. With no `@Input` members, the primary initializer
   takes no arguments.
 * `@Provide(.shared, factory:)` declares a member built once per container
   instance from the supplied closure. The instance is cached and reused on

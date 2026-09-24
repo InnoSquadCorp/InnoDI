@@ -1,0 +1,26 @@
+import InnoDI
+
+final class Token {}
+final class A {
+    let token: Token
+    let b: InnoDI.Provider<B>
+    init(token: Token, b: InnoDI.Provider<B>) { self.token = token; self.b = b }
+}
+final class B {
+    let token: Token
+    let a: InnoDI.Lazy<A>
+    init(token: Token, a: InnoDI.Lazy<A>) { self.token = token; self.a = a }
+}
+
+@DIContainer(validateDAG: false)
+struct Container {
+    @Input var token: Token
+    @Provide(.shared, factory: { (token: Token, b: InnoDI.Provider<B>) in A(token: token, b: b) })
+    var a: A
+    @Provide(.transient, factory: { (token: Token, a: InnoDI.Lazy<A>) in B(token: token, a: a) })
+    var b: B
+}
+
+@main struct FixtureApp {
+    static func main() {}
+}

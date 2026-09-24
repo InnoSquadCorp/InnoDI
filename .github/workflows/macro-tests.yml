@@ -2,9 +2,11 @@ name: Macro Tests
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,9 +36,12 @@ jobs:
         # repeating them on every PR dominated feedback time without adding
         # local semantic coverage. All in-process unit, macro-expansion, graph,
         # runtime, migration, and release-contract tests still run here with
-        # production diagnostics.
+        # production diagnostics. Independent cases run serially so synchronous
+        # process fixtures cannot starve another test's async deadline; tasks
+        # and contention assertions inside each test remain concurrent.
         run: >-
           swift test
+          --no-parallel
           -Xswiftc -strict-concurrency=complete
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
@@ -63,9 +68,11 @@ jobs:
             Tools/report-validate-dag-escape-hatches.sh
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Escape Hatch Report
+        # release-validation PRs also run the exhaustive job. Preserve both
+        # immutable reports instead of colliding with its canonical names.
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: escape-hatch-report
+          name: escape-hatch-report-fast-pr
           path: build/escape-hatch-report.json
           if-no-files-found: error
       - name: Report Deferred-Wrapper Alias Findings
@@ -76,13 +83,13 @@ jobs:
       - name: Upload Deferred-Wrapper Alias Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: deferred-aliases-report
+          name: deferred-aliases-report-fast-pr
           path: build/deferred-aliases.json
           if-no-files-found: error
 
   macro-tests:
-    name: Exhaustive main contracts
-    if: github.event_name == 'push'
+    name: Exhaustive release contracts
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -215,7 +222,7 @@ jobs:
 
   sanitizers:
     name: Thread and address sanitizers (Xcode 26.6)
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 120
     steps:
@@ -228,30 +235,35 @@ jobs:
         with:
           version: "26.6"
       - name: Run thread sanitizer suite
-        # Fresh-consumer contracts launch separate swift processes that do not
-        # inherit this sanitizer. They run in the exhaustive/toolchain lanes;
-        # keep this job focused on code that is actually instrumented.
+        # Fresh-consumer and mechanical fix-it build contracts launch separate
+        # swift processes that do not inherit this sanitizer. They run in the
+        # exhaustive/toolchain lanes; keep this job focused on code that is
+        # actually instrumented.
         run: >-
           swift test
+          --no-parallel
           --scratch-path .build/main-tsan
           --sanitize=thread
           -Xswiftc -strict-concurrency=complete
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+          --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
       - name: Run address sanitizer suite
         run: >-
           swift test
+          --no-parallel
           --scratch-path .build/main-asan
           --sanitize=address
           -Xswiftc -strict-concurrency=complete
           -Xswiftc -warnings-as-errors
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+          --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
   swift-62-compatibility:
     name: Swift 6.2 compatibility
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -267,10 +279,14 @@ jobs:
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests
+      - name: Validate minimum-toolchain public API semantics
+        run: |
+          python3 -B -m unittest discover -s Tools/tests -p 'test_public_api*.py'
+          Tools/check-public-api.py
 
   xcode-27-compatibility:
     name: Xcode 27 compatibility preview
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
@@ -296,7 +312,7 @@ jobs:
 
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -336,7 +352,7 @@ jobs:
           done
 
   path-identity:
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -359,10 +375,11 @@ jobs:
         run: |
           swift test --filter StrictConcurrencyBuildTests.swiftUIMainActorRootBuildsUnderStrictConcurrency
           swift test --filter ExternalConsumerContractTests.compilePassFixturesBuild
-      - name: Build examples from the renamed checkout
+      - name: Validate examples from the renamed checkout
         working-directory: not-innodi
         run: |
           scratch_path="$RUNNER_TEMP/innodi-path-identity-examples"
+          (cd Examples/SampleApp && swift test --scratch-path "$scratch_path" -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift run --scratch-path "$scratch_path" --skip-build SampleApp)
           (cd Examples/SwiftUIExample && swift build --scratch-path "$scratch_path")
           (cd Examples/PreviewInjectionExample && swift build --scratch-path "$scratch_path")
 

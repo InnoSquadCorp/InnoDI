@@ -15,7 +15,7 @@ wiring、确定性校验与图工具，而不是运行时可变容器。
 - 编译期与构建期校验
 - 全局依赖图渲染与 DAG 校验
 - `Lazy<T>` 与 `Provider<T>`
-- `@SubContainer`、`@DIComponent`、`@DIHierarchyRoot`
+- `@SubContainer` 与显式的 `@DIContainerRole` 层级角色
 - `InnoDISwiftUI` 中的 SwiftUI helper
 
 4.1.0 在该基线之上加入 release hardening：
@@ -45,5 +45,5 @@ wiring、确定性校验与图工具，而不是运行时可变容器。
 
 - <doc:DIContainer>
 - <doc:Provide>
-- ``DIComponent()``
-- ``DIHierarchyRoot()``
+- ``Input(_:escaping:)``
+- ``DIContainerRole(role:mainActor:validateDAG:)``

@@ -17,7 +17,7 @@ Swift struct を DI コンテナに変換します。関数、クロージャ、
 - コンパイル時とビルド時の検証
 - 全体グラフ描画と DAG 検証
 - `Lazy<T>` と `Provider<T>`
-- `@SubContainer`、`@DIComponent`、`@DIHierarchyRoot`
+- `@SubContainer` と明示的な `@DIContainerRole` hierarchy role
 - `InnoDISwiftUI` の SwiftUI helper
 
 4.1.0 はこの baseline に release hardening を追加します。
@@ -47,5 +47,5 @@ Swift struct を DI コンテナに変換します。関数、クロージャ、
 
 - <doc:DIContainer>
 - <doc:Provide>
-- ``DIComponent()``
-- ``DIHierarchyRoot()``
+- ``Input(_:escaping:)``
+- ``DIContainerRole(role:mainActor:validateDAG:)``

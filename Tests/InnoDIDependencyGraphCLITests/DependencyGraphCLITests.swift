@@ -263,8 +263,8 @@ struct DependencyGraphCLITests {
         #expect(result.stderr.isEmpty)
     }
 
-    @Test("Manifest-backed JSON emits the schema-v4 scope and stable IDs")
-    func manifestBackedJSONV4EndToEnd() throws {
+    @Test("Manifest-backed JSON emits the schema-v6 scope and stable IDs")
+    func manifestBackedJSONV5EndToEnd() throws {
         let fixtureURL = try makeFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
         let manifest = try writeCLIAnalysisManifest(for: fixtureURL)
@@ -282,7 +282,7 @@ struct DependencyGraphCLITests {
             GraphJSON.Document.self,
             from: Data(result.stdout.utf8)
         )
-        #expect(document.schemaVersion == 4)
+        #expect(document.schemaVersion == 6)
         #expect(document.scope.primaryTargetID == manifest.targetID.rawValue)
         #expect(document.scope.rootPruning == .all)
         #expect(
@@ -818,8 +818,8 @@ struct DependencyGraphCLITests {
         #expect(!result.stderr.contains("Detected dependency cycles:"))
     }
 
-    @Test("Validate DAG treats provider edges as deferred end-to-end")
-    func validateDAGPassesWhenProviderBreaksCycle() throws {
+    @Test("Validate DAG rejects cycles containing provider edges")
+    func validateDAGRejectsProviderCycle() throws {
         let fixtureURL = try makeProviderDeferredCycleFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
 
@@ -828,12 +828,12 @@ struct DependencyGraphCLITests {
             "--validate-dag"
         ])
 
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("[graph.dependency-cycle]"))
     }
 
-    @Test("Validate DAG treats lazy edges as deferred end-to-end")
-    func validateDAGPassesWhenLazyBreaksCycle() throws {
+    @Test("Validate DAG rejects cycles containing lazy edges")
+    func validateDAGRejectsLazyCycle() throws {
         let fixtureURL = try makeLazyDeferredCycleFixtureProject()
         defer { try? FileManager.default.removeItem(at: fixtureURL) }
 
@@ -842,8 +842,8 @@ struct DependencyGraphCLITests {
             "--validate-dag"
         ])
 
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("DAG validation passed."))
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("[graph.dependency-cycle]"))
     }
 
     @Test("Validate DAG ignores deferred wrappers that target non-container services")

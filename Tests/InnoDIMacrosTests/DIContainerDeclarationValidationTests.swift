@@ -264,7 +264,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             classDecl,
             expectedID: "container.unsupported-declaration-kind",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ClassContainer' is declared as a class. Convert it to a struct and inject runtime state through @Provide(.input)."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'ClassContainer' is declared as a class. Convert it to a struct and inject runtime state through @Input."
         )
 
         let actorDecl = try #require(
@@ -274,7 +274,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             actorDecl,
             expectedID: "container.unsupported-declaration-kind",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ActorContainer' is declared as an actor. Convert it to a struct and inject runtime state through @Provide(.input)."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'ActorContainer' is declared as an actor. Convert it to a struct and inject runtime state through @Input."
         )
 
         let enumDecl = try #require(
@@ -284,7 +284,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             enumDecl,
             expectedID: "container.unsupported-declaration-kind",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'EnumContainer' is declared as an enum. Convert it to a struct and inject runtime state through @Provide(.input)."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'EnumContainer' is declared as an enum. Convert it to a struct and inject runtime state through @Input."
         )
 
         let protocolDecl = try #require(
@@ -294,7 +294,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             protocolDecl,
             expectedID: "container.unsupported-declaration-kind",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ProtocolContainer' is declared as a protocol. Convert it to a struct and inject runtime state through @Provide(.input)."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'ProtocolContainer' is declared as a protocol. Convert it to a struct and inject runtime state through @Input."
         )
 
         let extensionDecl = try #require(
@@ -304,7 +304,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             extensionDecl,
             expectedID: "container.unsupported-declaration-kind",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'ExtendedContainer' is declared as an extension. Convert it to a struct and inject runtime state through @Provide(.input)."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'ExtendedContainer' is declared as an extension. Convert it to a struct and inject runtime state through @Input."
         )
     }
 
@@ -319,11 +319,21 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             declaration,
             expectedID: "container.private-access-unsupported",
-            expectedMessage: "@DIContainer 'PrivateContainer' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
+            expectedMessage: "@DIContainer 'PrivateContainer' cannot be declared private in InnoDI 6.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
         )
         #expect(
             declaration.modifiers.first?.name.text == "private"
         )
+    }
+
+    @Test("Non-access modifiers use the default declaration access")
+    func nonAccessModifiersHaveNoDeclaredAccessLevel() throws {
+        let declaration = try #require(
+            Parser.parse(source: "final struct FinalContainer {}").statements.first?
+                .item.as(StructDeclSyntax.self)
+        )
+
+        #expect(declarationAccessLevel(for: declaration.modifiers) == nil)
     }
 
     @Test("Direct generic containers emit the generic diagnostic")
@@ -336,7 +346,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             declaration,
             expectedID: "container.generic-unsupported",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'GenericContainer' declares generic parameters. Move type-specific behavior behind an injected dependency."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'GenericContainer' declares generic parameters. Move type-specific behavior behind an injected dependency."
         )
     }
 
@@ -354,7 +364,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             declaration,
             expectedID: "container.generic-unsupported",
-            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'NestedContainer' is nested in generic context 'GenericOuter<Value>'. Move type-specific behavior behind an injected dependency."
+            expectedMessage: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'NestedContainer' is nested in generic context 'GenericOuter<Value>'. Move type-specific behavior behind an injected dependency."
         )
 
         let function = try #require(
@@ -368,7 +378,7 @@ extension DIContainerMacroTests {
         try assertUnsupportedContainerDeclaration(
             localDeclaration,
             expectedID: "container.local-declaration-unsupported",
-            expectedMessage: "@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; 'LocalContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration."
+            expectedMessage: "@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 6.0; 'LocalContainer' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration."
         )
     }
 
@@ -415,7 +425,7 @@ extension DIContainerMacroTests {
                         domain: "InnoDI.usage",
                         id: "container.unsupported-declaration-kind"
                     ),
-                    message: "@DIContainer supports only non-generic structs in InnoDI 5.0; 'UnsupportedContainer' is declared as a class. Convert it to a struct and inject runtime state through @Provide(.input).",
+                    message: "@DIContainer supports only non-generic structs in InnoDI 6.0; 'UnsupportedContainer' is declared as a class. Convert it to a struct and inject runtime state through @Input.",
                     line: 3,
                     column: 1
                 )

@@ -144,6 +144,7 @@ struct SemanticContainerRecord: Equatable {
     let displayName: String
     let location: ValidationIssueLocation
     let inputMembers: Set<String>
+    let inputMemberOrder: [String]
     let staticInputMembers: Set<String>
     let assistedInputMembers: Set<String>
     let managedMembers: [String: SemanticManagedMemberRecord]
@@ -237,6 +238,7 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                     displayName: builder.path.split(separator: ".").last.map(String.init) ?? builder.path,
                     location: builder.location,
                     inputMembers: builder.inputMembers,
+                    inputMemberOrder: builder.inputMemberOrder,
                     staticInputMembers: builder.staticInputMembers,
                     assistedInputMembers: builder.assistedInputMembers,
                     managedMembers: builder.managedMembers
@@ -346,7 +348,9 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                     path: currentContainerPath,
                     location: sourceLocation(for: node.positionAfterSkippingLeadingTrivia)
                 )]
-                builder.inputMembers.insert(binding.name)
+                if builder.inputMembers.insert(binding.name).inserted {
+                    builder.inputMemberOrder.append(binding.name)
+                }
                 if provideArguments.inputKind == .assisted {
                     builder.assistedInputMembers.insert(binding.name)
                 } else {
@@ -682,6 +686,7 @@ private struct SemanticContainerBuilder {
     let path: String
     let location: ValidationIssueLocation
     var inputMembers: Set<String> = []
+    var inputMemberOrder: [String] = []
     var staticInputMembers: Set<String> = []
     var assistedInputMembers: Set<String> = []
     var managedMembers: [String: SemanticManagedMemberRecord] = [:]

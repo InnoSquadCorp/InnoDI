@@ -51,7 +51,7 @@ public extension View {
 /// Each `environment:` value must be a direct property key path rooted at
 /// `EnvironmentValues` or `SwiftUI.EnvironmentValues`; aliases, other roots,
 /// chained properties, and subscripts are rejected.
-/// Targets with generic parameter packs are rejected in InnoDI 5.0; use
+/// Targets with generic parameter packs are rejected in InnoDI 6.0; use
 /// ordinary generic parameters or a non-generic adapter type.
 ///
 /// ```swift
@@ -67,8 +67,10 @@ public macro DIEnvironmentBridge(
 ) = #externalMacro(module: "InnoDIMacros", type: "DIEnvironmentBridgeMacro")
 
 /// Wraps Xcode 16's `#Preview` so a SwiftUI preview can express a typed
-/// container parameter once instead of constructing it, capturing it in a
-/// `let`, and reading it back inside the trailing closure.
+/// container parameter once. The generated preview uses ``DIContainerHost``:
+/// construction is deferred until SwiftUI mounts the preview, repeated body
+/// evaluations reuse one generation, and separate previews keep independent
+/// owners even when their input payloads are equal.
 ///
 /// ```swift
 /// #PreviewWithContainer(AppContainer(baseURL: "https://example.com")) { container in
@@ -78,8 +80,9 @@ public macro DIEnvironmentBridge(
 ///
 /// The generated expansion always wraps a `#Preview` macro, so all of
 /// Xcode's preview features (timing, traits, multiple previews per file)
-/// remain available; the InnoDI helper only removes the boilerplate of
-/// referring to the same container twice.
+/// remain available. Preview disappearance does not imply permanent close;
+/// use the lifecycle handle from `EnvironmentValues.innoDIContainerHostHandle`
+/// only when preview UI explicitly models a close action.
 @freestanding(expression)
 public macro PreviewWithContainer<Container, Result>(
     _ container: @autoclosure () -> Container,

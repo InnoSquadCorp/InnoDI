@@ -27,7 +27,7 @@ struct Greeter {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: AppConfig
 
     @Provide(.shared, Greeter.self, with: [\Self.config])

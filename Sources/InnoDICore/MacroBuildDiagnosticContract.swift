@@ -10,6 +10,7 @@ package enum MacroBuildDiagnosticContract {
         "container.custom-init-unsupported"
     package static let subInvalidBindingsCode = "sub.invalid-bindings"
     package static let subUnknownChildInputCode = "sub.unknown-child-input"
+    package static let subBindingOrderCode = "sub.binding-order"
 
     package static let containerCustomInitUnsupportedMessage =
         "@DIContainer does not support user-defined init declarations in the annotated type or any extension. Remove the custom init and use the synthesized initializer, or switch to manual wiring."
@@ -25,6 +26,13 @@ package enum MacroBuildDiagnosticContract {
         childInputName: String,
         childContainerName: String
     ) -> String {
-        "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching .input member."
+        "@SubContainer on '\(memberName)' binds child input '\(childInputName)', but '\(childContainerName)' does not declare a matching @Input member."
+    }
+
+    package static func subBindingOrderMessage(
+        memberName: String,
+        childContainerName: String
+    ) -> String {
+        "@SubContainer on '\(memberName)' must list bindings: in the @Input declaration order of '\(childContainerName)'."
     }
 }

@@ -38,8 +38,8 @@ extension EnvironmentValues {
 ])
 @DIContainer
 struct BridgeOnlyContainer {
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
 }
 
 @DIEnvironmentBridge([
@@ -48,9 +48,9 @@ struct BridgeOnlyContainer {
 ])
 @DIContainer
 struct SharedFeatureContainer {
-    @Provide(.input) var username: String
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var username: String
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
     @Provide(.shared, factory: UUID())
     var token: UUID
 }
@@ -61,9 +61,9 @@ struct SharedFeatureContainer {
 ])
 @DIContainer
 struct TransientFeatureContainer {
-    @Provide(.input) var username: String
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var username: String
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
     @Provide(.shared, factory: UUID())
     var token: UUID
 }
@@ -104,12 +104,12 @@ final class MutableUsername: @unchecked Sendable {
 
 @DIContainer
 struct MutableTransientFeatureContainer {
-    @Provide(.input) var username: MutableUsername
+    @Input var username: MutableUsername
 }
 
 @DIContainer
 struct MutableParentContainer {
-    @Provide(.input) var username: MutableUsername
+    @Input var username: MutableUsername
 
     @SubContainer(
         scope: .transient,
@@ -120,9 +120,9 @@ struct MutableParentContainer {
 
 @DIContainer
 struct ParentContainer {
-    @Provide(.input) var username: String
-    @Provide(.input) var greetingService: any TestGreetingServiceProtocol
-    @Provide(.input) var activityService: any TestActivityServiceProtocol
+    @Input var username: String
+    @Input var greetingService: any TestGreetingServiceProtocol
+    @Input var activityService: any TestActivityServiceProtocol
 
     @SubContainer(
         scope: .shared,
@@ -313,19 +313,100 @@ private final class HostedContainer: @unchecked Sendable {
     }
 }
 
+@MainActor
+private final class GeneratedRootLifecycleProbe {
+    var creations = 0
+    var closures = 0
+    var lifecycle: DIContainerHostHandle?
+
+    func makeToken() -> Int {
+        creations += 1
+        return creations
+    }
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+fileprivate struct GeneratedRootFeatureContainer {
+    @Input var probe: GeneratedRootLifecycleProbe
+
+    @Provide(
+        .shared,
+        factory: { (probe: GeneratedRootLifecycleProbe) in probe.makeToken() }
+    )
+    var token: Int
+}
+
+@MainActor
+private struct GeneratedRootFeatureView: View {
+    @Environment(\.innoDIContainerHostHandle) private var lifecycle
+
+    let container: GeneratedRootFeatureContainer
+
+    var body: some View {
+        Text("token-\(container.token)")
+            .onAppear {
+                container.probe.lifecycle = lifecycle
+            }
+    }
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+fileprivate struct GeneratedRootParentContainer {
+    @Input var probe: GeneratedRootLifecycleProbe
+
+    @SubContainer(
+        scope: .transient,
+        with: [\GeneratedRootParentContainer.probe],
+        featureRoot: GeneratedRootFeatureView.self
+    )
+    var feature: GeneratedRootFeatureContainer
+}
+
 private enum HostFailure: Error {
     case expected
 }
 
 private actor HostFactoryGate {
+    private var started: Set<Int> = []
     private var released: Set<Int> = []
     private var waiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     func wait(for identity: Int) async {
+        started.insert(identity)
         if released.contains(identity) { return }
         await withCheckedContinuation { continuation in
             waiters[identity, default: []].append(continuation)
         }
+    }
+
+    func hasStarted(_ identity: Int) -> Bool {
+        started.contains(identity)
+    }
+
+    func release(_ identity: Int) {
+        released.insert(identity)
+        let continuations = waiters.removeValue(forKey: identity) ?? []
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+}
+
+private actor HostCloseGate {
+    private var started: Set<Int> = []
+    private var released: Set<Int> = []
+    private var waiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+
+    func close(_ identity: Int) async {
+        started.insert(identity)
+        if released.contains(identity) { return }
+        await withCheckedContinuation { continuation in
+            waiters[identity, default: []].append(continuation)
+        }
+    }
+
+    func hasStarted(_ identity: Int) -> Bool {
+        started.contains(identity)
     }
 
     func release(_ identity: Int) {
@@ -412,6 +493,62 @@ struct DIContainerHostLifecycleTests {
         let snapshot = await probe.snapshot()
         #expect(snapshot.creations == [1: 1, 2: 1])
         #expect(snapshot.closures == [1: 1])
+    }
+
+    @Test("A→B→C replacement shares the cleanup barrier and preserves A's callback")
+    func rapidReplacementWaitsForOriginalGenerationCleanup() async throws {
+        let probe = HostLifecycleProbe()
+        let gate = HostCloseGate()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+
+        owner.start(
+            identity: 1,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(100 + container.identity)
+                await gate.close(container.identity)
+            }
+        )
+        try await waitUntilReady(owner, identity: 1)
+
+        owner.start(
+            identity: 2,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(200 + container.identity)
+            }
+        )
+        try await waitUntil { await gate.hasStarted(1) }
+        owner.start(
+            identity: 3,
+            factory: { identity in
+                await probe.created(identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(300 + container.identity)
+            }
+        )
+
+        for _ in 0..<100 { await Task.yield() }
+        if case let .loading(identity) = owner.phase {
+            #expect(identity == 3)
+        } else {
+            Issue.record("The newest generation must remain loading while A cleanup is blocked")
+        }
+        #expect(await probe.snapshot().creations == [1: 1])
+
+        await gate.release(1)
+        try await waitUntilReady(owner, identity: 3)
+        let snapshot = await probe.snapshot()
+        #expect(snapshot.creations == [1: 1, 3: 1])
+        #expect(snapshot.closures == [101: 1])
     }
 
     @Test("same payload can back independent window owners")
@@ -542,7 +679,7 @@ struct DIContainerHostLifecycleTests {
             },
             close: close
         )
-        await Task.yield()
+        try await waitUntil { await gate.hasStarted(12) }
         owner.start(
             identity: 13,
             factory: { HostedContainer(identity: $0) },
@@ -553,6 +690,67 @@ struct DIContainerHostLifecycleTests {
         try await waitUntil { await probe.snapshot().closures[12] == 1 }
 
         #expect(await probe.snapshot().closures == [12: 1])
+    }
+
+    @Test("A late cancelled candidate uses the callback captured by its own generation")
+    func cancelledCandidateUsesGenerationCloseCallback() async throws {
+        let gate = HostFactoryGate()
+        let probe = HostLifecycleProbe()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+
+        owner.start(
+            identity: 21,
+            factory: { identity in
+                await gate.wait(for: identity)
+                return HostedContainer(identity: identity)
+            },
+            close: { container in
+                await probe.closed(100 + container.identity)
+            }
+        )
+        try await waitUntil { await gate.hasStarted(21) }
+        owner.start(
+            identity: 22,
+            factory: { HostedContainer(identity: $0) },
+            close: { container in
+                await probe.closed(200 + container.identity)
+            }
+        )
+
+        await gate.release(21)
+        try await waitUntilReady(owner, identity: 22)
+        try await waitUntil { await probe.snapshot().closures[121] == 1 }
+        #expect(await probe.snapshot().closures == [121: 1])
+    }
+
+    @Test("Concurrent explicit close calls share one cleanup and close exactly once")
+    func concurrentCloseIsExactlyOnce() async throws {
+        let probe = HostLifecycleProbe()
+        let gate = HostCloseGate()
+        let owner = DIContainerHostOwner<Int, HostedContainer>()
+        owner.start(
+            identity: 31,
+            factory: { HostedContainer(identity: $0) },
+            close: { container in
+                await probe.closed(container.identity)
+                await gate.close(container.identity)
+            }
+        )
+        try await waitUntilReady(owner, identity: 31)
+
+        let first = Task { @MainActor in await owner.close() }
+        try await waitUntil { await gate.hasStarted(31) }
+        let second = Task { @MainActor in await owner.close() }
+        await gate.release(31)
+        await first.value
+        await second.value
+
+        #expect(await probe.snapshot().closures == [31: 1])
+        if case .idle = owner.phase {
+            // Expected.
+        } else {
+            Issue.record("Concurrent close must leave the owner idle")
+        }
     }
 
     @Test("starting the same failed identity creates a fresh generation")
@@ -574,6 +772,55 @@ struct DIContainerHostLifecycleTests {
     }
 
     #if os(macOS)
+    @Test("generated feature roots are lazy, identity-owned, and explicitly closed")
+    func generatedFeatureRootUsesHostOwnership() async throws {
+        let probe = GeneratedRootLifecycleProbe()
+        let parent = GeneratedRootParentContainer(probe: probe)
+        let close: DIContainerHostOwner<Int, GeneratedRootFeatureContainer>.Close = { container in
+            container.probe.closures += 1
+        }
+        let first = parent.featureRootView(identity: 1, close: close)
+
+        #expect(probe.creations == 0)
+        let hostingView = NSHostingView(rootView: first)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        for _ in 0..<100 {
+            hostingView.rootView = first
+            hostingView.layoutSubtreeIfNeeded()
+            await Task.yield()
+        }
+
+        try await waitUntil { probe.creations == 1 && probe.lifecycle != nil }
+        #expect(probe.creations == 1)
+        #expect(probe.closures == 0)
+
+        let second = parent.featureRootView(identity: 2, close: close)
+        hostingView.rootView = second
+        hostingView.layoutSubtreeIfNeeded()
+        try await waitUntil { probe.creations == 2 && probe.closures == 1 }
+
+        await probe.lifecycle?.close()
+        try await waitUntil { probe.closures == 2 }
+        #expect(probe.creations == 2)
+        _ = hostingView
+    }
+
+    @Test("same feature-root payload remains independent across mounted owners")
+    func generatedFeatureRootsKeepIndependentOwners() async throws {
+        let probe = GeneratedRootLifecycleProbe()
+        let parent = GeneratedRootParentContainer(probe: probe)
+        let first = NSHostingView(rootView: parent.featureRootView(identity: 7))
+        let second = NSHostingView(rootView: parent.featureRootView(identity: 7))
+        first.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        second.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        first.layoutSubtreeIfNeeded()
+        second.layoutSubtreeIfNeeded()
+
+        try await waitUntil { probe.creations == 2 }
+        #expect(probe.creations == 2)
+        _ = (first, second)
+    }
+
     @Test("mounted failure UI can retry and explicitly close the recovered container")
     func mountedFailureRetryAndClose() async throws {
         let probe = HostViewProbe()
@@ -663,11 +910,14 @@ struct DIContainerHostLifecycleTests {
     private func waitUntil(
         _ condition: @escaping @MainActor () async -> Bool
     ) async throws {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: .seconds(5))
-        while !(await condition()) {
-            guard clock.now < deadline else { throw HostFailure.expected }
-            await Task.yield()
+        // Sanitizers can suspend this main-actor test task behind the rest of
+        // the suite for longer than a wall-clock deadline. Bound the number of
+        // resumptions instead, so every check gives the lifecycle operation a
+        // real scheduling opportunity before the test fails.
+        for _ in 0..<500 {
+            if await condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
         }
+        throw HostFailure.expected
     }
 }

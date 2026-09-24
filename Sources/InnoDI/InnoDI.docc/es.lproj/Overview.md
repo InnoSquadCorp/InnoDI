@@ -16,7 +16,7 @@ La baseline estable de 4.0.0 incluye:
 - validación en compilación y build
 - render del grafo global y validación DAG
 - aristas diferidas con `Lazy<T>` y `Provider<T>`
-- `@SubContainer`, `@DIComponent` y `@DIHierarchyRoot`
+- `@SubContainer` y roles de jerarquía explícitos con `@DIContainerRole`
 - helpers de SwiftUI en `InnoDISwiftUI`
 
 4.1.0 agrega hardening de release sobre esa baseline:
@@ -46,5 +46,5 @@ La baseline estable de 4.0.0 incluye:
 
 - <doc:DIContainer>
 - <doc:Provide>
-- ``DIComponent()``
-- ``DIHierarchyRoot()``
+- ``Input(_:escaping:)``
+- ``DIContainerRole(role:mainActor:validateDAG:)``

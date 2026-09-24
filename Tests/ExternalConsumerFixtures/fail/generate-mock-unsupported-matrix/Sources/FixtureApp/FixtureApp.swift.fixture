@@ -1,0 +1,16 @@
+import InnoDI
+
+enum Failure: Error {
+    case unavailable
+}
+
+@GenerateMock
+protocol UnsupportedMatrix {
+    static var shared: String { get }
+    func decode<T>(_ type: T.Type) throws(Failure) -> T
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

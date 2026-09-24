@@ -1,4 +1,5 @@
 import Foundation
+import InnoDIWorkspaceAnalysis
 
 func writeGraphOutput(_ content: String, format: OutputFormat, outputPath: String?) -> Int32 {
     guard let outputPath, outputPath != "-" else {
@@ -22,7 +23,8 @@ func writeGraphOutput(_ content: String, format: OutputFormat, outputPath: Strin
 func writeDOTAsPNG(
     dotContent: String,
     outputPath: String,
-    environment: [String: String] = ProcessInfo.processInfo.environment
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    timeout: TimeInterval = 30
 ) -> Int32 {
     do {
         let tempDirectory = try makePrivateTemporaryDirectory(prefix: "innodi-dot")
@@ -36,19 +38,21 @@ func writeDOTAsPNG(
             return ExitCode.failure
         }
 
-        let output = try runProcessCapturingOutput(
-            executablePath: dotPath,
-            arguments: ["-Tpng", tempURL.path(percentEncoded: false), "-o", outputPath]
+        let output = try runWorkspaceTool(
+            executable: dotPath,
+            arguments: ["-Tpng", tempURL.path(percentEncoded: false), "-o", outputPath],
+            environment: environment,
+            timeout: timeout
         )
 
-        if output.exitCode == 0 {
+        if !output.timedOut && output.exitCode == 0 {
             print("PNG generated at \(outputPath)")
             return ExitCode.success
         }
 
         fputs(
             """
-            Failed to generate PNG with Graphviz 'dot' (exit \(output.exitCode)).
+            Failed to generate PNG with Graphviz 'dot' (exit \(output.exitCode), timeout=\(output.timedOut), truncated=\(output.outputTruncated)).
             stdout:
             \(output.stdout.isEmpty ? "<empty>" : output.stdout)
             stderr:
@@ -85,65 +89,11 @@ func resolveDotExecutable(environment: [String: String] = ProcessInfo.processInf
     return nil
 }
 
-private struct CapturedProcessOutput: Equatable {
-    let exitCode: Int32
-    let stdout: String
-    let stderr: String
-}
-
-private func runProcessCapturingOutput(
-    executablePath: String,
-    arguments: [String]
-) throws -> CapturedProcessOutput {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: executablePath)
-    process.arguments = arguments
-
-    let fileManager = FileManager.default
-    let tempDirectory = try makePrivateTemporaryDirectory(prefix: "innodi-dot-output")
-    let stdoutURL = tempDirectory.appendingPathComponent("stdout")
-    let stderrURL = tempDirectory.appendingPathComponent("stderr")
-    try createEmptyCaptureFile(at: stdoutURL)
-    try createEmptyCaptureFile(at: stderrURL)
-    defer { try? fileManager.removeItem(at: tempDirectory) }
-
-    let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
-    let stderrHandle = try FileHandle(forWritingTo: stderrURL)
-    var handlesClosed = false
-    defer {
-        if !handlesClosed {
-            stdoutHandle.closeFile()
-            stderrHandle.closeFile()
-        }
-    }
-    process.standardOutput = stdoutHandle
-    process.standardError = stderrHandle
-
-    try process.run()
-    process.waitUntilExit()
-
-    stdoutHandle.closeFile()
-    stderrHandle.closeFile()
-    handlesClosed = true
-    let stdoutData = try Data(contentsOf: stdoutURL)
-    let stderrData = try Data(contentsOf: stderrURL)
-
-    return CapturedProcessOutput(
-        exitCode: process.terminationStatus,
-        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-        stderr: String(data: stderrData, encoding: .utf8) ?? ""
-    )
-}
-
 private func isExecutableFile(atPath path: String) -> Bool {
     var isDirectory: ObjCBool = false
     return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
         && !isDirectory.boolValue
         && FileManager.default.isExecutableFile(atPath: path)
-}
-
-private enum ProcessCaptureError: Error {
-    case failedToCreateCaptureFile(String)
 }
 
 private func makePrivateTemporaryDirectory(prefix: String) throws -> URL {
@@ -156,15 +106,4 @@ private func makePrivateTemporaryDirectory(prefix: String) throws -> URL {
         attributes: [.posixPermissions: 0o700]
     )
     return url
-}
-
-private func createEmptyCaptureFile(at url: URL) throws {
-    let path = url.path(percentEncoded: false)
-    guard FileManager.default.createFile(
-        atPath: path,
-        contents: nil,
-        attributes: [.posixPermissions: 0o600]
-    ) else {
-        throw ProcessCaptureError.failedToCreateCaptureFile(path)
-    }
 }

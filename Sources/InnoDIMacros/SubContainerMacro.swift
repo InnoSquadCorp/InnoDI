@@ -271,7 +271,8 @@ private func makeSubContainerAccessors(
         // `_innoDISubBuild_<name>` is assigned by the parent init after
         // all other storage is initialized. Invoking it here re-reads
         // the captured parent snapshot, which yields a new child
-        // instance per call.
+        // dependency-only resolver context, which yields a new child instance
+        // per call without retaining a snapshot of the parent container.
         bodyExpr = ExprSyntax(FunctionCallExprSyntax(
             calledExpression: ExprSyntax(
                 DeclReferenceExprSyntax(baseName: .identifier("_innoDISubBuild_\(info.name)"))

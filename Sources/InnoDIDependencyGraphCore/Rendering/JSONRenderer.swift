@@ -6,9 +6,9 @@ import InnoDICore
 /// The schema is deliberately small and versioned so CI pipelines, IDE
 /// plugins, or web viewers can consume it without re-parsing Mermaid/DOT.
 ///
-/// Schema v4 adds canonical provider semantics and diagnostic-only source
-/// locations. Target-qualified identity and explicit analysis scope remain
-/// required from schema v2.
+/// Schema v6 adds explicit ordered/keyed collection contracts, including each
+/// canonical contributor and its declared provider lifetime, to the v5
+/// provider semantics. Source locations remain diagnostic-only.
 package func renderJSON(
     scope: GraphJSON.Scope,
     nodes: [DependencyGraphNode],
@@ -72,7 +72,7 @@ private func edgeKind(for edge: DependencyGraphEdge) -> GraphJSON.EdgeKind {
 /// Namespaces the JSON schema types so they stay close to the renderer
 /// and aren't accidentally reused for an unrelated payload.
 package enum GraphJSON {
-    package static let currentSchemaVersion = 4
+    package static let currentSchemaVersion = 6
 
     package struct Document: Codable, Equatable {
         package let schemaVersion: Int
@@ -109,10 +109,7 @@ package enum GraphJSON {
             scope = try container.decode(Scope.self, forKey: .scope)
             nodes = try container.decode([Node].self, forKey: .nodes)
             edges = try container.decode([Edge].self, forKey: .edges)
-            providers = try container.decodeIfPresent(
-                [Provider].self,
-                forKey: .providers
-            ) ?? []
+            providers = try container.decode([Provider].self, forKey: .providers)
         }
     }
 
@@ -128,6 +125,9 @@ package enum GraphJSON {
         package let effect: DependencyGraphProvider.Effect
         package let inputKind: DependencyGraphProvider.InputKind?
         package let dependencies: [String]
+        package let dependencyBindings: [DependencyGraphProvider.DependencyBinding]
+        package let containerBindings: [DependencyGraphProvider.ContainerBinding]
+        package let collection: DependencyGraphProvider.CollectionContract?
         package let source: Source
 
         package init(_ provider: DependencyGraphProvider) {
@@ -142,7 +142,44 @@ package enum GraphJSON {
             effect = provider.effect
             inputKind = provider.inputKind
             dependencies = provider.dependencies
+            dependencyBindings = provider.dependencyBindings
+            containerBindings = provider.containerBindings
+            collection = provider.collection
             source = Source(provider.source)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id, containerID, name, type, role, lifetime, initialization
+            case isolation, effect, inputKind, dependencies
+            case dependencyBindings, containerBindings, collection, source
+        }
+
+        package init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            containerID = try container.decode(String.self, forKey: .containerID)
+            name = try container.decode(String.self, forKey: .name)
+            type = try container.decode(String.self, forKey: .type)
+            role = try container.decode(DependencyGraphProvider.Role.self, forKey: .role)
+            lifetime = try container.decode(DependencyGraphProvider.Lifetime.self, forKey: .lifetime)
+            initialization = try container.decode(DependencyGraphProvider.Initialization.self, forKey: .initialization)
+            isolation = try container.decode(DependencyGraphProvider.Isolation.self, forKey: .isolation)
+            effect = try container.decode(DependencyGraphProvider.Effect.self, forKey: .effect)
+            inputKind = try container.decodeIfPresent(DependencyGraphProvider.InputKind.self, forKey: .inputKind)
+            dependencies = try container.decodeIfPresent([String].self, forKey: .dependencies) ?? []
+            dependencyBindings = try container.decode(
+                [DependencyGraphProvider.DependencyBinding].self,
+                forKey: .dependencyBindings
+            )
+            containerBindings = try container.decode(
+                [DependencyGraphProvider.ContainerBinding].self,
+                forKey: .containerBindings
+            )
+            collection = try container.decodeIfPresent(
+                DependencyGraphProvider.CollectionContract.self,
+                forKey: .collection
+            )
+            source = try container.decode(Source.self, forKey: .source)
         }
 
         package struct Source: Codable, Equatable {
@@ -168,7 +205,10 @@ package enum GraphJSON {
                 isolation: isolation,
                 effect: effect,
                 inputKind: inputKind,
-                dependencies: dependencies
+                dependencies: dependencies,
+                dependencyBindings: dependencyBindings,
+                containerBindings: containerBindings,
+                collection: collection
             )
         }
 
@@ -183,6 +223,9 @@ package enum GraphJSON {
             let effect: DependencyGraphProvider.Effect
             let inputKind: DependencyGraphProvider.InputKind?
             let dependencies: [String]
+            let dependencyBindings: [DependencyGraphProvider.DependencyBinding]
+            let containerBindings: [DependencyGraphProvider.ContainerBinding]
+            let collection: DependencyGraphProvider.CollectionContract?
         }
     }
 

@@ -1,7 +1,7 @@
 import InnoDI
 import ShadowKit
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct AppContainer {
     @Provide(.transient, factory: { 1 })
     var dependency: Int

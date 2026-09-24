@@ -118,6 +118,7 @@ fi
 TREND_OUT=$(mktemp -t innodi-trend-XXXXXXXX.json)
 trap 'rm -f "$TMP_BASELINE" "$TREND_OUT"' EXIT
 
+TREND_STATUS=0
 INNODI_TREND_INDEX="$INDEX_BLOB" \
 INNODI_TREND_CURRENT="$TMP_BASELINE" \
 INNODI_TREND_WINDOW="$WINDOW" \
@@ -125,7 +126,7 @@ INNODI_TREND_THRESHOLD_PCT="$THRESHOLD_PCT" \
 INNODI_TREND_MIN_SAMPLES="$MIN_SAMPLES" \
 INNODI_TREND_REQUIRE_SAME_TOOLCHAIN="$REQUIRE_SAME_TOOLCHAIN" \
 INNODI_TREND_OUT="$TREND_OUT" \
-python3 - <<'PY'
+python3 - <<'PY' || TREND_STATUS=$?
 import json, os, sys
 
 index = json.loads(os.environ["INNODI_TREND_INDEX"])
@@ -214,6 +215,9 @@ if report["status"] == "regression":
 PY
 
 # Surface the JSON report so the workflow can upload it as an artifact.
-mkdir -p build
-cp "$TREND_OUT" build/perf-trend-report.json
-echo "[trend] report saved to build/perf-trend-report.json"
+if [[ -s "$TREND_OUT" ]]; then
+    mkdir -p build
+    cp "$TREND_OUT" build/perf-trend-report.json
+    echo "[trend] report saved to build/perf-trend-report.json"
+fi
+exit "$TREND_STATUS"

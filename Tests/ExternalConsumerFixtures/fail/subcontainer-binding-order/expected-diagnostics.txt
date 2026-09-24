@@ -1,0 +1,3 @@
+[sub.binding-order] @SubContainer on 'child' must list bindings: in the @Input declaration order of 'Child'.
+? argument 'second' must precede argument 'first'
+? argument 'second' must precede argument 'first'

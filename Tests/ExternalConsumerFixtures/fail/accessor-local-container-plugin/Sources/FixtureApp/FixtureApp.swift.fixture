@@ -2,8 +2,7 @@ import InnoDI
 
 struct AccessorHost {
     var value: Int {
-        @DIComponent
-        @DIContainer
+        @DIContainerRole(role: ContainerRole.component)
         struct AccessorContainer {}
         return 0
     }

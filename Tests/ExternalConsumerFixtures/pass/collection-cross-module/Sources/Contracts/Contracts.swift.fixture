@@ -1,3 +1,24 @@
+import Foundation
+
 public protocol CrossModuleService: Sendable {
     var name: String { get }
+}
+
+public final class CrossModuleCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counts: [String: Int] = [:]
+
+    public init() {}
+
+    public func increment(_ key: String) {
+        lock.lock()
+        counts[key, default: 0] += 1
+        lock.unlock()
+    }
+
+    public func count(for key: String) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return counts[key, default: 0]
+    }
 }

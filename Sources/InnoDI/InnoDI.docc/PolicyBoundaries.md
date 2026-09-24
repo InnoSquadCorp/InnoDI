@@ -45,7 +45,7 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 
 ## Declaration Order
 
-- `.input` members are always available.
+- `@Input` members are always available.
 - sync `.shared` members can reference inputs and earlier sync shared members.
 - async `.shared` members can reference inputs, sync shared members, and
   earlier async shared members.
@@ -72,7 +72,7 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
   initializers, `withOverrides`, child overrides, and component mounting, all
   four `withOverrides` operation closures, and generated feature-root helpers.
   It is the preferred shape for UI-root containers.
-- When paired with `@DIComponent`, the generated dependency protocol and
+- For a component-role container, the generated dependency protocol and
   `init(dependencies:_:)` are `@MainActor`, including the override-application
   closure type, and the component conforms to the dedicated
   `_InnoDIMainActorComponentMountable` protocol. Ordinary components continue
@@ -128,7 +128,7 @@ struct Consumer {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: Config
 
     @Provide(.shared, factory: { (config: Config) in
@@ -160,7 +160,7 @@ struct FeatureService { init(config: Config) {} }
 
 @DIContainer
 struct FeatureContainer {
-    @Provide(.input)
+    @Input
     var featureConfig: Config
 
     @Provide(.shared, factory: { (featureConfig: Config) in
@@ -171,7 +171,7 @@ struct FeatureContainer {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: Config
 
     @SubContainer(

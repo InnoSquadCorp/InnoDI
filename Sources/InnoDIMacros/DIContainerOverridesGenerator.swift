@@ -23,6 +23,9 @@ internal func overrideCandidateMembers(_ model: DIContainerExpansionModel) -> [P
 
 internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclSyntax {
     let candidates = overrideCandidateMembers(model)
+    let effectCandidates = candidates.filter {
+        $0.operationalEffect == .sideEffect
+    }
     let subs = model.subContainerMembers
 
     let modifiers = accessModifiers(model.accessLevel)
@@ -78,10 +81,65 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         memberDecls.append(MemberBlockItemSyntax(decl: applySlot))
     }
 
+    if !effectCandidates.isEmpty {
+        let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
+        let requirements = effectCandidates.map {
+            "InnoDI.DIProviderEffectRequirement(providerName: \"\($0.name)\", effect: .sideEffect)"
+        }.joined(separator: ", ")
+        let checks = effectCandidates.map { member in
+            """
+                    if self.\(member.name) == nil {
+                        missing.append(
+                            InnoDI.DIProviderEffectRequirement(
+                                providerName: "\(member.name)",
+                                effect: .sideEffect
+                            )
+                        )
+                    }
+            """
+        }.joined(separator: "\n")
+
+        memberDecls.append(
+            MemberBlockItemSyntax(
+                decl: DeclSyntax(
+                    stringLiteral: "\(accessPrefix)static let requiredEffectOverrides: [InnoDI.DIProviderEffectRequirement] = [\(requirements)]"
+                )
+            )
+        )
+        memberDecls.append(
+            MemberBlockItemSyntax(
+                decl: DeclSyntax(
+                    stringLiteral: """
+                    \(accessPrefix)var missingEffectOverrides: [InnoDI.DIProviderEffectRequirement] {
+                        var missing: [InnoDI.DIProviderEffectRequirement] = []
+                    \(checks)
+                        return missing
+                    }
+                    """
+                )
+            )
+        )
+    }
+
+    let inheritanceClause: InheritanceClauseSyntax? = effectCandidates.isEmpty
+        ? nil
+        : InheritanceClauseSyntax(
+            inheritedTypes: InheritedTypeListSyntax([
+                InheritedTypeSyntax(
+                    type: TypeSyntax(
+                        stringLiteral: model.options.mainActor
+                            ? "InnoDI.DIMainActorOverrideEffectValidating"
+                            : "InnoDI.DIOverrideEffectValidating"
+                    )
+                )
+            ])
+        )
+
     let structDecl = StructDeclSyntax(
         attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         name: .identifier("Overrides"),
+        inheritanceClause: inheritanceClause,
         memberBlock: MemberBlockSyntax(
             members: MemberBlockItemListSyntax(memberDecls)
         )
@@ -146,6 +204,22 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
         )
         params.append(param)
     }
+
+    params.append(
+        FunctionParameterSyntax(
+            firstName: .identifier("_innoDITrace"),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(stringLiteral: "DITraceContext"),
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(
+                value: ExprSyntax(
+                    MemberAccessExprSyntax(name: .identifier("disabled"))
+                )
+            ),
+            trailingComma: .commaToken()
+        )
+    )
 
     // Final unnamed trailing closure parameter. Main-actor containers carry
     // isolation on the closure type as well as on the initializer:
@@ -220,10 +294,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
             (sub.overrideClosureName, sub.overrideClosureName)
         ]
     }
-    let totalArgCount = allForwardingMembers.count + subForwardingPairs.count
-
-    for (index, member) in allForwardingMembers.enumerated() {
-        let isLast = index == allForwardingMembers.count - 1 && subForwardingPairs.isEmpty
+    for member in allForwardingMembers {
         let valueExpr: ExprSyntax
         if member.scope == .input {
             // Input parameter forwarded from the outer init.
@@ -243,14 +314,12 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
                 label: .identifier(member.name),
                 colon: .colonToken(),
                 expression: valueExpr,
-                trailingComma: isLast ? nil : .commaToken()
+                trailingComma: .commaToken()
             )
         )
     }
 
-    for (index, pair) in subForwardingPairs.enumerated() {
-        let runningIndex = allForwardingMembers.count + index
-        let isLast = runningIndex == totalArgCount - 1
+    for pair in subForwardingPairs {
         let valueExpr = ExprSyntax(
             MemberAccessExprSyntax(
                 base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIOverrides"))),
@@ -262,10 +331,22 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
                 label: .identifier(pair.label),
                 colon: .colonToken(),
                 expression: valueExpr,
-                trailingComma: isLast ? nil : .commaToken()
+                trailingComma: .commaToken()
             )
         )
     }
+
+
+    callArgs.append(
+        LabeledExprSyntax(
+            label: .identifier("_innoDITrace"),
+            colon: .colonToken(),
+            expression: ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier("_innoDITrace"))
+            ),
+            trailingComma: nil
+        )
+    )
 
     let selfInitCall = FunctionCallExprSyntax(
         calledExpression: ExprSyntax(

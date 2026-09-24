@@ -234,20 +234,19 @@ struct FeatureContainer {
 ```
 
 Use `@DIContainerRole(role: ContainerRole.root)` in place of `@DIHierarchyRoot`
-combined with `@DIContainer(root: true)`. The compatibility spellings continue
-to compile during the 6.0 preparation train. `InnoDI-Migrate --check`,
+combined with `@DIContainer(root: true)`. For 6.0, `InnoDI-Migrate --check`,
 `--report`, and `--write` apply the new spelling mechanically, preserve
 `validateDAG` and `escaping`, and are idempotent. The migrator leaves commented,
 dynamic, or conflicting role sites unchanged and emits a blocking diagnostic
 rather than guessing intent.
 
 `@Input(.assisted)` records that the value arrives at a child-factory call.
-During the 6.0 preparation train, declare a source-visible nested
+For 6.0, declare a source-visible nested
 `@AssistedFactory(...static:...assisted:...) struct AssistedFactory {}` and let
 the parent own it with `@SubContainerFactory(Child.self, bindings: ...)`.
 Whole-source validation requires every ordinary child input exactly once and
-rejects assisted inputs in the static binding list. RFC 0006 remains Draft, so
-keep pilot revisions pinned until naming and removal decisions are accepted.
+rejects assisted inputs in the static binding list. RFC 0006 accepts these
+spellings; migrate pinned 5.x pilots before adopting the stable 6.0 contract.
 
 Replace `_InnoDIMultibindingPrototype(members: ["first", "second"])` with a
 direct injectable collection declaration:
@@ -265,14 +264,62 @@ The superseded SPI was removed after public `@Multibinding` replaced its
 ordered-collection contract. Pinned preparation consumers must migrate to the
 public spelling before adopting 6.0.
 
-Graph JSON consumers must opt into schema v4 for 6.0. In addition to the v3
-assisted-input, factory-ownership, and ordered-contribution fields, v4 emits a
-`providers` array. Each provider records its stable container/member identity,
-written type, role, lifetime, initialization policy, isolation, effect,
-dependencies, and source location. Contract comparison intentionally ignores
-source line and column changes while detecting changes to every semantic
-field. The CLI rejects older documents for `--diff`, so regenerate both
-baselines before enabling `--check-contract` on this version.
+Keyed, provider-backed, or otherwise factory-built collections declare their
+graph identity separately from runtime composition:
+
+```swift
+@Provide(
+    .transient,
+    collection: .keyedProviders([
+        .init(key: "auth", contributor: \Self.auth),
+        .init(key: "logging", contributor: \Self.logging),
+    ]),
+    factory: makeProviders()
+)
+var providers: DIKeyedProviderCollection<String, any Service>
+```
+
+Only the closed literal forms `.ordered`, `.keyed`, `.providers`, and
+`.keyedProviders` are accepted at `@Provide(collection:)`. An explicit empty
+array is valid and remains distinct from omitted metadata. Keys, order,
+canonical contributor IDs, and the contributors' declared lifetimes are graph
+contract; InnoDI does not inspect factory bodies, discover module members, or
+apply an implicit last-wins rule.
+
+Graph JSON consumers must opt into schema v6 for 6.0. In addition to the v4
+provider contract, v5 records every factory parameter's canonical provider ID
+and eager, `Lazy`, or `Provider` kind. Fixed and assisted child ownership also
+records canonical child-input-to-parent-provider binding pairs. Schema v6 adds
+explicit collection kind, key, order, contributor ID, and contributor lifetime.
+Source line and column changes remain diagnostic-only, while endpoint,
+deferred-kind, or collection metadata changes are contractual. The CLI rejects
+older documents, providers missing binding arrays, and malformed collection
+metadata, so regenerate both baselines before enabling
+`--check-contract` on this version.
+
+`--why` and `--dependents` now resolve unqualified selectors against container
+and provider namespaces together. If one spelling names both kinds, the query
+fails with both candidate lists. Retry with `container:<selector>` or
+`provider:<selector>`. Exact graph IDs continue to select their existing target.
+
+### Generated runtime tracing
+
+6.0 container initializers, component dependency initializers, and
+`withOverrides` overloads add a final defaulted `_innoDITrace:` parameter.
+Existing calls remain source-compatible because the default is
+``DITraceContext/disabled``. To correlate runtime events with schema-v6 graph
+providers, construct a ``DITraceContext`` with the graph target ID keyed by the
+runtime module name and pass it when creating the container. Generated
+providers then record factory starts and terminal outcomes, overrides, cache
+hits, and async/on-demand wait relationships without copying provider IDs into
+application code.
+
+Trace event decoders must accept the 6.0 fields `ownerID`, `generation`,
+`origin`, `relatedProviderID`, and `relatedInstanceID`, plus the new
+`waitStart` and `waitEnd` kinds. Events remain metadata-only: provider identity,
+UUIDs, generation, origin, relation, kind, and monotonic time are present;
+input values, results, tokens, error values, and service descriptions are not.
+Runtime work started opaquely inside a factory is outside automatic tracing.
 
 ---
 
@@ -331,12 +378,28 @@ the path supplied with `--output`. The report contains relative paths, stable
 codes, counts, status, and diagnostic messages, but never original or migrated
 source bodies. Its exit codes are `0` for clean, `1` for changes required, and
 `2` for blocked. `--write` parses and preflights the complete source tree
-before its first atomic file replacement, then preserves an existing UTF-8
-byte-order mark. Ambiguous ownership, unsupported legacy arguments, parse
+before its first atomic file exchange, then preserves an existing UTF-8
+byte-order mark and POSIX access mode independently of umask. Ambiguous ownership, unsupported legacy arguments, parse
 errors, source symlinks, and concurrent source changes fail closed with exit
-code `2`. Preflight failures write nothing. A detected write-time change rolls
-back only files that still exactly match the tool's output, so the detected
-external edit is not overwritten. When ownership is ambiguous, first confirm
+code `2`. Preflight failures write nothing. Each publication atomically swaps
+the source with a staged file and retains the displaced entry under the printed
+`RECOVERY` path (`.innodi-migrate-recovery-<name>-<UUID>` in the same directory).
+The tool never unlinks that recovery entry, even on success: an editor holding
+the old descriptor can still write to it after publication. Review source and
+recovery files after closing editors, then remove only the copies you no longer
+need. These files are not Swift inputs and are not reapplied on the second pass.
+
+A conflict in the final publication window exits `2`, names the recovery file,
+and leaves the source potentially containing tool output. Recover the editor's
+version manually after reviewing both paths; automatic conflict restoration
+could overwrite another save and is deliberately not attempted. Earlier writes
+are rolled back only while matching tool output, using the same preserving
+exchange protocol. A filesystem without atomic exchange fails without falling
+back to an overwriting rename. This is not a filesystem-wide transaction or a
+promise to preserve ACLs/extended attributes on the newly generated file.
+Doctor schema v3 also reports successful apply recovery paths.
+
+When ownership is ambiguous, first confirm
 the attribute's actual owning module. For InnoDI-owned declarations,
 module-qualify the complete macro pair: `@InnoDI.DIContainer` with `@InnoDI.Provide`, or
 `@InnoDI.SubContainer` with `@InnoDISwiftUI.DIFeatureRoot`, before rerunning.

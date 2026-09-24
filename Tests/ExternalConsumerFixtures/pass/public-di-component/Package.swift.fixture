@@ -17,6 +17,10 @@ let package = Package(
                 .product(
                     name: "InnoDI",
                     package: "{{INNODI_PACKAGE_IDENTITY}}"
+                ),
+                .product(
+                    name: "InnoDISwiftUI",
+                    package: "{{INNODI_PACKAGE_IDENTITY}}"
                 )
             ]
         ),

@@ -26,7 +26,7 @@ struct LoudGreeter: GreeterProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var audience: String
 
     // The declared type selects existential `any GreeterProtocol` storage.

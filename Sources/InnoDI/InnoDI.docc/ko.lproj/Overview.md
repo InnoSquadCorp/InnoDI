@@ -16,7 +16,7 @@ graph tooling에 초점을 둡니다.
 - 컴파일 타임과 빌드 타임 검증
 - global dependency graph 렌더링과 DAG 검증
 - `Lazy<T>`와 `Provider<T>` deferred edge
-- `@SubContainer`, `@DIComponent`, `@DIHierarchyRoot`
+- `@SubContainer`, 명시적 `@DIContainerRole` hierarchy role
 - `InnoDISwiftUI`의 SwiftUI helper
 
 4.1.0은 이 baseline 위에 release hardening을 추가합니다.
@@ -51,19 +51,20 @@ graph tooling에 초점을 둡니다.
 
 - <doc:lock-safety>
 - <doc:AsyncPreparation>
+- <doc:RuntimeTracing>
 - <doc:MigrationGuide>
 
 ### Container API
 
 - <doc:DIContainer>
 - <doc:Provide>
-- ``DIComponent()``
-- ``DIHierarchyRoot()``
+- ``Input(_:escaping:)``
+- ``DIContainerRole(role:mainActor:validateDAG:)``
 
 ### Symbols
 
-- ``DIContainer(root:validateDAG:mainActor:)``
-- ``Provide(_:_:with:initialization:factory:asyncFactory:escaping:)``
+- ``DIContainer(validateDAG:)``
+- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``

@@ -7,6 +7,8 @@ struct RenderedFunctionMock {
     let usesNotStubbedError: Bool
     let missingStubExpression: String?
     let recordedCallCountExpression: String
+    let resetCallStatement: String
+    let resetStubStatements: [String]
 }
 func renderFunctionMock(
     function: FunctionDeclSyntax,
@@ -26,6 +28,12 @@ func renderFunctionMock(
         return nil
     }
     let isGeneric = function.genericParameterClause != nil
+    if isGeneric,
+       typedThrowsFailureType(
+           function.signature.effectSpecifiers?.throwsClause?.trimmedDescription
+       ) != nil {
+        return nil
+    }
     if concurrent {
         guard !isGeneric else { return nil }
         return renderConcurrentTypedFunctionMock(
@@ -59,7 +67,7 @@ private func renderConcurrentTypedFunctionMock(
     )
     let returnType = signature.returnClause?.type.trimmedDescription ?? "Void"
     if !returnsVoid && isOpaqueType(returnType) { return nil }
-    let parametersRendered = parameters.map(\.trimmedDescription)
+    let parametersRendered = callParameters.map(\.declaration)
         .joined(separator: ", ")
     var effects: [String] = []
     if isAsync { effects.append("async") }
@@ -67,17 +75,25 @@ private func renderConcurrentTypedFunctionMock(
     let effectsRendered = effects.isEmpty ? "" : " " + effects.joined(separator: " ")
     let callBox = "__innodi_\(names.callsProperty)Box"
     let callFields = callParameters
-        .map { "        let \($0.name): \($0.type)" }
+        .map { "        let \($0.fieldIdentifier): \($0.type)" }
         .joined(separator: "\n")
     let recordArgs = callParameters
-        .map { "\($0.label): \($0.name)" }
+        .map { "\($0.fieldLabel): \($0.argumentIdentifier)" }
         .joined(separator: ", ")
+    let initializedRecordArgs = recordArgs.isEmpty
+        ? "generation: generation"
+        : "generation: generation, \(recordArgs)"
+    let stubbedBox = "__innodi_\(names.stem)StubbedBox"
+    var resetStubStatements: [String] = []
     var lines = [
         "    struct \(names.callStructName): Sendable {",
+        "        let generation: UInt64",
         callFields,
         "    }",
         "    private let \(callBox) = InnoDITesting.DIConcurrentValueBox<[\(names.callStructName)]>([])",
-        "    var \(names.callsProperty): [\(names.callStructName)] { \(callBox).snapshot() }",
+        "    var \(names.callsProperty): [\(names.callStructName)] {",
+        "        __innodiMockState.withCriticalRegion { _ in \(callBox).snapshot() }",
+        "    }",
     ].filter { !$0.isEmpty }
 
     if let typedFailure {
@@ -85,69 +101,126 @@ private func renderConcurrentTypedFunctionMock(
         let successType = returnsVoid ? "Void" : returnType
         let resultType = "Result<\(successType), \(typedFailure)>?"
         lines.append("    private let \(box) = InnoDITesting.DIConcurrentValueBox<\(resultType)>(nil)")
+        lines.append("    private let \(stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)")
         lines.append("    var \(names.resultProperty): \(resultType) {")
-        lines.append("        get { \(box).snapshot() }")
-        lines.append("        set { \(box).replace(with: newValue) }")
+        lines.append("        get { __innodiMockState.withCriticalRegion { _ in \(box).snapshot() } }")
+        lines.append("        set {")
+        lines.append("            __innodiMockState.withCriticalRegion { _ in")
+        lines.append("                \(box).replace(with: newValue)")
+        lines.append("                \(stubbedBox).replace(with: newValue != nil)")
+        lines.append("            }")
+        lines.append("        }")
         lines.append("    }")
+        resetStubStatements.append("\(box).replace(with: nil)")
+        resetStubStatements.append("\(stubbedBox).replace(with: false)")
     } else if !returnsVoid {
         if isThrowing {
             let box = "__innodi_\(names.resultProperty)Box"
             lines.append("    private let \(box) = InnoDITesting.DIConcurrentValueBox<Result<\(returnType), Error>>(.failure(_InnoDIMockNotStubbed(selector: \"\(names.resultProperty)\")))")
+            lines.append("    private let \(stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)")
             lines.append("    var \(names.resultProperty): Result<\(returnType), Error> {")
-            lines.append("        get { \(box).snapshot() }")
-            lines.append("        set { \(box).replace(with: newValue) }")
+            lines.append("        get { __innodiMockState.withCriticalRegion { _ in \(box).snapshot() } }")
+            lines.append("        set {")
+            lines.append("            __innodiMockState.withCriticalRegion { _ in")
+            lines.append("                \(box).replace(with: newValue)")
+            lines.append("                \(stubbedBox).replace(with: true)")
+            lines.append("            }")
+            lines.append("        }")
             lines.append("    }")
+            resetStubStatements.append("\(box).replace(with: .failure(_InnoDIMockNotStubbed(selector: \"\(names.resultProperty)\")))")
+            resetStubStatements.append("\(stubbedBox).replace(with: false)")
         } else {
             let box = "__innodi_\(names.returnProperty)Box"
             let storageType = optionalStorageType(returnType)
             lines.append("    private let \(box) = InnoDITesting.DIConcurrentValueBox<\(storageType)>(nil)")
+            lines.append("    private let \(stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)")
             lines.append("    var \(names.returnProperty): \(storageType) {")
-            lines.append("        get { \(box).snapshot() }")
-            lines.append("        set { \(box).replace(with: newValue) }")
+            lines.append("        get { __innodiMockState.withCriticalRegion { _ in \(box).snapshot() } }")
+            lines.append("        set {")
+            lines.append("            __innodiMockState.withCriticalRegion { _ in")
+            lines.append("                \(box).replace(with: newValue)")
+            lines.append("                \(stubbedBox).replace(with: true)")
+            lines.append("            }")
+            lines.append("        }")
             lines.append("    }")
+            resetStubStatements.append("\(box).replace(with: nil)")
+            resetStubStatements.append("\(stubbedBox).replace(with: false)")
         }
     } else if isThrowing {
         let box = "__innodi_\(names.thrownErrorProperty)Box"
         lines.append("    private let \(box) = InnoDITesting.DIConcurrentValueBox<Error?>(nil)")
+        lines.append("    private let \(stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)")
         lines.append("    var \(names.thrownErrorProperty): Error? {")
-        lines.append("        get { \(box).snapshot() }")
-        lines.append("        set { \(box).replace(with: newValue) }")
+        lines.append("        get { __innodiMockState.withCriticalRegion { _ in \(box).snapshot() } }")
+        lines.append("        set {")
+        lines.append("            __innodiMockState.withCriticalRegion { _ in")
+        lines.append("                \(box).replace(with: newValue)")
+        lines.append("                \(stubbedBox).replace(with: true)")
+        lines.append("            }")
+        lines.append("        }")
         lines.append("    }")
+        resetStubStatements.append("\(box).replace(with: nil)")
+        resetStubStatements.append("\(stubbedBox).replace(with: false)")
     }
 
     let returnFragment = returnsVoid ? "" : " -> \(returnType)"
     lines.append("    func \(baseName)(\(parametersRendered))\(effectsRendered)\(returnFragment) {")
-    lines.append("        \(callBox).update { $0.append(.init(\(recordArgs))) }")
     if typedFailure != nil {
         let box = "__innodi_\(names.resultProperty)Box"
-        lines.append("        guard let result = \(box).snapshot() else {")
+        lines.append("        let result = __innodiMockState.withCriticalRegion { generation in")
+        lines.append("            \(callBox).update { $0.append(.init(\(initializedRecordArgs))) }")
+        lines.append("            return \(box).snapshot()")
+        lines.append("        }")
+        lines.append("        guard let result else {")
         lines.append("            preconditionFailure(\"\(names.resultProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
         lines.append("        }")
         lines.append("        return try result.get()")
     } else if !returnsVoid {
         if isThrowing {
             let box = "__innodi_\(names.resultProperty)Box"
-            lines.append("        return try \(box).snapshot().get()")
+            lines.append("        let result = __innodiMockState.withCriticalRegion { generation in")
+            lines.append("            \(callBox).update { $0.append(.init(\(initializedRecordArgs))) }")
+            lines.append("            return \(box).snapshot()")
+            lines.append("        }")
+            lines.append("        return try result.get()")
         } else {
             let box = "__innodi_\(names.returnProperty)Box"
-            lines.append("        guard let value = \(box).snapshot() else {")
-            lines.append("            preconditionFailure(\"\(names.returnProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
+            let storedReturn = renderStoredReturn(
+                storage: "\(box).snapshot()",
+                type: returnType
+            )
+            lines.append("        return __innodiMockState.withCriticalRegion { generation in")
+            lines.append("            \(callBox).update { $0.append(.init(\(initializedRecordArgs))) }")
+            lines.append("            guard \(stubbedBox).snapshot() else {")
+            lines.append("                preconditionFailure(\"\(names.returnProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
+            lines.append("            }")
+            lines.append("            \(storedReturn)")
             lines.append("        }")
-            lines.append("        return value")
         }
     } else if isThrowing {
         let box = "__innodi_\(names.thrownErrorProperty)Box"
-        lines.append("        if let error = \(box).snapshot() { throw error }")
+        lines.append("        let error = __innodiMockState.withCriticalRegion { generation in")
+        lines.append("            \(callBox).update { $0.append(.init(\(initializedRecordArgs))) }")
+        lines.append("            return \(box).snapshot()")
+        lines.append("        }")
+        lines.append("        if let error { throw error }")
+    } else {
+        lines.append("        __innodiMockState.withCriticalRegion { generation in")
+        lines.append("            \(callBox).update { $0.append(.init(\(initializedRecordArgs))) }")
+        lines.append("        }")
     }
     lines.append("    }")
 
     return RenderedFunctionMock(
         snippet: lines.joined(separator: "\n"),
         usesNotStubbedError: typedFailure == nil && isThrowing && !returnsVoid,
-        missingStubExpression: typedFailure == nil
-            ? nil
-            : "\(names.resultProperty) == nil ? \"\(names.stem)\" : nil",
-        recordedCallCountExpression: "\"\(names.stem)\": \(names.callsProperty).count"
+        missingStubExpression: requiresFunctionStub(
+            returnsVoid: returnsVoid,
+            isThrowing: isThrowing
+        ) ? "!\(stubbedBox).snapshot() ? \"\(names.stem)\" : nil" : nil,
+        recordedCallCountExpression: "\"\(names.stem)\": \(callBox).snapshot().count",
+        resetCallStatement: "\(callBox).replace(with: [])",
+        resetStubStatements: resetStubStatements
     )
 }
 
@@ -173,7 +246,8 @@ private func renderTypedFunctionMock(
     if !returnsVoid && isOpaqueType(returnTypeRendered) {
         return nil
     }
-    let parametersRendered = parameters.map { $0.trimmedDescription }.joined(separator: ", ")
+    let parametersRendered = callParameters.map(\.declaration)
+        .joined(separator: ", ")
     var effectSpecifierTokens: [String] = []
     if isAsync { effectSpecifierTokens.append("async") }
     if let throwsSpelling { effectSpecifierTokens.append(throwsSpelling) }
@@ -182,50 +256,112 @@ private func renderTypedFunctionMock(
         : " " + effectSpecifierTokens.joined(separator: " ")
 
     var snippetLines: [String] = []
+    var resetStubStatements: [String] = []
 
     let callFields = callParameters
-        .map { "        let \($0.name): \($0.type)" }
+        .map { "        let \($0.fieldIdentifier): \($0.type)" }
         .joined(separator: "\n")
     snippetLines.append("    struct \(names.callStructName) {")
+    snippetLines.append("        let generation: UInt64")
     if !callFields.isEmpty {
         snippetLines.append(callFields)
     }
     snippetLines.append("    }")
     snippetLines.append("    private(set) var \(names.callsProperty): [\(names.callStructName)] = []")
 
+    let stubbedStorage = "__innodi_\(names.stem)IsStubbed"
     if !returnsVoid {
+        snippetLines.append("    private var \(stubbedStorage) = false")
         if let typedFailure {
             snippetLines.append(
-                "    var \(names.resultProperty): Result<\(returnTypeRendered), \(typedFailure)>?"
+                "    private var __innodi_\(names.resultProperty)Storage: Result<\(returnTypeRendered), \(typedFailure)>?"
             )
+            snippetLines.append(
+                computedStubProperty(
+                    name: names.resultProperty,
+                    type: "Result<\(returnTypeRendered), \(typedFailure)>?",
+                    storage: "__innodi_\(names.resultProperty)Storage",
+                    stubbedStorage: stubbedStorage,
+                    nilMeansMissing: true
+                )
+            )
+            resetStubStatements.append("__innodi_\(names.resultProperty)Storage = nil")
+            resetStubStatements.append("\(stubbedStorage) = false")
         } else if isThrowing {
             // `Result<T, Error>` keeps the typed `throw` lossy but lets the
             // mock author choose between `.success(value)` and `.failure(error)`
             // with a single assignment. The default failure prompts the test
             // author with the missing stub identifier through the nested
             // `_InnoDIMockNotStubbed` error.
+            let storage = "__innodi_\(names.resultProperty)Storage"
+            snippetLines.append("    private var \(storage): Result<\(returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \"\(names.resultProperty)\"))")
             snippetLines.append(
-                "    var \(names.resultProperty): Result<\(returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \"\(names.resultProperty)\"))"
+                computedStubProperty(
+                    name: names.resultProperty,
+                    type: "Result<\(returnTypeRendered), Error>",
+                    storage: storage,
+                    stubbedStorage: stubbedStorage
+                )
             )
+            resetStubStatements.append("\(storage) = .failure(_InnoDIMockNotStubbed(selector: \"\(names.resultProperty)\"))")
+            resetStubStatements.append("\(stubbedStorage) = false")
         } else {
-            snippetLines.append("    var \(names.returnProperty): \(optionalStorageType(returnTypeRendered))")
+            let storage = "__innodi_\(names.returnProperty)Storage"
+            let storageType = optionalStorageType(returnTypeRendered)
+            snippetLines.append("    private var \(storage): \(storageType)")
+            snippetLines.append(
+                computedStubProperty(
+                    name: names.returnProperty,
+                    type: storageType,
+                    storage: storage,
+                    stubbedStorage: stubbedStorage
+                )
+            )
+            resetStubStatements.append("\(storage) = nil")
+            resetStubStatements.append("\(stubbedStorage) = false")
         }
     } else if let typedFailure {
+        snippetLines.append("    private var \(stubbedStorage) = false")
+        let storage = "__innodi_\(names.resultProperty)Storage"
+        snippetLines.append("    private var \(storage): Result<Void, \(typedFailure)>?")
         snippetLines.append(
-            "    var \(names.resultProperty): Result<Void, \(typedFailure)>?"
+            computedStubProperty(
+                name: names.resultProperty,
+                type: "Result<Void, \(typedFailure)>?",
+                storage: storage,
+                stubbedStorage: stubbedStorage,
+                nilMeansMissing: true
+            )
         )
+        resetStubStatements.append("\(storage) = nil")
+        resetStubStatements.append("\(stubbedStorage) = false")
     } else if isThrowing {
         // Even a Void-returning throwing function needs an opt-in error
         // hook so tests can simulate the failure path.
-        snippetLines.append("    var \(names.thrownErrorProperty): Error?")
+        snippetLines.append("    private var \(stubbedStorage) = false")
+        let storage = "__innodi_\(names.thrownErrorProperty)Storage"
+        snippetLines.append("    private var \(storage): Error?")
+        snippetLines.append(
+            computedStubProperty(
+                name: names.thrownErrorProperty,
+                type: "Error?",
+                storage: storage,
+                stubbedStorage: stubbedStorage
+            )
+        )
+        resetStubStatements.append("\(storage) = nil")
+        resetStubStatements.append("\(stubbedStorage) = false")
     }
 
     let recordArgs = callParameters
-        .map { "\($0.label): \($0.name)" }
+        .map { "\($0.fieldLabel): \($0.argumentIdentifier)" }
         .joined(separator: ", ")
+    let initializedRecordArgs = recordArgs.isEmpty
+        ? "generation: __innodiMockGeneration"
+        : "generation: __innodiMockGeneration, \(recordArgs)"
     let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
     snippetLines.append("    func \(baseName)(\(parametersRendered))\(effectSpecifiersJoined)\(returnFragment) {")
-    snippetLines.append("        \(names.callsProperty).append(.init(\(recordArgs)))")
+    snippetLines.append("        \(names.callsProperty).append(.init(\(initializedRecordArgs)))")
     if typedFailure != nil {
         snippetLines.append("        guard let result = \(names.resultProperty) else {")
         snippetLines.append("            preconditionFailure(\"\(names.resultProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
@@ -235,10 +371,10 @@ private func renderTypedFunctionMock(
         if isThrowing {
             snippetLines.append("        return try \(names.resultProperty).get()")
         } else {
-            snippetLines.append("        guard let value = \(names.returnProperty) else {")
+            snippetLines.append("        guard \(stubbedStorage) else {")
             snippetLines.append("            preconditionFailure(\"\(names.returnProperty) was not set on \\(Self.self) before \(baseName) was invoked\")")
             snippetLines.append("        }")
-            snippetLines.append("        return value")
+            snippetLines.append("        \(renderStoredReturn(storage: names.returnProperty, type: returnTypeRendered))")
         }
     } else if isThrowing {
         snippetLines.append("        if let error = \(names.thrownErrorProperty) {")
@@ -250,10 +386,13 @@ private func renderTypedFunctionMock(
     return RenderedFunctionMock(
         snippet: snippetLines.joined(separator: "\n"),
         usesNotStubbedError: typedFailure == nil && isThrowing && !returnsVoid,
-        missingStubExpression: typedFailure == nil
-            ? nil
-            : "\(names.resultProperty) == nil ? \"\(names.stem)\" : nil",
-        recordedCallCountExpression: "\"\(names.stem)\": \(names.callsProperty).count"
+        missingStubExpression: requiresFunctionStub(
+            returnsVoid: returnsVoid,
+            isThrowing: isThrowing
+        ) ? "!\(stubbedStorage) ? \"\(names.stem)\" : nil" : nil,
+        recordedCallCountExpression: "\"\(names.stem)\": \(names.callsProperty).count",
+        resetCallStatement: "\(names.callsProperty).removeAll(keepingCapacity: false)",
+        resetStubStatements: resetStubStatements
     )
 }
 
@@ -270,7 +409,8 @@ private func renderGenericFunctionMock(
     guard let callParameters = renderableCallParameters(parameters, eraseTypes: true) else {
         return nil
     }
-    let parametersRendered = parameters.map { $0.trimmedDescription }.joined(separator: ", ")
+    let parametersRendered = callParameters.map(\.declaration)
+        .joined(separator: ", ")
     let returnTypeRendered = signature.returnClause?.type.trimmedDescription ?? "Void"
     let returnsVoid = isVoidReturnType(signature.returnClause?.type.trimmedDescription)
     var effectSpecifierTokens: [String] = []
@@ -285,25 +425,45 @@ private func renderGenericFunctionMock(
     let handlerEffectsJoined = effectSpecifiersJoined
     let handlerReturnType = returnsVoid ? "Void" : "Any"
     let invocationPrefix = effectInvocationPrefix(isAsync: isAsync, isThrowing: isThrowing)
-    let handlerArguments = callParameters.map(\.name).joined(separator: ", ")
+    let handlerArguments = callParameters.map(\.argumentIdentifier)
+        .joined(separator: ", ")
     let handlerArgumentArray = handlerArguments.isEmpty ? "[]" : "[\(handlerArguments)]"
 
     var snippetLines: [String] = []
     let callFields = callParameters
-        .map { "        let \($0.name): \($0.type)" }
+        .map { "        let \($0.fieldIdentifier): \($0.type)" }
         .joined(separator: "\n")
     snippetLines.append("    struct \(names.callStructName) {")
+    snippetLines.append("        let generation: UInt64")
     if !callFields.isEmpty {
         snippetLines.append(callFields)
     }
     snippetLines.append("    }")
     snippetLines.append("    private(set) var \(names.callsProperty): [\(names.callStructName)] = []")
-    snippetLines.append("    var \(names.handlerProperty): (([Any])\(handlerEffectsJoined) -> \(handlerReturnType))?")
+    let handlerType = "(([Any])\(handlerEffectsJoined) -> \(handlerReturnType))?"
+    let handlerStorage = "__innodi_\(names.handlerProperty)Storage"
+    let stubbedStorage = "__innodi_\(names.stem)IsStubbed"
+    snippetLines.append("    private var \(handlerStorage): \(handlerType)")
+    snippetLines.append("    private var \(stubbedStorage) = false")
+    snippetLines.append(
+        computedStubProperty(
+            name: names.handlerProperty,
+            type: handlerType,
+            storage: handlerStorage,
+            stubbedStorage: stubbedStorage,
+            nilMeansMissing: true
+        )
+    )
 
     let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
     snippetLines.append("    func \(baseName)\(genericParameterClause)(\(parametersRendered))\(effectSpecifiersJoined)\(returnFragment)\(genericWhereClause) {")
-    let recordArgs = callParameters.map { "\($0.label): \($0.name)" }.joined(separator: ", ")
-    snippetLines.append("        \(names.callsProperty).append(.init(\(recordArgs)))")
+    let recordArgs = callParameters.map {
+        "\($0.fieldLabel): \($0.argumentIdentifier)"
+    }.joined(separator: ", ")
+    let initializedRecordArgs = recordArgs.isEmpty
+        ? "generation: __innodiMockGeneration"
+        : "generation: __innodiMockGeneration, \(recordArgs)"
+    snippetLines.append("        \(names.callsProperty).append(.init(\(initializedRecordArgs)))")
     if returnsVoid {
         snippetLines.append("        if let handler = \(names.handlerProperty) {")
         snippetLines.append("            \(invocationPrefix)handler(\(handlerArgumentArray))")
@@ -323,19 +483,33 @@ private func renderGenericFunctionMock(
     return RenderedFunctionMock(
         snippet: snippetLines.joined(separator: "\n"),
         usesNotStubbedError: false,
-        missingStubExpression: nil,
-        recordedCallCountExpression: "\"\(names.stem)\": \(names.callsProperty).count"
+        missingStubExpression: "!\(stubbedStorage) ? \"\(names.stem)\" : nil",
+        recordedCallCountExpression: "\"\(names.stem)\": \(names.callsProperty).count",
+        resetCallStatement: "\(names.callsProperty).removeAll(keepingCapacity: false)",
+        resetStubStatements: [
+            "\(handlerStorage) = nil",
+            "\(stubbedStorage) = false"
+        ]
     )
+}
+
+struct RenderedVariableMock {
+    let snippet: String
+    let missingStubExpression: String
+    let resetStubStatements: [String]
 }
 
 func renderVariableMock(
     variable: VariableDeclSyntax,
     concurrent: Bool = false
-) -> String? {
+) -> RenderedVariableMock? {
     if findStandardMainActorAttribute(in: variable.attributes) != nil {
         return nil
     }
     if unsupportedMockIsolation(in: variable.attributes) != nil {
+        return nil
+    }
+    if !variable.modifiers.isEmpty {
         return nil
     }
     guard variable.bindings.count == 1,
@@ -356,46 +530,79 @@ func renderVariableMock(
     let type = typeAnnotation.type.trimmedDescription
     let escapedName = name.escapedSwiftIdentifier
     let storageName = "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)StubValue"
+    let stubbedName = "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)IsStubbed"
     let storageType = optionalStorageType(type)
     if concurrent {
         let boxName = "\(storageName)Box"
-        return """
+        let stubbedBoxName = "\(stubbedName)Box"
+        return RenderedVariableMock(
+            snippet: """
             private let \(boxName) = InnoDITesting.DIConcurrentValueBox<\(storageType)>(nil)
+            private let \(stubbedBoxName) = InnoDITesting.DIConcurrentValueBox(false)
             var \(escapedName): \(type) {
                 get {
-                    guard let value = \(boxName).snapshot() else {
-                        preconditionFailure("\(name) was not set on \\(Self.self) before it was read")
+                    return __innodiMockState.withCriticalRegion { _ in
+                        guard \(stubbedBoxName).snapshot() else {
+                            preconditionFailure("\(name) was not set on \\(Self.self) before it was read")
+                        }
+                        \(renderStoredReturn(storage: "\(boxName).snapshot()", type: type))
                     }
-                    return value
                 }
                 set {
-                    \(boxName).replace(with: newValue)
+                    __innodiMockState.withCriticalRegion { _ in
+                        \(boxName).replace(with: newValue)
+                        \(stubbedBoxName).replace(with: true)
+                    }
                 }
             }
-        """
+            """,
+            missingStubExpression:
+                "!\(stubbedBoxName).snapshot() ? \"\(name)\" : nil",
+            resetStubStatements: [
+                "\(boxName).replace(with: nil)",
+                "\(stubbedBoxName).replace(with: false)"
+            ]
+        )
     }
-    return """
-        private var \(storageName): \(storageType)
-        var \(escapedName): \(type) {
-            get {
-                guard let value = \(storageName) else {
-                    preconditionFailure("\(name) was not set on \\(Self.self) before it was read")
+    return RenderedVariableMock(
+        snippet: """
+            private var \(storageName): \(storageType)
+            private var \(stubbedName) = false
+            var \(escapedName): \(type) {
+                get {
+                    guard \(stubbedName) else {
+                        preconditionFailure("\(name) was not set on \\(Self.self) before it was read")
+                    }
+                    \(renderStoredReturn(storage: storageName, type: type))
                 }
-                return value
+                set {
+                    \(storageName) = newValue
+                    \(stubbedName) = true
+                }
             }
-            set {
-                \(storageName) = newValue
-            }
-        }
-    """
+        """,
+        missingStubExpression: "!\(stubbedName) ? \"\(name)\" : nil",
+        resetStubStatements: [
+            "\(storageName) = nil",
+            "\(stubbedName) = false"
+        ]
+    )
+}
+
+private struct RenderableCallParameter {
+    let fieldLabel: String
+    let fieldIdentifier: String
+    let argumentIdentifier: String
+    let type: String
+    let declaration: String
 }
 
 private func renderableCallParameters(
     _ parameters: FunctionParameterListSyntax,
     eraseTypes: Bool = false
-) -> [(label: String, name: String, type: String)]? {
+) -> [RenderableCallParameter]? {
     var usedNames: [String: Int] = [:]
-    var rendered: [(label: String, name: String, type: String)] = []
+    var rendered: [RenderableCallParameter] = []
     for (index, parameter) in parameters.enumerated() {
         let internalName = (parameter.secondName?.text ?? parameter.firstName.text)
         let baseFieldName = internalName == "_"
@@ -407,9 +614,70 @@ private func renderableCallParameters(
         guard let typeText = renderableCallRecordType(parameter.type.trimmedDescription, eraseTypes: eraseTypes) else {
             return nil
         }
-        rendered.append((unescapedFieldName, unescapedFieldName.escapedSwiftIdentifier, typeText))
+        let argumentName: String
+        let declaration: String
+        let parameterWithoutComma = parameter.with(\.trailingComma, nil)
+        if internalName == "_" {
+            argumentName = unescapedFieldName.escapedSwiftIdentifier
+            declaration = parameterWithoutComma
+                .with(
+                    \.secondName,
+                    .identifier(unescapedFieldName, leadingTrivia: .space)
+                )
+                .trimmedDescription
+        } else {
+            argumentName = internalName.unescapedIdentifier.escapedSwiftIdentifier
+            declaration = parameterWithoutComma.trimmedDescription
+        }
+        rendered.append(
+            RenderableCallParameter(
+                fieldLabel: unescapedFieldName,
+                fieldIdentifier: unescapedFieldName.escapedSwiftIdentifier,
+                argumentIdentifier: argumentName,
+                type: typeText,
+                declaration: declaration
+            )
+        )
     }
     return rendered
+}
+
+private func requiresFunctionStub(
+    returnsVoid: Bool,
+    isThrowing: Bool
+) -> Bool {
+    !returnsVoid || isThrowing
+}
+
+private func computedStubProperty(
+    name: String,
+    type: String,
+    storage: String,
+    stubbedStorage: String,
+    nilMeansMissing: Bool = false
+) -> String {
+    let stateUpdate = nilMeansMissing ? "newValue != nil" : "true"
+    return """
+        var \(name): \(type) {
+            get { \(storage) }
+            set {
+                \(storage) = newValue
+                \(stubbedStorage) = \(stateUpdate)
+            }
+        }
+    """
+}
+
+private func renderStoredReturn(storage: String, type: String) -> String {
+    if type.hasSuffix("?") || type.hasSuffix("!") {
+        return "return \(storage) ?? nil"
+    }
+    return """
+        guard let value = \(storage) else {
+            preconditionFailure("Stub storage for \(type) was unexpectedly empty")
+        }
+        return value
+    """
 }
 
 private func renderableCallRecordType(_ typeText: String, eraseTypes: Bool) -> String? {

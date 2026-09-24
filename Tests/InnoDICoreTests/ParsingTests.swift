@@ -10,6 +10,23 @@ import Testing
 @testable import InnoDICore
 
 struct ParsingTests {
+    @Test("Argument spelling is retained only where diagnostic fallback needs it")
+    func provideArgumentDiagnosticSpellings() throws {
+        let cases: [(String, String, String, String)] = [
+            (".shared, initialization: .eager, effect: .sideEffect", "shared", "eager", "sideEffect"),
+            ("ScopeChooser.shared, initialization: chooseMode(), effect: chooseEffect()", "ScopeChooser.shared", "chooseMode()", "chooseEffect()"),
+            (".request, initialization: .unknown, effect: EffectChooser.sideEffect", "request", "unknown", "sideEffect"),
+        ]
+        for (arguments, scopeName, initializationName, effectName) in cases {
+            let variable = try #require(firstVarDecl(in: "struct C { @Provide(\(arguments)) var value: Int = 1 }"))
+            let attribute = try #require(findManagedProviderAttribute(in: variable.attributes))
+            let parsed = parseProvideArguments(attribute)
+            #expect(parsed.scopeName == scopeName)
+            #expect(parsed.initializationName == initializationName)
+            #expect(parsed.operationalEffectName == effectName)
+        }
+    }
+
     @Test
     func managedMemberSemanticsOwnRoleMatchingAndArgumentParsing() throws {
         let provide = try #require(

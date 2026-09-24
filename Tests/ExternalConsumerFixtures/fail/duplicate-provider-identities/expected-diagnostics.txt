@@ -1,8 +1,10 @@
 @DIContainer declares more than one managed member named 'duplicatedMemberValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
 invalid redeclaration of 'duplicatedMemberValue'
+invalid redeclaration of '_InnoDIInputType_duplicatedMemberValue'
 ? invalid redeclaration of 'duplicatedMemberValue'
 @DIContainer declares more than one managed member named 'duplicatedMainActorMemberValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
 invalid redeclaration of 'duplicatedMainActorMemberValue'
+invalid redeclaration of '_InnoDIInputType_duplicatedMainActorMemberValue'
 ? invalid redeclaration of 'duplicatedMainActorMemberValue'
 @DIContainer declares more than one managed member named 'duplicatedSubValue'. Give every @Provide and @SubContainer property a unique name so storage, overrides, and graph identities remain unambiguous.
 invalid redeclaration of 'duplicatedSubValue'

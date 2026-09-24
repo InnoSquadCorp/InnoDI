@@ -85,7 +85,7 @@ package enum CustomInitBuildValidator {
                                 )
                             ),
                             ValidationIssueNote(
-                                message: "The synthesized container initializer already covers .input members and optional dependency overrides.",
+                                message: "The synthesized container initializer already covers @Input members and optional dependency overrides.",
                                 location: ValidationIssueLocation(
                                     filePath: container.filePath,
                                     line: container.line,
@@ -96,7 +96,7 @@ package enum CustomInitBuildValidator {
                                 message: "Remove this custom initializer, or remove @DIContainer and wire the container manually."
                             )
                         ],
-                        remediation: "Prefer the synthesized initializer for .input members, or drop @DIContainer and keep the custom wiring manually.",
+                        remediation: "Prefer the synthesized initializer for @Input members, or drop @DIContainer and keep the custom wiring manually.",
                         metadata: [
                             "containerPath": container.declarationPath,
                             "resolutionState": resolution.state.rawValue

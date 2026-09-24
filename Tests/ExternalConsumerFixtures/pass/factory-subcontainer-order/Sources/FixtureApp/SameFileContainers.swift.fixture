@@ -1,0 +1,25 @@
+import InnoDI
+
+struct SameSecond: Sendable, Equatable { let value: Int }
+struct SameFirst: Sendable, Equatable { let value: Int }
+
+@DIContainer
+struct SameFileChild {
+    @Input var second: SameSecond
+    @Input var first: SameFirst
+}
+
+@DIContainer
+struct SameFileParent {
+    @Input var parentFirst: SameFirst
+    @Input var parentSecond: SameSecond
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [
+            (child: \SameFileChild.second, parent: \SameFileParent.parentSecond),
+            (child: \SameFileChild.first, parent: \SameFileParent.parentFirst),
+        ]
+    )
+    var child: SameFileChild
+}

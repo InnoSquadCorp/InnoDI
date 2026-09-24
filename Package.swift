@@ -131,6 +131,8 @@ let package = Package(
                 "InnoDIDependencyGraphCore",
                 "InnoDIMigrationCore",
                 "InnoDIWorkspaceAnalysis",
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
         ),
         .executableTarget(
@@ -190,8 +192,10 @@ let package = Package(
         .testTarget(
             name: "InnoDIMacrosTests",
             dependencies: [
+                "InnoDIDependencyGraphCore",
                 "InnoDIMacros",
                 "InnoDITestSupport",
+                "InnoDIWorkspaceAnalysis",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacrosGenericTestSupport", package: "swift-syntax"),
             ],

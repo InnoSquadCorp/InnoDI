@@ -10,9 +10,9 @@
 аннотированные `extension` и структуры, вложенные в extensions. Также
 отклоняются объявления в любом исполняемом или локальном контексте, включая
 функции, замыкания, аксессоры и ветви `switch`. То же ограничение действует при
-совместном использовании `@DIComponent`. Состояние времени выполнения и
+использовании `@DIContainerRole` с ролью component. Состояние времени выполнения и
 состояние, зависящее от конкретного типа, следует скрыть за protocol
-dependencies или `@Provide(.input)`.
+dependencies или `@Input`.
 
 Явно объявленный `private` container также отклоняется: sibling containers не
 могут обращаться к его generated mount surface. Для mounting внутри файла
@@ -28,7 +28,8 @@ dependency-graph CLI сканируют полное дерево исходно
 ## Declaration
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 ## Generated Surface
@@ -47,7 +48,7 @@ overload `withOverrides` и operation closures остаются `@MainActor`.
 
 Каждый контейнер, даже без управляемых членов, генерирует полный overrides
 scaffolding. Пользовательский вложенный тип `Overrides` не поддерживается в
-InnoDI 5.0 и вызывает `container.overrides-name-conflict`; переименуйте его,
+InnoDI 6.0 и вызывает `container.overrides-name-conflict`; переименуйте его,
 чтобы macro владел совместимым с mounting override ABI.
 
 Macro также генерирует зарезервированный compiler-support alias
@@ -81,7 +82,7 @@ Sibling edges создаются только именованными пара�
   для convenience initializer, `withOverrides`, overrides дочерних контейнеров
   и mounting компонентов, операционные замыкания всех четырёх overload
   `withOverrides` и feature-root helpers. При совместном использовании с
-  `@DIComponent` ту же изоляцию получают сгенерированные protocol
+  роли component ту же изоляцию получают сгенерированные protocol
   `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает
   отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без
   этой опции продолжают использовать `_InnoDIComponentMountable`.

@@ -54,10 +54,10 @@ final class StorageStressFactoryCounter: @unchecked Sendable {
 /// these tests are trying to measure.
 @DIContainer
 struct StorageStressContainer {
-    @Provide(.input)
+    @Input
     var sharedCounter: StorageStressFactoryCounter
 
-    @Provide(.input)
+    @Input
     var transientCounter: StorageStressFactoryCounter
 
     @Provide(.shared, factory: { (sharedCounter: StorageStressFactoryCounter) in sharedCounter.make() })

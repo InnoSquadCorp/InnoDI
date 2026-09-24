@@ -31,6 +31,8 @@ struct PendingSubContainerReference {
     /// such as generic specializations.
     let childReference: SemanticTypeReference?
     let ownershipKind: OwnershipKind
+    let bindingPairs: [SubContainerBindingArgument]
+    let usesImplicitSameNameWiring: Bool
 }
 
 struct PendingMultibindingContribution {
@@ -38,6 +40,12 @@ struct PendingMultibindingContribution {
     let collectionName: String
     let contributorName: String
     let order: Int
+}
+
+private struct PendingCollectionContract {
+    let providerID: String
+    let kind: DependencyGraphProvider.CollectionContract.Kind
+    let entries: [CollectionMetadataEntryArgument]
 }
 
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
@@ -146,6 +154,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
         var requiredInputs: [String] = []
         var assistedInputs: [String] = []
+        var collectionContracts: [PendingCollectionContract] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
             guard let binding = varDecl.bindings.first,
@@ -165,6 +174,29 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             // references.
             if let subcontainer = parseSubContainerAttribute(varDecl.attributes) {
                 let childType = typeAnnotation.type.trimmedDescription
+                let bindingPairs: [SubContainerBindingArgument]
+                let usesImplicitSameNameWiring: Bool
+                if subcontainer.bindingsParseState.hasArgument {
+                    bindingPairs = subcontainer.bindings
+                    usesImplicitSameNameWiring = false
+                } else {
+                    switch subcontainer.sameNameWiring {
+                    case let .parsed(_, dependencies):
+                        bindingPairs = dependencies.map {
+                            SubContainerBindingArgument(
+                                childName: $0,
+                                parentName: $0
+                            )
+                        }
+                        usesImplicitSameNameWiring = false
+                    case .omitted:
+                        bindingPairs = []
+                        usesImplicitSameNameWiring = true
+                    case .invalid:
+                        bindingPairs = []
+                        usesImplicitSameNameWiring = false
+                    }
+                }
                 providers.append(
                     DependencyGraphProvider(
                         id: providerID(containerID: parentID, memberName: memberName),
@@ -187,7 +219,9 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         memberName: pattern.identifier.text,
                         childDisplayName: childType,
                         childReference: normalizedSemanticTypeReference(typeAnnotation.type),
-                        ownershipKind: .subContainer
+                        ownershipKind: .subContainer,
+                        bindingPairs: bindingPairs,
+                        usesImplicitSameNameWiring: usesImplicitSameNameWiring
                     )
                 )
                 continue
@@ -195,6 +229,10 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
             guard let provide = parseProvideAttribute(varDecl.attributes)
             else { continue }
+            let factoryWiring = providerFactoryWiring(
+                provide: provide,
+                containerID: parentID
+            )
             if let childType = provide.assistedFactoryChildType {
                 providers.append(
                     DependencyGraphProvider(
@@ -207,7 +245,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         initialization: .assisted,
                         isolation: containerAttr.mainActor ? .mainActor : .nonisolated,
                         effect: .sync,
-                        dependencies: provide.dependencies,
+                        dependencies: factoryWiring.dependencies,
+                        dependencyBindings: factoryWiring.bindings,
                         source: source
                     )
                 )
@@ -220,16 +259,30 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         childReference: normalizedSemanticTypeReference(
                             childType
                         ),
-                        ownershipKind: .assistedFactory
+                        ownershipKind: .assistedFactory,
+                        bindingPairs: zip(
+                            provide.dependencyLabels,
+                            provide.dependencies
+                        ).map {
+                            SubContainerBindingArgument(
+                                childName: $0.0,
+                                parentName: $0.1
+                            )
+                        },
+                        usesImplicitSameNameWiring: false
                     )
                 )
                 continue
             }
 
             if provide.isMultibinding {
+                let collectionProviderID = providerID(
+                    containerID: parentID,
+                    memberName: memberName
+                )
                 providers.append(
                     DependencyGraphProvider(
-                        id: providerID(containerID: parentID, memberName: memberName),
+                        id: collectionProviderID,
                         containerID: parentID,
                         name: memberName,
                         type: memberType,
@@ -238,7 +291,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         initialization: .onAccess,
                         isolation: containerAttr.mainActor ? .mainActor : .nonisolated,
                         effect: .sync,
-                        dependencies: provide.dependencies,
+                        dependencies: factoryWiring.dependencies,
+                        dependencyBindings: factoryWiring.bindings,
                         source: source
                     )
                 )
@@ -252,6 +306,18 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                         )
                     )
                 }
+                collectionContracts.append(
+                    PendingCollectionContract(
+                        providerID: collectionProviderID,
+                        kind: .ordered,
+                        entries: provide.dependencies.map {
+                            CollectionMetadataEntryArgument(
+                                key: nil,
+                                contributor: $0
+                            )
+                        }
+                    )
+                )
                 continue
             }
 
@@ -293,16 +359,68 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                     inputKind: provide.scope == .input
                         ? (provide.inputKind == .assisted ? .assisted : .container)
                         : nil,
-                    dependencies: provide.dependencies,
+                    dependencies: factoryWiring.dependencies,
+                    dependencyBindings: factoryWiring.bindings,
                     source: source
                 )
             )
+            if case let .parsed(kind, entries) =
+                provide.collectionMetadataParseState {
+                collectionContracts.append(
+                    PendingCollectionContract(
+                        providerID: providerID(
+                            containerID: parentID,
+                            memberName: memberName
+                        ),
+                        kind: graphCollectionKind(kind),
+                        entries: entries
+                    )
+                )
+            }
 
             guard provide.scope == .input else { continue }
             if provide.inputKind == .assisted {
                 assistedInputs.append(pattern.identifier.text)
             } else {
                 requiredInputs.append(pattern.identifier.text)
+            }
+        }
+
+        if !collectionContracts.isEmpty {
+            let providersByID = Dictionary(
+                uniqueKeysWithValues: providers
+                    .filter { $0.containerID == parentID }
+                    .map { ($0.id, $0) }
+            )
+            let contractsByProviderID = Dictionary(
+                uniqueKeysWithValues: collectionContracts.map { pending in
+                    let entries = pending.entries.enumerated().map {
+                        order, entry in
+                        let contributorID = providerID(
+                            containerID: parentID,
+                            memberName: entry.contributor
+                        )
+                        return DependencyGraphProvider.CollectionContract.Entry(
+                            key: entry.key,
+                            order: order,
+                            providerID: contributorID,
+                            providerLifetime: providersByID[contributorID]?.lifetime
+                        )
+                    }
+                    return (
+                        pending.providerID,
+                        DependencyGraphProvider.CollectionContract(
+                            kind: pending.kind,
+                            entries: entries
+                        )
+                    )
+                }
+            )
+            providers = providers.map { provider in
+                guard let contract = contractsByProviderID[provider.id] else {
+                    return provider
+                }
+                return provider.replacingCollectionContract(contract)
             }
         }
 
@@ -321,6 +439,59 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
 
     private func providerID(containerID: String, memberName: String) -> String {
         "\(containerID).\(memberName)"
+    }
+
+    private func graphCollectionKind(
+        _ kind: CollectionMetadataKindValue
+    ) -> DependencyGraphProvider.CollectionContract.Kind {
+        switch kind {
+        case .ordered: .ordered
+        case .keyed: .keyed
+        case .providers: .providers
+        case .keyedProviders: .keyedProviders
+        }
+    }
+
+    private func providerFactoryWiring(
+        provide: ProvideArguments,
+        containerID: String
+    ) -> (
+        dependencies: [String],
+        bindings: [DependencyGraphProvider.DependencyBinding]
+    ) {
+        if let expression = provide.asyncFactoryExpr ?? provide.factoryExpr,
+           let references = managedFactoryDependencyReferences(in: expression) {
+            return (
+                references.map(\.name),
+                references.map { reference in
+                    DependencyGraphProvider.DependencyBinding(
+                        parameter: reference.name,
+                        providerID: providerID(
+                            containerID: containerID,
+                            memberName: reference.name
+                        ),
+                        kind: reference.kind
+                    )
+                }
+            )
+        }
+
+        let labels = provide.dependencyLabels.count == provide.dependencies.count
+            ? provide.dependencyLabels
+            : provide.dependencies
+        return (
+            provide.dependencies,
+            zip(labels, provide.dependencies).map { label, dependency in
+                DependencyGraphProvider.DependencyBinding(
+                    parameter: label,
+                    providerID: providerID(
+                        containerID: containerID,
+                        memberName: dependency
+                    ),
+                    kind: .hard
+                )
+            }
+        )
     }
 
     private func providerSourceLocation(

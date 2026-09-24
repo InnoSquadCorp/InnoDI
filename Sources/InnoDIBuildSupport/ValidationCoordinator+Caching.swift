@@ -54,6 +54,16 @@ internal func writeStamp(signature: String, result: ValidationCommandResult, to 
     try content.write(to: stampURL, atomically: true, encoding: .utf8)
 }
 
+internal func writeSwiftOrderingSource(signature: String, result: ValidationCommandResult, to outputDirectoryURL: URL) throws {
+    // Comment-only source orders SwiftPM consumer compilation after validation
+    // without adding runtime code or a declaration to the consumer's module.
+    let sourceURL = outputDirectoryURL.appendingPathComponent("_InnoDIDAGValidation.generated.swift")
+    let source = "// InnoDI DAG validation: \(signature) (exit \(result.exitCode)).\n"
+    if (try? String(contentsOf: sourceURL, encoding: .utf8)) != source {
+        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
+    }
+}
+
 internal func persistMetricsArtifact(_ artifact: ValidationMetricsArtifact, to url: URL) throws {
     let data = try JSONEncoder().encode(artifact)
     try data.write(to: url, options: .atomic)

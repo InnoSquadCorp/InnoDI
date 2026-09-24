@@ -1,0 +1,79 @@
+import Foundation
+import Testing
+
+@Suite("Runtime trace performance script contracts")
+struct RuntimeTracePerformanceScriptTests {
+    @Test("Budget preserves legacy gates and adds saturation and contention")
+    func budgetCoverage() throws {
+        let root = packageRootURL()
+        let data = try Data(
+            contentsOf: root.appendingPathComponent(
+                "Tools/runtime-trace-performance-budget.json"
+            )
+        )
+        let budget = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+
+        #expect(budget["schemaVersion"] as? Int == 1)
+        #expect(budget["disabledNetNanosecondsPerResolution"] as? Double == 210)
+        #expect(budget["enabledNanosecondsPerEvent"] as? Double == 600)
+        #expect((budget["saturatedNanosecondsPerEvent"] as? Double) != nil)
+        #expect((budget["snapshotNanosecondsPerRetainedEvent"] as? Double) != nil)
+        #expect((budget["contendedNanosecondsPerEvent"] as? Double) != nil)
+    }
+
+    @Test("Gate validates every production capacity and ring accounting")
+    func scriptCoverage() throws {
+        let script = try String(
+            contentsOf: packageRootURL().appendingPathComponent(
+                "Tools/check-runtime-trace-report.py"
+            ),
+            encoding: .utf8
+        )
+
+        #expect(script.contains("[64, 4096, 65536]"))
+        #expect(script.contains("lost ring-buffer accounting"))
+        #expect(script.contains("five writer and snapshot contention samples"))
+        #expect(script.contains("changed the enforced workload"))
+        #expect(script.contains("inconsistent writer accounting"))
+        #expect(script.contains("snapshot overhead exceeds its budget"))
+        #expect(script.contains("contended runtime trace overhead exceeds its budget"))
+        #expect(script.contains("min(item[\"nanosecondsPerEvent\"] for item in contention)"))
+        #expect(script.contains("wallNanosecondsPerEvent"))
+    }
+
+    @Test("Benchmark uses the generated-provider trace owner path")
+    func benchmarkUsesTraceOwner() throws {
+        let source = try String(
+            contentsOf: packageRootURL().appendingPathComponent(
+                "Tools/RuntimeTraceBenchmark.swift"
+            ),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("_InnoDITraceOwner("))
+        #expect(source.contains("owner.start(member:"))
+        #expect(source.contains("owner.finish(.success"))
+        #expect(source.contains("Thread.detachNewThread"))
+        #expect(source.contains("barrier.wait()"))
+        #expect(source.contains("recordSnapshot("))
+        #expect(source.contains("saturatedMeasurements"))
+        #expect(source.contains("contentionSampleCount = 5"))
+        #expect(source.contains("snapshotCount = 64"))
+        #expect(source.contains("contentionMeasurements"))
+        #expect(source.contains("WriterTimingBox"))
+        #expect(source.contains("wallNanosecondsPerEvent"))
+    }
+
+    @Test("Report gate rejects empty, tail-only, unpaced, and over-budget fixtures")
+    func executableReportGate() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "Tools/tests/test_runtime_trace_report.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+}

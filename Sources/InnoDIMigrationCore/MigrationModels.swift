@@ -41,15 +41,20 @@ public struct MigrationPlan: Sendable, Equatable {
     public let scannedFileCount: Int
     public let changes: [MigrationFileChange]
     public let diagnostics: [MigrationDiagnostic]
+    /// Relative paths retaining displaced files after writes. Inspect these
+    /// before removing them; open editor descriptors can still update them.
+    public let recoveryPaths: [String]
 
     public init(
         scannedFileCount: Int,
         changes: [MigrationFileChange],
-        diagnostics: [MigrationDiagnostic]
+        diagnostics: [MigrationDiagnostic],
+        recoveryPaths: [String] = []
     ) {
         self.scannedFileCount = scannedFileCount
         self.changes = changes
         self.diagnostics = diagnostics.sorted()
+        self.recoveryPaths = recoveryPaths
     }
 
     public var requiresChanges: Bool { !changes.isEmpty }

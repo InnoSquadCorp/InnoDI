@@ -22,7 +22,7 @@ struct RuntimeInputlessChildMarker: Equatable {}
 
 @DIContainer
 struct RuntimeChildContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @Provide(.shared, factory: RuntimeChildStore())
     var store: RuntimeChildStore
@@ -30,7 +30,7 @@ struct RuntimeChildContainer {
 
 @DIContainer
 struct RuntimeParentSharedContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(scope: .shared)
     var child: RuntimeChildContainer
@@ -38,7 +38,7 @@ struct RuntimeParentSharedContainer {
 
 @DIContainer
 struct RuntimeParentTransientContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(scope: .transient)
     var child: RuntimeChildContainer
@@ -46,7 +46,7 @@ struct RuntimeParentTransientContainer {
 
 @DIContainer
 struct RuntimeSubsetChildContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @Provide(.shared, factory: RuntimeSubsetStore())
     var store: RuntimeSubsetStore
@@ -54,8 +54,8 @@ struct RuntimeSubsetChildContainer {
 
 @DIContainer
 struct RuntimeParentWithSubsetContainer {
-    @Provide(.input) var config: RuntimeParentConfig
-    @Provide(.input) var extra: String
+    @Input var config: RuntimeParentConfig
+    @Input var extra: String
 
     @SubContainer(scope: .shared, with: [\RuntimeParentWithSubsetContainer.config])
     var child: RuntimeSubsetChildContainer
@@ -76,8 +76,8 @@ struct RuntimeInputlessChildContainer {
 // macro expansion would fail to compile this file.
 @DIContainer
 struct RuntimeParentWithEmptySubsetContainer {
-    @Provide(.input) var config: RuntimeParentConfig
-    @Provide(.input) var extra: String
+    @Input var config: RuntimeParentConfig
+    @Input var extra: String
 
     @SubContainer(scope: .shared, with: [])
     var child: RuntimeInputlessChildContainer
@@ -85,12 +85,12 @@ struct RuntimeParentWithEmptySubsetContainer {
 
 @DIContainer
 struct RuntimeBindingsChildContainer {
-    @Provide(.input) var featureConfig: RuntimeParentConfig
+    @Input var featureConfig: RuntimeParentConfig
 }
 
 @DIContainer
 struct RuntimeParentWithBindingsContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(
         scope: .shared,
@@ -101,7 +101,7 @@ struct RuntimeParentWithBindingsContainer {
 
 @DIContainer
 struct RuntimeParentWithTransientBindingsContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(
         scope: .transient,
@@ -112,12 +112,12 @@ struct RuntimeParentWithTransientBindingsContainer {
 
 @DIContainer
 struct RuntimeInputOnlyChildContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 }
 
 @DIContainer
 struct RuntimeParentWithInputOnlyChildContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(scope: .shared)
     var child: RuntimeInputOnlyChildContainer
@@ -133,7 +133,7 @@ final class OverrideChildStore {
 
 @DIContainer
 struct OverrideCapableChild {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @Provide(.shared, factory: OverrideChildStore(tag: "default"))
     var store: OverrideChildStore
@@ -141,7 +141,7 @@ struct OverrideCapableChild {
 
 @DIContainer
 struct OverrideParentContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(scope: .shared)
     var feature: OverrideCapableChild
@@ -149,7 +149,7 @@ struct OverrideParentContainer {
 
 @DIContainer
 struct OverrideTransientBindingsChild {
-    @Provide(.input) var featureConfig: RuntimeParentConfig
+    @Input var featureConfig: RuntimeParentConfig
 
     @Provide(.shared, factory: OverrideChildStore(tag: "default"))
     var store: OverrideChildStore
@@ -157,13 +157,28 @@ struct OverrideTransientBindingsChild {
 
 @DIContainer
 struct OverrideTransientBindingsParentContainer {
-    @Provide(.input) var config: RuntimeParentConfig
+    @Input var config: RuntimeParentConfig
 
     @SubContainer(
         scope: .transient,
         bindings: [(child: \OverrideTransientBindingsChild.featureConfig, parent: \OverrideTransientBindingsParentContainer.config)]
     )
     var feature: OverrideTransientBindingsChild
+}
+
+private final class TransientChildLifetimeInput {}
+
+@DIContainer
+fileprivate struct TransientChildLifetimeChild {
+    @Input var lifetime: TransientChildLifetimeInput
+}
+
+@DIContainer
+fileprivate struct TransientChildLifetimeParent {
+    @Input var lifetime: TransientChildLifetimeInput
+
+    @SubContainer(scope: .transient)
+    var child: TransientChildLifetimeChild
 }
 
 @Suite("SubContainer runtime")
@@ -188,6 +203,20 @@ struct SubContainerRuntimeTests {
         // Each accessor invocation runs `_innoDISubBuild_child`, which
         // rebuilds the whole child, including a new `.shared` store.
         #expect(first.store !== second.store)
+    }
+
+    @Test("A transient child builder releases its dependency context with the parent")
+    func transientChildBuilderDoesNotRetainParentSnapshot() {
+        weak var weakInput: TransientChildLifetimeInput?
+
+        do {
+            let input = TransientChildLifetimeInput()
+            weakInput = input
+            let parent = TransientChildLifetimeParent(lifetime: input)
+            #expect(parent.child.lifetime === input)
+        }
+
+        #expect(weakInput == nil)
     }
 
     // MARK: - Input propagation

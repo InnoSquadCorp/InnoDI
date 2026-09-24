@@ -9,7 +9,7 @@ companion gate, not a replacement for the macro's compile-time diagnostics.
 | Rule | Severity | What it catches |
 |---|---|---|
 | `innodi_validate_dag_in_production` | error | `@DIContainer(validateDAG: false)` left in the codebase. Pair with the configuration-aware pattern in DAGValidation.md if you need a per-build switch. |
-| `innodi_no_lazy_typealias` | warning | `typealias Foo = InnoDI.Lazy<...>` (or `Provider<...>`). The macro detects only canonical identifiers, so a cross-file alias silently disables cycle escape. |
+| `innodi_no_lazy_typealias` | warning | `typealias Foo = InnoDI.Lazy<...>` (or `Provider<...>`). The macro detects only canonical identifiers, so a cross-file alias silently disables deferred wiring. |
 
 ## Adopting
 

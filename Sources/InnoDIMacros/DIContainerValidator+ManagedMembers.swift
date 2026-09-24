@@ -40,6 +40,11 @@ extension DIContainerValidator {
                 state: constructionState,
                 context: context
             ) || hadErrors
+            hadErrors = validateCollectionMetadata(
+                member: member,
+                memberByName: memberByName,
+                context: context
+            ) || hadErrors
 
             if member.isMultibinding {
                 hadErrors = validateMultibinding(
@@ -150,6 +155,45 @@ extension DIContainerValidator {
             // The generated array expression is the typed witness. Comparing
             // source spellings here rejects valid aliases and
             // concrete-to-existential conversions.
+        }
+        return hadErrors
+    }
+
+    private static func validateCollectionMetadata(
+        member: ProvideMemberModel,
+        memberByName: [String: ProvideMemberModel],
+        context: some MacroExpansionContext
+    ) -> Bool {
+        guard case let .parsed(_, entries) =
+                member.collectionMetadataParseState
+        else {
+            return false
+        }
+
+        var hadErrors = false
+        for entry in entries {
+            guard let contributor = memberByName[entry.contributor],
+                  contributor.name != member.name else {
+                context.emit(
+                    SimpleDiagnostic.provideUnknownCollectionContributor(
+                        memberName: member.name,
+                        contributorName: entry.contributor
+                    ),
+                    at: Syntax(member.attribute)
+                )
+                hadErrors = true
+                continue
+            }
+            if contributor.isAsyncFactory {
+                context.emit(
+                    SimpleDiagnostic.provideAsyncCollectionContributor(
+                        memberName: member.name,
+                        contributorName: entry.contributor
+                    ),
+                    at: Syntax(member.attribute)
+                )
+                hadErrors = true
+            }
         }
         return hadErrors
     }
@@ -633,6 +677,7 @@ private struct ManagedMemberConstructionState {
             || member.isMultibinding
         hasInputConfiguration = hasConstructionSource
             || member.withDependenciesParseState.hasArgument
+            || member.collectionMetadataParseState.hasArgument
         hasConstructionSourceConflict = member.scope != .input
             && constructionSourceCount > 1
     }

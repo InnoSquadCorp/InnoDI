@@ -286,6 +286,27 @@ extension DIContainerMacroTests {
         )
     }
 
+    @Test("factory expressions preserve operator precedence under override fallback")
+    func factoryExpressionsPreservePrecedence() {
+        assertMacroExpansionSnapshot(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: try! makeRequiredService())
+                var required: Service
+
+                @Provide(.shared, factory: usePrimary ? primaryService() : fallbackService())
+                var selected: Service
+
+                @Provide(.transient, factory: try? makeOptionalService())
+                var optional: Service?
+            }
+            """,
+            matches: "factoryExpressionsPreservePrecedence",
+            macros: Self.macros
+        )
+    }
+
     @Test("sync factory allows handled throwing closure body")
     func syncFactoryAllowsHandledThrowingClosureBody() {
         assertMacroExpansionDiagnosticCodes(

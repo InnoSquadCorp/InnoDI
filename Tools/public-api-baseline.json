@@ -86,6 +86,36 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SE"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:Se"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI14DIPrewarmErrorO",
           "target": "s:SH"
         },
@@ -123,6 +153,26 @@
           "kind": "conformsTo",
           "source": "s:6InnoDI16DIInitializationO",
           "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI16DIProviderEffectO",
+          "target": "s:s8SendableP"
         },
         {
           "kind": "conformsTo",
@@ -269,6 +319,31 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:SY"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI20DIProviderCollectionV",
           "target": "s:SK"
         },
@@ -404,6 +479,26 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:SH"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV",
           "target": "s:SQ"
         },
@@ -426,6 +521,11 @@
           "kind": "conformsTo",
           "source": "s:6InnoDI7DIScopeO",
           "target": "s:SQ"
+        },
+        {
+          "kind": "defaultImplementationOf",
+          "source": "s:6InnoDI16DIAsyncPreparingPAAE21resetForSubgraphRetryyyYaKF",
+          "target": "s:6InnoDI16DIAsyncPreparingP21resetForSubgraphRetryyyYaKF"
         },
         {
           "kind": "memberOf",
@@ -464,12 +564,17 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC5closeyyF",
+          "source": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyYaKF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC5retryyyKF",
+          "source": "s:6InnoDI12DIAsyncScopeC5closeyyYaF",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5retryyyYaKF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
@@ -479,7 +584,7 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyF",
+          "source": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyYaF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
@@ -494,17 +599,32 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV10generations6UInt64Vvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV10instanceID10Foundation4UUIDVvp",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind17uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOs6UInt64Vtcfc",
+          "source": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind05ownerF010generation6origin015relatedProviderF00l8InstanceF017uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOAOSgs6UInt64VAC6OriginOSgSSSgArTtcfc",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
           "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV10providerIDSSvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV17relatedInstanceID10Foundation4UUIDVSgvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV17relatedProviderIDSSSgvp",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
@@ -539,6 +659,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO7waitEndyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV4KindO8cacheHityA2EmF",
           "target": "s:6InnoDI12DITraceEventV4KindO"
         },
@@ -549,7 +674,47 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV4KindO9waitStartyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV4KindO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DITraceEventV4kindAC4KindOvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO17containerOverrideyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO4waityA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO5cacheyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6OriginO7factoryyA2EmF",
+          "target": "s:6InnoDI12DITraceEventV6OriginO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV6originAC6OriginOSgvp",
+          "target": "s:6InnoDI12DITraceEventV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DITraceEventV7ownerID10Foundation4UUIDVvp",
           "target": "s:6InnoDI12DITraceEventV"
         },
         {
@@ -589,7 +754,7 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI14DITraceContextV4sinkAcA0C4Sink_p_tcfc",
+          "source": "s:6InnoDI14DITraceContextV4sink17targetIDsByModule10generationAcA0C4Sink_p_SDyS2SGs6UInt64Vtcfc",
           "target": "s:6InnoDI14DITraceContextV"
         },
         {
@@ -621,6 +786,16 @@
           "kind": "memberOf",
           "source": "s:6InnoDI16DIInitializationO8onDemandyA2CmF",
           "target": "s:6InnoDI16DIInitializationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI16DIProviderEffectO04sideD0yA2CmF",
+          "target": "s:6InnoDI16DIProviderEffectO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI16DIProviderEffectO4noneyA2CmF",
+          "target": "s:6InnoDI16DIProviderEffectO"
         },
         {
           "kind": "memberOf",
@@ -769,6 +944,66 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV12contributorsSays10AnyKeyPathCGvp",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV14keyedProvidersyACSayAA29DIKeyedCollectionContributionVGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV17keyedContributorsSayAA29DIKeyedCollectionContributionVGvp",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO14keyedProvidersyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO5keyedyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO7orderedyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4KindO9providersyA2EmF",
+          "target": "s:6InnoDI20DICollectionMetadataV4KindO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV4kindAC4KindOvp",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV5keyedyACSayAA29DIKeyedCollectionContributionVGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV7orderedyACSays10AnyKeyPathCGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI20DICollectionMetadataV9providersyACSays10AnyKeyPathCGFZ",
+          "target": "s:6InnoDI20DICollectionMetadataV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI20DIProviderCollectionV10startIndexSivp",
           "target": "s:6InnoDI20DIProviderCollectionV"
         },
@@ -859,6 +1094,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI21DIAsyncProviderStatusV5StateO9cancelledyA2EmF",
+          "target": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI21DIAsyncProviderStatusV5stateAC5StateOvp",
           "target": "s:6InnoDI21DIAsyncProviderStatusV"
         },
@@ -885,6 +1125,11 @@
         {
           "kind": "memberOf",
           "source": "s:6InnoDI22DIAsyncPreparationPlanV5nodesACSayAA0cD4NodeVG_tKcfc",
+          "target": "s:6InnoDI22DIAsyncPreparationPlanV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI22DIAsyncPreparationPlanV5retryyAA0cD6ReportVSaySSGYaKF",
           "target": "s:6InnoDI22DIAsyncPreparationPlanV"
         },
         {
@@ -930,6 +1175,11 @@
         {
           "kind": "memberOf",
           "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7runningyA2EmF",
+          "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO9cancelledyA2EmF",
           "target": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
         },
         {
@@ -1044,8 +1294,53 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17retryWhileRunningyACSS_tcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF",
           "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO20retryRequiresFailureyACSaySSG_tcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIAsyncPreparationPlanErrorO24nonTransactionalProvideryACSS_tcACmF",
+          "target": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV12providerName6effectACSS_AA0cD0Otcfc",
+          "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV12providerNameSSvp",
+          "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI27DIProviderEffectRequirementV6effectAA0cD0Ovp",
+          "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV11contributors10AnyKeyPathCvp",
+          "target": "s:6InnoDI29DIKeyedCollectionContributionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s10AnyKeyPathCtcfc",
+          "target": "s:6InnoDI29DIKeyedCollectionContributionV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV3keySSvp",
+          "target": "s:6InnoDI29DIKeyedCollectionContributionV"
         },
         {
           "kind": "memberOf",
@@ -1066,11 +1361,6 @@
           "kind": "memberOf",
           "source": "s:6InnoDI4LazyVyACyxGxyccfc",
           "target": "s:6InnoDI4LazyV"
-        },
-        {
-          "kind": "memberOf",
-          "source": "s:6InnoDI7DIScopeO5inputyA2CmF",
-          "target": "s:6InnoDI7DIScopeO"
         },
         {
           "kind": "memberOf",
@@ -1104,6 +1394,11 @@
         },
         {
           "kind": "requirementOf",
+          "source": "s:6InnoDI16DIAsyncPreparingP21resetForSubgraphRetryyyYaKF",
+          "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
           "source": "s:6InnoDI16DIAsyncPreparingP5closeyyYaF",
           "target": "s:6InnoDI16DIAsyncPreparingP"
         },
@@ -1121,37 +1416,55 @@
           "kind": "requirementOf",
           "source": "s:6InnoDI16DIAsyncPreparingP7prepareAA0C14ProviderStatusVyYaF",
           "target": "s:6InnoDI16DIAsyncPreparingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI26DIOverrideEffectValidatingP07missingD9OverridesSayAA010DIProviderD11RequirementVGvp",
+          "target": "s:6InnoDI26DIOverrideEffectValidatingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI26DIOverrideEffectValidatingP08requiredD9OverridesSayAA010DIProviderD11RequirementVGvpZ",
+          "target": "s:6InnoDI26DIOverrideEffectValidatingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI35DIMainActorOverrideEffectValidatingP07missingF9OverridesSayAA010DIProviderF11RequirementVGvp",
+          "target": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+        },
+        {
+          "kind": "requirementOf",
+          "source": "s:6InnoDI35DIMainActorOverrideEffectValidatingP08requiredF9OverridesSayAA010DIProviderF11RequirementVGvpZ",
+          "target": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
         }
       ],
       "symbols": [
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI11DIComponentyycfm"
+            "precise": "s:6InnoDI11DIContainer11validateDAGySb_tcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            true
+          ],
           "pathComponents": [
-            "DIComponent()"
+            "DIContainer(validateDAG:)"
           ]
         },
         {
           "accessLevel": "public",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI11DIContainer4root11validateDAG9mainActorySb_S2btcfm"
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
           },
-          "kind": {
-            "identifier": "swift.macro"
-          },
-          "pathComponents": [
-            "DIContainer(root:validateDAG:mainActor:)"
-          ]
-        },
-        {
-          "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DIInputKindO"
@@ -1165,6 +1478,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DIInputKindO8assistedyA2CmF"
@@ -1179,6 +1496,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DIInputKindO9containeryA2CmF"
@@ -1193,6 +1514,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DITraceSinkP"
@@ -1206,6 +1531,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11DITraceSinkP6recordyyAA0C5EventVF"
@@ -1213,6 +1543,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DITraceSink",
             "record(_:)"
@@ -1220,6 +1553,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV"
@@ -1233,6 +1570,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV5aliasSSSgvp"
@@ -1247,6 +1591,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV8rootViewypXpvp"
@@ -1261,6 +1612,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV_2asACypXp_SSSgtcfc"
@@ -1268,6 +1623,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "FeatureRoot",
             "init(_:as:)"
@@ -1275,6 +1634,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC"
@@ -1305,6 +1668,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC10providerID9operationACyxGSS_xyYaYbKctcfc"
@@ -1312,6 +1679,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIAsyncScope",
             "init(providerID:operation:)"
@@ -1336,6 +1707,15 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [
+              "nonisolated"
+            ],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC10providerIDSSvp"
@@ -1350,13 +1730,56 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC5closeyyF"
+            "precise": "s:6InnoDI12DIAsyncScopeC21resetForSubgraphRetryyyYaKF"
           },
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIAsyncScope",
+            "resetForSubgraphRetry()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5closeyyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "close()"
@@ -1381,13 +1804,19 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC5retryyyKF"
+            "precise": "s:6InnoDI12DIAsyncScopeC5retryyyYaKF"
           },
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "retry()"
@@ -1412,6 +1841,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC5valuexyYaKF"
@@ -1419,6 +1853,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "value()"
@@ -1443,13 +1878,19 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyF"
+            "precise": "s:6InnoDI12DIAsyncScopeC6statusAA0C14ProviderStatusVyYaF"
           },
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "status()"
@@ -1474,6 +1915,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC7prepareAA0C14ProviderStatusVyYaF"
@@ -1481,6 +1927,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncScope",
             "prepare()"
@@ -1505,6 +1952,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC9Operationa"
@@ -1536,6 +1987,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV"
@@ -1549,6 +2004,34 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV10generations6UInt64Vvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "generation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV10instanceID10Foundation4UUIDVvp"
@@ -1563,20 +2046,42 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind17uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOs6UInt64Vtcfc"
+            "precise": "s:6InnoDI12DITraceEventV10providerID08instanceF04kind05ownerF010generation6origin015relatedProviderF00l8InstanceF017uptimeNanosecondsACSS_10Foundation4UUIDVAC4KindOAOSgs6UInt64VAC6OriginOSgSSSgArTtcfc"
           },
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
           "pathComponents": [
             "DITraceEvent",
-            "init(providerID:instanceID:kind:uptimeNanoseconds:)"
+            "init(providerID:instanceID:kind:ownerID:generation:origin:relatedProviderID:relatedInstanceID:uptimeNanoseconds:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV10providerIDSSvp"
@@ -1591,6 +2096,55 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV17relatedInstanceID10Foundation4UUIDVSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "relatedInstanceID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV17relatedProviderIDSSSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "relatedProviderID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV17uptimeNanosecondss6UInt64Vvp"
@@ -1605,6 +2159,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO"
@@ -1619,6 +2177,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO5startyA2EmF"
@@ -1634,6 +2196,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO6cancelyA2EmF"
@@ -1649,6 +2215,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO7failureyA2EmF"
@@ -1664,6 +2234,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO7successyA2EmF"
@@ -1679,6 +2253,29 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO7waitEndyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "waitEnd"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO8cacheHityA2EmF"
@@ -1694,6 +2291,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4KindO8overrideyA2EmF"
@@ -1709,6 +2310,32 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV4KindO9waitStartyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Kind",
+            "waitStart"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DITraceEventV4kindAC4KindOvp"
@@ -1723,6 +2350,146 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO17containerOverrideyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "containerOverride"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO4waityA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "wait"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO5cacheyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "cache"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6OriginO7factoryyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "Origin",
+            "factory"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV6originAC6OriginOSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "origin"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DITraceEventV7ownerID10Foundation4UUIDVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITraceEvent",
+            "ownerID"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12GenerateMockyycfm"
@@ -1730,12 +2497,17 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "GenerateMock()"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12MultibindingyySays10AnyKeyPathCGcfm"
@@ -1743,12 +2515,19 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "Multibinding(_:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12SubContainer5scope4with8bindings11featureRoot0H5RootsyAA0cD5ScopeO_Says10AnyKeyPathCGSayAK5child_AK6parenttGypXpSgSayAA07FeatureI0VGtcfm"
@@ -1756,12 +2535,23 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            true,
+            true,
+            true,
+            true
+          ],
           "pathComponents": [
             "SubContainer(scope:with:bindings:featureRoot:featureRoots:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI13ContainerRoleO"
@@ -1775,6 +2565,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI13ContainerRoleO4rootSSvpZ"
@@ -1789,6 +2586,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI13ContainerRoleO5localSSvpZ"
@@ -1803,6 +2607,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI13ContainerRoleO9componentSSvpZ"
@@ -1817,6 +2628,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DIPrewarmErrorO"
@@ -1830,6 +2645,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DIPrewarmErrorO19unsupportedProvideryA2CmF"
@@ -1844,6 +2663,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV"
@@ -1857,6 +2680,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV14withResolution10providerID_xSS_xyKXEtKlF"
@@ -1864,6 +2692,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "withResolution(providerID:_:)"
@@ -1880,6 +2712,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [
+              "nonisolated(nonsending)"
+            ],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV14withResolution10providerID_xSS_xyYaKXEtYaKlF"
@@ -1887,6 +2726,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "withResolution(providerID:_:)"
@@ -1903,6 +2746,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV4emityyAA0C5EventVyXKF"
@@ -1910,6 +2758,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "emit(_:)"
@@ -1917,20 +2768,34 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI14DITraceContextV4sinkAcA0C4Sink_p_tcfc"
+            "precise": "s:6InnoDI14DITraceContextV4sink17targetIDsByModule10generationAcA0C4Sink_p_SDyS2SGs6UInt64Vtcfc"
           },
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            true,
+            true
+          ],
           "pathComponents": [
             "DITraceContext",
-            "init(sink:)"
+            "init(sink:targetIDsByModule:generation:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV5start10providerID10Foundation4UUIDVSgSS_tF"
@@ -1938,6 +2803,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "start(providerID:)"
@@ -1945,6 +2813,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV6record_10providerID08instanceG0yAA0C5EventV4KindO_SS10Foundation4UUIDVSgtF"
@@ -1952,6 +2825,11 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "DITraceContext",
             "record(_:providerID:instanceID:)"
@@ -1959,6 +2837,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV8disabledACvpZ"
@@ -1973,6 +2858,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI14DITraceContextV9isEnabledSbvp"
@@ -1987,6 +2879,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI15AssistedFactory_6static8assistedyypXp_Says10AnyKeyPathCGAGtcfm"
@@ -1994,12 +2890,21 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "AssistedFactory(_:static:assisted:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI15DIContainerRole4role9mainActor11validateDAGySS_S2btcfm"
@@ -2007,25 +2912,21 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            true,
+            true
+          ],
           "pathComponents": [
             "DIContainerRole(role:mainActor:validateDAG:)"
           ]
         },
         {
           "accessLevel": "public",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI15DIHierarchyRootyycfm"
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
           },
-          "kind": {
-            "identifier": "swift.macro"
-          },
-          "pathComponents": [
-            "DIHierarchyRoot()"
-          ]
-        },
-        {
-          "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP"
@@ -2039,6 +2940,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP10providerIDSSvp"
@@ -2053,6 +2961,31 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingP21resetForSubgraphRetryyyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "resetForSubgraphRetry()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP5closeyyYaF"
@@ -2060,6 +2993,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "close()"
@@ -2067,6 +3001,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP5retryyyYaKF"
@@ -2074,6 +3013,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "retry()"
@@ -2081,6 +3021,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP6statusAA0C14ProviderStatusVyYaF"
@@ -2088,6 +3033,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "status()"
@@ -2095,6 +3041,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIAsyncPreparingP7prepareAA0C14ProviderStatusVyYaF"
@@ -2102,6 +3053,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIAsyncPreparing",
             "prepare()"
@@ -2109,6 +3061,34 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIAsyncPreparingPAAE21resetForSubgraphRetryyyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIAsyncPreparing",
+            "resetForSubgraphRetry()"
+          ],
+          "swiftExtension": {
+            "extendedModule": "InnoDI",
+            "typeKind": "swift.protocol"
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIInitializationO"
@@ -2122,6 +3102,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIInitializationO5eageryA2CmF"
@@ -2136,6 +3120,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI16DIInitializationO8onDemandyA2CmF"
@@ -2150,6 +3138,63 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIProviderEffectO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIProviderEffect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIProviderEffectO04sideD0yA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIProviderEffect",
+            "sideEffect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI16DIProviderEffectO4noneyA2CmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIProviderEffect",
+            "none"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIAsyncScopeErrorO"
@@ -2163,6 +3208,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIAsyncScopeErrorO20retryRequiresFailureyACSS_tcACmF"
@@ -2177,6 +3226,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIAsyncScopeErrorO6closedyACSS_tcACmF"
@@ -2191,6 +3244,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupV"
@@ -2213,6 +3270,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupV10startIndexSivp"
@@ -2227,6 +3291,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupV5Indexa"
@@ -2250,6 +3318,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupV5emptyACyxGvpZ"
@@ -2264,6 +3339,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupV7composeyACyxGSayAEGFZ"
@@ -2271,6 +3350,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionGroup",
             "compose(_:)"
@@ -2287,6 +3369,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupV8endIndexSivp"
@@ -2301,6 +3390,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupVyACyxGSayxGcfc"
@@ -2308,6 +3401,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionGroup",
             "init(_:)"
@@ -2324,6 +3420,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DICollectionGroupVyxSicip"
@@ -2331,6 +3434,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DICollectionGroup",
             "subscript(_:)"
@@ -2347,6 +3453,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV"
@@ -2388,6 +3498,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV10startIndexSivp"
@@ -2402,6 +3519,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV3keyq_Sgx_tcip"
@@ -2409,6 +3533,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "subscript(key:)"
@@ -2444,6 +3571,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV"
@@ -2486,6 +3617,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV3key5valueAEyxq__Gx_q_tcfc"
@@ -2493,6 +3628,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "Entry",
@@ -2529,6 +3668,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV3keyxvp"
@@ -2544,6 +3690,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV5EntryV5valueq_vp"
@@ -2559,6 +3712,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV5Indexa"
@@ -2601,6 +3758,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV5emptyACyxq_GvpZ"
@@ -2615,6 +3779,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV7composeyACyxq_GSayAEGKFZ"
@@ -2622,6 +3790,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "compose(_:)"
@@ -2657,6 +3828,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionV8endIndexSivp"
@@ -2671,6 +3849,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionVyAC5EntryVyxq__GSicip"
@@ -2678,6 +3863,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "subscript(_:)"
@@ -2713,6 +3901,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17DIKeyedCollectionVyACyxq_GSayAC5EntryVyxq__GGKcfc"
@@ -2720,6 +3912,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollection",
             "init(_:)"
@@ -2755,6 +3950,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17SubContainerScopeO"
@@ -2768,6 +3967,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17SubContainerScopeO6sharedyA2CmF"
@@ -2782,6 +3985,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI17SubContainerScopeO9transientyA2CmF"
@@ -2796,6 +4003,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI19SubContainerFactory_8bindingsyypXp_Says10AnyKeyPathC5child_AE6parenttGtcfm"
@@ -2803,12 +4014,20 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "SubContainerFactory(_:bindings:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC"
@@ -2822,6 +4041,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC6recordyyAA12DITraceEventVF"
@@ -2829,6 +4053,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIBoundedTraceBuffer",
             "record(_:)"
@@ -2836,6 +4063,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV"
@@ -2850,6 +4081,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV17droppedEventCountSivp"
@@ -2865,6 +4103,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC8SnapshotV6eventsSayAA12DITraceEventVGvp"
@@ -2880,6 +4125,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC8capacityACSi_tcfc"
@@ -2887,6 +4136,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIBoundedTraceBuffer",
             "init(capacity:)"
@@ -2894,6 +4146,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIBoundedTraceBufferC8snapshotAC8SnapshotVyF"
@@ -2901,6 +4158,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIBoundedTraceBuffer",
             "snapshot()"
@@ -2908,6 +4166,268 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DICollectionMetadata"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV12contributorsSays10AnyKeyPathCGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "contributors"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV14keyedProvidersyACSayAA29DIKeyedCollectionContributionVGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DICollectionMetadata",
+            "keyedProviders(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV17keyedContributorsSayAA29DIKeyedCollectionContributionVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "keyedContributors"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO14keyedProvidersyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "keyedProviders"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO5keyedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "keyed"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO7orderedyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "ordered"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4KindO9providersyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "Kind",
+            "providers"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV4kindAC4KindOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DICollectionMetadata",
+            "kind"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV5keyedyACSayAA29DIKeyedCollectionContributionVGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DICollectionMetadata",
+            "keyed(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV7orderedyACSays10AnyKeyPathCGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DICollectionMetadata",
+            "ordered(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI20DICollectionMetadataV9providersyACSays10AnyKeyPathCGFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DICollectionMetadata",
+            "providers(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV"
@@ -2930,6 +4450,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV10startIndexSivp"
@@ -2944,6 +4471,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV5Indexa"
@@ -2967,6 +4498,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV5emptyACyxGvpZ"
@@ -2981,6 +4519,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV7composeyACyxGSayAEGFZ"
@@ -2988,6 +4530,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIProviderCollection",
             "compose(_:)"
@@ -3004,6 +4549,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV8Providera"
@@ -3027,6 +4576,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionV8endIndexSivp"
@@ -3041,6 +4597,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionVyACyxGSayxycGcfc"
@@ -3048,6 +4608,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIProviderCollection",
             "init(_:)"
@@ -3064,6 +4627,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI20DIProviderCollectionVyxSicip"
@@ -3071,6 +4641,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIProviderCollection",
             "subscript(_:)"
@@ -3087,6 +4660,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV"
@@ -3100,6 +4677,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV10generationSivp"
@@ -3114,6 +4698,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV10providerID10generation5state16errorDescriptionACSS_SiAC5StateOSSSgtcfc"
@@ -3121,6 +4709,12 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIAsyncProviderStatus",
             "init(providerID:generation:state:errorDescription:)"
@@ -3128,6 +4722,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV10providerIDSSvp"
@@ -3142,6 +4743,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV16errorDescriptionSSSgvp"
@@ -3156,6 +4764,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO"
@@ -3170,6 +4782,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO4idleyA2EmF"
@@ -3185,6 +4801,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO5readyyA2EmF"
@@ -3200,6 +4820,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO6closedyA2EmF"
@@ -3215,6 +4839,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO6failedyA2EmF"
@@ -3230,6 +4858,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO7runningyA2EmF"
@@ -3245,6 +4877,32 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI21DIAsyncProviderStatusV5StateO9cancelledyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncProviderStatus",
+            "State",
+            "cancelled"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIAsyncProviderStatusV5stateAC5StateOvp"
@@ -3259,6 +4917,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI21DIHierarchyRootMarkerP"
@@ -3272,6 +4934,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationNodeV"
@@ -3285,6 +4951,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationNodeV12dependenciesSaySSGvp"
@@ -3299,6 +4972,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationNodeV8provider12dependenciesAcA0C9Preparing_p_SaySSGtcfc"
@@ -3306,6 +4983,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIAsyncPreparationNode",
             "init(provider:dependencies:)"
@@ -3313,6 +4994,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationNodeV8providerAA0C9Preparing_pvp"
@@ -3327,6 +5015,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationPlanV"
@@ -3340,6 +5032,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationPlanV5closeyySaySSGYaKF"
@@ -3347,6 +5044,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "close(_:)"
@@ -3354,6 +5054,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationPlanV5nodesACSayAA0cD4NodeVG_tKcfc"
@@ -3361,6 +5065,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "init(nodes:)"
@@ -3368,6 +5075,33 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI22DIAsyncPreparationPlanV5retryyAA0cD6ReportVSaySSGYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIAsyncPreparationPlan",
+            "retry(_:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI22DIAsyncPreparationPlanV7prepareyAA0cD6ReportVSaySSGYaKF"
@@ -3375,6 +5109,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationPlan",
             "prepare(_:)"
@@ -3382,6 +5119,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV"
@@ -3395,6 +5136,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV10providerID6status11disposition20blockingDependenciesACSS_AA0C14ProviderStatusVAC11DispositionOSaySSGtcfc"
@@ -3402,6 +5147,12 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIAsyncPreparationEntry",
             "init(providerID:status:disposition:blockingDependencies:)"
@@ -3409,6 +5160,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV10providerIDSSvp"
@@ -3423,6 +5181,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO"
@@ -3437,6 +5199,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO5readyyA2EmF"
@@ -3452,6 +5218,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO6closedyA2EmF"
@@ -3467,6 +5237,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO6failedyA2EmF"
@@ -3482,6 +5256,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7blockedyA2EmF"
@@ -3497,6 +5275,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO7runningyA2EmF"
@@ -3512,6 +5294,32 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI23DIAsyncPreparationEntryV11DispositionO9cancelledyA2EmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationEntry",
+            "Disposition",
+            "cancelled"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV11dispositionAC11DispositionOvp"
@@ -3526,6 +5334,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV20blockingDependenciesSaySSGvp"
@@ -3540,6 +5355,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI23DIAsyncPreparationEntryV6statusAA0C14ProviderStatusVvp"
@@ -3554,6 +5376,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI24DIAsyncPreparationReportV"
@@ -3567,6 +5393,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDs7entriesACSaySSG_SayAA0cD5EntryVGtcfc"
@@ -3574,6 +5404,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIAsyncPreparationReport",
             "init(selectedProviderIDs:entries:)"
@@ -3581,6 +5415,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDsSaySSGvp"
@@ -3595,6 +5436,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI24DIAsyncPreparationReportV7entriesSayAA0cD5EntryVGvp"
@@ -3609,6 +5457,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI24DIAsyncPreparationReportV7isReadySbvp"
@@ -3623,6 +5478,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV"
@@ -3664,6 +5523,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV10startIndexSivp"
@@ -3678,6 +5544,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV3keyq_Sgx_tcip"
@@ -3685,6 +5558,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "subscript(key:)"
@@ -3720,6 +5596,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV"
@@ -3762,6 +5642,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV14callAsFunctionq_yF"
@@ -3769,6 +5654,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "Entry",
@@ -3805,6 +5691,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV3key8providerAEyxq__Gx_q_yctcfc"
@@ -3812,6 +5702,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "Entry",
@@ -3848,6 +5742,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV5EntryV3keyxvp"
@@ -3863,6 +5764,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV5Indexa"
@@ -3905,6 +5810,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV5emptyACyxq_GvpZ"
@@ -3919,6 +5831,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV7composeyACyxq_GSayAEGKFZ"
@@ -3926,6 +5842,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "compose(_:)"
@@ -3961,6 +5880,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionV8endIndexSivp"
@@ -3975,6 +5901,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionVyAC5EntryVyxq__GSicip"
@@ -3982,6 +5915,9 @@
           "kind": {
             "identifier": "swift.subscript"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "subscript(_:)"
@@ -4017,6 +5953,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI25DIKeyedProviderCollectionVyACyxq_GSayAC5EntryVyxq__GGKcfc"
@@ -4024,6 +5964,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedProviderCollection",
             "init(_:)"
@@ -4059,6 +6002,69 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI26DIOverrideEffectValidatingP"
+          },
+          "kind": {
+            "identifier": "swift.protocol"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidating"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI26DIOverrideEffectValidatingP07missingD9OverridesSayAA010DIProviderD11RequirementVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidating",
+            "missingEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI26DIOverrideEffectValidatingP08requiredD9OverridesSayAA010DIProviderD11RequirementVGvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidating",
+            "requiredEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO"
@@ -4072,6 +6078,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO15dependencyCycleyACSaySSGcACmF"
@@ -4086,6 +6096,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO15unknownProvideryACSScACmF"
@@ -4100,6 +6114,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17duplicateProvideryACSScACmF"
@@ -4114,6 +6132,28 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17retryWhileRunningyACSS_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "retryWhileRunning(providerID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO17unknownDependencyyACSS_SStcACmF"
@@ -4128,6 +6168,208 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO20retryRequiresFailureyACSaySSG_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "retryRequiresFailure(selectedProviderIDs:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIAsyncPreparationPlanErrorO24nonTransactionalProvideryACSS_tcACmF"
+          },
+          "kind": {
+            "identifier": "swift.enum.case"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationPlanError",
+            "nonTransactionalProvider(providerID:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV12providerName6effectACSS_AA0cD0Otcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIProviderEffectRequirement",
+            "init(providerName:effect:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV12providerNameSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement",
+            "providerName"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI27DIProviderEffectRequirementV6effectAA0cD0Ovp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIProviderEffectRequirement",
+            "effect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV11contributors10AnyKeyPathCvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution",
+            "contributor"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s10AnyKeyPathCtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIKeyedCollectionContribution",
+            "init(key:contributor:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV3keySSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIKeyedCollectionContribution",
+            "key"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV"
@@ -4164,6 +6406,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyACyxGx_tcfc"
@@ -4171,6 +6417,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIKeyedCollectionDuplicateError",
             "init(key:)"
@@ -4201,6 +6450,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI31DIKeyedCollectionDuplicateErrorV3keyxvp"
@@ -4215,6 +6471,75 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+          },
+          "kind": {
+            "identifier": "swift.protocol"
+          },
+          "pathComponents": [
+            "DIMainActorOverrideEffectValidating"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [
+              "s:ScM"
+            ],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP07missingF9OverridesSayAA010DIProviderF11RequirementVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMainActorOverrideEffectValidating",
+            "missingEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [
+              "s:ScM"
+            ],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP08requiredF9OverridesSayAA010DIProviderF11RequirementVGvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "DIMainActorOverrideEffectValidating",
+            "requiredEffectOverrides"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI4LazyV"
@@ -4237,6 +6562,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI4LazyV14callAsFunctionxyF"
@@ -4244,6 +6574,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "Lazy",
             "callAsFunction()"
@@ -4260,6 +6591,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI4LazyVyACyxGxyccfc"
@@ -4267,6 +6602,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "Lazy",
             "init(_:)"
@@ -4283,6 +6621,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI5Input_8escapingyAA11DIInputKindO_Sbtcfm"
@@ -4290,12 +6632,20 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            true,
+            true
+          ],
           "pathComponents": [
             "Input(_:escaping:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO"
@@ -4309,20 +6659,10 @@
         },
         {
           "accessLevel": "public",
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7DIScopeO5inputyA2CmF"
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
           },
-          "kind": {
-            "identifier": "swift.enum.case"
-          },
-          "pathComponents": [
-            "DIScope",
-            "input"
-          ]
-        },
-        {
-          "accessLevel": "public",
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO6sharedyA2CmF"
@@ -4337,6 +6677,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI7DIScopeO9transientyA2CmF"
@@ -4351,19 +6695,37 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI7Provide__4with14initialization7factory12asyncFactory8escapingyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOypSgAPSbtcfm"
+            "precise": "s:6InnoDI7Provide__4with14initialization6effect10collection7factory12asyncFactoryyAA7DIScopeO_ypXpSgSays10AnyKeyPathCGAA16DIInitializationOAA16DIProviderEffectOAA20DICollectionMetadataVSgypSgAVtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
           "pathComponents": [
-            "Provide(_:_:with:initialization:factory:asyncFactory:escaping:)"
+            "Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI8ProviderV"
@@ -4386,6 +6748,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI8ProviderV14callAsFunctionxyF"
@@ -4393,6 +6760,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "Provider",
             "callAsFunction()"
@@ -4409,6 +6777,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:6InnoDI8ProviderVyACyxGxyccfc"
@@ -4416,6 +6788,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "Provider",
             "init(_:)"
@@ -4553,6 +6928,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp",
+          "target": "s:7SwiftUI17EnvironmentValuesV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF",
           "target": "s:7SwiftUI4ViewP"
         },
@@ -4570,6 +6950,12 @@
       "symbols": [
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI15DIContainerHostV"
@@ -4644,6 +7030,15 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [
+              "s:ScM"
+            ],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI15DIContainerHostV4bodyQrvp"
@@ -4658,6 +7053,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI15DIContainerHostV5Closea"
@@ -4733,6 +7132,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI15DIContainerHostV7Factorya"
@@ -4808,6 +7211,12 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI15DIContainerHostV8identity7factory5close7content7loading7failureACyxq_q0_q1_q2_Gx_q_xYaYbKScMYccyq_YaYbScMYccq0_q__AA0dE6HandleVtYbScMYccq1_yYbScMYccq2_s5Error_p_ALtYbScMYcctcfc"
@@ -4815,6 +7224,14 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "DIContainerHost",
             "init(identity:factory:close:content:loading:failure:)"
@@ -4883,6 +7300,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI19DIEnvironmentBridgeyySaySS6member_s10AnyKeyPathC11environmenttGcfm"
@@ -4890,12 +7311,21 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIEnvironmentBridge(_:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC"
@@ -4937,6 +7367,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5Closea"
@@ -4979,6 +7413,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5closeyyYaF"
@@ -4986,6 +7427,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostOwner",
             "close()"
@@ -5021,6 +7463,16 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [
+              "s:7Combine9PublishedV",
+              "s:ScM"
+            ],
+            "nonmutatingSetter": false,
+            "writable": true
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5phaseAA0dE5PhaseOyxq_Gvp"
@@ -5035,6 +7487,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5retryyyF"
@@ -5042,6 +7501,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostOwner",
             "retry()"
@@ -5077,6 +7537,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC5start8identity7factory5closeyx_q_xYaYbKScMYccyq_YaYbScMYcctF"
@@ -5084,6 +7551,11 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIContainerHostOwner",
             "start(identity:factory:close:)"
@@ -5119,6 +7591,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerC7Factorya"
@@ -5161,6 +7637,12 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostOwnerCACyxq_Gycfc"
@@ -5168,6 +7650,7 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostOwner",
             "init()"
@@ -5203,6 +7686,12 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
@@ -5244,6 +7733,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO4idleyACyxq_GAEmSHRzs8SendableRzr0_lF"
@@ -5258,6 +7751,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO5readyyACyxq_Gx_q_tcAEmSHRzs8SendableRzr0_lF"
@@ -5272,6 +7769,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO6failedyACyxq_Gx_s5Error_ptcAEmSHRzs8SendableRzr0_lF"
@@ -5286,6 +7787,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20DIContainerHostPhaseO7loadingyACyxq_Gx_tcAEmSHRzs8SendableRzr0_lF"
@@ -5300,6 +7805,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI20PreviewWithContaineryq_xyXK_q_xXEtcr0_lufm"
@@ -5307,6 +7816,10 @@
           "kind": {
             "identifier": "swift.macro"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "PreviewWithContainer(_:_:)"
           ],
@@ -5327,6 +7840,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV"
@@ -5340,6 +7857,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV5closeyyYaF"
@@ -5347,6 +7871,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostHandle",
             "close()"
@@ -5354,6 +7879,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV5retryyyF"
@@ -5361,6 +7893,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIContainerHostHandle",
             "retry()"
@@ -5368,6 +7901,12 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIEnvironmentBridgingP"
@@ -5381,6 +7920,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDISwiftUI21DIEnvironmentBridgingP0aD14BridgeModifierQa"
@@ -5395,6 +7938,38 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": true
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "EnvironmentValues",
+            "innoDIContainerHostHandle"
+          ],
+          "swiftExtension": {
+            "extendedModule": "SwiftUICore",
+            "typeKind": "swift.struct"
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF"
@@ -5402,6 +7977,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "View",
             "innodiServices(from:)"
@@ -5430,6 +8008,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF"
@@ -5437,6 +8022,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "View",
             "innodi(_:)"
@@ -5521,6 +8109,21 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateC",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:13InnoDITesting23DIEffectViolationPolicyO",
           "target": "s:SH"
         },
@@ -5571,6 +8174,26 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:s23CustomStringConvertibleP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:13InnoDITesting31DIInteractionConfigurationErrorV",
           "target": "s:SQ"
         },
@@ -5612,6 +8235,16 @@
         {
           "kind": "memberOf",
           "source": "s:13InnoDITesting16DIOverridePresetV8combined4with4nameACyxGAG_SSSgtF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE9validated4base7profilexx_AA06DITestF7ProfileVtKF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI35DIMainActorOverrideEffectValidatingRzlE9validated4base7profilexx_AA06DITestI7ProfileVtKF",
           "target": "s:13InnoDITesting16DIOverridePresetV"
         },
         {
@@ -5661,12 +8294,17 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:13InnoDITesting19DITestEffectProfileV07missingD8OverrideAA23DIEffectViolationPolicyOvp",
+          "target": "s:13InnoDITesting19DITestEffectProfileV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:13InnoDITesting19DITestEffectProfileV11missingStubAA23DIEffectViolationPolicyOvp",
           "target": "s:13InnoDITesting19DITestEffectProfileV"
         },
         {
           "kind": "memberOf",
-          "source": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStubAcA23DIEffectViolationPolicyO_AGtcfc",
+          "source": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStub0hD8OverrideAcA23DIEffectViolationPolicyO_A2Htcfc",
           "target": "s:13InnoDITesting19DITestEffectProfileV"
         },
         {
@@ -5703,6 +8341,36 @@
           "kind": "memberOf",
           "source": "s:13InnoDITesting20DIConcurrentValueBoxCyACyxGxcfc",
           "target": "s:13InnoDITesting20DIConcurrentValueBoxC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateC18withCriticalRegionyxxs6UInt64VYbKXEKs8SendableRzlF",
+          "target": "s:13InnoDITesting21DIConcurrentMockStateC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateC5resetyxxs6UInt64VYbKXEKs8SendableRzlF",
+          "target": "s:13InnoDITesting21DIConcurrentMockStateC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting21DIConcurrentMockStateCACycfc",
+          "target": "s:13InnoDITesting21DIConcurrentMockStateC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV11isSatisfiedSbvp",
+          "target": "s:13InnoDITesting22DIOverrideEffectReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV7missingACSay0A2DI010DIProviderD11RequirementVG_tcfc",
+          "target": "s:13InnoDITesting22DIOverrideEffectReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting22DIOverrideEffectReportV7missingSay0A2DI010DIProviderD11RequirementVGvp",
+          "target": "s:13InnoDITesting22DIOverrideEffectReportV"
         },
         {
           "kind": "memberOf",
@@ -5766,6 +8434,16 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI019DIMainActorOverrideD10ValidatingRzlFZ",
+          "target": "s:13InnoDITesting26DIOverrideEffectValidationO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI0cD10ValidatingRzlFZ",
+          "target": "s:13InnoDITesting26DIOverrideEffectValidationO"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:13InnoDITesting27DIInteractionViolationErrorV11descriptionSSvp",
           "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
         },
@@ -5778,6 +8456,21 @@
           "kind": "memberOf",
           "source": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAcA0C6ReportV_tcfc",
           "target": "s:13InnoDITesting27DIInteractionViolationErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV11descriptionSSvp",
+          "target": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAA010DIOverrideD6ReportVvp",
+          "target": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAcA010DIOverrideD6ReportV_tcfc",
+          "target": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
         },
         {
           "kind": "memberOf",
@@ -5798,6 +8491,10 @@
       "symbols": [
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetV"
@@ -5820,6 +8517,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetV14callAsFunctionyyxzF"
@@ -5827,6 +8529,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "callAsFunction(_:)"
@@ -5843,6 +8548,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetV4name5applyACyxGSS_yxzYbctcfc"
@@ -5850,6 +8559,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "init(name:apply:)"
@@ -5866,6 +8579,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetV4nameSSvp"
@@ -5880,6 +8600,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetV5apply2toyxz_tF"
@@ -5887,6 +8612,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "apply(to:)"
@@ -5903,6 +8631,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetV8combined4with4nameACyxGAG_SSSgtF"
@@ -5910,6 +8643,10 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false,
+            true
+          ],
           "pathComponents": [
             "DIOverridePreset",
             "combined(with:name:)"
@@ -5926,6 +8663,116 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE9validated4base7profilexx_AA06DITestF7ProfileVtKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false,
+            true
+          ],
+          "pathComponents": [
+            "DIOverridePreset",
+            "validated(base:profile:)"
+          ],
+          "swiftExtension": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "extendedModule": "InnoDITesting",
+            "typeKind": "swift.struct"
+          },
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI35DIMainActorOverrideEffectValidatingRzlE9validated4base7profilexx_AA06DITestI7ProfileVtKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false,
+            true
+          ],
+          "pathComponents": [
+            "DIOverridePreset",
+            "validated(base:profile:)"
+          ],
+          "swiftExtension": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
+            "extendedModule": "InnoDITesting",
+            "typeKind": "swift.struct"
+          },
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIStubValidationO"
@@ -5939,6 +8786,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIStubValidationO17requireAllStubbedyySaySSGKFZ"
@@ -5946,6 +8797,9 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIStubValidation",
             "requireAllStubbed(_:)"
@@ -5953,6 +8807,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting18DIMissingStubErrorV"
@@ -5966,6 +8824,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting18DIMissingStubErrorV11descriptionSSvp"
@@ -5980,6 +8845,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting18DIMissingStubErrorV9selectorsACSaySSG_tcfc"
@@ -5987,6 +8856,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIMissingStubError",
             "init(selectors:)"
@@ -5994,6 +8866,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting18DIMissingStubErrorV9selectorsSaySSGvp"
@@ -6008,6 +8887,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DIInteractionReportV"
@@ -6021,6 +8904,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DIInteractionReportV11isSatisfiedSbvp"
@@ -6035,6 +8925,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DIInteractionReportV17missingCallCountsSDySSSiGvp"
@@ -6049,6 +8946,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DIInteractionReportV20missingStubSelectors0E10CallCounts010unexpectedhI0ACSaySSG_SDySSSiGAHtcfc"
@@ -6056,6 +8957,11 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
           "pathComponents": [
             "DIInteractionReport",
             "init(missingStubSelectors:missingCallCounts:unexpectedCallCounts:)"
@@ -6063,6 +8969,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DIInteractionReportV20missingStubSelectorsSaySSGvp"
@@ -6077,6 +8990,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DIInteractionReportV20unexpectedCallCountsSDySSSiGvp"
@@ -6091,6 +9011,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DITestEffectProfileV"
@@ -6104,6 +9028,34 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting19DITestEffectProfileV07missingD8OverrideAA23DIEffectViolationPolicyOvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DITestEffectProfile",
+            "missingEffectOverride"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DITestEffectProfileV11missingStubAA23DIEffectViolationPolicyOvp"
@@ -6118,20 +9070,36 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStubAcA23DIEffectViolationPolicyO_AGtcfc"
+            "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCall11missingStub0hD8OverrideAcA23DIEffectViolationPolicyO_A2Htcfc"
           },
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DITestEffectProfile",
-            "init(unexpectedCall:missingStub:)"
+            "init(unexpectedCall:missingStub:missingEffectOverride:)"
           ]
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DITestEffectProfileV14unexpectedCallAA23DIEffectViolationPolicyOvp"
@@ -6146,6 +9114,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DITestEffectProfileV6strictACvpZ"
@@ -6160,6 +9135,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting19DITestEffectProfileV9recordingACvpZ"
@@ -6174,6 +9156,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting20DIConcurrentValueBoxC"
@@ -6204,6 +9190,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting20DIConcurrentValueBoxC6updateyqd__qd__xzYbKXEKs8SendableRd__lF"
@@ -6211,6 +9202,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentValueBox",
             "update(_:)"
@@ -6246,6 +9240,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting20DIConcurrentValueBoxC7replace4withyx_tF"
@@ -6253,6 +9252,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentValueBox",
             "replace(with:)"
@@ -6277,6 +9279,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting20DIConcurrentValueBoxC8snapshotxyF"
@@ -6284,6 +9291,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentValueBox",
             "snapshot()"
@@ -6308,6 +9316,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting20DIConcurrentValueBoxCyACyxGxcfc"
@@ -6315,6 +9327,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentValueBox",
             "init(_:)"
@@ -6339,6 +9354,204 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateC"
+          },
+          "kind": {
+            "identifier": "swift.class"
+          },
+          "pathComponents": [
+            "DIConcurrentMockState"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateC18withCriticalRegionyxxs6UInt64VYbKXEKs8SendableRzlF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIConcurrentMockState",
+            "withCriticalRegion(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Result",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Result"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateC5resetyxxs6UInt64VYbKXEKs8SendableRzlF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIConcurrentMockState",
+            "reset(_:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Result",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Result"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting21DIConcurrentMockStateCACycfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIConcurrentMockState",
+            "init()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV11isSatisfiedSbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport",
+            "isSatisfied"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV7missingACSay0A2DI010DIProviderD11RequirementVG_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIOverrideEffectReport",
+            "init(missing:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting22DIOverrideEffectReportV7missingSay0A2DI010DIProviderD11RequirementVGvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIOverrideEffectReport",
+            "missing"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting23DIEffectViolationPolicyO"
@@ -6352,6 +9565,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting23DIEffectViolationPolicyO4failyA2CmF"
@@ -6366,6 +9583,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting23DIEffectViolationPolicyO6recordyA2CmF"
@@ -6380,6 +9601,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting23DIInteractionValidationO"
@@ -6393,6 +9618,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting23DIInteractionValidationO8validate20missingStubSelectors18recordedCallCounts08expectedjK07profileAA0C6ReportVSaySSG_SDySSSiGAlA19DITestEffectProfileVtKFZ"
@@ -6400,6 +9629,12 @@
           "kind": {
             "identifier": "swift.type.method"
           },
+          "parameterDefaults": [
+            true,
+            false,
+            false,
+            true
+          ],
           "pathComponents": [
             "DIInteractionValidation",
             "validate(missingStubSelectors:recordedCallCounts:expectedCallCounts:profile:)"
@@ -6407,6 +9642,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC"
@@ -6437,6 +9676,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV"
@@ -6468,6 +9711,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV4callxvp"
@@ -6483,6 +9733,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV8sequence4callAEyx_Gs6UInt64V_xtcfc"
@@ -6490,6 +9744,10 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false,
+            false
+          ],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "Entry",
@@ -6515,6 +9773,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5EntryV8sequences6UInt64Vvp"
@@ -6530,6 +9795,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5countSivp"
@@ -6544,6 +9816,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC5resetyyF"
@@ -6551,6 +9828,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "reset()"
@@ -6575,6 +9853,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC6recordys6UInt64VxF"
@@ -6582,6 +9865,9 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "record(_:)"
@@ -6606,6 +9892,11 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderC8snapshotSayAC5EntryVyx_GGyF"
@@ -6613,6 +9904,7 @@
           "kind": {
             "identifier": "swift.method"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "snapshot()"
@@ -6637,6 +9929,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting24DIConcurrentCallRecorderCACyxGycfc"
@@ -6644,6 +9940,7 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [],
           "pathComponents": [
             "DIConcurrentCallRecorder",
             "init()"
@@ -6668,6 +9965,107 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting26DIOverrideEffectValidationO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "DIOverrideEffectValidation"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI019DIMainActorOverrideD10ValidatingRzlFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "parameterDefaults": [
+            false,
+            true
+          ],
+          "pathComponents": [
+            "DIOverrideEffectValidation",
+            "validate(_:profile:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting26DIOverrideEffectValidationO8validate_7profileAA0cD6ReportVx_AA06DITestD7ProfileVtK0A2DI0cD10ValidatingRzlFZ"
+          },
+          "kind": {
+            "identifier": "swift.type.method"
+          },
+          "parameterDefaults": [
+            false,
+            true
+          ],
+          "pathComponents": [
+            "DIOverrideEffectValidation",
+            "validate(_:profile:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting27DIInteractionViolationErrorV"
@@ -6681,6 +10079,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting27DIInteractionViolationErrorV11descriptionSSvp"
@@ -6695,6 +10100,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAA0C6ReportVvp"
@@ -6709,6 +10121,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting27DIInteractionViolationErrorV6reportAcA0C6ReportV_tcfc"
@@ -6716,6 +10132,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIInteractionViolationError",
             "init(report:)"
@@ -6723,6 +10142,90 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV11descriptionSSvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError",
+            "description"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAA010DIOverrideD6ReportVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIMissingEffectOverrideError",
+            "report"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting28DIMissingEffectOverrideErrorV6reportAcA010DIOverrideD6ReportV_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIMissingEffectOverrideError",
+            "init(report:)"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV"
@@ -6736,6 +10239,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV11descriptionSSvp"
@@ -6750,6 +10260,10 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV8selectorACSS_tcfc"
@@ -6757,6 +10271,9 @@
           "kind": {
             "identifier": "swift.init"
           },
+          "parameterDefaults": [
+            false
+          ],
           "pathComponents": [
             "DIInteractionConfigurationError",
             "init(selector:)"
@@ -6764,6 +10281,13 @@
         },
         {
           "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
           "identifier": {
             "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting31DIInteractionConfigurationErrorV8selectorSSvp"
@@ -6779,5 +10303,5 @@
       ]
     }
   ],
-  "schemaVersion": 3
+  "schemaVersion": 6
 }

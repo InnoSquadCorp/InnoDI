@@ -245,6 +245,24 @@ struct ReleaseWorkflowContractTests {
         #expect(releaseGateJob.contains("--sanitize=thread"))
         #expect(releaseGateJob.contains("--scratch-path .build/release-asan"))
         #expect(releaseGateJob.contains("--sanitize=address"))
+        #expect(releaseGateJob.components(separatedBy: "--no-parallel").count - 1 == 2)
+        let releaseGuide = try String(
+            contentsOf: packageRootURL().appendingPathComponent("RELEASING.md"),
+            encoding: .utf8
+        )
+        let manualSuiteSteps = try section(
+            in: releaseGuide,
+            from: "2. Run the main package test suite:",
+            to: "4. Build, test, and where applicable run every example"
+        )
+        #expect(manualSuiteSteps.components(separatedBy: "swift test --no-parallel").count - 1 == 4)
+        for skip in [
+            "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'",
+            "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'",
+            "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'",
+        ] {
+            #expect(manualSuiteSteps.components(separatedBy: skip).count - 1 == 2)
+        }
         #expect(
             releaseGateJob.components(
                 separatedBy: "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
@@ -253,6 +271,11 @@ struct ReleaseWorkflowContractTests {
         #expect(
             releaseGateJob.components(
                 separatedBy: "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
+            ).count - 1 == 2
+        )
+        #expect(
+            releaseGateJob.components(
+                separatedBy: "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
             ).count - 1 == 2
         )
         #expect(

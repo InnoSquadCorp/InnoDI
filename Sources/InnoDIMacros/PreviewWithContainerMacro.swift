@@ -17,13 +17,16 @@
 //          container.dashboardRootView()
 //      })
 //
-//  Expansion (current MVP):
+//  Expansion:
 //
 //      #Preview {
-//          let __innodi_preview_container = AppContainer(baseURL: "https://example.com")
-//          ({ container in
-//              container.dashboardRootView()
-//          })(__innodi_preview_container)
+//          InnoDISwiftUI.DIContainerHost(
+//              identity: false,
+//              factory: { _ in AppContainer(baseURL: "https://example.com") },
+//              content: { container, _ in ... },
+//              loading: { SwiftUI.EmptyView() },
+//              failure: { _, _ in SwiftUI.EmptyView() }
+//          )
 //      }
 //
 
@@ -72,10 +75,17 @@ public struct PreviewWithContainerMacro: ExpressionMacro {
 
         let expanded: ExprSyntax = """
         #Preview {
-            let __innodi_preview_container = \(raw: containerSource)
-            ({
-                \(raw: signatureSource)\(raw: bodySource)
-            })(__innodi_preview_container)
+            InnoDISwiftUI.DIContainerHost(
+                identity: false,
+                factory: { _ in \(raw: containerSource) },
+                content: { __innodi_preview_container, _ in
+                    ({
+                        \(raw: signatureSource)\(raw: bodySource)
+                    })(__innodi_preview_container)
+                },
+                loading: { SwiftUI.EmptyView() },
+                failure: { _, _ in SwiftUI.EmptyView() }
+            )
         }
         """
         return expanded

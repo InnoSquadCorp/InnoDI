@@ -15,7 +15,7 @@ final class RepositoryFactory {
 final class InstanceToken {}
 typealias Callback = () -> Void
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct SessionContainer {
     @Input(.assisted) var sessionID: Int
     @Input(.assisted) var completion: () -> Void

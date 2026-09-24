@@ -10,9 +10,9 @@ ninguna declaracion envolvente puede tener parametros genericos o una clausula
 anotadas directamente y los structs anidados en extensiones. Tambien se
 rechaza cualquier declaracion en un alcance ejecutable o local, incluidas
 funciones, closures, accessors y casos de `switch`. El mismo limite se aplica
-al combinar `@DIComponent`.
+al usar `@DIContainerRole` con el rol component.
 Mueve el estado de runtime o especifico del tipo detras de dependencias de
-protocolo o `@Provide(.input)`.
+protocolo o `@Input`.
 
 Tambien se rechaza un contenedor declarado explicitamente `private`, porque
 los contenedores hermanos no pueden acceder a su superficie de montaje
@@ -28,7 +28,8 @@ que declare contenedores.
 ## Declaración
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 ## Superficie generada
@@ -50,7 +51,7 @@ operación permanecen `@MainActor`.
 
 Cada contenedor, incluso sin miembros administrados, genera toda la estructura
 de overrides. Un tipo `Overrides` anidado declarado por el usuario no es
-compatible con InnoDI 5.0 y emite `container.overrides-name-conflict`; cambie
+compatible con InnoDI 6.0 y emite `container.overrides-name-conflict`; cambie
 su nombre para que la macro sea duena de la ABI de overrides montable.
 
 La macro tambien genera el alias reservado de soporte del compilador
@@ -85,7 +86,7 @@ efectos sigue siendo obligatoria con `validateDAG: false`.
   usados por los inicializadores de conveniencia, `withOverrides`, los
   overrides de child containers y el mounting de componentes, las closures de
   operación de los cuatro overloads `withOverrides` y los helpers de feature
-  root. Con `@DIComponent`, el protocolo `<Container>Dependencies` y
+  root. Con el rol component, el protocolo `<Container>Dependencies` y
   `init(dependencies:_:)` generados reciben el mismo aislamiento, y el
   componente usa la conformidad dedicada `_InnoDIMainActorComponentMountable`.
   Los componentes sin esta opción siguen usando `_InnoDIComponentMountable`.

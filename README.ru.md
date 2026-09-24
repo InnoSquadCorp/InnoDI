@@ -16,7 +16,7 @@ struct APIClient { let baseURL: String }
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var baseURL: String
+    @Input var baseURL: String
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
     var apiClient: APIClient
 }
@@ -68,7 +68,7 @@ factories внутри feature logic — для локальных runtime value
 Рабочий шаблон layering — отделить *конструирование* (InnoDI) от
 *эфемерных, вызов-локальных override* (`swift-dependencies`). Composition root
 разрешает `DependencyKey` (например `@Dependency(\.date)`) и передаёт
-полученное значение в container как `.input`; тесты заменяют его на одно
+полученное значение в container как `@Input`; тесты заменяют его на одно
 дерево вызовов через `withDependencies { $0.date = .constant(...) }
 operation:`, не пересобирая container и не перепроверяя его validated graph.
 Container-level `Overrides` builder остаётся правильным инструментом для
@@ -209,7 +209,7 @@ cross-project container references в source DAG.
 Xcode plugin API не предоставляет полную cross-project target dependency
 topology Tuist. Поэтому fallback 5.1 сохраняет full-source DAG и declaration
 validation, но один Xcode не может доказать все module-edge hierarchy rules.
-Если module relations `@DIComponent` / `@DIHierarchyRoot` являются release gate,
+Если module relations `@DIContainerRole(role: ContainerRole.component)` / `@DIContainerRole(role: ContainerRole.root)` являются release gate,
 сохраните topology-aware SwiftPM или CI hierarchy check. Multi-destination
 variants используют общий plugin work directory, поэтому output files не
 объявляются и Xcode может сообщать, что validation command запускается при
@@ -233,7 +233,7 @@ struct APIClient: APIClientProtocol {
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var baseURL: String
 
     @Provide(.shared, APIClient.self, with: [\Self.baseURL])
@@ -277,7 +277,7 @@ var apiClient: any APIClientProtocol
 
 Каждый контейнер, даже без управляемых членов, генерирует полный overrides
 scaffolding. Пользовательский вложенный тип `Overrides` не поддерживается в
-InnoDI 5.0 и вызывает `container.overrides-name-conflict`; переименуйте его,
+InnoDI 6.0 и вызывает `container.overrides-name-conflict`; переименуйте его,
 чтобы macro владел совместимым с mounting override ABI.
 
 Macro также генерирует зарезервированный compiler-support alias
@@ -296,9 +296,9 @@ memberwise-initializer ABI.
 аннотированные `extension` и структуры, вложенные в extensions. Также
 отклоняются объявления в любом исполняемом или локальном контексте, включая
 функции, замыкания, аксессоры и ветви `switch`. То же ограничение действует при
-совместном использовании `@DIComponent`. Состояние времени выполнения и
+совместном использовании `@DIContainerRole(role: ContainerRole.component)`. Состояние времени выполнения и
 состояние, зависящее от конкретного типа, следует скрыть за protocol
-dependencies или `@Provide(.input)`.
+dependencies или `@Input`.
 
 Явно объявленный `private` container также отклоняется: sibling containers не
 могут обращаться к его generated mount surface. Для mounting внутри файла
@@ -312,16 +312,17 @@ dependency-graph CLI сканируют полное дерево исходно
 контейнеры.
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 | Параметр | По умолчанию | Значение |
 |---|---|---|
-| `root` | `false` | Флаг точки входа только для рендера графа. Если есть хотя бы один root, вывод Mermaid, DOT и ASCII сужается до узлов и ребер, достижимых от root. |
-| `validateDAG` | `true` | Включает global DAG validation и локальные graph-derived проверки macro. При `false` отключаются global DAG и локальные cycle-проверки, но продолжаются проверка деклараций и совместимость эффектов явных sibling edges. |
-| `mainActor` | `false` | Изолирует с помощью `@MainActor` аксессоры зависимостей, все сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides` для convenience initializer, `withOverrides`, overrides дочерних контейнеров и mounting компонентов, операционные замыкания всех четырёх overload `withOverrides` и feature-root helpers. При совместном использовании с `@DIComponent` также изолируются сгенерированные protocol `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без этой опции продолжают использовать `_InnoDIComponentMountable`. Для использования вне главного актора требуется явный actor hop. Рекомендуется для корневых UI-контейнеров. |
+| `role` | обязателен для `@DIContainerRole` | `ContainerRole.local`, `.component` или `.root`. Роль root задаёт начало достижимости графа, а component — межмодульный контракт монтирования. |
+| `validateDAG` | `true` | Включает global DAG и локальные graph-derived проверки. Даже при `false` проверяются локальные циклы владения, декларации и эффекты явных sibling edges. |
+| `mainActor` | `false` | Изолирует с помощью `@MainActor` аксессоры зависимостей, все сгенерированные инициализаторы, `Overrides`, типы замыканий `applyOverrides` для convenience initializer, `withOverrides`, overrides дочерних контейнеров и mounting компонентов, операционные замыкания всех четырёх overload `withOverrides` и feature-root helpers. При совместном использовании с `@DIContainerRole(role: ContainerRole.component)` также изолируются сгенерированные protocol `<Container>Dependencies` и `init(dependencies:_:)`, а компонент получает отдельную conformance `_InnoDIMainActorComponentMountable`. Компоненты без этой опции продолжают использовать `_InnoDIComponentMountable`. Для использования вне главного актора требуется явный actor hop. Рекомендуется для корневых UI-контейнеров. |
 
-В 5.0 generic helpers для mounting компонентов должны различать два marker
+В 6.0 generic helpers для mounting компонентов должны различать два marker
 protocol. Сохраните `_InnoDIComponentMountable` для обычных компонентов, а для
 компонентов с `mainActor: true` добавьте `@MainActor` overload с constraint
 `_InnoDIMainActorComponentMountable` и `@MainActor` override closure.
@@ -334,7 +335,7 @@ protocol. Сохраните `_InnoDIComponentMountable` для обычных �
 
 ### `@Provide` и области действия
 
-InnoDI 5.0 поддерживает `@Provide` только для прямого обычного хранимого
+InnoDI 6.0 поддерживает `@Provide` только для прямого обычного хранимого
 instance `var` в том же поддерживаемом `struct` с `@DIContainer`. `let`,
 computed/observed properties, `lazy`, `weak`, `unowned`, `static`/`class`,
 самостоятельные и косвенно вложенные варианты отклоняются. Сгенерированный
@@ -346,7 +347,7 @@ Attributes и access control объявления provider также образ
 setter access modifiers вроде `private(set)` и пользовательские global-actor
 attributes. Помимо `@Provide`, не допускаются никакие source-written attributes
 уровня property, включая `@MainActor`. Запрашивайте actor isolation через
-`@DIContainer(mainActor: true)`. Isolation attributes, которые InnoDI генерирует
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`. Isolation attributes, которые InnoDI генерирует
 на provider declaration и accessor, являются внутренней поддержкой компилятора.
 Полное объявление member `@Provide` внутри `#if` также отклоняется
 диагностикой `provide.conditional-declaration-unsupported`; оставьте объявление
@@ -396,15 +397,15 @@ exit codes `0` (clean), `1` (требуются изменения) и `2` (bloc
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 | Scope | Значение | Правила создания |
 |---|---|---|
-| `.input` | Внешняя зависимость, передаваемая при инициализации контейнера | Не объявляет `factory:`, `asyncFactory:`, `Type.self`, property initializer или `with:` |
+| `@Input` | Внешняя зависимость, передаваемая при инициализации контейнера | Не объявляет `factory:`, `asyncFactory:`, `Type.self`, property initializer или `with:` |
 | `.shared` | Создается один раз на экземпляр контейнера и переиспользуется | Объявляет ровно один источник: `factory:`, `asyncFactory:`, `Type.self` или property initializer |
 | `.transient` | Создается заново при каждом доступе | Объявляет ровно один источник: `factory:`, `asyncFactory:`, `Type.self` или property initializer |
 
@@ -412,14 +413,14 @@ exit codes `0` (clean), `1` (требуются изменения) и `2` (bloc
 
 - Для `.shared` / `.transient` четыре construction source — `factory:`,
   `asyncFactory:`, `Type.self` и property initializer — взаимоисключающие.
-- `.input` отклоняет все construction sources и `with:`.
-- Сгенерированные `.input` initializer parameters остаются eager values
+- `@Input` отклоняет все construction sources и `with:`.
+- Сгенерированные `@Input` initializer parameters остаются eager values
   объявленного типа `T`; Swift как обычно вычисляет `try` / `await` argument
   expressions до вызова initializer. Прямо записанные non-optional function
   types определяются автоматически и генерируются как escaping parameters.
   Если non-optional function type скрыт за typealias, используйте
-  `@Provide(.input, escaping: true)`. `escaping:` должен быть literal Bool и
-  допустим только для `.input`. Очевидные nonfunction и optional-function
+  `@Input(escaping: true)`. `escaping:` должен быть literal Bool и
+  допустим только для `@Input`. Очевидные nonfunction и optional-function
   shapes отклоняются; если консервативно принятый identifier/member alias на
   деле не является non-optional function, Swift может выдать собственную
   диагностику.
@@ -471,7 +472,7 @@ InnoDI валидирует в несколько слоев:
 3. Global DAG validation
 
 `validateDAG: false` — это намеренно узкий opt-out. Он отключает global DAG и
-локальные cycle/graph-derived проверки, но не проверку деклараций и не
+локальные проверки доступности, но не циклы владения, проверку деклараций и не
 совместимость эффектов явных sibling edges из root closure или `with:`.
 
 ## Overrides Builder
@@ -495,13 +496,13 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 }
 ```
 
-Контейнеры только с `.input` тоже получают пустой builder. Если дочерний
+Контейнеры только с `@Input` тоже получают пустой builder. Если дочерний
 контейнер input-only, closure `<name>Overrides` все равно компилируется и
 выполняется как no-op.
 
 ## `Lazy<T>` и `Provider<T>`
 
-- `Lazy<T>` создает soft edge и используется как выход из cycle detection.
+- `Lazy<T>` откладывает разрешение зависимости в ациклическом графе. В 6.0 циклы с `Lazy<T>` / `Provider<T>` запрещены даже при `validateDAG: false`.
 - `Provider<T>` повторно входит в `.transient` зависимость при каждом вызове.
 
 ```swift
@@ -559,8 +560,8 @@ var feature: FeatureContainer
 
 Для межмодульного ownership используются:
 
-- `@DIComponent`
-- `@DIHierarchyRoot`
+- `@DIContainerRole(role: ContainerRole.component)`
+- `@DIContainerRole(role: ContainerRole.root)`
 
 ## SwiftUI helper
 
@@ -610,6 +611,14 @@ Tools/dump-macro-expansions.sh \
 одной декларации быстрее использовать **Expand Macro** в Xcode.
 
 Release notes и upgrade notes находятся в [RELEASING.md](RELEASING.md).
+
+Отсутствующие и чужие ссылки, неверная ownership и неполные child bindings
+отклоняются даже при self-diff. Запросы следуют parent bindings каждого mount,
+не смешивая несколько mounts одного child type.
+
+Миграция сохраняет старые файлы по путям `RECOVERY` даже при успехе. Закройте
+редактор и проверьте оба файла перед удалением ненужных копий. POSIX mode
+сохраняется, ACL/xattr не гарантируются. Doctor schema v3 содержит `recoveryPaths`.
 
 ## Collection Composition
 

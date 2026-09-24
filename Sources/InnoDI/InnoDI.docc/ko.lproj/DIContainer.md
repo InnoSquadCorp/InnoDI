@@ -8,9 +8,9 @@
 generic parameter나 `where` clause가 없어야 합니다. `class`, `actor`, `enum`,
 `protocol`, 직접 annotated된 `extension`, extension 안에 nested된 struct는
 거부됩니다. 함수, closure, accessor, `switch` case를 포함한 executable/local
-code scope 안의 선언도 거부됩니다. 이 경계는 `@DIComponent`를 함께 적용한
+code scope 안의 선언도 거부됩니다. 이 경계는 component 역할의 `@DIContainerRole`을 적용한
 선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
-`@Provide(.input)` 뒤로 옮기세요.
+`@Input` 뒤로 옮기세요.
 
 명시적으로 `private`인 컨테이너도 sibling container가 생성된 mount surface에
 접근할 수 없어 거부됩니다. 같은 파일에서 mount하려면 `fileprivate`를 사용하거나,
@@ -24,7 +24,8 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 ## 선언
 
 ```swift
-@DIContainer(root: Bool = false, validateDAG: Bool = true, mainActor: Bool = false)
+@DIContainer(validateDAG: Bool = true)
+@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
 ```
 
 ## 생성 표면
@@ -44,7 +45,7 @@ overload는 바뀌지 않습니다. `mainActor: true`에서는 모든 `withOverr
 operation closure가 계속 `@MainActor`입니다.
 
 관리 멤버가 없는 경우까지 지원되는 모든 컨테이너가 전체 overrides scaffolding을
-생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 5.0에서
+생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 6.0에서
 지원하지 않으며 `container.overrides-name-conflict` 오류가 발생합니다. mount 가능한
 override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바꾸세요.
 
@@ -76,7 +77,7 @@ factory와 property initializer는 opaque한 zero-edge source이며 sibling memb
 - `mainActor`: 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience
   initializer·`withOverrides`·child override·component mount에 쓰이는
   `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure,
-  feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIComponent`와 함께
+  feature-root helper에 `@MainActor` 격리를 적용합니다. component 역할과 함께
   사용하면 생성된 `<Container>Dependencies` protocol과
   `init(dependencies:_:)`도 같은 격리를 받고, component는 전용
   `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 쓰지

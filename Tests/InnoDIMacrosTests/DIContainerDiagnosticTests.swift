@@ -304,7 +304,7 @@ extension DIContainerMacroTests {
         #expect(generated.isEmpty)
         #expect(!diagnostic.notes.isEmpty)
         #expect(diagnostic.fixIts.count == 1)
-        #expect(diagnostic.fixIts.first?.message.message.contains("\\.baseURL") == true)
+        #expect(diagnostic.fixIts.first?.message.message.contains("\\Self.baseURL") == true)
     }
 
     @Test("with dependency diagnostics suppress fix-its for declaration-order unavailable shared candidates")

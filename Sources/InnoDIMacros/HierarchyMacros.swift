@@ -130,31 +130,53 @@ extension DIComponentMacro: MemberMacro {
         let accessLevel = hierarchyAccessLevelModifierText(for: declaration.modifiers)
         let protocolName = "\(nominalInfo.baseName)Dependencies"
         let inputMembers = hierarchyInputMembers(in: model)
-        let callArguments = inputMembers.map {
+        let inputCallArguments = inputMembers.map {
             "\($0.name): _innoDIDependencies.\($0.name)"
-        } + ["_innoDIApplyOverrides"]
-        let joinedArguments = callArguments.joined(separator: ", ")
+        }
+        let defaultTraceArguments = (
+            inputCallArguments + ["_innoDITrace: .disabled", "_innoDIApplyOverrides"]
+        ).joined(separator: ", ")
+        let tracedArguments = (
+            inputCallArguments + ["_innoDITrace: _innoDITrace", "_innoDIApplyOverrides"]
+        ).joined(separator: ", ")
         let isMainActor = model.options.mainActor
         let applyOverridesType = overrideApplyClosureType(
             isMainActor: isMainActor
         ).trimmedDescription
 
-        var initDecl: DeclSyntax = """
+        var protocolWitness: DeclSyntax = """
             \(raw: accessLevel)init(
                 dependencies _innoDIDependencies: any \(raw: protocolName),
                 _ _innoDIApplyOverrides: \(raw: applyOverridesType) = { _ in }
             ) {
-                self.init(\(raw: joinedArguments))
+                self.init(\(raw: defaultTraceArguments))
+            }
+            """
+        var tracedInitializer: DeclSyntax = """
+            \(raw: accessLevel)init(
+                dependencies _innoDIDependencies: any \(raw: protocolName),
+                _innoDITrace: DITraceContext,
+                _ _innoDIApplyOverrides: \(raw: applyOverridesType) = { _ in }
+            ) {
+                self.init(\(raw: tracedArguments))
             }
             """
 
-        if isMainActor, let initializer = initDecl.as(InitializerDeclSyntax.self) {
-            initDecl = DeclSyntax(
-                initializer.with(\.attributes, mainActorAttributeList())
+        if isMainActor,
+           let witness = protocolWitness.as(InitializerDeclSyntax.self),
+           let traced = tracedInitializer.as(InitializerDeclSyntax.self) {
+            protocolWitness = DeclSyntax(
+                witness.with(\.attributes, mainActorAttributeList())
+            )
+            tracedInitializer = DeclSyntax(
+                traced.with(\.attributes, mainActorAttributeList())
             )
         }
 
-        return [initDecl.prependingMARK("// MARK: - Initialization")]
+        return [
+            protocolWitness.prependingMARK("// MARK: - Initialization"),
+            tracedInitializer,
+        ]
     }
 }
 

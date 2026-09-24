@@ -5,6 +5,42 @@ import InnoDITestSupport
 
 @Suite("External SwiftPM consumer contracts", .serialized, .tags(.slow))
 struct ExternalConsumerContractTests {
+    @Test("Release smoke sources build and run before publication")
+    func releaseSmokeFixturesBuildAndRun() throws {
+        let sourceURL = packageRootURL().appendingPathComponent("Tests/RemoteConsumerSmoke")
+        let fixture = ExternalConsumerFixture(
+            name: "release-remote-smoke",
+            sourceURL: sourceURL,
+            expectation: .pass,
+            scratchProfile: try externalConsumerScratchProfile(for: sourceURL)
+        )
+        // Compile the exact publication sources against this checkout before
+        // merge. Only the dependency locator changes; the main-only remote
+        // workflow still independently proves the published revision pin.
+        let packageURL = try materializeExternalConsumerFixture(fixture, localizingRemoteRevision: true)
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let scratchPath = externalConsumerScratchPath(for: fixture, under: externalConsumerScratchRoot())
+        let build = try runStrictConcurrencyBuild(packageURL: packageURL, scratchPath: scratchPath)
+        let output = build.stdout + "\n" + build.stderr
+        #expect(!build.timedOut, Comment(rawValue: output))
+        #expect(build.exitCode == 0, Comment(rawValue: output))
+        assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+        guard !build.timedOut, build.exitCode == 0 else { return }
+        for (executable, expectedOutput) in [
+            ("MacroOnlyApp", "macro-only remote consumer OK"),
+            ("ValidatedApp", "DAG-plugin remote consumer OK"),
+        ] {
+            let result = try runExternalConsumerExecutable(
+                packageURL: packageURL,
+                scratchPath: scratchPath,
+                executable: executable
+            )
+            #expect(!result.timedOut)
+            #expect(result.exitCode == 0, Comment(rawValue: result.stdout + result.stderr))
+            #expect(result.stdout.contains(expectedOutput))
+        }
+    }
+
     @Test("Same-target assisted factory bridge builds and runs")
     func sameTargetAssistedFactoryBuilds() throws {
         let fixture = try externalConsumerFixture(
@@ -230,9 +266,33 @@ struct ExternalConsumerContractTests {
             }
             #expect(
                 missingRequired.isEmpty && unexpected.isEmpty,
-                "Fixture '\(fixture.name)' emitted a diagnostic multiset outside its exact required/optional bounds.\nRequired:\n\(formatDiagnosticMultiset(expectedCounts))\nOptional:\n\(formatDiagnosticMultiset(diagnosticMultiset(expectedDiagnostics.optional)))\nActual:\n\(formatDiagnosticMultiset(actualCounts))"
+                "Fixture '\(fixture.name)' emitted a diagnostic multiset outside its exact required/optional bounds.\nRequired:\n\(formatDiagnosticMultiset(expectedCounts))\nOptional:\n\(formatDiagnosticMultiset(diagnosticMultiset(expectedDiagnostics.optional)))\nActual:\n\(formatDiagnosticMultiset(actualCounts))\nRaw build output:\n\(output)"
             )
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+        }
+    }
+
+    @Test("Structured plugin diagnostics precede warm consumer compilation", arguments: [
+        "accessor-local-container-plugin", "subcontainer-binding-order",
+    ])
+    func pluginDiagnosticsPrecedeWarmCompilation(_ name: String) throws {
+        let fixture = try externalConsumerFixture(named: name, expectation: .fail)
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+        let expected = diagnosticMultiset(try expectedDiagnostics(for: fixture).required)
+        for attempt in 1...2 {
+            let result = try runStrictConcurrencyBuild(
+                packageURL: materializedURL,
+                scratchPath: externalConsumerScratchPath(for: fixture, under: externalConsumerScratchRoot())
+            )
+            let output = result.stdout + "\n" + result.stderr
+            #expect(!result.timedOut)
+            #expect(result.exitCode != 0)
+            let actual = diagnosticMultiset(normalizeCompilerSourceErrors(in: output).messages)
+            #expect(
+                expected.allSatisfy { actual[$0.key] == $0.value },
+                "\(name), build \(attempt): plugin diagnostics must survive warm compilation.\n\(output)"
+            )
         }
     }
 
@@ -340,7 +400,7 @@ struct ExternalConsumerContractTests {
         )
     }
 
-    @Test("External fixture scratch follows the SwiftSyntax build mode")
+    @Test("External fixture scratch isolates build mode and expectation")
     func externalFixtureScratchFollowsBuildMode() throws {
         let macroOnly = try externalConsumerFixture(
             named: "basic-container",
@@ -349,6 +409,10 @@ struct ExternalConsumerContractTests {
         let plugin = try externalConsumerFixture(
             named: "generated-qualifier-usage-sensitive-shadows",
             expectation: .pass
+        )
+        let failingPlugin = try externalConsumerFixture(
+            named: "generated-qualifier-usage-sensitive-collisions",
+            expectation: .fail
         )
         let scratchRoot = URL(fileURLWithPath: "/tmp/innodi-external-scratch-test")
         let defaultRoot = externalConsumerScratchRoot(environment: [:])
@@ -381,6 +445,11 @@ struct ExternalConsumerContractTests {
                 == externalConsumerScratchPath(for: plugin, under: scratchRoot)
         )
         #endif
+        #expect(plugin.scratchProfile == failingPlugin.scratchProfile)
+        #expect(
+            externalConsumerScratchPath(for: plugin, under: scratchRoot)
+                != externalConsumerScratchPath(for: failingPlugin, under: scratchRoot)
+        )
     }
 }
 
@@ -536,7 +605,8 @@ private func externalConsumerScratchProfile(
 }
 
 private func materializeExternalConsumerFixture(
-    _ fixture: ExternalConsumerFixture
+    _ fixture: ExternalConsumerFixture,
+    localizingRemoteRevision: Bool = false
 ) throws -> URL {
     let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent(
         "InnoDI-ExternalConsumer-\(fixture.expectation.rawValue)-\(fixture.name)-\(UUID().uuidString)",
@@ -595,6 +665,18 @@ private func materializeExternalConsumerFixture(
         )
 
         var contents = try String(contentsOf: sourceURL, encoding: .utf8)
+        if localizingRemoteRevision, outputRelativePath == "Package.swift" {
+            let dependency = try NSRegularExpression(
+                pattern: #"\.package\(\s*url:\s*"https://github\.com/InnoSquadCorp/InnoDI\.git",\s*revision:\s*"\{\{INNODI_REVISION\}\}"\s*\)"#
+            )
+            let matches = dependency.matches(in: contents, range: NSRange(contents.startIndex..., in: contents))
+            guard matches.count == 1,
+                  let range = Range(matches[0].range, in: contents) else {
+                throw ExternalConsumerFixtureError.unexpectedTemplate("remote revision dependency in \(relativePath)")
+            }
+            let path = escapedSwiftString(packageRootURL().path(percentEncoded: false))
+            contents.replaceSubrange(range, with: ".package(name: \"InnoDI\", path: \"\(path)\")")
+        }
         contents = contents.replacingOccurrences(
             of: "{{INNODI_PACKAGE_PATH}}",
             with: escapedSwiftString(packageRootURL().path(percentEncoded: false))
@@ -609,7 +691,10 @@ private func materializeExternalConsumerFixture(
         try contents.write(to: outputURL, atomically: true, encoding: .utf8)
     }
 
-    for requiredPath in ["Package.swift", "Sources/FixtureApp/FixtureApp.swift"] {
+    let requiredPaths = localizingRemoteRevision
+        ? ["Package.swift", "Sources/MacroOnlyApp/main.swift", "Sources/ValidatedApp/main.swift"]
+        : ["Package.swift", "Sources/FixtureApp/FixtureApp.swift"]
+    for requiredPath in requiredPaths {
         let requiredURL = destinationURL.appendingPathComponent(requiredPath)
         guard FileManager.default.fileExists(
             atPath: requiredURL.path(percentEncoded: false)
@@ -622,9 +707,12 @@ private func materializeExternalConsumerFixture(
     return destinationURL
 }
 
-/// A stable scratch root lets independent contract tests and repeated local
-/// invocations reuse SwiftPM-validated dependency products. The materialized
-/// consumer roots remain disposable, so their own sources are always checked.
+/// A stable scratch root lets repeated local invocations reuse SwiftPM-validated
+/// dependency products. Pass, fail, and signature consumers remain isolated so
+/// a successful plugin command cannot be reused for an intentionally failing
+/// package (or vice versa) when their generated target graphs are identical.
+/// The materialized consumer roots remain disposable, so their own sources are
+/// always checked inside that expectation boundary.
 /// `swift package clean` removes the default cache when a true cold run is
 /// required; CI can also supply an isolated absolute override.
 private func externalConsumerScratchRoot(
@@ -645,6 +733,7 @@ private func externalConsumerScratchPath(
     under root: URL
 ) -> URL {
     externalConsumerScratchPath(for: fixture.scratchProfile, under: root)
+        .appendingPathComponent(fixture.expectation.rawValue, isDirectory: true)
 }
 
 private func externalConsumerScratchPath(

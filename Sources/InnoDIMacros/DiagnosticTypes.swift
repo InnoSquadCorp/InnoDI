@@ -58,6 +58,11 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subGeneratedAccessorManualAttachment = "sub.generated-accessor-manual-attachment"
     case provideUnknownScope = "provide.unknown-scope"
     case provideUnknownInitialization = "provide.unknown-initialization"
+    case provideUnknownEffect = "provide.unknown-effect"
+    case provideInvalidCollectionMetadata = "provide.invalid-collection-metadata"
+    case provideDuplicateCollectionKey = "provide.duplicate-collection-key"
+    case provideUnknownCollectionContributor = "provide.unknown-collection-contributor"
+    case provideAsyncCollectionContributor = "provide.async-collection-contributor"
     case provideInitializationInvalidScope = "provide.initialization-invalid-scope"
     case provideOnDemandAsyncUnsupported = "provide.ondemand-async-unsupported"
     case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
@@ -179,6 +184,8 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subDuplicateAttribute,
                 .subGeneratedAccessorManualAttachment,
                 .provideUnknownScope, .provideUnknownInitialization,
+                .provideUnknownEffect,
+                .provideInvalidCollectionMetadata,
                 .provideRequiresDirectContainerMember,
                 .provideConditionalDeclarationUnsupported,
                 .provideDuplicateAttribute,
@@ -212,6 +219,9 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .multibindingUnknownContributor,
                 .multibindingAsyncContributor,
                 .multibindingTypeMismatch,
+                .provideDuplicateCollectionKey,
+                .provideUnknownCollectionContributor,
+                .provideAsyncCollectionContributor,
                 .provideAsyncFactoryInvalidScope, .provideAsyncFactoryMustBeAsync,
                 .provideFactoryMustBeSync, .provideFactoryMustNotThrow,
                 .provideEscapingInvalidScope,

@@ -38,13 +38,13 @@ package enum GeneratedQualifierDiagnosticContract {
     }
 
     package static let environmentBridgeExtensionContextUnsupportedMessage =
-        "@DIEnvironmentBridge cannot be attached to an extension or to a declaration nested in an extension in InnoDI 5.0. Move the bridge target into file or nominal scope so generated Swift and SwiftUI qualifiers can be validated."
+        "@DIEnvironmentBridge cannot be attached to an extension or to a declaration nested in an extension in InnoDI 6.0. Move the bridge target into file or nominal scope so generated Swift and SwiftUI qualifiers can be validated."
 
     package static func environmentBridgeLocalDeclarationUnsupportedMessage(
         declarationName: String,
         context: String
     ) -> String {
-        "@DIEnvironmentBridge cannot be attached to local declaration '\(declarationName)' in \(context) in InnoDI 5.0. Move the bridge target to file or nominal scope so its generated conformance has a stable lookup path."
+        "@DIEnvironmentBridge cannot be attached to local declaration '\(declarationName)' in \(context) in InnoDI 6.0. Move the bridge target to file or nominal scope so its generated conformance has a stable lookup path."
     }
 
     package static func inheritanceUnverifiableMessage(
@@ -52,6 +52,6 @@ package enum GeneratedQualifierDiagnosticContract {
         inheritedType: String,
         resolutionState: String
     ) -> String {
-        "Cannot verify inherited generated-qualifier lookup for class '\(className)' because its first inherited type '\(inheritedType)' is \(resolutionState) in the target-scoped source index. InnoDI 5.0 requires the superclass chain to be source-visible before generating dependency or environment-bridge support."
+        "Cannot verify inherited generated-qualifier lookup for class '\(className)' because its first inherited type '\(inheritedType)' is \(resolutionState) in the target-scoped source index. InnoDI 6.0 requires the superclass chain to be source-visible before generating dependency or environment-bridge support."
     }
 }
