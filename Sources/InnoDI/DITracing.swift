@@ -210,7 +210,7 @@ public struct DITraceContext: Sendable {
 public struct _InnoDITraceOwner: Sendable {
     public struct Span: Sendable {
         fileprivate let providerID: String
-        fileprivate let instanceID: UUID
+        fileprivate var instanceID: UUID
     }
 
     private final class State: @unchecked Sendable {
@@ -224,9 +224,19 @@ public struct _InnoDITraceOwner: Sendable {
             // The provider's semantic ID is immutable for this owner. Reuse
             // that string, not the span identity: every resolution still gets
             // its own UUID and replaces the latest span under the same lock.
-            let providerID = latestSpans[member]?.providerID ?? "\(containerID).\(member)"
-            let span = Span(providerID: providerID, instanceID: instanceID)
-            latestSpans[member] = span
+            return Self.replaceInstanceID(
+                in: &latestSpans[member, default: Span(
+                    providerID: "\(containerID).\(member)",
+                    instanceID: instanceID
+                )],
+                with: instanceID
+            )
+        }
+
+        private static func replaceInstanceID(in span: inout Span, with instanceID: UUID) -> Span {
+            // One dictionary modify access avoids copying an optional Span
+            // just to read its ID, then hashing/looking it up again to store it.
+            span.instanceID = instanceID
             return span
         }
 
