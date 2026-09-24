@@ -1,9 +1,10 @@
 # RFC 0006 — Assisted subgraphs and container roles
 
-- **Status**: Draft (promotion review)
+- **Status**: Accepted
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-03
 - **Last updated**: 2026-09-24
+- **Accepted**: 2026-09-24, explicit repository-owner approval of the 6.0 public syntax
 - **Target release**: Experimental groundwork in 5.2.x; stable contract in 6.0.0
 - **Supersedes in part**: RFC 0004 macro-consolidation candidates 1 and 3
 
@@ -38,8 +39,9 @@ the 6.0.0 release-readiness work. The adoption snapshots below are historical,
 not current-candidate evidence or a requirement to migrate those products.
 Bundled examples and synthetic compiler/SwiftPM consumers remain in scope.
 See the [library hardening record](../reviews/6.0.0-library-hardening.md) for
-current verification and outstanding gates. This scope update does not accept
-the RFC or authorize a merge, tag, or release.
+current verification and outstanding gates. The scope update itself did not
+accept the RFC; the subsequent explicit design approval is recorded below.
+Neither decision authorizes a merge, tag, or release.
 
 As of 2026-09-05:
 
@@ -155,10 +157,11 @@ rendering, generated dependency contracts, and hierarchy validation.
 - A minimum platform-version increase unless an accepted implementation
   requires one.
 
-## Proposed public vocabulary
+## Accepted public vocabulary
 
-The following spelling is the candidate 6.0 contract. Implementation and
-evidence freeze it for promotion review; formal RFC acceptance remains pending.
+The following spelling is the accepted 6.0 contract. The repository owner
+explicitly confirmed these syntax changes on 2026-09-24, including the 5.x
+spelling replacements documented in Migration. Acceptance does not publish 6.0.
 
 ```swift
 public enum ContainerRole {
@@ -458,7 +461,7 @@ conflation that makes assisted inputs hard to explain and extend.
 - Pilot BlPia and Lynceus flows against an exact package revision; retain
   Mulbyul as read-only/test-only evidence unless its owner later changes scope.
 - The candidate spelling was frozen after expansion, strict-concurrency,
-  graph, and consumer fixtures passed; formal acceptance remains pending.
+  graph, and consumer fixtures passed; owner acceptance followed on 2026-09-24.
 - After acceptance, ship deprecations and the idempotent rewrite from this
   contract.
 
@@ -468,7 +471,7 @@ conflation that makes assisted inputs hard to explain and extend.
 - Publish graph JSON v6 and the final migration guide.
 - Require exact-tag external consumer validation before publication.
 
-## Candidate decisions and adopter evidence
+## Accepted decisions and historical adopter evidence
 
 - Keep `@SubContainerFactory` separate from fixed `@SubContainer`; factory
   ownership and fixed child ownership remain distinct graph contracts.
@@ -486,16 +489,28 @@ conflation that makes assisted inputs hard to explain and extend.
   `3edb77b`. Mulbyul remains outside the mutation scope by explicit user
   direction.
 
-## Acceptance gate
+## Acceptance record and remaining publication gates
 
-Maintainers may accept the chosen public spellings only after the dedicated
-promotion pull request completes its seven-calendar-day review cooldown, no
-earlier than `2026-09-12T12:54:47Z`, and receives human maintainer approval.
+The repository owner explicitly approved the 6.0 public syntax on 2026-09-24
+after its assisted factories, input separation, container roles, multibinding
+and 5.x migration consequences were explained. This records that human design
+decision; it does not impersonate or submit a GitHub pull-request review.
+The dedicated [promotion PR #41](https://github.com/InnoSquadCorp/InnoDI/pull/41)
+opened at `2026-09-05T12:54:47Z`; its seven-calendar-day cooldown ended at
+`2026-09-12T12:54:47Z`, before this approval.
+
 Migration coverage, schema-v6 review, strict toolchain/platform gates,
 macro/runtime performance evidence, conforming-counterexample review, and
 the historical three committed consumer pilots are recorded in the promotion
-history. Technical evidence must be refreshed for the final library candidate;
-the acceptance gate remains pending. Under the 2026-09-24 owner scope, those
+history. The code candidate `bfd240133e745f6082aaf79f27efd7e01e43f9ca` passed
+all enabled library CI lanes; its source-bound results and local measurement
+limitations remain in the promotion record. Final-head and merged-main
+verification, GitHub maintainer review/merge, release metadata, the separate
+Release Gate and exact-tag publication verification remain distinct gates.
+This acceptance does not authorize those actions or promote `@GenerateMock`
+or scoped task-local overrides under their independent RFCs.
+
+Under the 2026-09-24 owner scope, those
 standalone products need not adopt the final 6.0 candidate before library
 publication. Mulbyul's earlier read-only failure remains historical test-only
 evidence, not a current release blocker or an adopter promotion vote.

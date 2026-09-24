@@ -283,12 +283,13 @@ standalone release assets.
   directory's normalized SwiftPM identity, matching the other examples.
   Renamed-checkout CI now tests and runs SampleApp as well as building the
   SwiftUI examples; no canonical `InnoDI` directory name is required.
-- Prepared the [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
-  promotion candidate. Repository contracts and historical consumer pilots
-  document the design; the current library-only candidate must pass its own
-  gates. Formal RFC acceptance still requires human maintainer review on the
-  dedicated promotion pull request. This entry does not approve the RFC or the
-  release.
+- Accepted [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
+  following explicit owner approval on 2026-09-24, after the promotion PR's
+  seven-day cooldown. This freezes the 6.0 assisted-factory, `@Input`, explicit
+  container-role and multibinding syntax, including the documented replacements
+  for 5.x declarations. It records design acceptance, not a GitHub PR review,
+  merge, tag or release approval. Final-candidate and merged-main verification
+  and the separate Release Gate still apply; 6.0.0 remains unreleased.
 - Re-audited all 46 excellence requirements and 25 follow-up findings against
   code candidate `6332864ea83743fd5fec99c95b98a91b1b06ae8b`. A clean Swift 6.4
   strict coverage run passed 355 tests in 37 suites with package line coverage
