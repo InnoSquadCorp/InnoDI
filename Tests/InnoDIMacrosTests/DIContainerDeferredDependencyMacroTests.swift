@@ -10,6 +10,30 @@ import Testing
 @testable import InnoDIMacros
 
 extension DIContainerMacroTests {
+    @Test("Detached transient diamond expansion grows with declarations, not paths")
+    func detachedDiamondExpansionIsLinear() {
+        func expansion(depth: Int) -> String {
+            var source = "@DIContainer struct Diamond {\n"
+            source += "@Provide(.transient) var a0: Int = 1\n"
+            source += "@Provide(.transient) var b0: Int = 2\n"
+            for level in 1...depth {
+                for side in ["a", "b"] {
+                    source += "@Provide(.transient, factory: { (a\(level - 1): Int, b\(level - 1): Int) in a\(level - 1) + b\(level - 1) }) var \(side)\(level): Int\n"
+                }
+            }
+            source += "@Provide(.shared, factory: { (a\(depth): Provider<Int>) in a\(depth) }) var root: Provider<Int>\n}"
+            let result = expandMacroSource(source, macros: Self.macros)
+            #expect(result.diagnostics.isEmpty)
+            return result.expansion
+        }
+        let small = expansion(depth: 6)
+        let large = expansion(depth: 10)
+        #expect(large.utf8.count < small.utf8.count * 2)
+        #expect(large.utf8.count < 60_000)
+        #expect(large.components(separatedBy: "a0 ?? 1").count - 1 == 1)
+        #expect(!large.contains("_lazySelf"))
+    }
+
     @Test("Lazy<T> does not exempt a shared ownership cycle")
     func lazyRejectsTwoCycleAcrossShared() {
         assertMacroExpansionDiagnosticCodes(
@@ -128,9 +152,9 @@ extension DIContainerMacroTests {
     @Test("Provider<T> factory parameter wires a shared factory to a transient target")
     func providerInSharedFactoryInjectsFreshTransient() {
         // `.shared` factory receives a Provider<Request>. Generated code
-        // should declare `_lazyCell_request` (reusing the Lazy cell
-        // infrastructure), bind `_lazyCell_request.bindResolver { _lazySelf.request }`
-        // after init, and pass `Provider({ _lazyCell_request.resolve() })` to
+        // should declare `_innoDILazyCell_request` (reusing the Lazy cell
+        // infrastructure), bind a dependency-only `_innoDIResolver_request`,
+        // and pass `Provider({ _innoDILazyCell_request.resolve() })` to
         // the factory. The snapshot captures the full init body.
         assertMacroExpansionSnapshot(
             """
@@ -182,7 +206,7 @@ extension DIContainerMacroTests {
         #expect(result.diagnostics.isEmpty)
         #expect(
             result.expansion.contains(
-                "processor ?? Processor(request: request ?? Request(config: config))"
+                "processor ?? Processor(request: _innoDIResolver_request())"
             )
         )
         #expect(!result.expansion.contains("_lazySelf"))

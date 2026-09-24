@@ -54,11 +54,12 @@ struct AppContainer {
             self._storage_holder = _innoDIResolved_holder
         }
         self._override_service = service
-        _innoDILazyCell_service.bindResolver {
+        let _innoDIResolver_service: () -> Service = {
             service ?? {
                 Service()
             }()
         }
+        _innoDILazyCell_service.bindResolver(_innoDIResolver_service)
     }
 
     // MARK: - Overrides Builder

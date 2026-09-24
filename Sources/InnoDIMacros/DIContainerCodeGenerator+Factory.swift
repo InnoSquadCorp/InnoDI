@@ -61,11 +61,64 @@ internal func makeFactoryExpr(
     throw CodegenInvariantError(description: "No factory expression available for member '\(member.name)' — validation should have caught this.")
 }
 
-/// Builds the synchronous factory expression stored by a deferred transient
-/// target without capturing the enclosing container. Stable dependencies are
-/// supplied as init-local values/cells, while hard transient dependencies are
-/// expanded recursively. Lazy/Provider edges continue to resolve through the
-/// init-local deferred cells, preserving re-entry and override behavior.
+/// Emit each reachable transient factory once, in dependency order. The local
+/// closures capture dependencies, never the enclosing container. Sharing code
+/// does not cache values: every invocation still constructs a fresh transient.
+internal func makeDetachedTransientResolverStatements(
+    members: [ProvideMemberModel],
+    stableExpressions: [String: ExprSyntax],
+    deferredTargetNameSet: Set<String>,
+    fallbackOverrideNames: Set<String>,
+    allowUnresolvedDependencyFallback: Bool
+) throws -> [CodeBlockItemSyntax] {
+    let byName = Dictionary(uniqueKeysWithValues: members.map { ($0.name, $0) })
+    let names = Set(byName.keys)
+    var remaining: [String: Int] = [:]
+    var dependents: [String: [String]] = [:]
+    for member in members {
+        let dependencies = Set(member.hardClosureDependencies + member.withDependencies)
+            .intersection(names)
+        remaining[member.name] = dependencies.count
+        for dependency in dependencies {
+            dependents[dependency, default: []].append(member.name)
+        }
+    }
+    var ready = members.filter { remaining[$0.name] == 0 }.map(\.name)
+    var index = 0
+    var statements: [CodeBlockItemSyntax] = []
+    while index < ready.count {
+        let name = ready[index]
+        index += 1
+        guard let member = byName[name] else {
+            throw CodegenInvariantError(description: "Missing detached transient '\(name)'.")
+        }
+        let expression = try makeDetachedTransientFactoryExpr(
+            member: member,
+            transientMembersByName: byName,
+            stableExpressions: stableExpressions,
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+        )
+        statements.append("""
+            let _innoDIResolver_\(raw: name): () -> \(member.type) = {
+                \(expression)
+            }
+            """)
+        for dependent in dependents[name, default: []] {
+            remaining[dependent, default: 0] -= 1
+            if remaining[dependent] == 0 { ready.append(dependent) }
+        }
+    }
+    guard index == members.count else {
+        throw CodegenInvariantError(description: "Hard transient dependency cycle reached detached code generation.")
+    }
+    return statements
+}
+
+/// A single detached factory body. Hard transient edges call typed local
+/// resolvers instead of recursively copying their entire expression trees.
+/// Lazy/Provider edges retain their existing late-bound cells.
 internal func makeDetachedTransientFactoryExpr(
     member: ProvideMemberModel,
     transientMembersByName: [String: ProvideMemberModel],
@@ -74,53 +127,17 @@ internal func makeDetachedTransientFactoryExpr(
     fallbackOverrideNames: Set<String>,
     allowUnresolvedDependencyFallback: Bool
 ) throws -> ExprSyntax {
-    try makeDetachedTransientFactoryExpr(
-        member: member,
-        transientMembersByName: transientMembersByName,
-        stableExpressions: stableExpressions,
-        deferredTargetNameSet: deferredTargetNameSet,
-        fallbackOverrideNames: fallbackOverrideNames,
-        allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback,
-        expansionStack: []
-    )
-}
-
-private func makeDetachedTransientFactoryExpr(
-    member: ProvideMemberModel,
-    transientMembersByName: [String: ProvideMemberModel],
-    stableExpressions: [String: ExprSyntax],
-    deferredTargetNameSet: Set<String>,
-    fallbackOverrideNames: Set<String>,
-    allowUnresolvedDependencyFallback: Bool,
-    expansionStack: Set<String>
-) throws -> ExprSyntax {
     guard member.scope == .transient, !member.isAsyncFactory else {
         throw CodegenInvariantError(
             description: "Detached resolver requested for non-synchronous transient member '\(member.name)'."
         )
     }
-    guard !expansionStack.contains(member.name) else {
-        throw CodegenInvariantError(
-            description: "Hard transient dependency cycle involving '\(member.name)' reached code generation."
-        )
-    }
-
-    let nextStack = expansionStack.union([member.name])
-
     func hardDependencyExpression(_ name: String) throws -> ExprSyntax {
         if let stable = stableExpressions[name] {
             return stable
         }
         if let transient = transientMembersByName[name], !transient.isAsyncFactory {
-            return try makeDetachedTransientFactoryExpr(
-                member: transient,
-                transientMembersByName: transientMembersByName,
-                stableExpressions: stableExpressions,
-                deferredTargetNameSet: deferredTargetNameSet,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback,
-                expansionStack: nextStack
-            )
+            return "_innoDIResolver_\(raw: transient.name)()"
         }
         return try resolvedInitDependencyExpression(
             name: name,

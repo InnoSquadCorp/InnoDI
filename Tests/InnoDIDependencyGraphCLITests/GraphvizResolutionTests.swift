@@ -5,6 +5,18 @@ import Testing
 
 @Suite("Graphviz executable resolution")
 struct GraphvizResolutionTests {
+    @Test("Graphviz timeout fails instead of waiting indefinitely")
+    func graphvizTimeout() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("innodi-dot-timeout-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("dot")
+        try "#!/bin/sh\ntrap '' TERM\n/bin/sleep 30\n".write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        #expect(writeDOTAsPNG(dotContent: "digraph {}", outputPath: directory.appendingPathComponent("out.png").path,
+                              environment: ["INNODI_GRAPHVIZ_DOT": executable.path], timeout: 0.1) == ExitCode.failure)
+    }
+
     @Test("dot resolution searches PATH directly")
     func dotResolutionSearchesPathDirectly() throws {
         let directory = FileManager.default.temporaryDirectory

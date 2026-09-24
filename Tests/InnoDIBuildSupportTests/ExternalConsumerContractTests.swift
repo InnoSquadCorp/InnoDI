@@ -230,9 +230,33 @@ struct ExternalConsumerContractTests {
             }
             #expect(
                 missingRequired.isEmpty && unexpected.isEmpty,
-                "Fixture '\(fixture.name)' emitted a diagnostic multiset outside its exact required/optional bounds.\nRequired:\n\(formatDiagnosticMultiset(expectedCounts))\nOptional:\n\(formatDiagnosticMultiset(diagnosticMultiset(expectedDiagnostics.optional)))\nActual:\n\(formatDiagnosticMultiset(actualCounts))"
+                "Fixture '\(fixture.name)' emitted a diagnostic multiset outside its exact required/optional bounds.\nRequired:\n\(formatDiagnosticMultiset(expectedCounts))\nOptional:\n\(formatDiagnosticMultiset(diagnosticMultiset(expectedDiagnostics.optional)))\nActual:\n\(formatDiagnosticMultiset(actualCounts))\nRaw build output:\n\(output)"
             )
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
+        }
+    }
+
+    @Test("Structured plugin diagnostics precede warm consumer compilation", arguments: [
+        "accessor-local-container-plugin", "subcontainer-binding-order",
+    ])
+    func pluginDiagnosticsPrecedeWarmCompilation(_ name: String) throws {
+        let fixture = try externalConsumerFixture(named: name, expectation: .fail)
+        let materializedURL = try materializeExternalConsumerFixture(fixture)
+        defer { try? FileManager.default.removeItem(at: materializedURL) }
+        let expected = diagnosticMultiset(try expectedDiagnostics(for: fixture).required)
+        for attempt in 1...2 {
+            let result = try runStrictConcurrencyBuild(
+                packageURL: materializedURL,
+                scratchPath: externalConsumerScratchPath(for: fixture, under: externalConsumerScratchRoot())
+            )
+            let output = result.stdout + "\n" + result.stderr
+            #expect(!result.timedOut)
+            #expect(result.exitCode != 0)
+            let actual = diagnosticMultiset(normalizeCompilerSourceErrors(in: output).messages)
+            #expect(
+                expected.allSatisfy { actual[$0.key] == $0.value },
+                "\(name), build \(attempt): plugin diagnostics must survive warm compilation.\n\(output)"
+            )
         }
     }
 

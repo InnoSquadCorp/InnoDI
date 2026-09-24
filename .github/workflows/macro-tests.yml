@@ -272,6 +272,10 @@ jobs:
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests
+      - name: Validate minimum-toolchain public API semantics
+        run: |
+          python3 -B -m unittest discover -s Tools/tests -p 'test_public_api*.py'
+          Tools/check-public-api.py
 
   xcode-27-compatibility:
     name: Xcode 27 compatibility preview
@@ -364,10 +368,11 @@ jobs:
         run: |
           swift test --filter StrictConcurrencyBuildTests.swiftUIMainActorRootBuildsUnderStrictConcurrency
           swift test --filter ExternalConsumerContractTests.compilePassFixturesBuild
-      - name: Build examples from the renamed checkout
+      - name: Validate examples from the renamed checkout
         working-directory: not-innodi
         run: |
           scratch_path="$RUNNER_TEMP/innodi-path-identity-examples"
+          (cd Examples/SampleApp && swift test --scratch-path "$scratch_path" -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors && swift run --scratch-path "$scratch_path" --skip-build SampleApp)
           (cd Examples/SwiftUIExample && swift build --scratch-path "$scratch_path")
           (cd Examples/PreviewInjectionExample && swift build --scratch-path "$scratch_path")
 

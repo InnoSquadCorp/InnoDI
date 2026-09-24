@@ -51,6 +51,11 @@ struct PluginManifestParityTests {
                 source.contains("InnoDIDAGValidationPlugin"),
                 "\(manifest) must enable target-scoped DAG validation"
             )
+            #expect(
+                source.contains("package: innoDIPackageIdentity"),
+                "\(manifest) must resolve dependencies in renamed checkouts"
+            )
+            #expect(!source.contains("package: \"InnoDI\""))
         }
     }
 
@@ -75,6 +80,8 @@ struct PluginManifestParityTests {
         #expect(source.contains("tuistWorkspaceSources"))
         #expect(source.contains("dependencies: []"))
         #expect(source.contains("declaresOutputs: false"))
+        #expect(source.contains("ordersSwiftCompilation: primaryTarget is SwiftSourceModuleTarget"))
+        #expect(source.contains("outputDirectory.appending(path: \"_InnoDIDAGValidation.generated.swift\")"))
         #expect(source.contains("module-edge hierarchy validation"))
         #expect(
             !FileManager.default.fileExists(

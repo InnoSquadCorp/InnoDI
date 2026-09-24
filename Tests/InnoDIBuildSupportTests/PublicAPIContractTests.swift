@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 4)
+        #expect(payload["schemaVersion"] as? Int == 6)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
@@ -82,11 +82,11 @@ struct PublicAPIContractTests {
         #expect(symbols.contains { ($0["parameterDefaults"] as? [Bool])?.contains(true) == true })
     }
 
-    @Test("Compiler graphs preserve defaults that real consumers require")
+    @Test("Compiler graphs preserve defaults, isolation, setters, and mutation required by consumers")
     func compilerDefaultArgumentContract() throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["python3", "Tools/tests/test_public_api_defaults.py"]
+        process.arguments = ["python3", "-B", "-m", "unittest", "discover", "-s", "Tools/tests", "-p", "test_public_api*.py"]
         process.currentDirectoryURL = packageRootURL()
         try process.run()
         process.waitUntilExit()
@@ -106,8 +106,13 @@ struct PublicAPIContractTests {
         )
 
         #expect(
-            macroTests.components(separatedBy: "Tools/check-public-api.py").count - 1 == 3
+            macroTests.components(separatedBy: "Tools/check-public-api.py").count - 1 == 4
         )
+        let minimumStart = try #require(macroTests.range(of: "  swift-62-compatibility:\n"))
+        let nextStart = try #require(macroTests.range(of: "  xcode-27-compatibility:\n"))
+        let minimumJob = macroTests[minimumStart.lowerBound..<nextStart.lowerBound]
+        #expect(minimumJob.contains("Tools/check-public-api.py"))
+        #expect(minimumJob.contains("python3 -B -m unittest discover -s Tools/tests -p 'test_public_api*.py'"))
         #expect(
             release.components(separatedBy: "Tools/check-public-api.py").count - 1 == 1
         )

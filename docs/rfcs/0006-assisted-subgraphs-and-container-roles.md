@@ -3,7 +3,7 @@
 - **Status**: Draft (promotion review)
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-03
-- **Last updated**: 2026-09-06
+- **Last updated**: 2026-09-24
 - **Target release**: Experimental groundwork in 5.2.x; stable contract in 6.0.0
 - **Supersedes in part**: RFC 0004 macro-consolidation candidates 1 and 3
 
@@ -32,6 +32,14 @@ source-visible; InnoDI does not scan loaded modules or mutate a registry at
 runtime.
 
 ## Verified baseline
+
+Current review scope (2026-09-24): the owner excludes standalone products from
+the 6.0.0 release-readiness work. The adoption snapshots below are historical,
+not current-candidate evidence or a requirement to migrate those products.
+Bundled examples and synthetic compiler/SwiftPM consumers remain in scope.
+See the [library hardening record](../reviews/6.0.0-library-hardening.md) for
+current verification and outstanding gates. This scope update does not accept
+the RFC or authorize a merge, tag, or release.
 
 As of 2026-09-05:
 
@@ -255,7 +263,7 @@ change executor behavior.
 
 ## Compile-time multibindings
 
-The accepted spelling uses one rename-safe, explicit contributor list rather
+The candidate spelling uses one rename-safe, explicit contributor list rather
 than implicit module discovery:
 
 ```swift
@@ -277,8 +285,9 @@ each contributor according to its own lifetime, so a shared contributor keeps
 its identity and a transient contributor is recreated. Contributor overrides
 remain authoritative. The collection is a normal injectable transient graph
 node and has its own override slot. Both macro expansion and the serialized
-whole-source build gate reject invalid, empty, duplicate, unknown, asynchronous,
-or written-type-mismatched contributors. The first 5.2 SPI probe was removed
+whole-source build gate reject invalid, duplicate, unknown, asynchronous,
+or written-type-mismatched contributors. An explicit empty collection is valid.
+The first 5.2 SPI probe was removed
 after the public contract and migration path replaced its evidence.
 Keyed/provider collections and explicit cross-module composition are provided
 as runtime types; automatic module discovery remains intentionally out of
@@ -304,7 +313,7 @@ Required diagnostics include:
 - generated factory/helper name collision;
 - access-level mismatch across a public component boundary;
 - conflicting root/component compatibility markers during the 5.x runway.
-- empty, duplicate, unknown, async, or differently typed multibinding
+- duplicate, unknown, async, or differently typed multibinding
   contributors, plus generated collection-name collisions.
 
 Additive 5.x graph commands should include `--why`, `--dependents`, `--unused`,
@@ -484,7 +493,9 @@ promotion pull request completes its seven-calendar-day review cooldown, no
 earlier than `2026-09-12T12:54:47Z`, and receives human maintainer approval.
 Migration coverage, schema-v6 review, strict toolchain/platform gates,
 macro/runtime performance evidence, conforming-counterexample review, and
-three committed consumer pilots are recorded on the candidate; the acceptance
-gate remains pending. Mulbyul's exact promotion-head read-only run records the
-expected `@Provide(.input)` source break plus fail-closed Doctor diagnostics;
-it remains test-only evidence and is not counted as an adopter promotion vote.
+the historical three committed consumer pilots are recorded in the promotion
+history. Technical evidence must be refreshed for the final library candidate;
+the acceptance gate remains pending. Under the 2026-09-24 owner scope, those
+standalone products need not adopt the final 6.0 candidate before library
+publication. Mulbyul's earlier read-only failure remains historical test-only
+evidence, not a current release blocker or an adopter promotion vote.

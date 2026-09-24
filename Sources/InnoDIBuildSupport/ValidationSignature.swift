@@ -16,12 +16,12 @@ struct LiveValidationSyntaxParser: ValidationSyntaxParsing {
     }
 }
 
-/// Cheap file metadata used for the first-stage cache hit check before any
-/// source bytes are loaded.
+/// File metadata for diagnostics and detecting changes during a read.
+/// Metadata equality alone is never proof of unchanged source bytes.
 struct ValidationFileFingerprint: Codable, Equatable, Sendable {
     let fileSize: Int
     let modifiedAt: TimeInterval
-    /// Physical source identity used only to validate metadata-cache hits.
+    /// Canonical source path, not an inode or proof of unchanged contents.
     ///
     /// It is intentionally excluded from the final semantic signature so a
     /// checkout move can reuse the same shared-run key after content proof.
@@ -40,8 +40,8 @@ struct ValidationFileFingerprint: Codable, Equatable, Sendable {
 
 /// Cached digest entry for one Swift source file.
 ///
-/// The collector first compares `fingerprint`, then falls back to
-/// `contentHash`, and only reparses the AST when both differ.
+/// The collector verifies `contentHash` on every invocation and only reparses
+/// the AST when the bytes differ. Fingerprints classify already-proven hits.
 struct ValidationFileDigestRecord: Codable, Equatable, Sendable {
     let fingerprint: ValidationFileFingerprint
     let contentHash: String
@@ -50,10 +50,9 @@ struct ValidationFileDigestRecord: Codable, Equatable, Sendable {
 
 /// Manifest persisted under `.build/innodi-ast-digest-cache`.
 ///
-/// This is the durable source of truth for the three-stage cache flow:
-/// metadata fingerprint -> raw content hash -> normalized AST digest.
+/// Raw content proof precedes reuse of the normalized AST digest.
 struct ValidationDigestManifest: Codable, Equatable, Sendable {
-    static let currentVersion = 6
+    static let currentVersion = 7
 
     let version: Int
     let files: [String: ValidationFileDigestRecord]
@@ -265,15 +264,13 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
                 newFiles.append(cacheKey)
             }
 
-            if let cached = existingManifest.files[cacheKey],
-               cached.fingerprint == fingerprint {
-                updatedRecords[cacheKey] = cached
-                metadataCacheHitCount += 1
-                reasonCodes.insert(.cacheHitMetadata)
-                continue
-            }
-
             let data = try Data(contentsOf: source.fileURL)
+            guard try makeFingerprint(for: source.fileURL) == fingerprint else {
+                throw CocoaError(.fileReadUnknown, userInfo: [
+                    NSFilePathErrorKey: source.fileURL.path,
+                    NSLocalizedDescriptionKey: "Source changed during validation signature collection; retry the build.",
+                ])
+            }
             let contentHash = rawContentHash(for: data)
 
             if let cached = existingManifest.files[cacheKey],
@@ -283,9 +280,15 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
                     contentHash: contentHash,
                     digest: cached.digest
                 )
-                contentHashReuseCount += 1
-                contentHashReusedFiles.append(cacheKey)
-                reasonCodes.insert(.cacheHitContentHash)
+                if cached.fingerprint == fingerprint {
+                    // Preserve the metrics shape, but only after content proof.
+                    metadataCacheHitCount += 1
+                    reasonCodes.insert(.cacheHitMetadata)
+                } else {
+                    contentHashReuseCount += 1
+                    contentHashReusedFiles.append(cacheKey)
+                    reasonCodes.insert(.cacheHitContentHash)
+                }
                 continue
             }
 

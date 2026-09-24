@@ -57,11 +57,12 @@ struct AppContainer {
             self._storage_logger = _innoDIResolved_logger
         }
         self._override_request = request
-        _innoDILazyCell_request.bindResolver {
+        let _innoDIResolver_request: () -> Request = {
             request ?? { (config: Config) in
                     Request(config: config)
                 }(config)
         }
+        _innoDILazyCell_request.bindResolver(_innoDIResolver_request)
     }
 
     // MARK: - Overrides Builder

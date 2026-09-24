@@ -662,20 +662,17 @@ private func makeInitDecl(
             }
         }
 
+        statements.append(contentsOf: try makeDetachedTransientResolverStatements(
+            members: transientMembers.filter { visitedDetachedTransientNames.contains($0.name) },
+            stableExpressions: detachedStableExpressions,
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+        ))
         for member in transientDeferredTargetMembers {
-            let resolver = try makeDetachedTransientFactoryExpr(
-                member: member,
-                transientMembersByName: transientMembersByName,
-                stableExpressions: detachedStableExpressions,
-                deferredTargetNameSet: deferredTargetNameSet,
-                fallbackOverrideNames: fallbackOverrideNames,
-                allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-            )
             statements.append(
                 """
-                _innoDILazyCell_\(raw: member.name).bindResolver {
-                    \(resolver)
-                }
+                _innoDILazyCell_\(raw: member.name).bindResolver(_innoDIResolver_\(raw: member.name))
                 """
             )
         }
@@ -693,14 +690,7 @@ private func makeInitDecl(
                       !transient.isAsyncFactory else {
                     continue
                 }
-                parentExpressions[parentName] = try makeDetachedTransientFactoryExpr(
-                    member: transient,
-                    transientMembersByName: transientMembersByName,
-                    stableExpressions: detachedStableExpressions,
-                    deferredTargetNameSet: deferredTargetNameSet,
-                    fallbackOverrideNames: fallbackOverrideNames,
-                    allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-                )
+                parentExpressions[parentName] = "_innoDIResolver_\(raw: transient.name)()"
             }
             let baseInitializer = subContainerInitializerExpr(
                 childType: member.type,

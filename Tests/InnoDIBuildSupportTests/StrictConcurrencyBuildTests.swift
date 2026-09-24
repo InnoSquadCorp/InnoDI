@@ -360,6 +360,11 @@ struct StrictConcurrencyBuildTests {
                     .path(percentEncoded: false)
             )
         )
+        let orderingSources = try findFiles(named: "_InnoDIDAGValidation.generated.swift", under: scratch)
+        #expect(!orderingSources.isEmpty)
+        let warm = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+        #expect(!warm.timedOut)
+        #expect(warm.exitCode == 0, "Unchanged valid package must still build: \(warm.stdout)\n\(warm.stderr)")
     }
 
     @Test("DAG validation plugin isolates state across plugin-attached targets", .tags(.slow))
@@ -382,6 +387,7 @@ struct StrictConcurrencyBuildTests {
         #expect(result.exitCode == 0)
 
         let stampURLs = try findFiles(named: "dag-validation-stamp.txt", under: scratch)
+        let orderingSources = try findFiles(named: "_InnoDIDAGValidation.generated.swift", under: scratch)
         let metricsURLs = try findFiles(named: "dag-validation-metrics.json", under: scratch)
         let sharedStateDirectories = try findDirectories(named: "innodi-dag-validation-state", under: scratch)
         let metrics = try metricsURLs.map { url in
@@ -390,6 +396,11 @@ struct StrictConcurrencyBuildTests {
         }
 
         #expect(stampURLs.count >= 2)
+        #expect(orderingSources.count == 2)
+        #expect(orderingSources.allSatisfy {
+            FileManager.default.fileExists(atPath: $0.deletingLastPathComponent()
+                .appendingPathComponent("dag-validation-stamp.txt").path)
+        })
         #expect(metrics.count >= 2)
         #expect(sharedStateDirectories.count == 2)
         #expect(Set(metrics.map(\.signature)).count >= 2)
