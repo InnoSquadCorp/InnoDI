@@ -38,6 +38,35 @@ struct MacroPerformanceReportReuseTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.swiftMarkerURL.path))
     }
 
+    @Test("Trend failure retains its diagnostic report without weakening the gate")
+    func trendFailurePreservesReport() throws {
+        let fixture = try MacroPerformanceReportReuseFixture()
+        defer { fixture.remove() }
+
+        let result = try fixture.runTrendCheck(historyMinimum: 5.0)
+
+        #expect(result.exitCode == 1, Comment(rawValue: result.output))
+        #expect(result.output.contains("trend regression"))
+        let report = try fixture.trendReport()
+        #expect(report["status"] as? String == "regression")
+        #expect(report["thresholdPct"] as? Double == 20.0)
+        #expect(report["regressionPct"] as? Double == 100.0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.swiftMarkerURL.path))
+    }
+
+    @Test("Passing trend retains the same diagnostic report")
+    func passingTrendPreservesReport() throws {
+        let fixture = try MacroPerformanceReportReuseFixture()
+        defer { fixture.remove() }
+
+        let result = try fixture.runTrendCheck(historyMinimum: 10.0)
+
+        #expect(result.exitCode == 0, Comment(rawValue: result.output))
+        let report = try fixture.trendReport()
+        #expect(report["status"] as? String == "ok")
+        #expect(report["regressionPct"] as? Double == 0.0)
+    }
+
     @Test("History append rejects an invalid reused report before reading commit metadata")
     func historyAppendRejectsInvalidReportEarly() throws {
         let fixture = try MacroPerformanceReportReuseFixture()
@@ -94,6 +123,14 @@ private struct MacroPerformanceReportReuseFixture {
             at: fakeBinURL,
             withIntermediateDirectories: true
         )
+        let toolsURL = rootURL.appendingPathComponent("Tools", isDirectory: true)
+        try FileManager.default.createDirectory(at: toolsURL, withIntermediateDirectories: true)
+        for name in ["check-performance-trend.sh", "validate-macro-performance-report.py"] {
+            try FileManager.default.copyItem(
+                at: packageRootURL().appendingPathComponent("Tools/\(name)"),
+                to: toolsURL.appendingPathComponent(name)
+            )
+        }
 
         try Self.report(meanMS: 11.0).write(
             to: validReportURL,
@@ -118,6 +155,12 @@ private struct MacroPerformanceReportReuseFixture {
             named: "git",
             contents: """
             #!/bin/bash
+            if [[ -n "${FAKE_TREND_HISTORY:-}" ]]; then
+              case "${1:-}" in
+                fetch|rev-parse) exit 0 ;;
+                show) /bin/cat "$FAKE_TREND_HISTORY"; exit 0 ;;
+              esac
+            fi
             if [[ "${1:-}" == "fetch" ]]; then
               exit 1
             fi
@@ -144,18 +187,39 @@ private struct MacroPerformanceReportReuseFixture {
         )
     }
 
-    func runTrendCheck() throws -> MacroPerformanceReportReuseResult {
-        try run(
+    func runTrendCheck(historyMinimum: Double? = nil) throws -> MacroPerformanceReportReuseResult {
+        var additionalEnvironment: [String: String] = [:]
+        if let historyMinimum {
+            let historyURL = rootURL.appendingPathComponent("history.json")
+            let entries = (0..<7).map { index -> [String: Any] in
+                [
+                    "commit": "fixture-\(index)",
+                    "swift_version": "Apple Swift version 6.3.3",
+                    "mode": "in-process",
+                    "filter": "MacroPerformanceBenchmark",
+                    "min_ms": historyMinimum,
+                ]
+            }
+            try JSONSerialization.data(withJSONObject: ["entries": entries]).write(to: historyURL)
+            additionalEnvironment["FAKE_TREND_HISTORY"] = historyURL.path
+        }
+        return try run(
             executable: "/bin/bash",
             arguments: [
-                packageRootURL()
+                rootURL
                     .appendingPathComponent("Tools/check-performance-trend.sh")
                     .path,
                 "--current-report",
                 validReportURL.path,
             ],
-            useFakePath: true
+            useFakePath: true,
+            additionalEnvironment: additionalEnvironment
         )
+    }
+
+    func trendReport() throws -> [String: Any] {
+        let data = try Data(contentsOf: rootURL.appendingPathComponent("build/perf-trend-report.json"))
+        return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
     func runHistoryAppendWithInvalidReport() throws -> MacroPerformanceReportReuseResult {
@@ -206,7 +270,8 @@ private struct MacroPerformanceReportReuseFixture {
     private func run(
         executable: String,
         arguments: [String],
-        useFakePath: Bool
+        useFakePath: Bool,
+        additionalEnvironment: [String: String] = [:]
     ) throws -> MacroPerformanceReportReuseResult {
         let process = Process()
         let output = Pipe()
@@ -221,6 +286,7 @@ private struct MacroPerformanceReportReuseFixture {
         }
         environment["FAKE_SWIFT_MARKER"] = swiftMarkerURL.path
         environment["FAKE_GIT_METADATA_MARKER"] = gitMetadataMarkerURL.path
+        environment.merge(additionalEnvironment) { _, new in new }
         process.environment = environment
 
         try process.run()
