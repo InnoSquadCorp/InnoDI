@@ -22,13 +22,16 @@ Before dispatching the `Release Gate` workflow:
 1. Use an unprefixed stable SemVer such as `5.0.0`; prerelease/build metadata
    and a leading `v` are not accepted.
 2. Run the main package test suite:
-   - `swift test`
+   - `swift test --no-parallel`
 3. Run the strict-concurrency suite:
-   - `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
+   - `swift test --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
+   - Serialize independent test cases, as CI does, so synchronous compiler/CLI
+     fixtures do not consume unrelated async tests' deadlines. Tests still run
+     their internal concurrent tasks, cancellation and overlapping retry checks.
    - Run the release sanitizer suites from isolated scratch paths:
-     `swift test --scratch-path .build/release-tsan --sanitize=thread -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'`
+     `swift test --no-parallel --scratch-path .build/release-tsan --sanitize=thread -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'`
      and
-     `swift test --scratch-path .build/release-asan --sanitize=address -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'`.
+     `swift test --no-parallel --scratch-path .build/release-asan --sanitize=address -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'`.
      The skipped fresh-consumer contracts spawn separate, non-instrumented
      Swift processes; the exhaustive and compatibility lanes run them instead.
 4. Build, test, and where applicable run every example under strict
