@@ -148,6 +148,87 @@ struct DITracingTests {
     }
 
     @Test(
+        "ring snapshots match an independent queue through empty, fill and repeated wrap",
+        arguments: [1, 2, 3, 64]
+    )
+    func snapshotsMatchReferenceQueue(capacity: Int) {
+        let buffer = DIBoundedTraceBuffer(capacity: capacity)
+        var expected: [DITraceEvent] = []
+        var retained: [(DIBoundedTraceBuffer.Snapshot, [DITraceEvent], Int)] = []
+        let total = capacity * 3 + 7
+
+        for index in 0...total {
+            let snapshot = buffer.snapshot()
+            let dropped = max(0, index - capacity)
+            #expect(snapshot.events == expected)
+            #expect(snapshot.droppedEventCount == dropped)
+            retained.append((snapshot, expected, dropped))
+            guard index < total else { break }
+
+            let event = DITraceEvent(
+                providerID: String(repeating: "LongSemanticProviderID.", count: 4) + "\(index)",
+                instanceID: UUID(),
+                kind: .success,
+                ownerID: UUID(),
+                generation: UInt64(index),
+                origin: .factory,
+                relatedProviderID: "LongRelatedProviderID.\(index)",
+                relatedInstanceID: UUID(),
+                uptimeNanoseconds: UInt64(index)
+            )
+            buffer.record(event)
+            expected.append(event)
+            if expected.count > capacity { expected.removeFirst() }
+        }
+
+        // Future writes must never mutate previously returned value snapshots.
+        for (snapshot, events, dropped) in retained {
+            #expect(snapshot.events == events)
+            #expect(snapshot.droppedEventCount == dropped)
+        }
+    }
+
+    @Test("reused semantic provider IDs preserve distinct concurrent span identities")
+    func concurrentOwnerSpanIdentities() async throws {
+        let buffer = DIBoundedTraceBuffer(capacity: 1_024)
+        let owner = _InnoDITraceOwner(
+            context: DITraceContext(sink: buffer, generation: 12),
+            containerType: Self.self
+        )
+        let providerID = try #require(owner.providerID(member: "shared"))
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<4 {
+                group.addTask {
+                    for _ in 0..<64 {
+                        let span = owner.start(member: "shared")
+                        owner.finish(.success, span: span)
+                    }
+                }
+            }
+        }
+
+        let explicit = owner.start(member: "shared")
+        owner.finish(.success, span: explicit)
+        let latest = owner.start(member: "shared")
+        owner.finish(.success, span: latest)
+        owner.cacheHit(member: "shared", span: explicit)
+        owner.cacheHit(member: "shared")
+
+        let snapshot = buffer.snapshot()
+        let starts = snapshot.events.filter { $0.kind == .start }
+        let successes = snapshot.events.filter { $0.kind == .success }
+        let hits = snapshot.events.filter { $0.kind == .cacheHit }
+        #expect(snapshot.droppedEventCount == 0)
+        #expect(snapshot.events.count == 518)
+        #expect(starts.count == 258)
+        #expect(Set(starts.map(\.instanceID)).count == 258)
+        #expect(Set(starts.map(\.instanceID)) == Set(successes.map(\.instanceID)))
+        #expect(snapshot.events.allSatisfy { $0.providerID == providerID && $0.generation == 12 })
+        #expect(Set(snapshot.events.map(\.ownerID)).count == 1)
+        #expect(hits.map(\.instanceID) == starts.suffix(2).map(\.instanceID))
+    }
+
+    @Test(
         "saturated buffers preserve newest-first insertion order at production capacities",
         arguments: [64, 4_096, 65_536]
     )
