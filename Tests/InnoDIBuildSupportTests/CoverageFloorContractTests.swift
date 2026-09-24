@@ -98,6 +98,9 @@ struct CoverageFloorContractTests {
         #expect(coverageGate.contains("-Xswiftc -strict-concurrency=complete"))
         #expect(coverageGate.contains("-Xswiftc -warnings-as-errors"))
         #expect(coverageGate.contains("--enable-code-coverage"))
+        #expect(coverageGate.contains("--no-parallel"))
+        #expect(!coverageGate.contains("--skip"))
+        #expect(!coverageGate.contains("--filter"))
         #expect(coverageGate.contains("BUILD_DIR=\"$(swift build"))
         #expect(coverageGate.contains("--show-bin-path)\""))
         #expect(

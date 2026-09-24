@@ -48,6 +48,7 @@ struct CIWorkflowHardeningTests {
         #expect(fastJob.contains("name: Fast PR contracts"))
         #expect(fastJob.contains("if: github.event_name == 'pull_request'"))
         #expect(fastJob.contains("timeout-minutes: 30"))
+        #expect(fastJob.contains("--no-parallel"))
         #expect(
             fastJob.contains(
                 "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
@@ -68,6 +69,30 @@ struct CIWorkflowHardeningTests {
         #expect(exhaustiveJob.contains("Tools/run-coverage-gate.sh"))
         #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
+    }
+
+    @Test("Fast PR and exhaustive jobs preserve distinct diagnostic artifacts")
+    func validationArtifactsDoNotCollide() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
+        let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
+        let sanitizerStart = try #require(workflow.range(of: "  sanitizers:\n"))
+        let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
+        let exhaustiveJob = workflow[exhaustiveStart.lowerBound..<sanitizerStart.lowerBound]
+
+        // A release-validation PR runs both jobs in the same workflow run.
+        // Immutable upload-artifact outputs must not share or overwrite a name.
+        for report in ["escape-hatch-report", "deferred-aliases-report"] {
+            #expect(fastJob.contains("          name: \(report)-fast-pr\n"))
+            #expect(!fastJob.contains("          name: \(report)\n"))
+            #expect(exhaustiveJob.contains("          name: \(report)\n"))
+        }
+        #expect(!fastJob.contains("overwrite: true"))
+        #expect(!exhaustiveJob.contains("overwrite: true"))
     }
 
     @Test("Exhaustive CI runs isolated thread and address sanitizer suites")
@@ -96,6 +121,7 @@ struct CIWorkflowHardeningTests {
         #expect(job.contains("--sanitize=thread"))
         #expect(job.contains("--scratch-path .build/main-asan"))
         #expect(job.contains("--sanitize=address"))
+        #expect(job.components(separatedBy: "--no-parallel").count - 1 == 2)
         #expect(
             job.components(
                 separatedBy: "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
