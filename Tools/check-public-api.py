@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -138,6 +138,8 @@ def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
         "isolationModifiers": sorted({re.sub(r"\s+", "", value) for value in isolation}),
     }
     kind = symbol["kind"]["identifier"]
+    if kind == "swift.typealias":
+        contract["aliasedType"] = typealias_contract(symbol)
     if kind == "swift.method":
         contract["mutating"] = bool(re.search(r"\bmutating\b", prefix_text))
     if kind in {"swift.property", "swift.type.property", "swift.subscript", "swift.type.subscript"}:
@@ -162,6 +164,48 @@ def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
         else:
             raise ValueError("Missing accessor contract for " + symbol["identifier"]["precise"])
     return contract
+
+
+def typealias_contract(symbol: dict[str, Any]) -> list[str]:
+    """Keep RHS structure/effects and referenced identities, not rendered names.
+
+    An alias USR identifies only its declaration, not its underlying type.
+    Tokenize punctuation and keywords independently of fragment/space layout;
+    use compiler identities for types (including generic parameters and actors).
+    """
+    fragments = symbol["declarationFragments"]
+    rhs = None
+    for index, fragment in enumerate(fragments):
+        if fragment["kind"] != "text":
+            continue
+        assignment = re.search(r"(?<![=<>!])=(?!=)", fragment["spelling"])
+        if assignment:
+            rhs = [{"kind": "text", "spelling": fragment["spelling"][assignment.end():]},
+                   *fragments[index + 1:]]
+            break
+    if not rhs or not any(part["spelling"].strip() for part in rhs):
+        raise ValueError("Missing typealias RHS for " + symbol["identifier"]["precise"])
+    tokens = []
+    for index, fragment in enumerate(rhs):
+        spelling = fragment["spelling"]
+        identity = fragment.get("preciseIdentifier")
+        if fragment["kind"] == "typeIdentifier" and not identity:
+            raise ValueError("Missing aliased-type identity for " + symbol["identifier"]["precise"])
+        if fragment["kind"] == "attribute" and spelling == "@":
+            following = next((part for part in rhs[index + 1:] if part["spelling"].strip()), None)
+            if following is None or not following.get("preciseIdentifier"):
+                raise ValueError("Missing aliased-actor identity for " + symbol["identifier"]["precise"])
+        if identity:
+            # Module qualifications (for example Swift.Int) are rendered as
+            # plain text before the identity-bearing type fragment. The USR
+            # already contains that qualification. Do not drop referenced
+            # enclosing types or their generic arguments.
+            while len(tokens) >= 2 and tokens[-1] == "." and re.fullmatch(r"\w+", tokens[-2]):
+                del tokens[-2:]
+            tokens.append("reference:" + identity)
+        else:
+            tokens.extend(re.findall(r"[\w]+|->|[^\s\w]", spelling))
+    return tokens
 
 
 def parameter_defaults(symbol: dict[str, Any]) -> list[bool]:

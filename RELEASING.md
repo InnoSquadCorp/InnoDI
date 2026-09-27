@@ -7,8 +7,10 @@ Latest stable public release: `5.1.0`
 Current development train: `6.0.0` (unreleased)
 
 `main` accumulates release work as independently green commits. During a
-development train, keep README installation snippets on the latest stable
-release. When the release operator is ready to publish, land one final
+development train, keep the stable installation snippet on the latest stable
+release and link its tagged documentation. Mark unreleased examples clearly
+and provide a separate local-checkout installation for them. When the release
+operator is ready to publish, land one final
 release-candidate commit that renames `## Unreleased` to the exact stable
 version, updates the latest-stable metadata and every localized README
 installation reference, and then dispatch the SHA-bound release workflow
@@ -74,13 +76,26 @@ Before dispatching the `Release Gate` workflow:
    - The baseline is hardware-sensitive. Refresh it only from a successful
      `Perf History` run on the same `macos-26` / Xcode 26.6 image used by CI;
      do not replace it with a developer-machine measurement.
+   - Benchmark version 2 verifies successful container, override, child, and
+     environment-bridge generation. Version 1 silently measured rejected child
+     wiring; its timings are not comparable. The unchanged historical baseline
+     remains deliberately incompatible until version 2 is calibrated on that
+     pinned CI image. A version mismatch retains the measurement artifact and
+     fails enforcement, even in report-only mode. Never relabel version 1
+     samples as version 2 or relax the 20% threshold to obtain a green gate.
+     Trend/history retain the benchmark version and compare like workloads only.
+     CI still runs trace and trend after a macro failure, without suppressing
+     the original job failure.
    - Run `Tools/measure-runtime-trace-performance.sh` to enforce the separate
      disabled-resolution, enabled-event, saturated-ring, snapshot, and
      writer-plus-snapshot contention budgets. The report keeps snapshot cost
      separate from record cost and covers capacities 64, 4,096, and 65,536.
-     Schema-v2 reports prefill the contention ring separately, then pace 64
+     Schema-v3 reports prefill the contention ring separately, then pace 64
      full-buffer observations across 64 writer rounds. Observed event totals
-     must fall within each round's writer-progress range. Raw monotonic intervals
+     must show real progress in each round: the reader wakes only after a
+     writer's first completed resolution, outside the reader's timed interval.
+     Writers do not wait for that reader inside their timed intervals; the
+     single wake signal stays included in writer cost. Raw monotonic intervals
      must prove at least eight overlapping observations in each quarter of
      every sample. Writer timings exclude rendezvous waits, not snapshot lock
      contention. Empty reads, post-writer-only reads, missing intervals, and
@@ -152,6 +167,10 @@ Before dispatching the `Release Gate` workflow:
       line, or advance it to a later development train
     - update every installation reference in `README.md` and the six localized
       README variants to the exact version
+    - replace the development-checkout installation and unreleased banner with
+      the exact-version installation in all seven READMEs; update the linked
+      stable documentation at the same time. The README installation contract
+      test follows the development-train/latest-stable metadata above.
     - leave exactly one matching release-notes section in this file
     - for a 6.x release, record RFC 0006 as exactly `Accepted` in both the RFC
       document and RFC index; the candidate validator rejects pending,
@@ -166,6 +185,9 @@ Before dispatching the `Release Gate` workflow:
     Release. If publication fails after the tag push, rerun only the failed
     jobs; the exact annotated tag is then the recovery anchor even if `main`
     later advances.
+    The exact-revision consumer uses the same ancestry policy after preflight,
+    while a new untagged dispatch still requires the current main tip. The
+    standalone remote smoke workflow retains its independent main-tip policy.
 16. After publication, verify the peeled remote tag SHA, GitHub Release notes,
     release immutability, the two checksum-covered assets, and `SHA256SUMS`.
     Add a fresh empty `## Unreleased` section and the next development-train
@@ -246,6 +268,20 @@ standalone release assets.
 ## Unreleased
 
 ### Highlights
+
+- Post-acceptance contract hardening:
+  - Async waiter cancellation no longer retains completed-request IDs across
+    scope resets. Caller cancellation is checked during actor-isolated
+    continuation registration; late handlers only remove live waiters.
+  - Public API baseline schema 7 additionally records typealias RHS identities,
+    structure, actor isolation, Sendable and function effects. Compiler/consumer
+    mutation tests distinguish source breaks from qualification/format changes.
+    This schema update changes no public declarations.
+  - Release exact-revision consumers preserve preflight's annotated-tag/main
+    ancestry contract after normal main progress. Untagged initial dispatches,
+    rewritten history and mismatched checkouts still fail closed.
+  - All seven READMEs distinguish unreleased 6.0 examples/local installation
+    from the published 5.1 installation and its tagged documentation.
 
 - Follow-up hardening of the c7 review candidate:
   - Validation reads and hashes source bytes before reusing any AST digest,

@@ -347,6 +347,17 @@ struct CIWorkflowHardeningTests {
         #expect(appendJob.contains("--report build/performance/macro-performance-report.json"))
     }
 
+    @Test("Independent performance checks survive failure without weakening the job")
+    func performanceFailureDoesNotSuppressOtherEvidence() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "Tools/tests/test_performance_workflow.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+
     @Test("Main CI leaves example builds to the path-filtered example matrix")
     func mainCIDoesNotDuplicateExampleBuilds() throws {
         let root = packageRootURL().appendingPathComponent(".github/workflows")

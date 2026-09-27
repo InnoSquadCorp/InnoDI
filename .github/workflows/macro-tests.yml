@@ -194,6 +194,7 @@ jobs:
           path: build/macro-performance-report.json
           if-no-files-found: error
       - name: Macro Performance Trend
+        if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
         # Compares the current lower envelope against the rolling median of
         # recent lower envelopes on `perf-history`. Catches gradual creep that
         # a single-baseline `--enforce` gate misses without promoting shared
@@ -204,6 +205,9 @@ jobs:
           Tools/check-performance-trend.sh \
             --current-report build/macro-performance-report.json
       - name: Runtime Trace Performance Check
+        # Collect independent runtime evidence even when either macro gate
+        # fails. Neither gate uses continue-on-error: the job remains failed.
+        if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
         run: Tools/measure-runtime-trace-performance.sh
       - name: Upload Runtime Trace Performance Report
         if: ${{ always() && hashFiles('build/runtime-trace-performance-report.json') != '' }}

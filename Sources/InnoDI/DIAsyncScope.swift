@@ -409,7 +409,6 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     private var phase: Phase = .idle
     private var ownedTask: Task<Value, any Error>?
     private var waiters: [UUID: CheckedContinuation<Value, any Error>] = [:]
-    private var cancelledWaiters: Set<UUID> = []
     private var retryReservation: UUID?
     private var reservationWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -553,7 +552,12 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         waiterID: UUID,
         continuation: CheckedContinuation<Value, any Error>
     ) {
-        if cancelledWaiters.remove(waiterID) != nil {
+        // This continuation body runs synchronously on this actor, in the
+        // caller's task. A cancellation delivered before registration is
+        // observable here; one delivered after this check cannot run the
+        // actor-isolated handler until registration finishes. No tombstones
+        // are needed for handlers arriving after completion or a retry.
+        if Task.isCancelled {
             continuation.resume(throwing: CancellationError())
             return
         }
@@ -580,15 +584,10 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         }
     }
 
-    private func cancel(waiterID: UUID) {
-        guard let waiter = waiters.removeValue(forKey: waiterID) else {
-            if case .idle = phase {
-                cancelledWaiters.insert(waiterID)
-            } else if case .running = phase {
-                cancelledWaiters.insert(waiterID)
-            }
-            return
-        }
+    // Internal so cancellation delivery after completion/reset can be tested
+    // deterministically without depending on executor scheduling.
+    func cancel(waiterID: UUID) {
+        guard let waiter = waiters.removeValue(forKey: waiterID) else { return }
         waiter.resume(throwing: CancellationError())
     }
 

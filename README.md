@@ -2,6 +2,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> This checkout documents **unreleased 6.0.0**. Its examples (including `@Input`) require the 6.0 development checkout, not the published 5.1.0 package.
+> [Stable 5.1.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.md).
+
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 
@@ -152,9 +156,22 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+For the examples on this page, use the local **6.0 development checkout** below (adjust `../InnoDI` to its path). No 6.0.0 release tag is available yet.
+
+For the published **5.1.0** package, use the dependency below and follow the linked stable documentation, not this page's 6.0 examples.
+[Stable 5.1.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.1.0")
 ]
 ```
+
+The remaining product, plugin, and API examples on this page use the **6.0 development checkout**.
 
 Then add the products you need:
 

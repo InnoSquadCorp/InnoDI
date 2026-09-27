@@ -15,7 +15,7 @@ def valid_report():
     observations = [
         {"round": r, "start": 1000 * r + 200, "end": 1000 * r + 600,
          "retainedEventCount": 4096,
-         "observedEmittedEventCount": (5000 * r // 64) * 8,
+         "observedEmittedEventCount": (5000 * r // 64) * 8 + 2,
          "writers": [{"writer": w, "start": 1000 * r + 100,
                       "end": 1000 * r + 700} for w in range(4)]}
         for r in range(64)
@@ -25,7 +25,8 @@ def valid_report():
               "emittedEventCount": 40000, "retainedEventCount": 4096,
               "droppedEventCount": 40000, "nanosecondsPerEvent": 3.84,
               "wallNanosecondsPerEvent": 2, "observations": observations}
-    return {"schemaVersion": 2, "iterations": 1000000, "enabledIterations": 20000,
+    return {"schemaVersion": 3, "readerStartPolicy": "after-first-resolution",
+            "iterations": 1000000, "enabledIterations": 20000,
             "candidateSHA": "a" * 40, "sourceTreeClean": True, "compilerVersion": "fixture compiler",
             "recordedEventCount": 40000, "disabledNetNanosecondsPerResolution": 1,
             "enabledNanosecondsPerEvent": 1,
@@ -64,7 +65,8 @@ class TraceReportGateTests(unittest.TestCase):
     def test_invalid_workloads(self):
         for mutation in ["empty", "tail", "unpaced", "missing", "prefill", "accounting",
                          "writer", "count", "timing", "nan", "boolean", "schema",
-                         "early-progress", "late-progress", "missing-progress", "saturated-boolean"]:
+                         "early-progress", "late-progress", "missing-progress", "saturated-boolean",
+                         "before-writers", "missing-reader-policy"]:
             with self.subTest(mutation=mutation):
                 report = valid_report()
                 sample = report["contentionMeasurements"][0]
@@ -88,6 +90,8 @@ class TraceReportGateTests(unittest.TestCase):
                 if mutation == "late-progress": observations[0]["observedEmittedEventCount"] = 40000
                 if mutation == "missing-progress": del observations[0]["observedEmittedEventCount"]
                 if mutation == "saturated-boolean": report["saturatedMeasurements"][0]["nanosecondsPerEvent"] = True
+                if mutation == "before-writers": observations[0]["observedEmittedEventCount"] = 0
+                if mutation == "missing-reader-policy": del report["readerStartPolicy"]
                 self.check(report)
 
     def test_every_budget(self):

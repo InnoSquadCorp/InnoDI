@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 6)
+        #expect(payload["schemaVersion"] as? Int == 7)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
@@ -79,6 +79,11 @@ struct PublicAPIContractTests {
             }
         })
         let symbols = graphs.flatMap { $0["symbols"] as? [[String: Any]] ?? [] }
+        let aliases = symbols.filter { ($0["kind"] as? [String: String])?["identifier"] == "swift.typealias" }
+        #expect(aliases.count == 10)
+        #expect(aliases.allSatisfy {
+            (($0["declarationContract"] as? [String: Any])?["aliasedType"] as? [String])?.isEmpty == false
+        })
         #expect(symbols.contains { ($0["parameterDefaults"] as? [Bool])?.contains(true) == true })
     }
 

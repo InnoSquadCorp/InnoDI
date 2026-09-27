@@ -171,6 +171,7 @@ for path in sorted(glob.glob(os.path.join(history_dir, "*.json"))):
         "swift_version": data.get("swift_version"),
         "mode": data.get("mode"),
         "filter": data.get("filter"),
+        "benchmark_version": data.get("benchmark_version", 1),
         "iterations": data.get("iterations"),
         "mean_ms": data.get("mean_ms"),
         "median_ms": data.get("median_ms"),
