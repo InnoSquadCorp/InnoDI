@@ -335,9 +335,19 @@ jobs:
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
 
       - name: Enforce macro performance baseline
-        run: Tools/measure-macro-performance.sh --enforce
+        id: macro_performance
+        run: Tools/measure-macro-performance.sh --enforce --output build/release-macro-performance-report.json
+
+      - name: Upload candidate macro performance report
+        if: ${{ always() && hashFiles('build/release-macro-performance-report.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-macro-performance-${{ inputs.commit_sha }}
+          path: build/release-macro-performance-report.json
+          if-no-files-found: error
 
       - name: Enforce candidate runtime trace performance
+        if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
         env:
           INNODI_RUNTIME_TRACE_EXPECTED_SHA: ${{ inputs.commit_sha }}
           INNODI_RUNTIME_TRACE_REPORT: build/release-runtime-trace-performance-report.json
@@ -428,6 +438,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
           persist-credentials: false
           sparse-checkout: |
             .github/actions/select-xcode
@@ -436,15 +447,24 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
-      - name: Confirm exact candidate is the remote main tip
+      - name: Confirm exact candidate remains on remote main
         env:
           INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
           INNODI_REVISION: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
-          remote_main="$(git ls-remote "$INNODI_REPOSITORY_URL" refs/heads/main | awk '{print $1}')"
-          if [[ "$remote_main" != "$INNODI_REVISION" ]]; then
-            echo "Expected remote main $INNODI_REVISION, found ${remote_main:-<missing>}." >&2
+          # preflight already validated either the initial main tip or an
+          # exact annotated recovery tag. Normal main progress must not
+          # invalidate that anchor; rewritten/divergent history still fails.
+          if [[ "$(git rev-parse HEAD)" != "$INNODI_REVISION" ]]; then
+            echo "Consumer fixture checkout does not match $INNODI_REVISION." >&2
+            exit 1
+          fi
+          git fetch --no-tags --force "$INNODI_REPOSITORY_URL" \
+            "refs/heads/main:refs/remotes/origin/release-consumer-main"
+          remote_main="$(git rev-parse refs/remotes/origin/release-consumer-main)"
+          if ! git merge-base --is-ancestor "$INNODI_REVISION" "$remote_main"; then
+            echo "Validated candidate $INNODI_REVISION is no longer on remote main $remote_main." >&2
             exit 1
           fi
       - name: Materialize a fresh exact-revision consumer

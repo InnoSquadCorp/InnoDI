@@ -1953,6 +1953,16 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "@",
+              "Sendable",
+              "(",
+              ")",
+              "async",
+              "throws",
+              "->",
+              "reference:s:6InnoDI12DIAsyncScopeC5Valuexmfp"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -3292,6 +3302,9 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "reference:s:Si"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -3713,6 +3726,9 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "reference:s:Si"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -4472,6 +4488,9 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "reference:s:Si"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -4550,6 +4569,12 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "(",
+              ")",
+              "->",
+              "reference:s:6InnoDI20DIProviderCollectionV7Elementxmfp"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -5765,6 +5790,9 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "reference:s:Si"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -7054,6 +7082,16 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC",
+              "<",
+              "reference:s:13InnoDISwiftUI15DIContainerHostV8Identityxmfp",
+              ",",
+              "reference:s:13InnoDISwiftUI15DIContainerHostV9Containerq_mfp",
+              ">",
+              ".",
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC5Closea"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -7133,6 +7171,16 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC",
+              "<",
+              "reference:s:13InnoDISwiftUI15DIContainerHostV8Identityxmfp",
+              ",",
+              "reference:s:13InnoDISwiftUI15DIContainerHostV9Containerq_mfp",
+              ">",
+              ".",
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC7Factorya"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -7368,6 +7416,18 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "@",
+              "reference:s:ScM",
+              "@",
+              "Sendable",
+              "(",
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC9Containerq_mfp",
+              ")",
+              "async",
+              "->",
+              "reference:s:s4Voida"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -7592,6 +7652,19 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedType": [
+              "@",
+              "reference:s:ScM",
+              "@",
+              "Sendable",
+              "(",
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC8Identityxmfp",
+              ")",
+              "async",
+              "throws",
+              "->",
+              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC9Containerq_mfp"
+            ],
             "isolationModifiers": [],
             "namedAttributes": []
           },
@@ -10303,5 +10376,5 @@
       ]
     }
   ],
-  "schemaVersion": 6
+  "schemaVersion": 7
 }

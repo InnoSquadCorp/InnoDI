@@ -3,6 +3,17 @@ import Testing
 
 @Suite("Release workflow contracts")
 struct ReleaseWorkflowContractTests {
+    @Test("Actual release guards allow validated ancestry and reject invalid anchors")
+    func releaseConsumerAnchorBehavior() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "-B", "-m", "unittest", "discover", "-s", "Tools/tests", "-p", "test_release_consumer_anchor.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+
     private var workflow: String {
         get throws {
             try String(
@@ -336,6 +347,8 @@ struct ReleaseWorkflowContractTests {
         )
 
         #expect(consumerJob.contains("ref: ${{ inputs.commit_sha }}"))
+        #expect(consumerJob.contains("fetch-depth: 0"))
+        #expect(consumerJob.contains("merge-base --is-ancestor \"$INNODI_REVISION\" \"$remote_main\""))
         #expect(consumerJob.contains("Tests/RemoteConsumerSmoke"))
         #expect(consumerJob.contains("{{INNODI_REVISION}}"))
         #expect(consumerJob.contains("INNODI_REVISION: ${{ inputs.commit_sha }}"))
@@ -408,7 +421,7 @@ struct ReleaseWorkflowContractTests {
         #expect(!workflow.contains("LOCAL_TAG_NAME"))
         #expect(!workflow.contains("+refs/tags/"))
         #expect(!workflow.contains("--force refs/tags/"))
-        #expect(workflow.components(separatedBy: "merge-base --is-ancestor").count - 1 == 2)
+        #expect(workflow.components(separatedBy: "merge-base --is-ancestor").count - 1 == 3)
         #expect(
             workflow.components(
                 separatedBy: "verify_expected_is_remote_main_ancestor"

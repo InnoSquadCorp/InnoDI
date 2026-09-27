@@ -2,6 +2,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> Dieser Checkout dokumentiert die **noch nicht veröffentlichte Version 6.0.0**. Die Beispiele einschließlich `@Input` benötigen den 6.0-Entwicklungscheckout, nicht das veröffentlichte Paket 5.1.0.
+> [Dokumentation für die stabile Version 5.1.0](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.de.md).
+
 Makrogetriebenes Dependency Injection fur Swift mit Compile- und Build-
 Validierung, Dependency-Graph-Werkzeugen, Hierarchieprufungen und SwiftUI-
 Hilfen.
@@ -147,9 +151,22 @@ Fuge InnoDI zu `Package.swift` hinzu:
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+Verwende für die Beispiele dieser Seite den lokalen **6.0-Entwicklungscheckout** und passe `../InnoDI` an dessen Pfad an. Ein Release-Tag 6.0.0 ist noch nicht verfügbar.
+
+Verwende für das veröffentlichte Paket **5.1.0** die folgende Abhängigkeit und die verlinkte stabile Dokumentation, nicht die 6.0-Beispiele dieser Seite.
+[Dokumentation für die stabile Version 5.1.0](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.de.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.1.0")
 ]
 ```
+
+Die folgenden Produkt-, Plugin- und API-Beispiele verwenden den **6.0-Entwicklungscheckout**.
 
 Dann binde die benotigten Produkte ein:
 

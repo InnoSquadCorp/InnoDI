@@ -35,6 +35,12 @@ for key in ("updated_at", "swift_version", "filter"):
 if report.get("mode") not in {"in-process", "subprocess"}:
     fail("mode must be in-process or subprocess")
 
+version = report.get("benchmark_version", 1)
+if type(version) is not int or version not in {1, 2}:
+    fail("benchmark_version must be 1 or 2")
+if version == 2 and report.get("workload_verified") is not True:
+    fail("version 2 requires a verified workload")
+
 iterations = report.get("iterations")
 if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 1:
     fail("iterations must be a positive integer")

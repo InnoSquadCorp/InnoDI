@@ -154,6 +154,7 @@ entries = [
     e for e in entries
     if e.get("mode") == current.get("mode")
        and e.get("filter") == current.get("filter")
+       and e.get("benchmark_version", 1) == current.get("benchmark_version", 1)
        and comparison_ms(e) is not None
 ]
 recent = entries[-window:]
@@ -161,6 +162,7 @@ recent = entries[-window:]
 current_min = current["min_ms"]
 report = {
     "metric": "min_ms",
+    "benchmarkVersion": current.get("benchmark_version", 1),
     "currentMinMs": current_min,
     "currentMedianMs": current.get("median_ms"),
     "currentMeanMs": current.get("mean_ms"),

@@ -188,6 +188,11 @@ private enum RuntimeTraceBenchmark {
             }
             let writerTimings = WriterTimingBox()
             let barrier = RoundBarrier(participants: writerCount + 1)
+            // A barrier alone lets the reader finish before writers wake.
+            // Wake it only after a real resolution in this round. Writers
+            // never wait for the reader inside their measured intervals;
+            // the single signal is included (conservatively) in writer cost.
+            let snapshotReady = DispatchSemaphore(value: 0)
             let completion = DispatchGroup()
             let contentionStart = DispatchTime.now().uptimeNanoseconds
             for worker in 0...writerCount {
@@ -197,6 +202,7 @@ private enum RuntimeTraceBenchmark {
                     for round in 0..<snapshotCount {
                         barrier.wait()
                         if worker == writerCount {
+                            snapshotReady.wait()
                             let start = DispatchTime.now().uptimeNanoseconds
                             let snapshot = contendedBuffer.snapshot()
                             let end = DispatchTime.now().uptimeNanoseconds
@@ -210,9 +216,12 @@ private enum RuntimeTraceBenchmark {
                             let lower = resolutionsPerWriter * round / snapshotCount
                             let upper = resolutionsPerWriter * (round + 1) / snapshotCount
                             let start = DispatchTime.now().uptimeNanoseconds
-                            for _ in lower..<upper {
+                            for resolution in lower..<upper {
                                 let span = contendedOwner.start(member: writerMember)
                                 contendedOwner.finish(.success, span: span)
+                                if worker == 0, resolution == lower {
+                                    snapshotReady.signal()
+                                }
                             }
                             let end = DispatchTime.now().uptimeNanoseconds
                             writerTimings.record(writer: worker, round: round, start: start, end: end)
@@ -246,7 +255,8 @@ private enum RuntimeTraceBenchmark {
         let disabledNet = disabledElapsed > controlElapsed
             ? disabledElapsed - controlElapsed : 0
         let report: [String: Any] = [
-            "schemaVersion": 2,
+            "schemaVersion": 3,
+            "readerStartPolicy": "after-first-resolution",
             "candidateSHA": argument("--candidate-sha", in: arguments) ?? "",
             "sourceTreeClean": argument("--source-tree-clean", in: arguments) == "true",
             "compilerVersion": argument("--compiler-version", in: arguments) ?? "",

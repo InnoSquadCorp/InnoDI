@@ -14,6 +14,8 @@ THRESHOLD_PERCENT=20
 UPDATE_BASELINE=0
 EXPLICIT_REPORT_ONLY=0
 MEASURE_MODE="in-process"
+BENCHMARK_VERSION=2
+WORKLOAD_VERIFIED=true
 FILTER_OVERRIDE=0
 # Honor an externally-set `ENFORCE_REGRESSION_GATE` so callers can opt out of
 # the regression gate even inside GitHub Actions (e.g. a workflow that wants
@@ -122,6 +124,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$MEASURE_MODE" == "subprocess" ]]; then
+  BENCHMARK_VERSION=1
+  WORKLOAD_VERIFIED=false
+fi
 
 if ! [[ "$ITERATIONS" =~ ^[0-9]+$ ]] || [[ "$ITERATIONS" -lt 1 ]]; then
   echo "--iterations must be a positive integer" >&2
@@ -272,7 +279,8 @@ run_once_ms() {
   local started ended elapsed_ms
   started="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
   if ! swift test --filter "$FILTER" >"$PERF_LOG" 2>&1; then
-    echo "[macro-perf] measured subprocess failed; check $PERF_LOG" >&2
+    cat "$PERF_LOG" >&2
+    echo "[macro-perf] measured subprocess failed; no valid measurement" >&2
     return 1
   fi
   ended="$(perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000000000')"
@@ -284,9 +292,13 @@ declare -a samples
 
 if [[ "$MEASURE_MODE" == "in-process" ]]; then
   echo "[macro-perf] mode: in-process (SwiftSyntax direct expansion)"
-  INNODI_MACRO_BENCH_ITERATIONS="$ITERATIONS" \
+  if ! INNODI_MACRO_BENCH_ITERATIONS="$ITERATIONS" \
   INNODI_MACRO_BENCH_OUTPUT="$IN_PROCESS_REPORT" \
-    swift test --filter "$FILTER" >"$PERF_LOG" 2>&1
+    swift test --filter "$FILTER" >"$PERF_LOG" 2>&1; then
+    cat "$PERF_LOG" >&2
+    echo "[macro-perf] in-process benchmark failed; no valid measurement" >&2
+    exit 1
+  fi
   if [[ ! -s "$IN_PROCESS_REPORT" ]]; then
     echo "[macro-perf] in-process benchmark produced no report; check $PERF_LOG" >&2
     exit 1
@@ -303,6 +315,8 @@ import sys
 with open(sys.argv[1]) as report_file:
     report = json.load(report_file)
 expected = int(sys.argv[2])
+if report.get("benchmark_version") != 2 or report.get("workload_verified") is not True:
+    raise SystemExit("benchmark report must verify the version 2 successful-expansion workload")
 samples = report.get("samples_ms")
 if report.get("iterations") != expected:
     raise SystemExit("benchmark report iterations do not match the requested count")
@@ -363,6 +377,8 @@ report_json="$(cat <<JSON
   "updated_at": "${updated_at}",
   "swift_version": "${swift_version_json}",
   "mode": "${MEASURE_MODE}",
+  "benchmark_version": ${BENCHMARK_VERSION},
+  "workload_verified": ${WORKLOAD_VERIFIED},
   "filter": "${FILTER}",
   "iterations": ${ITERATIONS},
   "mean_ms": ${mean_ms},
@@ -391,6 +407,15 @@ if [[ "$UPDATE_BASELINE" -eq 1 ]]; then
 fi
 
 baseline_min="$(read_json_number min_ms "$BASELINE_FILE")"
+
+# Preserve the new report even when the old baseline is incompatible. The
+# former benchmark timed invalid child wiring, so neither that baseline nor
+# its trend history is evidence for the successful-generation workload.
+baseline_version="$(read_json_number benchmark_version "$BASELINE_FILE")"
+if [[ "$MEASURE_MODE" == "in-process" && "$baseline_version" != "$BENCHMARK_VERSION" ]]; then
+  echo "[macro-perf] baseline benchmark version mismatch; calibrate version 2 on the pinned CI toolchain before enforcing it" >&2
+  exit 1
+fi
 
 if ! is_positive_number "$baseline_min"; then
   echo "[macro-perf] baseline min_ms must be a finite positive number in $BASELINE_FILE" >&2

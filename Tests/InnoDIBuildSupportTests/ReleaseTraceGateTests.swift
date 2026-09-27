@@ -15,14 +15,25 @@ struct ReleaseTraceGateTests {
 
     private func enforcesTrace(_ source: String) -> Bool {
         guard let job = section(source, from: "  release-gate:", to: "  release-compatibility:"),
+              let macro = section(job, from: "      - name: Enforce macro performance baseline",
+                                  to: "      - name: Upload candidate macro performance report"),
               let step = section(job, from: "      - name: Enforce candidate runtime trace performance",
                                  to: "      - name: Upload runtime trace diagnostics"),
               let upload = section(job, from: "      - name: Upload runtime trace diagnostics",
                                    to: "      - name: Generate release artifacts"),
               let staging = section(source, from: "  stage-release:", to: "    steps:") else { return false }
+        let conditions = step.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("if:") }
         return job.contains("ref: ${{ inputs.commit_sha }}")
             && !job.contains("continue-on-error:")
-            && !step.contains("if:")
+            // The upstream macro gate cannot be optional: otherwise a skipped
+            // macro step could also skip trace while leaving staging green.
+            && !macro.contains("if:")
+            && !macro.contains("||")
+            && macro.contains("        id: macro_performance\n")
+            && macro.contains("        run: Tools/measure-macro-performance.sh --enforce --output build/release-macro-performance-report.json\n")
+            && conditions == ["if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}"]
             && !step.contains("||")
             && step.contains("INNODI_RUNTIME_TRACE_EXPECTED_SHA: ${{ inputs.commit_sha }}")
             && step.contains("INNODI_RUNTIME_TRACE_REPORT: build/release-runtime-trace-performance-report.json")
@@ -44,6 +55,10 @@ struct ReleaseTraceGateTests {
             ("INNODI_RUNTIME_TRACE_EXPECTED_SHA: ${{ inputs.commit_sha }}", "INNODI_RUNTIME_TRACE_EXPECTED_SHA: main"),
             ("      - name: Enforce candidate runtime trace performance", "      - name: Enforce candidate runtime trace performance\n        if: false"),
             ("      - name: Enforce candidate runtime trace performance", "      - name: Enforce candidate runtime trace performance\n        continue-on-error: true"),
+            ("if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}", "if: ${{ success() }}"),
+            ("if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}", "if: false"),
+            ("      - name: Enforce macro performance baseline", "      - name: Enforce macro performance baseline\n        if: false"),
+            ("        id: macro_performance\n", ""),
             ("name: release-runtime-trace-${{ inputs.commit_sha }}", "name: unrelated-report"),
             ("      - release-gate\n", ""),
         ]

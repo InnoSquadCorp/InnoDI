@@ -2,6 +2,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> 이 체크아웃은 **미출시 6.0.0** 문서입니다. `@Input`을 포함한 예제는 공개된 5.1.0 패키지가 아니라 6.0 개발 체크아웃이 필요합니다.
+> [안정 버전 5.1.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.ko.md).
+
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
 
@@ -143,9 +147,22 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+이 페이지의 예제에는 아래 **6.0 개발 체크아웃**을 사용합니다. `../InnoDI`를 해당 경로로 바꾸세요. 아직 6.0.0 릴리스 태그는 없습니다.
+
+공개된 **5.1.0** 패키지를 사용하려면 아래 의존성을 추가하고 이 페이지의 6.0 예제 대신 연결된 안정 버전 문서를 따르세요.
+[안정 버전 5.1.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.ko.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.1.0")
 ]
 ```
+
+이하 product·plugin·API 예제는 모두 **6.0 개발 체크아웃**을 기준으로 합니다.
 
 그 다음 필요한 product를 타깃에 연결합니다.
 

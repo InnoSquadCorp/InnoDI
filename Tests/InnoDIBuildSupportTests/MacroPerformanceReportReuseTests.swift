@@ -80,6 +80,30 @@ struct MacroPerformanceReportReuseTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.swiftMarkerURL.path))
     }
 
+    @Test("Trend excludes the incompatible legacy expansion workload")
+    func trendExcludesLegacyWorkload() throws {
+        let fixture = try MacroPerformanceReportReuseFixture()
+        defer { fixture.remove() }
+        let result = try fixture.runTrendCheck(historyMinimum: 1.0, historyVersion: 1)
+        #expect(result.exitCode == 0)
+        let report = try fixture.trendReport()
+        #expect(report["status"] as? String == "insufficient-history")
+        #expect(report["considered"] as? Int == 0)
+        #expect(report["benchmarkVersion"] as? Int == 2)
+    }
+
+    @Test("Report validator rejects unverified version two measurements")
+    func validatorRejectsUnverifiedWorkload() throws {
+        let fixture = try MacroPerformanceReportReuseFixture()
+        defer { fixture.remove() }
+        let data = try String(contentsOf: fixture.validReportURL, encoding: .utf8)
+            .replacingOccurrences(of: "\"workload_verified\": true", with: "\"workload_verified\": false")
+        try data.write(to: fixture.validReportURL, atomically: true, encoding: .utf8)
+        let result = try fixture.validate(report: fixture.validReportURL)
+        #expect(result.exitCode == 1)
+        #expect(result.output.contains("requires a verified workload"))
+    }
+
     @Test("Performance history is indexed by commit time rather than SHA")
     func historyIndexUsesCommitTime() throws {
         let script = try String(
@@ -187,7 +211,7 @@ private struct MacroPerformanceReportReuseFixture {
         )
     }
 
-    func runTrendCheck(historyMinimum: Double? = nil) throws -> MacroPerformanceReportReuseResult {
+    func runTrendCheck(historyMinimum: Double? = nil, historyVersion: Int = 2) throws -> MacroPerformanceReportReuseResult {
         var additionalEnvironment: [String: String] = [:]
         if let historyMinimum {
             let historyURL = rootURL.appendingPathComponent("history.json")
@@ -196,6 +220,7 @@ private struct MacroPerformanceReportReuseFixture {
                     "commit": "fixture-\(index)",
                     "swift_version": "Apple Swift version 6.3.3",
                     "mode": "in-process",
+                    "benchmark_version": historyVersion,
                     "filter": "MacroPerformanceBenchmark",
                     "min_ms": historyMinimum,
                 ]
@@ -246,6 +271,8 @@ private struct MacroPerformanceReportReuseFixture {
           "updated_at": "2026-07-17T00:00:00Z",
           "swift_version": "Apple Swift version 6.3.3",
           "mode": "in-process",
+          "benchmark_version": 2,
+          "workload_verified": true,
           "filter": "MacroPerformanceBenchmark",
           "iterations": 2,
           "mean_ms": \(meanMS),

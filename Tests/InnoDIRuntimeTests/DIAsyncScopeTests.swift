@@ -1,4 +1,5 @@
-import InnoDI
+import Foundation
+@testable import InnoDI
 import Testing
 
 private actor ControlledAsyncOperation {
@@ -24,6 +25,7 @@ private actor ControlledAsyncOperation {
     }
 
     func succeed(with value: Int) {
+        started = false
         resultContinuation?.resume(returning: value)
         resultContinuation = nil
     }
@@ -60,6 +62,18 @@ private actor InvocationCounter {
 }
 
 private enum PlannedFailure: Error { case unavailable }
+
+private extension DIAsyncScope {
+    func diagnosticWaiterIDs() -> [UUID] {
+        let dictionary = Mirror(reflecting: self).children.first { $0.label == "waiters" }?.value
+        return (dictionary as? [UUID: CheckedContinuation<Value, any Error>]).map { Array($0.keys) } ?? []
+    }
+
+    func diagnosticCancellationMarkerCount() -> Int {
+        let markers = Mirror(reflecting: self).children.first { $0.label == "cancelledWaiters" }?.value
+        return (markers as? Set<UUID>)?.count ?? 0
+    }
+}
 
 private struct ChildValue: Equatable, Sendable {
     let parentIdentity: Int
@@ -107,6 +121,33 @@ private actor SubgraphProbe {
 
 @Suite("DIAsyncScope ownership")
 struct DIAsyncScopeTests {
+    @Test("Late cancellation after completion and reset retains no completed waiter IDs")
+    func lateCancellationDoesNotAccumulate() async throws {
+        let operation = ControlledAsyncOperation()
+        let scope = DIAsyncScope<Int>(providerID: "late-cancellation") {
+            await operation.run()
+        }
+        let waiter = Task { try await scope.value() }
+        await operation.waitUntilStarted()
+        let id = try #require(await scope.diagnosticWaiterIDs().first)
+        await operation.succeed(with: 42)
+        #expect(try await waiter.value == 42)
+        try await scope.resetForSubgraphRetry()
+        // Deliver the old handler only after its waiter completed and the
+        // scope entered a new idle generation. This is not a pre-register cancel.
+        await scope.cancel(waiterID: id)
+        #expect(await scope.diagnosticCancellationMarkerCount() == 0)
+        let next = Task { try await scope.value() }
+        await operation.waitUntilStarted()
+        await scope.cancel(waiterID: id)
+        #expect(await scope.diagnosticCancellationMarkerCount() == 0)
+        await scope.close()
+        await #expect(throws: DIAsyncScopeError.self) { try await next.value }
+        await operation.succeed(with: 99)
+        await scope.cancel(waiterID: id)
+        #expect(await scope.diagnosticCancellationMarkerCount() == 0)
+    }
+
     @Test("waiter cancellation does not cancel shared owner work")
     func waiterCancellationIsIsolated() async throws {
         let operation = ControlledAsyncOperation()

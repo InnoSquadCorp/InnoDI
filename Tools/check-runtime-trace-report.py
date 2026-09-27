@@ -17,8 +17,10 @@ for key in ("iterations", "enabledIterations"):
 disabled = report.get("disabledNetNanosecondsPerResolution")
 enabled = report.get("enabledNanosecondsPerEvent")
 expected_events = report.get("enabledIterations", 0) * 2
-if report.get("schemaVersion") != 2:
-    raise SystemExit("runtime trace report schemaVersion must equal 2")
+if report.get("schemaVersion") != 3:
+    raise SystemExit("runtime trace report schemaVersion must equal 3")
+if report.get("readerStartPolicy") != "after-first-resolution":
+    raise SystemExit("runtime trace reader must start after real writer progress")
 if report.get("recordedEventCount") != expected_events:
     raise SystemExit("runtime trace benchmark lost enabled events")
 for name, value in (("disabled", disabled), ("enabled", enabled)):
@@ -83,7 +85,7 @@ for index, item in enumerate(contention, start=1):
         resolutions = item["eventsPerWriter"] // 2
         lower = (resolutions * round_index // 64) * 8
         upper = (resolutions * (round_index + 1) // 64) * 8
-        if type(observed_events) is not int or not lower <= observed_events <= upper:
+        if type(observed_events) is not int or not lower < observed_events <= upper:
             raise SystemExit("runtime trace snapshot did not observe paced writer progress")
         start, end = observation.get("start"), observation.get("end")
         writers = observation.get("writers", [])
