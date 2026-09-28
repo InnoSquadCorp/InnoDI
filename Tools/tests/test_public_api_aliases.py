@@ -37,7 +37,7 @@ class PublicAPIAliasTests(unittest.TestCase):
             "-skip-synthesized-members", *flags,
         ], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        graph = GATE.normalize_product_graph(output, module)
+        graph = GATE.normalize_product_graph(output, module, folder)
         return {s["identifier"]["precise"]: s for s in graph["symbols"]
                 if s["kind"]["identifier"] == "swift.typealias"}
 
@@ -88,6 +88,9 @@ class PublicAPIAliasTests(unittest.TestCase):
                         public typealias All = (A, B, C)
                     }
                 }
+                extension Swift.Array {
+                    public typealias Resolver = @Sendable () -> Element
+                }
                 """)
             flags = self.extraction_flags()
             result = subprocess.run([
@@ -107,6 +110,8 @@ class PublicAPIAliasTests(unittest.TestCase):
             self.assertEqual(contracts["Outer"], ["generic:0:0"])
             self.assertEqual(contracts["Inner"], ["generic:1:0"])
             self.assertEqual(contracts["All"], ["(", "generic:0:0", ",", "generic:0:1", ",", "generic:1:0", ")"])
+            resolver = next(s for s in aliases.values() if s["pathComponents"][-1] == "Resolver")
+            self.assertEqual(resolver["declarationContract"]["aliasedSendablePositions"], [0])
 
             raw = json.loads((folder / "extracted/APIProbe.symbols.json").read_text())
             alias = next(s for s in raw["symbols"] if s["pathComponents"][-1] == "Left")
@@ -141,6 +146,12 @@ class PublicAPIAliasTests(unittest.TestCase):
             ("return", "() -> Int", "() -> String", "let p: Provider = { 42 }", True),
             ("sendable", "() -> Int", "@Sendable () -> Int",
              "final class Box { var n = 1 }; func use(_ b: Box) -> Provider { { b.n } }", True),
+            ("nested-sendable-parameter", "(() -> Int) -> Int", "(@Sendable () -> Int) -> Int",
+             "final class Box { var n = 1 }; func use(_ b: Box, _ p: Provider) -> Int { p { b.n } }", True),
+            ("nested-sendable-return", "() -> (() -> Int)", "() -> (@Sendable () -> Int)",
+             "final class Box { var n = 1 }; func use(_ b: Box) -> Provider { { { b.n } } }", True),
+            ("tuple-sendable-position", "(@Sendable () -> Int, () -> Int)", "(() -> Int, @Sendable () -> Int)",
+             "final class Box { var n = 1 }; func use(_ b: Box) -> Provider { ({ 42 }, { b.n }) }", True),
             ("actor", "() -> Int", "@MainActor () -> Int",
              "nonisolated func use(_ p: Provider) -> Int { p() }", True),
             ("async", "() -> Int", "() async -> Int",
@@ -151,6 +162,8 @@ class PublicAPIAliasTests(unittest.TestCase):
             ("generic", "[Int]", "[String]", "let p: Provider = [42]", True),
             ("qualified-control", "() -> Int", "() -> Swift.Int", "let p: Provider = { 42 }", False),
             ("format-control", "@Sendable () async throws -> Int", "@Sendable ( ) async throws -> Swift.Int",
+             "let p: Provider = { 42 }", False),
+            ("attribute-order-control", "@MainActor @Sendable () -> Int", "@Sendable @MainActor () -> Swift.Int",
              "let p: Provider = { 42 }", False),
         ]
         for name, before, after, consumer, breaking in cases:
@@ -182,8 +195,51 @@ class PublicAPIAliasTests(unittest.TestCase):
                     for fragment in formatted["declarationFragments"]:
                         if fragment["kind"] == "text":
                             fragment["spelling"] = fragment["spelling"].replace(" ", "\n\t")
-                    self.assertEqual(GATE.normalize_symbol(alias), GATE.normalize_symbol(formatted))
+                    rhs = GATE.compiler_alias_interfaces(folder, "APIProbe")[tuple(alias["pathComponents"])]
+                    self.assertEqual(GATE.normalize_symbol(alias, rhs), GATE.normalize_symbol(formatted, rhs))
                 self.assertEqual(contracts[0] != contracts[1], breaking, name)
+
+    def test_compiler_interface_scopes_and_literal_shielding(self):
+        interface = r'''
+        import Foreign
+        // public struct Fake { public typealias Wrong = @Sendable () -> Int
+        /* outer /* nested } */ public struct Fake {} */
+        @available(*, message: "struct Fake { typealias Wrong = Int }")
+        public struct One {
+          public typealias Callback = @Sendable () -> Int
+          public struct Nested<T> {
+            public typealias Callback = () -> T
+          }
+          @inlinable public func text() {
+            let text = #"""
+            public struct Fake { public typealias Wrong = Int }
+            """#
+            let interpolation = "value: \(String(describing: "}"))"
+            typealias Local = Int
+          }
+        }
+        public struct Two {
+          public typealias Callback = () -> Int
+        }
+        extension APIProbe.One {
+          public typealias Extra = (@Sendable () -> Int, () -> Int)
+        }
+        extension Foreign.Host {
+          public typealias External = () -> Int
+        }
+        '''
+        aliases = GATE.interface_aliases(interface, "APIProbe")
+        self.assertEqual(set(aliases), {("One", "Callback"), ("One", "Nested", "Callback"),
+                                        ("Two", "Callback"), ("One", "Extra"), ("Host", "External")})
+        self.assertEqual(GATE.alias_sendable_positions(aliases[("One", "Callback")]), [0])
+        self.assertEqual(GATE.alias_sendable_positions(aliases[("One", "Nested", "Callback")]), [])
+        self.assertEqual(GATE.alias_sendable_positions(aliases[("One", "Extra")]), [1])
+        with self.assertRaisesRegex(ValueError, "Ambiguous"):
+            GATE.interface_aliases(interface + "\nextension One {\n public typealias Callback = () -> Int\n}\n", "APIProbe")
+        for broken in ['/*', '"unterminated', 'public struct One {', 'public typealias Missing\n',
+                       'public typealias Empty =\n', 'public typealias OneLine = Int }']:
+            with self.subTest(broken=broken), self.assertRaises(ValueError):
+                GATE.interface_aliases(broken, "APIProbe")
 
     def test_incomplete_alias_fragments_fail_closed(self):
         alias = {
@@ -196,6 +252,8 @@ class PublicAPIAliasTests(unittest.TestCase):
                 {"kind": "typeIdentifier", "spelling": "Int", "preciseIdentifier": "s:Si"},
             ],
         }
+        with self.assertRaisesRegex(ValueError, "Missing compiler-interface alias"):
+            GATE.normalize_symbol(alias)
         for mutation in ("missing-rhs", "missing-assignment", "missing-type-identity", "missing-actor-identity"):
             with self.subTest(mutation=mutation):
                 broken = copy.deepcopy(alias)

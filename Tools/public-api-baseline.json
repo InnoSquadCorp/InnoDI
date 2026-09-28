@@ -1953,9 +1953,10 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [
+              0
+            ],
             "aliasedType": [
-              "@",
-              "Sendable",
               "(",
               ")",
               "async",
@@ -3302,6 +3303,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "reference:s:Si"
             ],
@@ -3726,6 +3728,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "reference:s:Si"
             ],
@@ -4488,6 +4491,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "reference:s:Si"
             ],
@@ -4569,6 +4573,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "(",
               ")",
@@ -5790,6 +5795,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "reference:s:Si"
             ],
@@ -7082,6 +7088,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC",
               "<",
@@ -7171,6 +7178,7 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [],
             "aliasedType": [
               "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC",
               "<",
@@ -7416,11 +7424,12 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [
+              0
+            ],
             "aliasedType": [
               "@",
               "reference:s:ScM",
-              "@",
-              "Sendable",
               "(",
               "generic:0:1",
               ")",
@@ -7652,11 +7661,12 @@
         {
           "accessLevel": "public",
           "declarationContract": {
+            "aliasedSendablePositions": [
+              0
+            ],
             "aliasedType": [
               "@",
               "reference:s:ScM",
-              "@",
-              "Sendable",
               "(",
               "generic:0:0",
               ")",
@@ -10376,5 +10386,5 @@
       ]
     }
   ],
-  "schemaVersion": 8
+  "schemaVersion": 9
 }
