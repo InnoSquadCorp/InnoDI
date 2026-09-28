@@ -1,0 +1,72 @@
+name: Runtime Trace Diagnostics (non-release)
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full 40-character commit SHA to measure (diagnostic only)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  trace-diagnostics:
+    name: Optional trace diagnostics (not a release gate)
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Validate diagnostic revision
+        env:
+          CANDIDATE_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "An exact lowercase 40-character commit SHA is required." >&2
+            exit 1
+          }
+      - name: Checkout exact diagnostic revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Measure trace diagnostics
+        id: trace
+        # Keep rejection visible: no retries, continue-on-error, or || true.
+        # This standalone manual workflow is not required by CI or release.
+        env:
+          INNODI_RUNTIME_TRACE_EXPECTED_SHA: ${{ inputs.commit_sha }}
+          INNODI_RUNTIME_TRACE_REPORT: build/runtime-trace-performance-report.json
+        run: Tools/measure-runtime-trace-performance.sh
+      - name: Upload raw trace diagnostics
+        if: ${{ always() && hashFiles('build/runtime-trace-performance-report.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-trace-diagnostics-${{ inputs.commit_sha }}
+          path: build/runtime-trace-performance-report.json
+          if-no-files-found: error
+      - name: Explain diagnostic outcome
+        if: ${{ always() }}
+        env:
+          TRACE_OUTCOME: ${{ steps.trace.outcome }}
+        run: |
+          {
+            echo '## Optional runtime trace diagnostics'
+            echo 'This run is not a release gate or a trace performance guarantee.'
+            case "$TRACE_OUTCOME" in
+              success)
+                echo 'The sample satisfied the existing diagnostic checks and reference budgets only.'
+                ;;
+              failure)
+                echo 'Diagnostic rejected: inspect the failing step for invalid measurements, reference-budget excess, or an execution error. Do not count this as a performance pass.'
+                ;;
+              *)
+                echo 'No completed diagnostic measurement. Do not count this as a performance pass.'
+                ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
