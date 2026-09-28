@@ -373,6 +373,20 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("--enforce"))
     }
 
+    @Test("Agent guidance follows the accepted grammar and calibrated measurement policy")
+    func agentGuidanceMatchesCurrentContracts() throws {
+        let guidance = try String(contentsOf: packageRootURL().appendingPathComponent("CLAUDE.md"), encoding: .utf8)
+        #expect(guidance.contains("@DIContainerRole(role: ContainerRole.local, mainActor: true)"))
+        #expect(guidance.contains("@Input(escaping: true)"))
+        #expect(!guidance.contains("@Provide(.input"))
+        #expect(!guidance.contains("@DIContainer(mainActor: true)"))
+        #expect(!guidance.contains("10% threshold"))
+        #expect(guidance.contains("minimum 5 comparable entries, 20% threshold"))
+        #expect(guidance.contains("report-only-unbaselined"))
+        #expect(guidance.contains("Perf History` is manual recovery"))
+        #expect(guidance.contains("6.0.0 remains unreleased"))
+    }
+
     @Test("Main CI leaves example builds to the path-filtered example matrix")
     func mainCIDoesNotDuplicateExampleBuilds() throws {
         let root = packageRootURL().appendingPathComponent(".github/workflows")
