@@ -198,6 +198,24 @@ struct DITracingTests {
         }
     }
 
+    @Test("Batched trace IDs remain UUID v4 across refills and independent owners", arguments: [1, 63, 64, 65, 1_025])
+    func batchedUUIDContracts(count: Int) {
+        let buffer = DIBoundedTraceBuffer(capacity: count * 2)
+        for _ in 0..<2 {
+            let owner = _InnoDITraceOwner(context: DITraceContext(sink: buffer), containerType: Self.self)
+            for _ in 0..<count { _ = owner.start(member: "value") }
+        }
+        let events = buffer.snapshot().events
+        #expect(events.count == count * 2)
+        #expect(Set(events.map(\.instanceID)).count == count * 2)
+        #expect(Set(events.map(\.ownerID)).count == 2)
+        #expect(events.allSatisfy { event in
+            let bytes = event.instanceID.uuid
+            return bytes.6 >> 4 == 4 && bytes.8 >> 6 == 2
+                && UUID(uuidString: event.instanceID.uuidString) == event.instanceID
+        })
+    }
+
     @Test("reused semantic provider IDs preserve distinct concurrent span identities")
     func concurrentOwnerSpanIdentities() async throws {
         let buffer = DIBoundedTraceBuffer(capacity: 1_024)
