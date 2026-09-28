@@ -275,6 +275,11 @@ standalone release assets.
 
 ## Unreleased
 
+- Trace sinks execute outside on-demand cell locks. Initializing state is
+  installed before a start callback, and waiters recheck it after callbacks
+  to avoid lost wakeups. Same-thread, same-cell reentry from any trace callback
+  now diagnoses immediately; callbacks may safely resolve a different cell.
+
 - Host phase observers may synchronously start or retry without losing the new
   generation's cancellation handle or overwriting its phase. Cleanup barriers
   are installed before notifications; replacements started from an idle or

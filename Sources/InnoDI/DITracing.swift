@@ -67,6 +67,8 @@ public struct DITraceEvent: Codable, Equatable, Sendable {
 
 /// Synchronous trace destination. Implementations must return quickly; InnoDI
 /// never blocks provider construction on asynchronous logging or upload work.
+/// Callbacks execute outside runtime locks. Resolving the same on-demand cell
+/// again from its callback is synchronous reentry and traps with a diagnostic.
 public protocol DITraceSink: Sendable {
     func record(_ event: DITraceEvent)
 }
@@ -290,20 +292,31 @@ public struct _InnoDITraceOwner: Sendable {
     }
 
     public func start(member: String) -> Span? {
+        let span = prepareSpan(member: member)
+        emitStart(span: span)
+        return span
+    }
+
+    // Split allocation from notification so deferred cells can install their
+    // initializing state before invoking a user-supplied synchronous sink.
+    func prepareSpan(member: String) -> Span? {
         guard let state else { return nil }
         let instanceID = UUID()
-        let span = state.start(member: member, containerID: containerID, instanceID: instanceID)
+        return state.start(member: member, containerID: containerID, instanceID: instanceID)
+    }
+
+    func emitStart(span: Span?) {
+        guard let state, let span else { return }
         context.record(
             DITraceEvent(
                 providerID: span.providerID,
-                instanceID: instanceID,
+                instanceID: span.instanceID,
                 kind: .start,
                 ownerID: state.ownerID,
                 generation: generation,
                 origin: .factory
             )
         )
-        return span
     }
 
     public func finish(_ kind: DITraceEvent.Kind, span: Span?) {
