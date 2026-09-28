@@ -274,6 +274,7 @@ jobs:
       - name: Validate repository contracts
         run: |
           set -euo pipefail
+          python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
           Tools/check-no-fatalerror-in-macros.sh
           Tools/check-ci-validation-opt-out.sh
           Tools/check-ci-action-pins.sh

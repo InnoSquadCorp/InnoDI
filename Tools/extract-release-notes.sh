@@ -36,7 +36,9 @@ elif [[ $awk_status -ne 0 ]]; then
   exit "$awk_status"
 fi
 
-if [[ -z "${notes//[$' \t\r\n']/}" ]]; then
+# Bash 3.2's repeated pattern replacement can take minutes on a long release
+# section. Test for a non-whitespace character without rewriting the body.
+if [[ ! "$notes" =~ [^[:space:]] ]]; then
   echo "no release notes found for tag $tag in $release_doc" >&2
   exit 1
 fi

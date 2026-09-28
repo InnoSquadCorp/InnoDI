@@ -280,6 +280,10 @@ standalone release assets.
   preparation, on-demand services, and SwiftUI container lifecycle helpers.
   See the breaking changes and upgrade actions below before updating from 5.x.
 
+- Release-note extraction handles long Unicode sections on macOS's system
+  Bash without repeated full-string whitespace substitution. Exact content,
+  missing-section, and empty-section contracts are covered by subprocess tests.
+
 - Apple trace owners amortize OS random generation in a bounded, lazy 1 KiB
   batch while retaining random UUID v4 instance IDs. The owner lock protects
   batch refill and consumption; disabled tracing allocates no batch. The
