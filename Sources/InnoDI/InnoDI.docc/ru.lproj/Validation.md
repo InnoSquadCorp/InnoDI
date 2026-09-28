@@ -21,7 +21,8 @@ closure `factory:`/`asyncFactory:` либо `Type.self` с literal key paths
 источники и не могут ссылаться на sibling members.
 
 `validateDAG: false` не отключает проверку деклараций и совместимость эффектов;
-пропускаются только global DAG, local cycle и другие graph-derived проверки.
+пропускаются только global DAG и локальные graph-derived проверки доступности.
+Локальные циклы владения всегда отклоняются, в том числе проходящие через `Lazy` или `Provider`.
 
 ## Build Validation
 

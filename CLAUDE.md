@@ -141,10 +141,10 @@ are rejected. Keep the full-source preflight enabled to cover attached-macro
 ancestry limits.
 
 The root role controls strict hierarchy validation and graph reachability,
-not just rendering. `validateDAG: false` skips global DAG
-validation plus the macro's local cycle and other graph-derived checks. It
-never disables declaration validation or effect compatibility on explicit
-sibling edges.
+not just rendering. `validateDAG: false` skips global DAG validation and local
+graph-derived availability checks. Local ownership cycles are always rejected,
+including cycles through `Lazy` or `Provider`. It never disables declaration
+validation or effect compatibility on explicit sibling edges.
 
 `Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
 every container `validateDAG: false` site plus any active

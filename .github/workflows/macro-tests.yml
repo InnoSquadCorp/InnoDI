@@ -169,7 +169,8 @@ jobs:
       - name: Report Deferred-Wrapper Alias Findings
         # Surfaces cross-file `typealias L = Lazy<T>` / `typealias P = Provider<T>`
         # that the macro's same-file canonical-identifier check cannot see.
-        # Cross-file aliases silently behave as hard edges, breaking cycle escape.
+        # Cross-file aliases are not recognized as deferred wrappers. Review
+        # their construction/order behavior; wrappers never exempt ownership cycles.
         # Informational; reviewers decide whether each finding is intentional.
         run: |
           {

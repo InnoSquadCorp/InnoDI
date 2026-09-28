@@ -31,7 +31,8 @@ InnoDI는 의존성 정의를 여러 단계에서 검증합니다.
 member를 참조할 수 없습니다.
 
 `validateDAG: false`는 선언 검증이나 효과 호환성 검증을 끄지 않습니다. global
-DAG, local cycle, 그 밖의 graph-derived 진단만 건너뜁니다.
+DAG와 로컬 graph-derived 가용성 검사만 건너뜁니다. 로컬 소유권 순환은 항상 거부됩니다.
+`Lazy`나 `Provider`를 통하는 순환도 예외가 아닙니다.
 
 ## Build Validation
 
