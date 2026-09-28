@@ -90,29 +90,26 @@ Before dispatching the `Release Gate` workflow:
      Trend/history retain the benchmark version and compare like workloads only.
      Fewer than five version-2 history entries means insufficient trend evidence,
      not a measured trend pass. Keep version-1 history unchanged.
-     CI still runs trace and trend after a macro failure, without suppressing
+     CI still runs trend after a macro failure, without suppressing
      the original job failure.
-   - Run `Tools/measure-runtime-trace-performance.sh` to enforce the separate
-     disabled-resolution, enabled-event, saturated-ring, snapshot, and
-     writer-plus-snapshot contention budgets. The report keeps snapshot cost
-     separate from record cost and covers capacities 64, 4,096, and 65,536.
-     Schema-v3 reports prefill the contention ring separately, then pace 64
-     full-buffer observations across 64 writer rounds. Observed event totals
-     must show real progress in each round: the reader wakes only after a
-     writer's first completed resolution, outside the reader's timed interval.
-     Writers do not wait for that reader inside their timed intervals; the
-     single wake signal stays included in writer cost. Raw monotonic intervals
-     must prove at least eight overlapping observations in each quarter of
-     every sample. Writer timings exclude rendezvous waits, not snapshot lock
-     contention. Empty reads, post-writer-only reads, missing intervals, and
-     inconsistent counts fail before the unchanged latency budgets are applied.
-     Release Gate executes this script with `INNODI_RUNTIME_TRACE_EXPECTED_SHA`
-     set to the dispatch candidate and retains a SHA-named diagnostic artifact.
-     The report records SHA, clean/dirty source state, and compiler version;
-     wrong-SHA or dirty release candidates fail before benchmark compilation.
-     Staging depends on this non-optional gate. Local dirty-tree measurements
-     remain labeled as such and are not release evidence.
-     Do not replace these CI budgets with a developer-machine measurement.
+   - Runtime trace timing is **optional diagnostic evidence, not a release
+     gate**. The user approved this policy change on 2026-09-28 after review
+     found scheduler-dependent overlap and measurement-definition limitations.
+     Neither normal CI nor Release Gate runs the trace benchmark. InnoDI 6.0.0
+     does not guarantee the checked-in trace nanosecond budgets.
+   - To investigate trace costs, dispatch `Runtime Trace Diagnostics (non-release)`
+     with a full `commit_sha`, or run `Tools/measure-runtime-trace-performance.sh`
+     locally. The manual workflow requires a clean exact-SHA checkout and retains
+     raw reports even when diagnostic checks fail. Invalid workloads and budget
+     excess still return failure; they are not silently converted into passes.
+     A missing, skipped, or cancelled measurement is not a performance pass.
+     The existing budgets remain diagnostic reference values, not newly
+     calibrated acceptance thresholds. See [trace measurement policy and
+     limitations](docs/internal/trace-performance-6.0.md).
+   - This exception changes only trace timing policy. Macro performance,
+     correctness, coverage, concurrency, TSAN/ASAN, compatibility, platform,
+     documentation, and consumer requirements remain in force. Removing this
+     gate is not evidence of a performance fix or release readiness.
      This microbenchmark does not replace an actual consumer runtime pilot.
 10. Generate DocC:
     - `Tools/generate-docc.sh`
@@ -289,6 +286,11 @@ standalone release assets.
   batch refill and consumption; disabled tracing allocates no batch. The
   existing trace workloads and budgets are unchanged. See
   [profiling evidence](docs/internal/trace-performance-6.0.md).
+
+- Runtime trace timing moves from mandatory CI/release gating to optional,
+  exact-SHA manual diagnostics. Raw measurements and rejection checks remain;
+  the reference budgets are not a 6.0.0 performance guarantee. Functional trace
+  tests, sanitizer checks, and the separate macro-performance gate are unchanged.
 
 - Trace sinks execute outside on-demand cell locks. Initializing state is
   installed before a start callback, and waiters recheck it after callbacks
