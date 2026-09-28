@@ -320,6 +320,21 @@ private func makeInitDecl(
                 .map(\.name)
         }
     )
+    // An async task can retain these cells alongside the original container.
+    // Check both payloads and captures, including transitive on-demand inputs.
+    // Main-actor factories stay on their actor and keep unrestricted handles.
+    var sendableOnDemandNames = mainActorEnabled ? Set<String>() : asyncResolvedTargetNames
+    var pendingSendableNames = Array(sendableOnDemandNames)
+    let onDemandMembersByName = Dictionary(uniqueKeysWithValues: syncSharedMembers
+        .filter { $0.initialization == .onDemand }.map { ($0.name, $0) })
+    while let name = pendingSendableNames.popLast() {
+        guard let member = onDemandMembersByName[name] else { continue }
+        for dependency in member.explicitDependencies {
+            if sendableOnDemandNames.insert(dependency).inserted {
+                pendingSendableNames.append(dependency)
+            }
+        }
+    }
     let onDemandHardDependencyNames = Set(
         syncSharedMembers
             .filter { $0.initialization == .onDemand }
@@ -402,15 +417,17 @@ private func makeInitDecl(
         if member.initialization == .onDemand {
             let cellName = "_innoDIOnDemand_\(member.name)"
             let typeDescription = member.type.trimmedDescription
+            let isSendableCell = sendableOnDemandNames.contains(member.name)
+            let cellType = isSendableCell ? "_InnoDISendableSharedCell" : "_InnoDISharedCell"
             let declaration: CodeBlockItemSyntax = """
-                let \(raw: cellName): InnoDI._InnoDISharedCell<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
-                    InnoDI._InnoDISharedCell(
+                let \(raw: cellName): InnoDI.\(raw: cellType)<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
+                    InnoDI.\(raw: cellType)(
                         traceOwner: _innoDITraceOwner,
                         providerName: "\(raw: member.name)",
                         value: _innoDIOverride
                     )
                 } else {
-                    InnoDI._InnoDISharedCell(
+                    InnoDI.\(raw: cellType)(
                         traceOwner: _innoDITraceOwner,
                         providerName: "\(raw: member.name)"
                     ) { \(factoryExpr) }
@@ -420,9 +437,14 @@ private func makeInitDecl(
             statements.append(
                 CodeBlockItemSyntax(
                     item: .expr(
-                        assignExpr(
-                            targetName: storageName,
-                            valueName: cellName
+                            assignExprWithValue(
+                                targetName: storageName,
+                                value: isSendableCell
+                                    ? ExprSyntax(MemberAccessExprSyntax(
+                                        base: DeclReferenceExprSyntax(baseName: .identifier(cellName)),
+                                        declName: DeclReferenceExprSyntax(baseName: .identifier("isolated"))
+                                    ))
+                                    : ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(cellName)))
                         )
                     )
                 )

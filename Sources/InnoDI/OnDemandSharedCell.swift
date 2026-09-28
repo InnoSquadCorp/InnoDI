@@ -7,8 +7,12 @@ import Foundation
 /// containers receive independent cells. The factory runs outside the lock;
 /// concurrent readers wait for the same result and same-thread re-entry traps
 /// immediately instead of deadlocking forever.
+///
+/// This deferred handle is intentionally non-Sendable. The lock protects
+/// initialization, not the payload or arbitrary values captured by its factory.
+/// Keep it on the container's isolation domain, just like `Lazy` and `Provider`.
 @_documentation(visibility: internal)
-public final class _InnoDISharedCell<Value>: @unchecked Sendable {
+public final class _InnoDISharedCell<Value> {
     private enum State {
         case pending(() -> Value)
         case initializing(owner: ObjectIdentifier, span: _InnoDITraceOwner.Span?)
@@ -87,4 +91,33 @@ public final class _InnoDISharedCell<Value>: @unchecked Sendable {
             }
         }
     }
+}
+
+/// Compiler support for an on-demand dependency captured by an async factory.
+///
+/// Unlike the unrestricted deferred cell, construction checks both the payload
+/// and every factory capture. Its private initialization state is lock-protected;
+/// the exposed isolated view cannot replace its factory or payload. No conversion
+/// from an already-created, unrestricted cell is provided.
+@_documentation(visibility: internal)
+public struct _InnoDISendableSharedCell<Value: Sendable>: @unchecked Sendable {
+    public let isolated: _InnoDISharedCell<Value>
+
+    public init(
+        traceOwner: _InnoDITraceOwner,
+        providerName: String,
+        factory: @escaping @Sendable () -> Value
+    ) {
+        isolated = _InnoDISharedCell(
+            traceOwner: traceOwner, providerName: providerName, factory: factory
+        )
+    }
+
+    public init(traceOwner: _InnoDITraceOwner, providerName: String, value: Value) {
+        isolated = _InnoDISharedCell(
+            traceOwner: traceOwner, providerName: providerName, value: value
+        )
+    }
+
+    public func value() -> Value { isolated.value() }
 }

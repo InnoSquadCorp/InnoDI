@@ -3,11 +3,21 @@ import Testing
 
 @testable import InnoDI
 
-private final class GeneratedTraceValue: @unchecked Sendable {
+private final class GeneratedTraceValue: Sendable {
     let sequence: Int
 
     init(sequence: Int) {
         self.sequence = sequence
+    }
+}
+
+// This test-only adapter proves both the value and factory captures safe before
+// deliberately sharing a non-Sendable runtime cell to exercise physical waiters.
+private final class ConcurrentTraceCell: @unchecked Sendable {
+    let cell: _InnoDISharedCell<GeneratedTraceValue>
+
+    init(owner: _InnoDITraceOwner, factory: @escaping @Sendable () -> GeneratedTraceValue) {
+        cell = _InnoDISharedCell(traceOwner: owner, providerName: "slow", factory: factory)
     }
 }
 
@@ -432,23 +442,20 @@ struct DITracingTests {
         )
         let entered = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 0)
-        let cell = _InnoDISharedCell<GeneratedTraceValue>(
-            traceOwner: owner,
-            providerName: "slow"
-        ) {
+        let shared = ConcurrentTraceCell(owner: owner) {
             entered.signal()
             release.wait()
             return GeneratedTraceValue(sequence: 1)
         }
 
-        let first = Task.detached { cell.value() }
+        let first = Task.detached { shared.cell.value() }
         await withCheckedContinuation { continuation in
             DispatchQueue.global().async {
                 entered.wait()
                 continuation.resume()
             }
         }
-        let second = Task.detached { cell.value() }
+        let second = Task.detached { shared.cell.value() }
         try await Task.sleep(for: .milliseconds(20))
         release.signal()
         let values = await [first.value, second.value]
