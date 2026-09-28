@@ -93,8 +93,9 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 
 ## DAG Opt-Outs
 
-- `validateDAG: false` disables graph-derived cycle and unresolved-reference
-  checks for that container.
+- `validateDAG: false` disables global DAG validation and local graph-derived
+  availability checks for that container. Local ownership cycles are always rejected,
+  including cycles through `Lazy` or `Provider`.
 - Structural validation still runs. Unsupported custom `init` declarations,
   invalid `@SubContainer` bindings, malformed deferred wrappers, and other
   local macro rules are still diagnosed.
@@ -104,15 +105,17 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 
 ## Deferred Wrapper Limits
 
-- `Lazy<T>` and `Provider<T>` defer container-member access after init-time
-  wiring, so those edges are rendered but excluded from hard cycle detection.
+- `Lazy<T>` and `Provider<T>` defer construction but do not break ownership cycles.
+  Both local ownership validation and global DAG validation include deferred edges.
+  Use them for on-demand resolution and acyclic forward references, not cyclic wiring.
 - The deferral is only effective when the factory receives the wrapper and
   stores or forwards it. If a factory immediately calls the wrapper while constructing
   the dependency, the dependency is effectively eager again. InnoDI diagnoses
   direct `lazy()` / `provider()` calls and their direct `callAsFunction()` /
   `resolver()` spellings inside `.shared` construction.
 - Indirect eager calls through helper functions are not type-checked by InnoDI;
-  review those factories manually when breaking cycles with deferred wrappers.
+  review those factories manually to preserve deferred construction. Restructure
+  ownership to remove cycles instead of trying to hide them behind wrappers.
 
 <!-- innodi:compile -->
 ```swift

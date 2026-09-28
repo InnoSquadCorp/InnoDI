@@ -31,8 +31,9 @@ with `Type.self`. Non-closure factories and property initializers are opaque
 zero-edge sources and must not reference sibling members.
 
 `validateDAG: false` does not disable declaration validation or explicit-edge
-effect compatibility. It skips global DAG validation, local cycle validation,
-and other graph-derived checks only.
+effect compatibility. It skips global DAG validation and local graph-derived
+availability checks. Local ownership cycles are always rejected, including
+cycles through `Lazy` or `Provider`.
 
 ## Build Validation
 
