@@ -281,11 +281,17 @@ standalone release assets.
   - Async waiter cancellation no longer retains completed-request IDs across
     scope resets. Caller cancellation is checked during actor-isolated
     continuation registration; late handlers only remove live waiters.
-  - Public API baseline schema 8 additionally records typealias RHS identities,
+  - Public API baseline schema 9 additionally records typealias RHS identities,
     structure, actor isolation, Sendable and function effects. Compiler/consumer
     mutation tests distinguish source breaks from qualification/format changes.
     Generic RHS references use compiler-declared depth/index slots so direct
     symbol-graph emission and serialized-module extraction compare identically.
+    Swift 6.2 omits function `@Sendable` from symbol graphs. The gate exports a
+    compiler interface from each built module and records Sendable positions
+    within alias type structure, including nested parameter/return/tuple
+    functions. It never infers a missing effect from source text or the baseline.
+    Nominal-scope lookup prevents same-named aliases from being conflated;
+    missing or ambiguous compiler-interface declarations fail closed.
     Unknown nominal identities and ambiguous parameter metadata still fail
     closed. Tests exercise both compiler paths and distinct nested generic slots.
     This schema update changes no public declarations.

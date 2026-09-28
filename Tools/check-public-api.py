@@ -5,14 +5,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -76,7 +79,7 @@ def dump_symbol_graphs(package_root: Path) -> Path:
     return output_directory
 
 
-def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
+def normalize_symbol(symbol: dict[str, Any], alias_rhs: list[str] | None = None) -> dict[str, Any]:
     normalized = {
         key: value
         for key, value in symbol.items()
@@ -87,7 +90,7 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
         "precise": symbol["identifier"]["precise"],
         "interfaceLanguage": symbol["identifier"]["interfaceLanguage"],
     }
-    normalized["declarationContract"] = declaration_contract(symbol)
+    normalized["declarationContract"] = declaration_contract(symbol, alias_rhs)
     # Older symbol-graph emitters omit functionSignature for macros, including
     # parameterless ones. Their declaration fragments still carry defaults.
     if "functionSignature" in symbol or symbol["kind"]["identifier"] == "swift.macro":
@@ -103,7 +106,7 @@ def normalize_symbol(symbol: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
+def declaration_contract(symbol: dict[str, Any], alias_rhs: list[str] | None = None) -> dict[str, Any]:
     """Retain actor isolation, accessor capability, and self-mutation semantics.
 
     Compiler declaration fragments carry facts missing from USRs and method
@@ -139,7 +142,16 @@ def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
     }
     kind = symbol["kind"]["identifier"]
     if kind == "swift.typealias":
-        contract["aliasedType"] = typealias_contract(symbol)
+        tokens = typealias_contract(symbol)
+        if alias_rhs is None:
+            raise ValueError("Missing compiler-interface alias for " + symbol["identifier"]["precise"])
+        # Swift 6.2 symbol graphs omit @Sendable, even though consumers enforce
+        # it. Keep that effect from the serialized module's compiler interface
+        # on every toolchain, never from source spelling or the old baseline.
+        contract["aliasedType"] = [token for index, token in enumerate(tokens)
+                                   if not (token == "@" and tokens[index + 1:index + 2] == ["Sendable"])
+                                   and not (token == "Sendable" and index > 0 and tokens[index - 1] == "@")]
+        contract["aliasedSendablePositions"] = alias_sendable_positions(alias_rhs)
     if kind == "swift.method":
         contract["mutating"] = bool(re.search(r"\bmutating\b", prefix_text))
     if kind in {"swift.property", "swift.type.property", "swift.subscript", "swift.type.subscript"}:
@@ -164,6 +176,198 @@ def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
         else:
             raise ValueError("Missing accessor contract for " + symbol["identifier"]["precise"])
     return contract
+
+
+def interface_tokens(text: str) -> list[str]:
+    """Lex compiler interface declarations, shielding comments and literals.
+
+    This is not a source-level type inference fallback. Only the interface
+    emitted from the already-built module is accepted by the caller.
+    """
+    def comment_end(start: int) -> int:
+        if text.startswith("//", start):
+            end = text.find("\n", start)
+            return len(text) if end < 0 else end
+        depth, cursor = 1, start + 2
+        while cursor < len(text) and depth:
+            if text.startswith("/*", cursor):
+                depth += 1
+                cursor += 2
+            elif text.startswith("*/", cursor):
+                depth -= 1
+                cursor += 2
+            else:
+                cursor += 1
+        if depth:
+            raise ValueError("Unterminated compiler-interface comment")
+        return cursor
+
+    def string_end(start: int) -> int | None:
+        match = re.match(r'(#+)?("""|")', text[start:])
+        if not match:
+            return None
+        hashes, quotes = match.group(1) or "", match.group(2)
+        cursor = start + len(match.group())
+        while cursor < len(text):
+            if text.startswith(quotes + hashes, cursor):
+                return cursor + len(quotes) + len(hashes)
+            if text.startswith("\\" + hashes, cursor):
+                cursor += 1 + len(hashes)
+                if text[cursor:cursor + 1] == "(":
+                    depth, cursor = 1, cursor + 1
+                    while cursor < len(text) and depth:
+                        if text.startswith(("//", "/*"), cursor):
+                            cursor = comment_end(cursor)
+                        elif (end := string_end(cursor)) is not None:
+                            cursor = end
+                        else:
+                            depth += (text[cursor] == "(") - (text[cursor] == ")")
+                            cursor += 1
+                    if depth:
+                        raise ValueError("Unterminated compiler-interface interpolation")
+                else:
+                    cursor += 1
+            else:
+                cursor += 1
+        raise ValueError("Unterminated compiler-interface string")
+
+    tokens, cursor = [], 0
+    while cursor < len(text):
+        if text.startswith(("//", "/*"), cursor):
+            cursor = comment_end(cursor)
+        elif (end := string_end(cursor)) is not None:
+            tokens.append("<literal>")
+            cursor = end
+        elif text[cursor] == "\n":
+            tokens.append("\n")
+            cursor += 1
+        elif text[cursor].isspace():
+            cursor += 1
+        else:
+            match = re.match(r'`[^`\n]+`|\w+|->|::|==|[^\s]', text[cursor:])
+            if not match:
+                raise ValueError("Unknown compiler-interface token")
+            tokens.append(match.group())
+            cursor += len(match.group())
+    return tokens
+
+
+def interface_aliases(text: str, module: str) -> dict[tuple[str, ...], list[str]]:
+    """Index aliases by nominal scope, not ambiguous leaf names or line numbers."""
+    tokens = interface_tokens(text)
+    aliases: dict[tuple[str, ...], list[str]] = {}
+    scopes: list[tuple[str, ...] | None] = []
+    modules = {module}
+    pending, index = None, 0
+    identifier = lambda token: bool(re.fullmatch(r'`[^`]+`|\w+', token))
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "import" and index + 1 < len(tokens) and identifier(tokens[index + 1]):
+            modules.add(tokens[index + 1].strip("`"))
+        elif token in {"struct", "class", "enum", "actor", "protocol", "extension"}:
+            cursor = index + 1
+            if cursor < len(tokens) and identifier(tokens[cursor]) and tokens[cursor] not in {"func", "var", "subscript"}:
+                names = [tokens[cursor].strip("`")]
+                cursor += 1
+                while cursor + 1 < len(tokens) and tokens[cursor] in {".", "::"} and identifier(tokens[cursor + 1]):
+                    names.append(tokens[cursor + 1].strip("`"))
+                    cursor += 2
+                if len(names) > 1 and names[0] in modules:
+                    names.pop(0)
+                pending = tuple(names)
+        elif token in {"func", "init", "deinit", "var", "subscript"}:
+            pending = None
+        elif token == "{":
+            scopes.append(pending)
+            pending = None
+        elif token == "}":
+            if not scopes:
+                raise ValueError("Unbalanced compiler-interface scope")
+            scopes.pop()
+            pending = None
+        elif token == "typealias" and all(scope is not None for scope in scopes):
+            if index + 1 >= len(tokens) or not identifier(tokens[index + 1]):
+                raise ValueError("Missing compiler-interface alias name")
+            name, cursor = tokens[index + 1].strip("`"), index + 2
+            while cursor < len(tokens) and tokens[cursor] not in {"=", "\n", "{", "}"}:
+                cursor += 1
+            if cursor == len(tokens) or tokens[cursor] != "=":
+                raise ValueError("Missing compiler-interface alias assignment")
+            end = cursor + 1
+            while end < len(tokens) and tokens[end] not in {"\n", "{", "}"}:
+                end += 1
+            rhs = tokens[cursor + 1:end]
+            if not rhs or (end < len(tokens) and tokens[end] != "\n"):
+                raise ValueError("Incomplete compiler-interface alias RHS")
+            path = tuple(part for scope in scopes for part in scope) + (name,)
+            if path in aliases and aliases[path] != rhs:
+                raise ValueError("Ambiguous compiler-interface alias: " + ".".join(path))
+            aliases[path] = rhs
+            index = end
+        index += 1
+    if scopes:
+        raise ValueError("Unclosed compiler-interface scope")
+    return aliases
+
+
+def alias_sendable_positions(tokens: list[str]) -> list[int]:
+    """Locate each function's @Sendable without toolchain-rendered type names.
+
+    Structural punctuation distinguishes outer, parameter, return and tuple
+    function types. Other attributes do not shift these locations; their
+    identities/effects remain in the symbol-graph RHS contract.
+    """
+    positions, position, index = [], 0, 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "@":
+            index += 1
+            if index == len(tokens):
+                raise ValueError("Incomplete compiler-interface type attribute")
+            if tokens[index] == "Sendable":
+                positions.append(position)
+            index += 1
+            while index + 1 < len(tokens) and tokens[index] in {".", "::"}:
+                index += 2
+            if index < len(tokens) and tokens[index] == "(" and tokens[index - 1] == "convention":
+                while index < len(tokens) and tokens[index] != ")":
+                    index += 1
+                if index == len(tokens):
+                    raise ValueError("Unclosed compiler-interface convention")
+                index += 1
+            continue
+        if token in {"(", ")", "[", "]", "<", ">", ",", ":", "->", "?", "!", "&"}:
+            position += 1
+        index += 1
+    return positions
+
+
+def compiler_alias_interfaces(module_directory: Path, module: str) -> dict[tuple[str, ...], list[str]]:
+    info = json.loads(subprocess.check_output(["swiftc", "-print-target-info"], text=True))
+    arch = info["target"]["arch"]
+    candidates = []
+    for directory in (module_directory, module_directory / "Modules"):
+        path = directory / (module + ".swiftmodule")
+        candidates.extend([path] if path.is_file() else sorted(path.glob(arch + "-*.swiftmodule")))
+    candidates = sorted({path.resolve() for path in candidates})
+    if len(candidates) != 1:
+        raise ValueError(f"Expected one built module for {module}, found {candidates}")
+    frontend = shutil.which("swift-frontend") or subprocess.check_output(
+        ["xcrun", "--find", "swift-frontend"], text=True).strip()
+    sdk = os.environ.get("SDKROOT") or subprocess.check_output(
+        ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True).strip()
+    with tempfile.TemporaryDirectory(prefix="innodi-api-interface-") as temporary:
+        folder = Path(temporary)
+        interface = folder / (module + ".swiftinterface")
+        result = subprocess.run([
+            frontend, "-merge-modules", "-emit-module", "-emit-module-path", str(folder / (module + ".swiftmodule")),
+            "-emit-module-interface-path", str(interface), "-module-name", module, str(candidates[0]),
+            "-enable-library-evolution", "-swift-version", "6", "-target", info["target"]["triple"], "-sdk", sdk,
+            "-I", str(module_directory), "-I", str(module_directory / "Modules"),
+        ], capture_output=True, text=True)
+        if result.returncode or not interface.is_file():
+            raise ValueError(f"Cannot export compiler interface for {module}: {result.stderr}")
+        return interface_aliases(interface.read_text(encoding="utf-8"), module)
 
 
 def generic_parameter_slots(symbol: dict[str, Any]) -> dict[str, str]:
@@ -315,12 +519,13 @@ def normalize_relationship(relationship: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def normalize_product_graph(output_directory: Path, module: str) -> dict[str, Any]:
+def normalize_product_graph(output_directory: Path, module: str, module_directory: Path | None = None) -> dict[str, Any]:
     payloads = [
         json.loads(path.read_text(encoding="utf-8"))
         for path in product_graph_paths(output_directory, module)
     ]
     symbols_by_identifier: dict[str, dict[str, Any]] = {}
+    aliases = None
     for payload in payloads:
         symbol_payload = payload.get("symbols", [])
         if isinstance(symbol_payload, dict):
@@ -328,7 +533,12 @@ def normalize_product_graph(output_directory: Path, module: str) -> dict[str, An
         for symbol in symbol_payload:
             if not is_product_declaration(symbol, module):
                 continue
-            normalized = normalize_symbol(symbol)
+            alias_rhs = None
+            if symbol["kind"]["identifier"] == "swift.typealias":
+                if aliases is None:
+                    aliases = compiler_alias_interfaces(module_directory or output_directory, module)
+                alias_rhs = aliases.get(tuple(symbol["pathComponents"]))
+            normalized = normalize_symbol(symbol, alias_rhs)
             symbols_by_identifier[normalized["identifier"]["precise"]] = normalized
 
     if not symbols_by_identifier:
@@ -363,10 +573,11 @@ def normalize_product_graph(output_directory: Path, module: str) -> dict[str, An
 
 
 def current_contract(output_directory: Path) -> dict[str, Any]:
+    module_directory = Path(subprocess.check_output(["swift", "build", "--show-bin-path"], text=True).strip())
     return {
         "schemaVersion": SCHEMA_VERSION,
         "graphs": [
-            normalize_product_graph(output_directory, module)
+            normalize_product_graph(output_directory, module, module_directory)
             for module in PUBLIC_PRODUCT_MODULES
         ],
     }
