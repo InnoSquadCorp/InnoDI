@@ -27,8 +27,8 @@ swift build --target InnoDI-DependencyGraph
 ### Test
 
 ```bash
-swift test
-swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+swift test --no-parallel
+swift test --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 swift test --filter InnoDIMacrosTests
 swift test --filter InnoDIDependencyGraphCLITests
 ```
@@ -84,12 +84,28 @@ Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
    - shared parsing and graph utilities
 4. `InnoDIBuildSupport`
    - coordinated validation, artifact writing, cache and lock handling
-5. `InnoDI-DependencyGraph`
-   - graph collection and Mermaid/DOT/ASCII rendering
+5. `InnoDIWorkspaceAnalysis`, `InnoDIDependencyGraphCore`, `InnoDIDependencyGraphCLI`
+   - full-source analysis, graph collection/query/contracts, JSON/Mermaid/DOT/ASCII rendering
+   - `InnoDI-DependencyGraph` is the executable entry point
 6. `InnoDISwiftUI`
-   - environment-bridge and feature-root integration helpers
+   - environment bridge, feature-root helpers, and explicit host lifecycle
+7. `InnoDITesting`, `InnoDIMigrationCore`, `InnoDIDoctorCore`
+   - test support, migration planning/rollback, and project diagnostics
+   - `InnoDI-Migrate`, `InnoDI-Doctor`, and `InnoDI-DeferredAliasScan` are CLI tools
 
 ### `@DIContainer`
+
+The accepted 6.0 grammar separates the ordinary container from hierarchy and
+isolation configuration:
+
+- `@DIContainer` or `@DIContainer(validateDAG: false)` for an ordinary container.
+- `@DIContainerRole(role: ContainerRole.local, mainActor: true)` for actor isolation.
+- `@DIContainerRole(role: ContainerRole.component)` for a mountable feature.
+- `@DIContainerRole(role: ContainerRole.root)` for strict rooted validation.
+
+Use named `ContainerRole` tokens, not arbitrary strings. Do not restore the
+old `@DIContainer(root:mainActor:)` grammar. `validateDAG:` is also accepted on
+the role macro. A declaration uses one container macro, not both.
 
 `@DIContainer` synthesizes:
 
@@ -107,24 +123,31 @@ operation closure remains `@MainActor`.
 
 Every container, including a truly empty one, synthesizes the complete
 overrides scaffolding. A user-declared nested `Overrides` type is a terminal
-`container.overrides-name-conflict` error in InnoDI 5.0; never generate a
+`container.overrides-name-conflict` error in InnoDI 6.0; never generate a
 partial primary-initializer-only surface.
 
-Every stored instance member in a container must be managed by `@Provide` or
-`@SubContainer`; computed and type properties remain available. Emit
+Every stored instance member in a container must use a supported management
+macro (`@Input`, `@Provide`, `@Multibinding`, `@SubContainerFactory`, or
+`@SubContainer`); computed and type properties remain available. Emit
 `container.unmanaged-stored-property` before initializer generation otherwise.
 
-An explicitly `private` container is unsupported in 5.0 because sibling
+An explicitly `private` container is unsupported in 6.0 because sibling
 containers cannot access its generated mount surface. Require `fileprivate`
 for same-file mounting or default access inside a private namespace.
 
-`root` affects graph rendering only. `validateDAG: false` skips global DAG
+Only effectively non-generic structs at file scope or inside non-generic
+nominal declarations are supported; extension/executable-scope declarations
+are rejected. Keep the full-source preflight enabled to cover attached-macro
+ancestry limits.
+
+The root role controls strict hierarchy validation and graph reachability,
+not just rendering. `validateDAG: false` skips global DAG
 validation plus the macro's local cycle and other graph-derived checks. It
 never disables declaration validation or effect compatibility on explicit
 sibling edges.
 
 `Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
-every `@DIContainer(...validateDAG: false...)` site plus any active
+every container `validateDAG: false` site plus any active
 `INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
 step summary. The script is informational — set `INNODI_ESCAPE_HATCH_FAIL=1`
 to flip it into a blocker for orgs that treat new opt-outs as release
@@ -134,10 +157,20 @@ blockers.
 regression gate against the pinned `macro-performance-baseline.json`, and
 `Tools/check-performance-trend.sh` runs alongside it on every PR to
 compare against the rolling median of the `perf-history` branch (last 7
-entries, 10% threshold, same-toolchain filter on by default). The
-`Perf History` workflow appends one entry per push to `main`. The trend
-script is a no-op when `perf-history` is empty or unreachable — fresh
-forks pass without setup.
+entries, minimum 5 comparable entries, 20% threshold, same-toolchain and
+same-workload-version filters). Both compare `min_ms`, while reports retain
+every raw sample and dispersion statistics. The successful-expansion workload
+is version 2; never relabel version-1 history or replace the pinned CI baseline
+with a developer-machine result. The `Macro Tests` workflow reuses the gated
+report for normal `main` history appends; `Perf History` is manual recovery.
+Missing/unreachable history or fewer than five comparable entries is
+insufficient trend evidence, not a measured trend pass.
+
+`Tools/measure-macro-features.sh` separately measures assisted factory, large
+multibinding, and mock generation. These independent v1 workloads are
+report-only-unbaselined: verify successful generation and provenance, retain
+all samples, and calibrate each on pinned CI before adding a timing gate.
+Never feed their samples into the composite-v2 baseline/history.
 
 ### `@Provide`
 
@@ -149,21 +182,22 @@ forks pass without setup.
 - Reject property wrappers, conditional/unknown attributes, setter access
   controls, and every source-written property-level global-actor attribute on
   providers, including `@MainActor`. Actor isolation comes from
-  `@DIContainer(mainActor: true)`; isolation attributes generated on provider
-  declarations and accessors are internal support. Reject a complete provider
+  `@DIContainerRole(role: ContainerRole.local, mainActor: true)`; generated
+  isolation attributes on declarations and accessors are internal support.
+  Reject a complete provider
   member inside `#if` with `provide.conditional-declaration-unsupported`.
 - Require exactly one `@Provide` per property. Reject opaque `some Protocol`
   provider types in favor of `any Protocol`, and reject implicitly unwrapped
   `T!` in favor of explicit `T` or `T?`. Deliberately forged combinations of
   the compiler-support accessor with another property wrapper may also receive
   Swift structural diagnostics alongside InnoDI's misuse diagnostic.
-- `.input`: external dependency; no `factory:`, `asyncFactory:`, `Type.self`,
+- `@Input`: external dependency; no `factory:`, `asyncFactory:`, `Type.self`,
   property initializer, or `with:`
-- Generated `.input` initializer parameters are eager `T` values and preserve
+- Generated `@Input` initializer parameters are eager `T` values and preserve
   ordinary `try` / `await` argument evaluation. Direct non-optional function
   spellings are detected and emitted as escaping parameters automatically.
   For a non-optional function type hidden behind a typealias, require literal
-  `@Provide(.input, escaping: true)`. Reject the option outside `.input` and for
+  `@Input(escaping: true)`. Reject the option outside `@Input` and for
   obvious nonfunction/optional-function shapes. Alias resolution is
   compiler-owned, so Swift may diagnose a conservatively accepted alias that
   is not actually a non-optional function.
@@ -195,12 +229,20 @@ sibling edge even when the container uses `validateDAG: false`.
 
 - `Lazy<T>` creates a soft edge and stays non-`Sendable`.
 - `Provider<T>` re-enters `.transient` access and stays non-`Sendable`.
+- Ordinary on-demand cells also stay non-`Sendable`, even with Sendable
+  payloads: factory captures require independent checking. Generated async
+  dependency handles check both `Value: Sendable` and `@Sendable` factories.
+- Public collection metadata preserves `AnyKeyPath & Sendable`; do not erase
+  it to `AnyKeyPath` or reintroduce unchecked metadata conformance.
 - `@SubContainer` adds ownership edges plus child override forwarding.
 - `swift run InnoDI-DeferredAliasScan --root .` lists every
   `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
-  The macro plugin only detects same-file aliases; cross-file aliases
-  silently behave as hard edges and disable cycle escape. The PR
-  pipeline runs the scanner and posts findings to the workflow's step
+  The macro plugin only warns for directly recognizable same-file aliases;
+  warning does not change hard-edge classification. Nested/qualified/chained
+  forms are not a general alias-resolution mechanism. Workspace build support
+  also reports `deferred-alias.workspace-finding` warnings. Spell `Lazy<T>` and
+  `Provider<T>` directly at factory parameters to obtain soft/provider edges.
+  The PR pipeline runs the scanner and posts findings to the workflow's step
   summary plus a `deferred-aliases-report` artifact.
 
 ## Documentation Contract
@@ -210,3 +252,23 @@ sibling edge even when the container uses `validateDAG: false`.
 - `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the release gate; H2 or swift-fence drift fails the build.
 - `RELEASING.md` is the single source for release notes and upgrade notes.
 - If behavior changes, update docs in the same change.
+
+## Review and release evidence
+
+Freeze the revision/dirty baseline, module inventory, cross-feature risk matrix,
+exclusions, and exit criteria before a comprehensive review. Cover source,
+tests, public contracts, examples, and CI/release boundaries; exercise normal,
+failure, cancellation, concurrency, retry/restoration, resource, observability,
+and security paths where applicable. Reproduce suspected defects with passing
+controls, distinguish fixture/environment failures, and close each matrix row
+with fresh evidence, explicitly reused evidence, or a concrete limitation.
+Report confirmed defects, unresolved candidates, optional improvements, and
+unverified boundaries separately. A review alone does not authorize changes,
+commits, pushes, or releases. A green suite is not proof of no remaining defects.
+
+`RELEASING.md` is authoritative: 6.0.0 remains unreleased until its exact-SHA
+release workflow succeeds. A PR run may check out a synthetic merge, so verify
+its tree against the candidate and distinguish that from literal-SHA consumer
+runs. Do not claim release readiness from local tests, skip/insufficient-history
+statuses, or a green run for an older revision. Do not relax budgets or retry
+unchanged candidates until green.
