@@ -21,7 +21,8 @@ parameter、または `Type.self` と literal `with:` key path だけから生�
 sibling member を参照できません。
 
 `validateDAG: false` は宣言検証や effect compatibility を無効化しません。
-global DAG、local cycle、その他の graph-derived check だけを省略します。
+global DAG とローカルの graph-derived availability check だけを省略します。
+ローカルの所有権循環は常に拒否されます。`Lazy` や `Provider` を介する循環も例外ではありません。
 
 ## Build Validation
 

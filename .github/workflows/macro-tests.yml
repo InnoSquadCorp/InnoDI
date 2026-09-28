@@ -53,6 +53,7 @@ jobs:
           Tools/check-ci-action-pins.sh
       - name: Validate documentation contracts
         run: |
+          python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
           Tools/check-docs-code-blocks.sh
           Tools/check-docs-local-links.sh
           Tools/check-localized-readme-sync.sh
@@ -130,6 +131,8 @@ jobs:
         run: Tools/check-ci-action-pins.sh
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
+      - name: Validate bounded release-note extraction
+        run: python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
       - name: Validate local documentation links
         run: Tools/check-docs-local-links.sh
       - name: Validate localized README structural sync
@@ -166,7 +169,8 @@ jobs:
       - name: Report Deferred-Wrapper Alias Findings
         # Surfaces cross-file `typealias L = Lazy<T>` / `typealias P = Provider<T>`
         # that the macro's same-file canonical-identifier check cannot see.
-        # Cross-file aliases silently behave as hard edges, breaking cycle escape.
+        # Cross-file aliases are not recognized as deferred wrappers. Review
+        # their construction/order behavior; wrappers never exempt ownership cycles.
         # Informational; reviewers decide whether each finding is intentional.
         run: |
           {
@@ -204,18 +208,8 @@ jobs:
         run: |
           Tools/check-performance-trend.sh \
             --current-report build/macro-performance-report.json
-      - name: Runtime Trace Performance Check
-        # Collect independent runtime evidence even when either macro gate
-        # fails. Neither gate uses continue-on-error: the job remains failed.
-        if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
-        run: Tools/measure-runtime-trace-performance.sh
-      - name: Upload Runtime Trace Performance Report
-        if: ${{ always() && hashFiles('build/runtime-trace-performance-report.json') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: runtime-trace-performance-report
-          path: build/runtime-trace-performance-report.json
-          if-no-files-found: error
+      # Runtime trace timings are optional diagnostics in the manual
+      # runtime-trace-diagnostics.yml workflow, not a release performance gate.
       - name: Upload Performance Trend Report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

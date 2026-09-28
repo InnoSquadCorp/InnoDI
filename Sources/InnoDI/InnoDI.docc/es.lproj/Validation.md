@@ -29,8 +29,9 @@ literales en `with:`. Factories que no son closures e initializers de property
 son fuentes opacas con cero edges y no pueden leer miembros sibling.
 
 `validateDAG: false` no desactiva la validacion de declaraciones ni la
-compatibilidad de efectos; solo omite el DAG global, ciclos locales y otros
-checks graph-derived.
+compatibilidad de efectos; solo omite el DAG global y los checks locales de
+disponibilidad derivados del grafo. Los ciclos locales de propiedad siempre se rechazan,
+incluidos los que pasan por `Lazy` o `Provider`.
 
 ## Build Validation
 

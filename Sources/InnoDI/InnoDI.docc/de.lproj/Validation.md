@@ -21,8 +21,9 @@ Explizite Sibling-Kanten stammen nur aus benannten Parametern der root
 Zero-Edge-Quellen und dürfen keine Sibling-Member referenzieren.
 
 `validateDAG: false` deaktiviert weder Deklarationsvalidierung noch
-Effektkompatibilität; nur globale DAG-, lokale cycle- und andere graph-derived
-Checks werden übersprungen.
+Effektkompatibilität; nur die globale DAG-Validierung und lokale graph-derived
+Verfügbarkeitsprüfungen werden übersprungen. Lokale Besitzzyklen werden immer abgelehnt,
+auch wenn sie über `Lazy` oder `Provider` verlaufen.
 
 ## Build Validation
 
