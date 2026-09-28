@@ -224,6 +224,19 @@ jobs:
           path: build/perf-trend-report.json
           if-no-files-found: ignore
 
+      - name: Measure Independent Macro Feature Workloads
+        if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
+        # Valid expansion/report contracts are enforced; durations are
+        # explicitly unbaselined and never replace the composite-v2 gate.
+        run: Tools/measure-macro-features.sh
+      - name: Upload Macro Feature Performance Report
+        if: ${{ always() && hashFiles('build/macro-feature-performance-report.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macro-feature-performance-report
+          path: build/macro-feature-performance-report.json
+          if-no-files-found: error
+
   sanitizers:
     name: Thread and address sanitizers (Xcode 26.6)
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')

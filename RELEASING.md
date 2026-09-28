@@ -293,6 +293,13 @@ standalone release assets.
 
 ### Highlights
 
+- Independent macro-performance workloads now cover an assisted factory with
+  8 static and 8 assisted inputs, 64-contributor multibinding, and 32-method mock
+  generation. Run `Tools/measure-macro-features.sh`; CI archives all samples,
+  dimensions, workload versions, compiler and SHA provenance separately.
+  These v1 workloads are report-only until independently calibrated. They do
+  not replace, update, or count toward the composite-v2 release/trend baseline.
+
 - On-demand Sendable safety: unrestricted deferred cells no longer claim
   `Sendable`, even for a Sendable result, because arbitrary factory captures may
   be unsafe. Keep ordinary on-demand containers on their isolation domain;
