@@ -14,10 +14,14 @@ import SwiftSyntaxBuilder
 
 internal func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
     return [
-        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false),
-        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true),
-        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: false),
-        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: true),
+        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false)
+            .prependingMARK("// MARK: - withOverrides"),
+        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true)
+            .prependingMARK("// MARK: - withOverrides (throws)"),
+        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: false)
+            .prependingMARK("// MARK: - withOverrides (async)"),
+        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: true)
+            .prependingMARK("// MARK: - withOverrides (async throws)"),
     ]
 }
 
