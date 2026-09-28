@@ -354,11 +354,10 @@ private func subContainerMemberValidationRecovery(
     }
 
     do {
-        if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
-            _ = try DIContainerCodeGenerator.generateInit(for: model)
-        } else {
-            _ = try DIContainerCodeGenerator.generateAll(for: model)
-        }
+        // All input-dependent codegen failures originate in initialization.
+        // Keep those exact builders/checks, but not the discarded overrides,
+        // feature-root and statement syntax from a second full expansion.
+        try DIContainerCodeGenerator.validateInitialization(for: model)
         return false
     } catch is CodegenInvariantError {
         return true

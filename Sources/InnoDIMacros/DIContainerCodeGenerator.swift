@@ -11,6 +11,23 @@ struct CodegenInvariantError: Error {
 }
 
 struct DIContainerCodeGenerator {
+    /// Exercise the same throwing factory/dependency builders as emission,
+    /// without constructing syntax that the member-attribute role discards.
+    static func validateInitialization(for model: DIContainerExpansionModel) throws {
+        _ = try makeInitDecl(
+            sharedMembers: model.sharedMembers,
+            syncSharedMembers: model.syncSharedMembers,
+            asyncSharedMembers: model.asyncSharedMembers,
+            inputMembers: model.inputMembers,
+            transientMembers: model.transientMembers,
+            subContainerMembers: model.subContainerMembers,
+            accessLevel: model.accessLevel,
+            mainActorEnabled: model.options.mainActor,
+            validateDAGEnabled: model.options.validateDAG,
+            emittingStatements: false
+        )
+    }
+
     static func generateInit(
         for model: DIContainerExpansionModel,
         prependingInitializationMARK: Bool = true
@@ -97,21 +114,7 @@ struct DIContainerCodeGenerator {
         // The first overload carries the group's `// MARK: -` header; each
         // subsequent overload carries a sub-MARK that names its effect
         // shape so reviewers can see which variant they are looking at.
-        let withOverridesMethods = makeWithOverridesMethods(model: model)
-        let withOverridesLabels = [
-            "// MARK: - withOverrides",
-            "// MARK: - withOverrides (throws)",
-            "// MARK: - withOverrides (async)",
-            "// MARK: - withOverrides (async throws)",
-        ]
-        guard withOverridesMethods.count == withOverridesLabels.count else {
-            throw CodegenInvariantError(
-                description: "makeWithOverridesMethods produced \(withOverridesMethods.count) overload(s), but DIContainerCodeGenerator has \(withOverridesLabels.count) withOverrides MARK label(s). Keep makeWithOverridesMethods, withOverridesLabels, and decl insertion in sync."
-            )
-        }
-        for (index, method) in withOverridesMethods.enumerated() {
-            decls.append(method.prependingMARK(withOverridesLabels[index]))
-        }
+        decls.append(contentsOf: makeWithOverridesMethods(model: model))
 
         return decls
     }
@@ -160,6 +163,22 @@ internal struct AsyncTaskBinding {
     let isThrowing: Bool
 }
 
+/// Nonthrowing statements are lazy in validation-only mode. Throwing builders
+/// are deliberately evaluated before append so their invariant checks cannot
+/// disappear. No process-wide cache or retained expansion model is involved.
+private struct InitStatementBuffer {
+    let emitting: Bool
+    var items: [CodeBlockItemSyntax] = []
+
+    mutating func append(_ statement: @autoclosure () -> CodeBlockItemSyntax) {
+        if emitting { items.append(statement()) }
+    }
+
+    mutating func append(contentsOf statements: [CodeBlockItemSyntax]) {
+        if emitting { items.append(contentsOf: statements) }
+    }
+}
+
 private func makeInitDecl(
     sharedMembers: [ProvideMemberModel],
     syncSharedMembers: [ProvideMemberModel],
@@ -169,7 +188,8 @@ private func makeInitDecl(
     subContainerMembers: [SubContainerMemberModel],
     accessLevel: String?,
     mainActorEnabled: Bool,
-    validateDAGEnabled: Bool
+    validateDAGEnabled: Bool,
+    emittingStatements: Bool = true
 ) throws -> DeclSyntax {
     let modifiers = accessModifiers(accessLevel)
     var params: [FunctionParameterSyntax] = []
@@ -309,7 +329,7 @@ private func makeInitDecl(
         parameterClause: FunctionParameterClauseSyntax(parameters: FunctionParameterListSyntax(params))
     )
 
-    var statements: [CodeBlockItemSyntax] = []
+    var statements = InitStatementBuffer(emitting: emittingStatements)
     var resolvedDependencyExpressions: [String: ExprSyntax] = [:]
     var taskBindings: [String: AsyncTaskBinding] = [:]
     var availableDependencyExpressions: [String: ExprSyntax] = [:]
@@ -419,7 +439,7 @@ private func makeInitDecl(
             let typeDescription = member.type.trimmedDescription
             let isSendableCell = sendableOnDemandNames.contains(member.name)
             let cellType = isSendableCell ? "_InnoDISendableSharedCell" : "_InnoDISharedCell"
-            let declaration: CodeBlockItemSyntax = """
+            statements.append("""
                 let \(raw: cellName): InnoDI.\(raw: cellType)<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
                     InnoDI.\(raw: cellType)(
                         traceOwner: _innoDITraceOwner,
@@ -432,8 +452,7 @@ private func makeInitDecl(
                         providerName: "\(raw: member.name)"
                     ) { \(factoryExpr) }
                 }
-                """
-            statements.append(declaration)
+                """)
             statements.append(
                 CodeBlockItemSyntax(
                     item: .expr(
@@ -454,7 +473,7 @@ private func makeInitDecl(
         } else {
             let traceSpanName = "_innoDITraceSpan_\(member.name)"
             let resolvedValueName = "_innoDIResolved_\(member.name)"
-            let initialization: CodeBlockItemSyntax = """
+            statements.append("""
                 if let _innoDIOverride = \(raw: member.name) {
                     self.\(raw: storageName) = _innoDITraceOwner.overridden(
                         member: "\(raw: member.name)",
@@ -468,8 +487,7 @@ private func makeInitDecl(
                     _innoDITraceOwner.finish(.success, span: \(raw: traceSpanName))
                     self.\(raw: storageName) = \(raw: resolvedValueName)
                 }
-                """
-            statements.append(initialization)
+                """)
             if onDemandHardDependencyNames.contains(member.name) {
                 let localName = "_innoDIOnDemandDependency_\(member.name)"
                 statements.append(
@@ -746,7 +764,7 @@ private func makeInitDecl(
         attributes: mainActorEnabled ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         signature: signature,
-        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
+        body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements.items))
     )
 
     return DeclSyntax(initDecl)
