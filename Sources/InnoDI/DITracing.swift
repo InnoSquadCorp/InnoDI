@@ -1,6 +1,10 @@
 import Dispatch
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#endif
+
 #if canImport(os)
 import os
 
@@ -219,10 +223,18 @@ public struct _InnoDITraceOwner: Sendable {
         let ownerID = UUID()
         private let lock = DITraceLock()
         private var latestSpans: [String: Span] = [:]
+        #if canImport(Darwin)
+        // One bounded, lazily allocated 1 KiB batch per enabled owner. The OS
+        // supplies every random bit; only RFC 9562's version/variant bits are
+        // set here. Never use these diagnostic identifiers as security tokens.
+        private var randomIDs: [uuid_t] = []
+        private var randomIDIndex = 64
+        #endif
 
-        func start(member: String, containerID: String, instanceID: UUID) -> Span {
+        func start(member: String, containerID: String) -> Span {
             lock.lock()
             defer { lock.unlock() }
+            let instanceID = nextInstanceID()
             // The provider's semantic ID is immutable for this owner. Reuse
             // that string, not the span identity: every resolution still gets
             // its own UUID and replaces the latest span under the same lock.
@@ -233,6 +245,28 @@ public struct _InnoDITraceOwner: Sendable {
                 )],
                 with: instanceID
             )
+        }
+
+        /// Called only under `lock`; refills cannot race or reuse a slot.
+        private func nextInstanceID() -> UUID {
+            #if canImport(Darwin)
+            if randomIDIndex == 64 {
+                if randomIDs.isEmpty {
+                    randomIDs = Array(repeating: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), count: 64)
+                }
+                randomIDs.withUnsafeMutableBytes { bytes in
+                    arc4random_buf(bytes.baseAddress!, bytes.count)
+                }
+                randomIDIndex = 0
+            }
+            var bytes = randomIDs[randomIDIndex]
+            randomIDIndex += 1
+            bytes.6 = (bytes.6 & 0x0f) | 0x40
+            bytes.8 = (bytes.8 & 0x3f) | 0x80
+            return UUID(uuid: bytes)
+            #else
+            return UUID()
+            #endif
         }
 
         private static func replaceInstanceID(in span: inout Span, with instanceID: UUID) -> Span {
@@ -301,8 +335,7 @@ public struct _InnoDITraceOwner: Sendable {
     // initializing state before invoking a user-supplied synchronous sink.
     func prepareSpan(member: String) -> Span? {
         guard let state else { return nil }
-        let instanceID = UUID()
-        return state.start(member: member, containerID: containerID, instanceID: instanceID)
+        return state.start(member: member, containerID: containerID)
     }
 
     func emitStart(span: Span?) {

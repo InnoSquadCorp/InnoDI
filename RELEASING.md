@@ -275,6 +275,12 @@ standalone release assets.
 
 ## Unreleased
 
+- Apple trace owners amortize OS random generation in a bounded, lazy 1 KiB
+  batch while retaining random UUID v4 instance IDs. The owner lock protects
+  batch refill and consumption; disabled tracing allocates no batch. The
+  existing trace workloads and budgets are unchanged. See
+  [profiling evidence](docs/internal/trace-performance-6.0.md).
+
 - Trace sinks execute outside on-demand cell locks. Initializing state is
   installed before a start callback, and waiters recheck it after callbacks
   to avoid lost wakeups. Same-thread, same-cell reentry from any trace callback
