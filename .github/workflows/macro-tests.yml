@@ -53,6 +53,7 @@ jobs:
           Tools/check-ci-action-pins.sh
       - name: Validate documentation contracts
         run: |
+          python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
           Tools/check-docs-code-blocks.sh
           Tools/check-docs-local-links.sh
           Tools/check-localized-readme-sync.sh
@@ -130,6 +131,8 @@ jobs:
         run: Tools/check-ci-action-pins.sh
       - name: Validate compiled documentation snippets
         run: Tools/check-docs-code-blocks.sh
+      - name: Validate bounded release-note extraction
+        run: python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
       - name: Validate local documentation links
         run: Tools/check-docs-local-links.sh
       - name: Validate localized README structural sync
