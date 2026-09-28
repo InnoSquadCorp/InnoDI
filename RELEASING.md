@@ -277,6 +277,15 @@ standalone release assets.
 
 ### Highlights
 
+- On-demand Sendable safety: unrestricted deferred cells no longer claim
+  `Sendable`, even for a Sendable result, because arbitrary factory captures may
+  be unsafe. Keep ordinary on-demand containers on their isolation domain;
+  use eager storage or an explicitly main-actor container when appropriate.
+  For nonisolated async factories, generated code now uses a separate checked
+  handle requiring both a Sendable payload and an `@Sendable` factory, including
+  transitive on-demand dependencies. Overrides preserve the same checks and
+  still skip unused factories. Compiler-negative and runtime controls cover
+  unsafe captures, payloads, regular/actor-isolated use and async dependency chains.
 - Post-acceptance contract hardening:
   - Async waiter cancellation no longer retains completed-request IDs across
     scope resets. Caller cancellation is checked during actor-isolated

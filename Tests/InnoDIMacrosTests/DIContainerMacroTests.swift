@@ -95,6 +95,27 @@ struct DIContainerMacroTests {
         #expect(result.expansion.contains("throw InnoDI.DIPrewarmError.unsupportedProvider"))
     }
 
+    @Test("Async consumers use capture-checked cells through on-demand dependency chains")
+    func asyncOnDemandDependenciesUseCheckedCells() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, initialization: .onDemand, factory: { 7 }) var first: Int
+                @Provide(.shared, initialization: .onDemand, factory: { (first: Int) in first + 1 })
+                var second: Int
+                @Provide(.shared, asyncFactory: { (second: Int) async in second + 1 }) var result: Int
+            }
+            """,
+            macros: Self.macros
+        )
+        #expect(result.diagnostics.isEmpty)
+        for name in ["first", "second"] {
+            #expect(result.expansion.contains("let _innoDIOnDemand_\(name): InnoDI._InnoDISendableSharedCell<Int>"))
+            #expect(result.expansion.contains("self._storage_\(name) = _innoDIOnDemand_\(name).isolated"))
+        }
+    }
+
     @Test("A flagless concrete transient dependency keeps its declared override type")
     func flaglessConcreteTransientDependencyGeneratesOverride() {
         let result = expandMacroSource(

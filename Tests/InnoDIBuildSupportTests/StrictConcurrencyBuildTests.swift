@@ -476,6 +476,138 @@ struct StrictConcurrencyBuildTests {
         )
     }
 
+    @Test("On-demand handles cannot hide unsafe payloads, overrides, or factory captures")
+    func onDemandSendabilityBoundary() throws {
+        let declarations = """
+        import InnoDI
+
+        final class MutableValue { var count = 0 }
+
+        @DIContainer
+        struct RegularContainer {
+            @Provide(.shared, initialization: .onDemand, factory: { MutableValue() })
+            var value: MutableValue
+        }
+
+        @DIContainerRole(role: ContainerRole.local, mainActor: true)
+        struct IsolatedContainer {
+            @Provide(.shared, initialization: .onDemand, factory: { MutableValue() })
+            var value: MutableValue
+        }
+
+        @DIContainer
+        struct EagerSendableContainer: Sendable {
+            @Provide(.shared, factory: { 7 }) var value: Int
+        }
+
+        @DIContainer
+        struct CheckedAsyncChain {
+            @Provide(.shared, initialization: .onDemand, factory: { 7 }) var first: Int
+            @Provide(.shared, initialization: .onDemand, factory: { (first: Int) in first + 1 })
+            var second: Int
+            @Provide(.shared, asyncFactory: { (second: Int) async in second + 1 }) var result: Int
+        }
+        """
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-OnDemandSendability-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        for scenario in ["control", "holders", "factory", "payload"] {
+            let invalid = scenario != "control"
+            let rejectionSource: String
+            switch scenario {
+            case "holders":
+                rejectionSource = """
+
+            @DIContainer
+            struct UnsafeContainer: Sendable {
+                @Provide(.shared, initialization: .onDemand, factory: { MutableValue() })
+                var value: MutableValue
+            }
+
+            struct UnsafeFactoryHolder: Sendable {
+                let captured: _InnoDISharedCell<Int>
+                init() {
+                    let value = MutableValue()
+                    captured = _InnoDISharedCell(factory: { value.count += 1; return value.count })
+                }
+            }
+
+            struct UnsafeOverrideHolder: Sendable {
+                let overridden = _InnoDISharedCell(value: MutableValue())
+            }
+            """
+            case "factory":
+                rejectionSource = """
+            func rejectUnsafeFactoryCapture(_ mutable: MutableValue) {
+                _ = _InnoDISendableSharedCell<Int>(traceOwner: .disabled, providerName: "unsafe") {
+                    mutable.count += 1
+                    return mutable.count
+                }
+            }
+            """
+            case "payload":
+                rejectionSource = """
+            func rejectUnsafePayload() {
+                _ = _InnoDISendableSharedCell(traceOwner: .disabled, providerName: "unsafe", value: MutableValue())
+            }
+            """
+            default:
+                rejectionSource = ""
+            }
+            let source = declarations + "\n" + (invalid ? rejectionSource : """
+
+            @main struct FixtureApp {
+                @MainActor static func main() async {
+                    let container = RegularContainer()
+                    precondition(container.value === container.value)
+                    let override = MutableValue()
+                    precondition(RegularContainer(value: override).value === override)
+                    let isolated = IsolatedContainer()
+                    precondition(isolated.value === isolated.value)
+                    precondition(EagerSendableContainer().value == 7)
+                    await exerciseAsyncChain()
+                }
+
+                nonisolated static func exerciseAsyncChain() async {
+                    let chain = CheckedAsyncChain()
+                    let result = await chain.result
+                    precondition(result == 9)
+                    let overriddenChain = CheckedAsyncChain(first: 20)
+                    let overriddenResult = await overriddenChain.result
+                    precondition(overriddenResult == 22)
+                }
+            }
+            """)
+            let fixture = try makeStrictConcurrencyFixture(
+                name: "OnDemandSendability", dependencies: ["InnoDI"], source: source
+            )
+            defer { try? FileManager.default.removeItem(at: fixture) }
+            let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+            let output = result.stdout + result.stderr
+            #expect(!result.timedOut)
+            if invalid {
+                #expect(result.exitCode != 0)
+                if scenario == "holders" {
+                    for name in ["UnsafeContainer", "UnsafeFactoryHolder", "UnsafeOverrideHolder"] {
+                        #expect(output.contains("'Sendable'-conforming struct '\(name)'"), "\(output)")
+                    }
+                    #expect(output.contains("non-Sendable type"))
+                    #expect(output.contains("_InnoDISharedCell"))
+                } else if scenario == "factory" {
+                    #expect(output.contains("capture of 'mutable'"), "\(output)")
+                } else {
+                    #expect(output.contains("does not conform to the 'Sendable' protocol"), "\(output)")
+                }
+            } else {
+                #expect(result.exitCode == 0, "\(output)")
+                guard result.exitCode == 0, !result.timedOut else { continue }
+                let execution = try runExternalConsumerExecutable(packageURL: fixture, scratchPath: scratch)
+                #expect(!execution.timedOut)
+                #expect(execution.exitCode == 0)
+            }
+        }
+    }
+
     @Test("Timeout path terminates descendants that keep pipes open")
     func timeoutPathTerminatesDescendants() throws {
         let process = Process()
