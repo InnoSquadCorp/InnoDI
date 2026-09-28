@@ -7,9 +7,38 @@ private protocol CollectionService: Sendable { var name: String { get } }
 private struct AlphaService: CollectionService { let name = "alpha" }
 private struct BetaService: CollectionService { let name = "beta" }
 private struct CollectionCatalog { var alpha: any CollectionService }
+private struct SendableMetadataRoot: Sendable {
+    var value: Int { 7 }
+    subscript(index: Int) -> Int { value + index }
+}
 
 @Suite("DI collection composition")
 struct DICollectionCompositionTests {
+    @Test("Checked metadata preserves safe captured key paths across concurrent readers")
+    func checkedMetadataConcurrentReaders() async {
+        let paths: [AnyKeyPath & Sendable] = [\SendableMetadataRoot.value, \SendableMetadataRoot.[5]]
+        let contributions = paths.enumerated().map {
+            DIKeyedCollectionContribution(key: String($0.offset), contributor: $0.element)
+        }
+        let metadata: [DICollectionMetadata] = [
+            .ordered(paths), .providers(paths), .keyed(contributions), .keyedProviders(contributions),
+        ]
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<4 {
+                group.addTask {
+                    for entry in metadata {
+                        let stored = entry.contributors.isEmpty
+                            ? entry.keyedContributors.map(\.contributor) : entry.contributors
+                        for _ in 0..<1_000 {
+                            let values = stored.map { SendableMetadataRoot()[keyPath: $0 as! KeyPath<SendableMetadataRoot, Int>] }
+                            #expect(values == [7, 12])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test("ordered groups compose explicitly and preserve empty semantics")
     func orderedComposition() {
         let moduleA = DICollectionGroup<any CollectionService>([AlphaService()])

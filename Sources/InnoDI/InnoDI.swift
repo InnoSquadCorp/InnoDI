@@ -45,13 +45,13 @@ public enum DIProviderEffect: String, Equatable, Hashable, Sendable {
 /// `@Provide(collection:)`. The contributor must use the canonical
 /// `\Self.member` spelling. InnoDI records this source contract in the graph;
 /// it never searches an arbitrary factory body for dictionary literals.
-/// The unchecked conformance covers immutable `AnyKeyPath` references, which
-/// the SDK does not currently declare `Sendable`; this type exposes no mutation.
-public struct DIKeyedCollectionContribution: @unchecked Sendable {
+/// Public construction requires a compiler-proven Sendable key path; an
+/// immutable key-path object can otherwise retain unsafe subscript arguments.
+public struct DIKeyedCollectionContribution: Sendable {
     public let key: String
-    public let contributor: AnyKeyPath
+    public let contributor: AnyKeyPath & Sendable
 
-    public init(key: String, contributor: AnyKeyPath) {
+    public init(key: String, contributor: AnyKeyPath & Sendable) {
         self.key = key
         self.contributor = contributor
     }
@@ -63,9 +63,9 @@ public struct DIKeyedCollectionContribution: @unchecked Sendable {
 /// contract across source and binary boundaries. Membership and ordering are
 /// always caller-authored; InnoDI performs no module scanning or implicit
 /// last-wins merge.
-/// Its unchecked conformance is limited to the immutable key paths stored by
-/// the contribution values; the metadata object exposes no mutation.
-public struct DICollectionMetadata: @unchecked Sendable {
+/// Key paths must retain their compiler-proven Sendable constraint, including
+/// any captured subscript arguments. Canonical member literals satisfy it.
+public struct DICollectionMetadata: Sendable {
     public enum Kind: String, Equatable, Hashable, Sendable {
         case ordered
         case keyed
@@ -74,10 +74,10 @@ public struct DICollectionMetadata: @unchecked Sendable {
     }
 
     public let kind: Kind
-    public let contributors: [AnyKeyPath]
+    public let contributors: [AnyKeyPath & Sendable]
     public let keyedContributors: [DIKeyedCollectionContribution]
 
-    public static func ordered(_ contributors: [AnyKeyPath]) -> Self {
+    public static func ordered(_ contributors: [AnyKeyPath & Sendable]) -> Self {
         Self(kind: .ordered, contributors: contributors)
     }
 
@@ -87,7 +87,7 @@ public struct DICollectionMetadata: @unchecked Sendable {
         Self(kind: .keyed, keyedContributors: contributors)
     }
 
-    public static func providers(_ contributors: [AnyKeyPath]) -> Self {
+    public static func providers(_ contributors: [AnyKeyPath & Sendable]) -> Self {
         Self(kind: .providers, contributors: contributors)
     }
 
@@ -97,7 +97,7 @@ public struct DICollectionMetadata: @unchecked Sendable {
         Self(kind: .keyedProviders, keyedContributors: contributors)
     }
 
-    private init(kind: Kind, contributors: [AnyKeyPath]) {
+    private init(kind: Kind, contributors: [AnyKeyPath & Sendable]) {
         self.kind = kind
         self.contributors = contributors
         keyedContributors = []
