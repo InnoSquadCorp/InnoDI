@@ -604,10 +604,20 @@ standalone release assets.
 1. Read the [5.x to 6.0 migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary)
    and the accepted [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
    before changing the package requirement to `from: "6.0.0"`.
-2. Run `InnoDI-Doctor` and `InnoDI-Migrate --check` or `--report` first. Review
-   the proposed vocabulary changes, commit or back up consumer work, then use
-   `--write` only when ready to apply them. Resolve dynamic/conflicting sites
-   manually and inspect any reported recovery paths.
+2. From an InnoDI 6.0 checkout, run these read-only checks first, replacing
+   `/path/to/consumer` with the consumer's package or source-tree root:
+
+   ```sh
+   swift run InnoDI-Doctor --root /path/to/consumer
+   swift run InnoDI-Migrate --root /path/to/consumer --check
+   swift run InnoDI-Migrate --root /path/to/consumer --report
+   ```
+
+   `--check` exits 1 when migration is required; inspect the report rather than
+   treating that result as a tool crash. Review the proposed vocabulary changes,
+   commit or back up consumer work, then replace `--check` with `--write` only
+   when ready to apply them. Resolve dynamic/conflicting sites manually and
+   inspect any reported recovery paths.
 3. Replace cyclic deferred wiring, removed SPI, and erased collection key paths.
    Rebuild actual consumers under complete strict concurrency with warnings as
    errors; validate factory captures as well as their result types.

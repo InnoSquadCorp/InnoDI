@@ -3,6 +3,31 @@ import Testing
 
 @Suite("Public dependency-graph command documentation")
 struct PublicCLIDocumentationTests {
+    @Test("Release upgrade diagnostics provide a consumer root without applying changes")
+    func releaseUpgradeCommandsAreReadOnlyAndComplete() throws {
+        let source = try String(
+            contentsOf: packageRootURL().appendingPathComponent("RELEASING.md"),
+            encoding: .utf8
+        )
+        let upgradeStart = try #require(source.range(of: "### Upgrade Actions\n"))
+        let currentUpgrade = source[upgradeStart.upperBound...]
+            .components(separatedBy: "\n## ")[0]
+        let commands = currentUpgrade.split(separator: "\n").map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }.filter {
+            $0.hasPrefix("swift run InnoDI-Doctor ") || $0.hasPrefix("swift run InnoDI-Migrate ")
+        }
+        #expect(commands.contains("swift run InnoDI-Doctor --root /path/to/consumer"))
+        #expect(commands.contains("swift run InnoDI-Migrate --root /path/to/consumer --check"))
+        #expect(commands.contains("swift run InnoDI-Migrate --root /path/to/consumer --report"))
+        for command in commands {
+            #expect(command.contains("--root /path/to/consumer"))
+            #expect(!command.contains("--write"))
+            #expect(!command.contains("--apply"))
+            #expect(!command.contains("--verify"))
+        }
+    }
+
     @Test("Every documented render command selects root pruning explicitly")
     func renderCommandsSelectRootPruning() throws {
         let root = packageRootURL()
