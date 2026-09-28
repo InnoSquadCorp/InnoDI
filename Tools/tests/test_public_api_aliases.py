@@ -2,7 +2,9 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,6 +17,30 @@ SPEC.loader.exec_module(GATE)
 
 
 class PublicAPIAliasTests(unittest.TestCase):
+    def extraction_flags(self):
+        info = json.loads(subprocess.check_output(["swiftc", "-print-target-info"], text=True))
+        # Use the package's minimum macOS deployment target in both paths;
+        # standalone toolchains can otherwise default above the selected SDK.
+        target = info["target"]["unversionedTriple"] + "13.0"
+        sdk = os.environ.get("SDKROOT") or subprocess.check_output(
+            ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True).strip()
+        return ["-target", target, "-sdk", sdk]
+
+    def extracted_aliases(self, folder, module, flags):
+        output = folder / "extracted"
+        output.mkdir()
+        extractor = shutil.which("swift-symbolgraph-extract") or subprocess.check_output(
+            ["xcrun", "--find", "swift-symbolgraph-extract"], text=True).strip()
+        result = subprocess.run([
+            extractor, "-module-name", module, "-I", str(folder),
+            "-output-dir", str(output), "-minimum-access-level", "public",
+            "-skip-synthesized-members", *flags,
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        graph = GATE.normalize_product_graph(output, module)
+        return {s["identifier"]["precise"]: s for s in graph["symbols"]
+                if s["kind"]["identifier"] == "swift.typealias"}
+
     def test_current_product_aliases_match_the_baseline(self):
         root = Path(__file__).resolve().parents[2]
         baseline = json.loads((root / "Tools/public-api-baseline.json").read_text())
@@ -29,19 +55,86 @@ class PublicAPIAliasTests(unittest.TestCase):
         ]:
             with tempfile.TemporaryDirectory(prefix="innodi-product-alias-") as directory:
                 folder = Path(directory)
+                flags = self.extraction_flags()
                 result = subprocess.run([
                     "swiftc", "-swift-version", "6", "-strict-concurrency=complete", "-warnings-as-errors",
                     "-parse-as-library", "-emit-module", "-module-name", module,
                     "-emit-module-path", str(folder / (module + ".swiftmodule")),
                     "-emit-symbol-graph", "-emit-symbol-graph-dir", str(folder),
+                    *flags,
                     *[str(root / "Sources" / module / name) for name in filenames],
                 ], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 graph = GATE.normalize_product_graph(folder, module)
-                actual.update({s["identifier"]["precise"]: s for s in graph["symbols"]
-                               if s["kind"]["identifier"] == "swift.typealias"})
+                aliases = {s["identifier"]["precise"]: s for s in graph["symbols"]
+                           if s["kind"]["identifier"] == "swift.typealias"}
+                self.assertEqual(aliases, self.extracted_aliases(folder, module, flags))
+                actual.update(aliases)
         self.assertEqual(len(actual), 10)
         self.assertEqual(actual, expected)
+
+    def test_generic_slots_survive_serialized_extraction(self):
+        with tempfile.TemporaryDirectory(prefix="innodi-generic-alias-") as directory:
+            folder = Path(directory)
+            source = folder / "Sources/APIProbe/API.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text("""
+                public struct Wrapper<A, B> {
+                    public typealias Left = A
+                    public typealias Right = B
+                    public struct Nested<C> {
+                        public typealias Outer = A
+                        public typealias Inner = C
+                        public typealias All = (A, B, C)
+                    }
+                }
+                """)
+            flags = self.extraction_flags()
+            result = subprocess.run([
+                "swiftc", "-swift-version", "6", "-emit-module", "-module-name", "APIProbe",
+                "-emit-module-path", str(folder / "APIProbe.swiftmodule"),
+                "-emit-symbol-graph", "-emit-symbol-graph-dir", str(folder), *flags, str(source),
+            ], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            graph = GATE.normalize_product_graph(folder, "APIProbe")
+            aliases = {s["identifier"]["precise"]: s for s in graph["symbols"]
+                       if s["kind"]["identifier"] == "swift.typealias"}
+            self.assertEqual(aliases, self.extracted_aliases(folder, "APIProbe", flags))
+            contracts = {s["pathComponents"][-1]: s["declarationContract"]["aliasedType"]
+                         for s in aliases.values()}
+            self.assertEqual(contracts["Left"], ["generic:0:0"])
+            self.assertEqual(contracts["Right"], ["generic:0:1"])
+            self.assertEqual(contracts["Outer"], ["generic:0:0"])
+            self.assertEqual(contracts["Inner"], ["generic:1:0"])
+            self.assertEqual(contracts["All"], ["(", "generic:0:0", ",", "generic:0:1", ",", "generic:1:0", ")"])
+
+            raw = json.loads((folder / "extracted/APIProbe.symbols.json").read_text())
+            alias = next(s for s in raw["symbols"] if s["pathComponents"][-1] == "Left")
+            for mutation in ("missing-context", "unknown-type", "duplicate-name", "duplicate-slot",
+                             "invalid-index", "invalid-depth", "qualified-type"):
+                with self.subTest(mutation=mutation):
+                    broken = copy.deepcopy(alias)
+                    parameters = broken["swiftGenerics"]["parameters"]
+                    if mutation == "missing-context":
+                        del broken["swiftGenerics"]
+                    elif mutation == "unknown-type":
+                        broken["declarationFragments"][-1]["spelling"] = "Unknown"
+                    elif mutation == "duplicate-name":
+                        parameters[1]["name"] = parameters[0]["name"]
+                    elif mutation == "duplicate-slot":
+                        parameters[1]["index"] = parameters[0]["index"]
+                    elif mutation == "invalid-index":
+                        parameters[0]["index"] = True
+                    elif mutation == "invalid-depth":
+                        parameters[0]["depth"] = -1
+                    else:
+                        broken["declarationFragments"].insert(-1, {"kind": "text", "spelling": "Other."})
+                    with self.assertRaises(ValueError):
+                        GATE.normalize_symbol(broken)
+
+            nominal = copy.deepcopy(alias)
+            nominal["declarationFragments"][-1]["preciseIdentifier"] = "s:8APIProbe1AV"
+            self.assertEqual(GATE.typealias_contract(nominal), ["reference:s:8APIProbe1AV"])
 
     def test_real_alias_contracts_and_equivalent_controls(self):
         cases = [

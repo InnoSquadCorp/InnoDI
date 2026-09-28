@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -166,12 +166,33 @@ def declaration_contract(symbol: dict[str, Any]) -> dict[str, Any]:
     return contract
 
 
+def generic_parameter_slots(symbol: dict[str, Any]) -> dict[str, str]:
+    """Resolve compiler-declared parameters without inventing missing type USRs."""
+    parameters = symbol.get("swiftGenerics", {}).get("parameters", [])
+    if not isinstance(parameters, list):
+        raise ValueError("Invalid generic parameters for " + symbol["identifier"]["precise"])
+    names: dict[str, str] = {}
+    slots: set[tuple[int, int]] = set()
+    for parameter in parameters:
+        if not isinstance(parameter, dict):
+            raise ValueError("Invalid generic parameter for " + symbol["identifier"]["precise"])
+        name, depth, index = (parameter.get(key) for key in ("name", "depth", "index"))
+        if (not isinstance(name, str) or not name or type(depth) is not int or type(index) is not int
+                or depth < 0 or index < 0 or name in names or (depth, index) in slots):
+            raise ValueError("Ambiguous generic parameter for " + symbol["identifier"]["precise"])
+        names[name] = f"generic:{depth}:{index}"
+        slots.add((depth, index))
+    return names
+
+
 def typealias_contract(symbol: dict[str, Any]) -> list[str]:
     """Keep RHS structure/effects and referenced identities, not rendered names.
 
     An alias USR identifies only its declaration, not its underlying type.
     Tokenize punctuation and keywords independently of fragment/space layout;
-    use compiler identities for types (including generic parameters and actors).
+    use compiler identities for nominal types and actors, depth/index slots for
+    generic parameters. Serialized-module extraction omits parameter USRs that
+    direct symbol-graph emission includes, but retains swiftGenerics metadata.
     """
     fragments = symbol["declarationFragments"]
     rhs = None
@@ -185,12 +206,18 @@ def typealias_contract(symbol: dict[str, Any]) -> list[str]:
             break
     if not rhs or not any(part["spelling"].strip() for part in rhs):
         raise ValueError("Missing typealias RHS for " + symbol["identifier"]["precise"])
+    parameters = generic_parameter_slots(symbol)
     tokens = []
     for index, fragment in enumerate(rhs):
         spelling = fragment["spelling"]
         identity = fragment.get("preciseIdentifier")
-        if fragment["kind"] == "typeIdentifier" and not identity:
-            raise ValueError("Missing aliased-type identity for " + symbol["identifier"]["precise"])
+        if fragment["kind"] == "typeIdentifier" and (not identity or identity.endswith("mfp")):
+            # Never infer a nominal type from its spelling, or mistake a
+            # qualified nominal name for a same-spelled generic parameter.
+            if spelling not in parameters or (tokens and tokens[-1] == "."):
+                raise ValueError("Missing aliased-type identity for " + symbol["identifier"]["precise"])
+            tokens.append(parameters[spelling])
+            continue
         if fragment["kind"] == "attribute" and spelling == "@":
             following = next((part for part in rhs[index + 1:] if part["spelling"].strip()), None)
             if following is None or not following.get("preciseIdentifier"):
