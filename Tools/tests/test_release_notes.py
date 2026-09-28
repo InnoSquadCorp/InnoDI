@@ -10,13 +10,13 @@ SCRIPT = ROOT / "Tools" / "extract-release-notes.sh"
 
 
 class ReleaseNotesTests(unittest.TestCase):
-    def extract(self, source, version="6.0.0"):
+    def extract(self, source, version="6.0.0", *, raw=False):
         with tempfile.TemporaryDirectory(prefix="innodi-release-notes-") as directory:
             Path(directory, "RELEASING.md").write_text(source)
             return subprocess.run(
                 ["/bin/bash", str(SCRIPT), version],
                 cwd=directory,
-                text=True,
+                text=not raw,
                 capture_output=True,
                 timeout=5,
             )
@@ -46,6 +46,14 @@ class ReleaseNotesTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, "")
                 self.assertIn("no release notes found", result.stderr)
+
+    def test_crlf_notes_normalize_to_lf_and_stop_at_next_section(self):
+        source = "## 6.0.0\n\n- 입력 → 출력\n\n## 5.1.0\nOld.\n"
+        for document in (source, source.replace("\n", "\r\n")):
+            with self.subTest(crlf="\r\n" in document):
+                result = self.extract(document, raw=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, "\n- 입력 → 출력\n".encode())
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@ fi
 awk_status=0
 notes="$(
   awk -v tag="$tag" '
+    # Match the candidate validator: accept CRLF input and emit canonical LF.
+    { sub(/\r$/, "") }
     $0 == "## " tag { found = 1; next }
     found && /^## / { exit }
     found { print }
