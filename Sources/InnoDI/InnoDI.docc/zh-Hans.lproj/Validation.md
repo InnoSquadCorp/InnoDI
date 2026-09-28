@@ -20,7 +20,8 @@ InnoDI 以多层方式校验依赖定义。
 property initializer 是不透明的 zero-edge 构造源，不能引用 sibling member。
 
 `validateDAG: false` 不会关闭声明校验或效果兼容性校验，只会跳过全局 DAG、
-本地 cycle 及其他 graph-derived 校验。
+本地 graph-derived 可用性校验。本地所有权循环始终会被拒绝，
+包括通过 `Lazy` 或 `Provider` 形成的循环。
 
 ## Build Validation
 

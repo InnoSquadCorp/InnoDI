@@ -3,7 +3,7 @@ import Testing
 
 @Suite("Runtime trace performance script contracts")
 struct RuntimeTracePerformanceScriptTests {
-    @Test("Budget preserves legacy gates and adds saturation and contention")
+    @Test("Diagnostics retain reference budgets for disabled, enabled, saturation and contention")
     func budgetCoverage() throws {
         let root = packageRootURL()
         let data = try Data(
@@ -23,7 +23,7 @@ struct RuntimeTracePerformanceScriptTests {
         #expect((budget["contendedNanosecondsPerEvent"] as? Double) != nil)
     }
 
-    @Test("Gate validates every production capacity and ring accounting")
+    @Test("Diagnostic validator checks every production capacity and ring accounting")
     func scriptCoverage() throws {
         let script = try String(
             contentsOf: packageRootURL().appendingPathComponent(

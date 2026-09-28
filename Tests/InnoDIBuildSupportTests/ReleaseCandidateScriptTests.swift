@@ -53,6 +53,22 @@ struct ReleaseCandidateScriptTests {
         #expect(result.exitCode == 0)
     }
 
+    @Test("Validated metadata can be extracted with LF or CRLF line endings", arguments: [false, true])
+    func validatedMetadataCanBeExtracted(crlf: Bool) throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
+        defer { fixture.remove() }
+        if crlf {
+            try fixture.convertReleasingToCRLF()
+        }
+
+        let validation = try fixture.run()
+        try #require(validation.exitCode == 0)
+        let extraction = try fixture.extractNotes()
+        #expect(extraction.exitCode == 0)
+        #expect(extraction.output == "\n\(ReleaseCandidateScriptFixture.canonicalReleaseBody)\n")
+        #expect(try fixture.tagNames().isEmpty)
+    }
+
     @Test("6.x release requires RFC 0006 to be accepted")
     func acceptedRFC0006IsRequired() throws {
         let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
@@ -888,6 +904,14 @@ private struct ReleaseCandidateScriptFixture {
         )
     }
 
+    func extractNotes() throws -> CapturedCommandResult {
+        try runCapturedCommand(
+            executable: "/bin/bash",
+            arguments: [packageRootURL().appendingPathComponent("Tools/extract-release-notes.sh").path, version],
+            currentDirectory: rootURL
+        )
+    }
+
     func runUsingDefaultRoot() throws -> ReleaseCandidateScriptResult {
         let toolsURL = rootURL.appendingPathComponent("Tools", isDirectory: true)
         try FileManager.default.createDirectory(
@@ -1138,7 +1162,8 @@ private struct CapturedCommandResult {
 
 private func runCapturedCommand(
     executable: String,
-    arguments: [String]
+    arguments: [String],
+    currentDirectory: URL? = nil
 ) throws -> CapturedCommandResult {
     let outputURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("InnoDI-CommandOutput-\(UUID().uuidString).log")
@@ -1149,6 +1174,7 @@ private func runCapturedCommand(
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = arguments
+    process.currentDirectoryURL = currentDirectory
     process.standardOutput = outputHandle
     process.standardError = outputHandle
 

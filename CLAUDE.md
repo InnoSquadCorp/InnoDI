@@ -141,10 +141,10 @@ are rejected. Keep the full-source preflight enabled to cover attached-macro
 ancestry limits.
 
 The root role controls strict hierarchy validation and graph reachability,
-not just rendering. `validateDAG: false` skips global DAG
-validation plus the macro's local cycle and other graph-derived checks. It
-never disables declaration validation or effect compatibility on explicit
-sibling edges.
+not just rendering. `validateDAG: false` skips global DAG validation and local
+graph-derived availability checks. Local ownership cycles are always rejected,
+including cycles through `Lazy` or `Provider`. It never disables declaration
+validation or effect compatibility on explicit sibling edges.
 
 `Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
 every container `validateDAG: false` site plus any active
@@ -266,9 +266,10 @@ Report confirmed defects, unresolved candidates, optional improvements, and
 unverified boundaries separately. A review alone does not authorize changes,
 commits, pushes, or releases. A green suite is not proof of no remaining defects.
 
-`RELEASING.md` is authoritative: 6.0.0 remains unreleased until its exact-SHA
-release workflow succeeds. A PR run may check out a synthetic merge, so verify
-its tree against the candidate and distinguish that from literal-SHA consumer
+`RELEASING.md` defines the release contract. A version-promotion PR is not a
+published release: verify its exact-SHA release workflow and immutable GitHub
+Release before reporting publication. A PR run may check out a synthetic merge,
+so verify its tree against the candidate and distinguish that from literal-SHA consumer
 runs. Do not claim release readiness from local tests, skip/insufficient-history
 statuses, or a green run for an older revision. Do not relax budgets or retry
 unchanged candidates until green.
