@@ -358,6 +358,21 @@ struct CIWorkflowHardeningTests {
         #expect(process.terminationStatus == 0)
     }
 
+    @Test("Independent feature reports reject incomplete evidence without replacing the calibrated gate")
+    func featurePerformanceEvidenceIsIndependent() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "-B", "Tools/tests/test_macro_feature_report.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        let workflow = try String(contentsOf: packageRootURL().appendingPathComponent(".github/workflows/macro-tests.yml"), encoding: .utf8)
+        #expect(workflow.contains("run: Tools/measure-macro-features.sh"))
+        #expect(workflow.contains("name: macro-feature-performance-report"))
+        #expect(workflow.contains("--enforce"))
+    }
+
     @Test("Main CI leaves example builds to the path-filtered example matrix")
     func mainCIDoesNotDuplicateExampleBuilds() throws {
         let root = packageRootURL().appendingPathComponent(".github/workflows")
