@@ -2,10 +2,6 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> [!IMPORTANT]
-> このチェックアウトは**未リリースの 6.0.0** のドキュメントです。`@Input` を含む例には、公開済みの 5.1.0 パッケージではなく 6.0 開発チェックアウトが必要です。
-> [安定版 5.1.0 のドキュメント](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.ja.md).
-
 InnoDI は、コンパイル時およびビルド時の検証、依存グラフツール、
 階層検証、SwiftUI ヘルパーを備えた Swift 向けのマクロ駆動 DI フレームワークです。
 
@@ -145,22 +141,14 @@ visionOS アプリに InnoDI を埋め込む場合、SwiftPM が自動的にマ�
 
 ```swift
 dependencies: [
-    .package(name: "InnoDI", path: "../InnoDI")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
 ]
 ```
 
-このページの例には、以下のローカル **6.0 開発チェックアウト**を使用し、`../InnoDI` を実際のパスに変更してください。6.0.0 のリリースタグはまだありません。
-
-公開済みの **5.1.0** パッケージには以下の依存関係を使用し、このページの 6.0 の例ではなく、リンク先の安定版ドキュメントに従ってください。
-[安定版 5.1.0 のドキュメント](https://github.com/InnoSquadCorp/InnoDI/blob/5.1.0/README.ja.md).
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "5.1.0")
-]
-```
-
-以下の product・plugin・API の例はすべて **6.0 開発チェックアウト**を対象としています。
+このページの例は **InnoDI 6.0.0** を対象としています。
+[6.0.0 バージョンのドキュメント](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ja.md)。
+5.x からのアップグレードにはソースの変更が必要です。
+[移行ガイド](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary)を参照してください。
 
 必要な product を target に追加します。
 
