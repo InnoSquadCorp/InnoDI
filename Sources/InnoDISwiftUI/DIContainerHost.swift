@@ -77,6 +77,12 @@ where Identity: Hashable & Sendable {
 
     @Published public private(set) var phase: DIContainerHostPhase<Identity, Container> = .idle
 
+    // Published sends in willSet. Decisions must use the committed transition,
+    // not the old public value still visible inside a synchronous subscriber.
+    private var transitionPhase: DIContainerHostPhase<Identity, Container> = .idle
+    private var pendingPhase: DIContainerHostPhase<Identity, Container>?
+    private var isPublishingPhase = false
+
     private var identity: Identity?
     private var generation: UInt64 = 0
     private var operation: Task<Void, Never>?
@@ -95,14 +101,16 @@ where Identity: Hashable & Sendable {
     /// identity first closes the old generation with the callback captured
     /// when that generation started, then creates the new one. All known
     /// cleanup is serialized; a close hook that does not return deliberately
-    /// keeps replacement publication pending.
+    /// keeps replacement publication pending. Synchronous phase observers may
+    /// start or retry a generation; nested notifications are drained after the
+    /// current publication, coalescing superseded intermediate transitions.
     public func start(
         identity newIdentity: Identity,
         factory newFactory: @escaping Factory,
         close newClose: @escaping Close = { _ in }
     ) {
         if identity == newIdentity {
-            switch phase {
+            switch transitionPhase {
             case .loading, .ready:
                 return
             case .idle, .failed:
@@ -121,7 +129,7 @@ where Identity: Hashable & Sendable {
     ///
     /// Calling this method outside the failed phase is a no-op.
     public func retry() {
-        guard case let .failed(failedIdentity, _) = phase,
+        guard case let .failed(failedIdentity, _) = transitionPhase,
               let factory,
               let closeOperation else { return }
         begin(
@@ -149,16 +157,17 @@ where Identity: Hashable & Sendable {
         let containerClose = currentContainerClose
         currentContainer = nil
         currentContainerClose = nil
-        phase = .idle
-
+        let cleanup: Task<Void, Never>?
         if let container, let containerClose {
-            await scheduleCleanup(
+            cleanup = scheduleCleanup(
                 container: container,
                 close: containerClose
-            ).value
+            )
         } else {
-            await cleanupBarrier?.value
+            cleanup = cleanupBarrier
         }
+        publish(.idle)
+        await cleanup?.value
     }
 
     private func begin(
@@ -177,7 +186,6 @@ where Identity: Hashable & Sendable {
         identity = newIdentity
         factory = newFactory
         closeOperation = newClose
-        phase = .loading(identity: newIdentity)
 
         let cleanup: Task<Void, Never>?
         if let oldContainer, let oldClose {
@@ -208,15 +216,29 @@ where Identity: Hashable & Sendable {
 
                 currentContainer = candidate
                 currentContainerClose = newClose
-                phase = .ready(identity: newIdentity, container: candidate)
+                publish(.ready(identity: newIdentity, container: candidate))
             } catch is CancellationError {
                 guard requestedGeneration == generation else { return }
                 identity = nil
-                phase = .idle
+                publish(.idle)
             } catch {
                 guard requestedGeneration == generation else { return }
-                phase = .failed(identity: newIdentity, error: error)
+                publish(.failed(identity: newIdentity, error: error))
             }
+        }
+        // Install both ownership handles before invoking arbitrary observers.
+        publish(.loading(identity: newIdentity))
+    }
+
+    private func publish(_ next: DIContainerHostPhase<Identity, Container>) {
+        transitionPhase = next
+        pendingPhase = next
+        guard !isPublishingPhase else { return }
+        isPublishingPhase = true
+        defer { isPublishingPhase = false }
+        while let next = pendingPhase {
+            pendingPhase = nil
+            phase = next
         }
     }
 

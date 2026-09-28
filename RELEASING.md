@@ -275,6 +275,11 @@ standalone release assets.
 
 ## Unreleased
 
+- Host phase observers may synchronously start or retry without losing the new
+  generation's cancellation handle or overwriting its phase. Cleanup barriers
+  are installed before notifications; replacements started from an idle or
+  ready notification wait for the previous container's close hook.
+
 ### Highlights
 
 - On-demand Sendable safety: unrestricted deferred cells no longer claim
