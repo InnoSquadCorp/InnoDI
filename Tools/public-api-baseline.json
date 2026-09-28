@@ -944,7 +944,7 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI20DICollectionMetadataV12contributorsSays10AnyKeyPathCGvp",
+          "source": "s:6InnoDI20DICollectionMetadataV12contributorsSays8Sendable_s10AnyKeyPathCXcGvp",
           "target": "s:6InnoDI20DICollectionMetadataV"
         },
         {
@@ -994,12 +994,12 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI20DICollectionMetadataV7orderedyACSays10AnyKeyPathCGFZ",
+          "source": "s:6InnoDI20DICollectionMetadataV7orderedyACSays8Sendable_s10AnyKeyPathCXcGFZ",
           "target": "s:6InnoDI20DICollectionMetadataV"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI20DICollectionMetadataV9providersyACSays10AnyKeyPathCGFZ",
+          "source": "s:6InnoDI20DICollectionMetadataV9providersyACSays8Sendable_s10AnyKeyPathCXcGFZ",
           "target": "s:6InnoDI20DICollectionMetadataV"
         },
         {
@@ -1329,12 +1329,12 @@
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI29DIKeyedCollectionContributionV11contributors10AnyKeyPathCvp",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV11contributors8Sendable_s10AnyKeyPathCXcvp",
           "target": "s:6InnoDI29DIKeyedCollectionContributionV"
         },
         {
           "kind": "memberOf",
-          "source": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s10AnyKeyPathCtcfc",
+          "source": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s8Sendable_s10AnyKeyPathCXctcfc",
           "target": "s:6InnoDI29DIKeyedCollectionContributionV"
         },
         {
@@ -4211,7 +4211,7 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI20DICollectionMetadataV12contributorsSays10AnyKeyPathCGvp"
+            "precise": "s:6InnoDI20DICollectionMetadataV12contributorsSays8Sendable_s10AnyKeyPathCXcGvp"
           },
           "kind": {
             "identifier": "swift.property"
@@ -4407,7 +4407,7 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI20DICollectionMetadataV7orderedyACSays10AnyKeyPathCGFZ"
+            "precise": "s:6InnoDI20DICollectionMetadataV7orderedyACSays8Sendable_s10AnyKeyPathCXcGFZ"
           },
           "kind": {
             "identifier": "swift.type.method"
@@ -4428,7 +4428,7 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI20DICollectionMetadataV9providersyACSays10AnyKeyPathCGFZ"
+            "precise": "s:6InnoDI20DICollectionMetadataV9providersyACSays8Sendable_s10AnyKeyPathCXcGFZ"
           },
           "kind": {
             "identifier": "swift.type.method"
@@ -6345,7 +6345,7 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI29DIKeyedCollectionContributionV11contributors10AnyKeyPathCvp"
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV11contributors8Sendable_s10AnyKeyPathCXcvp"
           },
           "kind": {
             "identifier": "swift.property"
@@ -6363,7 +6363,7 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s10AnyKeyPathCtcfc"
+            "precise": "s:6InnoDI29DIKeyedCollectionContributionV3key11contributorACSS_s8Sendable_s10AnyKeyPathCXctcfc"
           },
           "kind": {
             "identifier": "swift.init"

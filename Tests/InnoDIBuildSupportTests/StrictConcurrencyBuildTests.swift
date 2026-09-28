@@ -608,6 +608,62 @@ struct StrictConcurrencyBuildTests {
         }
     }
 
+    @Test("Public collection metadata rejects captured non-Sendable key paths")
+    func collectionMetadataSendabilityBoundary() throws {
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-MetadataSendability-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        for scenario in ["control", "ordered", "providers", "keyed", "erased"] {
+            let construction: String = switch scenario {
+            case "ordered": "_ = DICollectionMetadata.ordered([\\Root.[key]])"
+            case "providers": "_ = DICollectionMetadata.providers([\\Root.[key]])"
+            case "keyed": "_ = DIKeyedCollectionContribution(key: \"value\", contributor: \\Root.[key])"
+            case "erased": "let path: AnyKeyPath = \\Root.value; _ = DICollectionMetadata.ordered([path])"
+            default: """
+                let ordered = DICollectionMetadata.ordered([\\Root.value])
+                let keyed = DICollectionMetadata.keyed([.init(key: "value", contributor: \\Root.value)])
+                precondition(ordered.contributors.count == 1 && keyed.keyedContributors.count == 1)
+                """
+            }
+            let fixture = try makeStrictConcurrencyFixture(
+                name: "MetadataSendability", dependencies: ["InnoDI"], source: """
+                import InnoDI
+                final class MutableKey: Hashable {
+                    var count = 0
+                    static func == (lhs: MutableKey, rhs: MutableKey) -> Bool { lhs === rhs }
+                    func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
+                }
+                struct Root {
+                    var value: Int { 7 }
+                    subscript(key: MutableKey) -> Int { key.count }
+                }
+                @main struct FixtureApp {
+                    static func main() {
+                        let key = MutableKey()
+                        _ = key
+                        \(construction)
+                    }
+                }
+                """
+            )
+            defer { try? FileManager.default.removeItem(at: fixture) }
+            let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+            let output = result.stdout + result.stderr
+            #expect(!result.timedOut)
+            if scenario == "control" {
+                #expect(result.exitCode == 0, "\(output)")
+                guard result.exitCode == 0, !result.timedOut else { continue }
+                let execution = try runExternalConsumerExecutable(packageURL: fixture, scratchPath: scratch)
+                #expect(!execution.timedOut)
+                #expect(execution.exitCode == 0)
+            } else {
+                #expect(result.exitCode != 0, "\(scenario) must reject unsafe erasure")
+                #expect(output.contains("Sendable"), "\(output)")
+                #expect(output.contains(scenario == "erased" ? "AnyKeyPath" : "MutableKey"), "\(output)")
+            }
+        }
+    }
+
     @Test("Timeout path terminates descendants that keep pipes open")
     func timeoutPathTerminatesDescendants() throws {
         let process = Process()

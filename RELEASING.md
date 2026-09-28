@@ -286,6 +286,12 @@ standalone release assets.
   transitive on-demand dependencies. Overrides preserve the same checks and
   still skip unused factories. Compiler-negative and runtime controls cover
   unsafe captures, payloads, regular/actor-isolated use and async dependency chains.
+- Public collection metadata now uses checked `Sendable` conformance and accepts
+  `AnyKeyPath & Sendable` at every construction boundary. Canonical member
+  literals remain source-compatible; callers building arrays explicitly must
+  preserve that intersection instead of erasing to `AnyKeyPath`. Mutable,
+  non-Sendable subscript captures are compiler errors, not silently transferable
+  metadata. The `@Provide(collection:)` canonical-member grammar is unchanged.
 - Post-acceptance contract hardening:
   - Async waiter cancellation no longer retains completed-request IDs across
     scope resets. Caller cancellation is checked during actor-isolated
