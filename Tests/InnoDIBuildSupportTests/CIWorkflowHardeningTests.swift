@@ -384,7 +384,20 @@ struct CIWorkflowHardeningTests {
         #expect(guidance.contains("minimum 5 comparable entries, 20% threshold"))
         #expect(guidance.contains("report-only-unbaselined"))
         #expect(guidance.contains("Perf History` is manual recovery"))
-        #expect(guidance.contains("6.0.0 remains unreleased"))
+    }
+
+    @Test("Agent guidance distinguishes version promotion from verified publication")
+    func agentGuidanceRequiresPublicationEvidence() throws {
+        let guidance = try String(
+            contentsOf: packageRootURL().appendingPathComponent("CLAUDE.md"),
+            encoding: .utf8
+        ).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+
+        // Keep this invariant independent of the version being promoted and
+        // Markdown line wrapping. Preparing metadata is not publication proof.
+        #expect(guidance.contains("A version-promotion PR is not a published release"))
+        #expect(guidance.contains("verify its exact-SHA release workflow and immutable GitHub Release before reporting publication"))
+        #expect(guidance.contains("Do not claim release readiness from local tests, skip/insufficient-history statuses, or a green run for an older revision"))
     }
 
     @Test("Main CI leaves example builds to the path-filtered example matrix")
