@@ -23,6 +23,7 @@ public final class _InnoDISharedCell<Value> {
     private let traceOwner: _InnoDITraceOwner
     private let providerName: String
     private var state: State
+    private var activeCallers: Set<ObjectIdentifier> = []
 
     public init(factory: @escaping () -> Value) {
         traceOwner = .disabled
@@ -61,6 +62,15 @@ public final class _InnoDISharedCell<Value> {
     public func value() -> Value {
         let caller = ObjectIdentifier(Thread.current)
         condition.lock()
+        guard activeCallers.insert(caller).inserted else {
+            condition.unlock()
+            return _innoDITrap("Reentrant on-demand provider resolution detected")
+        }
+        defer {
+            condition.lock()
+            activeCallers.remove(caller)
+            condition.unlock()
+        }
         while true {
             switch state {
             case .ready(let value, let span):
@@ -74,13 +84,20 @@ public final class _InnoDISharedCell<Value> {
                         "Reentrant on-demand provider resolution detected"
                     )
                 }
+                condition.unlock()
                 traceOwner.wait(.waitStart, member: providerName, for: span)
-                condition.wait()
+                condition.lock()
+                // The factory can finish while a sink runs. Recheck under the
+                // lock before sleeping so its broadcast cannot be lost.
+                while case .initializing = state { condition.wait() }
+                condition.unlock()
                 traceOwner.wait(.waitEnd, member: providerName, for: span)
+                condition.lock()
             case .pending(let factory):
-                let span = traceOwner.start(member: providerName)
+                let span = traceOwner.prepareSpan(member: providerName)
                 state = .initializing(owner: caller, span: span)
                 condition.unlock()
+                traceOwner.emitStart(span: span)
                 let value = factory()
                 condition.lock()
                 state = .ready(value, span: span)
