@@ -41,6 +41,6 @@ custom_rules:
       Avoid `typealias Foo = InnoDI.Lazy<...>` (or `Provider<...>`).
       The macro recognizes the deferred wrappers by canonical
       identifier; cross-file aliases silently behave as hard edges and
-      disable cycle escape. Spell `Lazy<T>` or `InnoDI.Lazy<T>` at every
+      disable deferred wiring. Spell `Lazy<T>` or `InnoDI.Lazy<T>` at every
       factory parameter site.
     severity: warning

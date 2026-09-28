@@ -47,7 +47,7 @@ struct CrossModuleChildDiagnosticsTests {
         #expect(issue.metadata["childContainerID"] == "FeatureContainer#missing")
         #expect(issue.message.contains("workspace validator could not find a container record"))
         // Remediation must reference both component opt-in and module dependency declaration.
-        #expect(issue.remediation?.contains("@DIComponent") == true)
+        #expect(issue.remediation?.contains("ContainerRole.component") == true)
         #expect(issue.remediation?.contains("module") == true)
     }
 

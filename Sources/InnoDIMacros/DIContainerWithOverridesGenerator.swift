@@ -14,10 +14,14 @@ import SwiftSyntaxBuilder
 
 internal func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
     return [
-        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false),
-        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true),
-        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: false),
-        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: true),
+        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: false)
+            .prependingMARK("// MARK: - withOverrides"),
+        makeWithOverridesMethod(model: model, isAsync: false, isThrowing: true)
+            .prependingMARK("// MARK: - withOverrides (throws)"),
+        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: false)
+            .prependingMARK("// MARK: - withOverrides (async)"),
+        makeWithOverridesMethod(model: model, isAsync: true, isThrowing: true)
+            .prependingMARK("// MARK: - withOverrides (async throws)"),
     ]
 }
 
@@ -55,6 +59,22 @@ private func makeWithOverridesMethod(
         )
         params.append(param)
     }
+
+    params.append(
+        FunctionParameterSyntax(
+            firstName: .identifier("_innoDITrace"),
+            secondName: nil,
+            colon: .colonToken(),
+            type: TypeSyntax(stringLiteral: "DITraceContext"),
+            ellipsis: nil,
+            defaultValue: InitializerClauseSyntax(
+                value: ExprSyntax(
+                    MemberAccessExprSyntax(name: .identifier("disabled"))
+                )
+            ),
+            trailingComma: .commaToken()
+        )
+    )
 
     let applyOverridesParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
@@ -136,6 +156,16 @@ private func makeWithOverridesMethod(
             )
         )
     }
+    callArgs.append(
+        LabeledExprSyntax(
+            label: .identifier("_innoDITrace"),
+            colon: .colonToken(),
+            expression: ExprSyntax(
+                DeclReferenceExprSyntax(baseName: .identifier("_innoDITrace"))
+            ),
+            trailingComma: .commaToken()
+        )
+    )
     callArgs.append(
         LabeledExprSyntax(
             expression: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("_innoDIApplyOverrides")))

@@ -4,7 +4,7 @@ struct Config {}
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var config: Config
 }
 

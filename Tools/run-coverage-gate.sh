@@ -32,7 +32,11 @@ rm -f \
     "$COVERAGE_OUTPUT_DIR/summary.json" \
     "$COVERAGE_OUTPUT_DIR/summary.md"
 
-swift test "${SWIFT_PACKAGE_ARGUMENTS[@]}" -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage
+# Synchronous compiler/CLI fixtures must not occupy the cooperative executor
+# while an unrelated async contract's wall-clock limit is running. Serialize
+# independent test cases, not the tasks/concurrency exercised inside each test.
+# Keep every test, its time limit, and one fresh coverage pass unchanged.
+swift test "${SWIFT_PACKAGE_ARGUMENTS[@]}" --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage
 INNODI_COVERAGE_BUILD_DIR="$BUILD_DIR" Tools/collect-coverage.sh
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then

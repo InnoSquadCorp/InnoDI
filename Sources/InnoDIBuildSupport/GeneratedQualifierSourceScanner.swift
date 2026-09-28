@@ -469,10 +469,7 @@ private final class QualifierFileCollector: SyntaxVisitor {
             )
         )
 
-        let containerAttribute = findInnoDIAttribute(
-            named: "DIContainer",
-            in: node.attributes
-        )
+        let containerAttribute = findDIContainerAttribute(in: node.attributes)
         let containerSupport = containerAttribute.map { _ in
             classifyDIContainerDeclaration(node)
         }

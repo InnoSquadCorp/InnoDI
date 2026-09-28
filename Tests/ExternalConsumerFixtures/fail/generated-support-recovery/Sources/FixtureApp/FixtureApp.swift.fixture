@@ -2,7 +2,7 @@ import InnoDISwiftUI
 
 @DIContainer
 struct CustomInitContainer {
-    @Provide(.input)
+    @Input
     var config: String
 
     init(config: String) {
@@ -10,14 +10,12 @@ struct CustomInitContainer {
     }
 }
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 struct UnmanagedComponent {
     var rawState = 0
 }
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 struct ConflictingComponent {
     struct Overrides {}
 }

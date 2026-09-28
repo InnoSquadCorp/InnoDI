@@ -4,7 +4,7 @@ import InnoDI
 struct UnmanagedStateContainer {
     let token: Int
 
-    @Provide(.input)
+    @Input
     var config: String
 }
 

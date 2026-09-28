@@ -59,7 +59,7 @@ InnoDI は明示的な境界を置くことで検証を決定的に保ちます�
   component mount で使う `applyOverrides` 関数型、4 つの `withOverrides`
   operation closure、生成される feature-root helper を隔離します。UI ルート
   コンテナ向けの構成です。
-- `@DIComponent` を併用すると、生成される dependency protocol、
+- component role の `@DIContainerRole` を使用すると、生成される dependency protocol、
   `init(dependencies:_:)`、override 適用 closure 型は `@MainActor` に隔離され、
   component は専用の `_InnoDIMainActorComponentMountable` protocol に準拠します。
   通常の component は非隔離の `_InnoDIComponentMountable` を引き続き使用します。

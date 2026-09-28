@@ -4,6 +4,15 @@ This document tracks the live roadmap after the 4.0.0 baseline, the 4.1.0
 release-hardening pass, and the 4.2.0 wiring/observability simplification
 release.
 
+## Current 6.0.0 candidate
+
+The [final-hardening plan](docs/plans/6.0.0-final-hardening.md) tracks the
+September 22 audit findings, the selected rejection of deferred ownership
+cycles, and new candidate-bound verification. Earlier shipped-version and
+T42 pass records below/elsewhere remain historical; they do not approve this
+candidate for release. Mulbyul is the only product-consumer verification in
+scope and its original working tree remains test-only and unchanged.
+
 ## Shipped in 4.0.0
 
 InnoDI 4.0.0 now treats the following capabilities as the stable baseline:
@@ -272,9 +281,11 @@ ordered by user-facing trust risk first.
 ## 6.0 Preparation Train
 
 [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) defines
-the Draft direction for 6.0: child-owned assisted factories, separate input and
-provider-lifetime declarations, and explicit container roles. The 5.2.x train
-is limited to reversible groundwork while the RFC remains Draft.
+the accepted 6.0 contract: child-owned assisted factories, separate input and
+provider-lifetime declarations, explicit container roles, and deterministic
+compile-time multibinding. The repository owner approved the public syntax and
+documented 5.x spelling replacements on 2026-09-24. PR review/merge and release
+publication remain separate gates.
 
 Delivery order:
 
@@ -303,8 +314,14 @@ Delivery order:
    the public migration path replaced it.
 4. Validate InnoSample, BlPia, and Lynceus adoption against exact revisions;
    keep Mulbyul read-only/test-only per its owner boundary.
+   A fresh isolated Mulbyul HEAD `092ff951` run generated the Tuist workspace
+   against promotion head `2da86f7`, then stopped at the documented 6.0
+   `@Provide(.input)` to `@Input` source break. Read-only Doctor reported one
+   safe proposal and nine fail-closed ownership ambiguities without touching
+   the original checkout; this remains negative compatibility evidence rather
+   than an adopter vote.
    InnoSample is the committed public runtime and SwiftUI host pilot: consumer
-   commit `f53510b` resolves InnoDI `28a95a5`, passes its Xcode 27
+   commit `ec88716` resolves InnoDI `f1a3eac`, passes its Xcode 27
    `make verify-ci` gate, and proves per-child shared-state isolation,
    overrides, loading/failure/retry, and host identity without an SPI import,
    temporary wrapper, or manual state owner. The generated public bridge also
@@ -314,11 +331,14 @@ Delivery order:
    source paths now reuse the existing
    initializer, hierarchy, actor, and strict external-consumer contracts.
    The compiler/toolchain contract is frozen for the code candidate; BlPia
-   `787f419` and Lynceus `61d3df4` provide the two additional committed pilot
-   votes. Maintainer RFC approval and the promotion cooldown still block GA.
-6. Accept and freeze the RFC only after diagnostics, graph schema, migration,
-   strict-concurrency, consumer, and macro-performance gates pass.
-7. Remove superseded declarations and publish graph JSON v4 in 6.0.0.
+   `c12560d` and Lynceus `3edb77b` provide the two additional committed pilot
+   votes. This evidence froze the candidate implementation; the owner accepted
+   its public syntax on 2026-09-24.
+6. Accepted: RFC 0006 records the explicit owner design decision on 2026-09-24,
+   after the promotion PR's seven-day cooldown. The library-only code candidate
+   passed its diagnostics, schema, migration, supported-toolchain and calibrated
+   performance gates. This is not GitHub PR approval, merge or release approval.
+7. Remove superseded declarations and publish graph JSON v6 in 6.0.0.
 
 The exact-revision inventory for step 4 is recorded in RFC 0006. InnoSample is
 committed and pushed on main. BlPia and Lynceus are committed and pushed branch
@@ -352,8 +372,6 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| `@AssistedFactory` / `@SubContainerFactory` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Three committed pilots and final migration/performance gates pass; maintainer naming approval and promotion cooldown remain. |
-| `@Multibinding` preparation API | [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md) | `stage-2` | 6.0.0 | Real-consumer and final migration/performance gates pass; maintainer naming approval and promotion cooldown remain. |
 | Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
 
 ### GA criteria for experimental macros

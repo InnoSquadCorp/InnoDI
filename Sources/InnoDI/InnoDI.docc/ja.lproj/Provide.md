@@ -2,7 +2,7 @@
 
 `@Provide` はコンテナメンバーと生成戦略を宣言します。
 
-InnoDI 5.0 では、`@Provide` は同じ supported `@DIContainer` struct の direct
+InnoDI 6.0 では、`@Provide` は同じ supported `@DIContainer` struct の direct
 かつ plain な stored instance `var` にのみ指定できます。`let`、
 computed/observed property、`lazy`、`weak`、`unowned`、`static`/`class`、
 standalone、間接的な nested usage は拒否されます。生成 accessor は InnoDI が
@@ -11,7 +11,7 @@ standalone、間接的な nested usage は拒否されます。生成 accessor �
 Property wrapper、conditional/unknown attribute、`private(set)` などの setter
 access modifier、custom global-actor attribute も拒否されます。`@Provide` 以外の
 source-written property-level attribute は許可されず、`@MainActor` も含まれます。
-actor isolation は `@DIContainer(mainActor: true)` で指定してください。provider
+actor isolation は `@DIContainerRole(role: ContainerRole.local, mainActor: true)` で指定してください。provider
 declaration と accessor に InnoDI が生成する isolation attribute は internal
 compiler support です。完全な `@Provide` member declaration を `#if` 内に置くと
 `provide.conditional-declaration-unsupported` になります。宣言を条件の外に
@@ -32,22 +32,23 @@ compiler-support accessor と別の property wrapper を意図的に偽装して
     _ scope: DIScope = .shared,
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
+    initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
     factory: Any? = nil,
-    asyncFactory: Any? = nil,
-    escaping: Bool = false
+    asyncFactory: Any? = nil
 )
 ```
 
 ## Input value と escaping function
 
-生成される `.input` initializer parameter は宣言型 `T` の eager value です。
+生成される `@Input` initializer parameter は宣言型 `T` の eager value です。
 Swift は initializer call の前に各 argument を評価するため、
 `try makeValue()` と `await makeValue()` はそのまま有効な argument expression
 です。直接記述された non-optional function type は自動検出され、escaping
 parameter として生成されます。typealias の背後にある場合は
-`@Provide(.input, escaping: true)` を宣言してください。
+`@Input(escaping: true)` を宣言してください。
 
-`escaping:` は literal Bool で、`.input` でのみ有効です。明らかな nonfunction
+`escaping:` は literal Bool で、`@Input` でのみ有効です。明らかな nonfunction
 または optional-function shape は安定した InnoDI diagnostic で拒否されます。
 attached macro は任意の alias を解決できないため identifier/member type を
 保守的に許可し、alias が実際には non-optional function でない場合は Swift
@@ -57,7 +58,7 @@ attached macro は任意の alias を解決できないため identifier/member 
 
 - `factory:`、`asyncFactory:`、`Type.self`、property initializer は相互排他的な
   construction source です
-- `.input` はすべての construction source と `with:` を拒否します
+- `@Input` はすべての construction source と `with:` を拒否します
 - `.shared` と `.transient` は正確に 1 つの construction source が必要です
 - `with:` は `Type.self` と同期 provider でのみ利用できます
 - `asyncFactory` は `.shared` と `.transient` で利用でき、`async` closure

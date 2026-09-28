@@ -2,10 +2,10 @@ import InnoDI
 
 @DIContainer
 struct ManagedReservedNameContainer {
-    @Provide(.input)
+    @Input
     var _storage_value: Int
 
-    @Provide(.input)
+    @Input
     var InnoDI: Int
 }
 

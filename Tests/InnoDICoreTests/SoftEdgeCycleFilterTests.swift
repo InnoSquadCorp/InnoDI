@@ -4,11 +4,8 @@ import Testing
 
 /// Covers the `isSoft` plumbing for the CLI DAG validator.
 ///
-/// The macro-level validator and the CLI validator must agree: a cycle that is
-/// broken by a single `Lazy<T>` edge on any path should not be reported as a
-/// cycle. These tests target the pure adjacency/dedup helpers shared between
-/// them so the contract stays verified even while the CLI collectors don't yet
-/// populate member-level edges.
+/// Macro and CLI validation both include deferred ownership edges. Rendering
+/// flags stay distinct, but neither Lazy nor Provider exempts a cycle.
 @Suite("Soft edge cycle filter")
 struct SoftEdgeCycleFilterTests {
     private func makeNode(_ id: String) -> DependencyGraphNode {
@@ -21,8 +18,8 @@ struct SoftEdgeCycleFilterTests {
         )
     }
 
-    @Test("Soft edges are excluded from cycle-detection adjacency")
-    func softEdgesAreExcludedFromAdjacency() {
+    @Test("Soft edges participate in cycle-detection adjacency")
+    func softEdgesAreIncludedInAdjacency() {
         let nodes = [makeNode("A"), makeNode("B")]
         let edges = [
             DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false),
@@ -32,8 +29,8 @@ struct SoftEdgeCycleFilterTests {
         let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
 
         #expect(adjacency["A"] == ["B"])
-        #expect(adjacency["B"] == [])
-        #expect(detectDependencyCycles(adjacency: adjacency).isEmpty)
+        #expect(adjacency["B"] == ["A"])
+        #expect(detectDependencyCycles(adjacency: adjacency) == [["A", "B", "A"]])
     }
 
     @Test("Hard back-edge still forms a cycle even when a soft edge co-exists")
@@ -53,7 +50,7 @@ struct SoftEdgeCycleFilterTests {
         #expect(!cycles.isEmpty)
     }
 
-    @Test("Three-node cycle broken by one soft edge no longer cycles")
+    @Test("Three-node cycle remains a cycle with one soft edge")
     func threeNodeCycleBrokenBySoftEdge() {
         let nodes = [makeNode("A"), makeNode("B"), makeNode("C")]
         let edges = [
@@ -65,7 +62,7 @@ struct SoftEdgeCycleFilterTests {
         let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
         let cycles = detectDependencyCycles(adjacency: adjacency)
 
-        #expect(cycles.isEmpty)
+        #expect(cycles == [["A", "C", "B", "A"]])
     }
 
     @Test("Isolated nodes remain in adjacency with empty successor lists")
@@ -123,8 +120,8 @@ struct SoftEdgeCycleFilterTests {
 
     // MARK: - Provider edges
 
-    @Test("Provider edges are excluded from cycle-detection adjacency")
-    func providerEdgesAreExcludedFromAdjacency() {
+    @Test("Provider edges participate in cycle-detection adjacency")
+    func providerEdgesAreIncludedInAdjacency() {
         let nodes = [makeNode("A"), makeNode("B")]
         let edges = [
             DependencyGraphEdge(fromID: "A", toID: "B", label: nil, isSoft: false),
@@ -134,11 +131,11 @@ struct SoftEdgeCycleFilterTests {
         let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
 
         #expect(adjacency["A"] == ["B"])
-        #expect(adjacency["B"] == [])
-        #expect(detectDependencyCycles(adjacency: adjacency).isEmpty)
+        #expect(adjacency["B"] == ["A"])
+        #expect(detectDependencyCycles(adjacency: adjacency) == [["A", "B", "A"]])
     }
 
-    @Test("Three-node cycle broken by one provider edge no longer cycles")
+    @Test("Three-node cycle remains a cycle with one provider edge")
     func threeNodeCycleBrokenByProviderEdge() {
         let nodes = [makeNode("A"), makeNode("B"), makeNode("C")]
         let edges = [
@@ -149,7 +146,7 @@ struct SoftEdgeCycleFilterTests {
 
         let adjacency = buildCycleDetectionAdjacency(nodes: nodes, edges: edges)
 
-        #expect(detectDependencyCycles(adjacency: adjacency).isEmpty)
+        #expect(detectDependencyCycles(adjacency: adjacency) == [["A", "C", "B", "A"]])
     }
 
     @Test("Provider-only occurrences keep the merged edge as provider")

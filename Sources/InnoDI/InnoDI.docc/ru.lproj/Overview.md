@@ -16,7 +16,7 @@ InnoDI превращает поддерживаемые, фактически �
 - проверки на этапе компиляции и сборки
 - глобальный рендер графа и DAG validation
 - `Lazy<T>` и `Provider<T>`
-- `@SubContainer`, `@DIComponent`, `@DIHierarchyRoot`
+- `@SubContainer` и явные роли иерархии `@DIContainerRole`
 - SwiftUI helper в `InnoDISwiftUI`
 
 4.1.0 добавляет release hardening поверх этой baseline:

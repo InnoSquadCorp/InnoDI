@@ -1,6 +1,6 @@
 import InnoDI
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct AppContainer {
     @Input var repositoryFactory: RepositoryFactory
     @Input(escaping: true) var callback: Callback

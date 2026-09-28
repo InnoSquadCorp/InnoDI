@@ -4,7 +4,7 @@
 
 Security fixes are provided for the latest stable major release line only.
 
-Current supported line: `4.x`
+Current supported line: `5.x`
 
 Older tags may remain available for compatibility testing, but they should not
 be treated as security-supported releases.

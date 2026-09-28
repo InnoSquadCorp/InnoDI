@@ -62,7 +62,7 @@ InnoDI сохраняет детерминированность за счет �
   компонентов, операционные замыкания всех четырёх overload `withOverrides` и
   сгенерированные feature-root helpers. Этот вариант рекомендуется для
   корневых UI-контейнеров.
-- При совместном использовании с `@DIComponent` сгенерированные dependency
+- При использовании роли component в `@DIContainerRole` сгенерированные dependency
   protocol, `init(dependencies:_:)` и тип override closure изолируются с помощью
   `@MainActor`, а компонент получает отдельную conformance
   `_InnoDIMainActorComponentMountable`. Обычные компоненты продолжают

@@ -41,7 +41,23 @@ package struct DependencyGraphProvider: Hashable, Sendable {
     package let effect: Effect
     package let inputKind: InputKind?
     package let dependencies: [String]
+    package let dependencyBindings: [DependencyBinding]
+    package let containerBindings: [ContainerBinding]
+    package let collection: CollectionContract?
     package let source: SourceLocation
+
+    /// Direct dependencies of this provider instance. Child inputs belong to
+    /// a type-level declaration and may be mounted more than once; connect a
+    /// mount to its own parent bindings, never all mounts through that input.
+    package var canonicalDependencyIDs: [String] {
+        let factoryIDs = dependencyBindings.isEmpty
+            ? dependencies.map { "\(containerID).\($0)" }
+            : dependencyBindings.map(\.providerID)
+        let candidates = factoryIDs + containerBindings.map(\.parentProviderID)
+            + (collection?.entries.map(\.providerID) ?? [])
+        var seen: Set<String> = []
+        return candidates.filter { seen.insert($0).inserted }
+    }
 
     package init(
         id: String,
@@ -55,6 +71,9 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         effect: Effect,
         inputKind: InputKind? = nil,
         dependencies: [String] = [],
+        dependencyBindings: [DependencyBinding] = [],
+        containerBindings: [ContainerBinding] = [],
+        collection: CollectionContract? = nil,
         source: SourceLocation
     ) {
         self.id = id
@@ -68,6 +87,9 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         self.effect = effect
         self.inputKind = inputKind
         self.dependencies = dependencies
+        self.dependencyBindings = dependencyBindings
+        self.containerBindings = containerBindings
+        self.collection = collection
         self.source = source
     }
 
@@ -109,6 +131,90 @@ package struct DependencyGraphProvider: Hashable, Sendable {
         case assisted
     }
 
+    /// One source-visible factory argument bound to a canonical provider.
+    /// `parameter` preserves the call-site label independently from the
+    /// selected provider identity, and `kind` preserves eager/deferred
+    /// construction semantics.
+    package struct DependencyBinding: Codable, Hashable, Sendable {
+        package let parameter: String
+        package let providerID: String
+        package let kind: FactoryDependencyKind
+
+        package init(
+            parameter: String,
+            providerID: String,
+            kind: FactoryDependencyKind
+        ) {
+            self.parameter = parameter
+            self.providerID = providerID
+            self.kind = kind
+        }
+    }
+
+    /// Canonical child-input ↔ parent-provider wiring for fixed and assisted
+    /// ownership. IDs are target/file-qualified graph IDs rather than display
+    /// names, so swapping either endpoint is contractual.
+    package struct ContainerBinding: Codable, Hashable, Sendable {
+        package let childInputID: String
+        package let parentProviderID: String
+        package let ownership: Ownership
+
+        package init(
+            childInputID: String,
+            parentProviderID: String,
+            ownership: Ownership
+        ) {
+            self.childInputID = childInputID
+            self.parentProviderID = parentProviderID
+            self.ownership = ownership
+        }
+
+        package enum Ownership: String, Codable, Hashable, Sendable {
+            case fixed
+            case assisted
+        }
+    }
+
+    /// Explicit collection semantics authored at the provider declaration.
+    /// Entry order is contractual; keyed forms additionally carry a stable
+    /// string key. Contributor lifetime comes from the referenced canonical
+    /// provider rather than from an arbitrary collection factory body.
+    package struct CollectionContract: Codable, Hashable, Sendable {
+        package let kind: Kind
+        package let entries: [Entry]
+
+        package init(kind: Kind, entries: [Entry]) {
+            self.kind = kind
+            self.entries = entries
+        }
+
+        package enum Kind: String, Codable, Hashable, Sendable {
+            case ordered
+            case keyed
+            case providers
+            case keyedProviders
+        }
+
+        package struct Entry: Codable, Hashable, Sendable {
+            package let key: String?
+            package let order: Int
+            package let providerID: String
+            package let providerLifetime: Lifetime?
+
+            package init(
+                key: String?,
+                order: Int,
+                providerID: String,
+                providerLifetime: Lifetime?
+            ) {
+                self.key = key
+                self.order = order
+                self.providerID = providerID
+                self.providerLifetime = providerLifetime
+            }
+        }
+    }
+
     package struct SourceLocation: Hashable, Sendable {
         package let path: String
         package let line: Int
@@ -119,6 +225,52 @@ package struct DependencyGraphProvider: Hashable, Sendable {
             self.line = line
             self.column = column
         }
+    }
+}
+
+package extension DependencyGraphProvider {
+    func replacingContainerBindings(
+        _ bindings: [ContainerBinding]
+    ) -> DependencyGraphProvider {
+        DependencyGraphProvider(
+            id: id,
+            containerID: containerID,
+            name: name,
+            type: type,
+            role: role,
+            lifetime: lifetime,
+            initialization: initialization,
+            isolation: isolation,
+            effect: effect,
+            inputKind: inputKind,
+            dependencies: dependencies,
+            dependencyBindings: dependencyBindings,
+            containerBindings: bindings,
+            collection: collection,
+            source: source
+        )
+    }
+
+    func replacingCollectionContract(
+        _ contract: CollectionContract?
+    ) -> DependencyGraphProvider {
+        DependencyGraphProvider(
+            id: id,
+            containerID: containerID,
+            name: name,
+            type: type,
+            role: role,
+            lifetime: lifetime,
+            initialization: initialization,
+            isolation: isolation,
+            effect: effect,
+            inputKind: inputKind,
+            dependencies: dependencies,
+            dependencyBindings: dependencyBindings,
+            containerBindings: containerBindings,
+            collection: contract,
+            source: source
+        )
     }
 }
 
@@ -150,20 +302,12 @@ package struct DependencyGraphEdge: Hashable {
     package let fromID: String
     package let toID: String
     package let label: String?
-    /// Soft edges are excluded from global DAG cycle detection and rendered
-    /// with a dashed style. They originate from factory parameters typed
-    /// `Lazy<T>`, InnoDI's soft-edge escape hatch. The current container
-    /// collector does not yet populate member-level edges, so this field is
-    /// primarily future-proofing — but renderers and `runDAGValidation`
-    /// already respect it so downstream collectors can emit soft edges the
-    /// moment they have the information.
+    /// Lazy edges defer resolution, not ownership. They participate in cycle
+    /// detection and retain a dashed rendering style.
     package let isSoft: Bool
     /// Provider edges originate from factory parameters typed `Provider<T>`.
-    /// They are also excluded from cycle detection, but rendered
-    /// with a dotted style to distinguish "deferred but repeat-callable"
-    /// semantics from `Lazy<T>`'s one-shot deferral. Like `isSoft`, the
-    /// container collector does not yet emit member-level provider edges, but
-    /// the plumbing is ready end-to-end.
+    /// They participate in cycle detection and are rendered with a dotted
+    /// style to distinguish transient re-entry from `Lazy<T>` deferral.
     package let isProvider: Bool
     /// Ownership edges represent a `@SubContainer` relationship — the parent
     /// container owns (either caches for `.shared` or re-builds for
@@ -174,7 +318,7 @@ package struct DependencyGraphEdge: Hashable {
     /// regular `.input` wiring.
     package let isOwnership: Bool
     /// Assisted-factory ownership is distinct from fixed `@SubContainer`
-    /// ownership in graph schema v4, while remaining a hard ownership edge.
+    /// ownership in graph schema v6, while remaining a hard ownership edge.
     package let isAssistedFactoryOwnership: Bool
     /// Ordered collection contribution metadata. Contribution edges are
     /// self-edges on the owning container and are excluded from cycle checks.
@@ -257,18 +401,15 @@ package func normalizeNodes(_ nodes: [DependencyGraphNode]) -> [DependencyGraphN
 
 /// Builds a DFS adjacency list for global DAG cycle detection.
 ///
-/// Deferred edges are intentionally excluded: `isSoft` (`Lazy<T>`) resolves
-/// a one-shot value after construction, and `isProvider` (`Provider<T>`)
-/// resolves a fresh transient on every call. Both
-/// kinds participate in rendering but not in cycle detection, matching the
-/// per-container validator's hard-only DFS.
+/// Deferred edges participate because their resolver contexts are retained.
+/// Deferring construction does not make a cyclic ownership graph safe.
 ///
 /// Ownership edges stay hard even if a merged edge still carries deferred
 /// flags from upstream callers — parent-owned child construction happens at
 /// init time, so ownership must participate in cycle detection.
 ///
 /// The returned adjacency includes every input node as a key (empty list if
-/// it has no outgoing hard edges) so callers can reason about isolated nodes
+/// it has no outgoing dependency edges) so callers can reason about isolated nodes
 /// uniformly.
 package func buildCycleDetectionAdjacency(
     nodes: [DependencyGraphNode],
@@ -278,8 +419,7 @@ package func buildCycleDetectionAdjacency(
     for node in nodes {
         adjacency[node.id] = []
     }
-    for edge in edges where !edge.isContribution
-        && (edge.isOwnership || (!edge.isSoft && !edge.isProvider)) {
+    for edge in edges where !edge.isContribution {
         adjacency[edge.fromID, default: []].append(edge.toID)
     }
     return adjacency

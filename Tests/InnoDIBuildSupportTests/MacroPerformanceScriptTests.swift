@@ -119,6 +119,7 @@ struct MacroPerformanceScriptTests {
             reportJSON: """
                 {
                   "iterations": 2,
+                  "benchmark_version": 2, "workload_verified": true,
                   "samples_ms": [11.0, 12.0]
                 }
                 """
@@ -188,6 +189,7 @@ struct MacroPerformanceScriptTests {
             reportJSON: """
                 {
                   "iterations": 4,
+                  "benchmark_version": 2, "workload_verified": true,
                   "samples_ms": [10.0, 10.0, 10.0, 100.0]
                 }
                 """
@@ -223,6 +225,7 @@ struct MacroPerformanceScriptTests {
             reportJSON: """
                 {
                   "iterations": 3,
+                  "benchmark_version": 2, "workload_verified": true,
                   "samples_ms": [13.0, 14.0, 15.0]
                 }
                 """
@@ -250,6 +253,7 @@ struct MacroPerformanceScriptTests {
             reportJSON: """
                 {
                   "iterations": 2,
+                  "benchmark_version": 2, "workload_verified": true,
                   "samples_ms": [10.0]
                 }
                 """
@@ -270,26 +274,56 @@ struct MacroPerformanceScriptTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.baselineURL.path))
     }
 
-    @Test("A failed measured subprocess never creates a baseline")
-    func failedMeasuredSubprocessDoesNotCreateBaseline() throws {
+    @Test("An incompatible workload retains its report but cannot pass enforcement")
+    func workloadMismatchPreservesReport() throws {
+        let fixture = try MacroPerformanceScriptFixture(swiftVersion: fakeSwiftVersion)
+        defer { fixture.remove() }
+        try fixture.writeBaseline(swiftVersion: fakeSwiftVersion, benchmarkVersion: nil)
+        let baseline = try Data(contentsOf: fixture.baselineURL)
+        let result = try fixture.run(arguments: [
+            "--iterations", "2", "--baseline", fixture.baselineURL.path,
+            "--output", fixture.reportURL.path, "--enforce",
+        ])
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("baseline benchmark version mismatch"))
+        #expect(FileManager.default.fileExists(atPath: fixture.reportURL.path))
+        #expect(try Data(contentsOf: fixture.baselineURL) == baseline)
+    }
+
+    @Test("Unverified expansion cannot create performance evidence")
+    func unverifiedExpansionDoesNotMeasure() throws {
+        let fixture = try MacroPerformanceScriptFixture(
+            swiftVersion: fakeSwiftVersion,
+            reportJSON: #"{"iterations":2,"samples_ms":[1,1],"benchmark_version":2,"workload_verified":false}"#
+        )
+        defer { fixture.remove() }
+        let result = try fixture.run(arguments: [
+            "--iterations", "2", "--baseline", fixture.baselineURL.path, "--update-baseline",
+        ])
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("successful-expansion workload"))
+        #expect(!FileManager.default.fileExists(atPath: fixture.baselineURL.path))
+    }
+
+    @Test("Failed measurement retains diagnostics and never creates a baseline", arguments: [false, true])
+    func failedMeasuredSubprocessDoesNotCreateBaseline(inProcess: Bool) throws {
         let fixture = try MacroPerformanceScriptFixture(
             swiftVersion: fakeSwiftVersion
         )
         defer { fixture.remove() }
 
         let result = try fixture.run(
-            arguments: [
-                "--subprocess",
-                "--filter", "FakeMacroTests",
+            arguments: (inProcess ? ["--in-process"] : ["--subprocess", "--filter", "FakeMacroTests"]) + [
                 "--iterations", "1",
                 "--baseline", fixture.baselineURL.path,
                 "--update-baseline",
             ],
-            additionalEnvironment: ["FAKE_SWIFT_FAIL_TEST_INVOCATION": "2"]
+            additionalEnvironment: ["FAKE_SWIFT_FAIL_TEST_INVOCATION": inProcess ? "1" : "2"]
         )
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("measured subprocess failed"))
+        #expect(result.output.contains("fixture benchmark failed"))
+        #expect(result.output.contains("failed; no valid measurement"))
         #expect(fixture.measurementWasInvoked)
         #expect(!FileManager.default.fileExists(atPath: fixture.baselineURL.path))
     }
@@ -314,6 +348,7 @@ private struct MacroPerformanceScriptFixture {
         reportJSON: String = """
             {
               "iterations": 2,
+              "benchmark_version": 2, "workload_verified": true,
               "samples_ms": [10.0, 10.0]
             }
             """
@@ -342,6 +377,7 @@ private struct MacroPerformanceScriptFixture {
                 printf 'test\\n' >> "${FAKE_SWIFT_MARKER:?}"
                 INVOCATION="$(wc -l < "$FAKE_SWIFT_MARKER" | tr -d '[:space:]')"
                 if [[ -n "${FAKE_SWIFT_FAIL_TEST_INVOCATION:-}" && "$INVOCATION" == "$FAKE_SWIFT_FAIL_TEST_INVOCATION" ]]; then
+                  echo "fixture benchmark failed" >&2
                   exit 42
                 fi
                 if [[ -n "${INNODI_MACRO_BENCH_OUTPUT:-}" ]]; then
@@ -377,13 +413,17 @@ private struct MacroPerformanceScriptFixture {
         swiftVersion: String?,
         meanMS: String = "10.0",
         medianMS: String = "10.0",
-        minMS: String = "10.0"
+        minMS: String = "10.0",
+        benchmarkVersion: Int? = 2
     ) throws {
         var entries = [
             #""updated_at": "2026-01-01T00:00:00Z""#,
         ]
         if let swiftVersion {
             entries.append(#""swift_version": "\#(swiftVersion)""#)
+        }
+        if let benchmarkVersion {
+            entries.append(#""benchmark_version": \#(benchmarkVersion)"#)
         }
         entries.append(contentsOf: [
             #""mode": "in-process""#,

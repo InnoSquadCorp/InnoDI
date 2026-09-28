@@ -3,6 +3,17 @@ import Testing
 
 @Suite("Release workflow contracts")
 struct ReleaseWorkflowContractTests {
+    @Test("Actual release guards allow validated ancestry and reject invalid anchors")
+    func releaseConsumerAnchorBehavior() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "-B", "-m", "unittest", "discover", "-s", "Tools/tests", "-p", "test_release_consumer_anchor.py"]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+
     private var workflow: String {
         get throws {
             try String(
@@ -245,6 +256,24 @@ struct ReleaseWorkflowContractTests {
         #expect(releaseGateJob.contains("--sanitize=thread"))
         #expect(releaseGateJob.contains("--scratch-path .build/release-asan"))
         #expect(releaseGateJob.contains("--sanitize=address"))
+        #expect(releaseGateJob.components(separatedBy: "--no-parallel").count - 1 == 2)
+        let releaseGuide = try String(
+            contentsOf: packageRootURL().appendingPathComponent("RELEASING.md"),
+            encoding: .utf8
+        )
+        let manualSuiteSteps = try section(
+            in: releaseGuide,
+            from: "2. Run the main package test suite:",
+            to: "4. Build, test, and where applicable run every example"
+        )
+        #expect(manualSuiteSteps.components(separatedBy: "swift test --no-parallel").count - 1 == 4)
+        for skip in [
+            "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'",
+            "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'",
+            "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'",
+        ] {
+            #expect(manualSuiteSteps.components(separatedBy: skip).count - 1 == 2)
+        }
         #expect(
             releaseGateJob.components(
                 separatedBy: "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
@@ -253,6 +282,11 @@ struct ReleaseWorkflowContractTests {
         #expect(
             releaseGateJob.components(
                 separatedBy: "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
+            ).count - 1 == 2
+        )
+        #expect(
+            releaseGateJob.components(
+                separatedBy: "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
             ).count - 1 == 2
         )
         #expect(
@@ -313,6 +347,8 @@ struct ReleaseWorkflowContractTests {
         )
 
         #expect(consumerJob.contains("ref: ${{ inputs.commit_sha }}"))
+        #expect(consumerJob.contains("fetch-depth: 0"))
+        #expect(consumerJob.contains("merge-base --is-ancestor \"$INNODI_REVISION\" \"$remote_main\""))
         #expect(consumerJob.contains("Tests/RemoteConsumerSmoke"))
         #expect(consumerJob.contains("{{INNODI_REVISION}}"))
         #expect(consumerJob.contains("INNODI_REVISION: ${{ inputs.commit_sha }}"))
@@ -385,7 +421,7 @@ struct ReleaseWorkflowContractTests {
         #expect(!workflow.contains("LOCAL_TAG_NAME"))
         #expect(!workflow.contains("+refs/tags/"))
         #expect(!workflow.contains("--force refs/tags/"))
-        #expect(workflow.components(separatedBy: "merge-base --is-ancestor").count - 1 == 2)
+        #expect(workflow.components(separatedBy: "merge-base --is-ancestor").count - 1 == 3)
         #expect(
             workflow.components(
                 separatedBy: "verify_expected_is_remote_main_ancestor"

@@ -21,7 +21,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - compile-time and build-time validation
 - global dependency-graph rendering and DAG validation
 - `Lazy<T>` and `Provider<T>` deferred edges
-- `@SubContainer`, `@DIComponent`, and `@DIHierarchyRoot`
+- `@SubContainer` and explicit `@DIContainerRole` hierarchy roles
 - SwiftUI helpers in `InnoDISwiftUI`
 
 4.1.0 adds release-hardening around that baseline:
@@ -62,6 +62,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:lock-safety>
 - <doc:DAGValidation>
 - <doc:AsyncPreparation>
+- <doc:RuntimeTracing>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
 
@@ -69,8 +70,8 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 - <doc:DIContainer>
 - <doc:Provide>
-- ``DIComponent()``
-- ``DIHierarchyRoot()``
+- ``Input(_:escaping:)``
+- ``DIContainerRole(role:mainActor:validateDAG:)``
 
 ### Experimental
 
@@ -82,8 +83,8 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 ### Symbols
 
-- ``DIContainer(root:validateDAG:mainActor:)``
-- ``Provide(_:_:with:initialization:factory:asyncFactory:escaping:)``
+- ``DIContainer(validateDAG:)``
+- ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``

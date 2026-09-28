@@ -28,6 +28,7 @@ package enum ValidationReasonCode: String, Codable, Equatable, Sendable {
 /// shared validation runs.
 package struct ValidationSignatureMetrics: Codable, Equatable, Sendable {
     package let scannedFileCount: Int
+    /// Matching metadata AND a freshly verified content hash; never a byte-read skip.
     package let metadataCacheHitCount: Int
     package let contentHashReuseCount: Int
     package let astReparseCount: Int
@@ -255,7 +256,7 @@ private func formatMilliseconds(_ value: Double) -> String {
 private func reasonDescription(_ reason: ValidationReasonCode) -> String {
     switch reason {
     case .cacheHitMetadata:
-        return "All scanned files reused their cached AST digests from unchanged file metadata."
+        return "At least one file with unchanged metadata reused its cached AST digest after a fresh raw content hash match."
     case .cacheHitContentHash:
         return "At least one file changed metadata but reused its cached AST digest after a raw content hash match."
     case .cacheMissContentChanged:

@@ -39,7 +39,7 @@ coordinated build pipeline은 다음을 추가합니다.
 
 1. cross-file custom `init` validation
 2. semantic container reference check
-3. `@DIComponent` / `@DIHierarchyRoot` hierarchy validation
+3. component/root `@DIContainerRole` hierarchy validation
 4. DAG validation
 5. metrics / summary artifact emission
 

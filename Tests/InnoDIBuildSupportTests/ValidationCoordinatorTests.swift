@@ -1156,6 +1156,70 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Semantic validation anchors reordered bindings at the first mismatching child key path")
+    func semanticValidationRejectsReorderedChildBindings() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        try """
+        struct First {}
+        struct Second {}
+
+        @DIContainer
+        struct FeatureContainer {
+            @Input var second: Second
+            @Input var first: First
+        }
+
+        @DIContainer
+        struct AppContainer {
+            @Input var parentFirst: First
+            @Input var parentSecond: Second
+
+            @SubContainer(
+                scope: .shared,
+                bindings: [
+                    (child: \\FeatureContainer.first, parent: \\AppContainer.parentFirst),
+                    (child: \\FeatureContainer.second, parent: \\AppContainer.parentSecond),
+                ]
+            )
+            var feature: FeatureContainer
+        }
+        """.write(
+            to: fixture.rootURL.appendingPathComponent("ReorderedBindings.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runner = MockValidationRunner(results: [
+            ValidationCommandResult(exitCode: 0, stdout: "unexpected\n", stderr: "")
+        ])
+        let outcome = try await ValidationCoordinator.coordinate(
+            rootPath: fixture.rootURL.path(percentEncoded: false),
+            toolPath: "/usr/bin/true",
+            stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+            outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+            runner: runner
+        )
+
+        #expect(outcome.result.exitCode == 1)
+        let issue = try #require(
+            outcome.metricsArtifact.issues.first {
+                $0.code == MacroBuildDiagnosticContract.subBindingOrderCode
+            }
+        )
+        #expect(
+            issue.message == MacroBuildDiagnosticContract.subBindingOrderMessage(
+                memberName: "feature",
+                childContainerName: "FeatureContainer"
+            )
+        )
+        #expect(issue.location.filePath.hasSuffix("ReorderedBindings.swift"))
+        #expect(issue.location.line == 18)
+        #expect(issue.metadata["expectedChildInputOrder"] == "second,first")
+        #expect(runner.invocationCount == 0)
+    }
+
     @Test("Semantic validation preserves malformed bindings as an error")
     func semanticValidationRejectsMalformedBindings() async throws {
         let fixture = try makeFixture()

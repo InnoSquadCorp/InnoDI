@@ -9,10 +9,10 @@ import SwiftSyntax
 ///   DAG cycle validation as a normal edge.
 /// - `.soft`: the factory receives the dependency through a deferred `Lazy<T>`
 ///   wrapper and does not require the target to be resolved at factory-call
-///   time. Excluded from cycle detection and rendered with a dashed style.
+///   time. Included in cycle detection and rendered with a dashed style.
 /// - `.provider`: the factory receives a `Provider<T>` handle that pumps a
 ///   fresh instance of a `.transient` target on every call. Like `.soft`, it
-///   is excluded from cycle detection; unlike `.soft` the validator requires
+///   is included in cycle detection; unlike `.soft` the validator requires
 ///   the target member to have `.transient` scope. Rendered with a dotted
 ///   style.
 enum DependencyKind {
@@ -269,6 +269,8 @@ struct ProvideMemberModel {
     let accessLevel: String?
     let scope: ProvideScope
     let initialization: ProvideInitializationValue
+    let operationalEffect: ProvideOperationalEffectValue
+    let collectionMetadataParseState: CollectionMetadataParseState
     let inputKind: InputKindValue
     let isMultibinding: Bool
     let factory: ExprSyntax?
@@ -290,6 +292,10 @@ struct ProvideMemberModel {
 
     var explicitDependencies: [String] {
         deduplicateStrings(withDependencies + closureDependencies)
+    }
+
+    var collectionMetadataEntries: [CollectionMetadataEntryArgument] {
+        collectionMetadataParseState.entries
     }
 
     var graphDependencyCandidates: [String] {
@@ -326,8 +332,7 @@ struct ProvideMemberModel {
     }
 
     /// Closure parameter names whose written type is `Lazy<T>` and therefore
-    /// introduce a deferred (soft) dependency edge. Used by the validator to
-    /// exclude soft edges from cycle detection and by the code generator to
+    /// introduce a deferred (soft) dependency edge. Used by the code generator to
     /// emit `Lazy<T>({ … })` wrappers at factory call sites.
     var softClosureDependencies: [String] {
         deduplicateStrings(
@@ -342,8 +347,7 @@ struct ProvideMemberModel {
     }
 
     /// Closure parameter names whose written type is `Provider<T>` and
-    /// therefore introduce a provider edge — excluded from cycle detection
-    /// like soft edges, but constrained by the validator to `.transient`
+    /// therefore introduce a provider edge, constrained to `.transient`
     /// targets.
     var providerClosureDependencies: [String] {
         deduplicateStrings(

@@ -3,15 +3,13 @@ import InnoDI
 @DIContainer
 struct ChildContainer {}
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 final class ClassContainer {
-    @Provide(.input) var config: String = ""
+    @Input var config: String = ""
     @SubContainer(scope: .shared) var child: ChildContainer = ChildContainer()
 }
 
-@DIHierarchyRoot
-@DIContainer
+@DIContainerRole(role: ContainerRole.root)
 actor ActorContainer {}
 
 @DIContainer
@@ -19,7 +17,7 @@ enum EnumContainer {}
 
 @DIContainer
 protocol ProtocolContainer {
-    @Provide(.input) var config: String { get }
+    @Input var config: String { get }
     @SubContainer(scope: .shared) var child: ChildContainer { get }
 }
 
@@ -28,21 +26,18 @@ struct ExtendedContainer {}
 @DIContainer
 extension ExtendedContainer {}
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 struct GenericContainer<Value> {}
 
 struct GenericOuter<Value> {
-    @DIComponent
-    @DIContainer
+    @DIContainerRole(role: ContainerRole.component)
     struct NestedContainer {}
 }
 
 struct ExtensionOuter {}
 
 extension ExtensionOuter {
-    @DIComponent
-    @DIContainer
+    @DIContainerRole(role: ContainerRole.component)
     struct ExtensionNestedContainer {}
 }
 
@@ -67,8 +62,7 @@ func declareSwitchCaseContainer(_ value: Int) {
 }
 
 func declareLocalComponent() {
-    @DIComponent
-    @DIContainer
+    @DIContainerRole(role: ContainerRole.component)
     struct LocalComponent {}
 }
 

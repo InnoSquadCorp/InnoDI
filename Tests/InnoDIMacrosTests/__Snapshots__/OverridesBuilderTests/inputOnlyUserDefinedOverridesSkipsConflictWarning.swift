@@ -7,7 +7,7 @@ struct AppContainer {
     var userID: String
 
     // MARK: - Initialization
-    init(userID: String) {
+    init(userID: String, _innoDITrace: DITraceContext = .disabled) {
         self._storage_userID = userID
     }
 

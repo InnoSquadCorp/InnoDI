@@ -28,6 +28,41 @@ public final class DIConcurrentValueBox<Value: Sendable>: Sendable {
     }
 }
 
+/// A generation-aware critical region shared by one generated `Sendable` mock.
+///
+/// Generated call recording, call-history snapshots, and resets all pass
+/// through this coordinator. A reset clears the selected state before it
+/// advances the generation, so a concurrent call is observed entirely before
+/// the reset or entirely in the new generation.
+public final class DIConcurrentMockState: Sendable {
+    private struct State: Sendable {
+        var generation: UInt64 = 0
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    public init() {}
+
+    public func withCriticalRegion<Result: Sendable>(
+        _ body: @Sendable (UInt64) throws -> Result
+    ) rethrows -> Result {
+        try state.withLock { state in
+            try body(state.generation)
+        }
+    }
+
+    @discardableResult
+    public func reset<Result: Sendable>(
+        _ body: @Sendable (UInt64) throws -> Result
+    ) rethrows -> Result {
+        try state.withLock { state in
+            let result = try body(state.generation)
+            state.generation &+= 1
+            return result
+        }
+    }
+}
+
 /// A lock-backed recorder for mocks that can be called from concurrent tasks.
 public final class DIConcurrentCallRecorder<Call: Sendable>: Sendable {
     public struct Entry: Sendable {
@@ -95,6 +130,74 @@ public enum DIStubValidation {
         guard selectors.isEmpty else {
             throw DIMissingStubError(selectors: selectors)
         }
+    }
+}
+
+/// Deterministic preflight result for effect-marked provider overrides.
+public struct DIOverrideEffectReport: Equatable, Sendable {
+    public let missing: [DIProviderEffectRequirement]
+
+    public init(missing: [DIProviderEffectRequirement]) {
+        self.missing = missing.sorted {
+            if $0.providerName == $1.providerName {
+                return $0.effect.rawValue < $1.effect.rawValue
+            }
+            return $0.providerName < $1.providerName
+        }
+    }
+
+    public var isSatisfied: Bool { missing.isEmpty }
+}
+
+/// Stops strict test or preview setup before an effect-marked live factory runs.
+public struct DIMissingEffectOverrideError: Error, Equatable, Sendable,
+    CustomStringConvertible {
+    public let report: DIOverrideEffectReport
+
+    public init(report: DIOverrideEffectReport) {
+        self.report = report
+    }
+
+    public var description: String {
+        let names = report.missing.map(\.providerName).joined(separator: ", ")
+        return "Missing InnoDI effect overrides: \(names)"
+    }
+}
+
+/// Validates generated override metadata without constructing the container.
+public enum DIOverrideEffectValidation {
+    @discardableResult
+    public static func validate<Overrides: DIOverrideEffectValidating>(
+        _ overrides: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> DIOverrideEffectReport {
+        try validate(
+            missing: overrides.missingEffectOverrides,
+            profile: profile
+        )
+    }
+
+    @MainActor
+    @discardableResult
+    public static func validate<Overrides: DIMainActorOverrideEffectValidating>(
+        _ overrides: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> DIOverrideEffectReport {
+        try validate(
+            missing: overrides.missingEffectOverrides,
+            profile: profile
+        )
+    }
+
+    private static func validate(
+        missing: [DIProviderEffectRequirement],
+        profile: DITestEffectProfile
+    ) throws -> DIOverrideEffectReport {
+        let report = DIOverrideEffectReport(missing: missing)
+        if profile.missingEffectOverride == .fail, !report.isSatisfied {
+            throw DIMissingEffectOverrideError(report: report)
+        }
+        return report
     }
 }
 
@@ -242,6 +345,34 @@ public struct DIOverridePreset<Overrides>: Sendable {
     }
 }
 
+extension DIOverridePreset where Overrides: DIOverrideEffectValidating {
+    /// Applies this preset to a caller-owned builder, then validates it before
+    /// the caller constructs a container.
+    public func validated(
+        base: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> Overrides {
+        var overrides = base
+        apply(to: &overrides)
+        try DIOverrideEffectValidation.validate(overrides, profile: profile)
+        return overrides
+    }
+}
+
+extension DIOverridePreset where Overrides: DIMainActorOverrideEffectValidating {
+    /// Main-actor counterpart for containers declared with `mainActor: true`.
+    @MainActor
+    public func validated(
+        base: Overrides,
+        profile: DITestEffectProfile = .strict
+    ) throws -> Overrides {
+        var overrides = base
+        apply(to: &overrides)
+        try DIOverrideEffectValidation.validate(overrides, profile: profile)
+        return overrides
+    }
+}
+
 public enum DIEffectViolationPolicy: String, Equatable, Sendable {
     case fail
     case record
@@ -251,22 +382,27 @@ public enum DIEffectViolationPolicy: String, Equatable, Sendable {
 public struct DITestEffectProfile: Equatable, Sendable {
     public let unexpectedCall: DIEffectViolationPolicy
     public let missingStub: DIEffectViolationPolicy
+    public let missingEffectOverride: DIEffectViolationPolicy
 
     public init(
         unexpectedCall: DIEffectViolationPolicy,
-        missingStub: DIEffectViolationPolicy
+        missingStub: DIEffectViolationPolicy,
+        missingEffectOverride: DIEffectViolationPolicy = .fail
     ) {
         self.unexpectedCall = unexpectedCall
         self.missingStub = missingStub
+        self.missingEffectOverride = missingEffectOverride
     }
 
     public static let strict = Self(
         unexpectedCall: .fail,
-        missingStub: .fail
+        missingStub: .fail,
+        missingEffectOverride: .fail
     )
 
     public static let recording = Self(
         unexpectedCall: .record,
-        missingStub: .record
+        missingStub: .record,
+        missingEffectOverride: .record
     )
 }
