@@ -1,5 +1,6 @@
 """Release-note extraction stays bounded on the macOS system Bash."""
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -7,6 +8,17 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "Tools" / "extract-release-notes.sh"
+
+
+def current_release_section(source):
+    versions = re.findall(r"^Latest stable public release: `([^`]+)`[ \t]*$", source, re.M)
+    if len(versions) != 1:
+        raise ValueError("expected exactly one latest stable release")
+    version = versions[0]
+    headings = list(re.finditer(rf"^## {re.escape(version)}\n", source, re.M))
+    if len(headings) != 1:
+        raise ValueError("expected exactly one section for the latest stable release")
+    return version, source[headings[0].end():].split("\n## ", 1)[0]
 
 
 class ReleaseNotesTests(unittest.TestCase):
@@ -31,10 +43,31 @@ class ReleaseNotesTests(unittest.TestCase):
 
     def test_current_release_section_is_extracted_exactly(self):
         source = (ROOT / "RELEASING.md").read_text()
-        body = source.split("## 6.0.0\n", 1)[1].split("\n## ", 1)[0]
-        result = self.extract(source)
+        version, body = current_release_section(source)
+        result = self.extract(source, version)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, body.rstrip("\n") + "\n")
+
+    def test_current_release_selection_follows_promoted_metadata(self):
+        for version in ("6.0.1", "7.0.0"):
+            with self.subTest(version=version):
+                source = (
+                    f"Latest stable public release: `{version}`\n\n"
+                    f"## {version}\n\n- New release.\n\n## 6.0.0\nOld release.\n"
+                )
+                selected, body = current_release_section(source)
+                self.assertEqual(selected, version)
+                result = self.extract(source, selected)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, body.rstrip("\n") + "\n")
+                self.assertNotIn("Old release.", result.stdout)
+
+    def test_current_release_selection_rejects_missing_or_ambiguous_metadata(self):
+        declaration = "Latest stable public release: `6.0.0`\n"
+        section = "## 6.0.0\nNotes.\n"
+        for source in (section, declaration, declaration * 2 + section, declaration + section * 2):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                current_release_section(source)
 
     def test_small_notes_and_missing_or_empty_sections(self):
         result = self.extract("## 6.0.0\n\n- Ready to migrate.\n\n## 5.1.0\nOld.\n")
