@@ -78,12 +78,20 @@ Before dispatching the `Release Gate` workflow:
      do not replace it with a developer-machine measurement.
    - Benchmark version 2 verifies successful container, override, child, and
      environment-bridge generation. Version 1 silently measured rejected child
-     wiring; its timings are not comparable. The unchanged historical baseline
-     remains deliberately incompatible until version 2 is calibrated on that
-     pinned CI image. A version mismatch retains the measurement artifact and
+     wiring; its timings are not comparable. The version-2 baseline comes from
+     [Perf History run 36359716682](https://github.com/InnoSquadCorp/InnoDI/actions/runs/36359716682),
+     candidate `1292253044e1d0e9d6678b9e716f61ec498dee51`, on
+     `macos-26-arm64` image `20260907.0351.1`, Xcode 26.6 / Swift 6.3.3.
+     All 30 samples from that first successful calibration are retained:
+     minimum 227.409 ms, median 292.575 ms, standard deviation 90.979 ms.
+     The unchanged 20% budget gives a 272.8908 ms minimum-sample limit; the
+     substantial shared-runner variance is recorded, not filtered away.
+     A version mismatch retains the measurement artifact and
      fails enforcement, even in report-only mode. Never relabel version 1
      samples as version 2 or relax the 20% threshold to obtain a green gate.
      Trend/history retain the benchmark version and compare like workloads only.
+     Fewer than five version-2 history entries means insufficient trend evidence,
+     not a measured trend pass. Keep version-1 history unchanged.
      CI still runs trace and trend after a macro failure, without suppressing
      the original job failure.
    - Run `Tools/measure-runtime-trace-performance.sh` to enforce the separate
@@ -273,9 +281,13 @@ standalone release assets.
   - Async waiter cancellation no longer retains completed-request IDs across
     scope resets. Caller cancellation is checked during actor-isolated
     continuation registration; late handlers only remove live waiters.
-  - Public API baseline schema 7 additionally records typealias RHS identities,
+  - Public API baseline schema 8 additionally records typealias RHS identities,
     structure, actor isolation, Sendable and function effects. Compiler/consumer
     mutation tests distinguish source breaks from qualification/format changes.
+    Generic RHS references use compiler-declared depth/index slots so direct
+    symbol-graph emission and serialized-module extraction compare identically.
+    Unknown nominal identities and ambiguous parameter metadata still fail
+    closed. Tests exercise both compiler paths and distinct nested generic slots.
     This schema update changes no public declarations.
   - Release exact-revision consumers preserve preflight's annotated-tag/main
     ancestry contract after normal main progress. Untagged initial dispatches,

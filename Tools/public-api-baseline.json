@@ -1961,7 +1961,7 @@
               "async",
               "throws",
               "->",
-              "reference:s:6InnoDI12DIAsyncScopeC5Valuexmfp"
+              "generic:0:0"
             ],
             "isolationModifiers": [],
             "namedAttributes": []
@@ -4573,7 +4573,7 @@
               "(",
               ")",
               "->",
-              "reference:s:6InnoDI20DIProviderCollectionV7Elementxmfp"
+              "generic:0:0"
             ],
             "isolationModifiers": [],
             "namedAttributes": []
@@ -7085,9 +7085,9 @@
             "aliasedType": [
               "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC",
               "<",
-              "reference:s:13InnoDISwiftUI15DIContainerHostV8Identityxmfp",
+              "generic:0:0",
               ",",
-              "reference:s:13InnoDISwiftUI15DIContainerHostV9Containerq_mfp",
+              "generic:0:1",
               ">",
               ".",
               "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC5Closea"
@@ -7174,9 +7174,9 @@
             "aliasedType": [
               "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC",
               "<",
-              "reference:s:13InnoDISwiftUI15DIContainerHostV8Identityxmfp",
+              "generic:0:0",
               ",",
-              "reference:s:13InnoDISwiftUI15DIContainerHostV9Containerq_mfp",
+              "generic:0:1",
               ">",
               ".",
               "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC7Factorya"
@@ -7422,7 +7422,7 @@
               "@",
               "Sendable",
               "(",
-              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC9Containerq_mfp",
+              "generic:0:1",
               ")",
               "async",
               "->",
@@ -7658,12 +7658,12 @@
               "@",
               "Sendable",
               "(",
-              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC8Identityxmfp",
+              "generic:0:0",
               ")",
               "async",
               "throws",
               "->",
-              "reference:s:13InnoDISwiftUI20DIContainerHostOwnerC9Containerq_mfp"
+              "generic:0:1"
             ],
             "isolationModifiers": [],
             "namedAttributes": []
@@ -10376,5 +10376,5 @@
       ]
     }
   ],
-  "schemaVersion": 7
+  "schemaVersion": 8
 }

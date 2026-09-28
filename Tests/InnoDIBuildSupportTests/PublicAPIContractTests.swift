@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 7)
+        #expect(payload["schemaVersion"] as? Int == 8)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
