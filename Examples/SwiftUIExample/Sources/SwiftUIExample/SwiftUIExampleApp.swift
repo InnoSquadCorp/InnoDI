@@ -167,19 +167,19 @@ final class DashboardFeatureModel {
 ])
 @DIContainer
 struct DashboardFeatureContainer {
-    @Provide(.input)
+    @Input
     var username: String
 
-    @Provide(.input)
+    @Input
     var greetingService: any GreetingServiceProtocol
 
-    @Provide(.input)
+    @Input
     var activityService: any ActivityServiceProtocol
 }
 
-@DIContainer(root: true)
+@DIContainerRole(role: ContainerRole.root)
 struct AppContainer {
-    @Provide(.input)
+    @Input
     var username: String
 
     @Provide(.shared, factory: { LiveGreetingService() })

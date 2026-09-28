@@ -42,6 +42,8 @@ public struct GenerateMockMacro: PeerMacro {
         var unsupportedMembers: [String] = []
         var missingStubExpressions: [String] = []
         var recordedCallCountExpressions: [String] = []
+        var resetCallStatements: [String] = []
+        var resetStubStatements: [String] = []
         var usesNotStubbedError = false
         if let isolation = unsupportedMockIsolation(in: protocolDecl.attributes) {
             unsupportedMembers.append(isolation)
@@ -80,15 +82,25 @@ public struct GenerateMockMacro: PeerMacro {
                     recordedCallCountExpressions.append(
                         rendered.recordedCallCountExpression
                     )
+                    resetCallStatements.append(rendered.resetCallStatement)
+                    resetStubStatements.append(
+                        contentsOf: rendered.resetStubStatements
+                    )
                 } else {
                     unsupportedMembers.append(function.name.text)
                 }
             } else if let variable = member.decl.as(VariableDeclSyntax.self) {
-                if let snippet = renderVariableMock(
+                if let rendered = renderVariableMock(
                     variable: variable,
                     concurrent: usesConcurrentStorage
                 ) {
-                    bodyLines.append(snippet)
+                    bodyLines.append(rendered.snippet)
+                    missingStubExpressions.append(
+                        rendered.missingStubExpression
+                    )
+                    resetStubStatements.append(
+                        contentsOf: rendered.resetStubStatements
+                    )
                 } else {
                     unsupportedMembers.append(
                         variable.bindings.first?.pattern.trimmedDescription ?? "<unknown>"
@@ -108,13 +120,32 @@ public struct GenerateMockMacro: PeerMacro {
                     }
                 }
         )
+        let declaredFunctionNames = Set(
+            protocolDecl.memberBlock.members.compactMap {
+                $0.decl.as(FunctionDeclSyntax.self)?.name.text
+            }
+        )
+        let declaredMemberNames = declaredPropertyNames.union(
+            declaredFunctionNames
+        )
         if !recordedCallCountExpressions.isEmpty,
-           declaredPropertyNames.contains("recordedCallCounts") {
+           declaredMemberNames.contains("recordedCallCounts") {
             unsupportedMembers.append("recordedCallCounts generated-helper collision")
         }
         if !missingStubExpressions.isEmpty,
-           declaredPropertyNames.contains("missingStubSelectors") {
+           declaredMemberNames.contains("missingStubSelectors") {
             unsupportedMembers.append("missingStubSelectors generated-helper collision")
+        }
+        let hasResetSurface = !resetCallStatements.isEmpty
+            || !resetStubStatements.isEmpty
+        if hasResetSurface {
+            for helperName in [
+                "innoDIReset",
+                "innoDICallHistoryGeneration",
+                "innoDICallHistorySnapshot"
+            ] where declaredMemberNames.contains(helperName) {
+                unsupportedMembers.append("\(helperName) generated-helper collision")
+            }
         }
 
         if !unsupportedMembers.isEmpty {
@@ -141,30 +172,76 @@ public struct GenerateMockMacro: PeerMacro {
                 at: 0
             )
         }
+        if hasResetSurface {
+            bodyLines.insert(
+                usesConcurrentStorage
+                    ? "    private let __innodiMockState = InnoDITesting.DIConcurrentMockState()"
+                    : "    private var __innodiMockGeneration: UInt64 = 0",
+                at: 0
+            )
+        }
         if !missingStubExpressions.isEmpty {
             let expressions = missingStubExpressions.joined(separator: ",\n            ")
-            bodyLines.append(
-                """
-                    var missingStubSelectors: [String] {
-                        [
-                            \(expressions)
-                        ].compactMap { $0 }
-                    }
-                """
-            )
+            if usesConcurrentStorage {
+                bodyLines.append(
+                    """
+                        var missingStubSelectors: [String] {
+                            __innodiMockState.withCriticalRegion { _ in
+                                [
+                                    \(expressions)
+                                ].compactMap { $0 }
+                            }
+                        }
+                    """
+                )
+            } else {
+                bodyLines.append(
+                    """
+                        var missingStubSelectors: [String] {
+                            [
+                                \(expressions)
+                            ].compactMap { $0 }
+                        }
+                    """
+                )
+            }
         }
         if !recordedCallCountExpressions.isEmpty {
             let expressions = recordedCallCountExpressions.joined(
                 separator: ",\n            "
             )
+            if usesConcurrentStorage {
+                bodyLines.append(
+                    """
+                        var recordedCallCounts: [String: Int] {
+                            __innodiMockState.withCriticalRegion { _ in
+                                [
+                                    \(expressions)
+                                ]
+                            }
+                        }
+                    """
+                )
+            } else {
+                bodyLines.append(
+                    """
+                        var recordedCallCounts: [String: Int] {
+                            [
+                                \(expressions)
+                            ]
+                        }
+                    """
+                )
+            }
+        }
+        if hasResetSurface {
             bodyLines.append(
-                """
-                    var recordedCallCounts: [String: Int] {
-                        [
-                            \(expressions)
-                        ]
-                    }
-                """
+                renderMockResetSurface(
+                    concurrent: usesConcurrentStorage,
+                    recordedCallCountExpressions: recordedCallCountExpressions,
+                    resetCallStatements: resetCallStatements,
+                    resetStubStatements: resetStubStatements
+                )
             )
         }
 
@@ -188,6 +265,120 @@ public struct GenerateMockMacro: PeerMacro {
         """
         return [mockDecl]
     }
+}
+
+private func renderMockResetSurface(
+    concurrent: Bool,
+    recordedCallCountExpressions: [String],
+    resetCallStatements: [String],
+    resetStubStatements: [String]
+) -> String {
+    func indented(
+        _ lines: [String],
+        spaces: Int,
+        separatorSuffix: String = ""
+    ) -> String {
+        let prefix = String(repeating: " ", count: spaces)
+        return lines.enumerated().map { index, line in
+            let suffix = index == lines.count - 1 ? "" : separatorSuffix
+            return prefix + line + suffix
+        }.joined(separator: "\n")
+    }
+
+    let countExpressions = recordedCallCountExpressions.isEmpty
+        ? [":"]
+        : recordedCallCountExpressions
+    let counts = indented(
+        countExpressions,
+        spaces: 16,
+        separatorSuffix: ","
+    )
+    let concurrentCallReset = indented(resetCallStatements, spaces: 12)
+    let concurrentStubReset = indented(resetStubStatements, spaces: 16)
+    let ordinaryCallReset = indented(resetCallStatements, spaces: 8)
+    let ordinaryStubReset = indented(resetStubStatements, spaces: 12)
+
+    if concurrent {
+        return """
+            enum InnoDIResetScope: Sendable {
+                case calls
+                case all
+            }
+
+            struct InnoDICallHistorySnapshot: Equatable, Sendable {
+                let generation: UInt64
+                let recordedCallCounts: [String: Int]
+            }
+
+            var innoDICallHistoryGeneration: UInt64 {
+                __innodiMockState.withCriticalRegion { $0 }
+            }
+
+            var innoDICallHistorySnapshot: InnoDICallHistorySnapshot {
+                __innodiMockState.withCriticalRegion { generation in
+                    .init(
+                        generation: generation,
+                        recordedCallCounts: [
+        \(counts)
+                        ]
+                    )
+                }
+            }
+
+            @discardableResult
+            func innoDIReset(_ scope: InnoDIResetScope) -> InnoDICallHistorySnapshot {
+                __innodiMockState.reset { generation in
+                    let snapshot = InnoDICallHistorySnapshot(
+                        generation: generation,
+                        recordedCallCounts: [
+        \(counts)
+                        ]
+                    )
+        \(concurrentCallReset)
+                    if scope == .all {
+        \(concurrentStubReset)
+                    }
+                    return snapshot
+                }
+            }
+        """
+    }
+
+    return """
+        enum InnoDIResetScope: Sendable {
+            case calls
+            case all
+        }
+
+        struct InnoDICallHistorySnapshot: Equatable, Sendable {
+            let generation: UInt64
+            let recordedCallCounts: [String: Int]
+        }
+
+        var innoDICallHistoryGeneration: UInt64 {
+            __innodiMockGeneration
+        }
+
+        var innoDICallHistorySnapshot: InnoDICallHistorySnapshot {
+            .init(
+                generation: __innodiMockGeneration,
+                recordedCallCounts: [
+    \(counts)
+                ]
+            )
+        }
+
+        @discardableResult
+        func innoDIReset(_ scope: InnoDIResetScope) -> InnoDICallHistorySnapshot {
+            let snapshot = innoDICallHistorySnapshot
+    \(ordinaryCallReset)
+            if scope == .all {
+    \(ordinaryStubReset)
+            }
+            __innodiMockGeneration &+= 1
+            return snapshot
+        }
+    """
 }
 
 private func unsupportedMockInheritance(

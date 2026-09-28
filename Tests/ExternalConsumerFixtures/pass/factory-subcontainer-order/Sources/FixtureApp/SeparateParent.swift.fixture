@@ -1,0 +1,16 @@
+import InnoDI
+
+@DIContainer
+struct SeparateParent {
+    @Input var parentFirst: SeparateFirst
+    @Input var parentSecond: SeparateSecond
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [
+            (child: \SeparateChild.second, parent: \SeparateParent.parentSecond),
+            (child: \SeparateChild.first, parent: \SeparateParent.parentFirst),
+        ]
+    )
+    var child: SeparateChild
+}

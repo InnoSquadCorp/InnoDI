@@ -10,9 +10,33 @@ import Testing
 @testable import InnoDIMacros
 
 extension DIContainerMacroTests {
-    @Test("Lazy<T> factory parameter breaks a two-shared cycle without restructuring")
-    func lazyBreaksTwoCycleAcrossShared() {
-        assertMacroExpansionSnapshot(
+    @Test("Detached transient diamond expansion grows with declarations, not paths")
+    func detachedDiamondExpansionIsLinear() {
+        func expansion(depth: Int) -> String {
+            var source = "@DIContainer struct Diamond {\n"
+            source += "@Provide(.transient) var a0: Int = 1\n"
+            source += "@Provide(.transient) var b0: Int = 2\n"
+            for level in 1...depth {
+                for side in ["a", "b"] {
+                    source += "@Provide(.transient, factory: { (a\(level - 1): Int, b\(level - 1): Int) in a\(level - 1) + b\(level - 1) }) var \(side)\(level): Int\n"
+                }
+            }
+            source += "@Provide(.shared, factory: { (a\(depth): Provider<Int>) in a\(depth) }) var root: Provider<Int>\n}"
+            let result = expandMacroSource(source, macros: Self.macros)
+            #expect(result.diagnostics.isEmpty)
+            return result.expansion
+        }
+        let small = expansion(depth: 6)
+        let large = expansion(depth: 10)
+        #expect(large.utf8.count < small.utf8.count * 2)
+        #expect(large.utf8.count < 60_000)
+        #expect(large.components(separatedBy: "a0 ?? 1").count - 1 == 1)
+        #expect(!large.contains("_lazySelf"))
+    }
+
+    @Test("Lazy<T> does not exempt a shared ownership cycle")
+    func lazyRejectsTwoCycleAcrossShared() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
@@ -27,14 +51,14 @@ extension DIContainerMacroTests {
                 var b: CoordinatorB
             }
             """,
-            matches: "lazyBreaksTwoCycleAcrossShared",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }
 
-    @Test("Qualified InnoDI.Lazy uses shadow-safe contextual construction")
-    func qualifiedLazyBreaksTwoCycleAcrossShared() {
-        assertMacroExpansionSnapshot(
+    @Test("Qualified InnoDI.Lazy also rejects ownership cycles")
+    func qualifiedLazyRejectsTwoCycleAcrossShared() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
@@ -49,18 +73,14 @@ extension DIContainerMacroTests {
                 var b: CoordinatorB
             }
             """,
-            matches: "qualifiedLazyBreaksTwoCycleAcrossShared",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }
 
-    @Test("Lazy<T> breaks a three-shared cycle as long as at least one edge is soft")
-    func lazyBreaksThreeCycle() {
-        // Cycle: a → c (soft), c → b (hard), b → a (hard). The soft edge on
-        // `a` makes the hard-only adjacency a linear chain b→a, c→b, so
-        // cycle detection passes while declaration-order availability still
-        // holds for every hard reference.
-        assertMacroExpansionSnapshot(
+    @Test("A deferred edge cannot hide a three-shared ownership cycle")
+    func lazyRejectsThreeCycle() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
             struct AppContainer {
@@ -80,7 +100,7 @@ extension DIContainerMacroTests {
                 var c: C
             }
             """,
-            matches: "lazyBreaksThreeCycle",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }
@@ -132,9 +152,9 @@ extension DIContainerMacroTests {
     @Test("Provider<T> factory parameter wires a shared factory to a transient target")
     func providerInSharedFactoryInjectsFreshTransient() {
         // `.shared` factory receives a Provider<Request>. Generated code
-        // should declare `_lazyCell_request` (reusing the Lazy cell
-        // infrastructure), bind `_lazyCell_request.bindResolver { _lazySelf.request }`
-        // after init, and pass `Provider({ _lazyCell_request.resolve() })` to
+        // should declare `_innoDILazyCell_request` (reusing the Lazy cell
+        // infrastructure), bind a dependency-only `_innoDIResolver_request`,
+        // and pass `Provider({ _innoDILazyCell_request.resolve() })` to
         // the factory. The snapshot captures the full init body.
         assertMacroExpansionSnapshot(
             """
@@ -157,6 +177,39 @@ extension DIContainerMacroTests {
             matches: "providerInSharedFactoryInjectsFreshTransient",
             macros: Self.macros
         )
+    }
+
+    @Test("Provider<T> detaches nested transient type factories from the container")
+    func providerInSharedFactoryDetachesNestedTransientTypeFactories() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Provide(.input)
+                var config: Config
+
+                @Provide(.transient, Request.self, with: [\\Self.config])
+                var request: Request
+
+                @Provide(.transient, Processor.self, with: [\\Self.request])
+                var processor: Processor
+
+                @Provide(.shared, factory: { (processor: Provider<Processor>) in
+                    ProcessorLogger(processors: processor)
+                })
+                var logger: ProcessorLogger
+            }
+            """,
+            macros: Self.macros
+        )
+
+        #expect(result.diagnostics.isEmpty)
+        #expect(
+            result.expansion.contains(
+                "processor ?? Processor(request: _innoDIResolver_request())"
+            )
+        )
+        #expect(!result.expansion.contains("_lazySelf"))
     }
 
     @Test("Provider<T> factory parameter works in a transient accessor (no init box needed)")
@@ -280,8 +333,8 @@ extension DIContainerMacroTests {
     @Test("Provider<T> forward reference does not count as a cycle or unavailable edge")
     func providerDoesNotCountAsCycle() {
         // `logger` declared before `request` and references it forward via
-        // Provider — hard-only adjacency is empty on that edge, so no cycle
-        // and no `provide.unavailable-dependency-reference`.
+        // Provider. The graph is acyclic; deferral still allows forward
+        // references without `provide.unavailable-dependency-reference`.
         assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer
@@ -590,7 +643,7 @@ extension DIContainerMacroTests {
         )
     }
 
-    @Test("Cycle without Lazy still fails validation with the Lazy hint")
+    @Test("Hard dependency cycles remain rejected")
     func cycleWithoutLazyStillFails() {
         assertMacroExpansionDiagnosticCodes(
             """
@@ -615,8 +668,8 @@ extension DIContainerMacroTests {
     }
 
     @Test
-    func validateDAGFalseSkipsCycleValidation() {
-        assertMacroExpansionSnapshot(
+    func validateDAGFalseStillRejectsCycle() {
+        assertMacroExpansionDiagnosticCodes(
             """
             @DIContainer(validateDAG: false)
             struct AppContainer {
@@ -631,7 +684,7 @@ extension DIContainerMacroTests {
                 var serviceB: ServiceB
             }
             """,
-            matches: "validateDAGFalseSkipsCycleValidation",
+            expectedCodes: [MessageID(domain: "InnoDI.validation", id: "container.dependency-cycle")],
             macros: Self.macros
         )
     }

@@ -5,7 +5,7 @@ struct TaskStorageValue: Sendable {}
 @DIContainer
 struct UnrelatedChild {}
 
-@DIContainer(validateDAG: false, mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true, validateDAG: false)
 struct TaskStorageCollisionContainer {
     @Provide(
         .shared,
@@ -19,7 +19,7 @@ struct TaskStorageCollisionContainer {
     )
     var cache: TaskStorageValue
 
-    @Provide(.input)
+    @Input
     var unrelated: Int
 
     @SubContainer(scope: .shared, with: [])
@@ -31,7 +31,7 @@ struct StorageSubChild {}
 
 @DIContainer
 struct StorageSubCollisionContainer {
-    @Provide(.input)
+    @Input
     var sub_feature: Int
 
     @SubContainer(scope: .shared, with: [])

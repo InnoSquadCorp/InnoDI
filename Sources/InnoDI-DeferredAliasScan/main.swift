@@ -6,7 +6,7 @@
 //  `DILazyProviderAliasCheck` already warns when the alias lives in the
 //  same file as the factory parameter, but a cross-file alias silently
 //  behaves as a hard edge — the macro's canonical-identifier detection
-//  never recognizes the renamed wrapper, and cycle escape stops working.
+//  never recognizes the renamed wrapper, and deferred wiring stops working.
 //
 //  This executable surfaces those cross-file findings so PRs can audit
 //  the canonical-identifier convention without the macro itself growing
@@ -136,7 +136,7 @@ func renderMarkdown(report: DeferredAliasReport) -> String {
         "These aliases prevent the macro's canonical-identifier detection from "
         + "recognising soft edges across files. At factory-parameter sites, prefer "
         + "spelling `Lazy<T>` / `Provider<T>` (or `InnoDI.Lazy<T>` / "
-        + "`InnoDI.Provider<T>`) directly so cycle escape continues to work."
+        + "`InnoDI.Provider<T>`) directly so deferred wiring continues to work."
     )
     return lines.joined(separator: "\n") + "\n"
 }

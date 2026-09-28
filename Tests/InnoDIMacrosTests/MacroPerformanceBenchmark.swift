@@ -1,10 +1,7 @@
 import Foundation
 import InnoDITestSupport
 import SwiftParser
-import SwiftSyntax
-import SwiftSyntaxMacroExpansion
 import SwiftSyntaxMacros
-@_spi(Testing) import SwiftSyntaxMacrosGenericTestSupport
 import Testing
 
 @testable import InnoDIMacros
@@ -23,11 +20,12 @@ import Testing
 /// the only way to trigger the benchmark: filtering on the test alone won't
 /// write any file, keeping regular `swift test` runs free of throw-away
 /// artifacts.
-@Suite("Macro performance benchmark", .tags(.macroBenchmark))
+@Suite("Macro performance benchmark", .tags(.macroBenchmark), .serialized)
 struct MacroPerformanceBenchmark {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
         "Provide": ProvideMacro.self,
+        "Input": ProvideMacro.self,
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
@@ -47,7 +45,7 @@ struct MacroPerformanceBenchmark {
     ])
     @DIContainer
     struct AppContainer {
-        @Provide(.input) var config: AppConfig
+        @Input var config: AppConfig
         @Provide(.shared, factory: { (config: AppConfig) in APIClient(config: config) })
         var apiClient: APIClient
         @Provide(.shared, factory: { (apiClient: APIClient) in UserService(api: apiClient) })
@@ -58,7 +56,7 @@ struct MacroPerformanceBenchmark {
         var featureService: FeatureService
         @Provide(.transient, factory: { (apiClient: APIClient) in RequestBuilder(api: apiClient) })
         var requestBuilder: RequestBuilder
-        @SubContainer(scope: .shared, featureRoot: DashboardRootView.self)
+        @SubContainer(scope: .shared, with: [], featureRoot: DashboardRootView.self)
         var dashboard: DashboardContainer
     }
     """
@@ -72,10 +70,10 @@ struct MacroPerformanceBenchmark {
         // A three-expansion warmup was not enough on GitHub's macos-26
         // runners: one observed run took more than twenty expansions to
         // converge from 78 ms to 43 ms. Warm at least one complete default
-        // measurement window so the enforced mean represents steady-state
+        // measurement window so the enforced lower envelope represents steady-state
         // macro work instead of runner startup and cache population.
         for _ in 0..<warmupIterations {
-            runOne()
+            try runOne()
         }
 
         var samples: [Double] = []
@@ -83,8 +81,8 @@ struct MacroPerformanceBenchmark {
         let clock = ContinuousClock()
 
         for _ in 0..<iterations {
-            let duration = clock.measure {
-                runOne()
+            let duration = try clock.measure {
+                try runOne()
             }
             samples.append(duration.milliseconds)
         }
@@ -106,6 +104,8 @@ struct MacroPerformanceBenchmark {
           "updated_at": "\(isoTimestamp)",
           "swift_version": "\(swiftVersion)",
           "source": "in-process-macro-benchmark",
+          "benchmark_version": 2,
+          "workload_verified": true,
           "iterations": \(iterations),
           "warmup_iterations": \(warmupIterations),
           "mean_ms": \(String(format: "%.3f", mean)),
@@ -131,35 +131,45 @@ struct MacroPerformanceBenchmark {
         #expect(Self.warmupIterationCount(for: 50) == 50)
     }
 
+    @Test("Representative performance fixture exercises successful code generation")
+    func representativeFixtureGeneratesCode() throws {
+        try runOne()
+    }
+
+    @Test("A rejected child wiring fixture cannot produce performance evidence")
+    func rejectedFixtureDoesNotMeasure() {
+        let invalid = Self.representativeSource.replacingOccurrences(of: "with: [], ", with: "")
+        #expect(throws: BenchmarkError.self) {
+            try runOne(source: invalid)
+        }
+    }
+
     private static func warmupIterationCount(for iterations: Int) -> Int {
         max(30, iterations)
     }
 
-    private func runOne() {
-        let specs = Self.macros.mapValues { MacroSpec(type: $0) }
-        var observedFailures = 0
-        SwiftSyntaxMacrosGenericTestSupport.assertMacroExpansion(
-            Self.representativeSource,
-            expandedSource: Self.representativeSource,
-            diagnostics: [],
-            macroSpecs: specs,
+    private func runOne(source: String = Self.representativeSource) throws {
+        let result = expandMacroSource(
+            source,
+            macros: Self.macros,
             testModuleName: "BenchModule",
-            testFileName: "bench.swift",
-            indentationWidth: .spaces(4),
-            failureHandler: { _ in
-                observedFailures += 1
-            },
-            fileID: #fileID,
-            filePath: #filePath,
-            line: #line,
-            column: #column
+            testFileName: "bench.swift"
         )
-        // The expansion intentionally disagrees with the fed expected source,
-        // so a failure is expected — we only care about the cost of running
-        // the expansion machinery, not the comparison result. Touching the
-        // counter keeps the optimizer from eliding the call.
-        _ = observedFailures
+        // Version 1 swallowed every assertion failure and timed an invalid
+        // child-wiring recovery path. Version 2 measures successful generation,
+        // including verification; no rejected expansion can become a sample.
+        guard result.diagnostics.isEmpty,
+              !Parser.parse(source: result.expansion).hasError,
+              result.expansion.contains("struct Overrides"),
+              result.expansion.contains("func withOverrides"),
+              result.expansion.contains("_storage_config"),
+              result.expansion.contains("_storage_sub_dashboard"),
+              result.expansion.contains("_InnoDIEnvironmentBridgeModifier") else {
+            throw BenchmarkError.invalidExpansion(result.diagnostics.map(\.message))
+        }
     }
+
+    private enum BenchmarkError: Error { case invalidExpansion([String]) }
 }
 
 private extension Tag {

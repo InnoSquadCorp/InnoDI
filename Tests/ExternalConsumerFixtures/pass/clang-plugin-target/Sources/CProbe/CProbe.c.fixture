@@ -1,0 +1,3 @@
+#include "CProbe.h"
+
+int cProbeValue(void) { return 42; }

@@ -3,10 +3,9 @@ import InnoDI
 struct Service {}
 struct Request {}
 
-@DIComponent
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.component, mainActor: true)
 struct MainActorContainer {
-    @Provide(.input) var config: String
+    @Input var config: String
 
     @Provide(.shared, factory: Service())
     var service: Service
@@ -15,9 +14,9 @@ struct MainActorContainer {
     var request: Request
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 struct MainActorRootContainer {
-    @Provide(.input) var config: String
+    @Input var config: String
 
     @SubContainer(
         scope: .shared,

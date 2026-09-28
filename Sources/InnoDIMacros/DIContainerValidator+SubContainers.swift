@@ -180,7 +180,8 @@ extension DIContainerValidator {
     }
 
     /// Requires an explicit mapping when implicit same-name wiring is
-    /// ambiguous, and offers the complete parent candidate list as a fix-it.
+    /// ambiguous. No fix-it is offered because the child input contract is
+    /// not source-visible here, so choosing any parent subset would be a guess.
     private static func validateSubContainerAutoWiring(
         member: SubContainerMemberModel,
         parentMemberNames: [String],
@@ -197,11 +198,7 @@ extension DIContainerValidator {
         }
         context.emit(
             SimpleDiagnostic.subAutoWiringAmbiguous(memberName: member.name),
-            at: Syntax(member.attribute),
-            fixIts: makeSubAutoWiringAmbiguousFixIts(
-                attribute: member.attribute,
-                parentMemberNames: parentMemberNames
-            )
+            at: Syntax(member.attribute)
         )
         return true
     }

@@ -6,10 +6,32 @@ public struct ModuleBService: CrossModuleService {
     public init() {}
 }
 
+public struct ModuleBProviderCatalog {
+    public var service: any CrossModuleService
+
+    public init(service: any CrossModuleService) {
+        self.service = service
+    }
+}
+
 public enum ModuleBContributions {
     public static let ordered = DICollectionGroup<any CrossModuleService>([ModuleBService()])
+    public static let providerMetadata = DICollectionMetadata.keyedProviders([
+        .init(key: "b", contributor: \ModuleBProviderCatalog.service),
+    ])
 
     public static func keyed() throws -> DIKeyedCollection<String, any CrossModuleService> {
         try DIKeyedCollection([.init(key: "b", value: ModuleBService())])
+    }
+
+    public static func providers(
+        counter: CrossModuleCounter
+    ) throws -> DIKeyedProviderCollection<String, any CrossModuleService> {
+        try DIKeyedProviderCollection([
+            .init(key: "b") {
+                counter.increment("b")
+                return ModuleBService()
+            },
+        ])
     }
 }

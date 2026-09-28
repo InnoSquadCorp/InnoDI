@@ -650,11 +650,30 @@ struct WorkspaceTargetIdentityGraphTests {
 
             @DIContainer(root: true)
             struct AppContainer {
-                @SubContainer(scope: .shared)
+                @Input var repository: Repository
+
+                @SubContainer(scope: .shared, bindings: [
+                    (child: \\FeatureKit.FeatureContainer.repository, parent: \\AppContainer.repository),
+                ])
                 var feature: FeatureKit.FeatureContainer
             }
             """,
-            dependencies: [featureDependency()]
+            dependencies: [
+                TargetGraphDependencySpec(
+                    packageIdentity: "feature-package",
+                    moduleName: "FeatureKit",
+                    source: """
+                    import InnoDI
+
+                    struct Repository {}
+
+                    @DIContainer
+                    struct FeatureContainer {
+                        @Input var repository: Repository
+                    }
+                    """
+                )
+            ]
         )
         defer { fixture.remove() }
 
@@ -670,6 +689,17 @@ struct WorkspaceTargetIdentityGraphTests {
         )
         #expect(edge.isOwnership)
         #expect(edge.label == "feature")
+        let featureProvider = try #require(
+            analysis.providers.first { $0.name == "feature" }
+        )
+        let binding = try #require(featureProvider.containerBindings.only)
+        let childContainerID = fixture.dependencyContainerID(
+            moduleName: "FeatureKit",
+            containerName: "FeatureContainer"
+        )
+        #expect(binding.ownership == .fixed)
+        #expect(binding.childInputID == "\(childContainerID).repository")
+        #expect(binding.parentProviderID == "\(fixture.primaryContainerID()).repository")
         #expect(try fixture.validateGraph().exitCode == 0)
     }
 

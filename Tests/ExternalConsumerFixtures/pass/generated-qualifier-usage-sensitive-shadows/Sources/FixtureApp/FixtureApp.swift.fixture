@@ -3,12 +3,12 @@ import ShadowKit
 
 @DIContainer
 struct AppContainer {
-    @Provide(.input) var value: Int
+    @Input var value: Int
 }
 
 @DIContainer(validateDAG: false)
 struct StorageAliasContainer {
-    @Provide(.input) var value: Int
+    @Input var value: Int
 
     @Provide(factory: { (_storage_value: Int) in _storage_value })
     var copy: Int

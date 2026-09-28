@@ -1,0 +1,30 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "FactorySubContainerOrderConsumer",
+    platforms: [.macOS(.v14)],
+    dependencies: [.package(path: "{{INNODI_PACKAGE_PATH}}")],
+    targets: [
+        .target(
+            name: "ChildKit",
+            dependencies: [
+                .product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}")
+            ]
+        ),
+        .executableTarget(
+            name: "FixtureApp",
+            dependencies: [
+                "ChildKit",
+                .product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}")
+            ],
+            plugins: [
+                .plugin(
+                    name: "InnoDIDAGValidationPlugin",
+                    package: "{{INNODI_PACKAGE_IDENTITY}}"
+                )
+            ]
+        )
+    ]
+)

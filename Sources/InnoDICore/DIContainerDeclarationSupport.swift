@@ -1,6 +1,6 @@
 import SwiftSyntax
 
-/// The InnoDI 5.0 declaration-shape contract shared by macro expansion,
+/// The InnoDI 6.0 declaration-shape contract shared by macro expansion,
 /// build validation, and dependency-graph analysis.
 package enum DIContainerDeclarationSupport: Equatable, Sendable {
     case supported
@@ -37,20 +37,20 @@ package enum DIContainerDeclarationSupport: Equatable, Sendable {
             return nil
         case let .unsupportedKind(name, kind):
             let article = ["actor", "enum", "extension"].contains(kind) ? "an" : "a"
-            return "@DIContainer supports only non-generic structs in InnoDI 5.0; '\(name)' is declared as \(article) \(kind). Convert it to a struct and inject runtime state through @Provide(.input)."
+            return "@DIContainer supports only non-generic structs in InnoDI 6.0; '\(name)' is declared as \(article) \(kind). Convert it to a struct and inject runtime state through @Input."
         case let .privateAccess(name):
-            return "@DIContainer '\(name)' cannot be declared private in InnoDI 5.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
+            return "@DIContainer '\(name)' cannot be declared private in InnoDI 6.0 because generated child-mount APIs would not be accessible to sibling containers. Use fileprivate for file-local mounting, or place a default-access container inside a private enclosing namespace."
         case let .generic(name, contextName):
             let reason = if let contextName {
                 "'\(name)' is nested in generic context '\(contextName)'"
             } else {
                 "'\(name)' declares generic parameters"
             }
-            return "@DIContainer supports only non-generic structs in InnoDI 5.0; \(reason). Move type-specific behavior behind an injected dependency."
+            return "@DIContainer supports only non-generic structs in InnoDI 6.0; \(reason). Move type-specific behavior behind an injected dependency."
         case let .unverifiableEnclosingContext(name, extendedType):
             return "@DIContainer cannot prove that '\(name)' has a non-generic context because it is declared inside extension '\(extendedType)'. Move the container to file scope or a non-generic nominal declaration."
         case let .localDeclaration(name, _):
-            return "@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 5.0; '\(name)' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration."
+            return "@DIContainer supports only file-scope structs or structs nested in non-generic nominal declarations in InnoDI 6.0; '\(name)' is declared in an executable code scope. Move the container to file scope or a non-generic nominal declaration."
         }
     }
 
@@ -59,7 +59,7 @@ package enum DIContainerDeclarationSupport: Equatable, Sendable {
         case .supported:
             return nil
         case .unsupportedKind:
-            return "Convert the container to a non-generic struct and inject runtime state through @Provide(.input)."
+            return "Convert the container to a non-generic struct and inject runtime state through @Input."
         case .privateAccess:
             return "Use fileprivate for a file-local container, or nest a default-access container inside a private namespace."
         case .generic:
@@ -72,7 +72,7 @@ package enum DIContainerDeclarationSupport: Equatable, Sendable {
     }
 }
 
-/// Classifies one declaration against the InnoDI 5.0 container support
+/// Classifies one declaration against the InnoDI 6.0 container support
 /// matrix. Physical parent syntax is authoritative; macro lexical context is
 /// accepted as a fallback for detached syntax used by the compiler and tests.
 package func classifyDIContainerDeclaration(

@@ -27,7 +27,7 @@ func validateResolvedEdges(
                 ValidationIssue(
                     code: "hierarchy.child-not-component",
                     severity: .error,
-                    message: "@SubContainer '\(edge.subContainer.memberName)' crosses from module '\(edge.parentModule?.displayName ?? "<unknown>")' to '\(edge.childModule?.displayName ?? "<unknown>")', but '\(child.displayName)' is not marked with @DIComponent.",
+                    message: "@SubContainer '\(edge.subContainer.memberName)' crosses from module '\(edge.parentModule?.displayName ?? "<unknown>")' to '\(edge.childModule?.displayName ?? "<unknown>")', but '\(child.displayName)' does not declare ContainerRole.component.",
                     location: edge.subContainer.location,
                     notes: [
                         ValidationIssueNote(
@@ -35,7 +35,7 @@ func validateResolvedEdges(
                             location: child.location
                         )
                     ] + moduleDisambiguationNotes,
-                    remediation: "Annotate '\(child.displayName)' with @DIComponent, or keep the child in the same module as its parent.",
+                    remediation: "Annotate '\(child.displayName)' with @DIContainerRole(role: ContainerRole.component), or keep the child in the same module as its parent.",
                     metadata: [
                         "parentContainerPath": edge.parentPath,
                         "childContainerPath": edge.childPath
@@ -153,7 +153,7 @@ func makeChildContainerOutOfWorkspaceIssue(edge: ResolvedHierarchyEdge) -> Valid
         message: "@SubContainer '\(edge.subContainer.memberName)' on '\(edge.parentPath)' (module '\(parentModuleName)') references child container '\(edge.childPath)', but the workspace validator could not find a container record for it. Cross-module checks (component marker, module dependency edge, dependency satisfaction) are skipped for this edge.",
         location: edge.subContainer.location,
         notes: notes,
-        remediation: "Confirm the child target ships @DIComponent, add the child target/product to the parent module's manifest dependencies, and re-run validation. If the child intentionally lives outside the validated workspace, treat this warning as the contract you are accepting.",
+        remediation: "Confirm the child target ships @DIContainerRole(role: ContainerRole.component), add the child target/product to the parent module's manifest dependencies, and re-run validation. If the child intentionally lives outside the validated workspace, treat this warning as the contract you are accepting.",
         metadata: metadata
     )
 }
@@ -306,7 +306,7 @@ func validateDependencySatisfaction(
             ValidationIssue(
                 code: "hierarchy.unknown-child-input",
                 severity: .error,
-                message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' forwards '\(extraName)', but '\(child.displayName)' does not declare a matching .input member.",
+                message: "@SubContainer '\(edge.subContainer.memberName)' in '\(edge.parentPath)' forwards '\(extraName)', but '\(child.displayName)' does not declare a matching @Input member.",
                 location: location,
                 notes: [
                     ValidationIssueNote(
@@ -314,7 +314,7 @@ func validateDependencySatisfaction(
                         location: child.location
                     )
                 ],
-                remediation: "Remove '\(extraName)' from with:/bindings:, or declare a matching .input on '\(child.displayName)'.",
+                remediation: "Remove '\(extraName)' from with:/bindings:, or declare a matching @Input on '\(child.displayName)'.",
                 metadata: [
                     "parentContainerPath": parent.path,
                     "childContainerPath": child.path,
@@ -429,7 +429,7 @@ func validateDuplicateParents(
                             location: firstEdge.subContainer.location
                         )
                     ],
-                    remediation: "Keep each @DIComponent under a single parent hierarchy edge.",
+                    remediation: "Keep each component-role container under a single parent hierarchy edge.",
                     metadata: [
                         "childContainerPath": child.nominalPath,
                         "firstParentPath": firstEdge.parentPath,
@@ -453,9 +453,9 @@ func validateOrphanComponents(
             ValidationIssue(
                 code: "hierarchy.orphan-component",
                 severity: .error,
-                message: "Component '\(component.displayName)' is not reachable from any @DIHierarchyRoot container.",
+                message: "Component '\(component.displayName)' is not reachable from any ContainerRole.root container.",
                 location: component.location,
-                remediation: "Mount '\(component.displayName)' from a rooted parent container, or remove @DIComponent if this type is not part of the strict hierarchy.",
+                remediation: "Mount '\(component.displayName)' from a root-role parent container, or change its role if this type is not part of the strict hierarchy.",
                 metadata: [
                     "childContainerPath": component.nominalPath
                 ]

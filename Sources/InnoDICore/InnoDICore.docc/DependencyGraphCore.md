@@ -16,9 +16,9 @@ A dependency graph is expressed as two flat collections:
   that created the edge), and semantic flags that describe the edge's
   semantics:
 
-  - `isSoft` — `Lazy<T>` parameter. Excluded from cycle detection, rendered
+  - `isSoft` — `Lazy<T>` parameter. Included in cycle detection, rendered
     dashed.
-  - `isProvider` — `Provider<T>` parameter. Excluded from cycle detection,
+  - `isProvider` — `Provider<T>` parameter. Included in cycle detection,
     rendered with a dotted glyph.
   - `isOwnership` — parent-owned `@SubContainer`. Participates in cycle
     detection (child construction happens during parent init) and is
@@ -34,13 +34,28 @@ A dependency graph is expressed as two flat collections:
 Normal factory parameters land on the default (all three booleans
 false) and behave as hard dependency edges.
 
+Provider records carry the construction contract that node edges cannot
+express: type, role, lifetime, initialization, isolation, effect, canonical
+factory bindings, child bindings, and optional collection metadata. Graph JSON
+schema v6 represents collection kind plus each entry's key (for keyed forms),
+zero-based order, canonical contributor provider ID, and the contributor's
+declared lifetime. Explicit empty metadata is serialized as an empty contract;
+omitted metadata stays absent. Consumers must reject duplicate keys, gaps in
+order, missing or cross-container contributors, and stale lifetime copies.
+
+Canonical provider adjacency also includes parent IDs from fixed-child and
+assisted-factory bindings. Bindings belong to each mount, not globally to the
+child type. Queries and cycle validation share this adjacency. JSON loading
+checks factory targets, mount ownership, parent/child container identity, and
+complete ordinary child input coverage before comparing contracts; an invalid
+document does not become valid by comparing it with itself.
+
 ## Building an adjacency list for cycle detection
 
 `buildCycleDetectionAdjacency(nodes:edges:)` returns a dictionary
 suitable for ``detectDependencyCycles(adjacency:depthLimit:)``. The
-helper intentionally drops soft and provider edges so the cycle detector
-sees only the hard-edged core — matching the macro-level per-container
-validator's DFS.
+helper includes soft and provider edges: deferred resolver contexts retain
+their dependencies. This matches the macro-level ownership-cycle check.
 
 Ordered contribution annotations are also dropped: they describe collection
 membership within one container rather than a container construction edge.

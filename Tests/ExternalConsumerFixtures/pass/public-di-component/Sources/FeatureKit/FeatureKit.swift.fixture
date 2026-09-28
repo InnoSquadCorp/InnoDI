@@ -1,4 +1,6 @@
 import InnoDI
+import InnoDISwiftUI
+import SwiftUI
 
 public struct FeatureConfig: Sendable {
     public init() {}
@@ -36,28 +38,24 @@ public struct FeatureContainer {
     public var request: FeatureRequest
 }
 
-@DIComponent
-@DIContainer
+@DIContainerRole(role: ContainerRole.component)
 public struct BindingNameFeatureContainer {
-    @Provide(.input) public var dependencies: Int
-    @Provide(.input) public var applyOverrides: String
+    @Input public var dependencies: Int
+    @Input public var applyOverrides: String
 }
 
 public enum FeatureNamespace {
     public enum Detail {
-        @DIComponent
-        @DIContainer
+        @DIContainerRole(role: ContainerRole.component)
         public struct NestedFeatureContainer {
-            @Provide(.input) public var config: FeatureConfig
+            @Input public var config: FeatureConfig
         }
     }
 }
 
-@DIHierarchyRoot
-@DIComponent
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.component, mainActor: true)
 public struct MainActorFeatureContainer {
-    @Provide(.input) public var config: FeatureConfig
+    @Input public var config: FeatureConfig
     @Provide(.shared, factory: FeatureService()) public var service: any FeatureServiceProtocol
     @Provide(.transient, factory: { (config: FeatureConfig) in
         FeatureRequest(config: config)
@@ -71,26 +69,29 @@ public struct MainActorFeatureContainer {
 
 public enum MainActorFeatureNamespace {
     public enum Detail {
-        @DIComponent
-        @DIContainer(mainActor: true)
+        @DIContainerRole(role: ContainerRole.component, mainActor: true)
         public struct NestedFeatureContainer {
-            @Provide(.input) public var config: FeatureConfig
+            @Input public var config: FeatureConfig
         }
     }
 }
 
-public struct MainActorFeatureScene {
+public struct MainActorFeatureScene: View {
     public let container: MainActorFeatureContainer
 
     @MainActor
     public init(container: MainActorFeatureContainer) {
         self.container = container
     }
+
+    public var body: some View {
+        EmptyView()
+    }
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.root, mainActor: true)
 public struct MainActorAppContainer {
-    @Provide(.input) public var config: FeatureConfig
+    @Input public var config: FeatureConfig
 
     @SubContainer(
         scope: .shared,
@@ -100,9 +101,9 @@ public struct MainActorAppContainer {
     public var feature: MainActorFeatureContainer
 }
 
-@DIContainer(mainActor: true)
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
 public struct MainActorParentWithNonisolatedChild {
-    @Provide(.input) public var config: FeatureConfig
+    @Input public var config: FeatureConfig
 
     @SubContainer(
         scope: .shared,

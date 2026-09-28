@@ -5,7 +5,7 @@ struct AppContainer {
     var feature: FeatureContainer
 
     // MARK: - Initialization
-    @_Concurrency.MainActor init(config: Config, feature: FeatureContainer? = nil, featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil) {
+    @_Concurrency.MainActor init(config: Config, feature: FeatureContainer? = nil, featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil, _innoDITrace: DITraceContext = .disabled) {
         final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
             private var value: T?
             private var resolver: (() -> T)?
@@ -35,15 +35,14 @@ struct AppContainer {
         self._innoDISubBuild_feature = {
             _innoDISubBuildCell_feature.resolve()
         }
-        let _innoDILazySelfForSub = self
         _innoDISubBuildCell_feature.bindResolver { () -> FeatureContainer in
-            if let direct = _innoDILazySelfForSub._override_sub_feature {
+            if let direct = feature {
                 return direct
             }
-            if let apply = _innoDILazySelfForSub._override_sub_apply_feature {
-                return .init(config: _innoDILazySelfForSub.config, apply)
+            if let apply = featureOverrides {
+                return .init(config: config, _innoDITrace: _innoDITrace, apply)
             }
-            return .init(config: _innoDILazySelfForSub.config)
+            return .init(config: config, _innoDITrace: _innoDITrace)
         }
     }
 
@@ -56,33 +55,33 @@ struct AppContainer {
     typealias _InnoDIMountOverrides = Overrides
 
     // MARK: - Convenience Init with Overrides
-    @_Concurrency.MainActor init(config: Config, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void) {
+    @_Concurrency.MainActor init(config: Config, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void) {
         var _innoDIOverrides = Self.Overrides()
         _innoDIApplyOverrides(&_innoDIOverrides)
-        self.init(config: config, feature: _innoDIOverrides.feature, featureOverrides: _innoDIOverrides.featureOverrides)
+        self.init(config: config, feature: _innoDIOverrides.feature, featureOverrides: _innoDIOverrides.featureOverrides, _innoDITrace: _innoDITrace)
     }
 
     // MARK: - withOverrides
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) -> OperationResult) -> OperationResult {
-        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) -> OperationResult) -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
-        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async -> OperationResult) async -> OperationResult {
-        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async -> OperationResult) async -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
-        let _innoDIContainer = Self(config: config, _innoDIApplyOverrides)
+    @_Concurrency.MainActor static func withOverrides<OperationResult>(config: Config, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
+        let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return try await _innoDIOperation(_innoDIContainer)
     }
 }

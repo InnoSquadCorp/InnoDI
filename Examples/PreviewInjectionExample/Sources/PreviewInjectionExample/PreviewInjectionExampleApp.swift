@@ -145,10 +145,10 @@ public final class QuoteFeatureModel {
 ])
 @DIContainer
 public struct QuoteContainer {
-    @Provide(.input)
+    @Input
     var quoteService: any QuoteServiceProtocol
 
-    @Provide(.input)
+    @Input
     var quoteMetaService: any QuoteMetaServiceProtocol
 }
 

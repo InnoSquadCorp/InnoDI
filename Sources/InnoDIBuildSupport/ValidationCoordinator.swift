@@ -570,6 +570,11 @@ package enum ValidationCoordinator {
             ),
             coordinatorStartTime: coordinatorStartTime,
             outputDirectory: outputDirectoryURL,
+            // Only authoritative SwiftPM manifests need a generated compile
+            // input. A root-mode output directory may live inside the scan
+            // root; writing Swift there would make validation scan itself.
+            emitsSwiftOrderingSource: analysisManifest?.manifest.buildSystem
+                == WorkspaceAnalysisManifest.swiftPMBuildSystem,
             verboseLoggingEnabled: verboseLoggingEnabled
         )
 
@@ -633,7 +638,7 @@ package enum ValidationCoordinator {
     /// the live DAG-validation lock has a chance to share the result. The live
     /// run was already serialized; this lock moves the expensive signature
     /// cache warm-up into the same shape so later target invocations usually
-    /// hit metadata-only cache paths instead of doing duplicate AST work.
+    /// reuse content-verified cached digests instead of doing duplicate AST work.
     private static func collectValidationSignatureWithSharedCacheLock(
         rootPath: String,
         analysisManifest: ValidatedWorkspaceAnalysisManifest?,

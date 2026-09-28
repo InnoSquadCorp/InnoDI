@@ -1,0 +1,30 @@
+import InnoDI
+
+struct First {}
+struct Second {}
+
+@DIContainer
+struct Child {
+    @Input var second: Second
+    @Input var first: First
+}
+
+@DIContainer
+struct Parent {
+    @Input var parentFirst: First
+    @Input var parentSecond: Second
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [
+            (child: \Child.first, parent: \Parent.parentFirst),
+            (child: \Child.second, parent: \Parent.parentSecond),
+        ]
+    )
+    var child: Child
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

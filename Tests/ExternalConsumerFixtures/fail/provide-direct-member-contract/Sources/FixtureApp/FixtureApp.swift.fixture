@@ -42,7 +42,7 @@ typealias Handler = @Sendable () -> Void
 let manualRecovery = false
 
 struct PlainDependencies {
-    @Provide(.input)
+    @Input
     var input: String
 
     @Provide(.shared, factory: Service())
@@ -62,7 +62,7 @@ struct OuterContainer {
 
 @DIContainer
 struct StaticDependencyContainer {
-    @Provide(.input)
+    @Input
     static var staticInput: String { "" }
 
     @Provide(.transient, factory: { (staticInput: String) in
@@ -82,13 +82,13 @@ struct ForgedAccessor {
     var sharedValue: Int
 
     @InnoDI._InnoDIProvideAccessor(recovery: manualRecovery)
-    @Provide(.input)
+    @Input
     var inputValue: Int
 }
 
 @DIContainer
 struct InvalidStorageContainer {
-    @Provide(.input)
+    @Input
     let immutable: Int
 
     @Provide(.shared, factory: 42)
@@ -97,10 +97,10 @@ struct InvalidStorageContainer {
     @Provide(.shared, factory: 42)
     lazy var lazyValue: Int = 42
 
-    @Provide(.input)
+    @Input
     weak var weakValue: ReferenceService?
 
-    @Provide(.input)
+    @Input
     unowned var unownedValue: ReferenceService
 
     @Provide(.shared, factory: 42)
@@ -108,7 +108,7 @@ struct InvalidStorageContainer {
         didSet {}
     }
 
-    @Provide(.input)
+    @Input
     private(set) var restrictedValue: Int
 
     @Box
@@ -144,7 +144,7 @@ struct ConditionalProviderContainer {
 
 @DIContainer
 struct InvalidConstructionContainer {
-    @Provide(.input)
+    @Input
     var config: Int
 
     @Provide(
@@ -164,7 +164,7 @@ struct InvalidConstructionContainer {
 
 @DIContainer
 struct InvalidProvidePathContainer {
-    @Provide(.input)
+    @Input
     var config: Int
 
     @Provide(
@@ -174,7 +174,7 @@ struct InvalidProvidePathContainer {
     )
     var foreignRootSource: Service
 
-    @Provide(.input)
+    @Input
     var holder: Holder
 
     @Provide(
@@ -199,13 +199,13 @@ struct DuplicateProviderContainer {
 }
 
 struct StandaloneDuplicateProviders {
-    @Provide(.input)
-    @Provide(.input)
+    @Input
+    @Input
     var standaloneValue: Int
 
     struct Nested {
-        @Provide(.input)
-        @Provide(.input)
+        @Input
+        @Input
         var nestedValue: Int
     }
 }
@@ -213,28 +213,28 @@ struct StandaloneDuplicateProviders {
 @DIContainer
 struct ForeignWrapperContainer {
     @Other.Provide
-    @Provide(.input)
+    @Input
     var foreignWrappedInput: Int
 }
 
 struct ForgedStandaloneRecovery {
     @InnoDI._InnoDIProvideAccessor(recovery: true)
-    @Provide(.input)
+    @Input
     var forgedRecoveryInput: Int
 }
 
 @DIContainer
 struct InvalidEscapingInputContainer {
-    @Provide(.input, escaping: true)
+    @Input(escaping: true)
     var handler: Optional<Handler>
 
-    @Provide(.input, escaping: true)
+    @Input(escaping: true)
     var qualifiedHandler: Swift.Optional<Handler>
 }
 
 @DIContainer
 struct IUOProviderContainer {
-    @Provide(.input)
+    @Input
     var service: Service!
 }
 

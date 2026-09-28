@@ -15,7 +15,7 @@ struct GeneratedQualifierBuildValidatorTests {
                 source: """
                 @DIContainer
                 struct AppContainer {
-                    @Provide(.input) var value: Int
+                    @Input var value: Int
                 }
                 """
             ),
@@ -42,7 +42,10 @@ struct GeneratedQualifierBuildValidatorTests {
             .init(
                 path: "Sources/App/Container.swift",
                 source: """
-                @DIContainer(mainActor: true)
+                @DIContainerRole(
+                    role: ContainerRole.local,
+                    mainActor: true
+                )
                 struct AppContainer {
                     @Provide(.transient, factory: { 42 })
                     var dependency: Int
@@ -90,10 +93,9 @@ struct GeneratedQualifierBuildValidatorTests {
                 .init(
                     path: "Sources/App/Container.swift",
                     source: """
-                    @DIComponent
-                    @DIContainer
+                    @DIContainerRole(role: ContainerRole.component)
                     struct AppContainer {
-                        @Provide(.input) var value: Int
+                        @Input var value: Int
                     }
                     """
                 ),
@@ -123,10 +125,9 @@ struct GeneratedQualifierBuildValidatorTests {
                 class FeatureHost: ExternalBase {
                     struct InnoDI {}
 
-                    @DIComponent
-                    @DIContainer
+                    @DIContainerRole(role: ContainerRole.component)
                     struct Container {
-                        @Provide(.input) var value: Int
+                        @Input var value: Int
                     }
                 }
                 """

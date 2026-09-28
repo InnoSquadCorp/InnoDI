@@ -42,7 +42,7 @@ public struct DIContainerMacro: MemberMacro {
                         Note(
                             node: Syntax(attribute),
                             message: SimpleNote(
-                                "The synthesized container initializer already covers .input members and optional dependency overrides.",
+                                "The synthesized container initializer already covers @Input members and optional dependency overrides.",
                                 code: .containerCustomInitUnsupported,
                                 suffix: "synthesized-init"
                             )
@@ -354,11 +354,10 @@ private func subContainerMemberValidationRecovery(
     }
 
     do {
-        if DIContainerParser.findOverridesNameConflict(in: declaration) != nil {
-            _ = try DIContainerCodeGenerator.generateInit(for: model)
-        } else {
-            _ = try DIContainerCodeGenerator.generateAll(for: model)
-        }
+        // All input-dependent codegen failures originate in initialization.
+        // Keep those exact builders/checks, but not the discarded overrides,
+        // feature-root and statement syntax from a second full expansion.
+        try DIContainerCodeGenerator.validateInitialization(for: model)
         return false
     } catch is CodegenInvariantError {
         return true

@@ -38,7 +38,7 @@ struct StrictConcurrencyBuildTests {
 
             @DIContainer
             struct AppContainer {
-                @Provide(.input)
+                @Input
                 var config: Config
 
                 @Provide(.transient, factory: { Service() })
@@ -104,7 +104,7 @@ struct StrictConcurrencyBuildTests {
             @DIEnvironmentBridge([
                 (member: "greeting", environment: \\EnvironmentValues.greeting),
             ])
-            @DIContainer(mainActor: true)
+            @DIContainerRole(role: ContainerRole.local, mainActor: true)
             struct AppContainer {
                 @Provide(.shared, factory: Greeting())
                 var greeting: Greeting
@@ -360,6 +360,11 @@ struct StrictConcurrencyBuildTests {
                     .path(percentEncoded: false)
             )
         )
+        let orderingSources = try findFiles(named: "_InnoDIDAGValidation.generated.swift", under: scratch)
+        #expect(!orderingSources.isEmpty)
+        let warm = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+        #expect(!warm.timedOut)
+        #expect(warm.exitCode == 0, "Unchanged valid package must still build: \(warm.stdout)\n\(warm.stderr)")
     }
 
     @Test("DAG validation plugin isolates state across plugin-attached targets", .tags(.slow))
@@ -382,6 +387,7 @@ struct StrictConcurrencyBuildTests {
         #expect(result.exitCode == 0)
 
         let stampURLs = try findFiles(named: "dag-validation-stamp.txt", under: scratch)
+        let orderingSources = try findFiles(named: "_InnoDIDAGValidation.generated.swift", under: scratch)
         let metricsURLs = try findFiles(named: "dag-validation-metrics.json", under: scratch)
         let sharedStateDirectories = try findDirectories(named: "innodi-dag-validation-state", under: scratch)
         let metrics = try metricsURLs.map { url in
@@ -390,6 +396,11 @@ struct StrictConcurrencyBuildTests {
         }
 
         #expect(stampURLs.count >= 2)
+        #expect(orderingSources.count == 2)
+        #expect(orderingSources.allSatisfy {
+            FileManager.default.fileExists(atPath: $0.deletingLastPathComponent()
+                .appendingPathComponent("dag-validation-stamp.txt").path)
+        })
         #expect(metrics.count >= 2)
         #expect(sharedStateDirectories.count == 2)
         #expect(Set(metrics.map(\.signature)).count >= 2)
@@ -463,6 +474,194 @@ struct StrictConcurrencyBuildTests {
                 "stored property 'provider' of 'Sendable'-conforming struct 'Holder' has non-Sendable type 'Provider<Payload>'"
             )
         )
+    }
+
+    @Test("On-demand handles cannot hide unsafe payloads, overrides, or factory captures")
+    func onDemandSendabilityBoundary() throws {
+        let declarations = """
+        import InnoDI
+
+        final class MutableValue { var count = 0 }
+
+        @DIContainer
+        struct RegularContainer {
+            @Provide(.shared, initialization: .onDemand, factory: { MutableValue() })
+            var value: MutableValue
+        }
+
+        @DIContainerRole(role: ContainerRole.local, mainActor: true)
+        struct IsolatedContainer {
+            @Provide(.shared, initialization: .onDemand, factory: { MutableValue() })
+            var value: MutableValue
+        }
+
+        @DIContainer
+        struct EagerSendableContainer: Sendable {
+            @Provide(.shared, factory: { 7 }) var value: Int
+        }
+
+        @DIContainer
+        struct CheckedAsyncChain {
+            @Provide(.shared, initialization: .onDemand, factory: { 7 }) var first: Int
+            @Provide(.shared, initialization: .onDemand, factory: { (first: Int) in first + 1 })
+            var second: Int
+            @Provide(.shared, asyncFactory: { (second: Int) async in second + 1 }) var result: Int
+        }
+        """
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-OnDemandSendability-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        for scenario in ["control", "holders", "factory", "payload"] {
+            let invalid = scenario != "control"
+            let rejectionSource: String
+            switch scenario {
+            case "holders":
+                rejectionSource = """
+
+            @DIContainer
+            struct UnsafeContainer: Sendable {
+                @Provide(.shared, initialization: .onDemand, factory: { MutableValue() })
+                var value: MutableValue
+            }
+
+            struct UnsafeFactoryHolder: Sendable {
+                let captured: _InnoDISharedCell<Int>
+                init() {
+                    let value = MutableValue()
+                    captured = _InnoDISharedCell(factory: { value.count += 1; return value.count })
+                }
+            }
+
+            struct UnsafeOverrideHolder: Sendable {
+                let overridden = _InnoDISharedCell(value: MutableValue())
+            }
+            """
+            case "factory":
+                rejectionSource = """
+            func rejectUnsafeFactoryCapture(_ mutable: MutableValue) {
+                _ = _InnoDISendableSharedCell<Int>(traceOwner: .disabled, providerName: "unsafe") {
+                    mutable.count += 1
+                    return mutable.count
+                }
+            }
+            """
+            case "payload":
+                rejectionSource = """
+            func rejectUnsafePayload() {
+                _ = _InnoDISendableSharedCell(traceOwner: .disabled, providerName: "unsafe", value: MutableValue())
+            }
+            """
+            default:
+                rejectionSource = ""
+            }
+            let source = declarations + "\n" + (invalid ? rejectionSource : """
+
+            @main struct FixtureApp {
+                @MainActor static func main() async {
+                    let container = RegularContainer()
+                    precondition(container.value === container.value)
+                    let override = MutableValue()
+                    precondition(RegularContainer(value: override).value === override)
+                    let isolated = IsolatedContainer()
+                    precondition(isolated.value === isolated.value)
+                    precondition(EagerSendableContainer().value == 7)
+                    await exerciseAsyncChain()
+                }
+
+                nonisolated static func exerciseAsyncChain() async {
+                    let chain = CheckedAsyncChain()
+                    let result = await chain.result
+                    precondition(result == 9)
+                    let overriddenChain = CheckedAsyncChain(first: 20)
+                    let overriddenResult = await overriddenChain.result
+                    precondition(overriddenResult == 22)
+                }
+            }
+            """)
+            let fixture = try makeStrictConcurrencyFixture(
+                name: "OnDemandSendability", dependencies: ["InnoDI"], source: source
+            )
+            defer { try? FileManager.default.removeItem(at: fixture) }
+            let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+            let output = result.stdout + result.stderr
+            #expect(!result.timedOut)
+            if invalid {
+                #expect(result.exitCode != 0)
+                if scenario == "holders" {
+                    for name in ["UnsafeContainer", "UnsafeFactoryHolder", "UnsafeOverrideHolder"] {
+                        #expect(output.contains("'Sendable'-conforming struct '\(name)'"), "\(output)")
+                    }
+                    #expect(output.contains("non-Sendable type"))
+                    #expect(output.contains("_InnoDISharedCell"))
+                } else if scenario == "factory" {
+                    #expect(output.contains("capture of 'mutable'"), "\(output)")
+                } else {
+                    #expect(output.contains("does not conform to the 'Sendable' protocol"), "\(output)")
+                }
+            } else {
+                #expect(result.exitCode == 0, "\(output)")
+                guard result.exitCode == 0, !result.timedOut else { continue }
+                let execution = try runExternalConsumerExecutable(packageURL: fixture, scratchPath: scratch)
+                #expect(!execution.timedOut)
+                #expect(execution.exitCode == 0)
+            }
+        }
+    }
+
+    @Test("Public collection metadata rejects captured non-Sendable key paths")
+    func collectionMetadataSendabilityBoundary() throws {
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-MetadataSendability-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        for scenario in ["control", "ordered", "providers", "keyed", "erased"] {
+            let construction: String = switch scenario {
+            case "ordered": "_ = DICollectionMetadata.ordered([\\Root.[key]])"
+            case "providers": "_ = DICollectionMetadata.providers([\\Root.[key]])"
+            case "keyed": "_ = DIKeyedCollectionContribution(key: \"value\", contributor: \\Root.[key])"
+            case "erased": "let path: AnyKeyPath = \\Root.value; _ = DICollectionMetadata.ordered([path])"
+            default: """
+                let ordered = DICollectionMetadata.ordered([\\Root.value])
+                let keyed = DICollectionMetadata.keyed([.init(key: "value", contributor: \\Root.value)])
+                precondition(ordered.contributors.count == 1 && keyed.keyedContributors.count == 1)
+                """
+            }
+            let fixture = try makeStrictConcurrencyFixture(
+                name: "MetadataSendability", dependencies: ["InnoDI"], source: """
+                import InnoDI
+                final class MutableKey: Hashable {
+                    var count = 0
+                    static func == (lhs: MutableKey, rhs: MutableKey) -> Bool { lhs === rhs }
+                    func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
+                }
+                struct Root {
+                    var value: Int { 7 }
+                    subscript(key: MutableKey) -> Int { key.count }
+                }
+                @main struct FixtureApp {
+                    static func main() {
+                        let key = MutableKey()
+                        _ = key
+                        \(construction)
+                    }
+                }
+                """
+            )
+            defer { try? FileManager.default.removeItem(at: fixture) }
+            let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+            let output = result.stdout + result.stderr
+            #expect(!result.timedOut)
+            if scenario == "control" {
+                #expect(result.exitCode == 0, "\(output)")
+                guard result.exitCode == 0, !result.timedOut else { continue }
+                let execution = try runExternalConsumerExecutable(packageURL: fixture, scratchPath: scratch)
+                #expect(!execution.timedOut)
+                #expect(execution.exitCode == 0)
+            } else {
+                #expect(result.exitCode != 0, "\(scenario) must reject unsafe erasure")
+                #expect(output.contains("Sendable"), "\(output)")
+                #expect(output.contains(scenario == "erased" ? "AnyKeyPath" : "MutableKey"), "\(output)")
+            }
+        }
     }
 
     @Test("Timeout path terminates descendants that keep pipes open")
@@ -541,7 +740,8 @@ func runStrictConcurrencyBuild(
 
 func runExternalConsumerExecutable(
     packageURL: URL,
-    scratchPath: URL? = nil
+    scratchPath: URL? = nil,
+    executable: String = "FixtureApp"
 ) throws -> StrictConcurrencyBuildResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -559,7 +759,7 @@ func runExternalConsumerExecutable(
     }
     arguments.append(contentsOf: [
         "--skip-build",
-        "FixtureApp",
+        executable,
     ])
     process.arguments = arguments
     process.currentDirectoryURL = packageRootURL()

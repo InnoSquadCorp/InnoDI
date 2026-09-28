@@ -52,7 +52,7 @@ InnoDI 通过显式边界来保持校验的确定性。
   convenience initializer、`withOverrides`、子容器 override 与 component
   mounting 所使用的 `applyOverrides` 函数类型、四个 `withOverrides` 重载的操作
   闭包以及生成的 feature-root helper。这是 UI 根容器的推荐形式。
-- 与 `@DIComponent` 搭配时，生成的依赖协议、`init(dependencies:_:)` 和 override
+- 使用 component 角色的 `@DIContainerRole` 时，生成的依赖协议、`init(dependencies:_:)` 和 override
   closure 类型会被 `@MainActor` 隔离，component 会改为遵循专用协议
   `_InnoDIMainActorComponentMountable`。普通 component 继续遵循非隔离的
   `_InnoDIComponentMountable`。在 5.0 中，generic mounting helper 必须为这两个

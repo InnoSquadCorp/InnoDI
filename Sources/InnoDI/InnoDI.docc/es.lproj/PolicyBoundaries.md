@@ -44,7 +44,7 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
 
 ## Declaration Order
 
-- `.input` siempre está disponible.
+- `@Input` siempre está disponible.
 - sync `.shared` puede leer inputs y shared previos.
 - async `.shared` puede leer inputs, sync shared y async shared previos.
 - `.transient` puede leer cualquier miembro, pero la resolución de nombres sigue siendo estricta.
@@ -70,7 +70,7 @@ InnoDI mantiene la validación determinista definiendo límites explícitos.
   overrides de child containers y el mounting de componentes, las closures de
   operación de los cuatro overloads `withOverrides` y los helpers de feature
   root generados. Es la forma recomendada para contenedores raíz de UI.
-- Al combinarlo con `@DIComponent`, el protocolo de dependencias generado,
+- Con el rol component de `@DIContainerRole`, el protocolo de dependencias generado,
   `init(dependencies:_:)` y el tipo de closure de override quedan aislados con
   `@MainActor`, y el componente usa la conformidad dedicada
   `_InnoDIMainActorComponentMountable`. Los componentes normales siguen usando

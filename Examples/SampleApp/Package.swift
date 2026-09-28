@@ -2,6 +2,24 @@
 
 import PackageDescription
 
+let innoDIPackageIdentity: String = {
+    // SwiftPM derives local dependency identity from the checkout directory,
+    // not Package.name. Match the normalization used by the other examples.
+    let components = #filePath.split(separator: "/", omittingEmptySubsequences: true)
+    let basename: String
+    if let examplesOffset = components.lastIndex(of: "Examples"),
+       examplesOffset > components.startIndex {
+        basename = String(components[components.index(before: examplesOffset)])
+    } else {
+        basename = "innodi"
+    }
+    var identity = basename.lowercased()
+    if identity.hasSuffix(".git") {
+        identity.removeLast(".git".count)
+    }
+    return identity.isEmpty ? "innodi" : identity
+}()
+
 let package = Package(
     name: "SampleApp",
     platforms: [
@@ -14,7 +32,7 @@ let package = Package(
         .executableTarget(
             name: "SampleApp",
             dependencies: [
-                .product(name: "InnoDI", package: "InnoDI")
+                .product(name: "InnoDI", package: innoDIPackageIdentity)
             ],
             path: ".",
             exclude: [
@@ -27,7 +45,7 @@ let package = Package(
             plugins: [
                 .plugin(
                     name: "InnoDIDAGValidationPlugin",
-                    package: "InnoDI"
+                    package: innoDIPackageIdentity
                 )
             ]
         ),

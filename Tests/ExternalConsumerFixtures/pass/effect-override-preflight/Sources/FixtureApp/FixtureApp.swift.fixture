@@ -1,0 +1,91 @@
+import InnoDI
+import InnoDITesting
+
+struct Service: Equatable, Sendable {
+    let id: Int
+}
+
+final class LiveFactory: Sendable {
+    private let calls = DIConcurrentValueBox(0)
+
+    var callCount: Int { calls.snapshot() }
+
+    func make() -> Service {
+        calls.update { $0 += 1 }
+        return Service(id: -1)
+    }
+}
+
+@DIContainer
+struct AppContainer {
+    @Input var liveFactory: LiveFactory
+
+    @Provide(
+        .shared,
+        effect: .sideEffect,
+        factory: { (liveFactory: LiveFactory) in liveFactory.make() }
+    )
+    var service: Service
+}
+
+@main
+struct FixtureApp {
+    static func main() async {
+        let liveFactory = LiveFactory()
+        do {
+            try DIOverrideEffectValidation.validate(AppContainer.Overrides())
+            preconditionFailure("strict effect preflight unexpectedly passed")
+        } catch let error as DIMissingEffectOverrideError {
+            precondition(error.report.missing.map(\.providerName) == ["service"])
+        } catch {
+            preconditionFailure("unexpected strict effect error: \(error)")
+        }
+        precondition(liveFactory.callCount == 0)
+
+        let early = DIOverridePreset<AppContainer.Overrides>(name: "early") {
+            $0.service = Service(id: 1)
+        }
+        let late = DIOverridePreset<AppContainer.Overrides>(name: "late") {
+            $0.service = Service(id: 2)
+        }
+        let overrides = try! early.combined(with: late).validated(
+            base: AppContainer.Overrides()
+        )
+        let container = AppContainer(liveFactory: liveFactory) {
+            $0 = overrides
+        }
+        precondition(container.service.id == 2)
+        precondition(liveFactory.callCount == 0)
+
+        let recording = try! DIOverrideEffectValidation.validate(
+            AppContainer.Overrides(),
+            profile: .recording
+        )
+        precondition(recording.missing.map(\.providerName) == ["service"])
+
+        let ids = await withTaskGroup(of: Int.self, returning: [Int].self) { group in
+            for id in 0..<100 {
+                group.addTask {
+                    let preset = DIOverridePreset<AppContainer.Overrides>(name: "task") {
+                        $0.service = Service(id: id)
+                    }
+                    let local = try! preset.validated(base: AppContainer.Overrides())
+                    let counter = LiveFactory()
+                    let container = AppContainer(liveFactory: counter) { $0 = local }
+                    precondition(counter.callCount == 0)
+                    return container.service.id
+                }
+            }
+            var values: [Int] = []
+            for await value in group {
+                values.append(value)
+            }
+            return values
+        }
+        precondition(Set(ids) == Set(0..<100))
+
+        let production = AppContainer(liveFactory: liveFactory) { _ in }
+        precondition(production.service.id == -1)
+        precondition(liveFactory.callCount == 1)
+    }
+}

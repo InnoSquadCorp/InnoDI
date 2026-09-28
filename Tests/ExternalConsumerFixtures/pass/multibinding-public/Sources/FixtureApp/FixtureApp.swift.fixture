@@ -1,3 +1,4 @@
+import Foundation
 import InnoDI
 
 protocol RequestInterceptor: AnyObject {
@@ -20,6 +21,25 @@ struct Client {
     let interceptors: [any RequestInterceptor]
 }
 
+final class CreationCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values = [0, 0]
+
+    func increment(_ index: Int) {
+        lock.lock()
+        values[index] += 1
+        lock.unlock()
+    }
+
+    func snapshot() -> [Int] {
+        lock.lock()
+        defer { lock.unlock() }
+        return values
+    }
+}
+
+let creationCounter = CreationCounter()
+
 @DIContainer
 struct NetworkContainer {
     @Provide(.shared, factory: AuthInterceptor())
@@ -38,6 +58,41 @@ struct NetworkContainer {
         Client(interceptors: interceptors)
     })
     var client: Client
+
+    @Provide(.transient, factory: {
+        creationCounter.increment(0)
+        return AuthInterceptor()
+    })
+    var providerAuth: AuthInterceptor
+
+    @Provide(.transient, factory: {
+        creationCounter.increment(1)
+        return LoggingInterceptor()
+    })
+    var providerLogging: LoggingInterceptor
+
+    @Provide(
+        .transient,
+        collection: .keyedProviders([
+            .init(key: "auth", contributor: \Self.providerAuth),
+            .init(key: "logging", contributor: \Self.providerLogging),
+        ]),
+        factory: {
+            (
+                providerAuth: Provider<AuthInterceptor>,
+                providerLogging: Provider<LoggingInterceptor>
+            ) in
+            let entries = [
+                DIKeyedProviderCollection<String, any RequestInterceptor>.Entry(
+                    key: "auth",
+                    provider: { providerAuth() }
+                ),
+                .init(key: "logging", provider: { providerLogging() }),
+            ]
+            return (try? DIKeyedProviderCollection(entries)) ?? .empty
+        }
+    )
+    var keyedProviders: DIKeyedProviderCollection<String, any RequestInterceptor>
 }
 
 let container = NetworkContainer()
@@ -49,6 +104,11 @@ precondition(first[0] === second[0])
 precondition(first[1] !== second[1])
 precondition(container.client.interceptors.map(\.name) == ["auth", "logging"])
 precondition(container.noInterceptors.isEmpty)
+let providers = container.keyedProviders
+precondition(providers.map(\.key) == ["auth", "logging"])
+precondition(creationCounter.snapshot() == [0, 0])
+precondition(providers[key: "logging"]?.name == "logging")
+precondition(creationCounter.snapshot() == [0, 1])
 
 let stub = StubInterceptor()
 let overridden = NetworkContainer { overrides in

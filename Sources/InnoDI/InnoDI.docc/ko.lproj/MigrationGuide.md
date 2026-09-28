@@ -207,12 +207,46 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ## 5.x → 6.0 그래프 계약
 
-Graph JSON consumer는 schema v4로 옮겨야 합니다. v4의 `providers` 배열은
-안정적인 container/member ID와 작성된 타입, 역할, lifetime, 초기화 정책,
-actor 격리, effect, dependency, source 위치를 기록합니다. 계약 비교는 줄과
-열 이동은 무시하지만 의미 필드 변경은 검출합니다. `--diff`는 이전 schema를
-명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after baseline을
-모두 같은 6.0 도구로 다시 만드세요.
+`@Multibinding`으로 표현할 수 없는 keyed/provider collection은
+`@Provide(collection:)`에 `.ordered`, `.keyed`, `.providers`,
+`.keyedProviders` 중 하나의 닫힌 literal metadata를 선언합니다. keyed entry는
+`.init(key: "id", contributor: \Self.member)`만 허용하며 explicit empty는
+metadata 생략과 구별됩니다. key·순서·canonical contributor ID·실제 provider
+lifetime은 graph 계약입니다. InnoDI는 factory body나 module을 검색하지 않고
+암묵적 last-wins도 적용하지 않습니다.
+
+Graph JSON consumer는 schema v6로 옮겨야 합니다. v5는 v4 provider 계약에
+더해 각 factory parameter의 canonical provider ID와 eager/`Lazy`/`Provider`
+종류를 기록합니다. fixed/assisted child ownership도 child input ID와 parent
+provider ID의 binding pair를 직렬화합니다. v6는 collection kind, key, 순서,
+contributor ID, contributor lifetime을 추가합니다. 줄과 열 이동은 계속 진단
+metadata로만 취급하지만 endpoint, deferred kind, collection metadata 변경은
+계약 변경입니다. `--diff`는 이전 schema, binding 배열 누락, 잘못된 collection
+metadata를 명시적으로 거부하므로 `--check-contract`를 켜기 전에 before/after
+baseline을 모두 같은 6.0 도구로 다시 만드세요.
+
+`--why`와 `--dependents`는 qualifier 없는 selector를 container와 provider
+namespace에서 함께 확인합니다. 같은 spelling이 양쪽에 존재하면 후보 목록과
+함께 실패하므로 `container:<selector>` 또는 `provider:<selector>`로 다시
+조회하세요. Exact graph ID는 기존 대상을 그대로 선택합니다.
+
+### 생성 코드의 runtime trace
+
+6.0 컨테이너 initializer, component dependency initializer,
+`withOverrides` overload에는 마지막에 기본값이 있는 `_innoDITrace:` 파라미터가
+추가됩니다. 기본값이 ``DITraceContext/disabled``이므로 기존 호출은
+source-compatible합니다. runtime event를 schema-v6 graph provider와 연결하려면
+graph target ID를 runtime module 이름으로 매핑한 ``DITraceContext``를 만들고
+컨테이너 생성 시 전달하세요. 생성 provider가 factory 시작과 terminal 결과,
+override, cache hit, async/on-demand wait 관계를 자동 기록하므로 application
+코드에 provider ID를 복사할 필요가 없습니다.
+
+Trace event decoder는 6.0의 `ownerID`, `generation`, `origin`,
+`relatedProviderID`, `relatedInstanceID` 필드와 `waitStart`, `waitEnd` kind를
+허용해야 합니다. Event에는 provider identity, UUID, generation, origin, 관계,
+kind, monotonic time만 있으며 input, result, token, error 값, service 설명은
+포함하지 않습니다. Factory 내부에서 불투명하게 시작한 runtime 작업은 자동
+trace 범위 밖입니다.
 
 ---
 
@@ -267,14 +301,23 @@ swift run InnoDI-Migrate --root . --check
 실행한 뒤 deterministic schema-v1 JSON inventory를 표준 출력 또는 `--output`으로
 지정한 경로에 atomic하게 기록합니다. 리포트에는 상대 경로, 안정적인 code, count,
 status, diagnostic message만 포함하며 원본 또는 변환된 source 본문은 포함하지
-않습니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 첫
-atomic file replacement 전에
-전체 source tree를 parse하고 preflight하며 기존 UTF-8 BOM을 보존합니다. 소유권이
-모호한 attribute, 지원하지 않는 legacy argument, parse error, source symlink,
-동시에 변경된 source를 만나면 exit code `2`로 fail-closed합니다. Preflight
-실패는 아무 파일도 쓰지 않습니다. Write 도중 감지한 변경이 있으면 tool 출력과
-여전히 정확히 일치하는 파일만 rollback하므로 감지된 외부 편집은 덮어쓰지
-않습니다. 소유권이 모호하면 먼저 attribute의 실제 owning module을 확인하세요.
+않습니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 먼저
+전체 source tree를 parse·preflight하고 UTF-8 BOM과 POSIX mode를 보존합니다.
+소유권이 모호한 attribute, 지원하지 않는 legacy argument, parse error,
+source symlink 등 preflight 실패는 파일을 쓰지 않습니다.
+
+게시 시 원본과 staged 파일을 atomic exchange하고 기존 파일을 같은 디렉터리의
+`.innodi-migrate-recovery-<name>-<UUID>` 경로에 남깁니다. 성공해도 `RECOVERY`
+파일을 삭제하지 않으므로 editor의 기존 FD를 통한 늦은 저장도 복구할 수 있습니다.
+editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요. 이 복구 파일은
+Swift 입력이나 다음 migration 대상이 아닙니다. 게시 중 충돌은 exit `2`와 복구
+경로를 보고하며, source에는 tool 출력이 남을 수 있습니다. 다른 저장을 덮어쓸
+수 있는 자동 복원은 하지 않습니다. 앞서 쓴 파일도 tool 출력과 일치할 때만 같은
+교환 절차로 rollback합니다. Atomic exchange 미지원 파일시스템은 덮어쓰기
+rename으로 대체하지 않고 실패합니다. ACL/xattr 보존이나 전체 파일시스템
+트랜잭션은 보장하지 않습니다. Doctor schema v3에는 `recoveryPaths`가 포함됩니다.
+
+소유권이 모호하면 먼저 attribute의 실제 owning module을 확인하세요.
 InnoDI 소유 선언이라면 `@InnoDI.DIContainer`와 `@InnoDI.Provide`, 또는
 `@InnoDI.SubContainer`와 `@InnoDISwiftUI.DIFeatureRoot`처럼 짝이 되는 macro
 전체를 module-qualified 형태로 바꾼 뒤 다시 실행하세요. Scanner는 `.build`,

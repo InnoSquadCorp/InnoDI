@@ -8,8 +8,7 @@
 //  The macro resolves deferred-wrapper kinds purely from written syntax
 //  (see `DeferredDependencyWrappers.deferredDependencyWrapperKind`), so an
 //  alias like `typealias L = InnoDI.Lazy<Foo>` is silently treated as a
-//  hard edge. That means a cycle users thought they broke with `Lazy<T>`
-//  can still trigger `container.dependency-cycle`, and a Provider-aliased
+//  hard edge. That means deferred construction is not recognized, and a Provider-aliased
 //  target escapes the `.transient`-scope rule. Emitting a warning lets
 //  authors catch the mistake before the surprising diagnostic (or the
 //  even more surprising runtime behavior) bites.

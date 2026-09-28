@@ -1166,6 +1166,50 @@ struct InnoDIMigrationCoreTests {
         )
     }
 
+    @Test("A directory replaced by a symlink after preflight cannot escape the root")
+    func pathReplacementAfterPreflightCannotEscapeRoot() throws {
+        let manager = FileManager.default
+        let base = manager.temporaryDirectory.appendingPathComponent(
+            "innodi-migration-path-replacement-\(UUID().uuidString)"
+        )
+        let root = base.appendingPathComponent("Root")
+        let sources = root.appendingPathComponent("Sources")
+        let savedSources = root.appendingPathComponent("SavedSources")
+        let outside = base.appendingPathComponent("Outside")
+        let legacy = "import InnoDI\n@DIContainer struct App { @Provide(.input) var value: Int }\n"
+        try manager.createDirectory(at: sources, withIntermediateDirectories: true)
+        try manager.createDirectory(at: outside, withIntermediateDirectories: true)
+        try legacy.write(
+            to: sources.appendingPathComponent("App.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let outsideFile = outside.appendingPathComponent("App.swift")
+        try legacy.write(to: outsideFile, atomically: true, encoding: .utf8)
+        defer { try? manager.removeItem(at: base) }
+
+        #expect(throws: MigrationError.self) {
+            _ = try InnoDIMigrator().run(
+                root: root,
+                mode: .write,
+                beforeWritingChange: { _, _ in
+                    try manager.moveItem(at: sources, to: savedSources)
+                    try manager.createSymbolicLink(
+                        at: sources,
+                        withDestinationURL: outside
+                    )
+                }
+            )
+        }
+        #expect(try String(contentsOf: outsideFile, encoding: .utf8) == legacy)
+        #expect(
+            try String(
+                contentsOf: savedSources.appendingPathComponent("App.swift"),
+                encoding: .utf8
+            ) == legacy
+        )
+    }
+
     @Test("Public migration executable runs from a fresh dependency consumer")
     func publicExecutableRunsFromFreshConsumer() throws {
         let packageRoot = innoDIPackageRootURL()

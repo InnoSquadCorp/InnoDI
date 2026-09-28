@@ -1,6 +1,7 @@
 [container.reserved-module-name] Declaration 'Swift' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
 [container.reserved-module-name] Declaration '_Concurrency' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
 [container.reserved-module-name] Declaration 'InnoDI' visible from the container shadows a module qualifier used by generated support. Rename the declaration so compiler-authored type and runtime references remain unambiguous.
+? [provide.deferred-wrapper-qualification-required] Factory parameter 'dependency' for 'value' must spell 'InnoDI.Provider<T>' explicitly. 'Provider' resolves to a same-module declaration and is ambiguous for macro expansion.
 ? 'MainActor' is not a member type of enum 'ShadowKit._Concurrency'
 ? 'MainActor' is not a member type of enum 'ShadowKit._Concurrency'
 ? 'Task' is not a member type of enum 'ShadowKit._Concurrency'
