@@ -266,9 +266,10 @@ Report confirmed defects, unresolved candidates, optional improvements, and
 unverified boundaries separately. A review alone does not authorize changes,
 commits, pushes, or releases. A green suite is not proof of no remaining defects.
 
-`RELEASING.md` is authoritative: 6.0.0 remains unreleased until its exact-SHA
-release workflow succeeds. A PR run may check out a synthetic merge, so verify
-its tree against the candidate and distinguish that from literal-SHA consumer
+`RELEASING.md` defines the release contract. A version-promotion PR is not a
+published release: verify its exact-SHA release workflow and immutable GitHub
+Release before reporting publication. A PR run may check out a synthetic merge,
+so verify its tree against the candidate and distinguish that from literal-SHA consumer
 runs. Do not claim release readiness from local tests, skip/insufficient-history
 statuses, or a green run for an older revision. Do not relax budgets or retry
 unchanged candidates until green.

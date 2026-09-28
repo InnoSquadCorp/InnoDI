@@ -2,9 +2,7 @@
 
 This document is the single release source of truth for InnoDI.
 
-Latest stable public release: `5.1.0`
-
-Current development train: `6.0.0` (unreleased)
+Latest stable public release: `6.0.0`
 
 `main` accumulates release work as independently green commits. During a
 development train, keep the stable installation snippet on the latest stable
@@ -273,7 +271,14 @@ Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
 
-## Unreleased
+## 6.0.0
+
+### Highlights
+
+- 6.0 introduces explicit `@Input` and container roles, typed assisted child
+  factories, injectable multibindings, graph contract gates, owned async
+  preparation, on-demand services, and SwiftUI container lifecycle helpers.
+  See the breaking changes and upgrade actions below before updating from 5.x.
 
 - Apple trace owners amortize OS random generation in a bounded, lazy 1 KiB
   batch while retaining random UUID v4 instance IDs. The owner lock protects
@@ -290,8 +295,6 @@ standalone release assets.
   generation's cancellation handle or overwriting its phase. Cleanup barriers
   are installed before notifications; replacements started from an idle or
   ready notification wait for the previous container's close hook.
-
-### Highlights
 
 - Independent macro-performance workloads now cover an assisted factory with
   8 static and 8 assisted inputs, 64-contributor multibinding, and 32-method mock
@@ -336,8 +339,8 @@ standalone release assets.
   - Release exact-revision consumers preserve preflight's annotated-tag/main
     ancestry contract after normal main progress. Untagged initial dispatches,
     rewritten history and mismatched checkouts still fail closed.
-  - All seven READMEs distinguish unreleased 6.0 examples/local installation
-    from the published 5.1 installation and its tagged documentation.
+  - All seven READMEs now use the 6.0.0 package dependency and versioned
+    documentation, with a source-migration link for existing 5.x consumers.
 
 - Follow-up hardening of the c7 review candidate:
   - Validation reads and hashes source bytes before reusing any AST digest,
@@ -380,16 +383,16 @@ standalone release assets.
   seven-day cooldown. This freezes the 6.0 assisted-factory, `@Input`, explicit
   container-role and multibinding syntax, including the documented replacements
   for 5.x declarations. It records design acceptance, not a GitHub PR review,
-  merge, tag or release approval. Final-candidate and merged-main verification
-  and the separate Release Gate still apply; 6.0.0 remains unreleased.
+  merge, tag or release approval. Publication is established by the exact-SHA
+  Release Gate and immutable GitHub Release, not by RFC acceptance.
 - Re-audited all 46 excellence requirements and 25 follow-up findings against
   code candidate `6332864ea83743fd5fec99c95b98a91b1b06ae8b`. A clean Swift 6.4
   strict coverage run passed 355 tests in 37 suites with package line coverage
   90.28% and `InnoDIMacros` 90.75% (floor 90.70%). Public API, graph schema v6,
   DocC, localized README, link, validation-escape-hatch, fatal-trap, alias and
   runtime trace performance contracts also passed. The synchronized exact
-  branch HEAD is rechecked by the release-validation matrix and consumers;
-  merge, tag, and publication remain separate NOT RUN gates.
+  branch HEAD is rechecked by the release-validation matrix and consumers.
+  These are historical candidate measurements, not the final release proof.
 - Hardened the 6.x release-candidate validator so publication fails closed
   unless RFC 0006 has exactly one `Accepted` status in both its authoritative
   document and the RFC index. Pending, missing, duplicate, and inconsistent
@@ -400,7 +403,7 @@ standalone release assets.
   Migrate mutual references by extracting shared state or restructuring the
   graph. Acyclic forward references, transient re-entry, and escaped handle
   lifetime remain supported. No explicit scope-close API is introduced.
-  Earlier candidate test/performance passes above do not cover this correction;
+  The earlier candidate measurements immediately above predate this correction;
   see [final hardening](docs/plans/6.0.0-final-hardening.md).
 - Migration publication and rollback now use a preserving atomic exchange
   (R01/R09), never an unconditional overwriting rename. Every displaced entry
@@ -555,6 +558,61 @@ standalone release assets.
   live factory runs; recording mode returns the same deterministic report.
   Unmarked opaque factories remain unclassified, and production construction
   does not enable this opt-in policy globally.
+
+### Breaking and Behavior Changes
+
+- **New 6.0 vocabulary:** replace `@Provide(.input)` with `@Input`. Replace
+  `@DIComponent`, `@DIHierarchyRoot`, and the former `@DIContainer(root:mainActor:)`
+  options with `@DIContainerRole(role: ContainerRole.component)` for mountable
+  features, `ContainerRole.root` for roots, or `ContainerRole.local` for local
+  isolation. Add `mainActor: true` to the role macro when needed. Each
+  declaration uses one container macro; ordinary containers continue to use
+  `@DIContainer`.
+- **Deferred ownership:** `Lazy` and `Provider` no longer make dependency cycles
+  valid. Local cycles are rejected even with `validateDAG: false`, and the
+  global DAG includes deferred edges. Ordinary on-demand storage is not
+  `Sendable`; nonisolated async dependency handles require a Sendable payload
+  and an `@Sendable` factory. Keep non-Sendable state in its isolation domain.
+- **Collection metadata:** explicitly assembled key-path arrays must preserve
+  `AnyKeyPath & Sendable`. The old assisted-factory and multibinding SPI is
+  removed; use `@Input(.assisted)`, `@AssistedFactory`, `@SubContainerFactory`,
+  and `@Multibinding`.
+- **Graph and tooling contracts:** graph JSON is schema v6 and older baselines
+  are rejected. Doctor schema v3 adds migration recovery paths; its read-only
+  migration inventory remains schema v1. Ambiguous graph selectors require
+  `container:` or `provider:`. A contract diff exits 5 on semantic drift.
+- **Owned async lifecycle:** `DIAsyncScope` status, retry, reset, and close are
+  explicitly async. Transactional subgraph retry rejects selected custom
+  `DIAsyncPreparing` implementations before mutation; prepare and close remain
+  supported. Applications own shutdown and should await close hooks.
+- **Migration safety:** applying or rolling back a migration preserves each
+  displaced entry at a reported recovery path, even after success. Conflicts
+  exit nonzero instead of overwriting late editor changes. Review recovery
+  paths before removing them.
+- **Tracing and mocks:** generated initializers and override operations add a
+  defaulted `_innoDITrace:` parameter. Trace decoders must accept owner,
+  generation, origin, related identities, and wait events. Same-cell synchronous
+  trace callback reentry is diagnosed. `@GenerateMock` remains experimental;
+  6.0 does not make its generated helper layout a stable API.
+
+### Upgrade Actions
+
+1. Read the [5.x to 6.0 migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary)
+   and the accepted [RFC 0006](docs/rfcs/0006-assisted-subgraphs-and-container-roles.md)
+   before changing the package requirement to `from: "6.0.0"`.
+2. Run `InnoDI-Doctor` and `InnoDI-Migrate --check` or `--report` first. Review
+   the proposed vocabulary changes, commit or back up consumer work, then use
+   `--write` only when ready to apply them. Resolve dynamic/conflicting sites
+   manually and inspect any reported recovery paths.
+3. Replace cyclic deferred wiring, removed SPI, and erased collection key paths.
+   Rebuild actual consumers under complete strict concurrency with warnings as
+   errors; validate factory captures as well as their result types.
+4. Regenerate both graph baselines with the same 6.0 tools before enabling
+   `--diff ... --check-contract`. Update JSON readers and trace event decoders
+   for the schema and metadata changes above.
+5. Exercise async cancellation/retry/close, on-demand overrides, and SwiftUI
+   host replacement in each adopting application. Existing products may remain
+   pinned to 5.x; publishing the library does not migrate them automatically.
 
 ## 5.1.0
 
