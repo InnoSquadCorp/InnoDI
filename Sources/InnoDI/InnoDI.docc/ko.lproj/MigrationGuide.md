@@ -72,11 +72,14 @@ InnoDI는 계속 re-export하지만, SwiftUI를 쓰는 파일은 SwiftUI를 직�
 한정한 이름으로 확장되고, 이 이름은 파일이 SwiftUI를 import할 때만 해석됩니다.
 import가 없으면 `cannot find type 'Text' in scope` 같은 오류로 실패합니다.
 
-`InnoDI-Migrate`는 SwiftUI를 아직 import하지 않은 파일에서 각
-`import InnoDISwiftUI` 뒤에 `import SwiftUI`를 추가합니다.
-`@_exported import InnoDISwiftUI`에는 `@_exported import SwiftUI`를 추가하므로
-그 파일의 client도 계속 SwiftUI를 봅니다. 이 규칙은 다시 실행해도 결과가 같고,
-위의 명령으로 함께 처리됩니다.
+`InnoDI-Migrate`는 `InnoDISwiftUI`를 import하는 각 파일에 같은 가시성의 전체
+`import SwiftUI`를 둡니다. `InnoDISwiftUI` import 뒤에 그 import와 같은 접근
+수준으로 추가하고, `@_exported import InnoDISwiftUI`에는
+`@_exported import SwiftUI`를 추가하므로 그 파일의 client도 계속 SwiftUI를
+봅니다. 이미 `import SwiftUI`가 있으면 그 import를 같은 가시성으로 올립니다.
+`import struct SwiftUI.Text` 같은 범위 import나 `#if` 안의 import는 SwiftUI의
+모든 이름을 제공하지 않으므로, 이런 파일에도 전체 import를 추가합니다. 이
+규칙은 다시 실행해도 결과가 같고, 위의 명령으로 함께 처리됩니다.
 
 ### macOS 14와 Observation 기반 host owner
 

@@ -183,8 +183,9 @@ that change moves to 8.0.
   swift run InnoDI-Migrate --root /path/to/consumer --report
   ```
 
-  The same run adds `import SwiftUI` to every file that imports
-  `InnoDISwiftUI` without it.
+  The same run gives every file that imports `InnoDISwiftUI` a full
+  `import SwiftUI` at that import's access level, `@_exported` when that
+  import is, raising an existing `import SwiftUI` when needed.
 
   Raise macOS deployment targets below 14 by hand, and replace
   `DIContainerHostOwner` publisher subscriptions with

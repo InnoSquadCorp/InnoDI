@@ -74,10 +74,15 @@ itself. That includes a file whose only SwiftUI use is generated code: a
 SwiftUI. Without the import, such a file fails with errors such as
 `cannot find type 'Text' in scope`.
 
-`InnoDI-Migrate` adds `import SwiftUI` after each `import InnoDISwiftUI` in a
-file that does not import SwiftUI yet. An `@_exported import InnoDISwiftUI`
-gets an `@_exported import SwiftUI`, so the file's own clients keep seeing
-SwiftUI. The rule reruns cleanly, and the same commands shown above cover it.
+`InnoDI-Migrate` gives each file that imports `InnoDISwiftUI` a full
+`import SwiftUI` with the same visibility. It inserts one after the
+`InnoDISwiftUI` import with that import's access level, and an
+`@_exported import InnoDISwiftUI` gets an `@_exported import SwiftUI`, so the
+file's own clients keep seeing SwiftUI. An existing `import SwiftUI` is raised
+to that visibility instead. A scoped import such as `import struct
+SwiftUI.Text`, or one inside an `#if` clause, does not provide every SwiftUI
+name, so such a file still gains a full import. The rule reruns cleanly, and
+the same commands shown above cover it.
 
 ### macOS 14 and an Observation-based host owner
 

@@ -37,17 +37,108 @@ struct SwiftUIImportMigrationTests {
         #expect(migrated(expected) == expected)
     }
 
-    @Test("Any existing SwiftUI import leaves the file unchanged")
+    @Test("A full, unconditional SwiftUI import leaves the file unchanged")
     func existingSwiftUIImportsAreKept() {
         for existing in [
             "import SwiftUI",
             "@preconcurrency import SwiftUI",
-            "import struct SwiftUI.Text",
-            "#if canImport(SwiftUI)\nimport SwiftUI\n#endif",
+            "public import SwiftUI",
+            "@_exported import SwiftUI",
         ] {
             let source = "import InnoDISwiftUI\n\(existing)\n\nlet value = 1\n"
             #expect(migrated(source) == source, Comment(rawValue: existing))
         }
+    }
+
+    @Test("Scoped and conditional SwiftUI imports do not provide every SwiftUI name")
+    func partialSwiftUIImportsGainFullImport() {
+        for existing in [
+            "import struct SwiftUI.Text",
+            "#if os(iOS)\nimport SwiftUI\n#endif",
+        ] {
+            let source = "import InnoDISwiftUI\n\(existing)\n\nlet value = 1\n"
+            let expected = "import InnoDISwiftUI\nimport SwiftUI\n\(existing)\n\nlet value = 1\n"
+            #expect(migrated(source) == expected, Comment(rawValue: existing))
+            #expect(migrated(expected) == expected, Comment(rawValue: existing))
+        }
+    }
+
+    @Test("The inserted import keeps the InnoDISwiftUI import's access level")
+    func insertedImportKeepsAccessLevel() {
+        for level in ["public", "package", "internal", "fileprivate", "private"] {
+            let source = "\(level) import InnoDISwiftUI\n\nlet value = 1\n"
+            let expected = "\(level) import InnoDISwiftUI\n\(level) import SwiftUI\n\nlet value = 1\n"
+            #expect(migrated(source) == expected, Comment(rawValue: level))
+            #expect(migrated(expected) == expected, Comment(rawValue: level))
+        }
+    }
+
+    @Test("An existing SwiftUI import is raised to the visibility the file needs")
+    func existingImportIsRaised() {
+        let cases: [(source: String, expected: String)] = [
+            (
+                "public import InnoDISwiftUI\nimport SwiftUI\n",
+                "public import InnoDISwiftUI\npublic import SwiftUI\n"
+            ),
+            (
+                "@_exported import InnoDISwiftUI\n// SwiftUI for the views\nimport SwiftUI\n",
+                "@_exported import InnoDISwiftUI\n// SwiftUI for the views\n@_exported import SwiftUI\n"
+            ),
+            (
+                "package import InnoDISwiftUI\n@preconcurrency internal import SwiftUI\n",
+                "package import InnoDISwiftUI\n@preconcurrency package import SwiftUI\n"
+            ),
+        ]
+        for (source, expected) in cases {
+            #expect(migrated(source) == expected, Comment(rawValue: source))
+            #expect(migrated(expected) == expected, Comment(rawValue: source))
+        }
+    }
+
+    @Test("Semicolon-separated imports stay on one parseable line")
+    func semicolonSeparatedImportsStayParseable() {
+        let cases: [(source: String, expected: String)] = [
+            (
+                "import InnoDISwiftUI; import Foundation\n",
+                "import InnoDISwiftUI; import SwiftUI; import Foundation\n"
+            ),
+            (
+                "import InnoDISwiftUI;\nimport Foundation\n",
+                "import InnoDISwiftUI; import SwiftUI;\nimport Foundation\n"
+            ),
+        ]
+        for (source, expected) in cases {
+            let output = migrated(source)
+            #expect(output == expected, Comment(rawValue: source))
+            #expect(!Parser.parse(source: output).hasError, Comment(rawValue: output))
+            #expect(migrated(output) == output)
+        }
+    }
+
+    @Test("A CRLF file gets a CRLF line for the inserted import")
+    func crlfFileKeepsLineEndings() {
+        let source = "import InnoDISwiftUI\r\n\r\nlet value = 1\r\n"
+        #expect(migrated(source) == "import InnoDISwiftUI\r\nimport SwiftUI\r\n\r\nlet value = 1\r\n")
+    }
+
+    @Test("A clause import needs no SwiftUI import of its own when the file scope provides one")
+    func enclosingScopeImportCoversClauses() {
+        let source = """
+            import InnoDISwiftUI
+            #if DEBUG
+            @_exported import InnoDISwiftUI
+            #endif
+            """
+        let expected = """
+            import InnoDISwiftUI
+            import SwiftUI
+            #if DEBUG
+            @_exported import InnoDISwiftUI
+            @_exported import SwiftUI
+            #endif
+            """
+        #expect(migrated(source) == expected)
+        #expect(migrated(expected) == expected)
     }
 
     @Test("Files without InnoDISwiftUI are unchanged")
