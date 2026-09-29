@@ -79,13 +79,19 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
 public struct InnoDIDoctor: Sendable {
     private let verificationEnvironment: [String: String]?
+    /// Imported modules the migration check treats as declaring no
+    /// InnoDI-named attribute or macro, as `InnoDI-Migrate --trust-module`
+    /// does.
+    public let trustedModules: Set<String>
 
-    public init() {
+    public init(trustedModules: Set<String> = []) {
         verificationEnvironment = nil
+        self.trustedModules = trustedModules
     }
 
-    init(verificationEnvironment: [String: String]) {
+    init(verificationEnvironment: [String: String], trustedModules: Set<String> = []) {
         self.verificationEnvironment = verificationEnvironment
+        self.trustedModules = trustedModules
     }
 
     /// Performs source/config inspection without package resolution, builds,
@@ -159,7 +165,7 @@ public struct InnoDIDoctor: Sendable {
             }
         }
 
-        let plan = try InnoDIMigrator().plan(root: canonicalRoot)
+        let plan = try InnoDIMigrator(trustedModules: trustedModules).plan(root: canonicalRoot)
         let graphBefore = try? graphFingerprint(root: canonicalRoot)
         if let cycleFailure = graphBefore?.cycleFailure {
             diagnostics.append(.init(
@@ -199,11 +205,11 @@ public struct InnoDIDoctor: Sendable {
         var applied: [String] = []
         var recoveryPaths: [String] = []
         if apply, plan.canWrite {
-            let appliedPlan = try InnoDIMigrator().run(root: canonicalRoot, mode: .write)
+            let appliedPlan = try InnoDIMigrator(trustedModules: trustedModules).run(root: canonicalRoot, mode: .write)
             applied = proposed
             recoveryPaths = appliedPlan.recoveryPaths
         }
-        let secondPass = try InnoDIMigrator().plan(root: canonicalRoot)
+        let secondPass = try InnoDIMigrator(trustedModules: trustedModules).plan(root: canonicalRoot)
         let graphAfter = try? graphFingerprint(root: canonicalRoot)
         let graphVerification = compareGraphs(before: graphBefore, after: graphAfter)
         if graphVerification.status == .unavailable {

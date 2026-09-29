@@ -97,7 +97,8 @@ that change moves to 8.0.
   compiler fix-it is reported first, and rejects nested components.
 
 - `InnoDI-Migrate --trust-module <name>` treats an imported module as
-  declaring no InnoDI-named attribute or macro, and the
+  declaring no InnoDI-named attribute or macro, and `InnoDI-Doctor` accepts
+  the same option for its migration check. The
   `migrate.unqualified-ownership-ambiguous` message names the imports that
   caused it. On the InnoSample pilot, this unblocked 9 of 11 container files,
   each of which imported the application's own modules.

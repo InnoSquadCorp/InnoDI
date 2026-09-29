@@ -677,8 +677,10 @@ swift run InnoDI-Doctor --root . --json
 기본 모드는 resolve, build, write, cache 삭제, process 종료를 하지 않습니다.
 Swift package에서는 literal target source root와 plugin 배열을 parse하므로 주석,
 문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. Dynamic manifest와 Tuist
-target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. `--apply`는 migrator의
-atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
+target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. migration 검사가 자기
+모듈 때문에 `migrate.unqualified-ownership-ambiguous`를 보고하면
+`InnoDI-Migrate`에 주는 `--trust-module <name>` 옵션을 그대로 넘기세요.
+`--apply`는 migrator의 atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
 보존하므로 editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요.
 POSIX mode는 유지하지만 ACL/xattr 보존이나 파일시스템 전체 트랜잭션은 보장하지 않습니다.
 SwiftPM `--verify`는 `swift build`를 실행하고,

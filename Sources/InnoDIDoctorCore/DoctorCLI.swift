@@ -2,7 +2,7 @@ import Foundation
 
 public enum DoctorCLI {
     public static let usage = """
-    Usage: InnoDI-Doctor --root <path> [--json] [--apply] [--verify] [--scheme <name> --destination <specifier>]
+    Usage: InnoDI-Doctor --root <path> [--json] [--apply] [--verify] [--scheme <name> --destination <specifier>] [--trust-module <name>]...
 
       default    Read-only source/config diagnosis; no resolution or build
       --json     Emit schema-v3 structured output (including recovery paths)
@@ -10,6 +10,8 @@ public enum DoctorCLI {
       --verify   Run swift build, or Tuist generation and compilation
       --scheme   Explicit Tuist-generated Xcode scheme required for compilation
       --destination  Explicit xcodebuild destination required for Tuist compilation
+      --trust-module Treat an imported module as declaring no InnoDI-named
+                 attribute or macro, as InnoDI-Migrate does; repeatable
     """
 
     public static func run(arguments: [String]) -> Int32 {
@@ -22,10 +24,11 @@ public enum DoctorCLI {
             fputs("Error: --root <path> is required\n\(usage)\n", stderr)
             return 64
         }
-        let known = Set(["--root", "--json", "--apply", "--verify", "--scheme", "--destination"])
+        let valueOptions = ["--root", "--scheme", "--destination", "--trust-module"]
+        let known = Set(valueOptions + ["--json", "--apply", "--verify"])
         for (index, argument) in arguments.enumerated()
             where argument.hasPrefix("--") && !known.contains(argument) {
-            let isValue = index > 0 && ["--root", "--scheme", "--destination"].contains(arguments[index - 1])
+            let isValue = index > 0 && valueOptions.contains(arguments[index - 1])
             if index != rootIndex + 1 && !isValue {
                 fputs("Error: unknown option \(argument)\n", stderr)
                 return 64
@@ -39,8 +42,19 @@ public enum DoctorCLI {
             return arguments[index + 1]
         }
 
+        var trustedModules: Set<String> = []
+        for (index, argument) in arguments.enumerated() where argument == "--trust-module" {
+            guard arguments.indices.contains(index + 1),
+                  !arguments[index + 1].hasPrefix("--"),
+                  !arguments[index + 1].isEmpty else {
+                fputs("Error: --trust-module requires a module name\n\(usage)\n", stderr)
+                return 64
+            }
+            trustedModules.insert(arguments[index + 1])
+        }
+
         do {
-            let report = try InnoDIDoctor().run(
+            let report = try InnoDIDoctor(trustedModules: trustedModules).run(
                 root: URL(fileURLWithPath: arguments[rootIndex + 1], isDirectory: true),
                 apply: arguments.contains("--apply"),
                 verify: arguments.contains("--verify"),
