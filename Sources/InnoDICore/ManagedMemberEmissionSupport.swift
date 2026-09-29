@@ -177,8 +177,7 @@ package func isLocallyValidProvideConfiguration(
     }
     guard let initialization = arguments.initialization,
           !arguments.collectionMetadataParseState.isInvalid,
-          initialization == .eager || arguments.scope == .shared,
-          !(initialization == .onDemand && arguments.asyncFactoryExpr != nil)
+          initialization == .eager || arguments.scope == .shared
     else {
         return false
     }

@@ -67,9 +67,6 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   부작용을 추론하지 않습니다.
 - `provide.initialization-invalid-scope` — `.shared`가 아닌 scope에
   `.onDemand`를 사용했습니다.
-- `provide.ondemand-async-unsupported` — `.onDemand`와 `asyncFactory:`를 함께
-  사용했습니다. 비동기 작업에 명시적 prepare·취소·재시도 소유권이 필요하면
-  ``DIAsyncScope``를 사용하세요.
 - `provide.input-invalid-configuration` — `@Input` 멤버는 factory,
   type, async factory, dependency wiring 설정을 가질 수 없습니다.
 - `provide.escaping-invalid-scope` — `@Input`이 아닌 scope에서
@@ -212,6 +209,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.prewarm-name-conflict` — on-demand 컨테이너에 `prewarm`이라는
   direct value 또는 function이 이미 있습니다. 생성되는 선택적 prewarm API가
   모호하지 않도록 이름을 바꾸세요.
+- `container.close-async-providers-name-conflict` — 비동기 on-demand
+  provider가 있는 컨테이너에 `closeAsyncProviders`라는 direct value 또는
+  function이 이미 있습니다. 생성되는 close API가 모호하지 않도록 이름을
+  바꾸세요.
 - `container.mainactor-conflict` — main-actor `@DIContainerRole`이 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
   제거하거나 `mainActor` 생성을 비활성화하세요.

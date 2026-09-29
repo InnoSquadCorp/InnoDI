@@ -1,6 +1,7 @@
 # RFC 0008 — Asynchronous on-demand providers
 
-- **Status**: Draft
+- **Status**: Draft (implemented on the 7.0.0 train branch; awaiting
+  maintainer acceptance)
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-29
 - **Last updated**: 2026-09-29
@@ -49,7 +50,9 @@ var session: Session
 The value type must be `Sendable`. The factory closure captures its
 dependencies and runs on the provider's owned task, so every captured
 dependency value must also be `Sendable`. The compiler checks both through
-the generated `@Sendable` operation.
+the generated `@Sendable` operation. In a `mainActor: true` container the
+operation is main-actor isolated instead: the factory runs on the main actor,
+as an eager factory does there, and its captures follow main-actor rules.
 
 ### Access
 
@@ -66,6 +69,11 @@ construction. Cancelling a reader cancels only that reader's wait; the owned
 construction continues for the other readers. A value or a failure is cached
 for the lifetime of the provider, which matches eager asynchronous providers.
 
+An eager asynchronous consumer still starts in the initializer, so it
+constructs every on-demand provider it depends on at that time. Reading the
+accessor of a non-`Sendable` container from another isolation domain has the
+same limits as an eager asynchronous accessor.
+
 ### Close
 
 A container with at least one asynchronous on-demand provider gains:
@@ -76,7 +84,8 @@ func closeAsyncProviders() async
 
 Closing cancels in-flight construction, resumes every waiting reader with
 `DIAsyncScopeError.closed`, and releases the factory's captures. Later reads
-throw `DIAsyncScopeError.closed`. Closing is idempotent. Container copies
+throw `DIAsyncScopeError.closed`. The error's provider ID is the member name.
+Closing is idempotent. Container copies
 share the same provider storage, so closing any copy closes it for all copies,
 as with synchronous on-demand providers. A container declared with
 `mainActor: true` isolates the method to the main actor; other containers
@@ -89,8 +98,10 @@ child is a fresh value on every read.
 ### Overrides
 
 The generated `Overrides` slot keeps the declared type. An override value
-completes the provider immediately; the factory never runs and closing has no
-work to cancel.
+completes the provider immediately, and the factory never runs. Closing still
+closes an overridden provider, so later reads throw
+`DIAsyncScopeError.closed`. A test that overrides the provider therefore
+observes the same close contract as production.
 
 ### Effects and edges
 
@@ -102,17 +113,27 @@ effect, independent of whether its factory throws:
 | `async` on-demand | rejected | rejected | allowed |
 | `async throws` on-demand | rejected | rejected | allowed |
 
-`Lazy`, `Provider`, `with:`, `@Multibinding`, sub-container inputs, and the
-synchronous `prewarm` method keep rejecting asynchronous targets. The graph
-records the provider with `initialization: onDemand` and its declared factory
-effect, so the graph JSON schema does not change.
+`Lazy`, `Provider`, `with:`, `@Multibinding`, and the synchronous `prewarm`
+method keep rejecting asynchronous targets. Sub-container inputs had no
+dedicated check in 6.0: wiring an asynchronous parent member failed inside the
+generated child construction with an unrelated missing-member error. 7.0 adds
+`sub.async-parent-member` for eager, on-demand, and transient asynchronous
+parents. The graph records the provider with `initialization: onDemand` and
+its declared factory effect, so the graph JSON schema does not change.
+
+A declaration named `closeAsyncProviders` in a container that has such a
+provider is rejected with `container.close-async-providers-name-conflict`,
+like the existing `prewarm` reservation.
 
 ### Tracing
 
-The first read emits `start` and then `success`, `failure`, or `cancel` for
-the owned construction. A read that waits for in-flight construction emits
-`waitStart` and `waitEnd`. A read of a completed value emits `cacheHit`. An
-override emits `override` when the container is initialized.
+The owned construction emits `start` when it begins and then `success`,
+`failure`, or `cancel`. A read that observes in-flight construction emits
+`waitStart` and `waitEnd`, then `cacheHit` on success, like a waiter on a
+synchronous on-demand cell. A read that arrives before the owned task reports
+its start joins the construction without wait events. A read of a completed
+value emits `cacheHit`. An override emits `start` and `override` when the
+container is initialized.
 
 ## Runtime shape
 

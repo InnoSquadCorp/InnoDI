@@ -17,7 +17,7 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 6.x → 7.0 (in development) | Canonical parent key paths | Spell sub-container parent key paths as `\Self.member`; see [6.x → 7.0](#6x--70). |
+| 6.x → 7.0 (in development) | Canonical parent key paths, lazy async providers | Spell sub-container parent key paths as `\Self.member`. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
@@ -62,6 +62,25 @@ with `sub.async-parent-member`. In 6.0 the same wiring failed to compile with
 an unrelated missing-member error inside the generated child construction, so
 no compiling source changes. Wire a synchronous parent member, or construct
 the child after awaiting the parent member.
+
+### Choose when asynchronous shared work starts
+
+7.0 accepts `initialization: .onDemand` together with `asyncFactory:`. Nothing
+changes for an existing eager provider. Use this table to choose a shape for
+asynchronous construction:
+
+| Need | Declaration |
+|---|---|
+| Start during initialization and never cancel | `@Provide(.shared, asyncFactory:)` |
+| Start on the first read, and let the owner close it | `@Provide(.shared, initialization: .onDemand, asyncFactory:)` |
+| Construct a fresh value on every read | `@Provide(.transient, asyncFactory:)` |
+| Observe status, prepare a selected graph, or retry after failure | Inject a ``DIAsyncScope`` as an `@Input` |
+
+Moving an eager provider to `.onDemand` changes its accessor to
+`get async throws`. A consumer that read the provider without `try` must add
+it, and a sibling consumer with a non-throwing `async` factory must declare
+`async throws`. Call `closeAsyncProviders()` where the feature that owns the
+container ends. See <doc:Provide> for the lifetime contract.
 
 ---
 

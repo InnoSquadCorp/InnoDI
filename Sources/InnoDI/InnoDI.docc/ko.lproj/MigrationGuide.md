@@ -16,7 +16,7 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
-| 6.x → 7.0 (개발 중) | Parent key path 정규화 | 서브컨테이너 parent key path를 `\Self.member`로 쓰세요. [6.x → 7.0](#6x--70)을 참고하세요. |
+| 6.x → 7.0 (개발 중) | Parent key path 정규화, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰세요. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
@@ -61,6 +61,24 @@ InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 �
 생성 코드 안에서 무관한 missing-member 오류로 컴파일에 실패했으므로, 컴파일되던
 소스가 바뀌지는 않습니다. 동기 parent member를 연결하거나, parent member를
 await한 뒤 child를 직접 생성하세요.
+
+### 비동기 shared 작업의 시작 시점 선택
+
+7.0은 `initialization: .onDemand`와 `asyncFactory:`를 함께 받습니다. 기존 eager
+provider는 바뀌지 않습니다. 비동기 생성 형태는 아래 표로 고르세요.
+
+| 필요 | 선언 |
+|---|---|
+| 초기화 중에 시작하고 취소하지 않음 | `@Provide(.shared, asyncFactory:)` |
+| 첫 읽기에서 시작하고 소유자가 닫을 수 있음 | `@Provide(.shared, initialization: .onDemand, asyncFactory:)` |
+| 읽을 때마다 새 값 생성 | `@Provide(.transient, asyncFactory:)` |
+| 상태 관찰, 선택한 그래프 준비, 실패 후 재시도 | ``DIAsyncScope``를 `@Input`으로 주입 |
+
+eager provider를 `.onDemand`로 옮기면 accessor가 `get async throws`로 바뀝니다.
+`try` 없이 읽던 consumer는 `try`를 추가해야 하고, throw하지 않는 `async`
+factory를 쓰는 sibling consumer는 `async throws`를 선언해야 합니다. 컨테이너를
+소유한 기능이 끝나는 지점에서 `closeAsyncProviders()`를 호출하세요. 수명 계약은
+<doc:Provide>를 참고하세요.
 
 ---
 

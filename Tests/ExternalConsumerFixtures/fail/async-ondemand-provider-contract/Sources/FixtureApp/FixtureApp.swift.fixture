@@ -1,0 +1,92 @@
+import InnoDI
+
+struct Token: Sendable {}
+
+struct Client: Sendable {
+    let token: Token
+}
+
+// A read of an async on-demand provider can throw even when its factory
+// does not, so every consumer must declare an async throws factory.
+@DIContainer
+struct TransientNonthrowingConsumer {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @Provide(.transient, asyncFactory: { (token: Token) async in
+        Client(token: token)
+    })
+    var client: Client
+}
+
+@DIContainer
+struct SharedNonthrowingConsumer {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @Provide(.shared, asyncFactory: { (token: Token) async in
+        Client(token: token)
+    })
+    var client: Client
+}
+
+@DIContainer
+struct SynchronousConsumer {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @Provide(.shared, factory: { (token: Token) in
+        Client(token: token)
+    })
+    var client: Client
+}
+
+@DIContainer
+struct AutoWiredChild {
+    @Input var token: Token
+}
+
+@DIContainer
+struct AsyncParent {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @SubContainer(scope: .shared)
+    var child: AutoWiredChild
+}
+
+// Eager asynchronous parents are rejected the same way; 6.0 failed here
+// with an unrelated missing-member error in generated code.
+@DIContainer
+struct EagerAsyncParent {
+    @Provide(.shared, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @SubContainer(scope: .transient)
+    var child: AutoWiredChild
+}
+
+@DIContainer
+struct CloseNameConflict {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    func closeAsyncProviders() {}
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

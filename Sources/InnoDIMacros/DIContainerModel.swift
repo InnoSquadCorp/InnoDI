@@ -241,8 +241,16 @@ struct DIContainerExpansionModel {
         members.filter { $0.scope == .shared }
     }
 
+    /// Eager and on-demand asynchronous `.shared` members in declaration
+    /// order. Both kinds may reference earlier asynchronous members.
     var asyncSharedMembers: [ProvideMemberModel] {
         sharedMembers.filter(\.isAsyncFactory)
+    }
+
+    /// Asynchronous `.shared` members whose cell `closeAsyncProviders()`
+    /// closes.
+    var asyncOnDemandMembers: [ProvideMemberModel] {
+        asyncSharedMembers.filter(\.isAsyncOnDemand)
     }
 
     var syncSharedMembers: [ProvideMemberModel] {
@@ -306,17 +314,30 @@ struct ProvideMemberModel {
         asyncFactory != nil
     }
 
+    /// A `.shared` provider constructed on its first read by an owned task.
+    var isAsyncOnDemand: Bool {
+        isAsyncFactory && initialization == .onDemand
+    }
+
+    /// The effect of this member's own factory, which its factory closure and
+    /// generated construction must declare.
     var constructionEffect: ProvideConstructionEffect {
         guard isAsyncFactory else { return .synchronous }
         return asyncFactoryIsThrowing ? .asynchronousThrowing : .asynchronous
+    }
+
+    /// The effect a consumer observes when it reads this member. An
+    /// asynchronous on-demand read can also observe reader cancellation or a
+    /// closed provider, so it always throws.
+    var providerEffect: ProvideConstructionEffect {
+        isAsyncOnDemand ? .asynchronousThrowing : constructionEffect
     }
 
     /// Local configuration validity excluding sibling lookup/effect rules.
     /// Derived diagnostics must not treat a provider whose own construction
     /// contract is already invalid as a usable effect source.
     var hasLocallyValidConstructionConfiguration: Bool {
-        guard initialization == .eager || scope == .shared,
-              !(initialization == .onDemand && asyncFactory != nil) else {
+        guard initialization == .eager || scope == .shared else {
             return false
         }
         return InnoDICore.isLocallyValidProvideConstruction(
@@ -394,6 +415,14 @@ extension ProvideArguments {
     var constructionEffect: ProvideConstructionEffect {
         guard asyncFactoryExpr != nil else { return .synchronous }
         return asyncFactoryIsThrowing ? .asynchronousThrowing : .asynchronous
+    }
+
+    /// Mirrors ``ProvideMemberModel/providerEffect`` for recovery planning.
+    var providerEffect: ProvideConstructionEffect {
+        if asyncFactoryExpr != nil, initialization == .onDemand {
+            return .asynchronousThrowing
+        }
+        return constructionEffect
     }
 }
 

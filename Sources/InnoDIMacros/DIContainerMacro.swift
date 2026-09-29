@@ -454,7 +454,7 @@ private func provideMemberValidationRecovery(
         }
         providers[identifier.identifier.text] = DIContainerMemberConstructionSummary(
             scope: providerScope,
-            effect: providerArguments.constructionEffect,
+            effect: providerArguments.providerEffect,
             writtenType: providerBinding.typeAnnotation?.type
                 .trimmedDescription ?? ""
         )

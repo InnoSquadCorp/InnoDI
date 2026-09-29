@@ -114,9 +114,6 @@ Most frequently-hit codes:
   evaluated or inferred by the macro.
 - `provide.initialization-invalid-scope` — `.onDemand` was used with a scope
   other than `.shared`.
-- `provide.ondemand-async-unsupported` — `.onDemand` was combined with
-  `asyncFactory:`. Use ``DIAsyncScope`` when asynchronous work needs explicit
-  prepare, cancellation, and retry ownership.
 - `provide.input-invalid-configuration` — `@Input` members cannot carry
   factory, type, async factory, or dependency wiring configuration.
 - `provide.escaping-invalid-scope` — `escaping: true` was used outside
@@ -260,6 +257,10 @@ Most frequently-hit codes:
 - `container.prewarm-name-conflict` — an on-demand container already has a
   direct value or function named `prewarm`. Rename it so the generated
   selective prewarm API remains unambiguous.
+- `container.close-async-providers-name-conflict` — a container with an
+  asynchronous on-demand provider already has a direct value or function named
+  `closeAsyncProviders`. Rename it so the generated close API remains
+  unambiguous.
 - `container.mainactor-conflict` — a main-actor `@DIContainerRole` is combined
   with another global actor on the container or a dependency member. Remove
   the custom actor or disable `mainActor` generation.

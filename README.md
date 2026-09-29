@@ -39,9 +39,12 @@ var metrics: MetricsClient
 ```
 
 The generated `prewarm` method resolves only selected on-demand providers;
-`Lazy` and `Provider` dependencies remain deferred. For asynchronous owned
-work, `DIAsyncScope` separates waiter cancellation from owner shutdown, while
-`DIAsyncPreparationPlan` reports failure and blocked downstream providers.
+`Lazy` and `Provider` dependencies remain deferred. The same
+`initialization: .onDemand` option works with `asyncFactory:`, and the
+container then gains `closeAsyncProviders()`. For asynchronous owned work that
+needs status or retry, `DIAsyncScope` separates waiter cancellation from owner
+shutdown, while `DIAsyncPreparationPlan` reports failure and blocked downstream
+providers.
 
 ## Why InnoDI
 
@@ -515,6 +518,7 @@ compatibility is validated on every explicit edge even with
 | sync | allowed | allowed | allowed |
 | `async` | rejected | allowed | allowed |
 | `async throws` | rejected | rejected | allowed |
+| `async` or `async throws`, `.onDemand` | rejected | rejected | allowed |
 
 `Lazy<T>` and `Provider<T>` are synchronous deferred wrappers. Their targets
 must use synchronous construction; an async target is rejected.
@@ -522,7 +526,10 @@ must use synchronous construction; an async target is rejected.
 A `.shared` provider built by `asyncFactory:` starts its construction task in
 the container initializer, before any read, and the container never cancels
 that task. Each read of a `.transient` `@SubContainer` therefore starts the
-child's eager asynchronous work again. See
+child's eager asynchronous work again. Add `initialization: .onDemand` to
+start construction on the first read instead. Its accessor always throws, and
+the generated `closeAsyncProviders()` cancels in-flight work and closes the
+provider. See
 [Asynchronous Shared Lifetime](Sources/InnoDI/InnoDI.docc/Provide.md#asynchronous-shared-lifetime)
 for the cancellation contract and alternatives.
 

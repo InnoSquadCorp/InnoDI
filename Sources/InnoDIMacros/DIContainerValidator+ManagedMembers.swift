@@ -318,15 +318,6 @@ extension DIContainerValidator {
             )
             hadErrors = true
         }
-        if member.initialization == .onDemand, member.asyncFactory != nil {
-            context.emit(
-                SimpleDiagnostic.provideOnDemandAsyncUnsupported(
-                    memberName: member.name
-                ),
-                at: Syntax(member.attribute)
-            )
-            hadErrors = true
-        }
         if state.hasConstructionSourceConflict {
             let message: SimpleDiagnostic
             if state.constructionSourceCount == 2,

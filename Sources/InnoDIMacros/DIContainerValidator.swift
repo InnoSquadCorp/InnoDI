@@ -49,6 +49,11 @@ struct DIContainerValidator {
             declaration: declaration,
             context: context
         ) || hadErrors
+        hadErrors = validateCloseAsyncProvidersNameConflict(
+            model: model,
+            declaration: declaration,
+            context: context
+        ) || hadErrors
         hadErrors = validateReservedQualifierScopes(
             declaration: declaration,
             context: context
@@ -86,6 +91,29 @@ struct DIContainerValidator {
         }
         context.emit(
             SimpleDiagnostic.containerPrewarmNameConflict(),
+            at: conflict.anchor
+        )
+        return true
+    }
+
+    private static func validateCloseAsyncProvidersNameConflict(
+        model: DIContainerExpansionModel,
+        declaration: some DeclGroupSyntax,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        guard model.asyncOnDemandMembers.contains(where: {
+            $0.hasLocallyValidConstructionConfiguration
+        }) else {
+            return false
+        }
+        guard let conflict = directContainerDeclarationNames(in: declaration)
+            .first(where: {
+                $0.namespace == .value && $0.name == closeAsyncProvidersMethodName
+            }) else {
+            return false
+        }
+        context.emit(
+            SimpleDiagnostic.containerCloseAsyncProvidersNameConflict(),
             at: conflict.anchor
         )
         return true

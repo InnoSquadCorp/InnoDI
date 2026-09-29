@@ -31,13 +31,6 @@ extension SimpleDiagnostic {
         )
     }
 
-    static func provideOnDemandAsyncUnsupported(memberName: String) -> Self {
-        Self(
-            "@Provide member '\(memberName)' cannot combine initialization: .onDemand with asyncFactory yet; use the async scope API or eager initialization.",
-            code: .provideOnDemandAsyncUnsupported
-        )
-    }
-
     static func assistedFactoryInvalidDeclaration() -> Self {
         Self(
             "@AssistedFactory must annotate an empty, non-generic nested struct named 'AssistedFactory'.",
@@ -740,6 +733,13 @@ extension SimpleDiagnostic {
         Self(
             "An on-demand @DIContainer synthesizes prewarm(_:), but a direct declaration already uses the name 'prewarm'. Rename that declaration so the generated selective prewarm API remains unambiguous.",
             code: .containerPrewarmNameConflict
+        )
+    }
+
+    static func containerCloseAsyncProvidersNameConflict() -> Self {
+        Self(
+            "A @DIContainer with an asynchronous on-demand provider synthesizes closeAsyncProviders(), but a direct declaration already uses the name 'closeAsyncProviders'. Rename that declaration so the generated close API remains unambiguous.",
+            code: .containerCloseAsyncProvidersNameConflict
         )
     }
 

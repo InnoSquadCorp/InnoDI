@@ -121,24 +121,83 @@ uses `validateDAG: false`.
 | sync | allowed | allowed | allowed |
 | `async` | rejected | allowed | allowed |
 | `async throws` | rejected | rejected | allowed |
+| `async` or `async throws`, `.onDemand` | rejected | rejected | allowed |
+
+A read of an asynchronous on-demand provider can observe reader cancellation or
+a closed provider, so it always has the `async throws` consumer effect.
 
 `Lazy<T>` and `Provider<T>` remain synchronous deferred wrappers. Both reject
-targets constructed by `asyncFactory:`.
+targets constructed by `asyncFactory:`. `with:`, `@Multibinding` contributors,
+and `@SubContainer` child inputs also require synchronous parent members.
 
 ## Asynchronous Shared Lifetime
 
-A `.shared` provider constructed by `asyncFactory:` starts an unstructured
-construction task while the container initializer runs, before any read. Reads
-await that one task. The container never cancels it: cancelling a reader does
-not cancel construction, and releasing the container does not cancel work that
-has already started.
+A `.shared` provider constructed by `asyncFactory:` is eager by default. It
+starts an unstructured construction task while the container initializer runs,
+before any read. Reads await that one task. The container never cancels it:
+cancelling a reader does not cancel construction, and releasing the container
+does not cancel work that has already started.
 
 Each read of a `.transient` `@SubContainer` builds a fresh child container, so
 every read starts that child's eager asynchronous `.shared` providers again.
 
-Choose a `.transient` provider with `asyncFactory:` when construction should
-happen only inside a read. Inject a ``DIAsyncScope`` as an `@Input` when
-construction must be coalesced, cancellable, and closable by its owner.
+Add `initialization: .onDemand` to construct the value on its first read
+instead:
+
+<!-- innodi:compile -->
+```swift
+import InnoDI
+
+struct APIClient: Sendable {}
+
+struct Session: Sendable {
+    static func open(client: APIClient) async throws -> Session { Session() }
+}
+
+@DIContainer
+struct AppContainer {
+    @Input var client: APIClient
+
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (client: APIClient) async throws in
+        try await Session.open(client: client)
+    })
+    var session: Session
+}
+
+func run(_ container: AppContainer) async throws {
+    let session = try await container.session
+    _ = session
+    await container.closeAsyncProviders()
+}
+```
+
+- The initializer starts nothing. The first read starts one construction task,
+  and concurrent reads wait for it.
+- Cancelling a reader cancels only that reader's wait. Construction continues
+  for the other readers.
+- The accessor is `get async throws` even when the factory does not throw.
+- A value or a failure is cached for the lifetime of the provider, as with an
+  eager provider.
+- An override value completes the provider at initialization. The factory
+  never runs.
+- The value type and every dependency the factory captures must be
+  `Sendable`. A main-actor container runs the factory on the main actor
+  instead, so its captures follow main-actor rules.
+
+A container with at least one asynchronous on-demand provider also gains
+`closeAsyncProviders()`. Closing cancels in-flight construction, resumes every
+waiting reader with ``DIAsyncScopeError/closed(providerID:)``, and makes later
+reads throw the same error. An overridden provider closes the same way, so a
+test that overrides it observes the production contract. The provider ID is
+the member name. Closing is idempotent. Container copies share their providers, so closing any copy closes
+them for every copy. Closing does not reach sub-containers.
+
+An eager asynchronous consumer still starts during initialization, so it
+constructs every on-demand provider it depends on at that time.
+
+Choose a `.transient` provider with `asyncFactory:` when every read should
+construct a fresh value. Inject a ``DIAsyncScope`` as an `@Input` when
+construction also needs explicit preparation or retry.
 
 ## See Also
 

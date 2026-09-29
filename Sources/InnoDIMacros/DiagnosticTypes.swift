@@ -64,7 +64,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideUnknownCollectionContributor = "provide.unknown-collection-contributor"
     case provideAsyncCollectionContributor = "provide.async-collection-contributor"
     case provideInitializationInvalidScope = "provide.initialization-invalid-scope"
-    case provideOnDemandAsyncUnsupported = "provide.ondemand-async-unsupported"
     case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
     case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
     case provideDuplicateAttribute = "provide.duplicate-attribute"
@@ -121,6 +120,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerUnmanagedStoredProperty = "container.unmanaged-stored-property"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case containerPrewarmNameConflict = "container.prewarm-name-conflict"
+    case containerCloseAsyncProvidersNameConflict = "container.close-async-providers-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
     case containerReservedModuleName = "container.reserved-module-name"
     case containerDuplicateMemberName = "container.duplicate-member-name"
@@ -210,7 +210,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideFactoryConflict, .provideConstructionSourceConflict,
                 .provideWithRequiresTypeConstruction,
                 .provideInitializationInvalidScope,
-                .provideOnDemandAsyncUnsupported,
                 .assistedFactoryMissingDeclaration,
                 .assistedFactoryDuplicateInput,
                 .assistedFactoryInputPartitionMismatch,
@@ -244,6 +243,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerPrewarmNameConflict,
+                .containerCloseAsyncProvidersNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,
                 .containerDuplicateMemberName,
                 .containerGeneratedSymbolCollision,

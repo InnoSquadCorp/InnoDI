@@ -308,6 +308,18 @@ standalone release assets.
   cancel it, and each read of a `.transient` sub-container starts the child's
   eager asynchronous work again.
 
+- `@Provide(.shared, initialization: .onDemand, asyncFactory:)` is supported.
+  The provider constructs its value on the first read through an owned task,
+  concurrent readers share that construction, and cancelling a reader cancels
+  only its own wait. The accessor is `get async throws` because a read can
+  observe cancellation or a closed provider. A container with at least one
+  such provider gains `closeAsyncProviders()`, which cancels in-flight
+  construction and makes later reads throw `DIAsyncScopeError.closed`. The
+  `provide.ondemand-async-unsupported` diagnostic is removed, and
+  `container.close-async-providers-name-conflict` reserves the generated
+  method name. See
+  [RFC 0008](docs/rfcs/0008-async-on-demand-providers.md).
+
 - The README states that InnoDI supports Apple platforms only, and
   `SECURITY.md` names `6.x` as the supported line.
 

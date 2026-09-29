@@ -110,26 +110,85 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 | sync | 허용 | 허용 | 허용 |
 | `async` | 거부 | 허용 | 허용 |
 | `async throws` | 거부 | 거부 | 허용 |
+| `async` 또는 `async throws`, `.onDemand` | 거부 | 거부 | 허용 |
+
+비동기 on-demand provider를 읽으면 읽는 쪽의 취소나 닫힌 provider를 관찰할 수
+있으므로, 이 provider의 consumer 효과는 항상 `async throws`입니다.
 
 `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper로 유지됩니다. 두 wrapper 모두
-`asyncFactory:`로 생성되는 target을 거부합니다.
+`asyncFactory:`로 생성되는 target을 거부합니다. `with:`, `@Multibinding`
+contributor, `@SubContainer` child input도 동기 parent member만 받습니다.
 
 ## 비동기 shared 수명
 
-`asyncFactory:`로 생성하는 `.shared` provider는 컨테이너 initializer가 실행되는
-동안, 어떤 읽기보다 먼저 비구조적 생성 task를 시작합니다. 읽기는 그 task 하나를
-기다립니다. 컨테이너는 이 task를 취소하지 않습니다. 읽는 쪽을 취소해도 생성은
-취소되지 않고, 컨테이너를 해제해도 이미 시작된 작업은 취소되지 않습니다.
+`asyncFactory:`로 생성하는 `.shared` provider는 기본적으로 eager입니다. 컨테이너
+initializer가 실행되는 동안, 어떤 읽기보다 먼저 비구조적 생성 task를 시작합니다.
+읽기는 그 task 하나를 기다립니다. 컨테이너는 이 task를 취소하지 않습니다. 읽는
+쪽을 취소해도 생성은 취소되지 않고, 컨테이너를 해제해도 이미 시작된 작업은
+취소되지 않습니다.
 
 `.transient` `@SubContainer`는 읽을 때마다 새 자식 컨테이너를 만들므로, 읽을
 때마다 그 자식의 eager 비동기 `.shared` provider가 다시 시작됩니다.
 
-읽기 안에서만 생성해야 한다면 `asyncFactory:`를 쓰는 `.transient` provider를
-선택하세요. 생성을 합치고 소유자가 취소·종료할 수 있어야 한다면
+첫 읽기에서 값을 만들려면 `initialization: .onDemand`를 추가하세요.
+
+<!-- innodi:compile -->
+```swift
+import InnoDI
+
+struct APIClient: Sendable {}
+
+struct Session: Sendable {
+    static func open(client: APIClient) async throws -> Session { Session() }
+}
+
+@DIContainer
+struct AppContainer {
+    @Input var client: APIClient
+
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (client: APIClient) async throws in
+        try await Session.open(client: client)
+    })
+    var session: Session
+}
+
+func run(_ container: AppContainer) async throws {
+    let session = try await container.session
+    _ = session
+    await container.closeAsyncProviders()
+}
+```
+
+- initializer는 아무것도 시작하지 않습니다. 첫 읽기가 생성 task 하나를 시작하고,
+  동시에 들어온 읽기는 그 task를 기다립니다.
+- 읽는 쪽을 취소하면 그 읽기의 대기만 취소됩니다. 생성은 다른 읽기를 위해
+  계속됩니다.
+- factory가 throw하지 않아도 accessor는 `get async throws`입니다.
+- 값이나 실패는 eager provider와 마찬가지로 provider 수명 동안 캐시됩니다.
+- override 값은 초기화 시점에 provider를 완료합니다. factory는 실행되지
+  않습니다.
+- 값 타입과 factory가 캡처하는 모든 의존성은 `Sendable`이어야 합니다.
+  main-actor 컨테이너는 factory를 main actor에서 실행하므로 캡처도 main-actor
+  규칙을 따릅니다.
+
+비동기 on-demand provider가 하나라도 있는 컨테이너에는 `closeAsyncProviders()`도
+생성됩니다. 닫으면 진행 중인 생성을 취소하고, 기다리던 모든 읽기를
+``DIAsyncScopeError/closed(providerID:)``로 재개하며, 이후 읽기도 같은 오류를
+throw합니다. override한 provider도 똑같이 닫히므로, override를 쓰는 테스트도
+production과 같은 계약을 관찰합니다. provider ID는 member 이름입니다. 여러 번
+닫아도 결과는 같습니다.
+컨테이너 복사본은 provider를 공유하므로 어느 복사본을 닫아도 모든 복사본에서
+닫힙니다. 닫기는 sub-container까지 전파되지 않습니다.
+
+eager 비동기 consumer는 여전히 초기화 중에 시작하므로, 그 consumer가 의존하는
+on-demand provider도 그때 생성됩니다.
+
+읽을 때마다 새 값을 만들어야 한다면 `asyncFactory:`를 쓰는 `.transient`
+provider를 선택하세요. 명시적 준비나 재시도까지 필요하다면
 ``DIAsyncScope``를 `@Input`으로 주입하세요.
 
 ## See Also
 
-- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>

@@ -39,9 +39,12 @@ var metrics: MetricsClient
 ```
 
 생성되는 `prewarm` 메서드는 선택한 on-demand provider만 준비하며 `Lazy`와
-`Provider` 의존성은 계속 지연합니다. 비동기 소유 작업에는 `DIAsyncScope`를
-사용해 개별 waiter 취소와 owner 종료를 분리하고, `DIAsyncPreparationPlan`으로
-실패와 downstream 차단 상태를 구조적으로 확인할 수 있습니다.
+`Provider` 의존성은 계속 지연합니다. 같은 `initialization: .onDemand` 옵션을
+`asyncFactory:`에도 쓸 수 있으며, 이때 컨테이너에 `closeAsyncProviders()`가
+생성됩니다. 상태 관찰이나 재시도가 필요한 비동기 소유 작업에는
+`DIAsyncScope`를 사용해 개별 waiter 취소와 owner 종료를 분리하고,
+`DIAsyncPreparationPlan`으로 실패와 downstream 차단 상태를 구조적으로 확인할 수
+있습니다.
 
 ## 왜 InnoDI인가
 
@@ -489,6 +492,7 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 | sync | 허용 | 허용 | 허용 |
 | `async` | 거부 | 허용 | 허용 |
 | `async throws` | 거부 | 거부 | 허용 |
+| `async` 또는 `async throws`, `.onDemand` | 거부 | 거부 | 허용 |
 
 `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper입니다. Async target은
 거부됩니다.
@@ -496,7 +500,10 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 `asyncFactory:`로 만드는 `.shared` provider는 어떤 읽기보다 먼저 컨테이너
 initializer 안에서 생성 task를 시작하고, 컨테이너는 그 task를 취소하지
 않습니다. 그래서 `.transient` `@SubContainer`를 읽을 때마다 자식의 eager 비동기
-작업이 다시 시작됩니다. 취소 계약과 대안은
+작업이 다시 시작됩니다. 첫 읽기에서 생성하려면 `initialization: .onDemand`를
+추가하세요. 이 provider의 accessor는 항상 throw하며, 생성된
+`closeAsyncProviders()`가 진행 중인 작업을 취소하고 provider를 닫습니다. 취소
+계약과 대안은
 [비동기 shared 수명](Sources/InnoDI/InnoDI.docc/ko.lproj/Provide.md#비동기-shared-수명)을
 참고하세요.
 

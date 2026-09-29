@@ -47,3 +47,13 @@ status/retry/reset/close는 비동기 호출입니다.
 직접 waiter에는 원본 오류를 돌려주지만 보고서는 오류 값, 입력 값, token, 기타
 애플리케이션 payload를 직렬화하지 않습니다. 취소 결과에는 오류 payload가
 없습니다.
+
+## 컨테이너 provider와 scope 중 선택하기
+
+`@Provide(.shared, initialization: .onDemand, asyncFactory:)`로 선언한 컨테이너
+member는 이미 scope 기반 provider를 소유합니다. 첫 읽기에서 시작하고, 동시에
+들어온 읽기를 합치며, 생성된 `closeAsyncProviders()`로 닫힙니다. 컨테이너
+member에 소유자가 닫을 수 있는 지연 생성만 필요하다면 이 방식을 선택하세요.
+상태 관찰, ``DIAsyncPreparationPlan``을 통한 선택적 준비, 실패 후 재시도가
+필요하다면 ``DIAsyncScope``를 `@Input`으로 주입하세요. provider 수명은
+<doc:Provide>를 참고하세요.

@@ -120,10 +120,12 @@ internal func providerStoragePeerDecl(
 
 internal func providerOnDemandStoragePeerDecl(
     name: String,
-    type: TypeSyntax
+    type: TypeSyntax,
+    isAsync: Bool = false
 ) -> DeclSyntax {
+    let cellType = isAsync ? "_InnoDIAsyncSharedCell" : "_InnoDISharedCell"
     let storedType = TypeSyntax(
-        stringLiteral: "InnoDI._InnoDISharedCell<\(type.trimmedDescription)>?"
+        stringLiteral: "InnoDI.\(cellType)<\(type.trimmedDescription)>?"
     )
     let decl = VariableDeclSyntax(
         modifiers: DeclModifierListSyntax([

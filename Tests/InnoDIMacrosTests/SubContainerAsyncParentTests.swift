@@ -33,6 +33,7 @@ struct SubContainerAsyncParentTests {
     private static let asyncProviders = [
         "@Provide(.shared, asyncFactory: { () async in Token() })",
         "@Provide(.transient, asyncFactory: { () async in Token() })",
+        "@Provide(.shared, initialization: .onDemand, asyncFactory: { () async in Token() })",
     ]
 
     @Test("Every wiring form rejects an asynchronous parent member")

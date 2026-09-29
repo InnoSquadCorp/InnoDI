@@ -43,7 +43,7 @@ internal func diagnoseIncompatibleDependencyEffects(
               provider.hasLocallyValidConstructionConfiguration,
               let mismatch = dependencyEffectMismatch(
                   consumer: member.constructionEffect,
-                  provider: provider.constructionEffect
+                  provider: provider.providerEffect
               ) else {
             continue
         }
@@ -77,7 +77,7 @@ internal func diagnoseIncompatibleDependencyEffects(
             continue
         }
         let providerThrows: Bool
-        switch provider.constructionEffect {
+        switch provider.providerEffect {
         case .synchronous:
             continue
         case .asynchronous:

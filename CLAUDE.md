@@ -203,6 +203,15 @@ Never feed their samples into the composite-v2 baseline/history.
   is not actually a non-optional function.
 - `.shared`: container-lifetime cached dependency; exactly one of `factory:`,
   `asyncFactory:`, `Type.self`, or a property initializer
+- `.shared` with `initialization: .onDemand` and `asyncFactory:` constructs on
+  the first read through `_InnoDIAsyncSharedCell`, which wraps a
+  `DIAsyncScope`. The initializer starts nothing. The accessor is always
+  `get async throws`, so use `providerEffect`, not `constructionEffect`,
+  wherever the member acts as a provider. Such a container gains
+  `closeAsyncProviders()`: `nonisolated(nonsending)`, or `@MainActor` with
+  `mainActor: true`. The operation closure is `@Sendable`, or main-actor
+  isolated in a `mainActor: true` container. Reserve the method name with
+  `container.close-async-providers-name-conflict`.
 - `.transient`: fresh dependency on every access; exactly one of `factory:`,
   `asyncFactory:`, `Type.self`, or a property initializer
 - the declared property type determines storage shape: concrete nominal types
@@ -236,7 +245,8 @@ sibling edge even when the container uses `validateDAG: false`.
   it to `AnyKeyPath` or reintroduce unchecked metadata conformance.
 - `@SubContainer` adds ownership edges plus child override forwarding.
   Child inputs are synchronous in both child scopes; reject every asynchronous
-  parent member, eager or transient, with `sub.async-parent-member`.
+  parent member, eager, on-demand, or transient, with
+  `sub.async-parent-member`.
 - Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
   `bindings:` (including `@SubContainerFactory`) name one direct member as
   `\Self.member`. The macro rejects named roots with

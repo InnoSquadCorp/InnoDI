@@ -87,6 +87,12 @@ struct DIContainerCodeGenerator {
             )
         }
 
+        if let close = makeCloseAsyncProvidersDecl(model: model) {
+            decls.append(
+                close.prependingMARK("// MARK: - Async Provider Lifetime")
+            )
+        }
+
         let featureRootHelpers = makeFeatureRootHelperDecls(
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
@@ -149,6 +155,35 @@ private func makePrewarmDecl(
                     throw InnoDI.DIPrewarmError.unsupportedProvider
                 }
             }
+        }
+        """
+    )
+}
+
+/// The generated method that closes every asynchronous on-demand provider.
+let closeAsyncProvidersMethodName = "closeAsyncProviders"
+
+/// Closes each asynchronous on-demand provider cell in declaration order.
+///
+/// A non-main-actor container is an arbitrary, possibly non-`Sendable` value,
+/// so the method runs on the caller's executor instead of sending `self`.
+private func makeCloseAsyncProvidersDecl(
+    model: DIContainerExpansionModel
+) -> DeclSyntax? {
+    let members = model.asyncOnDemandMembers
+    guard !members.isEmpty else { return nil }
+
+    let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
+    let actorPrefix = model.options.mainActor ? "@_Concurrency.MainActor\n" : ""
+    let isolationModifier = model.options.mainActor ? "" : "nonisolated(nonsending) "
+    let closes = members.map { member in
+        "await self._storage_\(member.name)!.close()"
+    }.joined(separator: "\n")
+
+    return DeclSyntax(
+        stringLiteral: """
+        \(actorPrefix)\(accessPrefix)\(isolationModifier)func \(closeAsyncProvidersMethodName)() async {
+            \(closes)
         }
         """
     )
@@ -381,7 +416,9 @@ private func makeInitDecl(
         for member in syncSharedMembers where member.initialization != .onDemand {
             statements.append("self._innoDITraceOwner_\(raw: member.name) = _innoDITraceOwner")
         }
-        for member in asyncSharedMembers + transientMembers {
+        // Asynchronous on-demand cells retain the owner themselves.
+        for member in asyncSharedMembers + transientMembers
+            where !member.isAsyncOnDemand {
             statements.append("self._innoDITraceOwner_\(raw: member.name) = _innoDITraceOwner")
         }
     }
@@ -546,10 +583,6 @@ private func makeInitDecl(
     }
 
     for member in asyncSharedMembers {
-        let taskName = "_innoDITask_\(member.name)"
-        let traceSpanName = "_innoDITraceSpan_\(member.name)"
-        let successType = taskSuccessTypeDescription(for: member.type)
-        let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
         let createExpr = try makeAsyncFactoryExpr(
             member: member,
             resolvedDependencyExpressions: resolvedDependencyExpressions,
@@ -562,6 +595,45 @@ private func makeInitDecl(
         let awaitedFactoryExpr: ExprSyntax = member.asyncFactoryIsThrowing
             ? "try await \(createExpr)"
             : "await \(createExpr)"
+
+        if member.isAsyncOnDemand {
+            // Nothing starts here. The cell's owned task runs the factory on
+            // the first read, and later async members await the same cell.
+            let cellName = "_innoDIOnDemandAsync_\(member.name)"
+            let typeDescription = member.type.trimmedDescription
+            let isolation = mainActorEnabled ? "@_Concurrency.MainActor in\n" : ""
+            statements.append("""
+                let \(raw: cellName): InnoDI._InnoDIAsyncSharedCell<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
+                    InnoDI._InnoDIAsyncSharedCell(
+                        traceOwner: _innoDITraceOwner,
+                        providerName: "\(raw: member.name)",
+                        value: _innoDIOverride
+                    )
+                } else {
+                    InnoDI._InnoDIAsyncSharedCell(
+                        traceOwner: _innoDITraceOwner,
+                        providerName: "\(raw: member.name)"
+                    ) { \(raw: isolation)\(awaitedFactoryExpr) }
+                }
+                """)
+            statements.append(
+                CodeBlockItemSyntax(
+                    item: .expr(
+                        assignExpr(
+                            targetName: "_storage_\(member.name)",
+                            valueName: cellName
+                        )
+                    )
+                )
+            )
+            resolvedDependencyExpressions[member.name] = "try await \(raw: cellName).value()"
+            continue
+        }
+
+        let taskName = "_innoDITask_\(member.name)"
+        let traceSpanName = "_innoDITraceSpan_\(member.name)"
+        let successType = taskSuccessTypeDescription(for: member.type)
+        let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
 
         let traceSpanDecl: DeclSyntax = """
             let \(raw: traceSpanName) = _innoDITraceOwner.start(
