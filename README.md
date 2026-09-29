@@ -111,46 +111,11 @@ live for the duration of one operation.
 InnoDI supports Apple platforms only. CI does not build or test Linux, and
 `InnoDITesting` imports Apple's `os` module unconditionally.
 
-### Filesystem requirements for the build-time validator
-
-The build plugin serializes live DAG validation runs through a layered
-POSIX lock under SwiftPM's plugin work directory, which follows the Swift
-Package Manager scratch directory:
-
-1. `open(O_CREAT | O_EXCL | O_RDWR)` creates a single lock file.
-2. `flock(LOCK_EX | LOCK_NB)` adds an advisory exclusive lock on the
-   descriptor.
-
-InnoDI auto-detects the filesystem backing that lock directory. Local
-filesystems such as APFS, HFS+, ext4, btrfs, xfs, and tmpfs are supported.
-NFS mounts, SMB/CIFS, WebDAV, and FUSE-style filesystems are refused by default
-because concurrent builds can corrupt the shared validation cache when lock
-atomicity is not reliable.
-
-If your build system must place derived data on a shared volume, point SPM's
-`--scratch-path` (or Xcode's derived-data location) at a local directory:
-
-```sh
-swift build --scratch-path /tmp/innodi-cache
-```
-
-The plugin does not create lock/cache state under the package root
-`.build/innodi-dag-validation`; moving the scratch path moves the validation
-state as well.
-
-Operators can bypass the unsafe-filesystem fail-fast with
-`INNODI_ALLOW_UNSAFE_LOCK=1`, but InnoDI still emits an auditable warning and
-the risk stays with that build environment. For diagnostics, recovery steps,
-and the full filesystem table, see
-[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
-
-The build-time validator exposes two opt-out escape hatches for fast iteration
-or constrained environments: `@DIContainer(validateDAG: false)` per container,
-and `INNODI_DISABLE_BUILD_VALIDATION=1` to short-circuit the entire build
-plugin. Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
-lists every site that uses these escape hatches in the workflow's step summary
-so escape-hatch creep stays visible without a separate CI gate. Production CI
-must leave both unset.
+The build-time validator keeps its lock and cache under SwiftPM's scratch
+directory, which must be on a local filesystem such as APFS. It refuses NFS,
+SMB, WebDAV, and FUSE mounts by default; see
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md) for the filesystem
+table and recovery steps.
 
 ## Privacy
 
@@ -165,6 +130,11 @@ your aggregated privacy report.
 
 ## Installation
 
+Installation takes three steps: add the package, attach the validation
+plugin, and write a first container.
+
+### 1. Add the package
+
 Add InnoDI to your `Package.swift`:
 
 ```swift
@@ -173,7 +143,7 @@ dependencies: [
 ]
 ```
 
-For the examples on this page, use the local **7.0 development checkout** below (adjust `../InnoDI` to its path). No 7.0.0 release tag is available yet.
+For the examples on this page, use the local **7.0 development checkout** above (adjust `../InnoDI` to its path). No 7.0.0 release tag is available yet.
 
 For the published **6.0.0** package, use the dependency below and follow the linked stable documentation, not this page's 7.0 examples.
 [Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
@@ -185,11 +155,13 @@ dependencies: [
 ```
 
 The remaining product, plugin, and API examples on this page use the **7.0 development checkout**.
-
 For the source changes from 6.x, follow the
 [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
-Then add the products you need:
+Then add the products you need. `InnoDI` is the core. Add `InnoDISwiftUI` for
+the SwiftUI helpers, and add `InnoDITesting` only to test or preview-support
+targets that use generated mocks or override presets; see
+[Auto Mock](Sources/InnoDI/InnoDI.docc/AutoMock.md).
 
 ```swift
 .target(
@@ -199,8 +171,6 @@ Then add the products you need:
     ]
 )
 ```
-
-Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 
 ```swift
 .target(
@@ -212,35 +182,13 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 )
 ```
 
-Add `InnoDITesting` only to test or preview-support targets that use generated
-`Sendable` mocks, reusable override presets, or strict interaction validation.
-It depends on `InnoDI` but does not depend on Swift Testing or SwiftSyntax.
-Generated mocks distinguish `.calls` reset, which preserves stubs, from `.all`,
-which returns stubs to the missing state. The returned generation snapshot
-linearizes calls that race with reset.
-Providers explicitly marked `@Provide(effect: .sideEffect, ...)` also expose
-generated override requirements: validate a typed preset before constructing
-the container to prevent an unconfigured live factory from running. Unmarked
-opaque factories are not inferred as pure or effectful, and production defaults
-remain unchanged.
+### 2. Attach the validation plugin
 
-Attach the build-time validation plugin to every target that declares InnoDI
-containers or a standalone `@DIEnvironmentBridge`. This is a required part of
-the 5.0 correctness contract, not only an optional graph visualization step.
-The target-scoped full-source pass rejects custom initializers in sibling
-extensions, generated-qualifier shadows in enclosing or other same-target
-declarations, visible qualifier shadows with `public` or `package` access in
-imported dependency targets, and direct-extension or standalone-local bridge
-targets that attached macros cannot validate alone.
-
-When a generated site is a class or is nested inside a class, the first
-inherited type (the position that can name its superclass) must resolve through
-source-visible declarations and typealiases. An SDK-only, binary-only,
-unresolved, or ambiguous first inherited type fails closed with
-`generated-qualifier.inheritance-unverifiable`; move the generated site to a
-struct/enum or a source-visible adapter, or make the superclass chain available
-to the target-scoped source snapshot. This preflight is a conservative
-syntactic index, not a replacement for Swift's type checker.
+Attach `InnoDIDAGValidationPlugin` to every target that declares an InnoDI
+container or a standalone `@DIEnvironmentBridge`. The plugin is part of the
+correctness contract: before Swift compiles the target, it checks what an
+attached macro cannot see, such as custom initializers in other files,
+qualifier shadows, and the global dependency graph.
 
 ```swift
 .target(
@@ -254,20 +202,20 @@ syntactic index, not a replacement for Swift's type checker.
 )
 ```
 
-As of 5.1, the same product also conforms to the native Xcode build-tool plugin
-API. Native Xcode projects and Tuist-generated projects can attach the package
-plugin directly to each container target. For a Tuist workspace, the plugin
-discovers the workspace root and validates all production Swift sources so
-cross-project container references are included in the source DAG.
+The same plugin works in native Xcode and Tuist projects. The
+[Integration Guide](Sources/InnoDI/InnoDI.docc/IntegrationGuide.md#build-plugin)
+covers the Xcode and Tuist limits, the superclass rule behind
+`generated-qualifier.inheritance-unverifiable`, and the scratch-path
+requirement. [Plugin Opt-Out](Sources/InnoDI/InnoDI.docc/PluginOptOut.md)
+describes the per-container `validateDAG: false` and build-wide
+`INNODI_DISABLE_BUILD_VALIDATION=1` escape hatches, which production CI must
+leave unset.
 
-The Xcode plugin API does not expose Tuist's complete cross-project target
-dependency topology. The 5.1 fallback therefore preserves full-source DAG and
-declaration validation but cannot prove every module-edge hierarchy rule from
-Xcode alone; keep a topology-aware SwiftPM or CI hierarchy check when
-component/root `@DIContainerRole` module relationships are a release gate.
-Xcode validation intentionally declares no output files because
-multi-destination variants share a plugin work directory, so Xcode may report
-that the validation command runs during every build.
+### 3. Write your first container
+
+Continue with the Quick Start below. The
+[tutorial](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md) builds a container
+step by step.
 
 ## Quick Start
 

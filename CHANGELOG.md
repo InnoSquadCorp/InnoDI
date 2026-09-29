@@ -46,6 +46,10 @@ that change moves to 8.0.
 - The README states that InnoDI supports Apple platforms only, and
   `SECURITY.md` names `6.x` as the supported line.
 
+- The README installation is three steps: add the package, attach the
+  validation plugin, and write a first container. Validator contract details,
+  including the Xcode and Tuist limits, now live only in the Integration Guide.
+
 - Only the English and Korean READMEs and DocC articles are maintained. The
   Japanese, Simplified Chinese, German, Spanish, and Russian translations
   are now notice pages that link their 6.0.0 versions.
