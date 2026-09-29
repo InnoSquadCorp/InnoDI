@@ -194,6 +194,39 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
         return .visitChildren
     }
 
+    // A rewritten role spells `ContainerRole.x` unqualified, so any type of
+    // that name in the scanned sources would capture it.
+    override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: TypeAliasDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    private func recordTypeShadow(_ name: TokenSyntax) -> SyntaxVisitorContinueKind {
+        if canonicalIdentifier(name) == "ContainerRole" {
+            shadowedNames.insert("ContainerRole")
+        }
+        return .visitChildren
+    }
+
     private func recordShadow(_ name: String) {
         if Self.innoDISwiftUINames.contains(name) {
             shadowedNames.insert(name)
@@ -360,6 +393,19 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
+        // The rewrites read only direct attributes, so a legacy spelling in an
+        // attribute-list `#if` clause or a macro argument survives them.
+        let residue = LegacyResidueCollector(attributeContext: attributeContext)
+        residue.walk(rewritten)
+        if diagnostics.isEmpty, !residue.forms.isEmpty {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.legacy-form-unsupported",
+                    path: path,
+                    message: "Cannot migrate \(residue.forms.sorted().joined(separator: ", ")) automatically where the rewrite cannot reach it, such as inside an #if clause of an attribute list or a macro argument. Migrate it manually before rerunning; no files were written."
+                )
+            )
+        }
         let imported = addingSwiftUIImportForInnoDISwiftUI(to: rewritten)
         if imported.description != rewritten.description {
             appliedRules.insert(MigrationRule.swiftUIImport)
@@ -455,6 +501,19 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         }
 
         if isInputScope(arguments.first(where: { $0.label == nil })?.expression) {
+            // An unqualified `@Input` binds to whatever `Input` the file
+            // sees, so a same-named declaration would capture the rewrite.
+            if node.attributeName.is(IdentifierTypeSyntax.self),
+               !attributeContext.allows("Input") {
+                diagnostics.append(
+                    MigrationDiagnostic(
+                        code: "migrate.rewrite-target-ambiguous",
+                        path: path,
+                        message: "Cannot rewrite @Provide(.input) to @Input, because the scanned sources or an import declare another Input. Write @InnoDI.Provide(.input) or rename that declaration before rerunning; no files were written."
+                    )
+                )
+                return super.visit(node)
+            }
             // The rewrite keeps the attribute's leading and trailing trivia,
             // so only a comment between its tokens would be lost.
             guard !containsComment(node.trimmed),
@@ -721,6 +780,18 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         guard needsMigration else { return nil }
 
         let moduleQualified = container.attributeName.is(MemberTypeSyntax.self)
+        if role != nil, !moduleQualified,
+           !attributeContext.allows("DIContainerRole")
+            || attributeContext.ambiguousNames.contains("ContainerRole") {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.rewrite-target-ambiguous",
+                    path: path,
+                    message: "Cannot rewrite legacy container options to @DIContainerRole(role: ContainerRole...), because the scanned sources or an import declare another DIContainerRole or ContainerRole. Write @InnoDI.DIContainer or rename that declaration before rerunning; no files were written."
+                )
+            )
+            return nil
+        }
         var rebuilt: [LabeledExprSyntax] = []
         if let role {
             rebuilt.append(
@@ -812,10 +883,25 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     ) -> Declaration {
         var kept: [AttributeListSyntax.Element] = []
         var removedTrivia: Trivia?
+        // An attribute removed from the end of a line leaves the space that
+        // separated it from the previous one.
+        var removedSharedLine = false
+        func trimTrailingSpaceIfLineEnds(before leadingTrivia: Trivia) {
+            guard removedSharedLine, leadingTrivia.first?.isNewline == true,
+                  let last = kept.indices.last else { return }
+            var pieces = Array(kept[last].trailingTrivia)
+            while pieces.last?.isSpaceOrTab == true {
+                pieces.removeLast()
+            }
+            kept[last].trailingTrivia = Trivia(pieces: pieces)
+        }
         for var element in declaration.attributes {
             if let attribute = element.as(AttributeSyntax.self) {
                 let offset = attribute.position.utf8Offset
                 if removedOffsets.contains(offset) {
+                    if !attribute.leadingTrivia.contains(where: \.isNewline) {
+                        removedSharedLine = true
+                    }
                     removedTrivia = removedTrivia.map {
                         triviaAfterRemovedLine($0, before: attribute.leadingTrivia)
                     } ?? attribute.leadingTrivia
@@ -829,23 +915,27 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 element.leadingTrivia = triviaAfterRemovedLine(trivia, before: element.leadingTrivia)
                 removedTrivia = nil
             }
+            trimTrailingSpaceIfLineEnds(before: element.leadingTrivia)
+            removedSharedLine = false
             kept.append(element)
         }
         var result = declaration
-        result.attributes = AttributeListSyntax(kept)
         if let trivia = removedTrivia {
             if result.modifiers.isEmpty {
                 result[keyPath: keyword].leadingTrivia = triviaAfterRemovedLine(
                     trivia,
                     before: result[keyPath: keyword].leadingTrivia
                 )
+                trimTrailingSpaceIfLineEnds(before: result[keyPath: keyword].leadingTrivia)
             } else {
                 result.modifiers.leadingTrivia = triviaAfterRemovedLine(
                     trivia,
                     before: result.modifiers.leadingTrivia
                 )
+                trimTrailingSpaceIfLineEnds(before: result.modifiers.leadingTrivia)
             }
         }
+        result.attributes = AttributeListSyntax(kept)
         return result
     }
 
@@ -1124,6 +1214,44 @@ private final class LegacyConcreteArgumentCollector: SyntaxVisitor {
     }
 }
 
+/// Legacy InnoDI spellings that survived the rewrites.
+private final class LegacyResidueCollector: SyntaxVisitor {
+    private let attributeContext: UnqualifiedInnoDIAttributeContext
+    private(set) var forms: Set<String> = []
+
+    init(attributeContext: UnqualifiedInnoDIAttributeContext) {
+        self.attributeContext = attributeContext
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: AttributeSyntax) -> SyntaxVisitorContinueKind {
+        let arguments = node.arguments?.as(LabeledExprListSyntax.self)
+        for marker in ["DIComponent", "DIHierarchyRoot"]
+        where isInnoDIAttribute(node, named: marker, context: attributeContext) {
+            forms.insert("@\(marker)")
+        }
+        if isInnoDIAttribute(node, named: "DIContainer", context: attributeContext),
+           arguments?.contains(where: {
+               let label = $0.label.map(canonicalIdentifier)
+               return label == "root" || label == "mainActor" || label == "isolation"
+           }) == true {
+            forms.insert("@DIContainer(root:mainActor:)")
+        }
+        if isInnoDIAttribute(node, named: "Provide", context: attributeContext),
+           arguments?.first(where: { $0.label == nil }).map({
+               isLegacyInputScopeExpression($0.expression)
+           }) == true {
+            forms.insert("@Provide(.input)")
+        }
+        for owner in ["SubContainer", "SubContainerFactory"]
+        where isInnoDIAttribute(node, named: owner, context: attributeContext)
+            && hasNonCanonicalParentKeyPath(node) {
+            forms.insert("a @\(owner) parent key path")
+        }
+        return .visitChildren
+    }
+}
+
 private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private(set) var names: Set<String> = []
@@ -1142,7 +1270,7 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
             names.insert("@DIFeatureRoot")
         } else if name == "SubContainer" || name == "SubContainerFactory",
                   !attributeContext.allows(name),
-                  hasNamedRootParentKeyPath(node) {
+                  hasNonCanonicalParentKeyPath(node) {
             names.insert("@\(name) parent key path")
         } else if name == "Provide",
                   !attributeContext.allows(name),
@@ -1210,7 +1338,9 @@ private final class LegacyFeatureRootCollector: SyntaxVisitor {
 }
 
 /// Whether `with:` or a `bindings:` parent side names a root other than `Self`.
-private func hasNamedRootParentKeyPath(_ attribute: AttributeSyntax) -> Bool {
+/// Whether a parent-side key path literal needs a rewrite or blocks one: a
+/// named root, a nested component, or any other non-member spelling.
+private func hasNonCanonicalParentKeyPath(_ attribute: AttributeSyntax) -> Bool {
     guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
         return false
     }
@@ -1229,9 +1359,10 @@ private func hasNamedRootParentKeyPath(_ attribute: AttributeSyntax) -> Bool {
             } else {
                 parents = []
             }
-            if parents.contains(where: {
-                if case .namedRoot = parentMemberKeyPathSpelling($0) { return true }
-                return false
+            if parents.contains(where: { parent in
+                guard parent.is(KeyPathExprSyntax.self) else { return false }
+                if case .canonical = parentMemberKeyPathSpelling(parent) { return false }
+                return true
             }) {
                 return true
             }

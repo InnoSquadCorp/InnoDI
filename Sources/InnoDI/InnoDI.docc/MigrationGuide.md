@@ -64,6 +64,14 @@ Trust never overrides a same-named declaration the migrator finds in the
 scanned sources. `\Self.member` also compiles
 with InnoDI 6.0, so the rewrite can land before the upgrade.
 
+The migrator also blocks instead of guessing in two more cases. A legacy
+spelling that no rewrite reaches, for example inside an `#if` clause of an
+attribute list or inside a macro argument, reports
+`migrate.legacy-form-unsupported`; migrate it by hand. A rewrite that would
+produce a name the scanned sources declare themselves, such as `Input` or
+`ContainerRole`, reports `migrate.rewrite-target-ambiguous`; qualify the
+attribute with `InnoDI.` or rename the local declaration.
+
 ### InnoDISwiftUI no longer re-exports SwiftUI
 
 `import InnoDISwiftUI` used to make every SwiftUI name visible. In 7.0 it

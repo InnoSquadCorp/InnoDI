@@ -63,6 +63,12 @@ swift run InnoDI-Migrate --root /path/to/consumer --check --trust-module Domain 
 차단합니다. `\Self.member`는
 InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 수 있습니다.
 
+다음 두 경우에도 추측하지 않고 차단합니다. 속성 목록의 `#if` 절이나 macro 인자
+안처럼 재작성이 닿지 않는 레거시 표기는 `migrate.legacy-form-unsupported`를
+보고하므로 직접 옮기세요. 재작성 결과가 검사한 소스에 이미 선언된 `Input`이나
+`ContainerRole` 같은 이름을 만들게 되면 `migrate.rewrite-target-ambiguous`를
+보고하므로, 속성을 `InnoDI.`로 한정하거나 해당 선언의 이름을 바꾸세요.
+
 ### InnoDISwiftUI가 더 이상 SwiftUI를 re-export하지 않습니다
 
 예전에는 `import InnoDISwiftUI`만으로 모든 SwiftUI 이름이 보였습니다. 7.0에서도

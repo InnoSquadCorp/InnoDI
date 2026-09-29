@@ -131,6 +131,16 @@ that change moves to 8.0.
   also sets `root: true` now blocks with `migrate.container-role-conflict`
   instead of losing `root: true`, because a 6.0 container has one role.
 
+- `InnoDI-Migrate` blocks instead of reporting a file clean or writing code
+  that no longer compiles when a legacy spelling sits where no rewrite
+  reaches it, such as an attribute-list `#if` clause or a macro argument
+  (`migrate.legacy-form-unsupported`), or when the scanned sources declare a
+  name a rewrite would produce, such as `Input` or `ContainerRole`
+  (`migrate.rewrite-target-ambiguous`). A nested parent key path in a file
+  whose imports make `@SubContainer` ambiguous now reports
+  `migrate.unqualified-ownership-ambiguous`, as a named root already did, and
+  removing a marker from the end of a line leaves no trailing space.
+
 - `InnoDI-Migrate` parses every migrated file again before writing and
   blocks the run with `migrate.output-parse-error` if a rewrite produced
   invalid Swift, instead of writing it.

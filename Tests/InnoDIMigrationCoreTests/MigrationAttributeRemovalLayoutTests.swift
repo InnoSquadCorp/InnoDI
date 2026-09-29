@@ -104,6 +104,24 @@ struct MigrationAttributeRemovalLayoutTests {
             """))
     }
 
+    @Test("A marker removed from the end of a line leaves no trailing space")
+    func sameLineMarkerLeavesNoTrailingSpace() throws {
+        let migrated = try migrate("""
+            import InnoDI
+
+            @DIContainer(mainActor: true) @DIComponent
+            struct FeatureContainer {}
+
+            @DIHierarchyRoot @DIContainer struct AppContainer {}
+            """)
+        #expect(migrated.contains("""
+            @DIContainerRole(role: ContainerRole.component, mainActor: true)
+            struct FeatureContainer {}
+
+            @DIContainerRole(role: ContainerRole.root) struct AppContainer {}
+            """))
+    }
+
     @Test("A multi-line legacy argument list keeps one argument per line")
     func multilineArgumentsKeepTheirLines() throws {
         let migrated = try migrate("""
