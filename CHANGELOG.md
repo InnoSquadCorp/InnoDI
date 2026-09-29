@@ -131,6 +131,10 @@ that change moves to 8.0.
   also sets `root: true` now blocks with `migrate.container-role-conflict`
   instead of losing `root: true`, because a 6.0 container has one role.
 
+- `InnoDI-Migrate` parses every migrated file again before writing and
+  blocks the run with `migrate.output-parse-error` if a rewrite produced
+  invalid Swift, instead of writing it.
+
 - `InnoDI-Migrate` gives a legacy `@DIContainer` without arguments its
   argument list when a `@DIComponent` or `@DIHierarchyRoot` marker moves into
   it. 6.0 wrote `@DIContainerRolerole: ContainerRole.component`, which does

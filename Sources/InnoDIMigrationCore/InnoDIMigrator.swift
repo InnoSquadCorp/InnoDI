@@ -91,6 +91,15 @@ public struct InnoDIMigrator {
             let rewritten = rewriter.rewrite(parsed.syntax)
             let migratedSource = rewritten.description
             diagnostics.append(contentsOf: rewriter.diagnostics)
+            if migratedSource != parsed.source, migratedSourceHasSyntaxErrors(migratedSource) {
+                diagnostics.append(
+                    MigrationDiagnostic(
+                        code: "migrate.output-parse-error",
+                        path: parsed.path,
+                        message: "The migrated source would contain invalid Swift syntax, which is an InnoDI-Migrate defect; no files were written. Please report it with this file."
+                    )
+                )
+            }
 
             if migratedSource != parsed.source {
                 changes.append(
@@ -233,4 +242,11 @@ public struct InnoDIMigrator {
             recoveryPaths: recoveryPaths
         )
     }
+}
+
+/// Every rewrite rebuilds syntax, so a defect in one could emit text that no
+/// longer parses. Planning checks the output again and blocks the run
+/// instead of writing it.
+func migratedSourceHasSyntaxErrors(_ source: String) -> Bool {
+    Syntax(Parser.parse(source: source)).hasError
 }
