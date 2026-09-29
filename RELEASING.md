@@ -244,6 +244,22 @@ Current tracked versions:
 If artifact naming, schema shape, or coordinator cache salt changes, update
 this document and the release-contract tests in the same change.
 
+## Dependency Policy
+
+InnoDI pins `swiftlang/swift-syntax` with `exact:`. SwiftPM uses a SwiftSyntax
+prebuilt only when the resolved version matches the one the toolchain ships, so
+the exact pin keeps the primary consumer toolchain on the prebuilt path. The
+5.0.0 notes record the measured effect of moving the pin to `603.0.2`. The cost
+is that every package in a consumer graph must agree on that exact version.
+
+Re-evaluate the pin when a supported toolchain ships a prebuilt for a newer
+swift-syntax release, or when a consumer reports a resolution conflict with
+another macro package. Either move the exact pin to the version whose prebuilt
+matches the primary consumer toolchain, or return to a range requirement if
+SwiftPM starts matching prebuilts across a range. Record the result of
+`Tools/cold-build-benchmark.sh --target consumer` and the consumer resolution
+impact in the release notes of the version that changes the pin.
+
 ## Documentation Sync
 
 Every release should leave these entrypoints consistent:
@@ -273,6 +289,33 @@ The release workflow publishes these assets to the GitHub Release:
 Validation metrics and Markdown summaries remain release-quality contracts, but
 they are produced as build and validation outputs rather than uploaded as
 standalone release assets.
+
+## Unreleased
+
+### Highlights
+
+- `DIContainerHost` passes one stable lifecycle handle to hosted content and
+  the environment. `DIContainerHostHandle` is now `Equatable`: two handles are
+  equal when they operate on the same host owner, so a host redraw no longer
+  looks like an environment change to views that read
+  `innoDIContainerHostHandle`.
+
+- The eager `asyncFactory:` lifetime is documented and pinned by runtime
+  tests. A `.shared` asynchronous provider starts its construction task in the
+  container initializer, reader cancellation and container release do not
+  cancel it, and each read of a `.transient` sub-container starts the child's
+  eager asynchronous work again.
+
+- The README states that InnoDI supports Apple platforms only, and
+  `SECURITY.md` names `6.x` as the supported line.
+
+### Breaking or Behavior Changes
+
+- None yet.
+
+### Upgrade Actions
+
+- None yet.
 
 ## 6.0.0
 

@@ -4,14 +4,18 @@ This document tracks the live roadmap after the 4.0.0 baseline, the 4.1.0
 release-hardening pass, and the 4.2.0 wiring/observability simplification
 release.
 
-## Current 6.0.0 candidate
+## 7.0.0 train
 
-The [final-hardening plan](docs/plans/6.0.0-final-hardening.md) tracks the
-September 22 audit findings, the selected rejection of deferred ownership
-cycles, and new candidate-bound verification. Earlier shipped-version and
-T42 pass records below/elsewhere remain historical; they do not approve this
-candidate for release. Mulbyul is the only product-consumer verification in
-scope and its original working tree remains test-only and unchanged.
+InnoDI 6.0.0 shipped on 2026-09-29 as an immutable GitHub Release. The
+[7.0.0 post-audit plan](docs/plans/7.0.0-post-audit.md) tracks the
+2026-09-29 audit follow-up as one train: CI feedback time, asynchronous
+on-demand providers with an explicit close path, generated-code cleanup,
+canonical key paths, SwiftUI re-export removal, the macOS 14 floor with an
+Observation-based host owner, and documentation consolidation. 7.0.0
+supersedes 6.0.0; the 6.0.0 tag is not moved or republished.
+
+The [6.0.0 final-hardening plan](docs/plans/6.0.0-final-hardening.md) remains
+the historical record for the 6.0.0 candidate.
 
 ## Shipped in 4.0.0
 
