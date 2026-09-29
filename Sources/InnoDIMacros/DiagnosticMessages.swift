@@ -968,6 +968,16 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func subAsyncParentMember(
+        memberName: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "@SubContainer '\(memberName)' cannot pass parent member '\(parentMemberName)' to a child input because '\(parentMemberName)' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting '\(parentMemberName)'.",
+            code: .subAsyncParentMember
+        )
+    }
+
     static func provideLazyAliased(
         parameterName: String,
         aliasName: String

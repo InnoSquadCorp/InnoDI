@@ -346,6 +346,11 @@ standalone release assets.
   comment. It previously reported `migrate.container-option-comment` for such
   files.
 
+- A `@SubContainer` child input wired to an asynchronous parent member is
+  rejected with `sub.async-parent-member`. In 6.0 the generated child
+  construction failed to compile with an unrelated missing-member error, so
+  no compiling source changes meaning.
+
 ### Upgrade Actions
 
 - Rewrite named-root parent key paths to `\Self.member`. `\Self.member` also

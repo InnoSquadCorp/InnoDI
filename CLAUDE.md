@@ -235,6 +235,8 @@ sibling edge even when the container uses `validateDAG: false`.
 - Public collection metadata preserves `AnyKeyPath & Sendable`; do not erase
   it to `AnyKeyPath` or reintroduce unchecked metadata conformance.
 - `@SubContainer` adds ownership edges plus child override forwarding.
+  Child inputs are synchronous in both child scopes; reject every asynchronous
+  parent member, eager or transient, with `sub.async-parent-member`.
 - Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
   `bindings:` (including `@SubContainerFactory`) name one direct member as
   `\Self.member`. The macro rejects named roots with

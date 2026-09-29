@@ -361,6 +361,10 @@ Most frequently-hit codes:
 - `sub.duplicate-child-binding` — the same child input is bound twice.
 - `sub.shared-parent-must-not-be-transient` — `.shared` sub-container
   cannot read a `.transient` parent.
+- `sub.async-parent-member` — a sub-container input is wired to an
+  asynchronous parent member. Child inputs are synchronous values in both
+  child scopes; wire a synchronous parent member, or construct the child after
+  awaiting the parent member.
 
 ## Graph-level diagnostics (build plugin)
 

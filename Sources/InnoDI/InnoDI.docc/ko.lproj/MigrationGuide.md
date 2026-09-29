@@ -54,6 +54,14 @@ import한다는 뜻입니다. 컴파일러 fix-it을 적용하거나 속성을
 `@InnoDI.SubContainer`로 한정한 뒤 검사를 다시 실행하세요. `\Self.member`는
 InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 수 있습니다.
 
+### 비동기 parent는 child input으로 쓸 수 없습니다
+
+`@SubContainer` child input을 비동기 parent member에 연결하면 이제
+`sub.async-parent-member`로 실패합니다. 6.0에서는 같은 연결이 생성된 child
+생성 코드 안에서 무관한 missing-member 오류로 컴파일에 실패했으므로, 컴파일되던
+소스가 바뀌지는 않습니다. 동기 parent member를 연결하거나, parent member를
+await한 뒤 child를 직접 생성하세요.
+
 ---
 
 ## 4.2 → 4.3

@@ -145,6 +145,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
+    case subAsyncParentMember = "sub.async-parent-member"
     case provideLazyAliased = "provide.lazy-aliased"
     case provideProviderAliased = "provide.provider-aliased"
     case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
@@ -254,6 +255,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subNoncanonicalParentKeyPath,
                 .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
+                .subAsyncParentMember,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootDuplicateDefault, .swiftUIFeatureRootInvalidAlias,
                 .swiftUIFeatureRootInvalidRoot,

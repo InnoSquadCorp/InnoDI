@@ -55,6 +55,14 @@ macro. Apply the compiler fix-it, or qualify the attribute as
 `@InnoDI.SubContainer`, then rerun the check. `\Self.member` also compiles
 with InnoDI 6.0, so the rewrite can land before the upgrade.
 
+### Asynchronous parents are rejected as child inputs
+
+A `@SubContainer` child input wired to an asynchronous parent member now fails
+with `sub.async-parent-member`. In 6.0 the same wiring failed to compile with
+an unrelated missing-member error inside the generated child construction, so
+no compiling source changes. Wire a synchronous parent member, or construct
+the child after awaiting the parent member.
+
 ---
 
 ## 4.2 → 4.3

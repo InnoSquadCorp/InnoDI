@@ -312,6 +312,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `sub.duplicate-child-binding` — 같은 child input이 두 번 바인딩됐습니다.
 - `sub.shared-parent-must-not-be-transient` — `.shared`
   sub-container는 `.transient` parent를 읽을 수 없습니다.
+- `sub.async-parent-member` — sub-container input이 비동기 parent member에
+  연결됐습니다. child input은 두 child scope 모두에서 동기 값입니다. 동기
+  parent member를 연결하거나, parent member를 await한 뒤 child를 직접
+  생성하세요.
 
 ## 그래프 단위 진단 (build plugin)
 
