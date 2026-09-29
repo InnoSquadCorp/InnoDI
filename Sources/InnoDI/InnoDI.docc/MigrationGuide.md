@@ -49,10 +49,19 @@ swift run InnoDI-Migrate --root /path/to/consumer --check
 swift run InnoDI-Migrate --root /path/to/consumer --write
 ```
 
-When the check reports `migrate.unqualified-ownership-ambiguous` for a parent
-key path, the file imports a module that could declare another `SubContainer`
-macro. Apply the compiler fix-it, or qualify the attribute as
-`@InnoDI.SubContainer`, then rerun the check. `\Self.member` also compiles
+When the check reports `migrate.unqualified-ownership-ambiguous`, the file
+imports a module that could declare an attribute with the same name, such as
+another `SubContainer` or `Provide` macro. The message lists those modules.
+Qualify the attribute, for example as `@InnoDI.SubContainer`, or rerun with
+`--trust-module <name>` for each listed module that declares no InnoDI-named
+attribute or macro. An application usually trusts its own modules this way:
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check --trust-module Domain --trust-module Features
+```
+
+Trust never overrides a same-named declaration the migrator finds in the
+scanned sources. `\Self.member` also compiles
 with InnoDI 6.0, so the rewrite can land before the upgrade.
 
 ### InnoDISwiftUI no longer re-exports SwiftUI

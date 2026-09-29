@@ -14,14 +14,16 @@ extension InnoDIMigrator {
             }
         )
         let collector = InnoDIAttributeOwnershipCollector(
-            topLevelImportOffsets: topLevelImportOffsets
+            topLevelImportOffsets: topLevelImportOffsets,
+            trustedModules: trustedModules
         )
         collector.walk(source)
         return UnqualifiedInnoDIAttributeContext(
             availableNames: collector.availableNames,
             ambiguousNames: collector.conditionalImportNames
                 .union(collector.untrustedImportNames)
-                .union(additionalAmbiguousNames)
+                .union(additionalAmbiguousNames),
+            untrustedModules: collector.untrustedModules.sorted()
         )
     }
 
@@ -29,7 +31,8 @@ extension InnoDIMigrator {
         in source: SourceFileSyntax
     ) -> Set<String> {
         let collector = InnoDIAttributeOwnershipCollector(
-            topLevelImportOffsets: []
+            topLevelImportOffsets: [],
+            trustedModules: trustedModules
         )
         collector.walk(source)
         return collector.shadowedNames
@@ -40,6 +43,8 @@ extension InnoDIMigrator {
 struct UnqualifiedInnoDIAttributeContext {
     let availableNames: Set<String>
     let ambiguousNames: Set<String>
+    /// Imported modules that made InnoDI attribute names ambiguous.
+    var untrustedModules: [String] = []
 
     func allows(_ name: String) -> Bool {
         availableNames.contains(name) && !ambiguousNames.contains(name)
@@ -74,16 +79,22 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
     private(set) var untrustedImportNames: Set<String> = []
     private(set) var exportedUntrustedImportNames: Set<String> = []
     private(set) var shadowedNames: Set<String> = []
+    private(set) var untrustedModules: Set<String> = []
     private let topLevelImportOffsets: Set<Int>
+    private let trustedModules: Set<String>
 
-    init(topLevelImportOffsets: Set<Int>) {
+    init(topLevelImportOffsets: Set<Int>, trustedModules: Set<String>) {
         self.topLevelImportOffsets = topLevelImportOffsets
+        self.trustedModules = trustedModules
         super.init(viewMode: .sourceAccurate)
     }
 
     override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
         let importedNames = innoDIAttributeNames(importedBy: node)
         if importsUntrustedMacroNamespace(node) {
+            if let module = node.path.first.map({ canonicalIdentifier($0.name) }) {
+                untrustedModules.insert(module)
+            }
             untrustedImportNames.formUnion(Self.innoDINames)
             untrustedImportNames.formUnion(Self.innoDISwiftUINames)
             if isExportedImport(node) {
@@ -146,6 +157,7 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
             return false
         }
         return !Self.trustedMacroFreeModules.contains(module)
+            && !trustedModules.contains(module)
             && module != "InnoDI"
             && module != "InnoDISwiftUI"
     }
@@ -306,7 +318,10 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 MigrationDiagnostic(
                     code: "migrate.unqualified-ownership-ambiguous",
                     path: path,
-                    message: "Cannot prove that unqualified legacy attribute(s) \(ambiguityCollector.names.sorted().joined(separator: ", ")) belong to InnoDI. Qualify them with their module before rerunning; no files were written."
+                    message: ownershipAmbiguityMessage(
+                        names: ambiguityCollector.names.sorted(),
+                        untrustedModules: attributeContext.untrustedModules
+                    )
                 )
             )
         }
@@ -1197,4 +1212,18 @@ private func isValidSwiftIdentifier(_ value: String) -> Bool {
 private func containsComment(_ syntax: some SyntaxProtocol) -> Bool {
     let source = syntax.description
     return source.contains("//") || source.contains("/*")
+}
+
+/// Names the imports behind an ownership ambiguity, so the user can either
+/// qualify the attributes or trust modules that declare no InnoDI names.
+private func ownershipAmbiguityMessage(
+    names: [String],
+    untrustedModules: [String]
+) -> String {
+    let attributes = names.joined(separator: ", ")
+    guard !untrustedModules.isEmpty else {
+        return "Cannot prove that unqualified legacy attribute(s) \(attributes) belong to InnoDI. Qualify them with their module before rerunning; no files were written."
+    }
+    let modules = untrustedModules.joined(separator: ", ")
+    return "Cannot prove that unqualified legacy attribute(s) \(attributes) belong to InnoDI, because this file imports \(modules), which could declare attributes with the same names. Qualify the attributes with InnoDI., or rerun with --trust-module <name> for each listed module that declares no InnoDI-named attribute or macro; no files were written."
 }

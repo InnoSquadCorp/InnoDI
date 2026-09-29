@@ -3,9 +3,9 @@ import Foundation
 public enum MigrationCLI {
     public static let usage = """
     Usage:
-      InnoDI-Migrate --root <path> --check
-      InnoDI-Migrate --root <path> --report [--output <path>]
-      InnoDI-Migrate --root <path> --write
+      InnoDI-Migrate --root <path> --check [--trust-module <name>]...
+      InnoDI-Migrate --root <path> --report [--output <path>] [--trust-module <name>]...
+      InnoDI-Migrate --root <path> --write [--trust-module <name>]...
 
     Options:
       --root <path>  Swift package or source-tree root (required)
@@ -14,6 +14,9 @@ public enum MigrationCLI {
       --output <path>
                      Write the report atomically (default: stdout; use - for stdout)
       --write        Apply migrations and retain displaced files for recovery
+      --trust-module <name>
+                     Treat an imported module as declaring no InnoDI-named
+                     attribute or macro (repeatable)
       --help, -h     Show this help
     """
 
@@ -33,7 +36,9 @@ public enum MigrationCLI {
         }
 
         do {
-            let plan = try InnoDIMigrator().run(
+            let plan = try InnoDIMigrator(
+                trustedModules: Set(options.trustedModules)
+            ).run(
                 root: URL(fileURLWithPath: options.rootPath, isDirectory: true),
                 mode: options.mode
             )

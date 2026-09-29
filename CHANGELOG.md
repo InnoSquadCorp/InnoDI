@@ -96,6 +96,12 @@ that change moves to 8.0.
   `sub.invalid-bindings`. Build validation resolves named roots so the
   compiler fix-it is reported first, and rejects nested components.
 
+- `InnoDI-Migrate --trust-module <name>` treats an imported module as
+  declaring no InnoDI-named attribute or macro, and the
+  `migrate.unqualified-ownership-ambiguous` message names the imports that
+  caused it. On the InnoSample pilot, this unblocked 9 of 11 container files,
+  each of which imported the application's own modules.
+
 - `InnoDI-Migrate` reports which rule changed each file. Each report change
   gains an additive `rules` array, such as `migrate.parent-key-path` and
   `migrate.swiftui-import`, and `MIGRATE` and `MIGRATED` lines append the
@@ -139,8 +145,10 @@ that change moves to 8.0.
   Nested parent key paths block the rewrite with
   `migrate.parent-key-path-unsupported`; name the intended direct member
   instead. Files that import another module may report
-  `migrate.unqualified-ownership-ambiguous`; apply the compiler fix-it or
-  qualify the attribute as `@InnoDI.SubContainer`.
+  `migrate.unqualified-ownership-ambiguous`, which now lists the modules
+  involved. Qualify the attribute as `@InnoDI.SubContainer`, or add
+  `--trust-module <name>` for each listed module that declares no
+  InnoDI-named attribute or macro, typically the application's own modules.
 
 ## 6.0.0
 

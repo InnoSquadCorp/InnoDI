@@ -48,10 +48,19 @@ swift run InnoDI-Migrate --root /path/to/consumer --check
 swift run InnoDI-Migrate --root /path/to/consumer --write
 ```
 
-검사가 parent key path에 대해 `migrate.unqualified-ownership-ambiguous`를
-보고하면, 그 파일이 다른 `SubContainer` 매크로를 선언할 수 있는 모듈을
-import한다는 뜻입니다. 컴파일러 fix-it을 적용하거나 속성을
-`@InnoDI.SubContainer`로 한정한 뒤 검사를 다시 실행하세요. `\Self.member`는
+검사가 `migrate.unqualified-ownership-ambiguous`를 보고하면, 그 파일이 다른
+`SubContainer`나 `Provide` 매크로처럼 같은 이름의 속성을 선언할 수 있는 모듈을
+import한다는 뜻입니다. 메시지에 그 모듈이 나열됩니다. 속성을
+`@InnoDI.SubContainer`처럼 한정하거나, InnoDI와 같은 이름의 속성이나 매크로를
+선언하지 않는 모듈마다 `--trust-module <name>`을 붙여 다시 실행하세요. 앱은 보통
+자기 모듈을 이렇게 신뢰합니다.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check --trust-module Domain --trust-module Features
+```
+
+신뢰한 모듈이 있어도, 검사한 소스에서 같은 이름의 선언을 찾으면 그대로
+차단합니다. `\Self.member`는
 InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 수 있습니다.
 
 ### InnoDISwiftUI가 더 이상 SwiftUI를 re-export하지 않습니다

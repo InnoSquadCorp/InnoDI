@@ -4,7 +4,13 @@ import SwiftParser
 import SwiftSyntax
 
 public struct InnoDIMigrator {
-    public init() {}
+    /// Imported modules treated like Apple frameworks: the user asserts they
+    /// declare no attribute or macro named like an InnoDI attribute.
+    public let trustedModules: Set<String>
+
+    public init(trustedModules: Set<String> = []) {
+        self.trustedModules = trustedModules
+    }
 
     public func plan(root: URL) throws -> MigrationPlan {
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
