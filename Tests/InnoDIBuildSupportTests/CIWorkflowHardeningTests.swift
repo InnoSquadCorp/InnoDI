@@ -351,6 +351,46 @@ struct CIWorkflowHardeningTests {
         #expect(appendJob.contains("--report build/performance/macro-performance-report.json"))
     }
 
+    @Test("Fast PR lane and coverage gate publish test suite durations")
+    func testSuiteDurationsAreSummarized() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "python3", "-B", "-m", "unittest", "discover",
+            "-s", "Tools/tests", "-p", "test_summarize_test_durations.py",
+        ]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
+        let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
+        let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
+        #expect(fastJob.contains("set -o pipefail"))
+        #expect(fastJob.contains("2>&1 | tee build/fast-pr-test-output.log"))
+        #expect(fastJob.contains("- name: Summarize test suite durations"))
+        #expect(
+            fastJob.contains(
+                "if: ${{ always() && hashFiles('build/fast-pr-test-output.log') != '' }}"
+            )
+        )
+
+        let coverageGate = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent("Tools/run-coverage-gate.sh"),
+            encoding: .utf8
+        )
+        #expect(coverageGate.contains("trap summarize_test_durations EXIT"))
+        #expect(coverageGate.contains("2>&1 | tee \"$TEST_LOG\""))
+        #expect(coverageGate.contains("Tools/summarize-test-durations.py"))
+    }
+
     @Test("Independent performance checks survive failure without weakening the job")
     func performanceFailureDoesNotSuppressOtherEvidence() throws {
         let process = Process()

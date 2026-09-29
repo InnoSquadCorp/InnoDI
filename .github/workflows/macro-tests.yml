@@ -161,13 +161,21 @@ jobs:
         # production diagnostics. Independent cases run serially so synchronous
         # process fixtures cannot starve another test's async deadline; tasks
         # and contention assertions inside each test remain concurrent.
-        run: >-
-          swift test
-          --no-parallel
-          -Xswiftc -strict-concurrency=complete
-          -Xswiftc -warnings-as-errors
-          --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
-          --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+        run: |
+          set -o pipefail
+          mkdir -p build
+          swift test \
+            --no-parallel \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+            2>&1 | tee build/fast-pr-test-output.log
+      - name: Summarize test suite durations
+        if: ${{ always() && hashFiles('build/fast-pr-test-output.log') != '' }}
+        run: |
+          Tools/summarize-test-durations.py build/fast-pr-test-output.log \
+            --title "Slowest test suites (fast PR lane)" >> "$GITHUB_STEP_SUMMARY"
       - name: Validate macro synthesis and CI policy
         run: |
           Tools/check-no-fatalerror-in-macros.sh
