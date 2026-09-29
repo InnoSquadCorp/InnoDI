@@ -84,6 +84,30 @@ class PerformanceWorkflowTests(unittest.TestCase):
         self.assertIn("--enforce", step("Enforce macro performance baseline", "release.yml"))
         self.assertIn("always()", step("Upload candidate macro performance report", "release.yml"))
 
+    def test_pull_requests_report_while_main_and_dispatch_enforce(self):
+        # Evaluate the checked-in mode expressions for every trigger. Only a
+        # release-validation pull request may downgrade the gates to reports.
+        expectations = {
+            "Macro Performance Check": ("MACRO_PERFORMANCE_MODE",
+                                        {"pull_request": "--report-only", "push": "--enforce",
+                                         "workflow_dispatch": "--enforce"}),
+            "Macro Performance Trend": ("TREND_MODE",
+                                        {"pull_request": "--report-only", "push": "",
+                                         "workflow_dispatch": ""}),
+        }
+        for name, (variable, by_event) in expectations.items():
+            body = step(name)
+            match = re.search(variable + r": \$\{\{ (.+) \}\}", body)
+            self.assertIsNotNone(match, name)
+            self.assertNotIn("continue-on-error", body)
+            for event, expected in by_event.items():
+                actual = eval(
+                    match.group(1).replace("github.event_name", repr(event))
+                    .replace("&&", "and").replace("||", "or"),
+                    {"__builtins__": {}},
+                )
+                self.assertEqual(actual, expected, (name, event))
+
     def test_trace_is_not_an_automatic_or_release_gate(self):
         for filename in ["macro-tests.yml", "release.yml"]:
             source = (WORKFLOWS / filename).read_text()

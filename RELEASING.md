@@ -318,6 +318,15 @@ standalone release assets.
   toolchain accepts enum-typed arguments on a multi-role attached macro, the
   shape that forced the string-backed `ContainerRole` token.
 
+- The fast PR lane skips the unique-binding fix-it consumer build, a
+  clean-build contract that compiles SwiftSyntax from source; the exhaustive
+  coverage gate still runs it. Main CI caches SwiftPM repository mirrors,
+  downloaded prebuilts, and the external consumer scratch per toolchain and
+  swift-syntax pin, while the Release Gate keeps cold consumer builds.
+  Release-validation pull requests report the macro performance gate and
+  trend instead of failing on hosted-runner variance; pushes to `main`, manual
+  dispatch, and the Release Gate still enforce them.
+
 ### Breaking or Behavior Changes
 
 - None yet.

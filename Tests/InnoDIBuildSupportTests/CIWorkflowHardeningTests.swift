@@ -59,6 +59,13 @@ struct CIWorkflowHardeningTests {
                 "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
             )
         )
+        // The fix-it consumer build is a clean-build contract like the
+        // suites above; the exhaustive coverage gate still runs it unskipped.
+        #expect(
+            fastJob.contains(
+                "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
+            )
+        )
         #expect(fastJob.contains("Tools/check-public-api.py"))
         #expect(fastJob.contains("--validate-dag"))
         #expect(!fastJob.contains("--enable-code-coverage"))
@@ -212,6 +219,40 @@ struct CIWorkflowHardeningTests {
         #expect(job.contains("--filter StrictConcurrencyBuildTests"))
         #expect(job.contains("--filter ExternalConsumerContractTests"))
         #expect(job.contains("Tools/check-public-api.py"))
+    }
+
+    @Test("CI caches stay toolchain-scoped and release validation stays cold")
+    func cachesAreToolchainScoped() throws {
+        let root = packageRootURL()
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let release = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/release.yml"),
+            encoding: .utf8
+        )
+        let cacheSteps = workflow.components(separatedBy: "      - name: ").filter {
+            $0.contains("uses: actions/cache@")
+        }
+        #expect(cacheSteps.count == 7)
+        for step in cacheSteps {
+            #expect(step.contains("-xcode-"))
+            #expect(step.contains("${{ hashFiles('Package.resolved') }}"))
+            #expect(!step.contains("restore-keys"))
+        }
+        let consumerKeys = cacheSteps.filter {
+            $0.contains("path: .build/external-consumer-contracts/dag-plugin-source")
+        }.compactMap { step in
+            step.split(separator: "\n").first { $0.contains("key: ") }.map(String.init)
+        }
+        #expect(consumerKeys.count == 3)
+        #expect(Set(consumerKeys).count == 3)
+        for version in ["xcode-26.6-", "xcode-26.2-", "xcode-27-"] {
+            #expect(consumerKeys.contains { $0.contains(version) })
+        }
+        // Release validation keeps cold consumer builds for the exact candidate.
+        #expect(!release.contains("actions/cache@"))
     }
 
     @Test("Compiler canaries stay informational and hidden from repository scans")

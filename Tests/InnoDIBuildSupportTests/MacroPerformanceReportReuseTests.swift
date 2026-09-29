@@ -54,6 +54,21 @@ struct MacroPerformanceReportReuseTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.swiftMarkerURL.path))
     }
 
+    @Test("Report-only trend regression warns without failing and keeps the report")
+    func reportOnlyTrendRegressionWarns() throws {
+        let fixture = try MacroPerformanceReportReuseFixture()
+        defer { fixture.remove() }
+
+        let result = try fixture.runTrendCheck(historyMinimum: 5.0, reportOnly: true)
+
+        #expect(result.exitCode == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("::warning::macro-perf trend regression"))
+        #expect(!result.output.contains("::error::"))
+        let report = try fixture.trendReport()
+        #expect(report["status"] as? String == "regression")
+        #expect(report["regressionPct"] as? Double == 100.0)
+    }
+
     @Test("Passing trend retains the same diagnostic report")
     func passingTrendPreservesReport() throws {
         let fixture = try MacroPerformanceReportReuseFixture()
@@ -211,7 +226,11 @@ private struct MacroPerformanceReportReuseFixture {
         )
     }
 
-    func runTrendCheck(historyMinimum: Double? = nil, historyVersion: Int = 2) throws -> MacroPerformanceReportReuseResult {
+    func runTrendCheck(
+        historyMinimum: Double? = nil,
+        historyVersion: Int = 2,
+        reportOnly: Bool = false
+    ) throws -> MacroPerformanceReportReuseResult {
         var additionalEnvironment: [String: String] = [:]
         if let historyMinimum {
             let historyURL = rootURL.appendingPathComponent("history.json")
@@ -236,7 +255,7 @@ private struct MacroPerformanceReportReuseFixture {
                     .path,
                 "--current-report",
                 validReportURL.path,
-            ],
+            ] + (reportOnly ? ["--report-only"] : []),
             useFakePath: true,
             additionalEnvironment: additionalEnvironment
         )

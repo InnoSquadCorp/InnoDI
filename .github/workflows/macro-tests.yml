@@ -152,9 +152,19 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Restore SwiftPM dependency cache
+        # Repository mirrors and downloaded prebuilts only. Build products are
+        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/prebuilts
+          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
       - name: Run in-process test contracts
-        # Consumer, strict-concurrency, and one migration smoke contract spawn
-        # clean SwiftPM builds. They remain exhaustive main gates below;
+        # Consumer, strict-concurrency, one migration smoke, and the unique
+        # binding fix-it consumer contracts spawn clean SwiftPM builds. The
+        # fix-it build alone compiles SwiftSyntax from source with one job. They remain exhaustive main gates below;
         # repeating them on every PR dominated feedback time without adding
         # local semantic coverage. All in-process unit, macro-expansion, graph,
         # runtime, migration, and release-contract tests still run here with
@@ -170,6 +180,7 @@ jobs:
             -Xswiftc -warnings-as-errors \
             --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
             --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+            --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs' \
             2>&1 | tee build/fast-pr-test-output.log
       - name: Summarize test suite durations
         if: ${{ always() && hashFiles('build/fast-pr-test-output.log') != '' }}
@@ -226,6 +237,26 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Restore SwiftPM dependency cache
+        # Repository mirrors and downloaded prebuilts only. Build products are
+        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/prebuilts
+          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+      - name: Restore external consumer build cache
+        # The contracts reuse this scratch root by design. Consumer sources are
+        # materialized fresh and InnoDI rebuilds from the checkout; the cache
+        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
+        # source. Only that profile is cached (about 1.8 GB per toolchain) so
+        # three toolchains stay inside the repository cache budget. Keys never
+        # cross toolchains or swift-syntax pins.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/external-consumer-contracts/dag-plugin-source
+          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
       - name: Run clean coverage gate
         id: coverage
         # Shared with the release gate so both lanes measure one strict pass
@@ -298,9 +329,15 @@ jobs:
           if-no-files-found: error
       - name: Macro Performance Check
         id: macro_performance
+        # Release-validation pull requests record the measurement without
+        # failing on hosted-runner variance. Pushes to main and manual
+        # dispatch keep the enforced gate, and the Release Gate enforces the
+        # pinned baseline again for the exact candidate SHA.
+        env:
+          MACRO_PERFORMANCE_MODE: ${{ github.event_name == 'pull_request' && '--report-only' || '--enforce' }}
         run: |
           Tools/measure-macro-performance.sh \
-            --enforce \
+            "$MACRO_PERFORMANCE_MODE" \
             --output build/macro-performance-report.json
       - name: Upload Macro Performance Report
         # Preserve the report when measurement itself fails, but do not turn an
@@ -319,9 +356,12 @@ jobs:
         # runner scheduling noise to a product regression. The script exits 0
         # silently when perf-history is empty or unreachable, so this
         # step is safe to land before the first append happens.
+        env:
+          TREND_MODE: ${{ github.event_name == 'pull_request' && '--report-only' || '' }}
         run: |
           Tools/check-performance-trend.sh \
-            --current-report build/macro-performance-report.json
+            --current-report build/macro-performance-report.json \
+            ${TREND_MODE:+"$TREND_MODE"}
       # Runtime trace timings are optional diagnostics in the manual
       # runtime-trace-diagnostics.yml workflow, not a release performance gate.
       - name: Upload Performance Trend Report
@@ -402,6 +442,26 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.2"
+      - name: Restore SwiftPM dependency cache
+        # Repository mirrors and downloaded prebuilts only. Build products are
+        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/prebuilts
+          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.2-${{ hashFiles('Package.resolved') }}
+      - name: Restore external consumer build cache
+        # The contracts reuse this scratch root by design. Consumer sources are
+        # materialized fresh and InnoDI rebuilds from the checkout; the cache
+        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
+        # source. Only that profile is cached (about 1.8 GB per toolchain) so
+        # three toolchains stay inside the repository cache budget. Keys never
+        # cross toolchains or swift-syntax pins.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/external-consumer-contracts/dag-plugin-source
+          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.2-${{ hashFiles('Package.resolved') }}
       - name: Run strict external compatibility contracts
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
@@ -436,6 +496,26 @@ jobs:
           [[ "$swift_output" == *"Apple Swift version 6.4"* ]]
           printf '%s\n' "$xcode_output"
           printf '%s\n' "$swift_output"
+      - name: Restore SwiftPM dependency cache
+        # Repository mirrors and downloaded prebuilts only. Build products are
+        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/prebuilts
+          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-27-${{ hashFiles('Package.resolved') }}
+      - name: Restore external consumer build cache
+        # The contracts reuse this scratch root by design. Consumer sources are
+        # materialized fresh and InnoDI rebuilds from the checkout; the cache
+        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
+        # source. Only that profile is cached (about 1.8 GB per toolchain) so
+        # three toolchains stay inside the repository cache budget. Keys never
+        # cross toolchains or swift-syntax pins.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/external-consumer-contracts/dag-plugin-source
+          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-27-${{ hashFiles('Package.resolved') }}
       - name: Run strict external compatibility contracts
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests

@@ -38,17 +38,23 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: Tools/check-performance-trend.sh [--current-report <report.json>]
+Usage: Tools/check-performance-trend.sh [--current-report <report.json>] [--report-only]
 
 Without --current-report the script measures macro performance itself.
 Pass the report emitted by measure-macro-performance.sh --output to reuse an
-already enforced measurement.
+already enforced measurement. --report-only records a regression in the
+report and as a warning, then exits 0.
 EOF
 }
 
 CURRENT_REPORT=""
+REPORT_ONLY=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --report-only)
+            REPORT_ONLY=1
+            shift
+            ;;
         --current-report)
             if [[ $# -lt 2 || -z "${2:-}" ]]; then
                 echo "--current-report requires a path" >&2
@@ -126,6 +132,7 @@ INNODI_TREND_THRESHOLD_PCT="$THRESHOLD_PCT" \
 INNODI_TREND_MIN_SAMPLES="$MIN_SAMPLES" \
 INNODI_TREND_REQUIRE_SAME_TOOLCHAIN="$REQUIRE_SAME_TOOLCHAIN" \
 INNODI_TREND_OUT="$TREND_OUT" \
+INNODI_TREND_REPORT_ONLY="$REPORT_ONLY" \
 python3 - <<'PY' || TREND_STATUS=$?
 import json, os, sys
 
@@ -212,8 +219,13 @@ print(f"[trend] current min={current_min:.3f}ms rolling median of min(last {len(
       f"delta={regression_pct:+.2f}% threshold={threshold_pct:.2f}%")
 
 if report["status"] == "regression":
-    print(f"::error::macro-perf trend regression: {regression_pct:+.2f}% above rolling median ({threshold_pct:.2f}% threshold)")
-    sys.exit(1)
+    message = (f"macro-perf trend regression: {regression_pct:+.2f}% above rolling median "
+               f"({threshold_pct:.2f}% threshold)")
+    if os.environ.get("INNODI_TREND_REPORT_ONLY") == "1":
+        print(f"::warning::{message} (report-only)")
+    else:
+        print(f"::error::{message}")
+        sys.exit(1)
 PY
 
 # Surface the JSON report so the workflow can upload it as an artifact.

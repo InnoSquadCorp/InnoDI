@@ -13,10 +13,11 @@ establish remote CI success. The following commands cover a source PR:
 ```bash
 # Test suite, exactly as the PR fast lane runs it (the skipped suites are
 # clean-build consumer contracts that remain exhaustive main gates)
-swift test \
+swift test --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
-  --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+  --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+  --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
 # Macro synthesis and CI policy guards
 Tools/check-no-fatalerror-in-macros.sh
