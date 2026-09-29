@@ -329,7 +329,10 @@ standalone release assets.
 
 ### Breaking or Behavior Changes
 
-- None yet.
+- `InnoDI-Migrate` no longer blocks a whole run when a current 6.0
+  `@DIContainer` without legacy options carries a documentation or nearby
+  comment. It previously reported `migrate.container-option-comment` for such
+  files.
 
 ### Upgrade Actions
 

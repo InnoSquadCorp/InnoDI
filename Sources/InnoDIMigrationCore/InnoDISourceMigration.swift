@@ -504,6 +504,19 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             )
             return nil
         }
+        // A current 6.0 container has nothing to rewrite, so comments near it,
+        // such as its documentation comment, must not block the whole run.
+        let hasLegacyContainerOption = (
+            container.arguments?.as(LabeledExprListSyntax.self) ?? []
+        ).contains {
+            let label = $0.label.map(canonicalIdentifier)
+            return label == "root" || label == "mainActor"
+        }
+        guard hasLegacyContainerOption
+            || !componentMarkers.isEmpty
+            || !rootMarkers.isEmpty else {
+            return nil
+        }
         guard !containsComment(container),
               !componentMarkers.contains(where: containsComment),
               !rootMarkers.contains(where: containsComment) else {

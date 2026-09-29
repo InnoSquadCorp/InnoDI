@@ -218,6 +218,27 @@ struct InnoDIMigrationCoreTests {
         #expect(second.changes.isEmpty)
     }
 
+    @Test("A documented current container does not block migration")
+    func documentedCurrentContainerDoesNotBlock() throws {
+        let root = try makeTemporaryTree(files: [
+            "Sources/App.swift": """
+            import InnoDI
+
+            /// Owns the application graph.
+            @DIContainer
+            struct AppContainer {
+                // Supplied by the composition root.
+                @Input var config: Config
+            }
+            """,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = try InnoDIMigrator().plan(root: root)
+        #expect(plan.diagnostics.isEmpty)
+        #expect(plan.changes.isEmpty)
+    }
+
     @Test("Concrete and stacked feature-root surfaces migrate idempotently")
     func migratesConcreteAndFeatureRootsIdempotently() throws {
         let root = try makeTemporaryTree(files: [
