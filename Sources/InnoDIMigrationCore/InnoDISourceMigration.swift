@@ -913,12 +913,13 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         let escaping = arguments.filter {
             $0.label.map(canonicalIdentifier) == "escaping"
         }
+        // Reusing the parentheses keeps a multi-line list's closing line.
         var migrated = AttributeSyntax(
             atSign: provide.atSign,
             attributeName: name,
-            leftParen: escaping.isEmpty ? nil : .leftParenToken(),
+            leftParen: escaping.isEmpty ? nil : provide.leftParen ?? .leftParenToken(),
             arguments: escaping.isEmpty ? nil : .argumentList(escaping),
-            rightParen: escaping.isEmpty ? nil : .rightParenToken()
+            rightParen: escaping.isEmpty ? nil : provide.rightParen ?? .rightParenToken()
         )
         migrated = migrated
             .with(\.leadingTrivia, provide.leadingTrivia)
@@ -1031,17 +1032,26 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             )
         }
 
+        // A multi-line argument list gets the new argument on its own line.
+        // The comment guard leaves only whitespace in that trivia.
         var arguments = Array(existingArguments)
+        let argumentLineTrivia = arguments.first.map(\.leadingTrivia).flatMap {
+            $0.contains(where: \.isNewline) ? $0 : nil
+        }
         if var last = arguments.last {
             if last.trailingComma == nil {
                 last = last.with(
                     \.trailingComma,
-                    .commaToken(trailingTrivia: .space)
+                    argumentLineTrivia == nil
+                        ? .commaToken(trailingTrivia: .space)
+                        : .commaToken()
                 )
                 arguments[arguments.index(before: arguments.endIndex)] = last
             }
         }
-        arguments.append(newArgument)
+        arguments.append(
+            argumentLineTrivia.map { newArgument.with(\.leadingTrivia, $0) } ?? newArgument
+        )
 
         return subContainer.with(
             \.arguments,

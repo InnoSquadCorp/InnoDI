@@ -141,8 +141,11 @@ that change moves to 8.0.
   `@DIHierarchyRoot`, or `@DIFeatureRoot` attribute that came first on its
   declaration. 6.0 dropped it, so the migrated declaration directly followed
   the previous import or member, as in three InnoSample pilot files. A
-  legacy container attribute written one argument per line keeps that
-  layout; 6.0 joined the arguments and left `)` alone on the last line.
+  rewritten `@DIContainer`, `@Provide(.input)`, or `@SubContainer` attribute
+  written one argument per line keeps that layout. 6.0 joined the container
+  arguments and left `)` alone on the last line, pulled the `)` of `@Input`
+  onto the argument line, and appended `featureRoot:` to the line of the last
+  `@SubContainer` argument.
 
 - The `deferred-alias.workspace-finding` warning no longer suggests moving a
   `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not

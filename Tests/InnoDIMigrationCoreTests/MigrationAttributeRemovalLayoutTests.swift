@@ -5,7 +5,7 @@ import Testing
 /// Removing `@DIComponent`, `@DIHierarchyRoot`, or `@DIFeatureRoot` deletes
 /// that attribute's line and nothing else: the blank line and indentation
 /// above it stay, and the next line keeps its own comments. A rewritten
-/// container attribute keeps its one-argument-per-line layout.
+/// attribute written one argument per line keeps that layout.
 @Suite("Migration attribute removal layout")
 struct MigrationAttributeRemovalLayoutTests {
     @Test("A removed first marker keeps the blank line above it")
@@ -144,6 +144,50 @@ struct MigrationAttributeRemovalLayoutTests {
                 validateDAG: false
             )
             struct FixtureContainer {}
+            """))
+    }
+
+    @Test("Multi-line @Provide(.input) and @SubContainer rewrites keep their lines")
+    func multilineInputAndFeatureRootKeepTheirLines() throws {
+        let migrated = try migrate("""
+            import InnoDISwiftUI
+            import SwiftUI
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(
+                    .input,
+                    escaping: true
+                )
+                var callback: Callback
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\Self.config]
+                )
+                @DIFeatureRoot(FeatureView.self)
+                var feature: FeatureContainer
+
+                @SubContainer(scope: .shared)
+                @DIFeatureRoot(SettingsView.self)
+                var settings: SettingsContainer
+            }
+            """)
+        #expect(migrated.contains("""
+                @Input(
+                    escaping: true
+                )
+                var callback: Callback
+
+                @SubContainer(
+                    scope: .shared,
+                    with: [\\Self.config],
+                    featureRoot: FeatureView.self
+                )
+                var feature: FeatureContainer
+
+                @SubContainer(scope: .shared, featureRoot: SettingsView.self)
+                var settings: SettingsContainer
             """))
     }
 
