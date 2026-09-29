@@ -4,7 +4,8 @@ import Testing
 
 /// Removing `@DIComponent`, `@DIHierarchyRoot`, or `@DIFeatureRoot` deletes
 /// that attribute's line and nothing else: the blank line and indentation
-/// above it stay, and the next line keeps its own comments.
+/// above it stay, and the next line keeps its own comments. A rewritten
+/// container attribute keeps its one-argument-per-line layout.
 @Suite("Migration attribute removal layout")
 struct MigrationAttributeRemovalLayoutTests {
     @Test("A removed first marker keeps the blank line above it")
@@ -100,6 +101,49 @@ struct MigrationAttributeRemovalLayoutTests {
                 @SubContainer(scope: .shared, featureRoot: SettingsView.self)
                 public var settings: SettingsContainer
             }
+            """))
+    }
+
+    @Test("A multi-line legacy argument list keeps one argument per line")
+    func multilineArgumentsKeepTheirLines() throws {
+        let migrated = try migrate("""
+            import InnoDI
+
+            @DIComponent
+            @DIContainer(
+                mainActor: true,
+                validateDAG: false
+            )
+            struct FeatureContainer {}
+
+            @DIContainer(
+                root: true)
+            struct AppContainer {}
+
+            @DIContainer(
+                mainActor: false,
+                validateDAG: false
+            )
+            struct FixtureContainer {}
+            """)
+        #expect(migrated.contains("""
+            import InnoDI
+
+            @DIContainerRole(
+                role: ContainerRole.component,
+                mainActor: true,
+                validateDAG: false
+            )
+            struct FeatureContainer {}
+
+            @DIContainerRole(
+                role: ContainerRole.root)
+            struct AppContainer {}
+
+            @DIContainer(
+                validateDAG: false
+            )
+            struct FixtureContainer {}
             """))
     }
 

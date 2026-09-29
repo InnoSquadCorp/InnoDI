@@ -140,7 +140,9 @@ that change moves to 8.0.
 - `InnoDI-Migrate` keeps the blank line above a removed `@DIComponent`,
   `@DIHierarchyRoot`, or `@DIFeatureRoot` attribute that came first on its
   declaration. 6.0 dropped it, so the migrated declaration directly followed
-  the previous import or member, as in three InnoSample pilot files.
+  the previous import or member, as in three InnoSample pilot files. A
+  legacy container attribute written one argument per line keeps that
+  layout; 6.0 joined the arguments and left `)` alone on the last line.
 
 - The `deferred-alias.workspace-finding` warning no longer suggests moving a
   `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not

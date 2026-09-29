@@ -750,13 +750,22 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             let label = argument.label.map(canonicalIdentifier)
             return label != "root" && label != "mainActor"
         }.map { $0.with(\.leadingTrivia, []) })
+        // A multi-line legacy argument list keeps one argument per line. The
+        // comment guard leaves only whitespace in the first argument's trivia.
+        let argumentLineTrivia = existing.first.map(\.leadingTrivia).flatMap {
+            $0.contains(where: \.isNewline) ? $0 : nil
+        }
         rebuilt = rebuilt.enumerated().map { index, argument in
-            argument.with(
-                \.trailingComma,
-                index == rebuilt.index(before: rebuilt.endIndex)
-                    ? nil
-                    : .commaToken(trailingTrivia: .space)
-            )
+            let isLast = index == rebuilt.index(before: rebuilt.endIndex)
+            guard let argumentLineTrivia else {
+                return argument.with(
+                    \.trailingComma,
+                    isLast ? nil : .commaToken(trailingTrivia: .space)
+                )
+            }
+            return argument
+                .with(\.leadingTrivia, argumentLineTrivia)
+                .with(\.trailingComma, isLast ? nil : .commaToken())
         }
 
         let migratedContainer: AttributeSyntax
