@@ -96,6 +96,9 @@ live for the duration of one operation.
   - tvOS 17+
   - visionOS 1+
 
+InnoDI supports Apple platforms only. CI does not build or test Linux, and
+`InnoDITesting` imports Apple's `os` module unconditionally.
+
 ### Filesystem requirements for the build-time validator
 
 The build plugin serializes live DAG validation runs through a layered

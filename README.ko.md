@@ -96,6 +96,9 @@ override가 필요할 때 꺼냅니다.
   - tvOS 17+
   - visionOS 1+
 
+InnoDI는 Apple 플랫폼만 지원합니다. CI는 Linux를 빌드하거나 테스트하지 않으며,
+`InnoDITesting`은 Apple `os` 모듈을 조건 없이 import합니다.
+
 ### 빌드 타임 validator의 파일시스템 요구 사항
 
 빌드 플러그인은 live DAG validation을 Swift Package Manager scratch
