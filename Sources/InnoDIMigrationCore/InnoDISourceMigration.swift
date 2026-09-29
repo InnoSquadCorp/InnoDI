@@ -263,11 +263,29 @@ private final class ConditionalContainerProvideCollector: SyntaxVisitor {
     override func visit(_: MacroExpansionExprSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
 }
 
+/// Rule codes a migration report lists for each changed file.
+enum MigrationRule {
+    /// 4.3: `@DIFeatureRoot` moves into `@SubContainer(featureRoot:)`.
+    static let featureRoot = "migrate.feature-root"
+    /// 5.0: the removed `concrete:` argument is dropped.
+    static let concreteArgument = "migrate.concrete-argument"
+    /// 6.0: legacy container options become `@DIContainerRole`.
+    static let containerRole = "migrate.container-role"
+    /// 6.0: `@Provide(.input)` becomes `@Input`.
+    static let inputAttribute = "migrate.input-attribute"
+    /// 7.0: named-root parent key paths become `\Self.member`.
+    static let parentKeyPath = "migrate.parent-key-path"
+    /// 7.0: a file that relied on the SwiftUI re-export imports SwiftUI.
+    static let swiftUIImport = "migrate.swiftui-import"
+}
+
 final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     private let path: String
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private var migratableProvideOffsets: Set<Int> = []
     private(set) var diagnostics: [MigrationDiagnostic] = []
+    /// Rules whose rewrite changed this file, for the migration report.
+    private(set) var appliedRules: Set<String> = []
 
     init(
         path: String,
@@ -327,7 +345,11 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
-        return addingSwiftUIImportForInnoDISwiftUI(to: rewritten)
+        let imported = addingSwiftUIImportForInnoDISwiftUI(to: rewritten)
+        if imported.description != rewritten.description {
+            appliedRules.insert(MigrationRule.swiftUIImport)
+        }
+        return imported
     }
 
     override func visit(_ node: MacroExpansionDeclSyntax) -> DeclSyntax {
@@ -344,6 +366,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
               let migrated = migrateContainerDeclaration(visitedStruct) else {
             return visited
         }
+        appliedRules.insert(MigrationRule.containerRole)
         return DeclSyntax(migrated)
     }
 
@@ -404,13 +427,18 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             migratedAttributes.append(element)
         }
         let attributes = AttributeListSyntax(migratedAttributes)
+        appliedRules.insert(MigrationRule.featureRoot)
         return super.visit(node.with(\.attributes, attributes))
     }
 
     override func visit(_ node: AttributeSyntax) -> AttributeSyntax {
         if isInnoDIAttribute(node, named: "SubContainer", context: attributeContext)
             || isInnoDIAttribute(node, named: "SubContainerFactory", context: attributeContext) {
-            return super.visit(migrateParentKeyPaths(in: node))
+            let migrated = migrateParentKeyPaths(in: node)
+            if migrated.description != node.description {
+                appliedRules.insert(MigrationRule.parentKeyPath)
+            }
+            return super.visit(migrated)
         }
         guard migratableProvideOffsets.contains(node.position.utf8Offset),
               isInnoDIAttribute(
@@ -437,6 +465,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
                 return super.visit(node)
             }
+            appliedRules.insert(MigrationRule.inputAttribute)
             return super.visit(makeInputAttribute(from: node, arguments: arguments))
         }
 
@@ -470,6 +499,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             filteredArguments[filteredArguments.index(before: filteredArguments.endIndex)] = last
         }
         let filtered = LabeledExprListSyntax(filteredArguments)
+        appliedRules.insert(MigrationRule.concreteArgument)
         return super.visit(
             node.with(\.arguments, .argumentList(filtered))
         )

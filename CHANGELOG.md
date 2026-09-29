@@ -96,6 +96,12 @@ that change moves to 8.0.
   `sub.invalid-bindings`. Build validation resolves named roots so the
   compiler fix-it is reported first, and rejects nested components.
 
+- `InnoDI-Migrate` reports which rule changed each file. Each report change
+  gains an additive `rules` array, such as `migrate.parent-key-path` and
+  `migrate.swiftui-import`, and `MIGRATE` and `MIGRATED` lines append the
+  same codes. The report schema version stays 1, and reports without
+  `rules` still decode.
+
 - `InnoDI-Migrate` no longer blocks a whole run when a current 6.0
   `@DIContainer` without legacy options carries a documentation or nearby
   comment. It previously reported `migrate.container-option-comment` for such

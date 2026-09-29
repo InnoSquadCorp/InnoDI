@@ -92,7 +92,8 @@ public struct InnoDIMigrator {
                         path: parsed.path,
                         originalSource: parsed.source,
                         migratedSource: migratedSource,
-                        hadUTF8ByteOrderMark: parsed.hadUTF8ByteOrderMark
+                        hadUTF8ByteOrderMark: parsed.hadUTF8ByteOrderMark,
+                        rules: rewriter.appliedRules.sorted()
                     )
                 )
             }

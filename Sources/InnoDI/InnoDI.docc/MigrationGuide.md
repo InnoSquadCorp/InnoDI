@@ -471,7 +471,9 @@ rewrites are pending. `--report` performs the same read-only preflight and emits
 a deterministic schema-v1 JSON inventory to standard output, or atomically to
 the path supplied with `--output`. The report contains relative paths, stable
 codes, counts, status, and diagnostic messages, but never original or migrated
-source bodies. Its exit codes are `0` for clean, `1` for changes required, and
+source bodies. Each change also lists the `rules` that rewrote the file, such
+as `migrate.parent-key-path` or `migrate.swiftui-import` for 7.0, and the
+`MIGRATE` and `MIGRATED` lines print the same rule codes. Its exit codes are `0` for clean, `1` for changes required, and
 `2` for blocked. `--write` parses and preflights the complete source tree
 before its first atomic file exchange, then preserves an existing UTF-8
 byte-order mark and POSIX access mode independently of umask. Ambiguous ownership, unsupported legacy arguments, parse

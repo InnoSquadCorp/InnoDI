@@ -53,7 +53,7 @@ public enum MigrationCLI {
             case .check:
                 if plan.requiresChanges {
                     for change in plan.changes {
-                        print("MIGRATE \(change.path) [migrate.source-update]")
+                        print("MIGRATE \(change.path) [migrate.source-update]\(renderedRules(change.rules))")
                     }
                     print("Migration required in \(plan.changes.count) file(s).")
                     return 1
@@ -62,7 +62,7 @@ public enum MigrationCLI {
                 return 0
             case .write:
                 for change in plan.changes {
-                    print("MIGRATED \(change.path) [migrate.source-update]")
+                    print("MIGRATED \(change.path) [migrate.source-update]\(renderedRules(change.rules))")
                 }
                 for path in plan.recoveryPaths {
                     print("RECOVERY \(path) [migrate.preserved-source]")
@@ -100,4 +100,9 @@ public enum MigrationCLI {
             )
         }
     }
+}
+
+/// Lists the rules behind one file change after its stable change code.
+private func renderedRules(_ rules: [String]) -> String {
+    rules.isEmpty ? "" : " rules: " + rules.joined(separator: ", ")
 }
