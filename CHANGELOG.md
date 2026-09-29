@@ -121,6 +121,16 @@ that change moves to 8.0.
   comment. It previously reported `migrate.container-option-comment` for such
   files.
 
+- `InnoDI-Migrate` rewrites a legacy `@DIContainer(mainActor: true)` that has
+  no `@DIComponent` or `@DIHierarchyRoot` to
+  `@DIContainerRole(role: ContainerRole.local, mainActor: true)`. 6.0 wrote
+  `@DIContainerRole(mainActor: true)`, which does not compile because the
+  role macro requires `role:`; the InnoSample pilot hit this in three feature
+  containers. A legacy container left with only default options, such as
+  `@DIContainer(root: false)`, stays `@DIContainer`. A `@DIComponent` that
+  also sets `root: true` now blocks with `migrate.container-role-conflict`
+  instead of losing `root: true`, because a 6.0 container has one role.
+
 - The `deferred-alias.workspace-finding` warning no longer suggests moving a
   `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not
   resolve such aliases in any file, and in a real build the macro-level alias

@@ -699,11 +699,28 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             return nil
         }
 
+        // 5.x let a component also be a render entry point through
+        // `root: true`, but a 6.0 container has exactly one role.
+        if !componentMarkers.isEmpty && rootValue == true {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.container-role-conflict",
+                    path: path,
+                    message: "A container cannot migrate as both .component and .root; choose one role before rerunning. No files were written."
+                )
+            )
+            return nil
+        }
+
         let role: String?
         if !componentMarkers.isEmpty {
             role = "component"
         } else if !rootMarkers.isEmpty || rootValue == true {
             role = "root"
+        } else if mainActorValue == true {
+            // The role macro requires a role, and an isolated container
+            // without a hierarchy marker was a local container in 5.x.
+            role = "local"
         } else {
             role = nil
         }
@@ -753,12 +770,24 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             )
         }
 
-        let migratedContainer = container
-            .with(\.attributeName, roleContainerAttributeName(from: container))
-            .with(
-            \.arguments,
-            rebuilt.isEmpty ? nil : .argumentList(LabeledExprListSyntax(rebuilt))
-        )
+        let migratedContainer: AttributeSyntax
+        if role != nil {
+            migratedContainer = container
+                .with(\.attributeName, roleContainerAttributeName(from: container))
+                .with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
+        } else if rebuilt.isEmpty {
+            // Only default-valued options such as `root: false` were left, so
+            // the ordinary container keeps no argument list. The comment
+            // guard allows a trailing comment, which `)` carried.
+            migratedContainer = container
+                .with(\.leftParen, nil)
+                .with(\.arguments, nil)
+                .with(\.rightParen, nil)
+                .with(\.trailingTrivia, container.trailingTrivia)
+        } else {
+            migratedContainer = container
+                .with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
+        }
         let removedOffsets = Set(
             (componentMarkers + rootMarkers).map { $0.position.utf8Offset }
         )
