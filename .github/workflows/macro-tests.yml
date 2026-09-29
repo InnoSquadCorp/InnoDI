@@ -410,6 +410,11 @@ jobs:
         run: |
           python3 -B -m unittest discover -s Tools/tests -p 'test_public_api*.py'
           Tools/check-public-api.py
+      - name: Report compiler canaries (informational)
+        # Swift 6.2 builds SwiftSyntax from source for the canary package, so
+        # the known-crashing control toolchain runs it on manual dispatch only.
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+        run: Tools/run-compiler-canaries.sh
 
   xcode-27-compatibility:
     name: Xcode 27 compatibility preview
@@ -437,6 +442,9 @@ jobs:
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests
       - name: Validate source-authored public API baseline
         run: Tools/check-public-api.py
+      - name: Report compiler canaries (informational)
+        if: always()
+        run: Tools/run-compiler-canaries.sh
 
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)

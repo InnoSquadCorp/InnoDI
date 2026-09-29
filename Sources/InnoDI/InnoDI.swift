@@ -147,7 +147,9 @@ public enum DIPrewarmError: Error, Equatable, Sendable {
 ///
 /// The tokens are strings because Swift 6.2.3 crashes while matching a public
 /// enum value passed to a multi-role attached macro. `@DIContainerRole`
-/// validates that callers use one of these named tokens.
+/// validates that callers use one of these named tokens. The informational
+/// `Tests/CompilerCanaries/enum-role-macro` canary tracks when every supported
+/// toolchain accepts an enum-typed role again.
 public enum ContainerRole {
     /// A container used only inside its declaring feature or module.
     public static let local = "local"

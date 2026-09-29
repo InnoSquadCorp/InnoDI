@@ -214,6 +214,48 @@ struct CIWorkflowHardeningTests {
         #expect(job.contains("Tools/check-public-api.py"))
     }
 
+    @Test("Compiler canaries stay informational and hidden from repository scans")
+    func compilerCanariesAreInformational() throws {
+        let root = packageRootURL()
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let minimumStart = try #require(workflow.range(of: "  swift-62-compatibility:\n"))
+        let previewStart = try #require(workflow.range(of: "  xcode-27-compatibility:\n"))
+        let platformStart = try #require(workflow.range(of: "  apple-platform-builds:\n"))
+        let minimumJob = workflow[minimumStart.lowerBound..<previewStart.lowerBound]
+        let previewJob = workflow[previewStart.lowerBound..<platformStart.lowerBound]
+
+        #expect(minimumJob.contains("- name: Report compiler canaries (informational)"))
+        #expect(
+            minimumJob.contains(
+                "if: ${{ always() && github.event_name == 'workflow_dispatch' }}"
+            )
+        )
+        #expect(previewJob.contains("- name: Report compiler canaries (informational)"))
+        #expect(previewJob.contains("run: Tools/run-compiler-canaries.sh"))
+        #expect(!workflow.contains("run-compiler-canaries.sh\n        continue-on-error"))
+
+        let script = try String(
+            contentsOf: root.appendingPathComponent("Tools/run-compiler-canaries.sh"),
+            encoding: .utf8
+        )
+        #expect(script.contains("A canary result never fails the job."))
+
+        let canaries = root.appendingPathComponent("Tests/CompilerCanaries")
+        let enumerator = try #require(
+            FileManager.default.enumerator(at: canaries, includingPropertiesForKeys: nil)
+        )
+        var fixtureCount = 0
+        for case let url as URL in enumerator {
+            let name = url.lastPathComponent
+            #expect(!name.hasSuffix(".swift"), "canary source must use a .fixture suffix: \(name)")
+            if name.hasSuffix(".fixture") { fixtureCount += 1 }
+        }
+        #expect(fixtureCount >= 4)
+    }
+
     @Test("Mutable action revisions are rejected")
     func mutableActionRevisionFails() throws {
         let fixture = try CIWorkflowFixture(

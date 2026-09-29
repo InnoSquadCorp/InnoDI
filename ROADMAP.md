@@ -14,6 +14,14 @@ canonical key paths, SwiftUI re-export removal, the macOS 14 floor with an
 Observation-based host owner, and documentation consolidation. 7.0.0
 supersedes 6.0.0; the 6.0.0 tag is not moved or republished.
 
+`ContainerRole` stays a string-backed token in 7.0.0 because Swift 6.2
+remains the minimum toolchain and Swift 6.2.3 crashes on enum-typed arguments
+of the multi-role `@DIContainerRole` macro. The informational
+[compiler canary](Tests/CompilerCanaries/README.md) reports whether each CI
+toolchain accepts that shape; an enum-typed role returns only after every
+supported toolchain compiles it. No matching upstream issue was found in
+`swiftlang/swift` as of 2026-09-29.
+
 The [6.0.0 final-hardening plan](docs/plans/6.0.0-final-hardening.md) remains
 the historical record for the 6.0.0 candidate.
 

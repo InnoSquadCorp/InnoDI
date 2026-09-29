@@ -1,0 +1,23 @@
+public enum CanaryRole {
+    case local
+    case component
+    case root
+}
+
+public enum CanaryIsolation {
+    case automatic
+    case mainActor
+}
+
+public protocol CanaryRoleMarker {}
+
+// Same role set as `@DIContainerRole`, with the pre-workaround enum signature.
+@attached(memberAttribute)
+@attached(member, names: named(init), arbitrary)
+@attached(peer, names: suffixed(Dependencies))
+@attached(extension, conformances: CanaryRoleMarker)
+public macro CanaryContainerRole(
+    role: CanaryRole,
+    isolation: CanaryIsolation = .automatic,
+    validateDAG: Bool = true
+) = #externalMacro(module: "EnumRoleMacros", type: "EnumRoleMacro")

@@ -313,6 +313,11 @@ standalone release assets.
   InnoDI and include compiled examples. `.spi.yml` points Swift Package Index
   at the hosted DocC documentation.
 
+- CI step summaries list the slowest test suites for the fast PR lane and the
+  coverage gate. An informational compiler canary reports whether each CI
+  toolchain accepts enum-typed arguments on a multi-role attached macro, the
+  shape that forced the string-backed `ContainerRole` token.
+
 ### Breaking or Behavior Changes
 
 - None yet.
