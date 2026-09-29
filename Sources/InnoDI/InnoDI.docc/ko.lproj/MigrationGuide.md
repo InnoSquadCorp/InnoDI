@@ -16,7 +16,7 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
-| 6.x → 7.0 (개발 중) | Parent key path 정규화, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰세요. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
+| 6.x → 7.0 (개발 중) | Parent key path 정규화, 명시적 SwiftUI import, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
@@ -53,6 +53,21 @@ swift run InnoDI-Migrate --root /path/to/consumer --write
 import한다는 뜻입니다. 컴파일러 fix-it을 적용하거나 속성을
 `@InnoDI.SubContainer`로 한정한 뒤 검사를 다시 실행하세요. `\Self.member`는
 InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 수 있습니다.
+
+### InnoDISwiftUI가 더 이상 SwiftUI를 re-export하지 않습니다
+
+예전에는 `import InnoDISwiftUI`만으로 모든 SwiftUI 이름이 보였습니다. 7.0에서도
+InnoDI는 계속 re-export하지만, SwiftUI를 쓰는 파일은 SwiftUI를 직접 import해야
+합니다. SwiftUI를 생성 코드에서만 쓰는 파일도 마찬가지입니다.
+`@SubContainer(featureRoot:)` helper와 `@DIEnvironmentBridge`는 `SwiftUI.`로
+한정한 이름으로 확장되고, 이 이름은 파일이 SwiftUI를 import할 때만 해석됩니다.
+import가 없으면 `cannot find type 'Text' in scope` 같은 오류로 실패합니다.
+
+`InnoDI-Migrate`는 SwiftUI를 아직 import하지 않은 파일에서 각
+`import InnoDISwiftUI` 뒤에 `import SwiftUI`를 추가합니다.
+`@_exported import InnoDISwiftUI`에는 `@_exported import SwiftUI`를 추가하므로
+그 파일의 client도 계속 SwiftUI를 봅니다. 이 규칙은 다시 실행해도 결과가 같고,
+위의 명령으로 함께 처리됩니다.
 
 ### 비동기 parent는 child input으로 쓸 수 없습니다
 

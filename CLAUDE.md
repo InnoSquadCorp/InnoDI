@@ -89,6 +89,8 @@ Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
    - `InnoDI-DependencyGraph` is the executable entry point
 6. `InnoDISwiftUI`
    - environment bridge, feature-root helpers, and explicit host lifecycle
+   - re-exports InnoDI but not SwiftUI; files that use SwiftUI, including
+     through generated `SwiftUI.` qualifiers, import it themselves
 7. `InnoDITesting`, `InnoDIMigrationCore`, `InnoDIDoctorCore`
    - test support, migration planning/rollback, and project diagnostics
    - `InnoDI-Migrate`, `InnoDI-Doctor`, and `InnoDI-DeferredAliasScan` are CLI tools

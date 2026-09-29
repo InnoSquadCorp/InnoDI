@@ -17,7 +17,7 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 6.x → 7.0 (in development) | Canonical parent key paths, lazy async providers | Spell sub-container parent key paths as `\Self.member`. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
+| 6.x → 7.0 (in development) | Canonical parent key paths, explicit SwiftUI imports, lazy async providers | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
@@ -54,6 +54,21 @@ key path, the file imports a module that could declare another `SubContainer`
 macro. Apply the compiler fix-it, or qualify the attribute as
 `@InnoDI.SubContainer`, then rerun the check. `\Self.member` also compiles
 with InnoDI 6.0, so the rewrite can land before the upgrade.
+
+### InnoDISwiftUI no longer re-exports SwiftUI
+
+`import InnoDISwiftUI` used to make every SwiftUI name visible. In 7.0 it
+still re-exports InnoDI, but a file that uses SwiftUI must import SwiftUI
+itself. That includes a file whose only SwiftUI use is generated code: a
+`@SubContainer(featureRoot:)` helper or `@DIEnvironmentBridge` expands to
+`SwiftUI.`-qualified names, which resolve only when the file imports
+SwiftUI. Without the import, such a file fails with errors such as
+`cannot find type 'Text' in scope`.
+
+`InnoDI-Migrate` adds `import SwiftUI` after each `import InnoDISwiftUI` in a
+file that does not import SwiftUI yet. An `@_exported import InnoDISwiftUI`
+gets an `@_exported import SwiftUI`, so the file's own clients keep seeing
+SwiftUI. The rule reruns cleanly, and the same commands shown above cover it.
 
 ### Asynchronous parents are rejected as child inputs
 

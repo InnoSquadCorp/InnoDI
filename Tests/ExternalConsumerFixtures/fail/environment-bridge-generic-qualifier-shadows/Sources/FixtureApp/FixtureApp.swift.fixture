@@ -1,4 +1,5 @@
 import InnoDISwiftUI
+import SwiftUI
 
 @DIEnvironmentBridge([])
 struct GenericBridge<SwiftUI> {}

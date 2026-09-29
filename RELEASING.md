@@ -343,6 +343,12 @@ standalone release assets.
 
 ### Breaking or Behavior Changes
 
+- `InnoDISwiftUI` no longer re-exports SwiftUI. It still re-exports InnoDI.
+  A file that uses SwiftUI names, including through generated
+  `@SubContainer(featureRoot:)` helpers or `@DIEnvironmentBridge`, must
+  import SwiftUI. `InnoDI-Migrate` adds the import. See
+  [RFC 0009](docs/rfcs/0009-7.0-source-breaks.md).
+
 - Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
   `@SubContainer(bindings:)` and `@SubContainerFactory(bindings:)` must be
   spelled `\Self.member`. A named root such as `\AppContainer.config` is
@@ -379,6 +385,9 @@ standalone release assets.
   swift run InnoDI-Migrate --root /path/to/consumer --check
   swift run InnoDI-Migrate --root /path/to/consumer --report
   ```
+
+  The same run adds `import SwiftUI` to every file that imports
+  `InnoDISwiftUI` without it.
 
   Nested parent key paths block the rewrite with
   `migrate.parent-key-path-unsupported`; name the intended direct member

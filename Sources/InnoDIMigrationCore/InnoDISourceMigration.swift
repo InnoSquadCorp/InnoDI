@@ -327,7 +327,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
-        return rewritten
+        return addingSwiftUIImportForInnoDISwiftUI(to: rewritten)
     }
 
     override func visit(_ node: MacroExpansionDeclSyntax) -> DeclSyntax {

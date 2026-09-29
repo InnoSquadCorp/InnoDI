@@ -1,5 +1,6 @@
 import InnoDI
 import InnoDISwiftUI
+import SwiftUI
 
 private struct ShadowValueKey: EnvironmentKey {
     static let defaultValue = 0

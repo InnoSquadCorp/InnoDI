@@ -4,7 +4,7 @@
 //
 
 @_exported import InnoDI
-@_exported import SwiftUI
+import SwiftUI
 
 /// Conformance synthesized by `@DIEnvironmentBridge`.
 ///

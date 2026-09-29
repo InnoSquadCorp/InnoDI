@@ -779,6 +779,7 @@ struct InnoDIMigrationCoreTests {
     func declarationMacroPayloadBlocksMigration() throws {
         let source = """
         import InnoDISwiftUI
+        import SwiftUI
 
         @DIContainer
         struct Container {
@@ -898,6 +899,7 @@ struct InnoDIMigrationCoreTests {
     func ambiguousFeatureRootsBlockMigration() throws {
         let source = """
         import InnoDISwiftUI
+        import SwiftUI
 
         @SubContainer(scope: .shared, featureRoot: ExistingView.self)
         @DIFeatureRoot(LegacyView.self)
@@ -919,6 +921,7 @@ struct InnoDIMigrationCoreTests {
     func subContainerLineCommentBlocksMigration() throws {
         let source = """
         import InnoDISwiftUI
+        import SwiftUI
 
         @SubContainer(
             scope: .shared // preserve lifetime intent
@@ -942,6 +945,7 @@ struct InnoDIMigrationCoreTests {
     func duplicateFeatureRootHelpersBlockMigration() throws {
         let source = """
         import InnoDISwiftUI
+        import SwiftUI
 
         @SubContainer(scope: .shared)
         @DIFeatureRoot(FirstView.self, as: "shell")

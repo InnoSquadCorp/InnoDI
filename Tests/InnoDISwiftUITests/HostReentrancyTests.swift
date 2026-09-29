@@ -1,5 +1,6 @@
 import Combine
 import InnoDISwiftUI
+import SwiftUI
 import Testing
 
 @MainActor

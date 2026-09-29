@@ -1,4 +1,5 @@
 import InnoDISwiftUI
+import SwiftUI
 
 @DIContainer
 struct CustomInitContainer {
