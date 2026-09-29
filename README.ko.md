@@ -470,6 +470,13 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper입니다. Async target은
 거부됩니다.
 
+`asyncFactory:`로 만드는 `.shared` provider는 어떤 읽기보다 먼저 컨테이너
+initializer 안에서 생성 task를 시작하고, 컨테이너는 그 task를 취소하지
+않습니다. 그래서 `.transient` `@SubContainer`를 읽을 때마다 자식의 eager 비동기
+작업이 다시 시작됩니다. 취소 계약과 대안은
+[비동기 shared 수명](Sources/InnoDI/InnoDI.docc/ko.lproj/Provide.md#비동기-shared-수명)을
+참고하세요.
+
 ## 검증 모델
 
 InnoDI는 여러 단계에서 컨테이너를 검증합니다.

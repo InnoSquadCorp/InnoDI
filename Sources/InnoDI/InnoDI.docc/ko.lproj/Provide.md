@@ -114,6 +114,20 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper로 유지됩니다. 두 wrapper 모두
 `asyncFactory:`로 생성되는 target을 거부합니다.
 
+## 비동기 shared 수명
+
+`asyncFactory:`로 생성하는 `.shared` provider는 컨테이너 initializer가 실행되는
+동안, 어떤 읽기보다 먼저 비구조적 생성 task를 시작합니다. 읽기는 그 task 하나를
+기다립니다. 컨테이너는 이 task를 취소하지 않습니다. 읽는 쪽을 취소해도 생성은
+취소되지 않고, 컨테이너를 해제해도 이미 시작된 작업은 취소되지 않습니다.
+
+`.transient` `@SubContainer`는 읽을 때마다 새 자식 컨테이너를 만들므로, 읽을
+때마다 그 자식의 eager 비동기 `.shared` provider가 다시 시작됩니다.
+
+읽기 안에서만 생성해야 한다면 `asyncFactory:`를 쓰는 `.transient` provider를
+선택하세요. 생성을 합치고 소유자가 취소·종료할 수 있어야 한다면
+``DIAsyncScope``를 `@Input`으로 주입하세요.
+
 ## See Also
 
 - ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``

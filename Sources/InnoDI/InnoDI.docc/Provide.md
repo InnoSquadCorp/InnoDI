@@ -125,6 +125,21 @@ uses `validateDAG: false`.
 `Lazy<T>` and `Provider<T>` remain synchronous deferred wrappers. Both reject
 targets constructed by `asyncFactory:`.
 
+## Asynchronous Shared Lifetime
+
+A `.shared` provider constructed by `asyncFactory:` starts an unstructured
+construction task while the container initializer runs, before any read. Reads
+await that one task. The container never cancels it: cancelling a reader does
+not cancel construction, and releasing the container does not cancel work that
+has already started.
+
+Each read of a `.transient` `@SubContainer` builds a fresh child container, so
+every read starts that child's eager asynchronous `.shared` providers again.
+
+Choose a `.transient` provider with `asyncFactory:` when construction should
+happen only inside a read. Inject a ``DIAsyncScope`` as an `@Input` when
+construction must be coalesced, cancellable, and closable by its owner.
+
 ## See Also
 
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``

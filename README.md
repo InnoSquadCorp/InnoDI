@@ -496,6 +496,13 @@ compatibility is validated on every explicit edge even with
 `Lazy<T>` and `Provider<T>` are synchronous deferred wrappers. Their targets
 must use synchronous construction; an async target is rejected.
 
+A `.shared` provider built by `asyncFactory:` starts its construction task in
+the container initializer, before any read, and the container never cancels
+that task. Each read of a `.transient` `@SubContainer` therefore starts the
+child's eager asynchronous work again. See
+[Asynchronous Shared Lifetime](Sources/InnoDI/InnoDI.docc/Provide.md#asynchronous-shared-lifetime)
+for the cancellation contract and alternatives.
+
 ## Validation Model
 
 InnoDI validates containers in layers:
