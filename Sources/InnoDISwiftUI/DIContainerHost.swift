@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// The observable lifecycle state of a ``DIContainerHost``.
@@ -19,17 +20,28 @@ public enum DIContainerHostPhase<Identity, Container> where Identity: Hashable &
 /// path. `DIContainerHost` deliberately does not infer permanent closure from
 /// `onDisappear`, because a temporary cover or navigation transition can also
 /// make a view disappear.
-public struct DIContainerHostHandle: Sendable {
+///
+/// Each owner creates its handle once and passes the same value on every body
+/// evaluation. Two handles are equal when they operate on the same owner, so
+/// SwiftUI does not treat a host redraw as an environment change.
+public struct DIContainerHostHandle: Sendable, Equatable {
+    private let ownerID: UUID
     private let closeOperation: @MainActor @Sendable () async -> Void
     private let retryOperation: @MainActor @Sendable () -> Void
 
     @MainActor
     init(
+        ownerID: UUID,
         close: @escaping @MainActor @Sendable () async -> Void,
         retry: @escaping @MainActor @Sendable () -> Void
     ) {
+        self.ownerID = ownerID
         closeOperation = close
         retryOperation = retry
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.ownerID == rhs.ownerID
     }
 
     /// Closes the current container and waits for its configured close hook.
@@ -92,7 +104,24 @@ where Identity: Hashable & Sendable {
     private var closeOperation: Close?
     private var cleanupBarrier: Task<Void, Never>?
 
+    private let handleID = UUID()
+    private var cachedHandle: DIContainerHostHandle?
+
     public init() {}
+
+    /// The owner's lifecycle handle. It is created on first use and then
+    /// reused, so hosted content and the environment receive one stable value.
+    /// The handle captures the owner weakly and becomes a no-op after release.
+    var handle: DIContainerHostHandle {
+        if let cachedHandle { return cachedHandle }
+        let handle = DIContainerHostHandle(
+            ownerID: handleID,
+            close: { [weak self] in await self?.close() },
+            retry: { [weak self] in self?.retry() }
+        )
+        cachedHandle = handle
+        return handle
+    }
 
     /// Starts the identity if it is not already loading or ready.
     ///
@@ -329,10 +358,5 @@ where Identity: Hashable & Sendable, Content: View, Loading: View, Failure: View
         }
     }
 
-    private var handle: DIContainerHostHandle {
-        DIContainerHostHandle(
-            close: { [weak owner] in await owner?.close() },
-            retry: { [weak owner] in owner?.retry() }
-        )
-    }
+    private var handle: DIContainerHostHandle { owner.handle }
 }

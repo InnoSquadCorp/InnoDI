@@ -6873,6 +6873,11 @@
         {
           "kind": "conformsTo",
           "source": "s:13InnoDISwiftUI21DIContainerHostHandleV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV",
           "target": "s:s8SendableP"
         },
         {
@@ -6949,6 +6954,11 @@
           "kind": "memberOf",
           "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO7loadingyACyxq_Gx_tcAEmSHRzs8SendableRzr0_lF",
           "target": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV2eeoiySbAC_ACtFZ",
+          "target": "s:13InnoDISwiftUI21DIContainerHostHandleV"
         },
         {
           "kind": "memberOf",
@@ -7936,6 +7946,28 @@
           },
           "pathComponents": [
             "DIContainerHostHandle"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV2eeoiySbAC_ACtFZ"
+          },
+          "kind": {
+            "identifier": "swift.func.op"
+          },
+          "parameterDefaults": [
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIContainerHostHandle",
+            "==(_:_:)"
           ]
         },
         {

@@ -419,6 +419,24 @@ private actor HostCloseGate {
 }
 
 @MainActor
+private final class HostHandleRecorder {
+    var contentHandles: [DIContainerHostHandle] = []
+    var environmentHandles: [DIContainerHostHandle?] = []
+}
+
+@MainActor
+private struct HostHandleEnvironmentReader: View {
+    @Environment(\.innoDIContainerHostHandle) private var handle
+    let recorder: HostHandleRecorder
+    let label: String
+
+    var body: some View {
+        recorder.environmentHandles.append(handle)
+        return Text(label)
+    }
+}
+
+@MainActor
 private final class HostViewProbe {
     var failureHandle: DIContainerHostHandle?
     var readyHandle: DIContainerHostHandle?
@@ -432,6 +450,7 @@ struct DIContainerHostLifecycleTests {
         var closeCount = 0
         var retryCount = 0
         let handle = DIContainerHostHandle(
+            ownerID: UUID(),
             close: { closeCount += 1 },
             retry: { retryCount += 1 }
         )
@@ -441,6 +460,15 @@ struct DIContainerHostLifecycleTests {
 
         #expect(closeCount == 1)
         #expect(retryCount == 1)
+    }
+
+    @Test("an owner reuses one handle and distinct owners have distinct handles")
+    func ownerHandleIdentity() {
+        let first = DIContainerHostOwner<Int, HostedContainer>()
+        let second = DIContainerHostOwner<Int, HostedContainer>()
+
+        #expect(first.handle == first.handle)
+        #expect(first.handle != second.handle)
     }
 
     @Test("retry outside a failed phase is a no-op")
@@ -879,6 +907,46 @@ struct DIContainerHostLifecycleTests {
 
         try await waitUntil { await probe.snapshot().creations[42] == 1 }
         #expect(await probe.snapshot().creations == [42: 1])
+        _ = hostingView
+    }
+
+    @Test("a mounted host passes one stable lifecycle handle across forced redraws")
+    func mountedHostHandleIsStableAcrossRedraws() async throws {
+        let recorder = HostHandleRecorder()
+        // A fresh host value per iteration carries new closure contexts, which
+        // forces SwiftUI to re-evaluate the host body while the mounted owner
+        // (and therefore the handle) stays the same.
+        func makeHost(iteration: Int) -> some View {
+            DIContainerHost(
+                identity: 7,
+                factory: { identity in HostedContainer(identity: identity) },
+                content: { container, handle in
+                    recorder.contentHandles.append(handle)
+                    return HostHandleEnvironmentReader(
+                        recorder: recorder,
+                        label: "ready-\(container.identity)-\(iteration)"
+                    )
+                },
+                loading: { ProgressView() },
+                failure: { _, _ in Text("failed") }
+            )
+        }
+        let hostingView = NSHostingView(rootView: makeHost(iteration: 0))
+        hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 100)
+        hostingView.layoutSubtreeIfNeeded()
+        try await waitUntil { !recorder.contentHandles.isEmpty }
+
+        for iteration in 1...20 {
+            hostingView.rootView = makeHost(iteration: iteration)
+            hostingView.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        try await waitUntil { recorder.contentHandles.count > 1 }
+
+        let first = try #require(recorder.contentHandles.first)
+        #expect(recorder.contentHandles.allSatisfy { $0 == first })
+        #expect(!recorder.environmentHandles.isEmpty)
+        #expect(recorder.environmentHandles.allSatisfy { $0 == first })
         _ = hostingView
     }
     #endif
