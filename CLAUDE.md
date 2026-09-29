@@ -91,6 +91,10 @@ Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
    - environment bridge, feature-root helpers, and explicit host lifecycle
    - re-exports InnoDI but not SwiftUI; files that use SwiftUI, including
      through generated `SwiftUI.` qualifiers, import it themselves
+   - `DIContainerHostOwner` is `@Observable` and observes only `phase`; keep
+     every other stored property `@ObservationIgnored`. Observation notifies
+     before the store, so `publish(_:)` must keep draining re-entrant
+     publications instead of assigning `phase` from inside a notification
 7. `InnoDITesting`, `InnoDIMigrationCore`, `InnoDIDoctorCore`
    - test support, migration planning/rollback, and project diagnostics
    - `InnoDI-Migrate`, `InnoDI-Doctor`, and `InnoDI-DeferredAliasScan` are CLI tools

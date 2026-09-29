@@ -17,7 +17,7 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 6.x → 7.0 (in development) | Canonical parent key paths, explicit SwiftUI imports, lazy async providers | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
+| 6.x → 7.0 (in development) | Canonical parent key paths, explicit SwiftUI imports, lazy async providers | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Raise macOS targets to 14 and move host-owner observation to Observation. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
@@ -69,6 +69,27 @@ SwiftUI. Without the import, such a file fails with errors such as
 file that does not import SwiftUI yet. An `@_exported import InnoDISwiftUI`
 gets an `@_exported import SwiftUI`, so the file's own clients keep seeing
 SwiftUI. The rule reruns cleanly, and the same commands shown above cover it.
+
+### macOS 14 and an Observation-based host owner
+
+The macOS floor rises from 13 to 14 so `InnoDISwiftUI` can use the
+Observation framework on every platform. The other floors are unchanged:
+iOS 17, tvOS 17, watchOS 10, and visionOS 1.
+
+`DIContainerHostOwner` is now an `@Observable` class instead of an
+`ObservableObject`. Its `phase` is still the only observed property, and
+`DIContainerHost` keeps the owner in `@State` instead of `@StateObject`.
+Apply these changes by hand; each depends on application settings:
+
+- Raise every macOS deployment target below 14 that links InnoDI.
+- Replace `owner.$phase` and `owner.objectWillChange` subscriptions with
+  `withObservationTracking`, or read `owner.phase` from a SwiftUI view.
+- Replace `@StateObject var owner = DIContainerHostOwner()` with
+  `@State var owner = DIContainerHostOwner()`.
+
+Observation calls an `onChange` handler before the new value is stored, as
+`@Published` did. Read `owner.phase` after the change, for example from a
+view or a task, instead of inside the handler.
 
 ### Asynchronous parents are rejected as child inputs
 

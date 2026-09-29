@@ -113,7 +113,7 @@ try write(
         name: "SyntheticConsumer",
         platforms: [
             .iOS(.v17),
-            .macOS(.v13)
+            .macOS(.v14)
         ],
         dependencies: [
             .package(name: "InnoDI", path: "\(innoDIPath)")

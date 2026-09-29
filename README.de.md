@@ -88,7 +88,7 @@ fur die Dauer einer einzigen Operation gelten soll.
 - Swift tools version `6.2` (CI validiert Swift 6.2 / 6.3; Kompatibilitätsprüfung mit Xcode 27 / Swift 6.4)
 - Plattformen:
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+

@@ -80,7 +80,7 @@ override 仅应在单次 operation 内生效时，才取出 `swift-dependencies`
 - Swift tools version `6.2`（CI 验证：Swift 6.2 / 6.3，Xcode 27 / Swift 6.4 兼容性检查）
 - 平台：
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+

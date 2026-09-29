@@ -90,7 +90,7 @@ unica operacion.
 - Swift tools version `6.2` (CI valida Swift 6.2 / 6.3; comprobación de compatibilidad con Xcode 27 / Swift 6.4)
 - Plataformas:
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+

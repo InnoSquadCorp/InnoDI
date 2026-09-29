@@ -343,6 +343,12 @@ standalone release assets.
 
 ### Breaking or Behavior Changes
 
+- The macOS floor is 14. `DIContainerHostOwner` is an `@Observable` class
+  instead of an `ObservableObject`, so its `objectWillChange` and `$phase`
+  publishers are gone, and `DIContainerHost` keeps it in `@State`. Other
+  platform floors are unchanged. See
+  [RFC 0009](docs/rfcs/0009-7.0-source-breaks.md).
+
 - `InnoDISwiftUI` no longer re-exports SwiftUI. It still re-exports InnoDI.
   A file that uses SwiftUI names, including through generated
   `@SubContainer(featureRoot:)` helpers or `@DIEnvironmentBridge`, must
@@ -388,6 +394,10 @@ standalone release assets.
 
   The same run adds `import SwiftUI` to every file that imports
   `InnoDISwiftUI` without it.
+
+  Raise macOS deployment targets below 14 by hand, and replace
+  `DIContainerHostOwner` publisher subscriptions with
+  `withObservationTracking` or SwiftUI view reads.
 
   Nested parent key paths block the rewrite with
   `migrate.parent-key-path-unsupported`; name the intended direct member

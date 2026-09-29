@@ -23,7 +23,7 @@ let innoDIPackageIdentity: String = {
 let package = Package(
     name: "SampleApp",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     dependencies: [
         .package(path: "../..")

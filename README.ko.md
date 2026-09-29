@@ -103,7 +103,7 @@ override가 필요할 때 꺼냅니다.
 - Swift tools version `6.2` (CI 검증: Swift 6.2 / 6.3, Xcode 27 / Swift 6.4 호환성 검사)
 - 플랫폼:
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+

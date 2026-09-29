@@ -6858,7 +6858,59 @@
         {
           "kind": "conformsTo",
           "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
-          "target": "s:7Combine16ObservableObjectP"
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:11Observation10ObservableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s8CopyableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:s9EscapableP"
         },
         {
           "kind": "conformsTo",
@@ -7556,7 +7608,6 @@
             "isolationModifiers": [],
             "mutatingGetter": false,
             "namedAttributes": [
-              "s:7Combine9PublishedV",
               "s:ScM"
             ],
             "nonmutatingSetter": false,

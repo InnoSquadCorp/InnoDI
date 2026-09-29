@@ -1,4 +1,3 @@
-import Combine
 import InnoDISwiftUI
 import SwiftUI
 import Testing
@@ -18,6 +17,19 @@ private actor HostCaptureSignal {
         waiters.removeAll()
         for waiter in pending { waiter.resume() }
     }
+}
+
+/// Waits until the owner's current phase satisfies `predicate`.
+@MainActor
+private func waitForPhase<Identity, Container>(
+    _ owner: DIContainerHostOwner<Identity, Container>,
+    _ predicate: (DIContainerHostPhase<Identity, Container>) -> Bool
+) async {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+    while !predicate(owner.phase), ContinuousClock.now < deadline {
+        await Task.yield()
+    }
+    #expect(predicate(owner.phase), "Timed out waiting for the host phase")
 }
 
 @MainActor
@@ -45,9 +57,7 @@ struct HostCaptureLifetimeTests {
                 close: { _ in #expect(closeValue.value == 11) }
             )
         }
-        for await phase in owner.$phase.values {
-            if case .ready = phase { break }
-        }
+        await waitForPhase(owner) { if case .ready = $0 { return true }; return false }
         #expect(weakFactory != nil)
         #expect(weakClose != nil)
         await owner.close()
@@ -67,9 +77,7 @@ struct HostCaptureLifetimeTests {
             await closeStarted.signal()
             await closeRelease.wait()
         })
-        for await phase in owner.$phase.values {
-            if case .ready = phase { break }
-        }
+        await waitForPhase(owner) { if case .ready = $0 { return true }; return false }
         let closing = Task { await owner.close() }
         await closeStarted.wait()
         var attempts = 0
@@ -81,13 +89,9 @@ struct HostCaptureLifetimeTests {
         }, close: { closed.append($0) })
         await closeRelease.signal()
         await closing.value
-        for await phase in owner.$phase.values {
-            if case .failed = phase { break }
-        }
+        await waitForPhase(owner) { if case .failed = $0 { return true }; return false }
         owner.retry()
-        for await phase in owner.$phase.values {
-            if case .ready = phase { break }
-        }
+        await waitForPhase(owner) { if case .ready = $0 { return true }; return false }
         #expect(attempts == 2)
         await owner.close()
         #expect(closed == [2])

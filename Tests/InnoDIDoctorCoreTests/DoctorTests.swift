@@ -463,7 +463,7 @@ struct DoctorTests {
                     destinations: [.mac],
                     product: .framework,
                     bundleId: "dev.innosquad.doctorfixture",
-                    deploymentTargets: .macOS("13.0"),
+                    deploymentTargets: .macOS("14.0"),
                     infoPlist: .default,
                     sources: ["Sources/App/**"],
                     settings: .settings(base: ["SWIFT_VERSION": "6.2"])

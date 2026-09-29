@@ -16,7 +16,7 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
-| 6.x → 7.0 (개발 중) | Parent key path 정규화, 명시적 SwiftUI import, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
+| 6.x → 7.0 (개발 중) | Parent key path 정규화, 명시적 SwiftUI import, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
@@ -68,6 +68,27 @@ import가 없으면 `cannot find type 'Text' in scope` 같은 오류로 실패�
 `@_exported import InnoDISwiftUI`에는 `@_exported import SwiftUI`를 추가하므로
 그 파일의 client도 계속 SwiftUI를 봅니다. 이 규칙은 다시 실행해도 결과가 같고,
 위의 명령으로 함께 처리됩니다.
+
+### macOS 14와 Observation 기반 host owner
+
+`InnoDISwiftUI`가 모든 플랫폼에서 Observation framework를 쓸 수 있도록 macOS
+최소 버전이 13에서 14로 올라갑니다. 다른 최소 버전은 그대로입니다. iOS 17,
+tvOS 17, watchOS 10, visionOS 1입니다.
+
+`DIContainerHostOwner`는 이제 `ObservableObject` 대신 `@Observable` class입니다.
+관찰되는 property는 여전히 `phase` 하나이고, `DIContainerHost`는 owner를
+`@StateObject` 대신 `@State`에 보관합니다. 아래 변경은 앱 설정에 따라 다르므로
+직접 적용하세요.
+
+- InnoDI를 링크하는 macOS deployment target이 14보다 낮다면 올리세요.
+- `owner.$phase`와 `owner.objectWillChange` 구독을 `withObservationTracking`으로
+  바꾸거나, SwiftUI view에서 `owner.phase`를 읽으세요.
+- `@StateObject var owner = DIContainerHostOwner()`를
+  `@State var owner = DIContainerHostOwner()`로 바꾸세요.
+
+Observation은 `@Published`와 마찬가지로 새 값이 저장되기 전에 `onChange`
+handler를 호출합니다. handler 안이 아니라 변경 뒤에, 예를 들어 view나 task에서
+`owner.phase`를 읽으세요.
 
 ### 비동기 parent는 child input으로 쓸 수 없습니다
 

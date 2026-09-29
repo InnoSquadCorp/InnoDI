@@ -86,7 +86,7 @@ feature 内の局所的な runtime value は `swift-dependencies` や小さな f
 - Swift tools version `6.2` (CI 検証: Swift 6.2 / 6.3、Xcode 27 / Swift 6.4 互換性チェック)
 - 対応プラットフォーム:
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+

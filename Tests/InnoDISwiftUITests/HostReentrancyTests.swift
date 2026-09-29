@@ -1,7 +1,8 @@
-import Combine
-import InnoDISwiftUI
+import Observation
 import SwiftUI
 import Testing
+
+@testable import InnoDISwiftUI
 
 @MainActor
 private func eventually(_ predicate: () -> Bool) async -> Bool {
@@ -10,11 +11,51 @@ private func eventually(_ predicate: () -> Bool) async -> Bool {
     return predicate()
 }
 
+/// Observes `owner.phase` through Observation, the way SwiftUI and
+/// `withObservationTracking` clients do. Observation calls `onChange` before
+/// the new value is stored, so the handler receives the owner's committed
+/// transition, which is the phase being published. The observer re-registers
+/// inside each callback, as a long-lived client would.
+@MainActor
+private final class PhaseObserver<Identity: Hashable & Sendable, Container> {
+    private let owner: DIContainerHostOwner<Identity, Container>
+    private let handler: (DIContainerHostPhase<Identity, Container>) -> Void
+    private var isActive = true
+
+    init(
+        _ owner: DIContainerHostOwner<Identity, Container>,
+        handler: @escaping (DIContainerHostPhase<Identity, Container>) -> Void
+    ) {
+        self.owner = owner
+        self.handler = handler
+        register()
+    }
+
+    func cancel() { isActive = false }
+
+    private func register() {
+        withObservationTracking {
+            _ = owner.phase
+        } onChange: { [self] in
+            MainActor.assumeIsolated {
+                guard isActive else { return }
+                handler(owner.transitionPhase)
+                register()
+            }
+        }
+    }
+}
+
+@MainActor
+private final class InvalidationCounter {
+    var count = 0
+}
+
 @Suite("Host synchronous observer reentry", .serialized)
 @MainActor
 struct HostReentrancyTests {
     @Test("Replacement keeps its phase and cancellable operation", arguments: [false, true])
-    func replacementFromObserver(objectWillChange: Bool) async {
+    func replacementFromObserver(readsUpcomingPhase: Bool) async {
         let owner = DIContainerHostOwner<Int, Int>()
         var replaced = false
         var started = false
@@ -29,15 +70,14 @@ struct HostReentrancyTests {
                 return 2
             })
         }
-        let observation: AnyCancellable
-        if objectWillChange {
-            observation = owner.objectWillChange.sink { replace() }
-        } else {
-            observation = owner.$phase.sink { phase in
-                if case .loading(identity: 1) = phase { replace() }
+        let observer = PhaseObserver(owner) { phase in
+            if !readsUpcomingPhase {
+                replace()
+            } else if case .loading(identity: 1) = phase {
+                replace()
             }
         }
-        defer { observation.cancel() }
+        defer { observer.cancel() }
         owner.start(identity: 1, factory: { $0 })
         if case .loading(identity: 2) = owner.phase {} else {
             Issue.record("Replacement phase was overwritten by the old publication")
@@ -52,12 +92,12 @@ struct HostReentrancyTests {
         let owner = DIContainerHostOwner<Int, Int>()
         var calls: [Int] = []
         var repeated = false
-        let observation = owner.$phase.sink { phase in
+        let observer = PhaseObserver(owner) { phase in
             guard case .loading = phase, !repeated else { return }
             repeated = true
             owner.start(identity: 1, factory: { _ in calls.append(2); return 2 })
         }
-        defer { observation.cancel() }
+        defer { observer.cancel() }
         owner.start(identity: 1, factory: { _ in calls.append(1); return 1 })
         #expect(await eventually { if case .ready = owner.phase { return true }; return false })
         #expect(calls == [1])
@@ -69,10 +109,10 @@ struct HostReentrancyTests {
         enum Failure: Error { case expected }
         let owner = DIContainerHostOwner<Int, Int>()
         var attempts = 0
-        let observation = owner.$phase.sink { phase in
+        let observer = PhaseObserver(owner) { phase in
             if case .failed = phase { owner.retry() }
         }
-        defer { observation.cancel() }
+        defer { observer.cancel() }
         owner.start(identity: 1, factory: { identity in
             attempts += 1
             if attempts == 1 { throw Failure.expected }
@@ -91,15 +131,14 @@ struct HostReentrancyTests {
         var closeFinished = false
         var replacementStarted = false
         var replaced = false
-        let observation = owner.$phase.sink { phase in
+        let observer = PhaseObserver(owner) { phase in
             let shouldReplace: Bool
             switch phase {
             case .idle: shouldReplace = replaceOnIdle && closeStarted == false
             case .ready(identity: 1, _): shouldReplace = !replaceOnIdle
             default: shouldReplace = false
             }
-            // Ignore Published's initial idle delivery.
-            guard shouldReplace, !replaced, owner.phaseIsActiveForTest else { return }
+            guard shouldReplace, !replaced else { return }
             replaced = true
             owner.start(identity: 2, factory: { _ in
                 replacementStarted = true
@@ -107,7 +146,7 @@ struct HostReentrancyTests {
                 return 2
             })
         }
-        defer { observation.cancel() }
+        defer { observer.cancel() }
         owner.start(identity: 1, factory: { $0 }, close: { _ in
             closeStarted = true
             #expect(await eventually { allowClose })
@@ -125,11 +164,23 @@ struct HostReentrancyTests {
         #expect(await eventually { if case .ready(identity: 2, _) = owner.phase { return true }; return false })
         await owner.close()
     }
-}
 
-private extension DIContainerHostOwner {
-    var phaseIsActiveForTest: Bool {
-        if case .idle = phase { return false }
-        return true
+    @Test("Creating the lifecycle handle does not invalidate observers")
+    func handleCreationDoesNotInvalidate() async {
+        let owner = DIContainerHostOwner<Int, Int>()
+        let invalidations = InvalidationCounter()
+        withObservationTracking {
+            _ = owner.phase
+            _ = owner.handle
+        } onChange: {
+            MainActor.assumeIsolated { invalidations.count += 1 }
+        }
+        _ = owner.handle
+        #expect(owner.handle == owner.handle)
+        #expect(invalidations.count == 0)
+
+        owner.start(identity: 1, factory: { $0 })
+        #expect(invalidations.count == 1)
+        await owner.close()
     }
 }
