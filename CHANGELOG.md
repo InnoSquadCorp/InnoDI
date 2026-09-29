@@ -108,6 +108,14 @@ that change moves to 8.0.
   same codes. The report schema version stays 1, and reports without
   `rules` still decode.
 
+- `InnoDI-Migrate` no longer blocks on a comment above or after
+  `@Provide(.input)`, a legacy `@DIContainer(root:mainActor:)`, or a
+  `@SubContainer` that receives `@DIFeatureRoot`. Those rewrites keep the
+  attribute's surrounding comments. Comments inside the attribute, or on a
+  `@DIComponent`, `@DIHierarchyRoot`, or `@DIFeatureRoot` attribute that the
+  rewrite removes, still block with `migrate.input-argument-unsupported`,
+  `migrate.container-option-comment`, or `migrate.feature-root-ambiguous`.
+
 - `InnoDI-Migrate` no longer blocks a whole run when a current 6.0
   `@DIContainer` without legacy options carries a documentation or nearby
   comment. It previously reported `migrate.container-option-comment` for such

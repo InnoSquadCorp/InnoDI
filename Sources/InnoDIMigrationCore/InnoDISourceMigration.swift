@@ -466,7 +466,9 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         }
 
         if isInputScope(arguments.first(where: { $0.label == nil })?.expression) {
-            guard !containsComment(node),
+            // The rewrite keeps the attribute's leading and trailing trivia,
+            // so only a comment between its tokens would be lost.
+            guard !containsComment(node.trimmed),
                   arguments.allSatisfy({ argument in
                     argument.label == nil
                         || canonicalIdentifier(argument.label!) == "escaping"
@@ -653,7 +655,10 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             || !rootMarkers.isEmpty else {
             return nil
         }
-        guard !containsComment(container),
+        // The container attribute keeps its surrounding trivia, so only a
+        // comment between its tokens is at risk. Removed markers take their
+        // attached comments with them, so any comment on them blocks.
+        guard !containsComment(container.trimmed),
               !componentMarkers.contains(where: containsComment),
               !rootMarkers.contains(where: containsComment) else {
             diagnostics.append(
@@ -876,7 +881,9 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         into subContainer: AttributeSyntax,
         propertyName: String
     ) -> AttributeSyntax? {
-        guard !containsComment(subContainer),
+        // The kept @SubContainer attribute preserves its surrounding trivia;
+        // each removed @DIFeatureRoot would drop its attached comments.
+        guard !containsComment(subContainer.trimmed),
               !legacyAttributes.contains(where: { containsComment($0) }),
               let existingArguments = subContainer.arguments?.as(LabeledExprListSyntax.self),
               !existingArguments.contains(where: {
