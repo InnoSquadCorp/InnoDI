@@ -2,7 +2,7 @@
 
 Version-by-version upgrade notes. For full release-time
 highlights and breaking-change tables, read
-[`RELEASING.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md);
+[`CHANGELOG.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md);
 this article reorganizes the same information by **what
 changes a consumer must make**.
 
@@ -11,7 +11,7 @@ changes a consumer must make**.
 | From → To | Change category | Required actions |
 |---|---|---|
 | 1.x → 2.x | Validation policy hardening | Re-run macro tests; resolve any new diagnostics raised by the stricter validator. |
-| 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read `RELEASING.md` sections instead of legacy notes. |
+| 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read version sections (in `CHANGELOG.md` since 7.0, `RELEASING.md` before) instead of legacy notes. |
 | 3.x → 4.0 | Public-contract consolidation | Adopt the new `withNames:`/`with:`/`bindings:` matrix on `@SubContainer`. Stop importing `_LazyCell`. Rename any container member starting with one of the reserved `_storage_` / `_override_sub_` / `_innoDISubBuild_` prefixes. |
 | 4.0 → 4.1 | DX hardening | No `@SubContainer(... withNames:)` migration is required. Continue using `withNames:` in stacked peer-macro contexts and prefer `with:` for new single-macro sites where Swift's type-checker accepts key paths. Update parsers of the lock-timeout stderr block to read structured fields. |
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
@@ -697,7 +697,7 @@ unsupported sites fail closed before adopting 5.0.
 
 ## 3.x → 4.0
 
-Covered in detail in [`RELEASING.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md).
+Covered in detail in [`CHANGELOG.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md#400).
 The high-impact items:
 
 - New `@SubContainer` wiring matrix at the time: `with:` / `withNames:` /

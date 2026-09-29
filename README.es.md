@@ -286,7 +286,7 @@ Empieza por estos documentos en este orden:
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/es.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/es.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## API principal
@@ -670,7 +670,7 @@ Generar DocC:
 Tools/generate-docc.sh
 ```
 
-Las notas de release y de upgrade viven en [RELEASING.md](RELEASING.md).
+Las notas de release y de upgrade viven en [CHANGELOG.md](CHANGELOG.md).
 
 Las referencias inexistentes o de otro container, la ownership invalida y los
 bindings incompletos se rechazan incluso en self-diff. Las consultas siguen los

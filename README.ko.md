@@ -304,7 +304,7 @@ var apiClient: any APIClientProtocol
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ko.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/ko.lproj/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ko.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## 핵심 API
@@ -766,7 +766,7 @@ DocC 생성:
 Tools/generate-docc.sh
 ```
 
-릴리즈 노트와 업그레이드 노트는 [RELEASING.md](RELEASING.md)에 모여 있습니다.
+릴리즈 노트와 업그레이드 노트는 [CHANGELOG.md](CHANGELOG.md)에 모여 있습니다.
 
 ## 예제
 

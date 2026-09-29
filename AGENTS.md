@@ -32,7 +32,7 @@
   - `README.ru.md`
 - `Sources/InnoDI/InnoDI.docc/*.md` is the English DocC base.
 - `Sources/InnoDI/InnoDI.docc/*.lproj/*.md` are localized mirrors.
-- `RELEASING.md` is the single release-note and upgrade-note source.
+- `CHANGELOG.md` is the single release-note and upgrade-note source; `RELEASING.md` defines the release process.
 
 ## Coding and Review Notes
 

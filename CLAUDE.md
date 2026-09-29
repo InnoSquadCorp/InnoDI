@@ -280,7 +280,9 @@ sibling edge even when the container uses `validateDAG: false`.
 - `README.md` is the English canonical README.
 - Localized README files and localized DocC mirrors must match the English structure and meaning.
 - `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the release gate; H2 or swift-fence drift fails the build.
-- `RELEASING.md` is the single source for release notes and upgrade notes.
+- `CHANGELOG.md` is the single source for release notes and upgrade notes, and
+  holds the latest-stable and development-train metadata. `RELEASING.md`
+  defines the release process.
 - If behavior changes, update docs in the same change.
 
 ## Review and release evidence

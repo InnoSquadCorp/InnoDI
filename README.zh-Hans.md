@@ -259,7 +259,7 @@ var apiClient: any APIClientProtocol
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/zh-Hans.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## 核心 API
@@ -576,7 +576,7 @@ Tools/dump-macro-expansions.sh \
 consumer 的常规 build cache 不会被修改。只检查一个声明时，Xcode 的
 **Expand Macro** 仍然最快。
 
-发布说明与升级说明统一放在 [RELEASING.md](RELEASING.md)。
+发布说明与升级说明统一放在 [CHANGELOG.md](CHANGELOG.md)。
 
 缺失或跨 container 的引用、错误的 ownership 和不完整的 child binding，
 即使 self-diff 也会被拒绝。查询按各 mount 的 parent binding 追踪依赖，

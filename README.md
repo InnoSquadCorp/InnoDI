@@ -317,7 +317,7 @@ Start with these documents in order:
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## Core API
@@ -812,7 +812,7 @@ Generate DocC:
 Tools/generate-docc.sh
 ```
 
-Release notes and upgrade notes live in [RELEASING.md](RELEASING.md).
+Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ## Examples
 

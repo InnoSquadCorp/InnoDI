@@ -2,7 +2,7 @@
 
 버전별 업그레이드 노트입니다. 릴리스 시점의 전체 하이라이트와
 breaking change 표는
-[`RELEASING.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md)
+[`CHANGELOG.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md)
 를 참고하세요. 이 문서는 같은 정보를 **컨슈머가 무엇을 바꿔야 하는가**를
 기준으로 재구성한 것입니다.
 
@@ -11,7 +11,7 @@ breaking change 표는
 | From → To | 변경 카테고리 | 필요한 작업 |
 |---|---|---|
 | 1.x → 2.x | Validation 정책 강화 | 매크로 테스트를 다시 실행하고, 더 엄격해진 validator가 새로 발생시키는 진단을 해결하세요. |
-| 2.x → 3.x | OSS baseline + governance | 코드 변경은 필요 없습니다. 내부 릴리스 도구가 legacy notes 대신 `RELEASING.md` 섹션을 읽도록 갱신하세요. |
+| 2.x → 3.x | OSS baseline + governance | 코드 변경은 필요 없습니다. 내부 릴리스 도구가 legacy notes 대신 버전 섹션(7.0부터 `CHANGELOG.md`, 이전에는 `RELEASING.md`)을 읽도록 갱신하세요. |
 | 3.x → 4.0 | 공개 계약 정리 | `@SubContainer`의 새로운 `withNames:`/`with:`/`bindings:` 매트릭스를 채택하세요. `_LazyCell` import를 중단하고, `_storage_` / `_override_sub_` / `_innoDISubBuild_` 예약 prefix로 시작하는 컨테이너 멤버의 이름을 변경하세요. |
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
@@ -603,7 +603,7 @@ release candidate에 포함됩니다. Write mode 변경을 검토한 뒤 `--chec
 
 ## 3.x → 4.0
 
-자세한 내용은 [`RELEASING.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md)
+자세한 내용은 [`CHANGELOG.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md#400)
 을 참고하세요. 영향이 큰 항목은 다음과 같습니다.
 
 - 당시의 새 `@SubContainer` wiring 매트릭스: `with:` / `withNames:` /

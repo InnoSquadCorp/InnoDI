@@ -6,7 +6,7 @@ struct PublicCLIDocumentationTests {
     @Test("Release upgrade diagnostics provide a consumer root without applying changes")
     func releaseUpgradeCommandsAreReadOnlyAndComplete() throws {
         let source = try String(
-            contentsOf: packageRootURL().appendingPathComponent("RELEASING.md"),
+            contentsOf: packageRootURL().appendingPathComponent("CHANGELOG.md"),
             encoding: .utf8
         )
         // The latest published release owns the complete upgrade commands.

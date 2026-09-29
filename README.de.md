@@ -286,7 +286,7 @@ var apiClient: any APIClientProtocol
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/de.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/de.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## Kern-API
@@ -644,7 +644,7 @@ verweigert Ausgaben unter `Sources/` oder `Tests/`. Der normale Build-Cache des
 Consumers bleibt unverandert. Fur eine einzelne Deklaration ist **Expand Macro**
 in Xcode weiterhin der schnellste Weg.
 
-Release- und Upgrade-Notizen stehen in [RELEASING.md](RELEASING.md).
+Release- und Upgrade-Notizen stehen in [CHANGELOG.md](CHANGELOG.md).
 
 Fehlende oder fremde Referenzen, ungueltige Ownership und unvollstaendige
 Child-Bindings scheitern auch beim Self-Diff. Abfragen folgen den Parent-Bindings

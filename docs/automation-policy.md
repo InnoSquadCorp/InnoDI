@@ -174,8 +174,9 @@ latest-stable-major security support principle. SECURITY's stale `5.x` annotatio
 is aligned to current stable `6.x`; no older-line support or response-time promise
 is introduced. English README and its six localized mirrors preserve installation,
 requirements and structure; release/license badges and SPI links point to evidence.
-CONTRIBUTING, issue forms, PR template and RELEASING remain the contribution,
-triage, review and release-note sources. No duplicate changelog is created.
+CONTRIBUTING, issue forms, the PR template, `CHANGELOG.md` and RELEASING remain
+the contribution, triage, review, release-note and release-process sources.
+`CHANGELOG.md` is the single release-note source; no second changelog is created.
 
 Repository description, homepage and topics were empty at the read-only baseline.
 Propose a short package description, DocC homepage and relevant Swift/DI/macros

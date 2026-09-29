@@ -103,8 +103,8 @@ fi
 [[ "$ACTUAL_HEAD" == "$COMMIT_SHA" ]] || \
     fail "commit SHA does not match Git HEAD (expected $COMMIT_SHA, found $ACTUAL_HEAD)"
 
-RELEASING_FILE="$ROOT_DIR/RELEASING.md"
-[[ -f "$RELEASING_FILE" ]] || fail "missing release source: $RELEASING_FILE"
+CHANGELOG_FILE="$ROOT_DIR/CHANGELOG.md"
+[[ -f "$CHANGELOG_FILE" ]] || fail "missing release notes source: $CHANGELOG_FILE"
 
 EXPECTED_LATEST_LINE="Latest stable public release: \`$VERSION\`"
 UNRELEASED_CANDIDATE_LINE="Current development train: \`$VERSION\` (unreleased)"
@@ -232,8 +232,8 @@ RELEASE_SECTION_METRICS="$({
                 upgrade_count + 0,
                 upgrade_has_content + 0
         }
-    ' "$RELEASING_FILE"
-})" || fail "failed to inspect release notes in RELEASING.md"
+    ' "$CHANGELOG_FILE"
+})" || fail "failed to inspect release notes in CHANGELOG.md"
 
 read -r \
     LATEST_LINE_COUNT \
@@ -251,27 +251,27 @@ read -r \
     <<< "$RELEASE_SECTION_METRICS"
 
 [[ "$LATEST_LINE_COUNT" == "1" && "$EXACT_LATEST_LINE_COUNT" == "1" ]] || \
-    fail "RELEASING.md must contain exactly one line: $EXPECTED_LATEST_LINE"
+    fail "CHANGELOG.md must contain exactly one line: $EXPECTED_LATEST_LINE"
 [[ "$UNRELEASED_CANDIDATE_LINE_COUNT" == "0" ]] || \
-    fail "RELEASING.md cannot describe release candidate $VERSION as the current unreleased train"
+    fail "CHANGELOG.md cannot describe release candidate $VERSION as the current unreleased train"
 [[ "$UNRELEASED_SECTION_COUNT" == "0" ]] || \
-    fail "RELEASING.md cannot contain a '## Unreleased' section for a release candidate"
+    fail "CHANGELOG.md cannot contain a '## Unreleased' section for a release candidate"
 [[ "$VERSION_SECTION_COUNT" == "1" ]] || \
-    fail "RELEASING.md must contain exactly one '## $VERSION' section (found $VERSION_SECTION_COUNT)"
+    fail "CHANGELOG.md must contain exactly one '## $VERSION' section (found $VERSION_SECTION_COUNT)"
 [[ "$NONEMPTY_VERSION_SECTION_COUNT" == "1" ]] || \
-    fail "RELEASING.md section '## $VERSION' must be nonempty"
+    fail "CHANGELOG.md section '## $VERSION' must be nonempty"
 [[ "$HIGHLIGHTS_SECTION_COUNT" == "1" ]] || \
-    fail "RELEASING.md section '## $VERSION' must contain exactly one '### Highlights' subsection (found $HIGHLIGHTS_SECTION_COUNT)"
+    fail "CHANGELOG.md section '## $VERSION' must contain exactly one '### Highlights' subsection (found $HIGHLIGHTS_SECTION_COUNT)"
 [[ "$HIGHLIGHTS_HAS_CONTENT" == "1" ]] || \
-    fail "RELEASING.md subsection '### Highlights' must contain non-placeholder content"
+    fail "CHANGELOG.md subsection '### Highlights' must contain non-placeholder content"
 [[ "$BREAKING_SECTION_COUNT" == "1" ]] || \
-    fail "RELEASING.md section '## $VERSION' must contain exactly one breaking or behavior changes subsection (found $BREAKING_SECTION_COUNT)"
+    fail "CHANGELOG.md section '## $VERSION' must contain exactly one breaking or behavior changes subsection (found $BREAKING_SECTION_COUNT)"
 [[ "$BREAKING_HAS_CONTENT" == "1" ]] || \
-    fail "RELEASING.md breaking or behavior changes subsection must contain non-placeholder content"
+    fail "CHANGELOG.md breaking or behavior changes subsection must contain non-placeholder content"
 [[ "$UPGRADE_SECTION_COUNT" == "1" ]] || \
-    fail "RELEASING.md section '## $VERSION' must contain exactly one '### Upgrade Actions' subsection (found $UPGRADE_SECTION_COUNT)"
+    fail "CHANGELOG.md section '## $VERSION' must contain exactly one '### Upgrade Actions' subsection (found $UPGRADE_SECTION_COUNT)"
 [[ "$UPGRADE_HAS_CONTENT" == "1" ]] || \
-    fail "RELEASING.md subsection '### Upgrade Actions' must contain non-placeholder content"
+    fail "CHANGELOG.md subsection '### Upgrade Actions' must contain non-placeholder content"
 
 if [[ "${VERSION%%.*}" == "6" ]]; then
     RFC_0006_FILE="$ROOT_DIR/docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"

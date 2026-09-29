@@ -269,5 +269,5 @@ context-hopping.
    blockers. References are captured in this section.
 5. **Promotion PR** — a maintainer opens a PR that flips the docstring from
    "Experimental" to the stable description, removes the experimental marker
-   from the ROADMAP table, and bumps the relevant minor in `RELEASING.md`.
+   from the ROADMAP table, and records the promotion under the relevant minor in `CHANGELOG.md`.
    The PR sits open for a 7-day cooldown so existing adopters can object.

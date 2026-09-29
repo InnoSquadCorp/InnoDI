@@ -405,7 +405,7 @@ following hold on `main`:
    blockers, captured as references in the RFC.
 5. **Promotion PR.** A maintainer opens a PR that flips the docstring from
    "Experimental" to the stable description, removes the experimental marker
-   from the ROADMAP table, and bumps the relevant minor in `RELEASING.md`.
+   from the ROADMAP table, and records the promotion under the relevant minor in `CHANGELOG.md`.
    The PR sits open for a 7-day cooldown before merge so existing adopters
    can object.
 

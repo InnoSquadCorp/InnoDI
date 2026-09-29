@@ -275,7 +275,7 @@ var apiClient: any APIClientProtocol
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ja.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ja.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## コア API
@@ -615,7 +615,7 @@ InnoDI の checkout からスクリプトを実行し、`--package-path` を con
 出力は拒否します。通常の build cache は変更しません。宣言を一つだけ確認
 する場合は、Xcode の **Expand Macro** が最速です。
 
-リリースノートとアップグレードノートは [RELEASING.md](RELEASING.md) にあります。
+リリースノートとアップグレードノートは [CHANGELOG.md](CHANGELOG.md) にあります。
 
 不明・別 container の参照、不正な ownership、不完全な child binding は
 self-diff でも拒否します。問い合わせは mount ごとの parent binding を辿り、

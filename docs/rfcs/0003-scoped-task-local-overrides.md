@@ -263,7 +263,7 @@ apply, with the following surface-specific specializations:
    and waits 7 calendar days before merge so adopters can object to the symbol
    shape. That PR flips the public docstring from experimental to stable,
    moves this surface's [ROADMAP](../../ROADMAP.md) entry to GA, and updates
-   `RELEASING.md` for the minor-version bump plus any upgrade notes.
+   `CHANGELOG.md` for the minor-version bump plus any upgrade notes.
 
 If the macro/runtime work for this surface ever ships behind a feature flag
 or package trait, document the flag/trait and its removal plan inline above

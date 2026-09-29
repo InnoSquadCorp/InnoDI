@@ -167,7 +167,7 @@ part of this file.
 
 - Keep changes scoped and explain user-facing behavior changes.
 - Add or update tests for validation, diagnostics, graph output, SwiftUI helpers, or examples when behavior changes.
-- If release notes, upgrade guidance, artifact naming, or schema expectations change, update `RELEASING.md` in the same change.
+- If release notes or upgrade guidance change, update `CHANGELOG.md` in the same change. If artifact naming or schema expectations change, update `RELEASING.md`.
 - Prefer `SwiftSyntaxBuilder` over string-built AST when changing macro generation.
 
 ## Code Style Conventions

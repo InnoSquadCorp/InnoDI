@@ -7,7 +7,7 @@ import unittest
 class ReadmeInstallationTests(unittest.TestCase):
     def test_development_readmes_route_examples_to_the_matching_checkout(self):
         root = Path(__file__).resolve().parents[2]
-        releases = (root / "RELEASING.md").read_text()
+        releases = (root / "CHANGELOG.md").read_text()
         stable_version = re.search(r"Latest stable public release: `(\d+\.\d+\.\d+)`", releases).group(1)
         development = re.search(r"Current development train: `(\d+\.\d+\.\d+)` \(unreleased\)", releases)
         for path in sorted(root.glob("README*.md")):

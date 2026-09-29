@@ -30,7 +30,7 @@ struct ReleaseCandidateScriptTests {
     func alternateBreakingHeadingIsAccepted() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [
                 (fixture.version, ReleaseCandidateScriptFixture.alternateReleaseBody),
@@ -46,7 +46,7 @@ struct ReleaseCandidateScriptTests {
     func crlfReleaseMetadataIsAccepted() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.convertReleasingToCRLF()
+        try fixture.convertChangelogToCRLF()
 
         let result = try fixture.run()
 
@@ -58,7 +58,7 @@ struct ReleaseCandidateScriptTests {
         let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
         defer { fixture.remove() }
         if crlf {
-            try fixture.convertReleasingToCRLF()
+            try fixture.convertChangelogToCRLF()
         }
 
         let validation = try fixture.run()
@@ -236,7 +236,7 @@ struct ReleaseCandidateScriptTests {
     func mismatchedLatestStableLineIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: "4.3.0",
             sections: [
                 (fixture.version, ReleaseCandidateScriptFixture.canonicalReleaseBody),
@@ -253,7 +253,7 @@ struct ReleaseCandidateScriptTests {
     func candidateVersionCannotRemainUnreleased() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             currentDevelopmentTrain: fixture.version,
             sections: [
@@ -271,7 +271,7 @@ struct ReleaseCandidateScriptTests {
     func unreleasedSectionIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [
                 (fixture.version, ReleaseCandidateScriptFixture.canonicalReleaseBody),
@@ -289,7 +289,7 @@ struct ReleaseCandidateScriptTests {
     func missingReleaseSectionIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [
                 ("4.3.0", ReleaseCandidateScriptFixture.canonicalReleaseBody),
@@ -306,7 +306,7 @@ struct ReleaseCandidateScriptTests {
     func duplicateReleaseSectionIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [
                 (fixture.version, "- First"),
@@ -324,7 +324,7 @@ struct ReleaseCandidateScriptTests {
     func emptyReleaseSectionIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [
                 (fixture.version, ""),
@@ -342,7 +342,7 @@ struct ReleaseCandidateScriptTests {
     func missingHighlightsIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Breaking and Behavior Changes
@@ -365,7 +365,7 @@ struct ReleaseCandidateScriptTests {
     func duplicateHighlightsIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -396,7 +396,7 @@ struct ReleaseCandidateScriptTests {
     func emptyHighlightsIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -421,7 +421,7 @@ struct ReleaseCandidateScriptTests {
     func placeholderContentIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -448,7 +448,7 @@ struct ReleaseCandidateScriptTests {
     func missingBreakingChangesIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -471,7 +471,7 @@ struct ReleaseCandidateScriptTests {
     func duplicateBreakingChangesIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -502,7 +502,7 @@ struct ReleaseCandidateScriptTests {
     func bothBreakingHeadingsAreRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -533,7 +533,7 @@ struct ReleaseCandidateScriptTests {
     func emptyBreakingChangesIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -558,7 +558,7 @@ struct ReleaseCandidateScriptTests {
     func missingUpgradeActionsIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -581,7 +581,7 @@ struct ReleaseCandidateScriptTests {
     func duplicateUpgradeActionsIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -612,7 +612,7 @@ struct ReleaseCandidateScriptTests {
     func emptyUpgradeActionsIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -637,7 +637,7 @@ struct ReleaseCandidateScriptTests {
     func headingsInOtherReleaseSectionsDoNotCount() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [
                 (fixture.version, "- Candidate summary without required subsections."),
@@ -655,7 +655,7 @@ struct ReleaseCandidateScriptTests {
     func unknownHeadingCannotDonateContent() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
-        try fixture.writeReleasing(
+        try fixture.writeChangelog(
             latestVersion: fixture.version,
             sections: [(fixture.version, """
                 ### Highlights
@@ -816,7 +816,7 @@ private struct ReleaseCandidateScriptFixture {
                 at: rootURL,
                 withIntermediateDirectories: true
             )
-            try Self.writeReleasing(
+            try Self.writeChangelog(
                 at: rootURL,
                 latestVersion: version,
                 sections: [(version, Self.canonicalReleaseBody)]
@@ -950,12 +950,12 @@ private struct ReleaseCandidateScriptFixture {
         )
     }
 
-    func writeReleasing(
+    func writeChangelog(
         latestVersion: String,
         currentDevelopmentTrain: String? = nil,
         sections: [(version: String, body: String)]
     ) throws {
-        try Self.writeReleasing(
+        try Self.writeChangelog(
             at: rootURL,
             latestVersion: latestVersion,
             currentDevelopmentTrain: currentDevelopmentTrain,
@@ -995,13 +995,13 @@ private struct ReleaseCandidateScriptFixture {
         try document.write(to: rfcURL, atomically: true, encoding: .utf8)
     }
 
-    func convertReleasingToCRLF() throws {
-        let releasingURL = rootURL.appendingPathComponent("RELEASING.md")
-        let document = try String(contentsOf: releasingURL, encoding: .utf8)
+    func convertChangelogToCRLF() throws {
+        let changelogURL = rootURL.appendingPathComponent("CHANGELOG.md")
+        let document = try String(contentsOf: changelogURL, encoding: .utf8)
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\n", with: "\r\n")
         try document.write(
-            to: releasingURL,
+            to: changelogURL,
             atomically: true,
             encoding: .utf8
         )
@@ -1046,14 +1046,14 @@ private struct ReleaseCandidateScriptFixture {
         )
     }
 
-    private static func writeReleasing(
+    private static func writeChangelog(
         at rootURL: URL,
         latestVersion: String,
         currentDevelopmentTrain: String? = nil,
         sections: [(version: String, body: String)]
     ) throws {
         var document = """
-            # Releasing InnoDI
+            # Changelog
 
             Latest stable public release: `\(latestVersion)`
 
@@ -1065,7 +1065,7 @@ private struct ReleaseCandidateScriptFixture {
             document += "## \(section.version)\n\n\(section.body)\n\n"
         }
         try document.write(
-            to: rootURL.appendingPathComponent("RELEASING.md"),
+            to: rootURL.appendingPathComponent("CHANGELOG.md"),
             atomically: true,
             encoding: .utf8
         )

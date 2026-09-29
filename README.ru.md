@@ -280,7 +280,7 @@ var apiClient: any APIClientProtocol
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ru.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ru.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## Основной API
@@ -629,7 +629,7 @@ Tools/dump-macro-expansions.sh \
 `Sources/` или `Tests/`. Обычный build cache consumer-пакета не меняется. Для
 одной декларации быстрее использовать **Expand Macro** в Xcode.
 
-Release notes и upgrade notes находятся в [RELEASING.md](RELEASING.md).
+Release notes и upgrade notes находятся в [CHANGELOG.md](CHANGELOG.md).
 
 Отсутствующие и чужие ссылки, неверная ownership и неполные child bindings
 отклоняются даже при self-diff. Запросы следуют parent bindings каждого mount,

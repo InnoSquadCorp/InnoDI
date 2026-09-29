@@ -40,7 +40,7 @@ apply to your change.
 - [ ] `README.md` updated, and the six localized mirrors
       (`README.{ko,ja,zh-Hans,de,es,ru}.md`) match its structure (the strict
       sync gate runs on PRs)
-- [ ] `RELEASING.md` Unreleased section updated when behavior, schema, or
+- [ ] `CHANGELOG.md` Unreleased section updated when behavior, schema, or
       public API changed
 - [ ] `ROADMAP.md` updated when an experimental feature changed phase
 - [ ] DocC catalog updated for any public-API change
