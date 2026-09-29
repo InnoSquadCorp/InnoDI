@@ -203,7 +203,12 @@ RFC revisions.
       public/package protocols intentionally keep an internal experimental mock
 - [x] Protocol-level `@MainActor` isolation is preserved; custom global actors
       and individually isolated requirements fail closed
-- [x] Snapshot tests for the supported call shapes
+- [x] Snapshot tests for the supported call shapes, with one golden
+      expansion per supported variant in
+      [`GenerateMockVariantSnapshotTests`](../../Tests/InnoDIMacrosTests/GenerateMockVariantSnapshotTests.swift):
+      sync functions and properties, async, untyped and typed throws,
+      generic, overloaded, `Sendable`, `@MainActor`, closure and optional
+      return shapes, and narrow access
 - [x] Async / `throws` method shapes covered by snapshots and a strict external
       consumer ([`8a80f66`](https://github.com/InnoSquadCorp/InnoDI/commit/8a80f6646da8df146100750d58f2894d1adf5720))
 - [x] `Sendable` protocols use `InnoDITesting` lock-backed state without
