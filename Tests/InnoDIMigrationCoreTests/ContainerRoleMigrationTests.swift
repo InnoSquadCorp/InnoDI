@@ -86,6 +86,38 @@ struct ContainerRoleMigrationTests {
         #expect(second.changes.isEmpty)
     }
 
+    @Test("A marker on a container without arguments gains the role argument list")
+    func markerOnlyContainerGainsArgumentList() throws {
+        let root = try makeTree("""
+            import InnoDI
+
+            @DIComponent
+            @DIContainer // mounted by AppContainer
+            struct FeatureContainer {}
+
+            @InnoDI.DIHierarchyRoot
+            @InnoDI.DIContainer
+            struct AppContainer {}
+            """)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let migrator = InnoDIMigrator()
+        let plan = try migrator.plan(root: root)
+        #expect(plan.diagnostics.isEmpty)
+        let migrated = try #require(plan.changes.first?.migratedSource)
+        #expect(migrated.contains("""
+            @DIContainerRole(role: ContainerRole.component) // mounted by AppContainer
+            struct FeatureContainer {}
+            """))
+        #expect(migrated.contains("""
+            @InnoDI.DIContainerRole(role: InnoDI.ContainerRole.root)
+            struct AppContainer {}
+            """))
+
+        _ = try migrator.run(root: root, mode: .write)
+        #expect(try migrator.plan(root: root).changes.isEmpty)
+    }
+
     @Test("A component marked root: true blocks instead of dropping a role")
     func componentMarkedRootBlocks() throws {
         let source = """

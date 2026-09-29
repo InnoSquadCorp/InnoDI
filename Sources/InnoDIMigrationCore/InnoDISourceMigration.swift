@@ -772,9 +772,14 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
 
         let migratedContainer: AttributeSyntax
         if role != nil {
+            // A marker-only legacy container such as `@DIComponent @DIContainer`
+            // has no parentheses, and its trailing comment sits on the name.
             migratedContainer = container
                 .with(\.attributeName, roleContainerAttributeName(from: container))
+                .with(\.leftParen, container.leftParen ?? .leftParenToken())
                 .with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
+                .with(\.rightParen, container.rightParen ?? .rightParenToken())
+                .with(\.trailingTrivia, container.trailingTrivia)
         } else if rebuilt.isEmpty {
             // Only default-valued options such as `root: false` were left, so
             // the ordinary container keeps no argument list. The comment

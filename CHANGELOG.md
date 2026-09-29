@@ -131,6 +131,12 @@ that change moves to 8.0.
   also sets `root: true` now blocks with `migrate.container-role-conflict`
   instead of losing `root: true`, because a 6.0 container has one role.
 
+- `InnoDI-Migrate` gives a legacy `@DIContainer` without arguments its
+  argument list when a `@DIComponent` or `@DIHierarchyRoot` marker moves into
+  it. 6.0 wrote `@DIContainerRolerole: ContainerRole.component`, which does
+  not compile. A trailing comment on the container stays after the new
+  argument list.
+
 - The `deferred-alias.workspace-finding` warning no longer suggests moving a
   `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not
   resolve such aliases in any file, and in a real build the macro-level alias
