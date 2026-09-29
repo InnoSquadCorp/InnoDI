@@ -256,13 +256,16 @@ sibling edge even when the container uses `validateDAG: false`.
   spellings only through `parentMemberKeyPathSpelling` in `InnoDICore`, and
   never call `filter` on a syntax collection when the result anchors a
   diagnostic, because it builds a modified tree.
-- `swift run InnoDI-DeferredAliasScan --root .` lists every
+- `swift run InnoDI-DeferredAliasScan --root .` lists every top-level
   `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
-  The macro plugin only warns for directly recognizable same-file aliases;
-  warning does not change hard-edge classification. Nested/qualified/chained
-  forms are not a general alias-resolution mechanism. Workspace build support
-  also reports `deferred-alias.workspace-finding` warnings. Spell `Lazy<T>` and
-  `Provider<T>` directly at factory parameters to obtain soft/provider edges.
+  InnoDI never resolves aliases: a factory parameter typed with one is a hard
+  edge, and the generated call usually fails to type-check. The macro-level
+  `provide.lazy-aliased` / `provide.provider-aliased` check only sees the
+  source it is expanded with. A real compiler passes the attached declaration
+  alone, so the check does not fire for file-scope aliases outside unit tests.
+  Workspace build support records `deferred-alias.workspace-finding` warnings
+  in the validation summary. Spell `Lazy<T>` and `Provider<T>` directly at
+  factory parameters to obtain soft/provider edges.
   The PR pipeline runs the scanner and posts findings to the workflow's step
   summary plus a `deferred-aliases-report` artifact.
 

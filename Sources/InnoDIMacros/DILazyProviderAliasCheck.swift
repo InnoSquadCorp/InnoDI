@@ -16,8 +16,10 @@
 //  Detection is best-effort: we walk the parent source file for
 //  `typealias` declarations whose right-hand side reduces to
 //  `Lazy<...>` / `Provider<...>` (bare or qualified `InnoDI.Lazy<...>` /
-//  `InnoDI.Provider<...>`). Cross-file aliases stay invisible and are
-//  skipped silently.
+//  `InnoDI.Provider<...>`). A real compiler hands the macro only the
+//  attached container declaration, so file-scope aliases are invisible
+//  outside expansions that include the whole file, such as unit tests.
+//  The build plugin's workspace alias scan reports them instead.
 //
 
 import InnoDICore

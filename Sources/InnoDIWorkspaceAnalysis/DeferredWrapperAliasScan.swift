@@ -35,10 +35,10 @@ package struct DeferredWrapperAliasFinding: Sendable, Equatable {
 
 /// Walk every source file in the snapshot and collect typealiases that
 /// rename `Lazy<…>` or `Provider<…>`. Both bare (`Lazy`) and qualified
-/// (`InnoDI.Lazy`) right-hand sides are detected. Cross-file findings are
-/// the value-add over the same-file `DILazyProviderAliasCheck` that runs
-/// inside the macro plugin: a typealias declared in a different module or
-/// file would otherwise stay invisible.
+/// (`InnoDI.Lazy`) right-hand sides are detected. In a real build the
+/// macro-level `DILazyProviderAliasCheck` receives only the attached
+/// container declaration, so this scan is the only place such an alias is
+/// reported. Aliases of aliases are not followed.
 package func scanDeferredWrapperAliases(
     in snapshot: WorkspaceSourceSnapshot
 ) -> [DeferredWrapperAliasFinding] {

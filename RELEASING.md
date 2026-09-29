@@ -358,6 +358,12 @@ standalone release assets.
   comment. It previously reported `migrate.container-option-comment` for such
   files.
 
+- The `deferred-alias.workspace-finding` warning no longer suggests moving a
+  `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not
+  resolve such aliases in any file, and in a real build the macro-level alias
+  warning never sees a file-scope alias. Spell the wrapper directly at the
+  factory parameter.
+
 - A `@SubContainer` child input wired to an asynchronous parent member is
   rejected with `sub.async-parent-member`. In 6.0 the generated child
   construction failed to compile with an unrelated missing-member error, so
