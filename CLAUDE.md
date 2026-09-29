@@ -235,6 +235,15 @@ sibling edge even when the container uses `validateDAG: false`.
 - Public collection metadata preserves `AnyKeyPath & Sendable`; do not erase
   it to `AnyKeyPath` or reintroduce unchecked metadata conformance.
 - `@SubContainer` adds ownership edges plus child override forwarding.
+- Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
+  `bindings:` (including `@SubContainerFactory`) name one direct member as
+  `\Self.member`. The macro rejects named roots with
+  `sub.noncanonical-parent-key-path` and a fix-it; every layer rejects nested
+  components. Build support deliberately resolves named roots by member name
+  so the compiler fix-it, not a plugin failure, reports them. Classify
+  spellings only through `parentMemberKeyPathSpelling` in `InnoDICore`, and
+  never call `filter` on a syntax collection when the result anchors a
+  diagnostic, because it builds a modified tree.
 - `swift run InnoDI-DeferredAliasScan --root .` lists every
   `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
   The macro plugin only warns for directly recognizable same-file aliases;

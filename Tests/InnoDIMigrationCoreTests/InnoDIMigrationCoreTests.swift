@@ -218,6 +218,72 @@ struct InnoDIMigrationCoreTests {
         #expect(second.changes.isEmpty)
     }
 
+    @Test("7.0 parent key paths migrate to \\Self idempotently")
+    func migratesParentKeyPathsIdempotently() throws {
+        let root = try makeTemporaryTree(files: [
+            "Sources/App.swift": """
+            import InnoDI
+
+            @DIContainer
+            struct AppContainer {
+                @Input var config: Config
+                @Input var settings: Config
+
+                @SubContainer(scope: .shared, with: [\\AppContainer.config, \\Self.settings])
+                var feature: FeatureContainer
+
+                @SubContainer(
+                    scope: .transient,
+                    bindings: [(child: \\FeatureContainer.config, parent: \\AppContainer.settings)]
+                )
+                var renamed: FeatureContainer
+
+                @InnoDI.SubContainerFactory(
+                    SessionContainer.self,
+                    bindings: [(child: \\SessionContainer.config, parent: \\AppContainer.config)]
+                )
+                var session: SessionContainer.AssistedFactory
+            }
+            """,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let migrator = InnoDIMigrator()
+        let plan = try migrator.plan(root: root)
+        #expect(plan.diagnostics.isEmpty)
+        let migrated = try #require(plan.changes.first?.migratedSource)
+        #expect(migrated.contains("with: [\\Self.config, \\Self.settings]"))
+        #expect(migrated.contains("(child: \\FeatureContainer.config, parent: \\Self.settings)"))
+        #expect(migrated.contains("(child: \\SessionContainer.config, parent: \\Self.config)"))
+        #expect(!migrated.contains("\\AppContainer."))
+
+        _ = try migrator.run(root: root, mode: .write)
+        let second = try migrator.plan(root: root)
+        #expect(second.diagnostics.isEmpty)
+        #expect(second.changes.isEmpty)
+    }
+
+    @Test("Nested parent key paths block migration instead of guessing")
+    func nestedParentKeyPathsBlockMigration() throws {
+        let root = try makeTemporaryTree(files: [
+            "Sources/App.swift": """
+            import InnoDI
+
+            @DIContainer
+            struct AppContainer {
+                @Input var config: Config
+                @SubContainer(scope: .shared, with: [\\Self.config.baseURL])
+                var feature: FeatureContainer
+            }
+            """,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = try InnoDIMigrator().plan(root: root)
+        #expect(plan.diagnostics.map(\.code) == ["migrate.parent-key-path-unsupported"])
+        #expect(!plan.canWrite)
+    }
+
     @Test("A documented current container does not block migration")
     func documentedCurrentContainerDoesNotBlock() throws {
         let root = try makeTemporaryTree(files: [
@@ -237,6 +303,29 @@ struct InnoDIMigrationCoreTests {
         let plan = try InnoDIMigrator().plan(root: root)
         #expect(plan.diagnostics.isEmpty)
         #expect(plan.changes.isEmpty)
+    }
+
+    @Test("Unproven ownership blocks an unqualified parent key path rewrite")
+    func unprovenParentKeyPathOwnershipBlocks() throws {
+        let root = try makeTemporaryTree(files: [
+            "Sources/App.swift": """
+            import FeatureKit
+            import InnoDI
+
+            @DIContainer
+            struct AppContainer {
+                @Input var config: Config
+                @SubContainer(scope: .shared, with: [\\AppContainer.config])
+                var feature: FeatureContainer
+            }
+            """,
+        ])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = try InnoDIMigrator().plan(root: root)
+        #expect(plan.diagnostics.map(\.code) == ["migrate.unqualified-ownership-ambiguous"])
+        #expect(plan.diagnostics.first?.message.contains("@SubContainer parent key path") == true)
+        #expect(plan.changes.isEmpty || !plan.canWrite)
     }
 
     @Test("Concrete and stacked feature-root surfaces migrate idempotently")

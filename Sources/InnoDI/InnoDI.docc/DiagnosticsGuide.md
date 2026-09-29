@@ -346,7 +346,14 @@ Most frequently-hit codes:
 - `sub.invalid-same-name-wiring` — `with:` is not a literal key-path array the
   macro can read (runtime variables and computed elements are rejected).
 - `sub.invalid-bindings` — `bindings:` is not a literal array of
-  `(child:parent:)` key-path tuples.
+  `(child:parent:)` key-path tuples, or a `parent:` key path has more than
+  one component.
+- `sub.noncanonical-parent-key-path` — a parent key path in `with:` or on the
+  `parent:` side of `bindings:` uses a named root such as
+  `\AppContainer.config`. InnoDI reads only the member name, so the root was
+  never checked. The fix-it rewrites it to `\Self.config`; `InnoDI-Migrate`
+  applies the same rewrite. `@SubContainerFactory(bindings:)` follows the same
+  rule.
 - `sub.auto-wiring-ambiguous` — implicit same-name wiring cannot be
   inferred because the parent has multiple `@Provide` candidates. Add
   explicit `with:` / `bindings:`, or use `with: []` if the child takes no

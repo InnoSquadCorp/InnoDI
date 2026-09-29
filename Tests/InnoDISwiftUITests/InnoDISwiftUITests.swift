@@ -113,7 +113,7 @@ struct MutableParentContainer {
 
     @SubContainer(
         scope: .transient,
-        with: [\MutableParentContainer.username]
+        with: [\Self.username]
     )
     var transientFeature: MutableTransientFeatureContainer
 }
@@ -126,7 +126,7 @@ struct ParentContainer {
 
     @SubContainer(
         scope: .shared,
-        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService],
+        with: [\Self.username, \Self.greetingService, \Self.activityService],
         featureRoots: [
             FeatureRoot(SharedFeatureRootView.self),
             FeatureRoot(SharedFeatureShellView.self, as: "sharedFeatureShell")
@@ -136,7 +136,7 @@ struct ParentContainer {
 
     @SubContainer(
         scope: .transient,
-        with: [\ParentContainer.username, \ParentContainer.greetingService, \ParentContainer.activityService],
+        with: [\Self.username, \Self.greetingService, \Self.activityService],
         featureRoot: TransientFeatureRootView.self
     )
     var transientFeature: TransientFeatureContainer
@@ -356,7 +356,7 @@ fileprivate struct GeneratedRootParentContainer {
 
     @SubContainer(
         scope: .transient,
-        with: [\GeneratedRootParentContainer.probe],
+        with: [\Self.probe],
         featureRoot: GeneratedRootFeatureView.self
     )
     var feature: GeneratedRootFeatureContainer

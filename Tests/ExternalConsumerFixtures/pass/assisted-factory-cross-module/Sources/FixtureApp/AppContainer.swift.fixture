@@ -11,7 +11,7 @@ struct AppContainer {
         bindings: [
             (
                 child: \TrainingContainer.repository,
-                parent: \AppContainer.repository
+                parent: \Self.repository
             ),
         ]
     )

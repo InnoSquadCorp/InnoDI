@@ -299,7 +299,12 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `sub.invalid-same-name-wiring` — `with:`가 매크로가 읽을 수 있는
   literal key-path 배열이 아닙니다 (런타임 변수와 계산된 원소는 거부).
 - `sub.invalid-bindings` — `bindings:`가 literal `(child:parent:)`
-  key-path tuple 배열이 아닙니다.
+  key-path tuple 배열이 아니거나, `parent:` key path에 컴포넌트가 둘 이상 있습니다.
+- `sub.noncanonical-parent-key-path` — `with:` 또는 `bindings:`의 `parent:`
+  쪽 key path가 `\AppContainer.config` 같은 이름 있는 루트를 씁니다. InnoDI는
+  멤버 이름만 읽으므로 루트는 검사된 적이 없습니다. fix-it이 `\Self.config`로
+  바꾸며, `InnoDI-Migrate`도 같은 재작성을 적용합니다.
+  `@SubContainerFactory(bindings:)`에도 같은 규칙이 적용됩니다.
 - `sub.auto-wiring-ambiguous` — parent에 여러 `@Provide` 후보가 있어
   implicit same-name wiring을 추론할 수 없습니다. 명시적 `with:` /
   `bindings:`를 추가하거나, child가 parent input을 받지 않는 경우

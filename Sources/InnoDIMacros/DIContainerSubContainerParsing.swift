@@ -17,13 +17,10 @@ func extractWithDependencyReferences(
             return arrayExpr.elements.compactMap { element in
                 guard let keyPath = element.expression.as(KeyPathExprSyntax.self),
                       !requiringCanonicalProvidePath
-                        || (
-                            keyPath.root?.trimmedDescription == "Self"
-                                && keyPath.components.count == 1
-                        ),
-                      let property = keyPath.components.last?
-                        .component.as(KeyPathPropertyComponentSyntax.self)?
-                        .declName.baseName.text else {
+                        || keyPath.root?.trimmedDescription == "Self",
+                      let property = parentMemberKeyPathSpelling(
+                        element.expression
+                      ).memberName else {
                     return nil
                 }
                 return WithDependencyReference(
@@ -101,18 +98,21 @@ func extractSubContainerBindingReferences(
 
             for tupleElement in tupleExpr.elements {
                 guard let label = tupleElement.label?.text,
-                      let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
-                      let property = keyPath.components.last?
-                        .component.as(KeyPathPropertyComponentSyntax.self)?
-                        .declName.baseName.text else {
+                      let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self) else {
                     continue
                 }
 
                 switch label {
                 case "child":
+                    guard let property = keyPath.components.last?
+                        .component.as(KeyPathPropertyComponentSyntax.self)?
+                        .declName.baseName.text else { continue }
                     childName = property
                     childKeyPath = keyPath
                 case "parent":
+                    guard let property = parentMemberKeyPathSpelling(
+                        tupleElement.expression
+                    ).memberName else { continue }
                     parentName = property
                     parentKeyPath = keyPath
                 default:
@@ -167,7 +167,14 @@ func extractInvalidSubContainerBindingReferences(
                 guard let label = tupleElement.label?.text else { continue }
                 switch label {
                 case "child", "parent":
-                    guard finalKeyPathExpression(tupleElement.expression) != nil else {
+                    let isValidKeyPath = label == "child"
+                        ? tupleElement.expression.as(KeyPathExprSyntax.self)?
+                            .components.last?
+                            .component.as(KeyPathPropertyComponentSyntax.self) != nil
+                        : parentMemberKeyPathSpelling(
+                            tupleElement.expression
+                        ).memberName != nil
+                    guard isValidKeyPath else {
                         elementIsInvalid = true
                         continue
                     }
@@ -193,14 +200,49 @@ func extractInvalidSubContainerBindingReferences(
     return []
 }
 
-private func finalKeyPathExpression(
-    _ expression: ExprSyntax
-) -> KeyPathExprSyntax? {
-    guard let keyPath = expression.as(KeyPathExprSyntax.self),
-          keyPath.components.last?
-            .component.as(KeyPathPropertyComponentSyntax.self)?
-            .declName.baseName.text != nil else {
-        return nil
+/// A parent-side key path that names one member through a root other than
+/// `Self`, such as `\AppContainer.config`.
+struct NoncanonicalParentKeyPath {
+    let keyPath: KeyPathExprSyntax
+    let root: String
+    let memberName: String
+}
+
+/// Collects named-root parent key paths from `with:` and from the `parent:`
+/// side of `bindings:`. Child-side key paths keep their child-type root.
+func extractNoncanonicalParentKeyPaths(
+    from attribute: AttributeSyntax
+) -> [NoncanonicalParentKeyPath] {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return []
     }
-    return keyPath
+    var parentExpressions: [ExprSyntax] = []
+    for argument in arguments {
+        guard let array = argument.expression.as(ArrayExprSyntax.self) else { continue }
+        switch argument.label?.text {
+        case "with":
+            parentExpressions += array.elements.map(\.expression)
+        case "bindings":
+            for element in array.elements {
+                guard let tuple = element.expression.as(TupleExprSyntax.self) else {
+                    continue
+                }
+                // Iterate the original elements: `filter` on a syntax
+                // collection builds a modified tree, which would move the
+                // diagnostic and fix-it away from the source positions.
+                for part in tuple.elements where part.label?.text == "parent" {
+                    parentExpressions.append(part.expression)
+                }
+            }
+        default:
+            continue
+        }
+    }
+    return parentExpressions.compactMap { expression in
+        guard case let .namedRoot(root, member) = parentMemberKeyPathSpelling(expression),
+              let keyPath = expression.as(KeyPathExprSyntax.self) else {
+            return nil
+        }
+        return NoncanonicalParentKeyPath(keyPath: keyPath, root: root, memberName: member)
+    }
 }

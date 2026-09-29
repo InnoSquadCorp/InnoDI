@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> 이 체크아웃은 **미출시 7.0.0** 문서입니다. 예제와 규칙은 공개된 6.0.0 패키지가 아니라 7.0 개발 체크아웃이 필요합니다.
+> [안정 버전 6.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
+
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
 
@@ -153,14 +157,25 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+이 페이지의 예제에는 아래 **7.0 개발 체크아웃**을 사용합니다. `../InnoDI`를 해당 경로로 바꾸세요. 아직 7.0.0 릴리스 태그는 없습니다.
+
+공개된 **6.0.0** 패키지를 사용하려면 아래 의존성을 추가하고 이 페이지의 7.0 예제 대신 연결된 안정 버전 문서를 따르세요.
+[안정 버전 6.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
 ]
 ```
 
-이 페이지의 예제는 **InnoDI 6.0.0**을 기준으로 합니다.
-[6.0.0 버전 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
-5.x에서 올릴 때는 소스 변경이 필요하므로
-[마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary)를 따르세요.
+이하 product·plugin·API 예제는 모두 **7.0 개발 체크아웃**을 기준으로 합니다.
+
+6.x에서 필요한 소스 변경은
+[마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
 그 다음 필요한 product를 타깃에 연결합니다.
 
@@ -567,7 +582,7 @@ var logger: RequestLogger
 `@SubContainer`는 parent가 소유하는 child container를 모델링합니다.
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -582,6 +597,11 @@ var feature: FeatureContainer
 - parent 후보가 여러 개면 `with:` 또는 `bindings:`로 명시 wiring해야 합니다.
 - `with:`는 같은 이름 subset/order를 forward합니다.
 - `bindings:`는 child input label과 parent member 이름이 다를 때 remap합니다.
+- `with:`와 `bindings:`의 `parent:` 쪽 key path는 직접 멤버 하나를
+  `\Self.member`로 지정합니다. `\AppContainer.member` 같은 이름 있는 루트는
+  `sub.noncanonical-parent-key-path`와 fix-it으로 거부되고, 중첩 컴포넌트는
+  잘못된 wiring입니다. `child:` 쪽은 child container 타입(모듈 한정 가능)을 통해
+  child input을 지정합니다.
 - `featureRoot:` / `featureRoots:`는 같은 property에 별도 peer macro를 쌓지
   않고 parent에 SwiftUI root helper를 생성합니다.
 - `with:` 또는 `bindings:` 중 정확히 하나의 wiring form만 사용합니다.

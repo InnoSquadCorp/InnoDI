@@ -75,6 +75,14 @@ extension DIContainerValidator {
             )
             hadErrors = true
         }
+        if emitNoncanonicalParentKeyPathDiagnostics(
+            memberName: member.name,
+            attribute: member.attribute,
+            context: context
+        ) {
+            hadErrors = true
+        }
+
         if !hasBindingWiringConflict, member.hasInvalidBindings {
             context.emit(
                 SimpleDiagnostic.subInvalidBindings(memberName: member.name),
@@ -261,6 +269,37 @@ extension DIContainerValidator {
         }
         return []
     }
+}
+
+/// Rejects `\Root.member` parent key paths with a fix-it to `\Self.member`.
+/// Parsing still resolves the member name, so reference and scope validation
+/// can continue and report every other problem in the same pass.
+func emitNoncanonicalParentKeyPathDiagnostics(
+    memberName: String,
+    attribute: AttributeSyntax,
+    context: some MacroExpansionContext
+) -> Bool {
+    let keyPaths = extractNoncanonicalParentKeyPaths(from: attribute)
+    for keyPath in keyPaths {
+        let replacement = "\\Self.\(keyPath.memberName)"
+        context.emit(
+            SimpleDiagnostic.subNoncanonicalParentKeyPath(
+                memberName: memberName,
+                root: keyPath.root,
+                parentMemberName: keyPath.memberName
+            ),
+            at: Syntax(keyPath.keyPath),
+            fixIts: [
+                makeTextReplacementFixIt(
+                    replacing: keyPath.keyPath,
+                    with: replacement,
+                    message: "Replace with '\(replacement)'",
+                    code: .subNoncanonicalParentKeyPath
+                ),
+            ]
+        )
+    }
+    return !keyPaths.isEmpty
 }
 
 private struct SubContainerValidationState {

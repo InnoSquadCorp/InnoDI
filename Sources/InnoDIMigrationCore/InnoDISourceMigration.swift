@@ -55,6 +55,7 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
         "Input",
         "Provide",
         "SubContainer",
+        "SubContainerFactory",
     ]
     private static let innoDISwiftUINames: Set<String> = [
         "DIContainer",
@@ -65,6 +66,7 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
         "Input",
         "Provide",
         "SubContainer",
+        "SubContainerFactory",
     ]
 
     private(set) var availableNames: Set<String> = []
@@ -406,6 +408,10 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     }
 
     override func visit(_ node: AttributeSyntax) -> AttributeSyntax {
+        if isInnoDIAttribute(node, named: "SubContainer", context: attributeContext)
+            || isInnoDIAttribute(node, named: "SubContainerFactory", context: attributeContext) {
+            return super.visit(migrateParentKeyPaths(in: node))
+        }
         guard migratableProvideOffsets.contains(node.position.utf8Offset),
               isInnoDIAttribute(
                 node,
@@ -467,6 +473,91 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         return super.visit(
             node.with(\.arguments, .argumentList(filtered))
         )
+    }
+
+    /// 7.0 spells parent-side sub-container key paths as `\Self.member`.
+    /// InnoDI always read only the member name, so replacing a named root
+    /// keeps behavior unchanged. A nested component was silently reduced to
+    /// its last component, so its intent cannot be recovered automatically.
+    private func migrateParentKeyPaths(in attribute: AttributeSyntax) -> AttributeSyntax {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+            return attribute
+        }
+        var didChange = false
+        var blocked = false
+        func migrate(_ expression: ExprSyntax) -> ExprSyntax {
+            guard let keyPath = expression.as(KeyPathExprSyntax.self) else {
+                return expression
+            }
+            switch parentMemberKeyPathSpelling(expression) {
+            case .canonical:
+                return expression
+            case .namedRoot:
+                // Only the root is replaced, so only comments in its trivia
+                // could be lost.
+                guard let root = keyPath.root, !containsComment(root) else {
+                    blocked = true
+                    return expression
+                }
+                didChange = true
+                let selfRoot = TypeSyntax(
+                    IdentifierTypeSyntax(name: .keyword(.Self))
+                )
+                return ExprSyntax(keyPath.with(\.root, selfRoot))
+            case .invalid:
+                blocked = true
+                return expression
+            }
+        }
+        let rebuilt = arguments.map { argument -> LabeledExprSyntax in
+            guard let array = argument.expression.as(ArrayExprSyntax.self) else {
+                return argument
+            }
+            switch argument.label.map(canonicalIdentifier) {
+            case "with":
+                let elements = array.elements.map { element in
+                    element.with(\.expression, migrate(element.expression))
+                }
+                return argument.with(
+                    \.expression,
+                    ExprSyntax(array.with(\.elements, ArrayElementListSyntax(elements)))
+                )
+            case "bindings":
+                let elements = array.elements.map { element -> ArrayElementSyntax in
+                    guard let tuple = element.expression.as(TupleExprSyntax.self) else {
+                        return element
+                    }
+                    let parts = tuple.elements.map { part -> LabeledExprSyntax in
+                        guard part.label.map(canonicalIdentifier) == "parent" else {
+                            return part
+                        }
+                        return part.with(\.expression, migrate(part.expression))
+                    }
+                    return element.with(
+                        \.expression,
+                        ExprSyntax(tuple.with(\.elements, LabeledExprListSyntax(parts)))
+                    )
+                }
+                return argument.with(
+                    \.expression,
+                    ExprSyntax(array.with(\.elements, ArrayElementListSyntax(elements)))
+                )
+            default:
+                return argument
+            }
+        }
+        if blocked {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.parent-key-path-unsupported",
+                    path: path,
+                    message: "Cannot safely rewrite a commented, nested, or non-member parent key path in @SubContainer or @SubContainerFactory. Spell each parent key path as \\Self.member; no files were written."
+                )
+            )
+            return attribute
+        }
+        guard didChange else { return attribute }
+        return attribute.with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
     }
 
     private func migrateContainerDeclaration(
@@ -919,6 +1010,10 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
         let name = canonicalIdentifier(identifier.name)
         if name == "DIFeatureRoot", !attributeContext.allows(name) {
             names.insert("@DIFeatureRoot")
+        } else if name == "SubContainer" || name == "SubContainerFactory",
+                  !attributeContext.allows(name),
+                  hasNamedRootParentKeyPath(node) {
+            names.insert("@\(name) parent key path")
         } else if name == "Provide",
                   !attributeContext.allows(name),
                   let arguments = node.arguments?.as(LabeledExprListSyntax.self),
@@ -982,6 +1077,37 @@ private final class LegacyFeatureRootCollector: SyntaxVisitor {
         }
         return .visitChildren
     }
+}
+
+/// Whether `with:` or a `bindings:` parent side names a root other than `Self`.
+private func hasNamedRootParentKeyPath(_ attribute: AttributeSyntax) -> Bool {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return false
+    }
+    for argument in arguments {
+        guard let array = argument.expression.as(ArrayExprSyntax.self) else { continue }
+        let label = argument.label.map(canonicalIdentifier)
+        for element in array.elements {
+            let parents: [ExprSyntax]
+            if label == "with" {
+                parents = [element.expression]
+            } else if label == "bindings",
+                      let tuple = element.expression.as(TupleExprSyntax.self) {
+                parents = tuple.elements
+                    .filter { $0.label.map(canonicalIdentifier) == "parent" }
+                    .map(\.expression)
+            } else {
+                parents = []
+            }
+            if parents.contains(where: {
+                if case .namedRoot = parentMemberKeyPathSpelling($0) { return true }
+                return false
+            }) {
+                return true
+            }
+        }
+    }
+    return false
 }
 
 private func isInnoDIAttribute(

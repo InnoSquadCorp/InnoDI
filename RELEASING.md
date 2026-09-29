@@ -4,6 +4,8 @@ This document is the single release source of truth for InnoDI.
 
 Latest stable public release: `6.0.0`
 
+Current development train: `7.0.0` (unreleased)
+
 `main` accumulates release work as independently green commits. During a
 development train, keep the stable installation snippet on the latest stable
 release and link its tagged documentation. Mark unreleased examples clearly
@@ -329,6 +331,16 @@ standalone release assets.
 
 ### Breaking or Behavior Changes
 
+- Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
+  `@SubContainer(bindings:)` and `@SubContainerFactory(bindings:)` must be
+  spelled `\Self.member`. A named root such as `\AppContainer.config` is
+  rejected with `sub.noncanonical-parent-key-path` and a fix-it; InnoDI only
+  ever read the member name, so the root was never checked. A nested
+  component such as `\Self.config.baseURL`, which used to wire only its last
+  component, is rejected as `sub.invalid-same-name-wiring` or
+  `sub.invalid-bindings`. Build validation resolves named roots so the
+  compiler fix-it is reported first, and rejects nested components.
+
 - `InnoDI-Migrate` no longer blocks a whole run when a current 6.0
   `@DIContainer` without legacy options carries a documentation or nearby
   comment. It previously reported `migrate.container-option-comment` for such
@@ -336,7 +348,20 @@ standalone release assets.
 
 ### Upgrade Actions
 
-- None yet.
+- Rewrite named-root parent key paths to `\Self.member`. `\Self.member` also
+  compiles with 6.0, so this can land before the upgrade. Run the read-only
+  check, review its report, then rerun the same command with `--write`:
+
+  ```bash
+  swift run InnoDI-Migrate --root /path/to/consumer --check
+  swift run InnoDI-Migrate --root /path/to/consumer --report
+  ```
+
+  Nested parent key paths block the rewrite with
+  `migrate.parent-key-path-unsupported`; name the intended direct member
+  instead. Files that import another module may report
+  `migrate.unqualified-ownership-ambiguous`; apply the compiler fix-it or
+  qualify the attribute as `@InnoDI.SubContainer`.
 
 ## 6.0.0
 

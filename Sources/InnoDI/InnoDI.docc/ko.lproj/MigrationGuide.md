@@ -16,11 +16,43 @@ breaking change 표는
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
+| 6.x → 7.0 (개발 중) | Parent key path 정규화 | 서브컨테이너 parent key path를 `\Self.member`로 쓰세요. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
 단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0 surface와
 이전 버전 hop — 으로 펼쳐집니다.
+
+---
+
+## 6.x → 7.0
+
+InnoDI 7.0은 `main`에서 개발 중입니다. 아래 각 항목은 필요한 소스 변경과
+적용 방법을 적습니다. 먼저 읽기 전용 검사를 실행하세요.
+
+### Parent key path는 `\Self.member`로 씁니다
+
+`@SubContainer(with:)`와 `@SubContainer(bindings:)`, `@SubContainerFactory(bindings:)`의
+`parent:` 쪽은 `\Self.member`를 요구합니다. InnoDI는 항상 멤버 이름만
+읽었으므로 `\AppContainer.config` 같은 이름 있는 루트는 선언 컨테이너와
+대조된 적이 없습니다. 7.0은 이를 `sub.noncanonical-parent-key-path`와
+fix-it으로 거부합니다. `\Self.config.baseURL` 같은 중첩 컴포넌트는 예전에
+마지막 컴포넌트만 연결했습니다. 7.0은 이를 `sub.invalid-same-name-wiring`
+또는 `sub.invalid-bindings`로 거부합니다.
+
+`InnoDI-Migrate`는 이름 있는 루트를 `\Self`로 바꾸고 중첩 컴포넌트는
+막습니다.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check
+swift run InnoDI-Migrate --root /path/to/consumer --write
+```
+
+검사가 parent key path에 대해 `migrate.unqualified-ownership-ambiguous`를
+보고하면, 그 파일이 다른 `SubContainer` 매크로를 선언할 수 있는 모듈을
+import한다는 뜻입니다. 컴파일러 fix-it을 적용하거나 속성을
+`@InnoDI.SubContainer`로 한정한 뒤 검사를 다시 실행하세요. `\Self.member`는
+InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 수 있습니다.
 
 ---
 
@@ -30,7 +62,7 @@ breaking change 표는
 
 ```swift
 // Before
-@SubContainer(scope: .shared, with: [\.config])
+@SubContainer(scope: .shared, with: [\Self.config])
 @DIFeatureRoot(DashboardRootView.self)
 @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
 var dashboard: DashboardContainer
@@ -38,7 +70,7 @@ var dashboard: DashboardContainer
 // After
 @SubContainer(
     scope: .shared,
-    with: [\.config],
+    with: [\Self.config],
     featureRoots: [
         FeatureRoot(DashboardRootView.self),
         FeatureRoot(DashboardShellView.self, as: "dashboardShell")
@@ -50,7 +82,7 @@ var dashboard: DashboardContainer
 단일 root view만 필요한 일반 케이스는 더 짧은 형태를 권장합니다.
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config], featureRoot: DashboardRootView.self)
+@SubContainer(scope: .shared, with: [\Self.config], featureRoot: DashboardRootView.self)
 var dashboard: DashboardContainer
 ```
 
@@ -101,7 +133,7 @@ InnoSquad나 뱅크샐러드식 monorepo에서 초기 InnoDI를 이미 쓰고 �
 var feature: FeatureContainer
 
 // After
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 var feature: FeatureContainer
 ```
 

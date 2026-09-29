@@ -8,8 +8,8 @@ struct SeparateParent {
     @SubContainer(
         scope: .shared,
         bindings: [
-            (child: \SeparateChild.second, parent: \SeparateParent.parentSecond),
-            (child: \SeparateChild.first, parent: \SeparateParent.parentFirst),
+            (child: \SeparateChild.second, parent: \Self.parentSecond),
+            (child: \SeparateChild.first, parent: \Self.parentFirst),
         ]
     )
     var child: SeparateChild

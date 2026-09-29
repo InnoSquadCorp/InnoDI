@@ -794,7 +794,7 @@ extension SimpleDiagnostic {
         switch label {
         case .with:
             return Self(
-                "@SubContainer on '\(memberName)' requires with: to be a literal array of key paths, such as with: [\\.config] or with: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
+                "@SubContainer on '\(memberName)' requires with: to be a literal array of direct parent member key paths, such as with: [\\Self.config] or with: [] for an explicit empty subset. Runtime variables, computed elements, and nested components are not supported.",
                 code: .subInvalidSameNameWiring
             )
         }
@@ -806,6 +806,17 @@ extension SimpleDiagnostic {
                 memberName: memberName
             ),
             code: .subInvalidBindings
+        )
+    }
+
+    static func subNoncanonicalParentKeyPath(
+        memberName: String,
+        root: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "'\(memberName)' reads parent member '\(parentMemberName)' through \\\(root).\(parentMemberName). InnoDI reads only the member name, so a named root is never checked against the declaring container. Spell parent key paths as \\Self.\(parentMemberName).",
+            code: .subNoncanonicalParentKeyPath
         )
     }
 

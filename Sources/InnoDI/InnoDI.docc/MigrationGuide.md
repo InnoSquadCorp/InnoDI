@@ -17,11 +17,43 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
+| 6.x → 7.0 (in development) | Canonical parent key paths | Spell sub-container parent key paths as `\Self.member`; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 → 4.1 operational hardening, then the 5.0 surface and older hops.
+
+---
+
+## 6.x → 7.0
+
+InnoDI 7.0 is in development on `main`. Each item below lists a source
+change and how to apply it. Run the read-only check first.
+
+### Parent key paths spell `\Self.member`
+
+`@SubContainer(with:)` and the `parent:` side of `@SubContainer(bindings:)` and
+`@SubContainerFactory(bindings:)` require `\Self.member`. InnoDI always read
+only the member name, so a named root such as `\AppContainer.config` was
+never checked against the declaring container. 7.0 rejects it with
+`sub.noncanonical-parent-key-path` and a fix-it. A nested component such as
+`\Self.config.baseURL` used to wire only its last component; 7.0 rejects it as
+`sub.invalid-same-name-wiring` or `sub.invalid-bindings`.
+
+`InnoDI-Migrate` rewrites named roots to `\Self` and blocks nested
+components:
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check
+swift run InnoDI-Migrate --root /path/to/consumer --write
+```
+
+When the check reports `migrate.unqualified-ownership-ambiguous` for a parent
+key path, the file imports a module that could declare another `SubContainer`
+macro. Apply the compiler fix-it, or qualify the attribute as
+`@InnoDI.SubContainer`, then rerun the check. `\Self.member` also compiles
+with InnoDI 6.0, so the rewrite can land before the upgrade.
 
 ---
 
@@ -31,7 +63,7 @@ historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 
 ```swift
 // Before
-@SubContainer(scope: .shared, with: [\.config])
+@SubContainer(scope: .shared, with: [\Self.config])
 @DIFeatureRoot(DashboardRootView.self)
 @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
 var dashboard: DashboardContainer
@@ -39,7 +71,7 @@ var dashboard: DashboardContainer
 // After
 @SubContainer(
     scope: .shared,
-    with: [\.config],
+    with: [\Self.config],
     featureRoots: [
         FeatureRoot(DashboardRootView.self),
         FeatureRoot(DashboardShellView.self, as: "dashboardShell")
@@ -51,7 +83,7 @@ var dashboard: DashboardContainer
 For the common single-root case, prefer the shorter form:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config], featureRoot: DashboardRootView.self)
+@SubContainer(scope: .shared, with: [\Self.config], featureRoot: DashboardRootView.self)
 var dashboard: DashboardContainer
 ```
 
@@ -101,7 +133,7 @@ old call sites but removes the reviewability and graph validation that make the
 var feature: FeatureContainer
 
 // After
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 var feature: FeatureContainer
 ```
 

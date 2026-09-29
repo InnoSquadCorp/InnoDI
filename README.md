@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> This checkout documents **unreleased 7.0.0**. Its examples and rules require the 7.0 development checkout, not the published 6.0.0 package.
+> [Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
+
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 
@@ -162,14 +166,25 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+For the examples on this page, use the local **7.0 development checkout** below (adjust `../InnoDI` to its path). No 7.0.0 release tag is available yet.
+
+For the published **6.0.0** package, use the dependency below and follow the linked stable documentation, not this page's 7.0 examples.
+[Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
 ]
 ```
 
-The examples on this page target **InnoDI 6.0.0**.
-[Versioned 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
-For the source-breaking upgrade from 5.x, follow the
-[migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary).
+The remaining product, plugin, and API examples on this page use the **7.0 development checkout**.
+
+For the source changes from 6.x, follow the
+[migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
 Then add the products you need:
 
@@ -599,7 +614,7 @@ target an `asyncFactory` member.
 ```swift
 @SubContainer(
     scope: .shared,
-    with: [\.config, \.apiClient],
+    with: [\Self.config, \Self.apiClient],
     featureRoot: FeatureRootScene.self
 )
 var feature: FeatureContainer
@@ -620,6 +635,11 @@ Key rules:
   computed array elements are unsupported.
 - `with: []` is an explicit empty subset and calls `Child()`.
 - `bindings:` remaps child input labels to different parent member names.
+- Parent key paths in `with:` and on the `parent:` side of `bindings:` name one
+  direct member as `\Self.member`. A named root such as `\AppContainer.member`
+  is rejected with `sub.noncanonical-parent-key-path` and a fix-it, and nested
+  components are invalid wiring. The `child:` side names a child input through
+  the child container type, which may be module-qualified.
 - `featureRoot:` / `featureRoots:` generate SwiftUI root helpers on the parent
   container without stacking another peer macro on the same property.
 - Choose exactly one wiring form: `with:` or `bindings:`.

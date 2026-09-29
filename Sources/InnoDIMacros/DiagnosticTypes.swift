@@ -140,6 +140,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
     case subInvalidBindings = "sub.invalid-bindings"
+    case subNoncanonicalParentKeyPath = "sub.noncanonical-parent-key-path"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
@@ -250,6 +251,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith,
                 .subInvalidSameNameWiring, .subInvalidBindings,
+                .subNoncanonicalParentKeyPath,
                 .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
                 .provideLazyAliased, .provideProviderAliased,

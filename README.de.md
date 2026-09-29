@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> Dieser Checkout dokumentiert die **noch nicht veröffentlichte Version 7.0.0**. Die Beispiele und Regeln benötigen den 7.0-Entwicklungscheckout, nicht das veröffentlichte Paket 6.0.0.
+> [Dokumentation für die stabile Version 6.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.de.md).
+
 Makrogetriebenes Dependency Injection fur Swift mit Compile- und Build-
 Validierung, Dependency-Graph-Werkzeugen, Hierarchieprufungen und SwiftUI-
 Hilfen.
@@ -149,14 +153,22 @@ Fuge InnoDI zu `Package.swift` hinzu:
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+Verwende für die Beispiele dieser Seite den lokalen **7.0-Entwicklungscheckout** und passe `../InnoDI` an dessen Pfad an. Ein Release-Tag 7.0.0 ist noch nicht verfügbar.
+
+Verwende für das veröffentlichte Paket **6.0.0** die folgende Abhängigkeit und die verlinkte stabile Dokumentation, nicht die 7.0-Beispiele dieser Seite.
+[Dokumentation für die stabile Version 6.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.de.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
 ]
 ```
 
-Die Beispiele dieser Seite beziehen sich auf **InnoDI 6.0.0**.
-[Dokumentation der Version 6.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.de.md).
-Das Upgrade von 5.x erfordert Quellcodeänderungen; folge dem
-[Migrationsleitfaden](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary).
+Die folgenden Produkt-, Plugin- und API-Beispiele verwenden den **7.0-Entwicklungscheckout**.
 
 Dann binde die benotigten Produkte ein:
 
@@ -550,7 +562,7 @@ können kein `asyncFactory`-Member als Target verwenden.
 ```swift
 @SubContainer(
     scope: .shared,
-    with: [\.config, \.apiClient],
+    with: [\Self.config, \Self.apiClient],
     featureRoot: FeatureRootScene.self
 )
 var feature: FeatureContainer

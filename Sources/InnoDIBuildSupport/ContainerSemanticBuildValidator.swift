@@ -582,10 +582,12 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                         guard parentName == nil else {
                             return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
                         }
+                        // Named roots resolve here so the compiler's fix-it,
+                        // not a build-plugin failure, reports them.
                         guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
-                              let property = keyPath.components.last?
-                                .component.as(KeyPathPropertyComponentSyntax.self)?
-                                .declName.baseName.text else {
+                              let property = parentMemberKeyPathSpelling(
+                                tupleElement.expression
+                              ).memberName else {
                             return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
                         }
                         parentName = property

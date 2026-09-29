@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> Этот checkout содержит документацию **ещё не выпущенной версии 7.0.0**. Примеры и правила требуют checkout разработки 7.0, а не опубликованный пакет 6.0.0.
+> [Документация стабильной версии 6.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ru.md).
+
 InnoDI — это макро-ориентированный DI-фреймворк для Swift с проверками на
 этапе компиляции и сборки, инструментами графа зависимостей, иерархической
 валидацией и помощниками для SwiftUI.
@@ -146,14 +150,22 @@ visionOS SwiftPM автоматически упаковывает манифе�
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+Для примеров на этой странице используйте локальный **checkout разработки 7.0**; замените `../InnoDI` его путём. Тега релиза 7.0.0 пока нет.
+
+Для опубликованного пакета **6.0.0** используйте зависимость ниже и документацию стабильной версии по ссылке, а не примеры 7.0 с этой страницы.
+[Документация стабильной версии 6.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ru.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
 ]
 ```
 
-Примеры на этой странице предназначены для **InnoDI 6.0.0**.
-[Документация версии 6.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ru.md).
-Обновление с 5.x требует изменений исходного кода; см.
-[руководство по миграции](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary).
+Все последующие примеры продуктов, плагинов и API используют **checkout разработки 7.0**.
 
 Затем подключите нужные продукты:
 
@@ -536,7 +548,7 @@ var logger: RequestLogger
 ```swift
 @SubContainer(
     scope: .shared,
-    with: [\.config, \.apiClient],
+    with: [\Self.config, \Self.apiClient],
     featureRoot: FeatureRootScene.self
 )
 var feature: FeatureContainer

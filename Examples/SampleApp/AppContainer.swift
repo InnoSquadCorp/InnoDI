@@ -94,10 +94,10 @@ struct AppContainer {
     @SubContainer(
         scope: .shared,
         with: [
-            \AppContainer.apiClient,
-            \AppContainer.cache,
-            \AppContainer.database,
-            \AppContainer.analytics
+            \Self.apiClient,
+            \Self.cache,
+            \Self.database,
+            \Self.analytics
         ]
     )
     var featureContainer: FeatureContainer

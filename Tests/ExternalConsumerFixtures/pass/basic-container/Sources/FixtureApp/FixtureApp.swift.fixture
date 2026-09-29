@@ -82,7 +82,7 @@ struct AppContainer {
     @Provide(.shared, asyncFactory: { () async in AsyncService() })
     var asyncService: AsyncService
 
-    @SubContainer(scope: .shared, with: [\AppContainer.service])
+    @SubContainer(scope: .shared, with: [\Self.service])
     var feature: FeatureContainer
 }
 

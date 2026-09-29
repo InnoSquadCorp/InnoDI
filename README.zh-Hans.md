@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> 此检出版本的文档对应**尚未发布的 7.0.0**。示例和规则需要 7.0 开发检出版本，不适用于已发布的 6.0.0 包。
+> [稳定版 6.0.0 文档](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.zh-Hans.md).
+
 面向 Swift 的宏驱动依赖注入框架，提供编译期与构建期校验、依赖图工具、
 层级校验以及 SwiftUI 辅助能力。
 
@@ -131,14 +135,22 @@ dependency-graph CLI、宏插件）不会嵌入到用户应用中，因此不会
 
 ```swift
 dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+本页示例请使用以下本地 **7.0 开发检出版本**，并将 `../InnoDI` 改为实际路径。目前尚无 7.0.0 发布标签。
+
+如需使用已发布的 **6.0.0** 包，请添加以下依赖并参照链接中的稳定版文档，而不是本页的 7.0 示例。
+[稳定版 6.0.0 文档](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.zh-Hans.md).
+
+```swift
+dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
 ]
 ```
 
-本页示例适用于 **InnoDI 6.0.0**。
-[6.0.0 版本文档](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.zh-Hans.md)。
-从 5.x 升级需要修改源代码，请参阅
-[迁移指南](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary)。
+以下 product、plugin 和 API 示例均以 **7.0 开发检出版本**为准。
 
 然后把需要的 product 加到 target：
 
@@ -487,7 +499,7 @@ var logger: RequestLogger
 ```swift
 @SubContainer(
     scope: .shared,
-    with: [\.config, \.apiClient],
+    with: [\Self.config, \Self.apiClient],
     featureRoot: FeatureRootScene.self
 )
 var feature: FeatureContainer

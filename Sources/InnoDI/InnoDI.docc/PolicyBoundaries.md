@@ -179,7 +179,7 @@ struct AppContainer {
 
     @SubContainer(
         scope: .shared,
-        bindings: [(child: \FeatureContainer.featureConfig, parent: \AppContainer.config)]
+        bindings: [(child: \FeatureContainer.featureConfig, parent: \Self.config)]
     )
     var feature: FeatureContainer
 }
