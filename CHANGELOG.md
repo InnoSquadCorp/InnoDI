@@ -150,6 +150,15 @@ that change moves to 8.0.
   warning never sees a file-scope alias. Spell the wrapper directly at the
   factory parameter.
 
+- A module that calls a generated container initializer or `withOverrides`
+  from another module no longer has to link InnoDI. Swift evaluates the
+  trailing `_innoDITrace: .disabled` default argument in the caller, and in
+  6.0 that read a stored property of InnoDI, so an Xcode test bundle that
+  linked a framework containing containers, but not InnoDI, failed with an
+  undefined `DITraceContext.disabled` symbol. `DITraceContext.disabled` is
+  now built in the caller. The InnoSample pilot hit this in its `Layers`
+  test bundle.
+
 - A `@SubContainer` child input wired to an asynchronous parent member is
   rejected with `sub.async-parent-member`. In 6.0 the generated child
   construction failed to compile with an unrelated missing-member error, so
