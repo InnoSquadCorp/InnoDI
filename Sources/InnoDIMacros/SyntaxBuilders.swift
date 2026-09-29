@@ -48,6 +48,12 @@ internal func letBinding(name bindingName: String, value: ExprSyntax) -> DeclSyn
 
 // MARK: - Storage peer declarations
 
+/// Each provider accessor owns a default-initialized trace-owner peer instead
+/// of reading one container-level member. The accessor expansion then only
+/// references declarations its own macro introduced, so it still compiles when
+/// the container macro stops at a terminal diagnostic and emits no
+/// initializer. With tracing disabled the peer is a copy of
+/// `_InnoDITraceOwner.disabled` and holds no heap references.
 internal func providerTraceOwnerPeerDecl(name: String) -> DeclSyntax {
     "private var _innoDITraceOwner_\(raw: name): _InnoDITraceOwner = .disabled"
 }
