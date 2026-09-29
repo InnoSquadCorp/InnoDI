@@ -309,6 +309,10 @@ standalone release assets.
 - The README states that InnoDI supports Apple platforms only, and
   `SECURITY.md` names `6.x` as the supported line.
 
+- New DocC guides, with Korean mirrors, map Factory and Swinject concepts to
+  InnoDI and include compiled examples. `.spi.yml` points Swift Package Index
+  at the hosted DocC documentation.
+
 ### Breaking or Behavior Changes
 
 - None yet.

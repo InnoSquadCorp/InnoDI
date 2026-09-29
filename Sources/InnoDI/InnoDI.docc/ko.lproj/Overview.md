@@ -47,6 +47,11 @@ graph tooling에 초점을 둡니다.
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 
+### 다른 라이브러리에서 옮기기
+
+- <doc:MigratingFromFactory>
+- <doc:MigratingFromSwinject>
+
 ### Operations
 
 - <doc:lock-safety>

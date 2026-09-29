@@ -72,6 +72,11 @@ before runtime, and inspectable as a graph artifact.
 | Hierarchical feature ownership and graph visibility | InnoDI, [Needle](https://github.com/uber/needle), or [SafeDI](https://github.com/dfed/SafeDI) | InnoDI models parent-owned child containers with `@SubContainer` and renders ownership edges in the graph CLI. Needle and SafeDI are strong options when their component/dependency-tree architecture matches your app. |
 | Lowest adoption cost for an existing app | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), or incremental InnoDI adoption | InnoDI asks you to define containers and accept macro/build validation. That cost pays off most when you want reviewable wiring, generated overrides, and graph checks rather than only localized dependency access. |
 
+Moving an existing app? Follow
+[Migrating from Factory](Sources/InnoDI/InnoDI.docc/MigratingFromFactory.md) or
+[Migrating from Swinject](Sources/InnoDI/InnoDI.docc/MigratingFromSwinject.md)
+for a concept map, migration steps, and a compiled example.
+
 In practice, InnoDI can also coexist with runtime tools: use InnoDI for the
 validated application graph, then use `swift-dependencies` or small factories
 inside feature logic when scoped runtime values are the better abstraction.
@@ -788,3 +793,5 @@ Release notes and upgrade notes live in [RELEASING.md](RELEASING.md).
 - [Examples/SwiftUIExample](Examples/SwiftUIExample)
 - [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
 - [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
+- [InnoSample](https://github.com/InnoSquadCorp/InnoSample): a multi-module
+  Tuist app that combines InnoDI with InnoFlow, InnoNetwork, and InnoRouter

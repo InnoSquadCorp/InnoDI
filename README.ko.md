@@ -72,6 +72,11 @@ artifact로 점검 가능해야 한다면 InnoDI가 잘 맞습니다.
 | feature ownership hierarchy와 graph visibility | InnoDI, [Needle](https://github.com/uber/needle), [SafeDI](https://github.com/dfed/SafeDI) | `@SubContainer`와 graph CLI ownership edge로 parent-owned child container를 표현합니다. |
 | 기존 앱의 최저 도입 비용 | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), incremental InnoDI | InnoDI는 container 정의와 macro/build validation을 요구합니다. payoff는 wiring 가시성과 graph check가 필요한 시점에 커집니다. |
 
+기존 앱을 옮긴다면
+[Factory에서 옮기기](Sources/InnoDI/InnoDI.docc/ko.lproj/MigratingFromFactory.md)나
+[Swinject에서 옮기기](Sources/InnoDI/InnoDI.docc/ko.lproj/MigratingFromSwinject.md)의
+개념 대응표, 옮기는 순서, 컴파일되는 예제를 참고하세요.
+
 실무에서는 공존도 가능합니다. 검증된 application graph는 InnoDI에 두고,
 feature 내부의 runtime 값은 `swift-dependencies`나 작은 factory로 처리할 수
 있습니다.
@@ -742,3 +747,5 @@ Tools/generate-docc.sh
 - [Examples/SwiftUIExample](Examples/SwiftUIExample)
 - [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
 - [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
+- [InnoSample](https://github.com/InnoSquadCorp/InnoSample): InnoDI를 InnoFlow,
+  InnoNetwork, InnoRouter와 함께 쓰는 멀티 모듈 Tuist 앱
