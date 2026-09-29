@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
-# CI guard: the Korean README must stay structurally aligned with the English
-# canonical (README.md) and retain critical public API/diagnostic tokens. The
-# structural check compares fence counts and H2 header counts, since exact
-# header text legitimately differs across translations. Fence counts and
-# header counts must match the English canonical because new sections or
-# examples in English signal a need for a parallel translation update.
+# CI guard: the Korean README and the Korean DocC articles must stay
+# structurally aligned with their English canonical sources, and the Korean
+# README must retain critical public API/diagnostic tokens. The structural
+# check compares fence counts and H2 header counts, since exact header text
+# legitimately differs across translations. Fence counts and header counts
+# must match the English canonical because new sections or examples in
+# English signal a need for a parallel translation update.
 #
-# The other translations were frozen at 6.0.0 and are now notice pages. They
-# must keep linking the canonical README and their 6.0.0 translation.
+# Every `ko.lproj/*.md` DocC article with an English counterpart in the base
+# catalog gets the same structural comparison. A Korean page without an
+# English counterpart is reported and skipped.
+#
+# The other translations were frozen at 6.0.0 and are now notice pages. Their
+# READMEs must keep linking the canonical README and their 6.0.0 translation.
+# Their `*.lproj` folders hold only a TranslationNotice page and are never
+# compared.
 #
 # Default mode is strict: differences are reported and the script exits
 # non-zero. Set `INNODI_README_SYNC_STRICT=0` to demote failures to
@@ -28,6 +35,13 @@ NOTICE_PAGES=(
     "README.de.md"
     "README.es.md"
     "README.ru.md"
+)
+
+DOCC_CATALOG="Sources/InnoDI/InnoDI.docc"
+# Only the Korean DocC mirror is maintained. The frozen ja, zh-Hans, de, es,
+# and ru folders are deliberately absent from this list.
+LOCALIZED_DOCC_DIRS=(
+    "$DOCC_CATALOG/ko.lproj"
 )
 
 # These exact Markdown tokens carry public 5.0 diagnostics, namespace
@@ -62,12 +76,44 @@ count_h2_headers() {
     grep -cE '^## ' "$1" || true
 }
 
+drift_count=0
+
+# Reports one localized-contract drift. Strict mode reports it as an error;
+# otherwise it is demoted to a warning.
+report_drift() {
+    local file="$1"
+    local message="$2"
+    local annotation="error"
+    if [[ "$STRICT" != "1" ]]; then
+        annotation="warning"
+    fi
+    echo "::$annotation file=$file::$message"
+    drift_count=$((drift_count + 1))
+}
+
+# Compares the swift fence and H2 header counts of a localized page with its
+# English canonical page.
+compare_structure() {
+    local file="$1"
+    local canonical="$2"
+    local fences h2 canonical_fences canonical_h2
+    fences=$(count_swift_fences "$file")
+    h2=$(count_h2_headers "$file")
+    canonical_fences=$(count_swift_fences "$canonical")
+    canonical_h2=$(count_h2_headers "$canonical")
+
+    if [[ "$fences" != "$canonical_fences" || "$h2" != "$canonical_h2" ]]; then
+        report_drift "$file" "structure drift against $canonical (swift_fences=$fences want=$canonical_fences, h2_headers=$h2 want=$canonical_h2)"
+    else
+        echo "OK $file: swift_fences=$fences h2_headers=$h2"
+    fi
+}
+
 canonical_fences=$(count_swift_fences "$CANONICAL")
 canonical_h2=$(count_h2_headers "$CANONICAL")
 
 echo "Canonical $CANONICAL: swift_fences=$canonical_fences h2_headers=$canonical_h2"
 
-drift_count=0
 for token in "${CRITICAL_PARITY_TOKENS[@]}"; do
     if ! grep -Fq -- "$token" "$CANONICAL"; then
         echo "::error file=$CANONICAL::critical parity token is no longer present in the canonical README: $token"
@@ -77,37 +123,15 @@ done
 
 for file in "${LOCALIZED[@]}"; do
     if [[ ! -f "$file" ]]; then
-        annotation="error"
-        if [[ "$STRICT" != "1" ]]; then
-            annotation="warning"
-        fi
-        echo "::$annotation file=$file::missing localized README"
-        drift_count=$((drift_count + 1))
+        report_drift "$file" "missing localized README"
         continue
     fi
 
-    fences=$(count_swift_fences "$file")
-    h2=$(count_h2_headers "$file")
-
-    if [[ "$fences" != "$canonical_fences" || "$h2" != "$canonical_h2" ]]; then
-        annotation="error"
-        if [[ "$STRICT" != "1" ]]; then
-            annotation="warning"
-        fi
-        echo "::$annotation file=$file::structure drift (swift_fences=$fences want=$canonical_fences, h2_headers=$h2 want=$canonical_h2)"
-        drift_count=$((drift_count + 1))
-    else
-        echo "OK $file: swift_fences=$fences h2_headers=$h2"
-    fi
+    compare_structure "$file" "$CANONICAL"
 
     for token in "${CRITICAL_PARITY_TOKENS[@]}"; do
         if ! grep -Fq -- "$token" "$file"; then
-            annotation="error"
-            if [[ "$STRICT" != "1" ]]; then
-                annotation="warning"
-            fi
-            echo "::$annotation file=$file::critical API/diagnostic token drift (missing $token)"
-            drift_count=$((drift_count + 1))
+            report_drift "$file" "critical API/diagnostic token drift (missing $token)"
         fi
     done
 done
@@ -117,26 +141,48 @@ for file in "${NOTICE_PAGES[@]}"; do
     if [[ ! -f "$file" ]] \
         || ! grep -Fq -- "(README.md)" "$file" \
         || ! grep -Fq -- "$frozen_link" "$file"; then
-        annotation="error"
-        if [[ "$STRICT" != "1" ]]; then
-            annotation="warning"
-        fi
-        echo "::$annotation file=$file::translation notice must link README.md and $frozen_link"
-        drift_count=$((drift_count + 1))
+        report_drift "$file" "translation notice must link README.md and $frozen_link"
     else
         echo "OK $file: notice page"
     fi
 done
 
+docc_page_count=0
+for localized_dir in "${LOCALIZED_DOCC_DIRS[@]}"; do
+    if [[ ! -d "$localized_dir" ]]; then
+        report_drift "$localized_dir" "missing localized DocC catalog"
+        continue
+    fi
+
+    compared=0
+    for file in "$localized_dir"/*.md; do
+        [[ -f "$file" ]] || continue
+        canonical_page="$DOCC_CATALOG/$(basename "$file")"
+        if [[ ! -f "$canonical_page" ]]; then
+            echo "SKIP $file: no English counterpart in $DOCC_CATALOG"
+            continue
+        fi
+        compare_structure "$file" "$canonical_page"
+        compared=$((compared + 1))
+    done
+
+    # An empty comparison would pass vacuously, for example after the base
+    # catalog moves.
+    if [[ "$compared" -eq 0 ]]; then
+        report_drift "$localized_dir" "no localized DocC article with an English counterpart was compared"
+    fi
+    docc_page_count=$((docc_page_count + compared))
+done
+
 if [[ "$drift_count" -eq 0 ]]; then
-    echo "All localized READMEs match the English canonical structure and critical API/diagnostic tokens."
+    echo "All localized READMEs and $docc_page_count localized DocC article(s) match the English canonical structure and critical API/diagnostic tokens."
     exit 0
 fi
 
 if [[ "$STRICT" == "1" ]]; then
-    echo "::error::$drift_count localized README contract drift(s) found against $CANONICAL. Re-sync the affected files or set INNODI_README_SYNC_STRICT=0 to demote to a warning during a rollout window."
+    echo "::error::$drift_count localized documentation contract drift(s) found against the English canonical sources. Re-sync the affected files or set INNODI_README_SYNC_STRICT=0 to demote to a warning during a rollout window."
     exit 1
 fi
 
-echo "::warning::$drift_count localized README contract drift(s) found against $CANONICAL (strict mode disabled)."
+echo "::warning::$drift_count localized documentation contract drift(s) found against the English canonical sources (strict mode disabled)."
 exit 0

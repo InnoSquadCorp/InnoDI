@@ -283,8 +283,14 @@ sibling edge even when the container uses `validateDAG: false`.
   Spanish, and Russian READMEs and `*.lproj` folders are notice pages frozen
   at 6.0.0; do not add content to them.
 - `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the
-  release gate; Korean H2 or swift-fence drift, or a notice page that stops
-  linking its 6.0.0 translation, fails the build.
+  release gate. It compares H2 and swift-fence counts of `README.ko.md` with
+  `README.md` and of every `ko.lproj/*.md` article with its English
+  counterpart in `Sources/InnoDI/InnoDI.docc`, and requires the Korean README
+  to keep its critical tokens. Any drift, or a notice page that stops linking
+  its 6.0.0 translation, fails the build; `INNODI_README_SYNC_STRICT=0` demotes
+  failures to warnings only for a soft-rollout window. The frozen `*.lproj`
+  folders are never compared. Matching counts do not prove matching meaning,
+  so mirror English prose edits in the same change.
 - `CHANGELOG.md` is the single source for release notes and upgrade notes, and
   holds the latest-stable and development-train metadata. `RELEASING.md`
   defines the release process.
