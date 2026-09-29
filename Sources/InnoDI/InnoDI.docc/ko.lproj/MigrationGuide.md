@@ -308,15 +308,83 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ---
 
-## 5.x → 6.0 그래프 계약
+## 5.x → 6.0 어휘
 
-`@Multibinding`으로 표현할 수 없는 keyed/provider collection은
-`@Provide(collection:)`에 `.ordered`, `.keyed`, `.providers`,
-`.keyedProviders` 중 하나의 닫힌 literal metadata를 선언합니다. keyed entry는
-`.init(key: "id", contributor: \Self.member)`만 허용하며 explicit empty는
-metadata 생략과 구별됩니다. key·순서·canonical contributor ID·실제 provider
-lifetime은 graph 계약입니다. InnoDI는 factory body나 module을 검색하지 않고
-암묵적 last-wins도 적용하지 않습니다.
+6.0 소스 어휘는 외부 input을 provider lifetime과 분리하고 hierarchy/isolation
+의도를 `@DIContainer`에 포함합니다.
+
+```swift
+// Before
+@DIComponent
+@DIContainer(mainActor: true)
+struct FeatureContainer {
+    @Provide(.input) var config: FeatureConfig
+}
+
+// After
+@DIContainerRole(
+    role: ContainerRole.component,
+    mainActor: true
+)
+struct FeatureContainer {
+    @Input var config: FeatureConfig
+}
+```
+
+`@DIHierarchyRoot`와 `@DIContainer(root: true)`의 조합 대신
+`@DIContainerRole(role: ContainerRole.root)`를 사용하세요. 어느 marker도 없이
+`@DIContainer(mainActor: true)`를 쓰던 container는 role 매크로가 `role:`을
+요구하므로 `@DIContainerRole(role: ContainerRole.local, mainActor: true)`가
+됩니다. 6.0에서 `InnoDI-Migrate --check`, `--report`, `--write`는 새
+spelling을 기계적으로 적용하고 `validateDAG`와 `escaping`을 보존하며, 여러 번
+실행해도 결과가 같습니다. Migrator는 주석 처리됐거나 동적이거나 충돌하는 role
+site를 그대로 두고, 의도를 추측하는 대신 차단 진단을 출력합니다.
+
+`@Input(.assisted)`는 값이 child factory를 호출할 때 전달된다는 것을
+기록합니다. 6.0에서는 source-visible nested
+`@AssistedFactory(...static:...assisted:...) struct AssistedFactory {}`를
+선언하고, parent가 `@SubContainerFactory(Child.self, bindings: ...)`로 이를
+소유하게 하세요. Whole-source validation은 모든 일반 child input을 정확히 한
+번씩 binding하도록 요구하고, static binding 목록에 들어간 assisted input은
+거부합니다. RFC 0006은 이 spelling을 승인합니다. 5.x에 고정한 pilot 프로젝트는
+안정된 6.0 계약을 채택하기 전에 마이그레이션하세요.
+
+`_InnoDIMultibindingPrototype(members: ["first", "second"])`는 주입 가능한
+direct collection 선언으로 바꾸세요.
+
+```swift
+@Multibinding([\Self.first, \Self.second])
+var services: [any Service]
+```
+
+Contributor key path 순서가 곧 출력 순서입니다. Contributor는 작성된 타입이
+배열 원소 타입과 정확히 일치하는 동기 direct managed dependency여야 합니다.
+Collection은 contributor의 lifetime과 override를 보존하고, 그 자체도 다른
+provider에 주입할 수 있으며, 자체 테스트 override를 가집니다. 대체된 SPI는
+공개 `@Multibinding`이 그 ordered-collection 계약을 넘겨받은 뒤 제거됐습니다.
+Preparation 버전에 고정한 consumer는 6.0을 채택하기 전에 공개 spelling으로
+마이그레이션해야 합니다.
+
+Keyed·provider 기반 collection이나 그 밖에 factory로 만든 collection은 graph
+identity를 runtime 조합과 분리해 선언합니다.
+
+```swift
+@Provide(
+    .transient,
+    collection: .keyedProviders([
+        .init(key: "auth", contributor: \Self.auth),
+        .init(key: "logging", contributor: \Self.logging),
+    ]),
+    factory: makeProviders()
+)
+var providers: DIKeyedProviderCollection<String, any Service>
+```
+
+`@Provide(collection:)`에는 닫힌 literal 형태인 `.ordered`, `.keyed`,
+`.providers`, `.keyedProviders`만 허용됩니다. Explicit empty 배열도 유효하며
+metadata 생략과 구별됩니다. Key·순서·canonical contributor ID·contributor가
+선언한 lifetime은 graph 계약입니다. InnoDI는 factory body를 검사하거나 module
+member를 탐색하지 않고 암묵적 last-wins 규칙도 적용하지 않습니다.
 
 Graph JSON consumer는 schema v6로 옮겨야 합니다. v5는 v4 provider 계약에
 더해 각 factory parameter의 canonical provider ID와 eager/`Lazy`/`Provider`
