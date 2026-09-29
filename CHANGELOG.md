@@ -147,6 +147,11 @@ that change moves to 8.0.
   onto the argument line, and appended `featureRoot:` to the line of the last
   `@SubContainer` argument.
 
+- Generated support: an `.onDemand` `asyncFactory:` provider stores its value
+  in the new public `_InnoDIAsyncSharedCell`, and `DITraceContext.disabled`
+  is now a computed property built in the caller. The cell exists only for
+  generated code; do not declare or reference it directly.
+
 - The `deferred-alias.workspace-finding` warning no longer suggests moving a
   `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not
   resolve such aliases in any file, and in a real build the macro-level alias

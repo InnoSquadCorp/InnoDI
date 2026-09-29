@@ -9,10 +9,17 @@ release.
 InnoDI 6.0.0 shipped on 2026-09-29 as an immutable GitHub Release. The
 [7.0.0 post-audit plan](docs/plans/7.0.0-post-audit.md) tracks the
 2026-09-29 audit follow-up as one train: CI feedback time, asynchronous
-on-demand providers with an explicit close path, generated-code cleanup,
-canonical key paths, SwiftUI re-export removal, the macOS 14 floor with an
-Observation-based host owner, and documentation consolidation. 7.0.0
-supersedes 6.0.0; the 6.0.0 tag is not moved or republished.
+on-demand providers with an explicit close path, a `@GenerateMock` renderer
+built with SwiftSyntaxBuilder, canonical key paths, SwiftUI re-export
+removal, the macOS 14 floor with an Observation-based host owner, and
+documentation consolidation. 7.0.0 supersedes 6.0.0; the 6.0.0 tag is not
+moved or republished.
+
+The symbol-graph semantic validator spike ended with a no-go
+recommendation, so
+[RFC 0007](docs/rfcs/0007-symbol-graph-semantic-validation.md) stays a draft
+and the syntax-only whole-source preflight remains the build validator in
+7.0.0.
 
 `ContainerRole` stays a string-backed token in 7.0.0 because Swift 6.2
 remains the minimum toolchain and Swift 6.2.3 crashes on enum-typed arguments
