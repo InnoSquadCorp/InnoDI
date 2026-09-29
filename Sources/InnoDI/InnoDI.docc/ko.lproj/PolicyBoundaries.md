@@ -35,7 +35,9 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 
 ## Matching Strategy
 
-- `InnoDIMacros`, `InnoDICore`, graph CLI는 가능한 한 동일한 nominal-path 모델을 공유합니다.
+- `InnoDIMacros`, `InnoDICore`, `InnoDI-DependencyGraph`는 같은 경량
+  nominal-path 모델과 서로 맞춘 parser/graph semantics를 공유하며 이를
+  보장합니다.
 - `Outer.Container` 같은 nested path를 지원합니다.
 - generic argument extension과 constrained `where` extension은 제외합니다.
 - 모호하거나 지원되지 않는 케이스는 추측해서 매치하지 않습니다.
@@ -86,9 +88,120 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 - non-`Sendable` 의존성은 global lookup 뒤에 숨기지 말고 명시적인 컨테이너
   경계를 통해 전달하고 앱 레이어에서 격리하세요.
 
+## DAG Opt-Out
+
+- `validateDAG: false`는 해당 컨테이너의 global DAG 검증과 로컬
+  graph-derived 가용성 검사를 끕니다. 로컬 소유권 순환은 항상 거부되며
+  `Lazy`나 `Provider`를 통하는 순환도 예외가 아닙니다.
+- 구조 검증은 계속 실행됩니다. 지원하지 않는 custom `init` 선언, 잘못된
+  `@SubContainer` binding, 형식이 잘못된 deferred wrapper와 그 밖의 로컬
+  매크로 규칙은 여전히 진단됩니다.
+- Opt-out은 legacy module, 임시 마이그레이션 단계, 실제 lifetime을 다른
+  시스템이 검증하는 컨테이너처럼 의도한 integration 경계에만 사용하세요.
+
+## Deferred Wrapper의 한계
+
+- `Lazy<T>`와 `Provider<T>`는 생성을 지연하지만 소유권 순환을 끊지는
+  않습니다. 로컬 소유권 검증과 global DAG 검증은 모두 deferred edge를
+  포함합니다. 순환 wiring이 아니라 on-demand 해소와 비순환 forward
+  reference에 사용하세요.
+- 지연은 factory가 wrapper를 받아 저장하거나 전달할 때만 효과가 있습니다.
+  Factory가 의존성을 생성하는 도중 wrapper를 바로 호출하면 그 의존성은
+  사실상 다시 eager가 됩니다. InnoDI는 `.shared` 생성 안에서 `lazy()` /
+  `provider()`를 직접 호출하는 표기와 `callAsFunction()` / `resolver()`로
+  직접 호출하는 표기를 진단합니다.
+- Helper function을 거친 간접 eager 호출은 InnoDI가 검사하지 않습니다.
+  지연 생성이 유지되도록 해당 factory를 직접 검토하세요. 순환을 wrapper
+  뒤에 숨기려 하지 말고 소유권을 재구성해 순환을 제거하세요.
+
+<!-- innodi:compile -->
+```swift
+import InnoDI
+
+struct Config {}
+struct Service { init(config: Config) {} }
+struct Request { init(config: Config) {} }
+struct Consumer {
+    let service: Lazy<Service>
+    let requests: Provider<Request>
+}
+
+@DIContainer
+struct AppContainer {
+    @Input
+    var config: Config
+
+    @Provide(.shared, factory: { (config: Config) in
+        Service(config: config)
+    })
+    var service: Service
+
+    @Provide(.transient, factory: { (config: Config) in
+        Request(config: config)
+    })
+    var request: Request
+
+    @Provide(.shared, factory: { (service: Lazy<Service>, request: Provider<Request>) in
+        Consumer(service: service, requests: request)
+    })
+    var consumer: Consumer
+}
+
+let container = AppContainer(config: Config())
+_ = container.consumer
+```
+
+<!-- innodi:compile -->
+```swift
+import InnoDI
+
+struct Config {}
+struct FeatureService { init(config: Config) {} }
+
+@DIContainer
+struct FeatureContainer {
+    @Input
+    var featureConfig: Config
+
+    @Provide(.shared, factory: { (featureConfig: Config) in
+        FeatureService(config: featureConfig)
+    })
+    var service: FeatureService
+}
+
+@DIContainer
+struct AppContainer {
+    @Input
+    var config: Config
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [(child: \FeatureContainer.featureConfig, parent: \Self.config)]
+    )
+    var feature: FeatureContainer
+}
+
+let container = AppContainer(config: Config())
+_ = container.feature
+```
+
 ## 선언 타입이 결정하는 Storage Shape
 
 - protocol-first dependency 설계를 권장합니다.
 - 선언된 property type이 source of truth입니다. Concrete nominal type은
   concrete storage를, `any Protocol`은 existential storage를 사용합니다.
 - Storage shape은 attribute flag나 macro heuristic으로 선택하지 않습니다.
+
+## Runtime Lookup 트레이드오프
+
+- InnoDI에는 의도적으로 `@Injected` property wrapper가 없습니다.
+- InnoDI에는 의도적으로 dynamic registration API가 없습니다.
+- Late registration이나 plugin-style composition이 주된 요구라면 runtime
+  DI 도구를 사용하세요. 생성된 initializer, 명시적 override, 결정적 검증이
+  주된 요구라면 InnoDI를 사용하세요.
+
+## See Also
+
+- <doc:Validation>
+- <doc:IntegrationGuide>
+- <doc:ModuleWideInitDetection>
