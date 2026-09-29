@@ -186,9 +186,12 @@ func run(_ container: AppContainer) async throws {
 
 A container with at least one asynchronous on-demand provider also gains
 `closeAsyncProviders()`. Closing cancels in-flight construction, resumes every
-waiting reader with ``DIAsyncScopeError/closed(providerID:)``, and makes later
-reads throw the same error. An overridden provider closes the same way, so a
-test that overrides it observes the production contract. The provider ID is
+waiting reader with ``DIAsyncScopeError/closed(providerID:)``, releases the
+value, and makes later reads throw the same error. A construction that has not
+begun never starts the factory; a factory already running observes
+cancellation, and a value it returns anyway is discarded. An overridden
+provider closes the same way and releases its value, so a test that overrides
+it observes the production contract. The provider ID is
 the member name. Closing is idempotent. Container copies share their providers, so closing any copy closes
 them for every copy. Closing does not reach sub-containers.
 

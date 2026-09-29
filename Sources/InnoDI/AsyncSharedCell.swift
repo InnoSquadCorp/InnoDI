@@ -12,10 +12,13 @@ import os
 /// of the cell, like an eager asynchronous `.shared` provider.
 ///
 /// ``close()`` cancels in-flight construction, resumes every waiting reader
-/// with ``DIAsyncScopeError/closed(providerID:)``, and releases the factory's
-/// captures. Later reads throw the same error, including for an overridden
-/// value, so tests that override the provider observe the production close
-/// contract. The provider ID in that error is the provider's member name.
+/// with ``DIAsyncScopeError/closed(providerID:)``, and releases the value.
+/// A construction task that has not begun yet never starts the factory. A
+/// factory that is already running observes cancellation, and a result it
+/// returns anyway is discarded and traced as a cancellation. Later reads throw
+/// the same error, and closing an overridden value releases it too, so tests
+/// that override the provider observe the production close contract. The
+/// provider ID in that error is the provider's member name.
 ///
 /// The payload and every factory capture are checked as `Sendable` through
 /// the `@Sendable` operation, so the cell itself is `Sendable` without an
@@ -24,12 +27,12 @@ import os
 public final class _InnoDIAsyncSharedCell<Value: Sendable>: Sendable {
     private enum Source: Sendable {
         case scope(DIAsyncScope<Value>)
-        case value(Value)
+        case override
     }
 
-    /// Trace bookkeeping plus the closed flag for overridden values. The
-    /// owned scope remains the source of truth for values, failures, and
-    /// waiters. `closed` is terminal.
+    /// Trace bookkeeping plus the closed flag. The owned scope remains the
+    /// source of truth for constructed values, failures, and waiters.
+    /// `closed` is terminal.
     private enum Phase: Sendable {
         case idle
         case running(_InnoDITraceOwner.Span?)
@@ -37,38 +40,63 @@ public final class _InnoDIAsyncSharedCell<Value: Sendable>: Sendable {
         case closed
     }
 
+    private struct State: Sendable {
+        var phase: Phase
+        /// An overridden value, until ``close()`` releases it.
+        var overrideValue: Value?
+    }
+
     private let source: Source
     private let traceOwner: _InnoDITraceOwner
     private let providerName: String
-    private let phase: OSAllocatedUnfairLock<Phase>
+    private let state: OSAllocatedUnfairLock<State>
 
     public init(
         traceOwner: _InnoDITraceOwner,
         providerName: String,
         operation: @escaping @Sendable () async throws -> Value
     ) {
-        let phase = OSAllocatedUnfairLock<Phase>(initialState: .idle)
-        self.phase = phase
+        let state = OSAllocatedUnfairLock(initialState: State(phase: .idle, overrideValue: nil))
+        self.state = state
         self.traceOwner = traceOwner
         self.providerName = providerName
         source = .scope(
             DIAsyncScope(providerID: providerName) {
+                // `close()` closes this cell before it cancels the owned
+                // task, and the task can begin running after either step. A
+                // closed cell never starts the factory.
+                try Task.checkCancellation()
+                if Self.isClosed(state) {
+                    throw DIAsyncScopeError.closed(providerID: providerName)
+                }
                 // The scope runs this operation at most once, on its owned
                 // task, so construction start and outcome are traced once.
                 let span = traceOwner.prepareSpan(member: providerName)
-                Self.advance(phase, to: .running(span))
+                Self.advance(state, to: .running(span))
                 traceOwner.emitStart(span: span)
+                let outcome: Result<Value, any Error>
                 do {
-                    let value = try await operation()
-                    Self.advance(phase, to: .completed(span))
+                    outcome = .success(try await operation())
+                } catch {
+                    outcome = .failure(error)
+                }
+                // Read before `advance`, which leaves a closed phase alone.
+                if Self.isClosed(state) {
+                    // The close discards the outcome. The scope may not be
+                    // closed yet, so waiters must see the close rather than a
+                    // cancellation or the factory's own result.
+                    traceOwner.finish(.cancel, span: span)
+                    throw DIAsyncScopeError.closed(providerID: providerName)
+                }
+                Self.advance(state, to: .completed(span))
+                switch outcome {
+                case .success(let value):
                     traceOwner.finish(.success, span: span)
                     return value
-                } catch let cancellation as CancellationError {
-                    Self.advance(phase, to: .completed(span))
+                case .failure(let cancellation as CancellationError):
                     traceOwner.finish(.cancel, span: span)
                     throw cancellation
-                } catch {
-                    Self.advance(phase, to: .completed(span))
+                case .failure(let error):
                     traceOwner.finish(.failure, span: span)
                     throw error
                 }
@@ -85,20 +113,26 @@ public final class _InnoDIAsyncSharedCell<Value: Sendable>: Sendable {
         self.providerName = providerName
         let span = traceOwner.start(member: providerName)
         traceOwner.finish(.override, span: span)
-        phase = OSAllocatedUnfairLock(initialState: .completed(span))
-        source = .value(value)
+        state = OSAllocatedUnfairLock(
+            initialState: State(phase: .completed(span), overrideValue: value)
+        )
+        source = .override
     }
 
     public func value() async throws -> Value {
-        let currentPhase = phase.withLock { $0 }
+        let current = state.withLock { $0 }
+        let currentPhase = current.phase
         if case .closed = currentPhase {
             throw DIAsyncScopeError.closed(providerID: providerName)
         }
 
         let scope: DIAsyncScope<Value>
         switch source {
-        case .value(let value):
+        case .override:
             try Task.checkCancellation()
+            guard let value = current.overrideValue else {
+                throw DIAsyncScopeError.closed(providerID: providerName)
+            }
             if case .completed(let span) = currentPhase {
                 traceOwner.cacheHit(member: providerName, span: span)
             }
@@ -136,19 +170,33 @@ public final class _InnoDIAsyncSharedCell<Value: Sendable>: Sendable {
     /// Cancels in-flight construction and permanently closes the provider.
     /// Closing is idempotent and also closes an overridden provider.
     public func close() async {
-        phase.withLock { $0 = .closed }
+        // The released value goes out of scope after the lock is dropped, so
+        // its deinitializer never runs while the lock is held.
+        _ = state.withLock { current -> Value? in
+            current.phase = .closed
+            let released = current.overrideValue
+            current.overrideValue = nil
+            return released
+        }
         guard case .scope(let scope) = source else { return }
         await scope.close()
     }
 
     /// Records trace progress without reopening a closed provider.
     private static func advance(
-        _ phase: OSAllocatedUnfairLock<Phase>,
+        _ state: OSAllocatedUnfairLock<State>,
         to next: Phase
     ) {
-        phase.withLock { current in
-            if case .closed = current { return }
-            current = next
+        state.withLock { current in
+            if case .closed = current.phase { return }
+            current.phase = next
+        }
+    }
+
+    private static func isClosed(_ state: OSAllocatedUnfairLock<State>) -> Bool {
+        state.withLock { current in
+            if case .closed = current.phase { return true }
+            return false
         }
     }
 }

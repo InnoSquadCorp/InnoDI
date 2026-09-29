@@ -173,9 +173,11 @@ func run(_ container: AppContainer) async throws {
 
 비동기 on-demand provider가 하나라도 있는 컨테이너에는 `closeAsyncProviders()`도
 생성됩니다. 닫으면 진행 중인 생성을 취소하고, 기다리던 모든 읽기를
-``DIAsyncScopeError/closed(providerID:)``로 재개하며, 이후 읽기도 같은 오류를
-throw합니다. override한 provider도 똑같이 닫히므로, override를 쓰는 테스트도
-production과 같은 계약을 관찰합니다. provider ID는 member 이름입니다. 여러 번
+``DIAsyncScopeError/closed(providerID:)``로 재개하고, 값을 놓아 주며, 이후
+읽기도 같은 오류를 throw합니다. 아직 시작하지 않은 생성은 factory를 실행하지
+않고, 이미 실행 중인 factory는 취소를 관찰하며 그래도 반환한 값은 버립니다.
+override한 provider도 똑같이 닫히고 그 값을 놓아 주므로, override를 쓰는
+테스트도 production과 같은 계약을 관찰합니다. provider ID는 member 이름입니다. 여러 번
 닫아도 결과는 같습니다.
 컨테이너 복사본은 provider를 공유하므로 어느 복사본을 닫아도 모든 복사본에서
 닫힙니다. 닫기는 sub-container까지 전파되지 않습니다.

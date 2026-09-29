@@ -83,7 +83,10 @@ func closeAsyncProviders() async
 ```
 
 Closing cancels in-flight construction, resumes every waiting reader with
-`DIAsyncScopeError.closed`, and releases the factory's captures. Later reads
+`DIAsyncScopeError.closed`, and releases the value and the factory's
+captures. A construction task that has not begun never starts the factory; a
+factory that is already running observes cooperative cancellation, and a value
+it returns anyway is discarded and traced as a cancellation. Later reads
 throw `DIAsyncScopeError.closed`. The error's provider ID is the member name.
 Closing is idempotent. Container copies
 share the same provider storage, so closing any copy closes it for all copies,
@@ -99,7 +102,7 @@ child is a fresh value on every read.
 
 The generated `Overrides` slot keeps the declared type. An override value
 completes the provider immediately, and the factory never runs. Closing still
-closes an overridden provider, so later reads throw
+closes an overridden provider and releases its value, so later reads throw
 `DIAsyncScopeError.closed`. A test that overrides the provider therefore
 observes the same close contract as production.
 

@@ -13,6 +13,8 @@ struct AsyncOnDemandResource: Equatable, Sendable {
 
 struct AsyncOnDemandFailure: Error, Equatable {}
 
+final class TrackedAsyncOnDemandValue: Sendable {}
+
 actor AsyncOnDemandAttemptCounter {
     private(set) var attempts = 0
 
@@ -313,6 +315,56 @@ struct AsyncOnDemandProviderTests {
         let events = buffer.snapshot().events
         #expect(events.map(\.kind) == [.start, .waitStart, .success, .waitEnd, .cacheHit, .cacheHit])
         #expect(Set(events.map(\.instanceID)).count == 1)
+    }
+
+    @Test("Closing releases a constructed or overridden value")
+    func closeReleasesValue() async throws {
+        weak var constructed: TrackedAsyncOnDemandValue?
+        let constructedCell = _InnoDIAsyncSharedCell(
+            traceOwner: .disabled,
+            providerName: "resource",
+            operation: { TrackedAsyncOnDemandValue() }
+        )
+        constructed = try await constructedCell.value()
+        #expect(constructed != nil)
+
+        weak var overridden: TrackedAsyncOnDemandValue?
+        var value: TrackedAsyncOnDemandValue? = TrackedAsyncOnDemandValue()
+        overridden = value
+        let overrideCell = _InnoDIAsyncSharedCell(
+            traceOwner: .disabled,
+            providerName: "resource",
+            value: value!
+        )
+        value = nil
+        #expect(overridden != nil)
+
+        await constructedCell.close()
+        await overrideCell.close()
+        #expect(constructed == nil)
+        #expect(overridden == nil)
+        await #expect(throws: Self.closed) { try await overrideCell.value() }
+    }
+
+    @Test("A construction that finishes after close is traced as a cancellation")
+    func constructionFinishingAfterCloseIsTracedAsCancellation() async throws {
+        let probe = EagerAsyncProbe()
+        let buffer = DIBoundedTraceBuffer(capacity: 16)
+        let container = AsyncOnDemandContainer(
+            probe: probe,
+            _innoDITrace: DITraceContext(sink: buffer)
+        )
+        let waiting = Task { try await container.resource }
+        await probe.waitForStarts(1)
+        await container.closeAsyncProviders()
+        await #expect(throws: Self.closed) { try await waiting.value }
+
+        await probe.openGate()
+        #expect(await probe.waitForCompletions(1) == [true])
+        while buffer.snapshot().events.count < 2 {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        #expect(buffer.snapshot().events.map(\.kind) == [.start, .cancel])
     }
 
     @Test("Tracing records an override at initialization")
