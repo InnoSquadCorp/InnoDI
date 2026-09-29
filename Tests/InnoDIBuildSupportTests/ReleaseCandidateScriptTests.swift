@@ -685,14 +685,14 @@ struct ReleaseCandidateScriptTests {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
         try fixture.writeReadme(
-            named: "README.ja.md",
+            named: "README.ko.md",
             dependencyVersions: ["4.3.0"]
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("README.ja.md must use"))
+        #expect(result.output.contains("README.ko.md must use"))
         #expect(result.output.contains("from: \"\(fixture.version)\""))
     }
 
@@ -701,28 +701,28 @@ struct ReleaseCandidateScriptTests {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
         try fixture.writeReadme(
-            named: "README.ru.md",
+            named: "README.ko.md",
             dependencyVersions: [fixture.version, fixture.version]
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("README.ru.md must contain exactly one"))
+        #expect(result.output.contains("README.ko.md must contain exactly one"))
     }
 
-    @Test("All seven known README variants are required")
+    @Test("The English and Korean README variants are required")
     func missingReadmeVariantIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
         try FileManager.default.removeItem(
-            at: fixture.rootURL.appendingPathComponent("README.zh-Hans.md")
+            at: fixture.rootURL.appendingPathComponent("README.ko.md")
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("missing README variant: README.zh-Hans.md"))
+        #expect(result.output.contains("missing README variant: README.ko.md"))
     }
 
     @Test("English migration guide cannot describe the candidate train as unreleased")
@@ -793,11 +793,6 @@ private struct ReleaseCandidateScriptFixture {
     static let readmeNames = [
         "README.md",
         "README.ko.md",
-        "README.ja.md",
-        "README.zh-Hans.md",
-        "README.de.md",
-        "README.es.md",
-        "README.ru.md",
     ]
 
     let rootURL: URL

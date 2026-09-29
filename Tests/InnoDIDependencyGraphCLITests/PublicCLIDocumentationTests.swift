@@ -52,11 +52,6 @@ struct PublicCLIDocumentationTests {
         let documentationPaths = [
             "README.md",
             "README.ko.md",
-            "README.ja.md",
-            "README.zh-Hans.md",
-            "README.de.md",
-            "README.es.md",
-            "README.ru.md",
             "Examples/README.md",
             "AGENTS.md",
         ]

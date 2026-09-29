@@ -278,8 +278,13 @@ sibling edge even when the container uses `validateDAG: false`.
 ## Documentation Contract
 
 - `README.md` is the English canonical README.
-- Localized README files and localized DocC mirrors must match the English structure and meaning.
-- `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the release gate; H2 or swift-fence drift fails the build.
+- `README.ko.md` and `Sources/InnoDI/InnoDI.docc/ko.lproj` must match the
+  English structure and meaning. The Japanese, Simplified Chinese, German,
+  Spanish, and Russian READMEs and `*.lproj` folders are notice pages frozen
+  at 6.0.0; do not add content to them.
+- `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the
+  release gate; Korean H2 or swift-fence drift, or a notice page that stops
+  linking its 6.0.0 translation, fails the build.
 - `CHANGELOG.md` is the single source for release notes and upgrade notes, and
   holds the latest-stable and development-train metadata. `RELEASING.md`
   defines the release process.

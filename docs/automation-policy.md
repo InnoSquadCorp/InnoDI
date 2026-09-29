@@ -172,8 +172,10 @@ follow-up; a local build is not hosted-documentation evidence.
 Keep the MIT 2026 InnoSquad license, existing private advisory reporting URL, and
 latest-stable-major security support principle. SECURITY's stale `5.x` annotation
 is aligned to current stable `6.x`; no older-line support or response-time promise
-is introduced. English README and its six localized mirrors preserve installation,
+is introduced. The English README and its Korean mirror preserve installation,
 requirements and structure; release/license badges and SPI links point to evidence.
+The five translations frozen at 6.0.0 are notice pages that link the English
+README and their 6.0.0 text.
 CONTRIBUTING, issue forms, the PR template, `CHANGELOG.md` and RELEASING remain
 the contribution, triage, review, release-note and release-process sources.
 `CHANGELOG.md` is the single release-note source; no second changelog is created.

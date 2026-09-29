@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# CI guard: localized READMEs must stay structurally aligned with the English
+# CI guard: the Korean README must stay structurally aligned with the English
 # canonical (README.md) and retain critical public API/diagnostic tokens. The
 # structural check compares fence counts and H2 header counts, since exact
 # header text legitimately differs across translations. Fence counts and
 # header counts must match the English canonical because new sections or
 # examples in English signal a need for a parallel translation update.
+#
+# The other translations were frozen at 6.0.0 and are now notice pages. They
+# must keep linking the canonical README and their 6.0.0 translation.
 #
 # Default mode is strict: differences are reported and the script exits
 # non-zero. Set `INNODI_README_SYNC_STRICT=0` to demote failures to
@@ -18,6 +21,8 @@ cd "$ROOT_DIR"
 CANONICAL="README.md"
 LOCALIZED=(
     "README.ko.md"
+)
+NOTICE_PAGES=(
     "README.ja.md"
     "README.zh-Hans.md"
     "README.de.md"
@@ -105,6 +110,22 @@ for file in "${LOCALIZED[@]}"; do
             drift_count=$((drift_count + 1))
         fi
     done
+done
+
+for file in "${NOTICE_PAGES[@]}"; do
+    frozen_link="https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/$file"
+    if [[ ! -f "$file" ]] \
+        || ! grep -Fq -- "(README.md)" "$file" \
+        || ! grep -Fq -- "$frozen_link" "$file"; then
+        annotation="error"
+        if [[ "$STRICT" != "1" ]]; then
+            annotation="warning"
+        fi
+        echo "::$annotation file=$file::translation notice must link README.md and $frozen_link"
+        drift_count=$((drift_count + 1))
+    else
+        echo "OK $file: notice page"
+    fi
 done
 
 if [[ "$drift_count" -eq 0 ]]; then

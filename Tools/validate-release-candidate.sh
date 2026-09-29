@@ -314,14 +314,11 @@ if [[ "${VERSION%%.*}" == "6" ]]; then
     fi
 fi
 
+# The other translations are notice pages frozen at 6.0.0 and carry no
+# installation snippet.
 README_FILES=(
     "README.md"
     "README.ko.md"
-    "README.ja.md"
-    "README.zh-Hans.md"
-    "README.de.md"
-    "README.es.md"
-    "README.ru.md"
 )
 
 for readme_name in "${README_FILES[@]}"; do

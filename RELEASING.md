@@ -10,8 +10,7 @@ release and link its tagged documentation. Mark unreleased examples clearly
 and provide a separate local-checkout installation for them. When the release
 operator is ready to publish, land one final release-candidate commit that
 renames `## Unreleased` in `CHANGELOG.md` to the exact stable version, updates
-the latest-stable metadata there and every localized README installation
-reference, and then dispatch the SHA-bound release workflow immediately. The
+the latest-stable metadata there and the README installation references, and then dispatch the SHA-bound release workflow immediately. The
 workflow validates that exact commit before it creates the immutable annotated
 tag.
 
@@ -170,10 +169,10 @@ Before dispatching the `Release Gate` workflow:
       version
     - remove the matching `Current development train: <version> (unreleased)`
       line, or advance it to a later development train
-    - update every installation reference in `README.md` and the six localized
-      README variants to the exact version
+    - update every installation reference in `README.md` and `README.ko.md` to
+      the exact version; the other translations are frozen notice pages
     - replace the development-checkout installation and unreleased banner with
-      the exact-version installation in all seven READMEs; update the linked
+      the exact-version installation in both READMEs; update the linked
       stable documentation at the same time. The README installation contract
       test follows the development-train/latest-stable metadata above.
     - leave exactly one matching release-notes section in `CHANGELOG.md`
@@ -267,11 +266,11 @@ impact in the release notes of the version that changes the pin.
 
 Every release should leave these entrypoints consistent:
 
-1. [README.md](README.md) and the localized README variants
-2. [Overview.md](Sources/InnoDI/InnoDI.docc/Overview.md) and localized DocC source mirrors where present
-3. [Validation.md](Sources/InnoDI/InnoDI.docc/Validation.md) and localized DocC source mirrors where present
-4. [PolicyBoundaries.md](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md) and localized DocC source mirrors where present
-5. [ModuleWideInitDetection.md](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md) and localized DocC source mirrors where present
+1. [README.md](README.md) and [README.ko.md](README.ko.md)
+2. [Overview.md](Sources/InnoDI/InnoDI.docc/Overview.md) and its Korean mirror
+3. [Validation.md](Sources/InnoDI/InnoDI.docc/Validation.md) and its Korean mirror
+4. [PolicyBoundaries.md](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md) and its Korean mirror
+5. [ModuleWideInitDetection.md](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md) and its Korean mirror
 6. [ROADMAP.md](ROADMAP.md)
 
 If a release changes user-facing validation, graph semantics, hierarchy

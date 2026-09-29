@@ -46,6 +46,10 @@ that change moves to 8.0.
 - The README states that InnoDI supports Apple platforms only, and
   `SECURITY.md` names `6.x` as the supported line.
 
+- Only the English and Korean READMEs and DocC articles are maintained. The
+  Japanese, Simplified Chinese, German, Spanish, and Russian translations
+  are now notice pages that link their 6.0.0 versions.
+
 - New DocC guides, with Korean mirrors, map Factory and Swinject concepts to
   InnoDI and include compiled examples. `.spi.yml` points Swift Package Index
   at the hosted DocC documentation.

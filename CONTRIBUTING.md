@@ -64,27 +64,25 @@ Canonical sources:
 - `RELEASING.md`
 - `ROADMAP.md`
 
-Localized mirrors:
+Localized mirror:
 
 - `README.ko.md`
-- `README.es.md`
-- `README.de.md`
-- `README.zh-Hans.md`
-- `README.ja.md`
-- `README.ru.md`
-- `Sources/InnoDI/InnoDI.docc/*.lproj/*.md`
+- `Sources/InnoDI/InnoDI.docc/ko.lproj/*.md`
 
 Keep the English docs authoritative, then mirror the same structure and meaning
-into localized README and DocC files.
+into the Korean README and DocC files. The Japanese, Simplified Chinese,
+German, Spanish, and Russian translations were frozen at 6.0.0. Their README
+files and `*.lproj` folders are notice pages that link the 6.0.0 translation;
+do not add new content to them.
 
 The generated DocC archive currently builds from the English base catalog, so
 localized DocC files are maintained as source mirrors in the repository.
 
 `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and
 release: a swift fence count or H2 header count drift between the English
-canonical and any localized README fails the build. When you add or remove an
-H2 in `README.md`, mirror the change into all six localized files in the same
-PR. The script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit
+canonical and the Korean README fails the build, as does a notice page that
+stops linking `README.md` and its 6.0.0 translation. When you add or remove an
+H2 in `README.md`, mirror the change into `README.ko.md` in the same PR. The script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit
 soft-rollout window for canonical restructures.
 
 ## Code Coverage

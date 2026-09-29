@@ -23,15 +23,11 @@
 ## Documentation Contract
 
 - `README.md` is the English canonical README.
-- Localized README files mirror the same structure:
-  - `README.ko.md`
-  - `README.es.md`
-  - `README.de.md`
-  - `README.zh-Hans.md`
-  - `README.ja.md`
-  - `README.ru.md`
+- `README.ko.md` mirrors the same structure. `README.{ja,zh-Hans,de,es,ru}.md`
+  are notice pages frozen at 6.0.0 that link their 6.0.0 translation.
 - `Sources/InnoDI/InnoDI.docc/*.md` is the English DocC base.
-- `Sources/InnoDI/InnoDI.docc/*.lproj/*.md` are localized mirrors.
+- `Sources/InnoDI/InnoDI.docc/ko.lproj/*.md` is the maintained localized
+  mirror. The other `*.lproj` folders hold only a 6.0.0 translation notice.
 - `CHANGELOG.md` is the single release-note and upgrade-note source; `RELEASING.md` defines the release process.
 
 ## Coding and Review Notes
