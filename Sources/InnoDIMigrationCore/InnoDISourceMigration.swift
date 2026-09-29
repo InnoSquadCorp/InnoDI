@@ -425,25 +425,14 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             return super.visit(node)
         }
 
-        let subContainerOffset = subContainers[0].position.utf8Offset
-        let featureRootOffsets = Set(featureRoots.map { $0.position.utf8Offset })
-        var migratedAttributes: [AttributeListSyntax.Element] = []
-        for element in node.attributes {
-            if let attribute = element.as(AttributeSyntax.self) {
-                let offset = attribute.position.utf8Offset
-                if featureRootOffsets.contains(offset) {
-                    continue
-                }
-                if offset == subContainerOffset {
-                    migratedAttributes.append(.attribute(migratedSubContainer))
-                    continue
-                }
-            }
-            migratedAttributes.append(element)
-        }
-        let attributes = AttributeListSyntax(migratedAttributes)
+        let migrated = removingAttributes(
+            at: Set(featureRoots.map { $0.position.utf8Offset }),
+            replacing: [subContainers[0].position.utf8Offset: migratedSubContainer],
+            from: node,
+            keyword: \.bindingSpecifier
+        )
         appliedRules.insert(MigrationRule.featureRoot)
-        return super.visit(node.with(\.attributes, attributes))
+        return super.visit(migrated)
     }
 
     override func visit(_ node: AttributeSyntax) -> AttributeSyntax {
@@ -793,26 +782,62 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             migratedContainer = container
                 .with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
         }
-        let removedOffsets = Set(
-            (componentMarkers + rootMarkers).map { $0.position.utf8Offset }
+        return removingAttributes(
+            at: Set((componentMarkers + rootMarkers).map { $0.position.utf8Offset }),
+            replacing: [container.position.utf8Offset: migratedContainer],
+            from: node,
+            keyword: \.structKeyword
         )
-        let containerOffset = container.position.utf8Offset
-        var migratedAttributes: [AttributeListSyntax.Element] = []
-        for element in node.attributes {
+    }
+
+    /// Removes the attributes at `removedOffsets` and substitutes
+    /// `replacements` by offset. A removed attribute takes its line with it,
+    /// so the blank lines above it move to the next kept attribute or, when
+    /// it ended the list, to the first modifier or `keyword`. Callers block
+    /// comments on a removed attribute, so only whitespace moves.
+    private func removingAttributes<Declaration: WithAttributesSyntax & WithModifiersSyntax>(
+        at removedOffsets: Set<Int>,
+        replacing replacements: [Int: AttributeSyntax],
+        from declaration: Declaration,
+        keyword: WritableKeyPath<Declaration, TokenSyntax>
+    ) -> Declaration {
+        var kept: [AttributeListSyntax.Element] = []
+        var removedTrivia: Trivia?
+        for var element in declaration.attributes {
             if let attribute = element.as(AttributeSyntax.self) {
                 let offset = attribute.position.utf8Offset
-                if removedOffsets.contains(offset) { continue }
-                if offset == containerOffset {
-                    migratedAttributes.append(.attribute(migratedContainer))
+                if removedOffsets.contains(offset) {
+                    removedTrivia = removedTrivia.map {
+                        triviaAfterRemovedLine($0, before: attribute.leadingTrivia)
+                    } ?? attribute.leadingTrivia
                     continue
                 }
+                if let replacement = replacements[offset] {
+                    element = .attribute(replacement)
+                }
             }
-            migratedAttributes.append(element)
+            if let trivia = removedTrivia {
+                element.leadingTrivia = triviaAfterRemovedLine(trivia, before: element.leadingTrivia)
+                removedTrivia = nil
+            }
+            kept.append(element)
         }
-        return node.with(
-            \.attributes,
-            AttributeListSyntax(migratedAttributes)
-        )
+        var result = declaration
+        result.attributes = AttributeListSyntax(kept)
+        if let trivia = removedTrivia {
+            if result.modifiers.isEmpty {
+                result[keyPath: keyword].leadingTrivia = triviaAfterRemovedLine(
+                    trivia,
+                    before: result[keyPath: keyword].leadingTrivia
+                )
+            } else {
+                result.modifiers.leadingTrivia = triviaAfterRemovedLine(
+                    trivia,
+                    before: result.modifiers.leadingTrivia
+                )
+            }
+        }
+        return result
     }
 
     private func roleContainerAttributeName(
@@ -1248,6 +1273,32 @@ private func isValidSwiftIdentifier(_ value: String) -> Bool {
     return value.unicodeScalars.dropFirst().allSatisfy {
         $0 == "_" || CharacterSet.letters.contains($0) || CharacterSet.decimalDigits.contains($0)
     }
+}
+
+/// The leading trivia left for `next` after the line of a removed token
+/// whose leading trivia was `removed`: the blank lines above the removed
+/// line stay, and `next` keeps its own comments and indentation. A removed
+/// token that shared a line with the previous token leaves `next` unchanged.
+private func triviaAfterRemovedLine(_ removed: Trivia, before next: Trivia) -> Trivia {
+    guard removed.contains(where: \.isNewline) else { return next }
+    var above = Array(removed)
+    while above.last?.isSpaceOrTab == true {
+        above.removeLast()
+    }
+    var below = Array(next)
+    if let newline = below.firstIndex(where: \.isNewline) {
+        let remaining: TriviaPiece? = switch below[newline] {
+        case .newlines(let count) where count > 1: .newlines(count - 1)
+        case .carriageReturns(let count) where count > 1: .carriageReturns(count - 1)
+        case .carriageReturnLineFeeds(let count) where count > 1: .carriageReturnLineFeeds(count - 1)
+        default: nil
+        }
+        below.removeSubrange(...newline)
+        if let remaining {
+            below.insert(remaining, at: 0)
+        }
+    }
+    return Trivia(pieces: above + below)
 }
 
 private func containsComment(_ syntax: some SyntaxProtocol) -> Bool {

@@ -137,6 +137,11 @@ that change moves to 8.0.
   not compile. A trailing comment on the container stays after the new
   argument list.
 
+- `InnoDI-Migrate` keeps the blank line above a removed `@DIComponent`,
+  `@DIHierarchyRoot`, or `@DIFeatureRoot` attribute that came first on its
+  declaration. 6.0 dropped it, so the migrated declaration directly followed
+  the previous import or member, as in three InnoSample pilot files.
+
 - The `deferred-alias.workspace-finding` warning no longer suggests moving a
   `Lazy` or `Provider` alias into the file that consumes it. InnoDI does not
   resolve such aliases in any file, and in a real build the macro-level alias
