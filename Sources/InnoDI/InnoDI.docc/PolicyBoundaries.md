@@ -58,6 +58,9 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
   factories.
 - An `async` provider requires an `async` or `async throws` consumer.
 - An `async throws` provider requires an `async throws` consumer.
+- An asynchronous `.onDemand` provider requires an `async throws` consumer
+  even when its factory does not throw, because a read can observe reader
+  cancellation or a closed provider.
 - Effects are never inferred from dependencies. Consumers opt in explicitly
   with `asyncFactory:` and, when needed, an `async throws` closure.
 - `Lazy<T>` and `Provider<T>` are synchronous deferred wrappers and reject

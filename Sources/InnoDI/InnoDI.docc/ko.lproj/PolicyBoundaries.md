@@ -52,6 +52,9 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 - 동기 provider는 sync, `async`, `async throws` factory에서 소비할 수 있습니다.
 - `async` provider는 `async` 또는 `async throws` consumer가 필요합니다.
 - `async throws` provider는 `async throws` consumer가 필요합니다.
+- 비동기 `.onDemand` provider는 factory가 throw하지 않아도 `async throws`
+  consumer가 필요합니다. 읽기가 읽는 쪽의 취소나 닫힌 provider를 관찰할 수
+  있기 때문입니다.
 - 효과는 의존성에서 추론하지 않습니다. Consumer가 `asyncFactory:`와, 필요한
   경우 `async throws` 클로저를 명시해야 합니다.
 - `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper이며 async target을
