@@ -11,6 +11,14 @@ This page groups the codes by category, explains what triggers each one, and
 links to the recovery path. Code IDs are intended to be grep-able; message
 text may be refined between releases without changing the ID.
 
+The category prefix reflects the stage that emits the diagnostic:
+
+- `InnoDI.usage.*` — structural errors about *how* the macro is attached
+  (wrong declaration kind, missing type annotation, conflicting attributes).
+- `InnoDI.validation.*` — semantic errors detected by the validator that
+  runs after parsing (missing factories, cycles, unknown dependencies,
+  hierarchy violations).
+
 ## Assisted factory diagnostics
 
 - `assisted-factory.invalid-declaration`: `@AssistedFactory` must annotate an
@@ -58,14 +66,6 @@ text may be refined between releases without changing the ID.
 - `provide.async-collection-contributor`: synchronous collection metadata
   references an async provider. Introduce an explicit async aggregation
   boundary instead of hiding async construction behind a synchronous group.
-
-The category prefix reflects the stage that emits the diagnostic:
-
-- `InnoDI.usage.*` — structural errors about *how* the macro is attached
-  (wrong declaration kind, missing type annotation, conflicting attributes).
-- `InnoDI.validation.*` — semantic errors detected by the validator that
-  runs after parsing (missing factories, cycles, unknown dependencies,
-  hierarchy violations).
 
 ## Common recovery patterns
 
