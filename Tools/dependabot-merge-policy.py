@@ -30,6 +30,7 @@ CORE = {
     "Thread and address sanitizers (Xcode 26.6)": "Run address sanitizer suite",
     "Apple platform builds (Xcode 26.6)": "Build public libraries for every declared Apple platform",
     "Exhaustive release contracts": "Run clean coverage gate",
+    "Exhaustive consumer contracts (Xcode 26.6)": "Run strict external compatibility contracts",
     "path-identity": "Run representative renamed-checkout contracts",
     "Swift 6.2 compatibility": "Run strict external compatibility contracts",
     "docc / docc": "Generate DocC",
@@ -42,6 +43,8 @@ CORE = {
 }
 ALLOWED_STEP_SKIP = {("docc / docc", "Upload GitHub Pages Artifact"),
                      ("CI Plan", "Verify actual post-merge main origin"),
+                     # Swift 6.2 runs its informational compiler canary on manual dispatch only.
+                     ("Swift 6.2 compatibility", "Report compiler canaries (informational)"),
                      ("remote-consumer / Exact-SHA macro and plugin consumer", "Confirm the revision is the published main tip")}
 
 

@@ -56,20 +56,23 @@ parents must agree with current head/main. An older base run, failed rerun,
 pending newer run, ambiguous connection or unavailable metadata blocks approval.
 
 All REST jobs/checks/statuses and GraphQL review-thread pages are collected.
-InnoDI requires 17 successful jobs, including each reusable example, both
-sanitizers, platform loop, both compatibility lanes, clean coverage and the
-final **CI Required**, plus the explicitly non-target `append-perf-history`
-skip. Each job is bound to its GitHub Actions app, suite, job ID, details URL,
-head/test-merge SHA and validation steps. The exact-SHA consumer job must also
-prove the isolated macro consumer uses matching prebuilt SwiftSyntax on the
-primary Xcode 26.6 lane; a combined macro/plugin build alone is insufficient.
-Source fallback, a missing proof or another toolchain cannot satisfy this step.
-Missing/duplicate jobs, wrong apps,
-foreign ready checks, unassociated current-suite results, failure, cancellation,
-neutral, pending and unexpected skips fail closed. Only the predefined PR
-Pages upload, published-main-only consumer guard and post-merge-origin guard
-steps may skip. Archived earlier CI runs/attempts are superseded only by the
-fully validated latest run/attempt. Other current checks must succeed.
+InnoDI requires 18 successful jobs, including each reusable example, both
+sanitizers, platform loop, both compatibility lanes, clean coverage, the
+Xcode 26.6 consumer contracts and the final **CI Required**, plus the
+explicitly non-target `append-perf-history` skip. Each job is bound to its
+GitHub Actions app, suite, job ID, details URL, head/test-merge SHA and
+validation steps. The exact-SHA consumer job must also prove the isolated macro
+consumer uses matching prebuilt SwiftSyntax on the primary Xcode 26.6 lane; a
+combined macro/plugin build alone is insufficient. Source fallback, a missing
+proof or another toolchain cannot satisfy this step. Missing/duplicate jobs,
+wrong apps, foreign ready checks, unassociated current-suite results, failure,
+cancellation, neutral, pending and unexpected skips fail closed. Only the
+predefined PR Pages upload, published-main-only consumer guard,
+post-merge-origin guard and the Swift 6.2 lane's dispatch-only compiler canary
+steps may skip. A test derives the check and step names from the CI workflow
+and requires this policy and its transcript inventory to match them. Archived
+earlier CI runs/attempts are superseded only by the fully validated latest
+run/attempt. Other current checks must succeed.
 
 Latest effective reviews must contain no `CHANGES_REQUESTED` or pending review;
 a later comment does not clear requested changes. Requested reviewers/teams,
