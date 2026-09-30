@@ -94,6 +94,13 @@ that change moves to 8.0.
   them; in a local comparison the only lines they alone covered were two
   timing-dependent lock-contention branches in `InnoDIBuildSupport`.
 
+- The public API gate folds symbol-graph extension blocks into the type they
+  extend, so one baseline holds on every CI toolchain. With SwiftUI no longer
+  re-exported, SwiftPM on Swift 6.4 emits blocks for `InnoDISwiftUI`'s
+  extensions of `EnvironmentValues` and `View` even when asked to omit them,
+  while Swift 6.3 attaches the members to the extended type. Baseline schema
+  10 records the members and their `memberOf` relationships only.
+
 ### Breaking or Behavior Changes
 
 - The macOS floor is 14. `DIContainerHostOwner` is an `@Observable` class

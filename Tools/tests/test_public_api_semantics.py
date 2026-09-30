@@ -103,6 +103,53 @@ class PublicAPISemanticsTests(unittest.TestCase):
                                     GATE.normalize_symbol(malformed)
                 self.assertNotEqual(contracts[0], contracts[1], name)
 
+    def test_extension_blocks_fold_into_the_extended_type(self):
+        # SwiftPM on Swift 6.4 emits extension block symbols for extensions of
+        # external types even when omission is requested; Swift 6.3 omits them.
+        source_text = ("extension Swift.Int {\n"
+                       "    public var probeDouble: Int { self * 2 }\n"
+                       "    public func probeTriple() -> Int { self * 3 }\n"
+                       "}\n"
+                       "public struct Local { public init() {} }\n")
+        with tempfile.TemporaryDirectory(prefix="innodi-api-extensions-") as directory:
+            contracts = {}
+            for mode in ("emit", "omit"):
+                folder = Path(directory) / mode
+                source = folder / "Sources" / "APIProbe" / "API.swift"
+                source.parent.mkdir(parents=True)
+                source.write_text(source_text)
+                compilation = subprocess.run([
+                    "swiftc", "-swift-version", "6", "-strict-concurrency=complete", "-warnings-as-errors",
+                    "-emit-module", "-module-name", "APIProbe", "-emit-module-path", str(folder / "APIProbe.swiftmodule"),
+                    "-emit-symbol-graph", "-emit-symbol-graph-dir", str(folder),
+                    "-" + mode + "-extension-block-symbols", str(source)
+                ], capture_output=True, text=True)
+                self.assertEqual(compilation.returncode, 0, compilation.stderr)
+                contracts[mode] = GATE.normalize_product_graph(folder, "APIProbe")
+            extension_path = Path(directory) / "emit" / "APIProbe@Swift.symbols.json"
+            extension_graph = json.loads(extension_path.read_text())
+            self.assertIn("swift.extension", {symbol["kind"]["identifier"] for symbol in extension_graph["symbols"]})
+            self.assertEqual(contracts["emit"], contracts["omit"])
+            self.assertFalse(any(symbol["kind"]["identifier"] == "swift.extension"
+                                 for symbol in contracts["emit"]["symbols"]))
+            members = [relationship for relationship in contracts["emit"]["relationships"]
+                       if relationship["kind"] == "memberOf" and relationship["target"] == "s:Si"]
+            self.assertEqual(len(members), 2)
+            # A block without a source location still folds into its type.
+            located = copy.deepcopy(extension_graph)
+            for symbol in extension_graph["symbols"]:
+                if symbol["kind"]["identifier"] == "swift.extension":
+                    symbol.pop("location", None)
+            extension_path.write_text(json.dumps(extension_graph))
+            self.assertEqual(GATE.normalize_product_graph(Path(directory) / "emit", "APIProbe"), contracts["omit"])
+            extension_graph = located
+            # A block whose extended type is missing fails instead of dropping members.
+            extension_graph["relationships"] = [relationship for relationship in extension_graph["relationships"]
+                                                if relationship["kind"] != "extensionTo"]
+            extension_path.write_text(json.dumps(extension_graph))
+            with self.assertRaises(SystemExit):
+                GATE.normalize_product_graph(Path(directory) / "emit", "APIProbe")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6933,16 +6933,6 @@
           "target": "s:s8SendableP"
         },
         {
-          "kind": "extensionTo",
-          "source": "s:e:s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp",
-          "target": "s:7SwiftUI17EnvironmentValuesV"
-        },
-        {
-          "kind": "extensionTo",
-          "source": "s:e:s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF",
-          "target": "s:7SwiftUI4ViewP"
-        },
-        {
           "kind": "memberOf",
           "source": "s:13InnoDISwiftUI15DIContainerHostV4bodyQrvp",
           "target": "s:13InnoDISwiftUI15DIContainerHostV"
@@ -7035,17 +7025,17 @@
         {
           "kind": "memberOf",
           "source": "s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp",
-          "target": "s:e:s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp"
+          "target": "s:7SwiftUI17EnvironmentValuesV"
         },
         {
           "kind": "memberOf",
           "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E14innodiServices4fromQrqd___tAD21DIEnvironmentBridgingRd__lF",
-          "target": "s:e:s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF"
+          "target": "s:7SwiftUI4ViewP"
         },
         {
           "kind": "memberOf",
           "source": "s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF",
-          "target": "s:e:s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF"
+          "target": "s:7SwiftUI4ViewP"
         },
         {
           "kind": "requirementOf",
@@ -8223,58 +8213,6 @@
                 "depth": 1,
                 "index": 0,
                 "name": "Container"
-              }
-            ]
-          }
-        },
-        {
-          "accessLevel": "public",
-          "declarationContract": {
-            "isolationModifiers": [],
-            "namedAttributes": []
-          },
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:e:s:7SwiftUI17EnvironmentValuesV011InnoDISwiftB0E25innoDIContainerHostHandleAD0hiJ0VSgvp"
-          },
-          "kind": {
-            "identifier": "swift.extension"
-          },
-          "pathComponents": [
-            "EnvironmentValues"
-          ],
-          "swiftExtension": {
-            "extendedModule": "SwiftUICore",
-            "typeKind": "swift.struct"
-          }
-        },
-        {
-          "accessLevel": "public",
-          "declarationContract": {
-            "isolationModifiers": [],
-            "namedAttributes": []
-          },
-          "identifier": {
-            "interfaceLanguage": "swift",
-            "precise": "s:e:s:7SwiftUI4ViewP011InnoDISwiftB0E6innodiyQrqd__AD21DIEnvironmentBridgingRd__lF"
-          },
-          "kind": {
-            "identifier": "swift.extension"
-          },
-          "pathComponents": [
-            "View"
-          ],
-          "swiftExtension": {
-            "extendedModule": "SwiftUICore",
-            "typeKind": "swift.protocol"
-          },
-          "swiftGenerics": {
-            "constraints": [
-              {
-                "kind": "conformance",
-                "lhs": "Self",
-                "rhs": "View",
-                "rhsPrecise": "s:7SwiftUI4ViewP"
               }
             ]
           }
@@ -10531,5 +10469,5 @@
       ]
     }
   ],
-  "schemaVersion": 9
+  "schemaVersion": 10
 }

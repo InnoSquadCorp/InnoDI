@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 9)
+        #expect(payload["schemaVersion"] as? Int == 10)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
@@ -76,6 +76,20 @@ struct PublicAPIContractTests {
             return relationships.allSatisfy { relationship in
                 relationship["sourceOrigin"] == nil
                     && relationship["target"] as? String != "s:s16SendableMetatypeP"
+            }
+        })
+        // SwiftPM on Swift 6.4 emits extension blocks that Swift 6.3 omits;
+        // the gate folds them into the extended type on every toolchain.
+        #expect(graphs.allSatisfy { graph in
+            guard let symbols = graph["symbols"] as? [[String: Any]],
+                  let relationships = graph["relationships"] as? [[String: Any]] else {
+                return false
+            }
+            return symbols.allSatisfy { symbol in
+                (symbol["kind"] as? [String: Any])?["identifier"] as? String != "swift.extension"
+            } && relationships.allSatisfy { relationship in
+                relationship["kind"] as? String != "extensionTo"
+                    && (relationship["target"] as? String)?.hasPrefix("s:e:") == false
             }
         })
         let symbols = graphs.flatMap { $0["symbols"] as? [[String: Any]] ?? [] }
