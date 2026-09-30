@@ -45,8 +45,8 @@ def check(root=ROOT):
     for directory in swift["directories"]:
         if not (root / directory.lstrip("/") / "Package.swift").is_file():
             raise ValueError("tracked Swift directory has no live manifest")
-    if "release-validation" not in swift["labels"] or ecosystems["github-actions"]["directory"] != "/":
-        raise ValueError("Swift updates require exhaustive validation; Actions must use root")
+    if any("release-validation" not in item["labels"] for item in ecosystems.values()) or ecosystems["github-actions"]["directory"] != "/":
+        raise ValueError("All dependency updates require exhaustive validation; Actions must use root")
     pin = re.search(r'swift-syntax\.git", exact: "([0-9.]+)"', (root / "Package.swift").read_text())
     if not pin:
         raise ValueError("SwiftSyntax must retain an exact version requirement")
