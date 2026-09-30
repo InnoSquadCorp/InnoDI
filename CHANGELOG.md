@@ -97,7 +97,8 @@ that change moves to 8.0.
   component such as `\Self.config.baseURL`, which used to wire only its last
   component, is rejected as `sub.invalid-same-name-wiring` or
   `sub.invalid-bindings`. Build validation resolves named roots so the
-  compiler fix-it is reported first, and rejects nested components.
+  compiler fix-it is reported first, and rejects nested components. Its
+  `bindings:` remediation examples spell the parent side as `\Self.member`.
 
 - `InnoDI-Migrate --trust-module <name>` treats an imported module as
   declaring no InnoDI-named attribute or macro, and `InnoDI-Doctor` accepts

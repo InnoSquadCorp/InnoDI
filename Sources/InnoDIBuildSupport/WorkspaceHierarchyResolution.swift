@@ -456,7 +456,7 @@ private func makeInvalidBindingsIssue(
                 location: child.location
             )
         ],
-        remediation: "Use a literal array such as bindings: [(child: \\.config, parent: \\.appConfig)]. Runtime variables and malformed tuple entries are not supported.",
+        remediation: "Use a literal array such as bindings: [(child: \\FeatureContainer.config, parent: \\Self.appConfig)]. Runtime variables and malformed tuple entries are not supported.",
         metadata: [
             "parentContainerPath": parent.path,
             "childContainerPath": child.path,

@@ -402,7 +402,7 @@ private func makeInvalidBindingsIssue(
         ),
         location: location,
         notes: [],
-        remediation: "Use bindings: [(child: \\.childInput, parent: \\.parentMember)] or remove bindings: to use implicit same-name wiring.",
+        remediation: "Use bindings: [(child: \\ChildContainer.childInput, parent: \\Self.parentMember)] or remove bindings: to use implicit same-name wiring.",
         metadata: [
             "parentContainerPath": subContainer.parentContainerPath,
             "subContainerMemberName": subContainer.memberName
