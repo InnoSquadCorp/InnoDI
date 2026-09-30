@@ -40,10 +40,10 @@ final class FormatterMock: Formatter {
         guard __innodi_formatUnlabeledIntIsStubbed else {
             preconditionFailure("formatUnlabeledIntReturnValue was not set on \(Self.self) before format was invoked")
         }
-            guard let value = formatUnlabeledIntReturnValue else {
-        preconditionFailure("Stub storage for String was unexpectedly empty")
-    }
-    return value
+        guard let value = formatUnlabeledIntReturnValue else {
+            preconditionFailure("Stub storage for String was unexpectedly empty")
+        }
+        return value
     }
 
     struct FormatUnlabeledDoubleCall {
@@ -67,10 +67,10 @@ final class FormatterMock: Formatter {
         guard __innodi_formatUnlabeledDoubleIsStubbed else {
             preconditionFailure("formatUnlabeledDoubleReturnValue was not set on \(Self.self) before format was invoked")
         }
-            guard let value = formatUnlabeledDoubleReturnValue else {
-        preconditionFailure("Stub storage for String was unexpectedly empty")
-    }
-    return value
+        guard let value = formatUnlabeledDoubleReturnValue else {
+            preconditionFailure("Stub storage for String was unexpectedly empty")
+        }
+        return value
     }
 
     struct FormatUnlabeledIntWidthIntCall {

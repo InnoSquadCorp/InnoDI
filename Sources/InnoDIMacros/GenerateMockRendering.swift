@@ -228,7 +228,7 @@ private func renderConcurrentTypedFunctionMock(
                         guard \(raw: stubbedBox).snapshot() else {
                             preconditionFailure("\(raw: names.returnProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                         }
-                        \(raw: storedReturn)
+                        \(storedReturn)
                     }
             """
         }
@@ -437,7 +437,7 @@ private func renderTypedFunctionMock(
                     guard \(raw: stubbedStorage) else {
                         preconditionFailure("\(raw: names.returnProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                     }
-                    \(raw: storedReturn)
+                    \(storedReturn)
             """
         }
     } else if isThrowing {
@@ -637,7 +637,7 @@ func renderVariableMock(
                         guard \(raw: stubbedBoxName).snapshot() else {
                             preconditionFailure("\(raw: name) was not set on \\(Self.self) before it was read")
                         }
-                        \(raw: storedReturn)
+                        \(storedReturn)
                     }
                 }
                 set {
@@ -666,7 +666,7 @@ func renderVariableMock(
                     guard \(raw: stubbedName) else {
                         preconditionFailure("\(raw: name) was not set on \\(Self.self) before it was read")
                     }
-                    \(raw: storedReturn)
+                    \(storedReturn)
                 }
                 set {
                     \(raw: storageName) = newValue
@@ -822,20 +822,18 @@ private func computedStubProperty(
     """
 }
 
-/// Returns the stored stub. Callers insert it as raw text: its lines after
-/// the first keep a fixed indentation wherever it lands, which typed syntax
-/// interpolation would re-indent. Correcting that indentation changes every
-/// snapshot that reads a stub, so it waits for a snapshot re-record.
-private func renderStoredReturn(storage: String, type: String) -> String {
+/// Returns the stored stub. Typed interpolation indents every line of it to
+/// the line it lands on.
+private func renderStoredReturn(storage: String, type: String) -> CodeBlockItemListSyntax {
     if type.hasSuffix("?") || type.hasSuffix("!") {
-        return "return \(storage) ?? nil"
+        return "return \(raw: storage) ?? nil"
     }
     return """
-        guard let value = \(storage) else {
-            preconditionFailure("Stub storage for \(type) was unexpectedly empty")
+        guard let value = \(raw: storage) else {
+            preconditionFailure("Stub storage for \(raw: type) was unexpectedly empty")
         }
         return value
-    """
+        """
 }
 
 private func renderableCallRecordType(_ typeText: String, eraseTypes: Bool) -> String? {

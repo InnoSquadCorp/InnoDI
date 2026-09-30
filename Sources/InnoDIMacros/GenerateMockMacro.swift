@@ -185,7 +185,7 @@ public struct GenerateMockMacro: PeerMacro {
         }
         if !missingStubExpressions.isEmpty {
             if usesConcurrentStorage {
-                let expressions = lineSeparatedElements(missingStubExpressions, firstIndentation: 16)
+                let expressions = lineSeparatedElements(missingStubExpressions, indentation: 16)
                 sections.append(MockMembers("""
                     var missingStubSelectors: [String] {
                         __innodiMockState.withCriticalRegion { _ in
@@ -195,7 +195,7 @@ public struct GenerateMockMacro: PeerMacro {
                     }
                 """))
             } else {
-                let expressions = lineSeparatedElements(missingStubExpressions, firstIndentation: 12)
+                let expressions = lineSeparatedElements(missingStubExpressions, indentation: 12)
                 sections.append(MockMembers("""
                     var missingStubSelectors: [String] {
                         [\(expressions)
@@ -206,7 +206,7 @@ public struct GenerateMockMacro: PeerMacro {
         }
         if !recordedCallCounts.isEmpty {
             if usesConcurrentStorage {
-                let entries = lineSeparatedElements(recordedCallCounts, firstIndentation: 16)
+                let entries = lineSeparatedElements(recordedCallCounts, indentation: 16)
                 sections.append(MockMembers("""
                     var recordedCallCounts: [String: Int] {
                         __innodiMockState.withCriticalRegion { _ in
@@ -216,7 +216,7 @@ public struct GenerateMockMacro: PeerMacro {
                     }
                 """))
             } else {
-                let entries = lineSeparatedElements(recordedCallCounts, firstIndentation: 12)
+                let entries = lineSeparatedElements(recordedCallCounts, indentation: 12)
                 sections.append(MockMembers("""
                     var recordedCallCounts: [String: Int] {
                         [\(entries)
@@ -277,17 +277,16 @@ private func mockBodyMembers(_ sections: [MockMembers]) -> MemberBlockItemListSy
     )
 }
 
-/// Array elements, one per line: the first at `firstIndentation` and the
-/// rest at 12 spaces, as the line-based renderer spaced them. The literal
-/// interpolates them right after `[` so the builder does not re-indent them.
+/// Array elements, one per line at `indentation`. The literal interpolates
+/// them right after `[` so the builder does not re-indent them.
 private func lineSeparatedElements(
     _ expressions: [ExprSyntax],
-    firstIndentation: Int
+    indentation: Int
 ) -> ArrayElementListSyntax {
     ArrayElementListSyntax(
         expressions.enumerated().map { index, expression in
             ArrayElementSyntax(
-                leadingTrivia: .newline + .spaces(index == 0 ? firstIndentation : 12),
+                leadingTrivia: .newline + .spaces(indentation),
                 expression: expression,
                 trailingComma: index == expressions.count - 1 ? nil : .commaToken()
             )
@@ -295,15 +294,15 @@ private func lineSeparatedElements(
     )
 }
 
-/// Dictionary entries, spaced like ``lineSeparatedElements(_:firstIndentation:)``.
+/// Dictionary entries, spaced like ``lineSeparatedElements(_:indentation:)``.
 private func lineSeparatedElements(
     _ entries: [DictionaryElementSyntax],
-    firstIndentation: Int
+    indentation: Int
 ) -> DictionaryElementListSyntax {
     DictionaryElementListSyntax(
         entries.enumerated().map { index, entry in
             entry
-                .with(\.leadingTrivia, .newline + .spaces(index == 0 ? firstIndentation : 12))
+                .with(\.leadingTrivia, .newline + .spaces(indentation))
                 .with(\.trailingComma, index == entries.count - 1 ? nil : .commaToken())
         }
     )

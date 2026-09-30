@@ -27,10 +27,10 @@ final class ScreenModelMock: ScreenModel {
             guard __innodi_isLoading_hc6486b6d6941d887IsStubbed else {
                 preconditionFailure("isLoading was not set on \(Self.self) before it was read")
             }
-                guard let value = __innodi_isLoading_hc6486b6d6941d887StubValue else {
-        preconditionFailure("Stub storage for Bool was unexpectedly empty")
-    }
-    return value
+            guard let value = __innodi_isLoading_hc6486b6d6941d887StubValue else {
+                preconditionFailure("Stub storage for Bool was unexpectedly empty")
+            }
+            return value
         }
         set {
             __innodi_isLoading_hc6486b6d6941d887StubValue = newValue

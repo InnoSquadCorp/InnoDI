@@ -21,10 +21,10 @@ final class CatalogMock: Catalog {
             guard __innodi_title_hda31296c0c1b6029IsStubbed else {
                 preconditionFailure("title was not set on \(Self.self) before it was read")
             }
-                guard let value = __innodi_title_hda31296c0c1b6029StubValue else {
-        preconditionFailure("Stub storage for String was unexpectedly empty")
-    }
-    return value
+            guard let value = __innodi_title_hda31296c0c1b6029StubValue else {
+                preconditionFailure("Stub storage for String was unexpectedly empty")
+            }
+            return value
         }
         set {
             __innodi_title_hda31296c0c1b6029StubValue = newValue
@@ -39,10 +39,10 @@ final class CatalogMock: Catalog {
             guard __innodi_count_hb1e5e28e4479a274IsStubbed else {
                 preconditionFailure("count was not set on \(Self.self) before it was read")
             }
-                guard let value = __innodi_count_hb1e5e28e4479a274StubValue else {
-        preconditionFailure("Stub storage for Int was unexpectedly empty")
-    }
-    return value
+            guard let value = __innodi_count_hb1e5e28e4479a274StubValue else {
+                preconditionFailure("Stub storage for Int was unexpectedly empty")
+            }
+            return value
         }
         set {
             __innodi_count_hb1e5e28e4479a274StubValue = newValue
@@ -71,10 +71,10 @@ final class CatalogMock: Catalog {
         guard __innodi_itemIsStubbed else {
             preconditionFailure("itemReturnValue was not set on \(Self.self) before item was invoked")
         }
-            guard let value = itemReturnValue else {
-        preconditionFailure("Stub storage for String was unexpectedly empty")
-    }
-    return value
+        guard let value = itemReturnValue else {
+            preconditionFailure("Stub storage for String was unexpectedly empty")
+        }
+        return value
     }
 
     struct ReloadCall {

@@ -22,10 +22,10 @@ final class SharedAPIMock: SharedAPI {
                 guard __innodi_title_hda31296c0c1b6029IsStubbedBox.snapshot() else {
                     preconditionFailure("title was not set on \(Self.self) before it was read")
                 }
-                    guard let value = __innodi_title_hda31296c0c1b6029StubValueBox.snapshot() else {
-            preconditionFailure("Stub storage for String was unexpectedly empty")
-        }
-        return value
+                guard let value = __innodi_title_hda31296c0c1b6029StubValueBox.snapshot() else {
+                    preconditionFailure("Stub storage for String was unexpectedly empty")
+                }
+                return value
             }
         }
         set {
@@ -131,8 +131,8 @@ final class SharedAPIMock: SharedAPI {
         __innodiMockState.withCriticalRegion { _ in
             [
                 !__innodi_title_hda31296c0c1b6029IsStubbedBox.snapshot() ? "title" : nil,
-            !__innodi_loadStubbedBox.snapshot() ? "load" : nil,
-            !__innodi_refreshStubbedBox.snapshot() ? "refresh" : nil
+                !__innodi_loadStubbedBox.snapshot() ? "load" : nil,
+                !__innodi_refreshStubbedBox.snapshot() ? "refresh" : nil
             ].compactMap {
                 $0
             }
@@ -143,8 +143,8 @@ final class SharedAPIMock: SharedAPI {
         __innodiMockState.withCriticalRegion { _ in
             [
                 "load": __innodi_loadCallsBox.snapshot().count,
-            "refresh": __innodi_refreshCallsBox.snapshot().count,
-            "ping": __innodi_pingCallsBox.snapshot().count
+                "refresh": __innodi_refreshCallsBox.snapshot().count,
+                "ping": __innodi_pingCallsBox.snapshot().count
             ]
         }
     }

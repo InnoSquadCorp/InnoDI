@@ -32,10 +32,10 @@ final class LoaderMock: Loader {
         guard __innodi_loadIsStubbed else {
             preconditionFailure("loadReturnValue was not set on \(Self.self) before load was invoked")
         }
-            guard let value = loadReturnValue else {
-        preconditionFailure("Stub storage for Data was unexpectedly empty")
-    }
-    return value
+        guard let value = loadReturnValue else {
+            preconditionFailure("Stub storage for Data was unexpectedly empty")
+        }
+        return value
     }
 
     struct WarmUpCall {

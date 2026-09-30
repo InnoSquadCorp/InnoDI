@@ -17,10 +17,10 @@ fileprivate final class ClockMock: Clock {
             guard __innodi_now_h215ad519258e9d97IsStubbed else {
                 preconditionFailure("now was not set on \(Self.self) before it was read")
             }
-                guard let value = __innodi_now_h215ad519258e9d97StubValue else {
-        preconditionFailure("Stub storage for Double was unexpectedly empty")
-    }
-    return value
+            guard let value = __innodi_now_h215ad519258e9d97StubValue else {
+                preconditionFailure("Stub storage for Double was unexpectedly empty")
+            }
+            return value
         }
         set {
             __innodi_now_h215ad519258e9d97StubValue = newValue
