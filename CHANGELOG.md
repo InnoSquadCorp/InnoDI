@@ -207,6 +207,17 @@ that change moves to 8.0.
   position, so in 6.0 such a value made generated code fail to compile. A
   type named `InnoDI` was already rejected for every container.
 
+- Build validation no longer rejects an unqualified `Lazy<T>` or
+  `Provider<T>` factory parameter with
+  `provide.deferred-wrapper-qualification-required`. The plugin scans
+  InnoDI's own sources along with the other dependency targets, and 6.0
+  treated InnoDI's `Lazy` and `Provider` as same-module declarations, so every
+  such parameter failed. Only a wrapper declared in the consumer's own module
+  still requires `InnoDI.Lazy<T>` or `InnoDI.Provider<T>`. Declarations that
+  share a path across the scanned targets, such as that consumer-declared
+  `Lazy` or two containers with the same name in a target and its dependency,
+  no longer crash validation with `Duplicate values for key`.
+
 - The build plugin's shared-run validation cache key moves to version 10, so
   a workspace validated by an earlier build is validated once more under the
   7.0 rules. No action is required.

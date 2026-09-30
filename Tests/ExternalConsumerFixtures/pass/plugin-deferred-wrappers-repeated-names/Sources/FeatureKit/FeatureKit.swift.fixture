@@ -1,0 +1,21 @@
+import InnoDI
+
+public struct FeatureConfig: Sendable, Equatable {
+    public let value: Int
+
+    public init(value: Int) {
+        self.value = value
+    }
+}
+
+// The app target declares a container with the same name. Each target's
+// build validation must use its own declaration instead of trapping on the
+// repeated path.
+@DIContainer
+struct FeatureContainer {
+    @Input var config: FeatureConfig
+}
+
+public func makeFeatureConfig() -> FeatureConfig {
+    FeatureContainer(config: FeatureConfig(value: 7)).config
+}
