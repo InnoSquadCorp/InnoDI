@@ -176,6 +176,9 @@ Before dispatching the `Release Gate` workflow:
       stable documentation at the same time. The README installation contract
       test follows the development-train/latest-stable metadata above.
     - leave exactly one matching release-notes section in `CHANGELOG.md`
+    - remove the `unreleased` marker next to the version in
+      `Sources/InnoDI/InnoDI.docc/MigrationGuide.md` and the `미출시` marker in
+      its Korean mirror; the candidate validator rejects either one
     - for a 6.x release, record RFC 0006 as exactly `Accepted` in both the RFC
       document and RFC index; the candidate validator rejects pending,
       duplicated, missing, or inconsistent status records

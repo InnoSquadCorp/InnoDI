@@ -17,7 +17,7 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
-| 6.x → 7.0 (in development) | Canonical parent key paths, explicit SwiftUI imports, lazy async providers | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Raise macOS targets to 14 and move host-owner observation to Observation. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
+| 6.x → 7.0 (unreleased) | Canonical parent key paths, explicit SwiftUI imports, lazy async providers | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Raise macOS targets to 14 and move host-owner observation to Observation. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
@@ -28,8 +28,8 @@ historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 
 ## 6.x → 7.0
 
-InnoDI 7.0 is in development on `main`. Each item below lists a source
-change and how to apply it. Run the read-only check first.
+InnoDI 7.0 is unreleased and developed on `main`. Each item below lists a
+source change and how to apply it. Run the read-only check first.
 
 ### Parent key paths spell `\Self.member`
 
