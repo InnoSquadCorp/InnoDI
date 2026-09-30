@@ -145,7 +145,7 @@ Tunables for the trend gate (set as environment variables):
 
 - `INNODI_TREND_WINDOW` (default 7) — trailing entries used for the
   median.
-- `INNODI_TREND_THRESHOLD_PCT` (default 10) — fail above this delta.
+- `INNODI_TREND_THRESHOLD_PCT` (default 20) — fail above this delta.
 - `INNODI_TREND_MIN_SAMPLES` (default 5) — below this the gate just
   reports.
 - `INNODI_TREND_REQUIRE_SAME_TOOLCHAIN` (default 1) — drop history

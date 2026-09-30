@@ -81,8 +81,9 @@ that change moves to 8.0.
   downloaded prebuilts, and the external consumer scratch per toolchain and
   swift-syntax pin, while the Release Gate keeps cold consumer builds. Pull
   requests report the macro performance gate and trend instead of failing on
-  hosted-runner variance; pushes to `main`, merge queue runs, manual dispatch,
-  and the Release Gate still enforce them.
+  hosted-runner variance; pushes to `main`, merge queue runs, and manual
+  dispatch still enforce both. The Release Gate still enforces the pinned
+  macro performance baseline but does not run the trend.
 
 - The exhaustive CI lane runs the external consumer and strict-concurrency
   build contracts in their own job beside the coverage gate instead of inside
