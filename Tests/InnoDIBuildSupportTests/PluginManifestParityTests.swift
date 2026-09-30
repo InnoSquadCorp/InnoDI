@@ -17,11 +17,7 @@ struct PluginManifestParityTests {
         #expect(ci.contains("push:\n    branches:\n      - main"))
         #expect(ci.contains("uses: ./.github/workflows/examples.yml"))
         #expect(source.contains("permissions:\n  contents: read"))
-        #expect(
-            source.components(
-                separatedBy: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
-            ).count - 1 == 4
-        )
+        #expect(try hasFourMatchingCheckoutPins(source))
         #expect(
             source.components(
                 separatedBy: "persist-credentials: false"
@@ -33,6 +29,19 @@ struct PluginManifestParityTests {
             )
         )
         #expect(source.contains("swift run --skip-build SampleApp"))
+    }
+
+    @Test("Checkout parity rejects floating, missing and divergent pins")
+    func checkoutPinNegativeControls() throws {
+        let pin = String(repeating: "a", count: 40)
+        let other = String(repeating: "b", count: 40)
+        let line = "        uses: actions/checkout@\(pin) # reviewed version\n"
+        let good = String(repeating: line, count: 4)
+        #expect(try hasFourMatchingCheckoutPins(good))
+        #expect(try !hasFourMatchingCheckoutPins(String(repeating: line, count: 3)))
+        #expect(try !hasFourMatchingCheckoutPins(String(repeating: line, count: 3) + line.replacingOccurrences(of: pin, with: other)))
+        #expect(try !hasFourMatchingCheckoutPins(good.replacingOccurrences(of: pin, with: "v7")))
+        #expect(try !hasFourMatchingCheckoutPins(good.replacingOccurrences(of: pin, with: String(pin.dropLast()))))
     }
 
     @Test("Runnable examples enable DAG validation")
@@ -95,4 +104,15 @@ struct PluginManifestParityTests {
             "5.1 must not ship an unusable companion-package placeholder"
         )
     }
+}
+
+private func hasFourMatchingCheckoutPins(_ source: String) throws -> Bool {
+    let regex = try NSRegularExpression(
+        pattern: #"(?m)^\s*uses: actions/checkout@([0-9a-f]{40})(?:\s+#.*)?$"#
+    )
+    let matches = regex.matches(in: source, range: NSRange(source.startIndex..., in: source))
+    let pins = matches.compactMap { match in
+        Range(match.range(at: 1), in: source).map { String(source[$0]) }
+    }
+    return matches.count == 4 && Set(pins).count == 1
 }
