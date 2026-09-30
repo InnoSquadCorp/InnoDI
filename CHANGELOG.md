@@ -190,6 +190,14 @@ that change moves to 8.0.
   construction failed to compile with an unrelated missing-member error, so
   no compiling source changes meaning.
 
+- A value named `InnoDI`, such as an enclosing type's `static let InnoDI`,
+  that is visible from a container with a `.shared`
+  `initialization: .onDemand` provider is rejected with
+  `container.reserved-module-name` by build validation. The generated
+  initializer constructs on-demand storage through `InnoDI.` in expression
+  position, so in 6.0 such a value made generated code fail to compile. A
+  type named `InnoDI` was already rejected for every container.
+
 ### Upgrade Actions
 
 - Rewrite named-root parent key paths to `\Self.member`. `\Self.member` also

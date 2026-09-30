@@ -54,6 +54,35 @@ struct GeneratedQualifierUsageTests {
         ])
     }
 
+    @Test("On-demand shared providers need InnoDI in type and value lookups")
+    func onDemandSharedQualifiers() throws {
+        let sync = try containerUsage(
+            """
+            @DIContainer
+            struct Container {
+                @Provide(.shared, initialization: .onDemand, factory: { 1 })
+                var value: Int
+            }
+            """
+        )
+        #expect(sync.memberBodies == [.init("InnoDI", namespace: .typeOrValue)])
+
+        let async = try containerUsage(
+            """
+            @DIContainer
+            struct Container {
+                @Provide(.shared, initialization: .onDemand, asyncFactory: { () async -> Int in 1 })
+                var value: Int
+            }
+            """
+        )
+        #expect(async.memberBodies == [
+            .init("Swift"),
+            .init("_Concurrency"),
+            .init("InnoDI", namespace: .typeOrValue),
+        ])
+    }
+
     @Test("Transient async factories do not emit Task support")
     func transientAsyncHasNoBodyQualifier() throws {
         let usage = try containerUsage(
