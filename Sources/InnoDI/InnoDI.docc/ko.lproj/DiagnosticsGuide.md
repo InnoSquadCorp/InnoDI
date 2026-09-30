@@ -207,6 +207,11 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.lazy-aliased` / `provide.provider-aliased` — `Lazy<T>` /
   `Provider<T>`에 대한 `typealias`를 썼습니다. 직접 표기로 다시
   쓰세요.
+- `provide.deferred-wrapper-qualification-required` (build plugin) — factory
+  파라미터가 `Lazy<T>`나 `Provider<T>`로 적혀 있는데 같은 모듈이 그 이름의
+  타입을 선언해, 그 이름이 InnoDI의 wrapper를 가리키지 않습니다.
+  `InnoDI.Lazy<T>`나 `InnoDI.Provider<T>`로 쓰세요. 다른 모듈에 있는 같은
+  이름의 타입으로는 발생하지 않습니다.
 - `transient-factory.unnamed-parameters` — transient factory closure가
   shorthand나 와일드카드 파라미터를 썼습니다. InnoDI가 주입할 수 있도록
   파라미터에 이름을 붙이세요.

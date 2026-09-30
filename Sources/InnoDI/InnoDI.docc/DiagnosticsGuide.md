@@ -205,6 +205,11 @@ Most frequently-hit codes:
   time, which defeats its purpose.
 - `provide.lazy-aliased` / `provide.provider-aliased` — a `typealias` for
   `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling.
+- `provide.deferred-wrapper-qualification-required` (build plugin) — a
+  factory parameter spells `Lazy<T>` or `Provider<T>` while its own module
+  declares a type with that name, so the name no longer means InnoDI's
+  wrapper. Spell `InnoDI.Lazy<T>` or `InnoDI.Provider<T>`. A type with that
+  name in another module does not trigger it.
 - `transient-factory.unnamed-parameters` — a transient factory closure used
   shorthand or wildcard parameters; name parameters so InnoDI can inject them.
 

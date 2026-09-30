@@ -94,12 +94,12 @@ that change moves to 8.0.
   spelled `\Self.member`. A named root such as `\AppContainer.config` is
   rejected with `sub.noncanonical-parent-key-path` and a fix-it; InnoDI only
   ever read the member name, so the root was never checked. The rest of the
-  container is still validated in the same pass. A nested
-  component such as `\Self.config.baseURL`, which used to wire only its last
-  component, is rejected as `sub.invalid-same-name-wiring` or
-  `sub.invalid-bindings`. Build validation resolves named roots so the
-  compiler fix-it is reported first, and rejects nested components. Its
-  `bindings:` remediation examples spell the parent side as `\Self.member`.
+  container is still validated in the same pass. A nested component such as
+  `\Self.config.baseURL`, which used to wire only its last component, is
+  rejected as `sub.invalid-same-name-wiring` or `sub.invalid-bindings`. Build
+  validation resolves named roots so the compiler fix-it is reported first,
+  and rejects nested components. Its `bindings:` remediation examples spell
+  the parent side as `\Self.member`.
 
 - `InnoDI-Migrate --trust-module <name>` treats an imported module as
   declaring no InnoDI-named attribute or macro, and `InnoDI-Doctor` accepts

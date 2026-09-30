@@ -84,6 +84,10 @@ Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
    - shared parsing and graph utilities
 4. `InnoDIBuildSupport`
    - coordinated validation, artifact writing, cache and lock handling
+   - a plugin snapshot holds every dependency target, InnoDI's own sources
+     among them, so key semantic lookups by declaring target, not by an
+     unqualified path, and never build them with
+     `Dictionary(uniqueKeysWithValues:)`, which traps on a repeated path
 5. `InnoDIWorkspaceAnalysis`, `InnoDIDependencyGraphCore`, `InnoDIDependencyGraphCLI`
    - full-source analysis, graph collection/query/contracts, JSON/Mermaid/DOT/ASCII rendering
    - `InnoDI-DependencyGraph` is the executable entry point
@@ -252,16 +256,20 @@ sibling edge even when the container uses `validateDAG: false`.
 - `@SubContainer` adds ownership edges plus child override forwarding.
   Child inputs are synchronous in both child scopes; reject every asynchronous
   parent member, eager, on-demand, or transient, with
-  `sub.async-parent-member`.
+  `sub.async-parent-member`, including a `@SubContainerFactory(bindings:)`
+  parent. Validation recovery keeps such a member's accessor synchronous
+  whenever a sibling key path names it, so that diagnostic must stay terminal.
 - Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
   `bindings:` (including `@SubContainerFactory`) name one direct member as
   `\Self.member`. The macro rejects named roots with
-  `sub.noncanonical-parent-key-path` and a fix-it; every layer rejects nested
-  components. Build support deliberately resolves named roots by member name
-  so the compiler fix-it, not a plugin failure, reports them. Classify
-  spellings only through `parentMemberKeyPathSpelling` in `InnoDICore`, and
-  never call `filter` on a syntax collection when the result anchors a
-  diagnostic, because it builds a modified tree.
+  `sub.noncanonical-parent-key-path` and a fix-it from the validator, not the
+  parser, so the rest of the container is still validated. The macro and build
+  support reject nested components and `InnoDI-Migrate` blocks them; the graph
+  CLI records no edge for them. Build support deliberately resolves named
+  roots by member name so the compiler fix-it, not a plugin failure, reports
+  them. Classify spellings only through `parentMemberKeyPathSpelling` in
+  `InnoDICore`, and never call `filter` on a syntax collection when the result
+  anchors a diagnostic, because it builds a modified tree.
 - `swift run InnoDI-DeferredAliasScan --root .` lists every top-level
   `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
   InnoDI never resolves aliases: a factory parameter typed with one is a hard
