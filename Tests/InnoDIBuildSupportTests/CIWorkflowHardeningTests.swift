@@ -37,12 +37,18 @@ struct CIWorkflowHardeningTests {
         )
         let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
         let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
+        let consumerStart = try #require(
+            workflow.range(of: "  consumer-contracts:\n")
+        )
         let sanitizerStart = try #require(
             workflow.range(of: "  sanitizers:\n")
         )
         let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
         let exhaustiveJob = workflow[
-            exhaustiveStart.lowerBound..<sanitizerStart.lowerBound
+            exhaustiveStart.lowerBound..<consumerStart.lowerBound
+        ]
+        let consumerJob = workflow[
+            consumerStart.lowerBound..<sanitizerStart.lowerBound
         ]
 
         #expect(fastJob.contains("name: Fast PR contracts"))
@@ -76,6 +82,17 @@ struct CIWorkflowHardeningTests {
         #expect(exhaustiveJob.contains("Tools/run-coverage-gate.sh"))
         #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
+        #expect(!exhaustiveJob.contains("external-consumer-contracts"))
+
+        // The subprocess build contracts run beside the coverage gate.
+        #expect(consumerJob.contains("name: Exhaustive consumer contracts (Xcode 26.6)"))
+        #expect(consumerJob.contains("needs: ci-plan"))
+        #expect(consumerJob.contains("if: needs.ci-plan.outputs.consumer-contracts == 'true'"))
+        #expect(consumerJob.contains("timeout-minutes: 90"))
+        #expect(consumerJob.contains("--filter StrictConcurrencyBuildTests"))
+        #expect(consumerJob.contains("--filter ExternalConsumerContractTests"))
+        #expect(consumerJob.contains("path: .build/external-consumer-contracts/dag-plugin-source"))
+        #expect(!consumerJob.contains("--enable-code-coverage"))
     }
 
     @Test("Fast PR and exhaustive jobs preserve distinct diagnostic artifacts")
@@ -87,9 +104,9 @@ struct CIWorkflowHardeningTests {
         )
         let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
         let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
-        let sanitizerStart = try #require(workflow.range(of: "  sanitizers:\n"))
+        let consumerStart = try #require(workflow.range(of: "  consumer-contracts:\n"))
         let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
-        let exhaustiveJob = workflow[exhaustiveStart.lowerBound..<sanitizerStart.lowerBound]
+        let exhaustiveJob = workflow[exhaustiveStart.lowerBound..<consumerStart.lowerBound]
 
         // A release-validation PR runs both jobs in the same workflow run.
         // Immutable upload-artifact outputs must not share or overwrite a name.
@@ -176,8 +193,9 @@ struct CIWorkflowHardeningTests {
                 "types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]"
             )
         )
-        for job in ["macro-tests", "sanitizers", "swift-62-compatibility",
-                    "xcode-27-compatibility", "apple-platform-builds", "path-identity"] {
+        for job in ["macro-tests", "consumer-contracts", "sanitizers",
+                    "swift-62-compatibility", "xcode-27-compatibility",
+                    "apple-platform-builds", "path-identity"] {
             #expect(workflow.contains("if: needs.ci-plan.outputs.\(job) == 'true'"))
         }
         #expect(workflow.contains("name: CI Required"))
@@ -235,7 +253,7 @@ struct CIWorkflowHardeningTests {
         let cacheSteps = workflow.components(separatedBy: "      - name: ").filter {
             $0.contains("uses: actions/cache@")
         }
-        #expect(cacheSteps.count == 7)
+        #expect(cacheSteps.count == 8)
         for step in cacheSteps {
             #expect(step.contains("-xcode-"))
             #expect(step.contains("${{ hashFiles('Package.resolved') }}"))

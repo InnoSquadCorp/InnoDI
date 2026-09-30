@@ -39,6 +39,7 @@ jobs:
       policy: ${{ steps.plan.outputs.policy }}
       fast-tests: ${{ steps.plan.outputs.fast-tests }}
       macro-tests: ${{ steps.plan.outputs.macro-tests }}
+      consumer-contracts: ${{ steps.plan.outputs.consumer-contracts }}
       sanitizers: ${{ steps.plan.outputs.sanitizers }}
       swift-62-compatibility: ${{ steps.plan.outputs.swift-62-compatibility }}
       xcode-27-compatibility: ${{ steps.plan.outputs.xcode-27-compatibility }}
@@ -170,7 +171,8 @@ jobs:
       - name: Run in-process test contracts
         # Consumer, strict-concurrency, one migration smoke, and the unique
         # binding fix-it consumer contracts spawn clean SwiftPM builds. The
-        # fix-it build alone compiles SwiftSyntax from source with one job. They remain exhaustive main gates below;
+        # fix-it build alone compiles SwiftSyntax from source with one job. They
+        # remain exhaustive main gates below, the first two in consumer-contracts;
         # repeating them on every PR dominated feedback time without adding
         # local semantic coverage. All in-process unit, macro-expansion, graph,
         # runtime, migration, and release-contract tests still run here with
@@ -252,21 +254,11 @@ jobs:
             ~/Library/Caches/org.swift.swiftpm/repositories
             ~/Library/Caches/org.swift.swiftpm/prebuilts
           key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
-      - name: Restore external consumer build cache
-        # The contracts reuse this scratch root by design. Consumer sources are
-        # materialized fresh and InnoDI rebuilds from the checkout; the cache
-        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
-        # source. Only that profile is cached (about 1.8 GB per toolchain) so
-        # three toolchains stay inside the repository cache budget. Keys never
-        # cross toolchains or swift-syntax pins.
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .build/external-consumer-contracts/dag-plugin-source
-          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
       - name: Run clean coverage gate
         id: coverage
         # Shared with the release gate so both lanes measure one strict pass
-        # from fresh profile data and enforce the same module floors.
+        # from fresh profile data and enforce the same module floors. The
+        # consumer-contracts job runs the subprocess build contracts beside it.
         run: Tools/run-coverage-gate.sh
       - name: Upload Coverage Artifacts
         if: ${{ always() && hashFiles('coverage/summary.json') != '' }}
@@ -390,6 +382,59 @@ jobs:
           name: macro-feature-performance-report
           path: build/macro-feature-performance-report.json
           if-no-files-found: error
+
+  consumer-contracts:
+    name: Exhaustive consumer contracts (Xcode 26.6)
+    # The subprocess build contracts run beside the coverage gate instead of
+    # inside it. They build fixture packages in separate, non-instrumented
+    # Swift processes, so they add no InnoDI coverage, and on main they took
+    # about 1,415 of the gate's 1,460 test seconds.
+    needs: ci-plan
+    if: needs.ci-plan.outputs.consumer-contracts == 'true'
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Restore SwiftPM dependency cache
+        # Repository mirrors and downloaded prebuilts only. Build products are
+        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/prebuilts
+          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+      - name: Restore external consumer build cache
+        # The contracts reuse this scratch root by design. Consumer sources are
+        # materialized fresh and InnoDI rebuilds from the checkout; the cache
+        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
+        # source. Only that profile is cached (about 1.8 GB per toolchain) so
+        # three toolchains stay inside the repository cache budget. Keys never
+        # cross toolchains or swift-syntax pins.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/external-consumer-contracts/dag-plugin-source
+          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+      - name: Run strict external compatibility contracts
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests \
+            2>&1 | tee build/consumer-contracts-output.log
+          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter ExternalConsumerContractTests \
+            2>&1 | tee -a build/consumer-contracts-output.log
+      - name: Summarize test suite durations
+        if: ${{ always() && hashFiles('build/consumer-contracts-output.log') != '' }}
+        run: |
+          Tools/summarize-test-durations.py build/consumer-contracts-output.log \
+            --title "Slowest test suites (consumer contracts)" >> "$GITHUB_STEP_SUMMARY"
 
   sanitizers:
     name: Thread and address sanitizers (Xcode 26.6)
@@ -615,6 +660,7 @@ jobs:
       - policy
       - fast-tests
       - macro-tests
+      - consumer-contracts
       - sanitizers
       - swift-62-compatibility
       - xcode-27-compatibility

@@ -92,21 +92,25 @@ window for canonical restructures.
 
 ## Code Coverage
 
-The `main` workflow runs `swift test --enable-code-coverage` once and feeds the
-profile data into `Tools/collect-coverage.sh`, which exports a per-module
-rollup. The rollup appears in the workflow run's step summary and is
-uploaded as an `actions/upload-artifact` artifact named `coverage`. Locally:
+The exhaustive lane on `main` and the Release Gate run
+`Tools/run-coverage-gate.sh`: one strict `swift test --enable-code-coverage`
+pass whose profile data `Tools/collect-coverage.sh` exports as a per-module
+rollup. The rollup appears in the workflow run's step summary and is uploaded
+as an `actions/upload-artifact` artifact named `coverage`, and
+`Tools/check-coverage-floor.py` fails the gate when a module falls below its
+floor in `Tools/coverage-floor.json`. Locally:
 
 ```sh
-swift test --enable-code-coverage
-Tools/collect-coverage.sh
+Tools/run-coverage-gate.sh
 # → coverage/lcov.info, coverage/report.txt, coverage/summary.json, coverage/summary.md
 ```
 
-Coverage enforces the module floors in `Tools/coverage-floor.json` through
-`Tools/run-coverage-gate.sh`; reports also surface unexpected per-module drops. Tests, examples, swift-syntax, and the
-`.build` cache are excluded so the report tracks the library surface, not
-fixtures or third-party code.
+The pass skips the external consumer and strict-concurrency build contracts.
+They build fixture packages in separate, non-instrumented Swift processes and
+used to take most of the pass; the exhaustive lane runs them in its own job
+beside the gate, and the Release Gate runs them for every release toolchain.
+Tests, examples, swift-syntax, and the `.build` cache are excluded from the
+report so it tracks the library surface, not fixtures or third-party code.
 
 ## Macro Performance Trend
 
@@ -125,7 +129,8 @@ contracts, but defers contracts that spawn clean external SwiftPM builds to
 `main`. PRs build one representative example; the two extended examples run
 on `main`, their weekly schedule, and manual dispatch. The exhaustive lane also
 retains coverage, Swift 6.2 compatibility, Apple-platform builds, path-identity
-checks, and performance tracking. This split changes feedback latency, not
+checks, and performance tracking, and runs the external consumer contracts in
+a job beside the coverage gate. This split changes feedback latency, not
 release coverage.
 
 The gated Ubuntu history job in `CI` runs after successful pushes to `main` and uses

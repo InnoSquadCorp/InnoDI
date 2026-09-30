@@ -83,6 +83,16 @@ that change moves to 8.0.
   trend instead of failing on hosted-runner variance; pushes to `main`, manual
   dispatch, and the Release Gate still enforce them.
 
+- The exhaustive CI lane runs the external consumer and strict-concurrency
+  build contracts in their own job beside the coverage gate instead of inside
+  it, and the Release Gate adds Xcode 26.6 to the compatibility matrix that
+  runs them. CI Plan also selects that job for a pull request that changes a
+  consumer fixture or contract. On `main` they took about 1,415 of the
+  coverage pass's 1,460 test seconds while building fixture packages in
+  separate processes. Every module stays above its coverage floor without
+  them; in a local comparison the only lines they alone covered were two
+  timing-dependent lock-contention branches in `InnoDIBuildSupport`.
+
 ### Breaking or Behavior Changes
 
 - The macOS floor is 14. `DIContainerHostOwner` is an `@Observable` class

@@ -317,6 +317,7 @@ struct ReleaseWorkflowContractTests {
             encoding: .utf8
         )
 
+        #expect(compatibilityJob.contains("scenario: xcode-26.6"))
         #expect(compatibilityJob.contains("scenario: swift-6.2"))
         #expect(compatibilityJob.contains("xcode: \"26.2\""))
         #expect(compatibilityJob.contains("scenario: xcode-26.5"))

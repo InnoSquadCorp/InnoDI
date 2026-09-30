@@ -15,7 +15,7 @@ There are no workflow-level path filters that could leave a required check pendi
 | Level | Contract |
 | --- | --- |
 | Normal PR | Always run policy tests; select the affected fast jobs below. Source PRs retain strict in-process tests, public API, DAG, one representative example, compiled documentation, and DocC. |
-| Main | Every validation job, including coverage floors, TSAN/ASAN, Swift 6.2, Xcode 27/Swift 6.4, five Apple platforms, renamed path, all examples, and exact remote macro/plugin consumers. |
+| Main | Every validation job, including coverage floors, the external consumer and strict-concurrency build contracts, TSAN/ASAN, Swift 6.2, Xcode 27/Swift 6.4, five Apple platforms, renamed path, all examples, and exact remote macro/plugin consumers. |
 | `release-validation` PR | Every validation job; label and unlabel events recalculate the current plan. No publication or history write. |
 | Merge queue / manual CI | Every validation job. Queue candidates are validated with the full merged tree. |
 | Release candidate | Dispatch `Release Gate` on main with stable version, full lowercase SHA, and `publish=false` (default). Complete candidate gates, compatibility matrix, packaged DocC/notes/checksums, and exact-SHA consumers; **Candidate Required** must succeed. |
@@ -31,7 +31,7 @@ empty diff or an unknown path selects all jobs. Each job needs a successful plan
 | --- | --- |
 | Root manifest/lock, shared Xcode action, shared CI policy or unclassified build/release script | Full validation |
 | Runtime/macro/plugin source | Fast contracts, representative example, documentation contracts, DocC |
-| Tests / materialized consumer templates | Fast contracts; clean consumer fixtures select both compatibility lanes; migration tests select the full suite; remote fixture also selects remote proof |
+| Tests / materialized consumer templates | Fast contracts; clean consumer fixtures select the Xcode 26.6 consumer contracts and both compatibility lanes; migration tests select the full suite; remote fixture also selects remote proof |
 | Live example source/manifest | All examples |
 | README / ordinary Markdown | Compiled snippet, local link and localized README contracts |
 | DocC catalogs / `.spi.yml` / DocC generator or lock | Documentation contracts and DocC |

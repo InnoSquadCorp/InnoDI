@@ -47,8 +47,14 @@ trap summarize_test_durations EXIT
 # Synchronous compiler/CLI fixtures must not occupy the cooperative executor
 # while an unrelated async contract's wall-clock limit is running. Serialize
 # independent test cases, not the tasks/concurrency exercised inside each test.
-# Keep every test, its time limit, and one fresh coverage pass unchanged.
+# Keep each test's time limit and one fresh coverage pass unchanged.
+#
+# The external consumer and strict-concurrency build contracts build fixture
+# packages in separate, non-instrumented Swift processes and took most of this
+# pass's test time. CI runs them in parallel jobs beside this gate, so this
+# pass runs every other test.
 swift test "${SWIFT_PACKAGE_ARGUMENTS[@]}" --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage \
+    --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
     2>&1 | tee "$TEST_LOG"
 INNODI_COVERAGE_BUILD_DIR="$BUILD_DIR" Tools/collect-coverage.sh
 

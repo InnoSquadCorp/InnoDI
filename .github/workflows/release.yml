@@ -238,8 +238,9 @@ jobs:
 
       - name: Run sanitizer suites
         # Consumer and mechanical fix-it build contracts spawn separate SwiftPM
-        # processes that are not sanitizer-instrumented. Coverage and toolchain
-        # lanes own those end-to-end builds; this suite exercises instrumented
+        # processes that are not sanitizer-instrumented. The compatibility
+        # matrix owns the consumer and strict-concurrency builds and the
+        # coverage gate owns the rest; this suite exercises instrumented
         # code only. Serialize independent cases to keep synchronous process
         # waits from consuming another test's async deadline. Each test's own
         # concurrent tasks and contention assertions are unchanged.
@@ -394,7 +395,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The coverage gate skips these subprocess contracts, so the primary
+        # release toolchain runs them here beside the other supported ones.
         include:
+          - scenario: xcode-26.6
+            xcode: "26.6"
           - scenario: swift-6.2
             xcode: "26.2"
           - scenario: xcode-26.5
