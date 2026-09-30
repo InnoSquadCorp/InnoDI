@@ -104,6 +104,13 @@ def route(suffix):
     return f"repos/{REPOSITORY}" + ("/" + suffix if suffix else "")
 
 
+def trusted_context(environment):
+    require(environment.get("GITHUB_REPOSITORY") == REPOSITORY and
+            environment.get("GITHUB_REF") == "refs/heads/main" and
+            environment.get("GITHUB_WORKFLOW_REF") == REPOSITORY + "/.github/workflows/dependabot-auto-merge.yml@refs/heads/main",
+            "mutation requires trusted default-main workflow/ref")
+
+
 def bot(pr):
     return all(pr.get("user", {}).get(k) == v for k, v in BOT.items())
 
@@ -471,6 +478,8 @@ def main():
     try:
         if args.command in {"coordinate", "verify-post-merge"}:
             require(type(args.pr) is int and args.pr > 0, "missing/invalid PR number")
+        if args.command in {"coordinate", "post-merge"}:
+            trusted_context(os.environ)
         api = GitHub()
         require(os.environ.get("GITHUB_REPOSITORY", REPOSITORY) == REPOSITORY, "foreign workflow repository")
         enabled = os.environ.get("DEPENDABOT_AUTO_MERGE_ENABLED") == "true"

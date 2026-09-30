@@ -96,7 +96,12 @@ or manually cancel outstanding requests for an immediate stop.
 ## Trusted execution and token permissions
 
 The coordinator always checks out `refs/heads/main` with credentials not
-persisted. It executes only the repository-owned Python standard-library script
+persisted. Every mutating job also requires the exact default-main workflow
+reference and `refs/heads/main` execution ref before starting; the CLI repeats
+that context check before any mutation. A branch-selected manual dispatch is
+ineligible even if its workflow happens to contain the same checkout setting.
+Post-merge `always()` additionally requires a successful inspect job, so an
+inspect failure/skip cannot dispatch recovery. It executes only the repository-owned Python standard-library script
 and API requests. No PR checkout, dependency install, cache, downloaded artifact
 or PR-controlled shell command is used. All actions remain full-SHA pinned.
 Default workflow permissions remain `contents: read`; write permissions are
