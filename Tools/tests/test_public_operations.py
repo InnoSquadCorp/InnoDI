@@ -47,15 +47,18 @@ class PublicOperationsTests(unittest.TestCase):
             config_file.write_text(original)
             manifest = root / "Package.swift"
             original_manifest = manifest.read_text()
-            manifest.write_text(original_manifest.replace('exact: "603.0.2"', 'from: "603.0.2"'))
+            import re
+            version = re.search(r'exact: "([0-9.]+)"', original_manifest)[1]
+            different = str(int(version.split('.')[0]) + 1) + '.0.0'
+            manifest.write_text(original_manifest.replace(f'exact: "{version}"', f'from: "{version}"'))
             with self.assertRaises(ValueError):
                 ops.check(root)
-            manifest.write_text(original_manifest.replace('exact: "603.0.2"', 'exact: "604.0.0"'))
+            manifest.write_text(original_manifest.replace(f'exact: "{version}"', f'exact: "{different}"'))
             with self.assertRaises(ValueError):
                 ops.check(root)
             manifest.write_text(original_manifest)
             generator = root / "Tools/generate-docc.sh"
-            generator.write_text(generator.read_text().replace(r"603\.0\.2", r"604\.0\.0"))
+            generator.write_text(generator.read_text().replace(version.replace('.', r'\.'), different.replace('.', r'\.')))
             with self.assertRaises(ValueError):
                 ops.check(root)
             shutil.copyfile(ROOT / "Tools/generate-docc.sh", generator)
