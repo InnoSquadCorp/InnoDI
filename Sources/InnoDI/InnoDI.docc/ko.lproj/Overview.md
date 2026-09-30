@@ -55,8 +55,10 @@ graph tooling에 초점을 둡니다.
 ### Operations
 
 - <doc:lock-safety>
+- <doc:DAGValidation>
 - <doc:AsyncPreparation>
 - <doc:RuntimeTracing>
+- <doc:PluginOptOut>
 - <doc:MigrationGuide>
 
 ### Container API
@@ -65,6 +67,14 @@ graph tooling에 초점을 둡니다.
 - <doc:Provide>
 - ``Input(_:escaping:)``
 - ``DIContainerRole(role:mainActor:validateDAG:)``
+
+### Experimental
+
+- <doc:AutoMock>
+
+### SwiftUI Preview Helper
+
+- <doc:SwiftUIPreviewHelper>
 
 ### Symbols
 

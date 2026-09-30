@@ -6,7 +6,7 @@ SwiftPM's plugin work directory. SwiftPM does not automatically attach the
 plugin just because a target declares an InnoDI container; consumers opt in by
 listing the plugin in the target manifest. The coordinator is incremental and
 cached, but the plugin still adds a per-target build step and a swift-syntax
-invocation. Two narrow situations make opting out defensible.
+invocation. Three narrow situations make opting out defensible.
 
 ## When Opt-Out Is Reasonable
 
