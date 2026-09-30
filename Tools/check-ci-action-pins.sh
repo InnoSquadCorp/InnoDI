@@ -87,6 +87,8 @@ def relative(path: Path) -> str:
 
 def top_level_permissions(lines: list[str]) -> dict[str, str] | None:
     for index, line in enumerate(lines):
+        if line == "permissions: {}":
+            return {}
         if line != "permissions:":
             continue
         permissions: dict[str, str] = {}
@@ -103,7 +105,7 @@ def top_level_permissions(lines: list[str]) -> dict[str, str] | None:
 for workflow_path in workflow_files:
     lines = workflow_path.read_text(encoding="utf-8").splitlines()
     permissions = top_level_permissions(lines)
-    expected_permissions = {"contents": "read"}
+    expected_permissions = {} if workflow_path.name == "dependabot-review-notice.yml" else {"contents": "read"}
     if permissions != expected_permissions:
         failures.append(
             (
@@ -135,7 +137,15 @@ for workflow_path in workflow_files:
         }
     elif workflow_path.name == "macro-tests.yml":
         expected_job_permissions = {
+            "ci-plan": {"contents": "read", "pull-requests": "read"},
             "append-perf-history": {"contents": "write"},
+        }
+    elif workflow_path.name == "dependabot-auto-merge.yml":
+        expected_job_permissions = {
+            "inspect": {"contents": "read", "actions": "read", "checks": "read", "pull-requests": "read"},
+            "manual-ready": {"contents": "read", "actions": "read", "checks": "write", "pull-requests": "read"},
+            "bot-ready": {"contents": "write", "actions": "read", "checks": "write", "pull-requests": "write"},
+            "post-merge": {"contents": "read", "actions": "write", "pull-requests": "read"},
         }
     elif workflow_path.name == "perf-history.yml":
         expected_job_permissions = {

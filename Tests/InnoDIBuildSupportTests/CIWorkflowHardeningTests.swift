@@ -177,9 +177,15 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
-                "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+                "if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))"
             )
         )
+        // The additional dispatch path must prove an actual merged bot at
+        // current main before it can reuse main's publication/history contract.
+        #expect(appendJob.contains("      - ci-plan\n"))
+        #expect(workflow.contains("Verify actual post-merge main origin"))
+        #expect(workflow.contains("verify-post-merge --pr \"$MERGED_PR\" --expected-sha \"$GITHUB_SHA\""))
+        #expect(workflow.contains("publish_pages: ${{ needs.ci-plan.outputs.post_merge == 'true' }}"))
     }
 
     @Test("Main CI keeps an explicit Xcode 27 compatibility lane")

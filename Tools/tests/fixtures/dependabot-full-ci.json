@@ -1,0 +1,380 @@
+{
+  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard",
+  "jobs": {
+    "CI Plan": [
+      {
+        "name": "Checkout comparison history",
+        "conclusion": "success"
+      },
+      {
+        "name": "Verify actual post-merge main origin",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Classify exact event changes",
+        "conclusion": "success"
+      }
+    ],
+    "CI and public operations policy": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate repository automation policy",
+        "conclusion": "success"
+      }
+    ],
+    "Fast PR contracts": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run in-process test contracts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate macro synthesis and CI policy",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate public API and Global DAG",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report Build-Validation Escape Hatches",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Escape Hatch Report",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report Deferred-Wrapper Alias Findings",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Deferred-Wrapper Alias Report",
+        "conclusion": "success"
+      }
+    ],
+    "Documentation contracts": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate copyable documentation and mirrors",
+        "conclusion": "success"
+      }
+    ],
+    "Xcode 27 compatibility preview": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Verify Xcode 27 and Swift 6.4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run strict external compatibility contracts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate source-authored public API baseline",
+        "conclusion": "success"
+      }
+    ],
+    "Thread and address sanitizers (Xcode 26.6)": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run thread sanitizer suite",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run address sanitizer suite",
+        "conclusion": "success"
+      }
+    ],
+    "Apple platform builds (Xcode 26.6)": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build public libraries for every declared Apple platform",
+        "conclusion": "success"
+      }
+    ],
+    "Exhaustive release contracts": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run clean coverage gate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Coverage Artifacts",
+        "conclusion": "success"
+      },
+      {
+        "name": "No fatalError in synthesized code",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate CI keeps build validation enabled",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate pinned CI dependencies and permissions",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate bounded release-note extraction",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate public API baseline",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate Global DAG",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report Build-Validation Escape Hatches",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Escape Hatch Report",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report Deferred-Wrapper Alias Findings",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Deferred-Wrapper Alias Report",
+        "conclusion": "success"
+      },
+      {
+        "name": "Macro Performance Check",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Macro Performance Report",
+        "conclusion": "success"
+      },
+      {
+        "name": "Macro Performance Trend",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Performance Trend Report",
+        "conclusion": "success"
+      },
+      {
+        "name": "Measure Independent Macro Feature Workloads",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Macro Feature Performance Report",
+        "conclusion": "success"
+      }
+    ],
+    "path-identity": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run representative renamed-checkout contracts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate examples from the renamed checkout",
+        "conclusion": "success"
+      }
+    ],
+    "Swift 6.2 compatibility": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.2",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run strict external compatibility contracts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate minimum-toolchain public API semantics",
+        "conclusion": "success"
+      }
+    ],
+    "docc / docc": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Validate local documentation links",
+        "conclusion": "success"
+      },
+      {
+        "name": "Generate DocC",
+        "conclusion": "success"
+      },
+      {
+        "name": "Package DocC Artifact",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload DocC Artifact",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload GitHub Pages Artifact",
+        "conclusion": "skipped"
+      }
+    ],
+    "examples / sample-app": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select prebuilt-compatible Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build and Test SampleApp",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run SampleApp",
+        "conclusion": "success"
+      }
+    ],
+    "examples / preview-injection-example": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build and Test PreviewInjectionExample",
+        "conclusion": "success"
+      }
+    ],
+    "examples / swiftui-example": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build and Test SwiftUIExample",
+        "conclusion": "success"
+      }
+    ],
+    "remote-consumer / Exact-SHA macro and plugin consumer": [
+      {
+        "name": "Checkout smoke fixture only",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select prebuilt-compatible Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Confirm the revision is the published main tip",
+        "conclusion": "success"
+      },
+      {
+        "name": "Materialize a fresh remote consumer",
+        "conclusion": "success"
+      },
+      {
+        "name": "Resolve the exact remote revision",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build and run macro-first and plugin consumers",
+        "conclusion": "success"
+      },
+      {
+        "name": "Record consumer proof",
+        "conclusion": "success"
+      }
+    ],
+    "examples / Examples Required": [
+      {
+        "name": "Checkout evaluator",
+        "conclusion": "success"
+      },
+      {
+        "name": "Require selected example jobs",
+        "conclusion": "success"
+      }
+    ],
+    "CI Required": [
+      {
+        "name": "Checkout evaluator",
+        "conclusion": "success"
+      },
+      {
+        "name": "Require every planned result",
+        "conclusion": "success"
+      }
+    ],
+    "append-perf-history": []
+  }
+}

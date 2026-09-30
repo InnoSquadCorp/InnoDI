@@ -1,4 +1,6 @@
 name: CI
+run-name: >-
+  ${{ inputs.dependabot_merge_pr && format('CI / Dependabot merge #{0}', inputs.dependabot_merge_pr) || github.event.pull_request.title || github.event.head_commit.message || 'CI' }}
 
 on:
   pull_request:
@@ -9,6 +11,12 @@ on:
   merge_group:
     types: [checks_requested]
   workflow_dispatch:
+    inputs:
+      dependabot_merge_pr:
+        description: Verified actual Dependabot merge at current main (metadata-only recovery)
+        type: string
+        default: ''
+        required: false
 
 permissions:
   contents: read
@@ -22,7 +30,11 @@ jobs:
     name: CI Plan
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
+      post_merge: ${{ steps.origin.outputs.post_merge }}
       plan: ${{ steps.plan.outputs.plan }}
       policy: ${{ steps.plan.outputs.policy }}
       fast-tests: ${{ steps.plan.outputs.fast-tests }}
@@ -43,6 +55,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify actual post-merge main origin
+        id: origin
+        if: github.event_name == 'workflow_dispatch' && inputs.dependabot_merge_pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_PR: ${{ inputs.dependabot_merge_pr }}
+        run: |
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]]
+          [[ "$GITHUB_REPOSITORY" == 'InnoSquadCorp/InnoDI' ]]
+          python3 -B Tools/dependabot-merge-policy.py verify-post-merge --pr "$MERGED_PR" --expected-sha "$GITHUB_SHA"
+          echo 'post_merge=true' >> "$GITHUB_OUTPUT"
       - name: Classify exact event changes
         id: plan
         run: python3 Tools/ci-policy.py plan --event "$GITHUB_EVENT_PATH" --output build/ci-plan.json
@@ -102,6 +125,8 @@ jobs:
     needs: ci-plan
     if: needs.ci-plan.outputs.docc == 'true'
     uses: ./.github/workflows/docc-validation.yml
+    with:
+      publish_pages: ${{ needs.ci-plan.outputs.post_merge == 'true' }}
 
   remote-consumer:
     needs: ci-plan
@@ -511,8 +536,9 @@ jobs:
         run: python3 Tools/ci-policy.py evaluate
 
   append-perf-history:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))
     needs:
+      - ci-plan
       - ci-required
       - macro-tests
       - sanitizers
