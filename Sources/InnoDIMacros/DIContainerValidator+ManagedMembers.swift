@@ -45,6 +45,15 @@ extension DIContainerValidator {
                 memberByName: memberByName,
                 context: context
             ) || hadErrors
+            if member.assistedFactoryChildType != nil {
+                // As for @SubContainer, a named parent root keeps its member
+                // name, so the rest of the container is still validated.
+                hadErrors = emitNoncanonicalParentKeyPathDiagnostics(
+                    memberName: member.name,
+                    attribute: member.attribute,
+                    context: context
+                ) || hadErrors
+            }
 
             if member.isMultibinding {
                 hadErrors = validateMultibinding(

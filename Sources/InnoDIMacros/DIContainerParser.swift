@@ -496,14 +496,6 @@ struct DIContainerParser {
             context.emit(message, at: Syntax(attribute))
             hadArgumentErrors = true
         }
-        if arguments.assistedFactoryChildType != nil,
-           emitNoncanonicalParentKeyPathDiagnostics(
-            memberName: memberName,
-            attribute: attribute,
-            context: context
-           ) {
-            hadArgumentErrors = true
-        }
         if arguments.initialization == nil {
             hadArgumentErrors = true
         }

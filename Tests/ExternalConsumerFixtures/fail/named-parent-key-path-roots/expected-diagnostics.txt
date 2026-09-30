@@ -1,0 +1,4 @@
+'feature' reads parent member 'config' through \NamedWithRoot.config. InnoDI reads only the member name, so a named root is never checked against the declaring container. Spell parent key paths as \Self.config.
+'feature' reads parent member 'settings' through \NamedBindingRoot.settings. InnoDI reads only the member name, so a named root is never checked against the declaring container. Spell parent key paths as \Self.settings.
+'session' reads parent member 'config' through \NamedFactoryRoot.config. InnoDI reads only the member name, so a named root is never checked against the declaring container. Spell parent key paths as \Self.config.
+@SubContainerFactory 'session' cannot pass parent member 'token' to a child input because 'token' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or make the child input @Input(.assisted) and pass the awaited value to the factory.

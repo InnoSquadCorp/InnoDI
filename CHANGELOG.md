@@ -93,7 +93,8 @@ that change moves to 8.0.
   `@SubContainer(bindings:)` and `@SubContainerFactory(bindings:)` must be
   spelled `\Self.member`. A named root such as `\AppContainer.config` is
   rejected with `sub.noncanonical-parent-key-path` and a fix-it; InnoDI only
-  ever read the member name, so the root was never checked. A nested
+  ever read the member name, so the root was never checked. The rest of the
+  container is still validated in the same pass. A nested
   component such as `\Self.config.baseURL`, which used to wire only its last
   component, is rejected as `sub.invalid-same-name-wiring` or
   `sub.invalid-bindings`. Build validation resolves named roots so the

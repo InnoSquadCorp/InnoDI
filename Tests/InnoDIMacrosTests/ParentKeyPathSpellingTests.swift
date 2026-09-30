@@ -94,13 +94,46 @@ struct ParentKeyPathSpellingTests {
             }
             """
         let result = expandMacroSource(source, macros: Self.macros)
-        #expect(result.diagnostics.contains { $0.diagnosticID == Self.noncanonical })
+        #expect(result.diagnostics.map(\.diagnosticID) == [Self.noncanonical])
         let repair = try repairNoncanonicalKeyPath(in: source)
         #expect(repair.fixItMessage == "Replace with '\\Self.repository'")
         #expect(
             repair.repaired.contains(
                 "(child: \\SessionContainer.repository, parent: \\Self.repository)"
             )
+        )
+    }
+
+    @Test("A named parent root in @SubContainerFactory keeps the container validated")
+    func namedParentRootInFactoryKeepsValidating() {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct AppContainer {
+                @Input var repository: Repository
+
+                @Provide(.shared, asyncFactory: { () async in Token() })
+                var token: Token
+
+                @SubContainerFactory(
+                    SessionContainer.self,
+                    bindings: [
+                        (child: \\SessionContainer.repository, parent: \\AppContainer.repository),
+                        (child: \\SessionContainer.token, parent: \\Self.token),
+                    ]
+                )
+                var session: SessionContainer.AssistedFactory
+            }
+            """,
+            macros: Self.macros
+        )
+        let ids = result.diagnostics.map(\.diagnosticID)
+        #expect(ids.count == 2)
+        #expect(
+            Set(ids) == [
+                Self.noncanonical,
+                MessageID(domain: "InnoDI.validation", id: "sub.async-parent-member"),
+            ]
         )
     }
 
