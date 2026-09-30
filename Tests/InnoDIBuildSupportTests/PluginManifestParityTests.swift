@@ -12,17 +12,20 @@ struct PluginManifestParityTests {
             encoding: .utf8
         )
 
-        #expect(source.contains("push:\n    branches:\n      - main"))
+        #expect(source.contains("  workflow_call:"))
+        let ci = try String(contentsOf: packageRootURL().appendingPathComponent(".github/workflows/macro-tests.yml"), encoding: .utf8)
+        #expect(ci.contains("push:\n    branches:\n      - main"))
+        #expect(ci.contains("uses: ./.github/workflows/examples.yml"))
         #expect(source.contains("permissions:\n  contents: read"))
         #expect(
             source.components(
                 separatedBy: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
-            ).count - 1 == 3
+            ).count - 1 == 4
         )
         #expect(
             source.components(
                 separatedBy: "persist-credentials: false"
-            ).count - 1 == 3
+            ).count - 1 == 4
         )
         #expect(
             source.contains(

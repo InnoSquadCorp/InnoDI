@@ -1,17 +1,17 @@
 name: Remote Consumer Smoke
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'Package.swift'
-      - 'Package.resolved'
-      - 'Sources/**'
-      - 'Plugins/**'
-      - 'Tests/RemoteConsumerSmoke/**'
-      - '.github/actions/select-xcode/**'
-      - '.github/workflows/remote-consumer-smoke.yml'
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+      repository_url:
+        type: string
+        required: true
+      branch_ref:
+        type: string
+        required: true
   workflow_dispatch:
 
 permissions:
@@ -34,6 +34,7 @@ jobs:
           sparse-checkout: |
             .github/actions/select-xcode
             Tests/RemoteConsumerSmoke
+            Tools
       - name: Select prebuilt-compatible Xcode 26.6
         # SwiftSyntax 603.0.2 has a matching prebuilt on Swift 6.3.3. This
         # exact-revision consumer proof should exercise that fast path instead
@@ -43,36 +44,43 @@ jobs:
           version: "26.6"
       - name: Confirm the revision is the published main tip
         env:
-          INNODI_REPOSITORY_URL: https://github.com/InnoSquadCorp/InnoDI.git
-          INNODI_REVISION: ${{ github.sha }}
+          INNODI_REPOSITORY_URL: ${{ inputs.repository_url || 'https://github.com/InnoSquadCorp/InnoDI.git' }}
+          INNODI_BRANCH_REF: ${{ inputs.branch_ref || 'refs/heads/main' }}
+          INNODI_REVISION: ${{ inputs.revision || github.sha }}
         run: |
           set -euo pipefail
-          remote_main="$(git ls-remote "$INNODI_REPOSITORY_URL" refs/heads/main | awk '{print $1}')"
+          [[ "$INNODI_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          git check-ref-format "$INNODI_BRANCH_REF"
+          python3 - "$INNODI_REPOSITORY_URL" <<'PYANCHOR'
+          import sys
+          sys.path.insert(0, 'Tools')
+          import importlib.util
+          spec = importlib.util.spec_from_file_location('consumer', 'Tools/materialize-remote-consumer.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.identity(sys.argv[1])
+          PYANCHOR
+          remote_main="$(git ls-remote -- "$INNODI_REPOSITORY_URL" "$INNODI_BRANCH_REF" | awk '{print $1}')"
           if [[ "$remote_main" != "$INNODI_REVISION" ]]; then
-            echo "Expected remote main $INNODI_REVISION, found ${remote_main:-<missing>}." >&2
+            echo "Expected remote branch $INNODI_REVISION, found ${remote_main:-<missing>}." >&2
             exit 1
           fi
       - name: Materialize a fresh remote consumer
         env:
-          INNODI_REVISION: ${{ github.sha }}
+          INNODI_REPOSITORY_URL: ${{ inputs.repository_url || 'https://github.com/InnoSquadCorp/InnoDI.git' }}
+          INNODI_REVISION: ${{ inputs.revision || github.sha }}
         run: |
           set -euo pipefail
           consumer="$RUNNER_TEMP/innodi-remote-consumer"
           mkdir -p "$consumer"
-          while IFS= read -r -d '' fixture; do
-            relative="${fixture#Tests/RemoteConsumerSmoke/}"
-            destination="$consumer/${relative%.fixture}"
-            mkdir -p "$(dirname "$destination")"
-            sed "s/{{INNODI_REVISION}}/$INNODI_REVISION/g" "$fixture" > "$destination"
-          done < <(find Tests/RemoteConsumerSmoke -type f -name '*.fixture' -print0)
-          if grep -R -n -E '{{INNODI_[A-Z_]+}}' "$consumer"; then
-            echo "Remote consumer has unresolved template placeholders." >&2
-            exit 1
-          fi
+          identity="$(python3 Tools/materialize-remote-consumer.py \
+            --output "$consumer" --repository-url "$INNODI_REPOSITORY_URL" \
+            --revision "$INNODI_REVISION")"
+          printf 'INNODI_CONSUMER_IDENTITY=%s\n' "$identity" >> "$GITHUB_ENV"
           printf 'INNODI_REMOTE_CONSUMER=%s\n' "$consumer" >> "$GITHUB_ENV"
       - name: Resolve the exact remote revision
         env:
-          INNODI_REVISION: ${{ github.sha }}
+          INNODI_REVISION: ${{ inputs.revision || github.sha }}
         run: |
           set -euo pipefail
           swift package --package-path "$INNODI_REMOTE_CONSUMER" resolve
@@ -85,7 +93,7 @@ jobs:
           revision = sys.argv[2]
           pins = [
               pin for pin in resolved.get("pins", [])
-              if pin.get("identity", "").lower() == "innodi"
+              if pin.get("identity", "").lower() == __import__("os").environ["INNODI_CONSUMER_IDENTITY"]
           ]
           if len(pins) != 1:
               raise SystemExit(f"expected one InnoDI pin, found {len(pins)}")
@@ -105,7 +113,7 @@ jobs:
           swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build ValidatedApp
       - name: Record consumer proof
         env:
-          INNODI_REVISION: ${{ github.sha }}
+          INNODI_REVISION: ${{ inputs.revision || github.sha }}
         run: |
           {
             echo "## Remote consumer proof"

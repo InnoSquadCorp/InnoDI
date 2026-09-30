@@ -1,5 +1,7 @@
 # InnoDI
 
+[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
+
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
 Macro-driven dependency injection for Swift with compile-time and build-time
@@ -86,7 +88,7 @@ live for the duration of one operation.
 
 ## Requirements
 
-- Swift tools version `6.2` (CI validates Swift 6.2 and 6.3)
+- Swift tools version `6.2` (CI validates Swift 6.2 / 6.3; Xcode 27 / Swift 6.4 compatibility lane)
 - Platforms:
   - iOS 17+
   - macOS 13+

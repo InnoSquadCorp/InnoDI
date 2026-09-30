@@ -1,5 +1,7 @@
 # InnoDI
 
+[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
+
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
@@ -86,7 +88,7 @@ override가 필요할 때 꺼냅니다.
 
 ## 요구 사항
 
-- Swift tools version `6.2` (CI 검증: Swift 6.2 및 6.3)
+- Swift tools version `6.2` (CI 검증: Swift 6.2 / 6.3, Xcode 27 / Swift 6.4 호환성 검사)
 - 플랫폼:
   - iOS 17+
   - macOS 13+

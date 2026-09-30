@@ -16,7 +16,7 @@ body:
     attributes:
       label: InnoDI version
       description: Tag, branch, or commit SHA you are using.
-      placeholder: "4.1.0"
+      placeholder: "6.0.0"
     validations:
       required: true
 

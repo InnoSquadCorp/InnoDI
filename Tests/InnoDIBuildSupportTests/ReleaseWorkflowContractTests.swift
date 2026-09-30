@@ -61,7 +61,7 @@ struct ReleaseWorkflowContractTests {
         }
 
         #expect(!workflow.contains("persist-credentials: true"))
-        #expect(workflow.components(separatedBy: "persist-credentials: false").count - 1 == 6)
+        #expect(workflow.components(separatedBy: "persist-credentials: false").count - 1 == 7)
     }
 
     @Test("Validation steps cannot access release credentials")
