@@ -1,5 +1,5 @@
 {
-  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard",
+  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step",
   "jobs": {
     "CI Plan": [
       {
@@ -344,6 +344,10 @@
       },
       {
         "name": "Resolve the exact remote revision",
+        "conclusion": "success"
+      },
+      {
+        "name": "Verify isolated primary macro prebuilt",
         "conclusion": "success"
       },
       {

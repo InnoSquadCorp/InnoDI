@@ -161,6 +161,7 @@ class DependabotPolicyTests(unittest.TestCase):
                    lambda a: a.jobs[0].update(steps=[]), lambda a: a.jobs[0]['steps'][0].update(conclusion='skipped'),
                    lambda a: a.jobs[5]['steps'].__setitem__(slice(None), [s for s in a.jobs[5]['steps'] if s['name'] != 'Run thread sanitizer suite']),
                    lambda a: a.jobs[5]['steps'][2].update(conclusion='failure'),
+                   lambda a: next(j for j in a.jobs if j['name'] == 'remote-consumer / Exact-SHA macro and plugin consumer')['steps'].__setitem__(slice(None), [s for s in next(j for j in a.jobs if j['name'] == 'remote-consumer / Exact-SHA macro and plugin consumer')['steps'] if s['name'] != 'Verify isolated primary macro prebuilt']),
                    lambda a: a.checks.pop(4), lambda a: a.checks[4]['app'].update(id=123),
                    lambda a: a.checks[4]['check_suite'].update(id=123), lambda a: a.checks[4].update(head_sha=BASE),
                    lambda a: a.checks[4].update(details_url='https://evil.test'), lambda a: a.checks[4].update(conclusion='failure'),

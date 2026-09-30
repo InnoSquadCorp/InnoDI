@@ -102,6 +102,31 @@ jobs:
               raise SystemExit(f"expected InnoDI revision {revision}, found {actual}")
           print(f"Resolved InnoDI at exact revision {actual}")
           PY
+      - name: Verify isolated primary macro prebuilt
+        env:
+          INNODI_REVISION: ${{ inputs.revision || github.sha }}
+        run: |
+          set -euo pipefail
+          swift package --package-path "$INNODI_REMOTE_CONSUMER" show-dependencies --format json > "$RUNNER_TEMP/innodi-consumer-graph.json"
+          benchmark_root="$(python3 - "$RUNNER_TEMP/innodi-consumer-graph.json" "$INNODI_REMOTE_CONSUMER" <<'PY'
+          import json, os, pathlib, sys
+          dependencies = json.loads(pathlib.Path(sys.argv[1]).read_text())['dependencies']
+          matches = [d for d in dependencies if d['identity'] == os.environ['INNODI_CONSUMER_IDENTITY']]
+          if len(matches) != 1:
+              raise SystemExit('Missing or ambiguous exact dependency checkout')
+          root = pathlib.Path(matches[0]['path']).resolve()
+          if not root.is_relative_to(pathlib.Path(sys.argv[2]).resolve() / '.build/checkouts'):
+              raise SystemExit('Unexpected checkout location')
+          print(root)
+          PY
+          )"
+          [[ "$(git -C "$benchmark_root" rev-parse HEAD)" == "$INNODI_REVISION" ]]
+          (
+            cd "$benchmark_root"
+            Tools/cold-build-benchmark.sh --target consumer --bindings 100 --keep-user-cache \
+              --build-log "$RUNNER_TEMP/innodi-isolated-primary.log"
+          ) | tee "$RUNNER_TEMP/innodi-isolated-primary.json"
+          [[ "$(jq -r '.swift_syntax_mode' "$RUNNER_TEMP/innodi-isolated-primary.json")" == 'prebuilt' ]]
       - name: Build and run macro-first and plugin consumers
         run: |
           set -euo pipefail

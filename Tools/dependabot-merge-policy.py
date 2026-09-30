@@ -254,6 +254,8 @@ def proof(api, number, notification=None):
             require(CORE[name] in {s.get("name") for s in steps}, "missing validation step: " + name)
             if name == "Thread and address sanitizers (Xcode 26.6)":
                 require("Run thread sanitizer suite" in {s.get("name") for s in steps}, "missing thread sanitizer proof")
+            if name == "remote-consumer / Exact-SHA macro and plugin consumer":
+                require("Verify isolated primary macro prebuilt" in {s.get("name") for s in steps}, "missing primary macro prebuilt proof")
             require(all(s.get("status") == "completed" and (s.get("conclusion") == "success" or
                         (s.get("conclusion") == "skipped" and (name, s.get("name")) in ALLOWED_STEP_SKIP)) for s in steps),
                     "failed/pending/skipped validation step: " + name)
