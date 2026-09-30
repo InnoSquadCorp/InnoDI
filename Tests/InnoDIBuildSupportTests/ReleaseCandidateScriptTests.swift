@@ -150,6 +150,73 @@ struct ReleaseCandidateScriptTests {
         #expect(result.output.contains("6.x release requires RFC 0006:"))
     }
 
+    @Test("7.x release requires RFC 0008 and RFC 0009 to be accepted")
+    func acceptedRFC70IsRequired() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "7.0.0")
+        defer { fixture.remove() }
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode == 0)
+        #expect(result.output.contains("Release candidate metadata validated"))
+    }
+
+    @Test("7.x release rejects a pending RFC 0008 or RFC 0009 document", arguments: ["0008", "0009"])
+    func pendingRFC70DocumentIsRejected(number: String) throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "7.0.0")
+        defer { fixture.remove() }
+        try fixture.writeRFC70(
+            number == "0008" ? ReleaseCandidateScriptFixture.rfc0008 : ReleaseCandidateScriptFixture.rfc0009,
+            status: "Draft (awaiting maintainer acceptance)",
+            indexStatus: "Accepted"
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(
+            result.output.contains(
+                "7.x release requires RFC \(number) to contain exactly one authoritative"
+            )
+        )
+    }
+
+    @Test("7.x release rejects a pending RFC 0008 or RFC 0009 index row", arguments: ["0008", "0009"])
+    func pendingRFC70IndexRowIsRejected(number: String) throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "7.0.0")
+        defer { fixture.remove() }
+        try fixture.writeRFC70(
+            number == "0008" ? ReleaseCandidateScriptFixture.rfc0008 : ReleaseCandidateScriptFixture.rfc0009,
+            status: "Accepted",
+            indexStatus: "Draft"
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(
+            result.output.contains(
+                "7.x release requires the RFC index to contain exactly one Accepted RFC \(number) row"
+            )
+        )
+    }
+
+    @Test("7.x release rejects a missing RFC 0009 document")
+    func missingRFC0009DocumentIsRejected() throws {
+        let fixture = try ReleaseCandidateScriptFixture(version: "7.0.0")
+        defer { fixture.remove() }
+        try FileManager.default.removeItem(
+            at: fixture.rootURL.appendingPathComponent(
+                "docs/rfcs/0009-7.0-source-breaks.md"
+            )
+        )
+
+        let result = try fixture.run()
+
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("7.x release requires RFC 0009:"))
+    }
+
     @Test("6.x release rejects a missing RFC index")
     func missingRFCIndexIsRejected() throws {
         let fixture = try ReleaseCandidateScriptFixture(version: "6.0.0")
@@ -833,11 +900,11 @@ private struct ReleaseCandidateScriptFixture {
                 named: "Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md",
                 body: "## 4.x → \(Self.majorMinor(version))\n"
             )
-            if version.split(separator: ".").first == "6" {
-                try Self.writeRFC0006(
+            let requiredRFCs = Self.requiredRFCs(forMajor: version.split(separator: ".").first.map(String.init))
+            if !requiredRFCs.isEmpty {
+                try Self.writeRFCs(
                     at: rootURL,
-                    status: "Accepted",
-                    indexStatus: "Accepted"
+                    requiredRFCs.map { ($0, "Accepted", "Accepted") }
                 )
             }
 
@@ -974,10 +1041,21 @@ private struct ReleaseCandidateScriptFixture {
     }
 
     func writeRFC0006(status: String, indexStatus: String) throws {
-        try Self.writeRFC0006(
+        try Self.writeRFCs(at: rootURL, [(Self.rfc0006, status, indexStatus)])
+    }
+
+    /// Rewrites the 7.0 RFCs, giving `changed` the statuses and keeping the
+    /// other one accepted.
+    func writeRFC70(
+        _ changed: ReleaseRFC,
+        status: String,
+        indexStatus: String
+    ) throws {
+        try Self.writeRFCs(
             at: rootURL,
-            status: status,
-            indexStatus: indexStatus
+            [Self.rfc0008, Self.rfc0009].map { rfc in
+                rfc == changed ? (rfc, status, indexStatus) : (rfc, "Accepted", "Accepted")
+            }
         )
     }
 
@@ -1110,10 +1188,33 @@ private struct ReleaseCandidateScriptFixture {
         try body.write(to: guideURL, atomically: true, encoding: .utf8)
     }
 
-    private static func writeRFC0006(
+    static let rfc0006 = ReleaseRFC(
+        number: "0006",
+        fileName: "0006-assisted-subgraphs-and-container-roles.md",
+        title: "Assisted subgraphs and container roles"
+    )
+    static let rfc0008 = ReleaseRFC(
+        number: "0008",
+        fileName: "0008-async-on-demand-providers.md",
+        title: "Asynchronous on-demand providers"
+    )
+    static let rfc0009 = ReleaseRFC(
+        number: "0009",
+        fileName: "0009-7.0-source-breaks.md",
+        title: "7.0 source breaks"
+    )
+
+    private static func requiredRFCs(forMajor major: String?) -> [ReleaseRFC] {
+        switch major {
+        case "6": [rfc0006]
+        case "7": [rfc0008, rfc0009]
+        default: []
+        }
+    }
+
+    private static func writeRFCs(
         at rootURL: URL,
-        status: String,
-        indexStatus: String
+        _ records: [(rfc: ReleaseRFC, status: String, indexStatus: String)]
     ) throws {
         let rfcDirectory = rootURL
             .appendingPathComponent("docs/rfcs", isDirectory: true)
@@ -1121,33 +1222,41 @@ private struct ReleaseCandidateScriptFixture {
             at: rfcDirectory,
             withIntermediateDirectories: true
         )
-        try """
-            # RFC 0006 — Assisted subgraphs and container roles
+        for record in records {
+            try """
+                # RFC \(record.rfc.number) — \(record.rfc.title)
 
-            - **Status**: \(status)
-            """.write(
-                to: rfcDirectory.appendingPathComponent(
-                    "0006-assisted-subgraphs-and-container-roles.md"
-                ),
-                atomically: true,
-                encoding: .utf8
-            )
-        try """
-            # RFC index
-
-            | Number | Title | Status |
-            |---|---|---|
-            | 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | \(indexStatus) |
-            """.write(
-                to: rfcDirectory.appendingPathComponent("README.md"),
-                atomically: true,
-                encoding: .utf8
-            )
+                - **Status**: \(record.status)
+                """.write(
+                    to: rfcDirectory.appendingPathComponent(record.rfc.fileName),
+                    atomically: true,
+                    encoding: .utf8
+                )
+        }
+        let rows = records.map { record in
+            "| \(record.rfc.number) | [\(record.rfc.title)](\(record.rfc.fileName)) | \(record.indexStatus) |"
+        }
+        try ([
+            "# RFC index",
+            "",
+            "| Number | Title | Status |",
+            "|---|---|---|",
+        ] + rows).joined(separator: "\n").write(
+            to: rfcDirectory.appendingPathComponent("README.md"),
+            atomically: true,
+            encoding: .utf8
+        )
     }
 
     private static func majorMinor(_ version: String) -> String {
         version.split(separator: ".").prefix(2).joined(separator: ".")
     }
+}
+
+private struct ReleaseRFC: Equatable {
+    let number: String
+    let fileName: String
+    let title: String
 }
 
 private struct CapturedCommandResult {

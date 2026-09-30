@@ -66,6 +66,10 @@ that change moves to 8.0.
   toolchain accepts enum-typed arguments on a multi-role attached macro, the
   shape that forced the string-backed `ContainerRole` token.
 
+- The release candidate validator requires RFC 0008 and RFC 0009 to be
+  recorded as exactly `Accepted`, in each RFC and in the RFC index, before a
+  7.x release, as it requires RFC 0006 for a 6.x release.
+
 - The fast PR lane skips the unique-binding fix-it consumer build, a
   clean-build contract that compiles SwiftSyntax from source; the exhaustive
   coverage gate still runs it. Main CI caches SwiftPM repository mirrors,

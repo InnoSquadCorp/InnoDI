@@ -273,15 +273,20 @@ read -r \
 [[ "$UPGRADE_HAS_CONTENT" == "1" ]] || \
     fail "CHANGELOG.md subsection '### Upgrade Actions' must contain non-placeholder content"
 
-if [[ "${VERSION%%.*}" == "6" ]]; then
-    RFC_0006_FILE="$ROOT_DIR/docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"
-    RFC_INDEX_FILE="$ROOT_DIR/docs/rfcs/README.md"
-    [[ -f "$RFC_0006_FILE" ]] || \
-        fail "6.x release requires RFC 0006: docs/rfcs/0006-assisted-subgraphs-and-container-roles.md"
-    [[ -f "$RFC_INDEX_FILE" ]] || \
-        fail "6.x release requires the RFC index: docs/rfcs/README.md"
+# A major release records the RFCs it ships as Accepted, both in the RFC
+# document and in the RFC index, in its final candidate commit.
+require_accepted_rfc() {
+    local major="$1" number="$2" file_name="$3" title="$4"
+    local rfc_file="$ROOT_DIR/docs/rfcs/$file_name"
+    local index_file="$ROOT_DIR/docs/rfcs/README.md"
+    local status_count accepted_status_count index_row_count accepted_index_row_count
 
-    read -r RFC_STATUS_COUNT RFC_ACCEPTED_STATUS_COUNT < <(
+    [[ -f "$rfc_file" ]] || \
+        fail "$major.x release requires RFC $number: docs/rfcs/$file_name"
+    [[ -f "$index_file" ]] || \
+        fail "$major.x release requires the RFC index: docs/rfcs/README.md"
+
+    read -r status_count accepted_status_count < <(
         awk '
             {
                 line = $0
@@ -290,29 +295,45 @@ if [[ "${VERSION%%.*}" == "6" ]]; then
             line ~ /^- \*\*Status\*\*:/ { status_count++ }
             line == "- **Status**: Accepted" { accepted_count++ }
             END { print status_count + 0, accepted_count + 0 }
-        ' "$RFC_0006_FILE"
+        ' "$rfc_file"
     )
-    if [[ "$RFC_STATUS_COUNT" != "1" || "$RFC_ACCEPTED_STATUS_COUNT" != "1" ]]; then
-        fail "6.x release requires RFC 0006 to contain exactly one authoritative '- **Status**: Accepted' line"
+    if [[ "$status_count" != "1" || "$accepted_status_count" != "1" ]]; then
+        fail "$major.x release requires RFC $number to contain exactly one authoritative '- **Status**: Accepted' line"
     fi
 
-    read -r RFC_INDEX_ROW_COUNT RFC_ACCEPTED_INDEX_ROW_COUNT < <(
-        awk '
+    read -r index_row_count accepted_index_row_count < <(
+        awk \
+            -v row_prefix="| $number |" \
+            -v accepted_row="| $number | [$title]($file_name) | Accepted |" '
             {
                 line = $0
                 sub(/\r$/, "", line)
             }
-            line ~ /^\| 0006 \|/ { row_count++ }
-            line == "| 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | Accepted |" {
-                accepted_count++
-            }
+            index(line, row_prefix) == 1 { row_count++ }
+            line == accepted_row { accepted_count++ }
             END { print row_count + 0, accepted_count + 0 }
-        ' "$RFC_INDEX_FILE"
+        ' "$index_file"
     )
-    if [[ "$RFC_INDEX_ROW_COUNT" != "1" || "$RFC_ACCEPTED_INDEX_ROW_COUNT" != "1" ]]; then
-        fail "6.x release requires the RFC index to contain exactly one Accepted RFC 0006 row"
+    if [[ "$index_row_count" != "1" || "$accepted_index_row_count" != "1" ]]; then
+        fail "$major.x release requires the RFC index to contain exactly one Accepted RFC $number row"
     fi
-fi
+}
+
+case "${VERSION%%.*}" in
+    6)
+        require_accepted_rfc 6 0006 \
+            "0006-assisted-subgraphs-and-container-roles.md" \
+            "Assisted subgraphs and container roles"
+        ;;
+    7)
+        require_accepted_rfc 7 0008 \
+            "0008-async-on-demand-providers.md" \
+            "Asynchronous on-demand providers"
+        require_accepted_rfc 7 0009 \
+            "0009-7.0-source-breaks.md" \
+            "7.0 source breaks"
+        ;;
+esac
 
 # The other translations are notice pages frozen at 6.0.0 and carry no
 # installation snippet.

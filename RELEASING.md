@@ -180,8 +180,9 @@ Before dispatching the `Release Gate` workflow:
       `Sources/InnoDI/InnoDI.docc/MigrationGuide.md` and the `미출시` marker in
       its Korean mirror; the candidate validator rejects either one
     - for a 6.x release, record RFC 0006 as exactly `Accepted` in both the RFC
-      document and RFC index; the candidate validator rejects pending,
-      duplicated, missing, or inconsistent status records
+      document and RFC index, and for a 7.x release RFC 0008 and RFC 0009; the
+      candidate validator rejects pending, duplicated, missing, or
+      inconsistent status records
 15. Push that final candidate to `main`, record its full 40-character commit
     SHA, and dispatch `Release Gate` from `main` with the exact
     version and SHA and `publish=false` first. Record the successful
