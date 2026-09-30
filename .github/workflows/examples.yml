@@ -4,22 +4,12 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    paths:
-      - 'Examples/**'
-      - 'Sources/**'
-      - 'Package.swift'
-      - 'Package.resolved'
-      - '.github/workflows/examples.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'Examples/**'
-      - 'Sources/**'
-      - 'Package.swift'
-      - 'Package.resolved'
-      - '.github/workflows/examples.yml'
+  workflow_call:
+    inputs:
+      exhaustive:
+        type: boolean
+        default: true
+  # CI Plan owns PR/main selection; this weekly run detects example drift.
   schedule:
     # Weekly Monday 06:00 UTC catches drift between Examples and Sources
     # even when no PR touches the Examples paths directly.
@@ -55,7 +45,7 @@ jobs:
     # SampleApp is the representative PR consumer. The larger examples stay
     # exhaustive main/scheduled gates so a source edit does not trigger three
     # independent cold macro builds before review feedback is available.
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || inputs.exhaustive
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -73,7 +63,7 @@ jobs:
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
   preview-injection-example:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || inputs.exhaustive
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -89,3 +79,24 @@ jobs:
           cd Examples/PreviewInjectionExample
           swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
+  examples-required:
+    name: Examples Required
+    if: ${{ always() }}
+    needs: [sample-app, swiftui-example, preview-injection-example]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout evaluator
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Require selected example jobs
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+          EXHAUSTIVE: ${{ github.event_name != 'pull_request' || inputs.exhaustive }}
+        run: |
+          if [[ "$EXHAUSTIVE" == true ]]; then
+            python3 Tools/ci-policy.py require --jobs sample-app swiftui-example preview-injection-example
+          else
+            python3 Tools/ci-policy.py require --jobs sample-app --skipped swiftui-example preview-injection-example
+          fi

@@ -46,7 +46,7 @@ struct CIWorkflowHardeningTests {
         ]
 
         #expect(fastJob.contains("name: Fast PR contracts"))
-        #expect(fastJob.contains("if: github.event_name == 'pull_request'"))
+        #expect(fastJob.contains("if: needs.ci-plan.outputs.fast-tests == 'true'"))
         #expect(fastJob.contains("timeout-minutes: 30"))
         #expect(fastJob.contains("--no-parallel"))
         #expect(
@@ -65,7 +65,7 @@ struct CIWorkflowHardeningTests {
         #expect(!fastJob.contains("Tools/measure-macro-performance.sh"))
 
         #expect(exhaustiveJob.contains("name: Exhaustive release contracts"))
-        #expect(exhaustiveJob.contains(releaseValidationCondition))
+        #expect(exhaustiveJob.contains("if: needs.ci-plan.outputs.macro-tests == 'true'"))
         #expect(exhaustiveJob.contains("Tools/run-coverage-gate.sh"))
         #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
@@ -114,7 +114,7 @@ struct CIWorkflowHardeningTests {
         let job = workflow[jobStart.lowerBound..<nextJobStart.lowerBound]
 
         #expect(job.contains("name: Thread and address sanitizers (Xcode 26.6)"))
-        #expect(job.contains(releaseValidationCondition))
+        #expect(job.contains("if: needs.ci-plan.outputs.sanitizers == 'true'"))
         #expect(job.contains("timeout-minutes: 120"))
         #expect(job.contains("version: \"26.6\""))
         #expect(job.contains("--scratch-path .build/main-tsan"))
@@ -158,9 +158,6 @@ struct CIWorkflowHardeningTests {
         )
         let jobsStart = try #require(workflow.range(of: "\njobs:\n"))
         let workflowPolicy = workflow[..<jobsStart.lowerBound]
-        let exhaustiveConditionCount = workflow.components(
-            separatedBy: releaseValidationCondition
-        ).count - 1
         let appendStart = try #require(
             workflow.range(of: "  append-perf-history:\n")
         )
@@ -169,19 +166,20 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  workflow_dispatch:\n"))
         #expect(
             workflowPolicy.contains(
-                "types: [opened, synchronize, reopened, labeled, unlabeled]"
+                "types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]"
             )
         )
-        #expect(exhaustiveConditionCount == 6)
+        for job in ["macro-tests", "sanitizers", "swift-62-compatibility",
+                    "xcode-27-compatibility", "apple-platform-builds", "path-identity"] {
+            #expect(workflow.contains("if: needs.ci-plan.outputs.\(job) == 'true'"))
+        }
+        #expect(workflow.contains("name: CI Required"))
+        #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
                 "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
             )
         )
-    }
-
-    private var releaseValidationCondition: String {
-        "if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')"
     }
 
     @Test("Main CI keeps an explicit Xcode 27 compatibility lane")
@@ -400,7 +398,7 @@ struct CIWorkflowHardeningTests {
         #expect(guidance.contains("Do not claim release readiness from local tests, skip/insufficient-history statuses, or a green run for an older revision"))
     }
 
-    @Test("Main CI leaves example builds to the path-filtered example matrix")
+    @Test("Main CI leaves example builds to the plan-selected reusable matrix")
     func mainCIDoesNotDuplicateExampleBuilds() throws {
         let root = packageRootURL().appendingPathComponent(".github/workflows")
         let mainWorkflow = try String(
@@ -422,9 +420,10 @@ struct CIWorkflowHardeningTests {
         #expect(!mainJob.contains("Build Extended Examples"))
         #expect(!mainJob.contains("cd Examples/SwiftUIExample"))
         #expect(!mainJob.contains("cd Examples/PreviewInjectionExample"))
-        #expect(exampleWorkflow.contains("      - 'Examples/**'"))
-        #expect(exampleWorkflow.contains("      - 'Sources/**'"))
-        #expect(exampleWorkflow.contains("      - 'Package.swift'"))
+        #expect(exampleWorkflow.contains("  workflow_call:"))
+        #expect(mainWorkflow.contains("uses: ./.github/workflows/examples.yml"))
+        #expect(mainWorkflow.contains("needs.ci-plan.outputs.examples_full"))
+        #expect(exampleWorkflow.contains("name: Examples Required"))
         #expect(exampleWorkflow.contains("Build and Test SwiftUIExample"))
         #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
         #expect(exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.6"))
@@ -481,8 +480,8 @@ struct CIWorkflowHardeningTests {
             encoding: .utf8
         )
 
-        #expect(workflow.contains("INNODI_REVISION: ${{ github.sha }}"))
-        #expect(workflow.contains("git ls-remote \"$INNODI_REPOSITORY_URL\" refs/heads/main"))
+        #expect(workflow.contains("INNODI_REVISION: ${{ inputs.revision || github.sha }}"))
+        #expect(workflow.contains("INNODI_BRANCH_REF: ${{ inputs.branch_ref || 'refs/heads/main' }}"))
         #expect(workflow.contains("Package.resolved"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
