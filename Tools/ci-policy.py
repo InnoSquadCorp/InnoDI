@@ -27,6 +27,8 @@ WORKFLOW_IMPACT = {
     "runtime-trace-diagnostics.yml": set(),
     "cold-build-benchmark.yml": set(),
     "perf-history.yml": set(),
+    "dependabot-auto-merge.yml": set(),
+    "dependabot-review-notice.yml": set(),
 }
 
 

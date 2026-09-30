@@ -27,7 +27,8 @@
       },
       "labels": [
         "dependencies",
-        "github-actions"
+        "github-actions",
+        "release-validation"
       ]
     },
     {

@@ -49,16 +49,17 @@ Failure, cancellation, unknown/missing results, malformed plans, and unexpected
 skips fail closed. `always()` prevents skipped `needs` propagation from suppressing
 the aggregate. Reusable Examples has its own aggregate; each required child must
 pass. Compatibility matrices use `fail-fast: false`, never `continue-on-error`.
-A failed matrix child makes the required parent fail. No PR uses
-`pull_request_target`, release secrets, persisted checkout credentials, or write
-permissions in a validation job. Public fork consumers resolve the exact fork
+A failed matrix child makes the required parent fail. PR validation uses no
+release secrets, persisted checkout credentials, or write permissions. The
+separate metadata-only Dependabot coordinator uses `pull_request_target` and
+trusted main code; it never executes PR source. Public fork consumers resolve the exact fork
 head through its public URL with normalized package identity; main retains the
 exact-tip check, queue validation uses its temporary `head_ref`, and manual
 branch validation uses the selected branch ref. Moving branches
 can invalidate a run and require a fresh one.
 
 Docs publication consumes the Pages artifact of a successful main push **CI**
-run via `workflow_run`; it never executes downloaded source from a PR. Before
+run or verified actual Dependabot post-merge recovery via `workflow_run`; it never executes downloaded source from a PR. Ordinary manual runs still upload no Pages artifact. Before
 deployment its originating SHA must still equal remote main, so a stale run or
 rerun cannot roll documentation back. Main
 performance history appends only after CI Required succeeds. These existing
@@ -106,7 +107,10 @@ PRs. The normalized SwiftSyntax dependency name is
 `github.com/swiftlang/swift-syntax`, not the bare package identity. Do not use
 `prefix-development`, group `dependency-type`, or invented toolchain keys for Swift.
 GitHub Actions uses `/`, preserving full commit-SHA pins and version comments.
-No automatic merge workflow or auto-merge permission is added.
+Individual major and SwiftSyntax updates are eligible for the same guarded native
+auto-merge as grouped updates. Every bot update must pass full CI. The coordinator
+is prepared in standby; repository feature/protection/flag activation remains a
+separate owner-approved settings step. See [activation and safety contract](dependabot-auto-merge.md).
 
 Track root and the three current `Examples/*/Package.swift` manifests explicitly.
 The examples currently use local path dependencies; listing them makes later
@@ -123,8 +127,8 @@ performance baselines. The public-operations guard rejects partial manifest/lock
 generator changes. Review toolchain selection separately from low-risk dependency
 groups, and retain the `release-validation` label until those checks pass.
 
-Configured labels are `dependencies` plus `github-actions` or `swift`; Swift
-also requests `release-validation`. At the implementation baseline only
+Configured labels are `dependencies` plus `github-actions` or `swift`; both ecosystems
+also request `release-validation`. At the implementation baseline only
 `release-validation` exists among these labels. GitHub ignores missing custom
 labels; creating shared ecosystem labels requires a separate approved settings
 step. Version PR limits do not limit security-update PRs. Security updates and
