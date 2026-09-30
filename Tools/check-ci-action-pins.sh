@@ -121,6 +121,7 @@ for workflow_path in workflow_files:
     if workflow_path.name == "docs.yml":
         expected_job_permissions = {
             "deploy-pages": {"pages": "write", "id-token": "write"},
+            "docc": {"actions": "read", "contents": "read"},
         }
     elif workflow_path.name == "release.yml":
         expected_job_permissions = {

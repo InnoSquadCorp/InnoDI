@@ -1,5 +1,7 @@
 # InnoDI
 
+[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
+
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
 面向 Swift 的宏驱动依赖注入框架，提供编译期与构建期校验、依赖图工具、
@@ -71,7 +73,7 @@ override 仅应在单次 operation 内生效时，才取出 `swift-dependencies`
 
 ## 要求
 
-- Swift tools version `6.2`（CI 验证：Swift 6.2 与 6.3）
+- Swift tools version `6.2`（CI 验证：Swift 6.2 / 6.3，Xcode 27 / Swift 6.4 兼容性检查）
 - 平台：
   - iOS 17+
   - macOS 13+

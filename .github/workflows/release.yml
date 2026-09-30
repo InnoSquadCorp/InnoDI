@@ -4,13 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Stable unprefixed SemVer to publish (for example 5.0.0)
+        description: Stable unprefixed SemVer to validate or publish (for example 5.0.0)
         required: true
         type: string
       commit_sha:
         description: Exact 40-character main commit SHA to release
         required: true
         type: string
+      publish:
+        description: Publish the validated candidate after release environment approval (creates a public SwiftPM tag)
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -382,7 +387,7 @@ jobs:
   release-compatibility:
     name: Release compatibility (${{ matrix.scenario }})
     needs: recovery-state
-    runs-on: macos-26
+    runs-on: ${{ matrix.xcode == '27.0' && 'xcode-27' || 'macos-26' }}
     timeout-minutes: 90
     permissions:
       contents: read
@@ -394,6 +399,8 @@ jobs:
             xcode: "26.2"
           - scenario: xcode-26.5
             xcode: "26.5"
+          - scenario: xcode-27
+            xcode: "27.0"
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -401,9 +408,16 @@ jobs:
           ref: ${{ inputs.commit_sha }}
           persist-credentials: false
       - name: Select Xcode ${{ matrix.xcode }}
+        if: matrix.xcode != '27.0'
         uses: ./.github/actions/select-xcode
         with:
           version: ${{ matrix.xcode }}
+      - name: Verify Xcode 27 and Swift 6.4
+        if: matrix.xcode == '27.0'
+        run: |
+          set -euo pipefail
+          [[ "$(xcodebuild -version)" == Xcode\ 27* ]]
+          [[ "$(swift --version)" == *"Apple Swift version 6.4"* ]]
       - name: Run strict external compatibility contracts
         run: |
           set -euo pipefail
@@ -510,13 +524,31 @@ jobs:
           swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build MacroOnlyApp
           swift run --package-path "$INNODI_REMOTE_CONSUMER" --skip-build ValidatedApp
 
+  candidate-required:
+    name: Candidate Required
+    if: ${{ always() }}
+    needs: [preflight, recovery-state, release-gate, release-compatibility, exact-revision-consumer]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate evaluator
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+      - name: Require complete candidate evidence
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 Tools/ci-policy.py require --jobs preflight recovery-state release-gate release-compatibility exact-revision-consumer
+
   stage-release:
+    if: inputs.publish
     name: Stage annotated tag and verified draft
     needs:
       - recovery-state
       - release-gate
       - release-compatibility
       - exact-revision-consumer
+      - candidate-required
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: release
@@ -1005,6 +1037,7 @@ jobs:
           echo "Annotated tag $VERSION and its verified draft are ready for exact-version consumption."
 
   exact-tag-consumer:
+    if: inputs.publish
     name: Exact-version tag consumer
     needs: stage-release
     runs-on: macos-26
@@ -1111,6 +1144,7 @@ jobs:
           swift run --package-path "$INNODI_TAG_CONSUMER" -c release --skip-build ValidatedApp
 
   publish-release:
+    if: inputs.publish
     name: Publish immutable GitHub Release
     needs:
       - stage-release

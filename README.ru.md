@@ -1,5 +1,7 @@
 # InnoDI
 
+[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
+
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
 InnoDI — это макро-ориентированный DI-фреймворк для Swift с проверками на
@@ -77,7 +79,7 @@ app-wide swap (например подменить `APIClient`); `swift-dependen
 
 ## Требования
 
-- Swift tools version `6.2` (CI проверяет Swift 6.2 и 6.3)
+- Swift tools version `6.2` (CI проверяет Swift 6.2 / 6.3; проверка совместимости Xcode 27 / Swift 6.4)
 - Платформы:
   - iOS 17+
   - macOS 13+

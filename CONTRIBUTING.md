@@ -4,8 +4,11 @@ Thanks for contributing.
 
 ## Before Opening a PR
 
-These commands mirror what the PR gate actually runs, so a green local pass
-means a green fast lane:
+The always-present CI Plan selects checks by changed paths and CI Required
+rejects failure, cancellation, missing results, and unexpected skips. See the
+[CI and public operations contract](docs/automation-policy.md) for the selection
+matrix, dependency updates, and publication boundary. Local results do not
+establish remote CI success. The following commands cover a source PR:
 
 ```bash
 # Test suite, exactly as the PR fast lane runs it (the skipped suites are
@@ -29,7 +32,7 @@ Tools/check-localized-readme-sync.sh
 Tools/check-public-api.py
 swift run InnoDI-DependencyGraph --root . --validate-dag
 
-# DocC (the docs workflow builds this on every PR)
+# DocC (selected for package/source/catalog/SPI/DocC workflow changes)
 Tools/generate-docc.sh
 
 # The example project the PR gate builds
@@ -96,8 +99,8 @@ Tools/collect-coverage.sh
 # → coverage/lcov.info, coverage/report.txt, coverage/summary.json, coverage/summary.md
 ```
 
-Coverage is informational: it surfaces unexpected per-module drops without
-gating merges on a threshold. Tests, examples, swift-syntax, and the
+Coverage enforces the module floors in `Tools/coverage-floor.json` through
+`Tools/run-coverage-gate.sh`; reports also surface unexpected per-module drops. Tests, examples, swift-syntax, and the
 `.build` cache are excluded so the report tracks the library surface, not
 fixtures or third-party code.
 
@@ -112,7 +115,7 @@ measurement against the rolling median of the last entries on the
 catches single-PR regressions, while the trend gate catches gradual
 creep that under-threshold PRs accumulate over time.
 
-PRs use a separate 30-minute fast lane. It keeps all in-process unit,
+Source PRs use a separate 30-minute fast lane selected by CI Plan. It keeps all in-process unit,
 macro-expansion, graph, runtime, migration, documentation, public-API, and DAG
 contracts, but defers contracts that spawn clean external SwiftPM builds to
 `main`. PRs build one representative example; the two extended examples run
@@ -121,7 +124,7 @@ retains coverage, Swift 6.2 compatibility, Apple-platform builds, path-identity
 checks, and performance tracking. This split changes feedback latency, not
 release coverage.
 
-The `Perf History` workflow runs on every push to `main` and uses
+The gated Ubuntu history job in `CI` runs after successful pushes to `main` and uses
 `Tools/append-performance-history.sh` to append one
 `history/macro-performance/<UTC date>-<short sha>.json` entry to the
 `perf-history` branch, then rebuilds `history/index.json`. The trend
