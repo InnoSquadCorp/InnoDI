@@ -28,7 +28,8 @@ struct ReleaseTraceGateTests {
             && macro.contains("        id: macro_performance\n")
             && macro.contains("        run: Tools/measure-macro-performance.sh --enforce --output build/release-macro-performance-report.json\n")
             && staging.contains("      - release-gate\n")
-            && !staging.contains("if:")
+            && staging.contains("    if: inputs.publish\n")
+            && staging.components(separatedBy: "if:").count - 1 == 1
     }
 
     @Test("Staging preserves required gates without requiring trace timing evidence")
@@ -44,6 +45,7 @@ struct ReleaseTraceGateTests {
             ("      - name: Enforce macro performance baseline", "      - name: Enforce macro performance baseline\n        continue-on-error: true"),
             ("        id: macro_performance\n", ""),
             ("      - release-gate\n", ""),
+            ("    if: inputs.publish\n", "    if: false\n"),
         ]
         for (old, new) in mutations {
             #expect(source.contains(old), "Mutation must apply: \(old)")

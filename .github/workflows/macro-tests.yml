@@ -1,11 +1,13 @@
-name: Macro Tests
+name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
   push:
     branches:
       - main
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 permissions:
@@ -16,9 +18,104 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ci-plan:
+    name: CI Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+      policy: ${{ steps.plan.outputs.policy }}
+      fast-tests: ${{ steps.plan.outputs.fast-tests }}
+      macro-tests: ${{ steps.plan.outputs.macro-tests }}
+      sanitizers: ${{ steps.plan.outputs.sanitizers }}
+      swift-62-compatibility: ${{ steps.plan.outputs.swift-62-compatibility }}
+      xcode-27-compatibility: ${{ steps.plan.outputs.xcode-27-compatibility }}
+      apple-platform-builds: ${{ steps.plan.outputs.apple-platform-builds }}
+      path-identity: ${{ steps.plan.outputs.path-identity }}
+      examples: ${{ steps.plan.outputs.examples }}
+      documentation-contracts: ${{ steps.plan.outputs.documentation-contracts }}
+      docc: ${{ steps.plan.outputs.docc }}
+      remote-consumer: ${{ steps.plan.outputs.remote-consumer }}
+      examples_full: ${{ steps.plan.outputs.examples_full }}
+    steps:
+      - name: Checkout comparison history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify exact event changes
+        id: plan
+        run: python3 Tools/ci-policy.py plan --event "$GITHUB_EVENT_PATH" --output build/ci-plan.json
+
+  policy:
+    name: CI and public operations policy
+    needs: ci-plan
+    # Existing Python public-API negative tests invoke swiftc. Use the same
+    # exact compiler as the primary contracts instead of a runner's default.
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Validate repository automation policy
+        run: |
+          Tools/check-ci-validation-opt-out.sh
+          Tools/check-ci-action-pins.sh
+          python3 -B -m unittest discover -s Tools/tests
+          python3 Tools/check-public-operations.py
+
+  documentation-contracts:
+    name: Documentation contracts
+    needs: ci-plan
+    if: needs.ci-plan.outputs.documentation-contracts == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select Xcode 26.6
+        uses: ./.github/actions/select-xcode
+        with:
+          version: "26.6"
+      - name: Validate copyable documentation and mirrors
+        run: |
+          Tools/check-docs-code-blocks.sh
+          Tools/check-docs-local-links.sh
+          Tools/check-localized-readme-sync.sh
+
+  examples:
+    needs: ci-plan
+    if: needs.ci-plan.outputs.examples == 'true'
+    uses: ./.github/workflows/examples.yml
+    with:
+      exhaustive: ${{ needs.ci-plan.outputs.examples_full == 'true' }}
+
+  docc:
+    needs: ci-plan
+    if: needs.ci-plan.outputs.docc == 'true'
+    uses: ./.github/workflows/docc-validation.yml
+
+  remote-consumer:
+    needs: ci-plan
+    if: needs.ci-plan.outputs.remote-consumer == 'true'
+    uses: ./.github/workflows/remote-consumer-smoke.yml
+    with:
+      revision: ${{ github.event.pull_request.head.sha || github.sha }}
+      repository_url: ${{ github.event.pull_request.head.repo.clone_url || 'https://github.com/InnoSquadCorp/InnoDI.git' }}
+      branch_ref: ${{ github.event.merge_group.head_ref || github.event.pull_request.head.ref && format('refs/heads/{0}', github.event.pull_request.head.ref) || github.ref }}
+
   fast-tests:
     name: Fast PR contracts
-    if: github.event_name == 'pull_request'
+    needs: ci-plan
+    if: needs.ci-plan.outputs.fast-tests == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -51,12 +148,6 @@ jobs:
           Tools/check-no-fatalerror-in-macros.sh
           Tools/check-ci-validation-opt-out.sh
           Tools/check-ci-action-pins.sh
-      - name: Validate documentation contracts
-        run: |
-          python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
-          Tools/check-docs-code-blocks.sh
-          Tools/check-docs-local-links.sh
-          Tools/check-localized-readme-sync.sh
       - name: Validate public API and Global DAG
         run: |
           Tools/check-public-api.py
@@ -90,7 +181,8 @@ jobs:
 
   macro-tests:
     name: Exhaustive release contracts
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
+    needs: ci-plan
+    if: needs.ci-plan.outputs.macro-tests == 'true'
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -129,19 +221,8 @@ jobs:
         run: Tools/check-ci-validation-opt-out.sh
       - name: Validate pinned CI dependencies and permissions
         run: Tools/check-ci-action-pins.sh
-      - name: Validate compiled documentation snippets
-        run: Tools/check-docs-code-blocks.sh
       - name: Validate bounded release-note extraction
         run: python3 -B -m unittest discover -s Tools/tests -p 'test_release_notes.py'
-      - name: Validate local documentation links
-        run: Tools/check-docs-local-links.sh
-      - name: Validate localized README structural sync
-        # Strict mode: localized READMEs must match the English canonical
-        # structure (swift fence count + H2 header count). Set
-        # `INNODI_README_SYNC_STRICT=0` only as a temporary soft-rollout
-        # window when the next major version restructures the canonical
-        # README. The release gate is already strict.
-        run: Tools/check-localized-readme-sync.sh
       - name: Validate public API baseline
         # Compiler-emitted symbol graphs cover macro declarations, runtime
         # wrappers, SwiftUI protocols, and public SwiftUI extensions.
@@ -233,7 +314,8 @@ jobs:
 
   sanitizers:
     name: Thread and address sanitizers (Xcode 26.6)
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
+    needs: ci-plan
+    if: needs.ci-plan.outputs.sanitizers == 'true'
     runs-on: macos-26
     timeout-minutes: 120
     steps:
@@ -274,7 +356,8 @@ jobs:
 
   swift-62-compatibility:
     name: Swift 6.2 compatibility
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
+    needs: ci-plan
+    if: needs.ci-plan.outputs.swift-62-compatibility == 'true'
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -297,7 +380,8 @@ jobs:
 
   xcode-27-compatibility:
     name: Xcode 27 compatibility preview
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
+    needs: ci-plan
+    if: needs.ci-plan.outputs.xcode-27-compatibility == 'true'
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
@@ -323,7 +407,8 @@ jobs:
 
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
+    needs: ci-plan
+    if: needs.ci-plan.outputs.apple-platform-builds == 'true'
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -363,7 +448,8 @@ jobs:
           done
 
   path-identity:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-validation')
+    needs: ci-plan
+    if: needs.ci-plan.outputs.path-identity == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -394,9 +480,40 @@ jobs:
           (cd Examples/SwiftUIExample && swift build --scratch-path "$scratch_path")
           (cd Examples/PreviewInjectionExample && swift build --scratch-path "$scratch_path")
 
+  ci-required:
+    name: CI Required
+    if: ${{ always() }}
+    needs:
+      - ci-plan
+      - policy
+      - fast-tests
+      - macro-tests
+      - sanitizers
+      - swift-62-compatibility
+      - xcode-27-compatibility
+      - apple-platform-builds
+      - path-identity
+      - examples
+      - documentation-contracts
+      - docc
+      - remote-consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout evaluator
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Require every planned result
+        env:
+          CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 Tools/ci-policy.py evaluate
+
   append-perf-history:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
+      - ci-required
       - macro-tests
       - sanitizers
       - swift-62-compatibility

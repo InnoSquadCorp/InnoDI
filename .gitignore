@@ -112,3 +112,6 @@ docs-build/
 
 # Code coverage artifacts produced by Tools/collect-coverage.sh
 coverage/
+
+# Python validation caches
+Tools/**/__pycache__/

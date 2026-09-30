@@ -179,8 +179,11 @@ Before dispatching the `Release Gate` workflow:
       document and RFC index; the candidate validator rejects pending,
       duplicated, missing, or inconsistent status records
 15. Push that final candidate to `main`, record its full 40-character commit
-    SHA, and immediately dispatch `Release Gate` from `main` with the exact
-    version and SHA. Do not create or push the release tag manually, and do not
+    SHA, and dispatch `Release Gate` from `main` with the exact
+    version and SHA and `publish=false` first. Record the successful
+    `Candidate Required` result, then request publication approval for that
+    exact version/SHA. The approved dispatch uses `publish=true`; the existing
+    `release` environment approval still gates the first public tag. Do not create or push the release tag manually, and do not
     rewrite or delete `main`. A normal fast-forward may advance `main`; the
     workflow rechecks that the exact candidate is still an ancestor of current
     remote `main`. It validates and packages that candidate before its
@@ -195,9 +198,12 @@ Before dispatching the `Release Gate` workflow:
     release immutability, the two checksum-covered assets, and `SHA256SUMS`.
     Add a fresh empty `## Unreleased` section and the next development-train
     metadata in a separate post-release commit. For public-discovery releases,
-    confirm that the semantic-version tag is visible, submit a package URL
-    containing `https://` and `.git` to SPI, and add the maintainer badge from
-    the package page after indexing. Then evaluate external discovery PRs:
+    confirm that the semantic-version tag is visible and that the existing
+    [SPI listing](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) indexes
+    that exact tag/revision and links working documentation. InnoDI is already
+    listed in SPI's PackageList; do not submit a duplicate registration PR.
+    Track stale indexing separately from release publication. See
+    [public operations](docs/automation-policy.md) for metadata and validation. Then evaluate external discovery PRs:
     - `matteocrippa/awesome-swift` for the compile-time DI category
     - the current leading SwiftUI awesome list only if the submitted entry
       focuses on `InnoDISwiftUI` helpers rather than core DI

@@ -17,6 +17,22 @@ def step(name, workflow="macro-tests.yml"):
 
 
 class PerformanceWorkflowTests(unittest.TestCase):
+    def test_optional_cold_benchmark_preserves_primary_prebuilt_contract(self):
+        source = (WORKFLOWS / "cold-build-benchmark.yml").read_text()
+        triggers = source.split("on:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(re.findall(r"^  ([a-z_]+):", triggers, re.MULTILINE), ["schedule", "workflow_dispatch"])
+        primary = source.split("          - scenario: consumer-xcode-26.6", 1)[1].split("    steps:", 1)[0]
+        self.assertIn('xcode: "26.6"', primary)
+        self.assertIn("expected_swift_syntax_mode: prebuilt", primary)
+        self.assertIn("fail-fast: false", source)
+        self.assertIn("Verify expected SwiftSyntax mode", source)
+        self.assertIn("actual=\"$(jq -r '.swift_syntax_mode'", source)
+        self.assertIn("if-no-files-found: error", source)
+        self.assertNotIn("continue-on-error:", source)
+        history = (WORKFLOWS / "perf-history.yml").read_text()
+        self.assertIn("on:\n  workflow_dispatch:", history)
+        self.assertNotIn("  pull_request:", history)
+
     def test_independent_gates_preserve_failure(self):
         # GitHub's default success() would suppress both independent checks
         # after the first failure. Evaluate their actual explicit conditions.

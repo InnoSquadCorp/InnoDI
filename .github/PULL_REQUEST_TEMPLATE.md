@@ -22,6 +22,11 @@ apply to your change.
 
 ## Test plan
 
+- [ ] CI Plan selects the affected jobs; only its declared non-targets skip
+- [ ] Dependency/toolchain changes preserve SwiftSyntax exact/prebuilt contracts
+- [ ] Historical migration fixtures remain pinned intentionally
+- [ ] Public metadata/DocC changes follow [the operations contract](../docs/automation-policy.md)
+
 - [ ] `swift test`
 - [ ] `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`
 - [ ] Macro snapshot updates were intentional (`Tools/record-macro-snapshots.sh`
