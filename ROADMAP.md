@@ -15,11 +15,14 @@ removal, the macOS 14 floor with an Observation-based host owner, and
 documentation consolidation. 7.0.0 supersedes 6.0.0; the 6.0.0 tag is not
 moved or republished.
 
-The symbol-graph semantic validator spike ended with a no-go
-recommendation, so
-[RFC 0007](docs/rfcs/0007-symbol-graph-semantic-validation.md) stays a draft
-and the syntax-only whole-source preflight remains the build validator in
-7.0.0.
+The symbol-graph semantic validator spike ended with a no-go, and
+[RFC 0007](docs/rfcs/0007-symbol-graph-semantic-validation.md) was rejected
+on 2026-09-30. The syntax-only whole-source preflight remains the build
+validator. The compile-time `Lazy`/`Provider` alias probe that RFC 0007
+recommends instead is scheduled for 7.1: generated code would call a probe
+for each hard factory parameter, so the compiler warns when an alias names a
+deferred wrapper. It replaces the macro-level alias check, which never fires
+in a real build.
 
 `ContainerRole` stays a string-backed token in 7.0.0 because Swift 6.2
 remains the minimum toolchain and Swift 6.2.3 crashes on enum-typed arguments

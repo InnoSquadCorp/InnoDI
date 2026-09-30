@@ -1,9 +1,11 @@
 # RFC 0007 — Symbol-graph semantic validation (spike)
 
-- **Status**: Draft (recommendation: reject; awaiting maintainer decision)
+- **Status**: Rejected
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-29
-- **Last updated**: 2026-09-29
+- **Last updated**: 2026-09-30
+- **Rejected**: 2026-09-30, repository-owner decision; the compile-time alias
+  probe moves to 7.1
 - **Target release**: none; spike for the 7.0.0 train
 - **Tracking plan**: [7.0.0 post-audit plan](../plans/7.0.0-post-audit.md), item X1
 
@@ -128,9 +130,8 @@ plugin. The third criterion fails.
   `Lazy<…>` or `Provider<…>`, skipping parameters whose target member is
   itself spelled as a wrapper. It covers every alias form in every build
   path, at no measurable cost, and replaces the macro-level alias check that
-  never fires in a real build. It changes generated code and snapshots, and
-  the plan's three snapshot bundles are already used, so its release is the
-  maintainer's decision.
+  never fires in a real build. It changes generated code and snapshots, so
+  it ships on its own: the maintainer scheduled it for 7.1.
 - Keep the syntax-only full-source preflight as the prebuild gate.
 - Revisit symbol graphs if SwiftPM or Xcode gives build plugins post-compile
   access, or if symbol graphs start to include member-macro output.

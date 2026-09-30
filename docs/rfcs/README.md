@@ -17,7 +17,7 @@ before a PR lands.
 | 0004 | [API surface simplification](0004-api-surface-simplification.md) | Draft (partially superseded) |
 | 0005 | [5.0 contract hardening](0005-5.0-contract-hardening.md) | Accepted |
 | 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | Accepted |
-| 0007 | [Symbol-graph semantic validation (spike)](0007-symbol-graph-semantic-validation.md) | Draft (recommendation: reject) |
+| 0007 | [Symbol-graph semantic validation (spike)](0007-symbol-graph-semantic-validation.md) | Rejected |
 | 0008 | [Asynchronous on-demand providers](0008-async-on-demand-providers.md) | Accepted |
 | 0009 | [7.0 source breaks](0009-7.0-source-breaks.md) | Accepted |
 
