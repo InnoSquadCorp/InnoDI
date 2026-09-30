@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -355,6 +356,35 @@ class DependabotPolicyTests(unittest.TestCase):
                               ['macro-tests.yml', 'docc-validation.yml', 'examples.yml', 'remote-consumer-smoke.yml'])
         for name, step in p.CORE.items():
             self.assertIn(step, combined, name)
+
+    def test_actual_mutating_job_conditions_reject_branch_dispatch_and_inspect_failure(self):
+        source = (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text()
+        for job in ['manual-ready', 'bot-ready', 'post-merge']:
+            expression = re.search(r'(?m)^  ' + job + r':\n    (?:needs:.*\n    )?if: (.*)', source)[1]
+            expression = expression.removeprefix('${{ ').removesuffix(' }}')
+            for ref, workflow_ref, inspect_result, allowed in [
+                    ('refs/heads/main', 'refs/heads/main', 'success', True),
+                    ('refs/heads/unmerged', 'refs/heads/unmerged', 'success', False),
+                    ('refs/heads/main', 'refs/heads/stale', 'success', False),
+                    ('refs/heads/main', 'refs/heads/main', 'failure', False),
+                    ('refs/heads/main', 'refs/heads/main', 'skipped', False)]:
+                values = {'always()':'True', 'github.repository':repr(p.REPOSITORY), 'github.ref':repr(ref),
+                          'github.workflow_ref':repr(p.REPOSITORY + '/.github/workflows/dependabot-auto-merge.yml@' + workflow_ref),
+                          'needs.inspect.result':repr(inspect_result), 'needs.inspect.outputs.manual_prs':repr('[45]'),
+                          'needs.inspect.outputs.bot_prs':repr('[45]'), 'vars.DEPENDABOT_AUTO_MERGE_ENABLED':repr('true')}
+                evaluated = expression
+                for name, value in values.items(): evaluated = evaluated.replace(name, value)
+                evaluated = evaluated.replace('&&', 'and')
+                with self.subTest(job=job, ref=ref, inspect=inspect_result):
+                    self.assertEqual(eval(evaluated, {'__builtins__':{}}), allowed)
+
+    def test_runtime_mutation_context_requires_exact_default_workflow(self):
+        environment = dict(GITHUB_REPOSITORY=p.REPOSITORY, GITHUB_REF='refs/heads/main',
+                           GITHUB_WORKFLOW_REF=p.REPOSITORY + '/.github/workflows/dependabot-auto-merge.yml@refs/heads/main')
+        p.trusted_context(environment)
+        for key, value in [('GITHUB_REF','refs/heads/unmerged'), ('GITHUB_WORKFLOW_REF','branch workflow'),
+                           ('GITHUB_REPOSITORY','other/repo'), ('GITHUB_REF',None)]:
+            with self.assertRaises(p.Rejected): p.trusted_context(dict(environment, **{key:value}))
 
     def test_pagination_reads_page_two_and_rejects_truncation(self):
         api = p.GitHub('test-token')

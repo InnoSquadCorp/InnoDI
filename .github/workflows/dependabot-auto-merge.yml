@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   inspect:
-    if: github.repository == 'InnoSquadCorp/InnoDI'
+    if: github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -43,7 +43,7 @@ jobs:
 
   manual-ready:
     needs: inspect
-    if: needs.inspect.outputs.manual_prs != '[]' && needs.inspect.outputs.manual_prs != ''
+    if: needs.inspect.result == 'success' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' && needs.inspect.outputs.manual_prs != '[]' && needs.inspect.outputs.manual_prs != ''
     strategy:
       matrix:
         pr: ${{ fromJSON(needs.inspect.outputs.manual_prs) }}
@@ -73,7 +73,7 @@ jobs:
 
   bot-ready:
     needs: inspect
-    if: needs.inspect.outputs.bot_prs != '[]' && needs.inspect.outputs.bot_prs != ''
+    if: needs.inspect.result == 'success' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' && needs.inspect.outputs.bot_prs != '[]' && needs.inspect.outputs.bot_prs != ''
     strategy:
       fail-fast: false
       matrix:
@@ -103,7 +103,7 @@ jobs:
         run: python3 -B Tools/dependabot-merge-policy.py coordinate --pr "$PR_NUMBER"
 
   post-merge:
-    if: ${{ always() && github.repository == 'InnoSquadCorp/InnoDI' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true' }}
+    if: ${{ always() && needs.inspect.result == 'success' && github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true' }}
     needs: [inspect, manual-ready, bot-ready]
     concurrency:
       group: dependabot-post-merge
