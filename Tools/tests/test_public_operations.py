@@ -37,6 +37,7 @@ class PublicOperationsTests(unittest.TestCase):
                 lambda c: c["updates"][1]["directories"].append("/**"),
                 lambda c: c["updates"][1]["schedule"].update(interval="daily"),
                 lambda c: c["updates"][1].update(**{"open-pull-requests-limit": 20}),
+                lambda c: c["updates"][0]["labels"].remove("release-validation"),
             ]
             for mutate in mutations:
                 config = json.loads(original)

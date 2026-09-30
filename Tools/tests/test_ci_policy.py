@@ -37,6 +37,8 @@ class SelectionTests(unittest.TestCase):
             (["Tests/ExternalConsumerFixtures/fail/invalid/Package.swift.fixture"], {"policy", "fast-tests", "swift-62-compatibility", "xcode-27-compatibility"}),
             (["Tools/materialize-remote-consumer.py"], {"policy", "remote-consumer"}),
             ([".github/workflows/runtime-trace-diagnostics.yml"], {"policy"}),
+            ([".github/workflows/dependabot-auto-merge.yml"], {"policy"}),
+            ([".github/workflows/dependabot-review-notice.yml"], {"policy"}),
             (["Sources/InnoDIMacros/ContainerMacro.swift"], {"policy", "fast-tests", "examples", "documentation-contracts", "docc"}),
             (["Tools/run-coverage-gate.sh"], set(policy.JOBS)),
             (["Package.swift"], set(policy.JOBS)),
