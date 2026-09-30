@@ -264,6 +264,7 @@ struct DiagnosticsTests {
             (SimpleDiagnostic.subAutoWiringAmbiguous(memberName: "feature"), MessageID(domain: "InnoDI.validation", id: "sub.auto-wiring-ambiguous")),
             (SimpleDiagnostic.subSharedParentMustNotBeTransient(memberName: "feature", parentMemberName: "request"), MessageID(domain: "InnoDI.validation", id: "sub.shared-parent-must-not-be-transient")),
             (SimpleDiagnostic.subAsyncParentMember(memberName: "feature", parentMemberName: "session"), MessageID(domain: "InnoDI.validation", id: "sub.async-parent-member")),
+            (SimpleDiagnostic.subFactoryAsyncParentMember(memberName: "feature", parentMemberName: "session"), MessageID(domain: "InnoDI.validation", id: "sub.async-parent-member")),
             (SimpleDiagnostic.containerCloseAsyncProvidersNameConflict(), MessageID(domain: "InnoDI.validation", id: "container.close-async-providers-name-conflict")),
             (SimpleDiagnostic.swiftUIFeatureRootDuplicateDefault(propertyName: "feature"), MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-duplicate-default")),
             (SimpleDiagnostic.swiftUIFeatureRootHelperNameConflict(helperName: "featureRootView"), MessageID(domain: "InnoDI.validation", id: "swiftui.feature-root-helper-name-conflict")),

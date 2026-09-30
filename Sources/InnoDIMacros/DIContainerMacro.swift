@@ -417,7 +417,7 @@ private func provideMemberValidationRecovery(
     case .asynchronous, .asynchronousThrowing:
         if let memberName = member.bindings.first?
             .pattern.as(IdentifierPatternSyntax.self)?.identifier.text,
-            hasIncomingProvideWithReference(
+            hasIncomingKeyPathReference(
                 to: memberName,
                 in: declaration
             ) {
@@ -515,24 +515,70 @@ private func provideMemberValidationRecovery(
     return false
 }
 
-private func hasIncomingProvideWithReference(
+/// Whether a sibling names `memberName` in a key path: `@Provide(with:)`,
+/// `@Multibinding` contributors, `@SubContainer(with:)`, or the parent side of
+/// `bindings:` on `@SubContainer` and `@SubContainerFactory`. Each of those
+/// rejects an asynchronous target with its own diagnostic.
+private func hasIncomingKeyPathReference(
     to memberName: String,
     in declaration: some DeclGroupSyntax
 ) -> Bool {
     declaration.memberBlock.members.contains { sibling in
-        guard let variable = sibling.decl.as(VariableDeclSyntax.self),
-              let attribute = InnoDICore.findManagedProviderAttribute(
-                in: variable.attributes
-              ) else {
+        guard let variable = sibling.decl.as(VariableDeclSyntax.self) else {
             return false
         }
-        return extractWithDependencyReferences(
-            from: attribute,
-            requiringCanonicalProvidePath: true
-        ).contains {
-            $0.name == memberName
+        if let attribute = InnoDICore.findManagedProviderAttribute(in: variable.attributes) {
+            if extractWithDependencyReferences(
+                from: attribute,
+                requiringCanonicalProvidePath: true
+            ).contains(where: { $0.name == memberName }) {
+                return true
+            }
+            let arguments = parseProvideArguments(attribute)
+            if arguments.isMultibinding, arguments.dependencies.contains(memberName) {
+                return true
+            }
+        }
+        for owner in ["SubContainer", "SubContainerFactory"] {
+            if let attribute = findInnoDIAttribute(named: owner, in: variable.attributes),
+               parentKeyPathMemberNames(in: attribute).contains(memberName) {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+/// Members named by the parent side of a sub-container attribute's key
+/// paths, in `with:` elements and `bindings:` tuples alike.
+private func parentKeyPathMemberNames(in attribute: AttributeSyntax) -> Set<String> {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return []
+    }
+    var names: Set<String> = []
+    for argument in arguments {
+        guard let array = argument.expression.as(ArrayExprSyntax.self) else { continue }
+        switch argument.label?.text {
+        case "with":
+            for element in array.elements {
+                if let name = parentMemberKeyPathSpelling(element.expression).memberName {
+                    names.insert(name)
+                }
+            }
+        case "bindings":
+            for element in array.elements {
+                guard let tuple = element.expression.as(TupleExprSyntax.self) else { continue }
+                for part in tuple.elements where part.label?.text == "parent" {
+                    if let name = parentMemberKeyPathSpelling(part.expression).memberName {
+                        names.insert(name)
+                    }
+                }
+            }
+        default:
+            continue
         }
     }
+    return names
 }
 
 private func transientClosureNeedsValidationRecovery(

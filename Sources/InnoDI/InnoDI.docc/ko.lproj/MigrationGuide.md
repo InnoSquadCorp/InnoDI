@@ -115,7 +115,10 @@ handler를 호출합니다. handler 안이 아니라 변경 뒤에, 예를 들�
 `sub.async-parent-member`로 실패합니다. 6.0에서는 같은 연결이 생성된 child
 생성 코드 안에서 무관한 missing-member 오류로 컴파일에 실패했으므로, 컴파일되던
 소스가 바뀌지는 않습니다. 동기 parent member를 연결하거나, parent member를
-await한 뒤 child를 직접 생성하세요.
+await한 뒤 child를 직접 생성하세요. `@SubContainerFactory(bindings:)`는
+`provide.with-dependency-requires-synchronous-provider` 대신 같은 코드로
+보고합니다. 그 child input을 `@Input(.assisted)`로 바꾸고 await한 값을
+factory에 전달하세요.
 
 ### 비동기 shared 작업의 시작 시점 선택
 

@@ -188,7 +188,14 @@ that change moves to 8.0.
 - A `@SubContainer` child input wired to an asynchronous parent member is
   rejected with `sub.async-parent-member`. In 6.0 the generated child
   construction failed to compile with an unrelated missing-member error, so
-  no compiling source changes meaning.
+  no compiling source changes meaning. `@SubContainerFactory(bindings:)`
+  reports the same code instead of
+  `provide.with-dependency-requires-synchronous-provider`, whose remediation
+  suggested an `asyncFactory:` rewrite that a factory member cannot use. A
+  `with:`, `bindings:`, or `@Multibinding` key path that names an
+  asynchronous member reports only InnoDI's diagnostic. 6.0 also reported
+  `cannot form key path to property with 'throws' or 'async'` at that key
+  path.
 
 - A value named `InnoDI`, such as an enclosing type's `static let InnoDI`,
   that is visible from a container with a `.shared`

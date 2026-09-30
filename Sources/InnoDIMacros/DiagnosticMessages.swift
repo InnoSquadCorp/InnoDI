@@ -978,6 +978,16 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func subFactoryAsyncParentMember(
+        memberName: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "@SubContainerFactory '\(memberName)' cannot pass parent member '\(parentMemberName)' to a child input because '\(parentMemberName)' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or make the child input @Input(.assisted) and pass the awaited value to the factory.",
+            code: .subAsyncParentMember
+        )
+    }
+
     static func provideLazyAliased(
         parameterName: String,
         aliasName: String

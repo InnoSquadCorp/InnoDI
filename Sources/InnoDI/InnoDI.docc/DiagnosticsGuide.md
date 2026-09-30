@@ -365,7 +365,9 @@ Most frequently-hit codes:
 - `sub.async-parent-member` — a sub-container input is wired to an
   asynchronous parent member. Child inputs are synchronous values in both
   child scopes; wire a synchronous parent member, or construct the child after
-  awaiting the parent member.
+  awaiting the parent member. `@SubContainerFactory(bindings:)` reports the
+  same code; make that child input `@Input(.assisted)` and pass the awaited
+  value to the factory instead.
 
 ## Graph-level diagnostics (build plugin)
 

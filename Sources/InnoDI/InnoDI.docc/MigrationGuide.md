@@ -119,7 +119,10 @@ A `@SubContainer` child input wired to an asynchronous parent member now fails
 with `sub.async-parent-member`. In 6.0 the same wiring failed to compile with
 an unrelated missing-member error inside the generated child construction, so
 no compiling source changes. Wire a synchronous parent member, or construct
-the child after awaiting the parent member.
+the child after awaiting the parent member. `@SubContainerFactory(bindings:)`
+reports the same code instead of
+`provide.with-dependency-requires-synchronous-provider`; make that child input
+`@Input(.assisted)` and pass the awaited value to the factory.
 
 ### Choose when asynchronous shared work starts
 

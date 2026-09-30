@@ -86,6 +86,75 @@ struct CloseNameConflict {
     func closeAsyncProviders() {}
 }
 
+// A key path that names an asynchronous member reports only InnoDI's
+// diagnostic, with no follow-on compiler error from generated code.
+@DIContainer
+struct WithWiredAsyncParent {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @SubContainer(scope: .shared, with: [\Self.token])
+    var child: AutoWiredChild
+}
+
+@DIContainer
+struct BoundAsyncParent {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var asyncToken: Token
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [(child: \AutoWiredChild.token, parent: \Self.asyncToken)]
+    )
+    var child: AutoWiredChild
+}
+
+@DIContainer
+struct SessionContainer {
+    @Input var token: Token
+    @Input(.assisted) var name: String
+
+    @AssistedFactory(
+        SessionContainer.self,
+        static: [\SessionContainer.token],
+        assisted: [\SessionContainer.name]
+    )
+    struct AssistedFactory {}
+}
+
+@DIContainer
+struct FactoryBoundAsyncParent {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+        Token()
+    })
+    var asyncToken: Token
+
+    @SubContainerFactory(
+        SessionContainer.self,
+        bindings: [(child: \SessionContainer.token, parent: \Self.asyncToken)]
+    )
+    var session: SessionContainer.AssistedFactory
+}
+
+protocol Service: Sendable {}
+
+struct FirstService: Service {}
+
+@DIContainer
+struct AsyncContributor {
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async -> any Service in
+        FirstService()
+    })
+    var first: any Service
+
+    @Multibinding([\Self.first])
+    var services: [any Service]
+}
+
 @main
 struct FixtureApp {
     static func main() {}

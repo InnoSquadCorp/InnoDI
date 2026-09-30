@@ -4,7 +4,7 @@
   maintainer acceptance)
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-29
-- **Last updated**: 2026-09-29
+- **Last updated**: 2026-09-30
 - **Target release**: 7.0.0
 - **Tracking plan**: [7.0.0 post-audit plan](../plans/7.0.0-post-audit.md), item R1
 
@@ -121,7 +121,7 @@ method keep rejecting asynchronous targets. Sub-container inputs had no
 dedicated check in 6.0: wiring an asynchronous parent member failed inside the
 generated child construction with an unrelated missing-member error. 7.0 adds
 `sub.async-parent-member` for eager, on-demand, and transient asynchronous
-parents. The graph records the provider with `initialization: onDemand` and
+parents, including the `bindings:` of `@SubContainerFactory`. The graph records the provider with `initialization: onDemand` and
 its declared factory effect, so the graph JSON schema does not change.
 
 A declaration named `closeAsyncProviders` in a container that has such a

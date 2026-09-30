@@ -18,6 +18,8 @@ struct SubContainerAsyncParentTests {
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "SubContainer": SubContainerMacro.self,
         "_InnoDISubContainerAccessor": InnoDISubContainerAccessorMacro.self,
+        "SubContainerFactory": ProvideMacro.self,
+        "Multibinding": ProvideMacro.self,
     ]
 
     private static let asyncParent = MessageID(
@@ -96,6 +98,92 @@ struct SubContainerAsyncParentTests {
             diagnostic.message
                 == "@SubContainer 'child' cannot pass parent member 'token' to a child input because 'token' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting 'token'."
         )
+    }
+
+    @Test("A sub-container factory binding rejects an asynchronous parent member")
+    func factoryBindingRejectsAsyncParents() throws {
+        for provider in Self.asyncProviders {
+            let result = expandMacroSource(
+                """
+                @DIContainer
+                struct AppContainer {
+                    \(provider)
+                    var token: Token
+
+                    @SubContainerFactory(
+                        SessionContainer.self,
+                        bindings: [(child: \\SessionContainer.value, parent: \\Self.token)]
+                    )
+                    var session: SessionContainer.AssistedFactory
+                }
+                """,
+                macros: Self.macros
+            )
+            #expect(result.diagnostics.map(\.diagnosticID) == [Self.asyncParent], Comment(rawValue: provider))
+            let diagnostic = try #require(result.diagnostics.first)
+            #expect(diagnostic.node.trimmedDescription == "\\Self.token")
+            #expect(
+                diagnostic.message
+                    == "@SubContainerFactory 'session' cannot pass parent member 'token' to a child input because 'token' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or make the child input @Input(.assisted) and pass the awaited value to the factory."
+            )
+        }
+    }
+
+    /// Validation recovery keeps an asynchronous member's accessor
+    /// synchronous whenever a sibling key path names it, so the dedicated
+    /// diagnostic must stay terminal even without DAG validation.
+    @Test("validateDAG: false still rejects every key path to an asynchronous member")
+    func keyPathsToAsyncMembersStayRejectedWithoutDAGValidation() {
+        let cases: [(wiring: String, expected: MessageID)] = [
+            (
+                """
+                @SubContainer(scope: .shared, with: [\\Self.token])
+                var child: ChildContainer
+                """,
+                Self.asyncParent
+            ),
+            (
+                """
+                @SubContainer(scope: .transient, bindings: [(child: \\ChildContainer.value, parent: \\Self.token)])
+                var child: ChildContainer
+                """,
+                Self.asyncParent
+            ),
+            (
+                """
+                @SubContainerFactory(SessionContainer.self, bindings: [(child: \\SessionContainer.value, parent: \\Self.token)])
+                var session: SessionContainer.AssistedFactory
+                """,
+                Self.asyncParent
+            ),
+            (
+                """
+                @Multibinding([\\Self.token])
+                var tokens: [Token]
+                """,
+                MessageID(domain: "InnoDI.validation", id: "multibinding.async-contributor")
+            ),
+        ]
+        for provider in Self.asyncProviders {
+            for item in cases {
+                let result = expandMacroSource(
+                    """
+                    @DIContainer(validateDAG: false)
+                    struct AppContainer {
+                        \(provider)
+                        var token: Token
+
+                        \(item.wiring)
+                    }
+                    """,
+                    macros: Self.macros
+                )
+                #expect(
+                    result.diagnostics.map(\.diagnosticID).contains(item.expected),
+                    Comment(rawValue: "\(provider) / \(item.wiring)")
+                )
+            }
+        }
     }
 
     @Test("A child can skip an asynchronous parent member")
