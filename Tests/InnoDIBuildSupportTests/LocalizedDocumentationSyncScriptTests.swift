@@ -18,7 +18,30 @@ struct LocalizedDocumentationSyncScriptTests {
             )
         )
         #expect(result.output.contains("1 localized DocC article(s) match"))
-        #expect(!result.output.contains("EnglishOnly.md"))
+    }
+
+    @Test("An English DocC article without a Korean mirror fails in strict mode")
+    func englishArticleWithoutKoreanMirrorFails() throws {
+        let fixture = try LocalizedDocumentationFixture()
+        defer { fixture.remove() }
+        try fixture.write("\(LocalizedDocumentationFixture.catalog)/EnglishOnly.md", """
+            # English Only
+
+            ## Overview
+
+            ```swift
+            let english = true
+            ```
+            """)
+
+        let result = try fixture.runSyncCheck()
+
+        #expect(result.exitCode == 1)
+        #expect(
+            result.output.contains(
+                "::error file=Sources/InnoDI/InnoDI.docc/ko.lproj/EnglishOnly.md::missing localized counterpart of Sources/InnoDI/InnoDI.docc/EnglishOnly.md"
+            )
+        )
     }
 
     @Test("A Korean DocC article that drops a Swift fence or H2 fails in strict mode")
@@ -179,15 +202,6 @@ private struct LocalizedDocumentationFixture {
             ## 자세히
 
             추가 설명입니다.
-            """)
-        try write("\(Self.catalog)/EnglishOnly.md", """
-            # English Only
-
-            ## Overview
-
-            ```swift
-            let english = true
-            ```
             """)
         try write(
             "\(Self.catalog)/ja.lproj/TranslationNotice-ja.md",

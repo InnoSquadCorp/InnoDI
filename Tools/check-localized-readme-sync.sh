@@ -7,9 +7,10 @@
 # must match the English canonical because new sections or examples in
 # English signal a need for a parallel translation update.
 #
-# Every `ko.lproj/*.md` DocC article with an English counterpart in the base
-# catalog gets the same structural comparison. A Korean page without an
-# English counterpart is reported and skipped.
+# Every English article in the base DocC catalog must have a `ko.lproj`
+# counterpart, and every `ko.lproj/*.md` article with an English counterpart
+# gets the same structural comparison. A Korean page without an English
+# counterpart is reported and skipped.
 #
 # The other translations were frozen at 6.0.0 and are now notice pages. Their
 # READMEs must keep linking the canonical README and their 6.0.0 translation.
@@ -171,6 +172,15 @@ for localized_dir in "${LOCALIZED_DOCC_DIRS[@]}"; do
     if [[ "$compared" -eq 0 ]]; then
         report_drift "$localized_dir" "no localized DocC article with an English counterpart was compared"
     fi
+
+    # A new English article cannot ship without its Korean mirror.
+    for canonical_page in "$DOCC_CATALOG"/*.md; do
+        [[ -f "$canonical_page" ]] || continue
+        localized_page="$localized_dir/$(basename "$canonical_page")"
+        if [[ ! -f "$localized_page" ]]; then
+            report_drift "$localized_page" "missing localized counterpart of $canonical_page"
+        fi
+    done
     docc_page_count=$((docc_page_count + compared))
 done
 

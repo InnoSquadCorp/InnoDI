@@ -293,8 +293,9 @@ sibling edge even when the container uses `validateDAG: false`.
 - `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the
   release gate. It compares H2 and swift-fence counts of `README.ko.md` with
   `README.md` and of every `ko.lproj/*.md` article with its English
-  counterpart in `Sources/InnoDI/InnoDI.docc`, and requires the Korean README
-  to keep its critical tokens. Any drift, or a notice page that stops linking
+  counterpart in `Sources/InnoDI/InnoDI.docc`, requires every English article
+  there to have a Korean counterpart, and requires the Korean README to keep
+  its critical tokens. Any drift, or a notice page that stops linking
   its 6.0.0 translation, fails the build; `INNODI_README_SYNC_STRICT=0` demotes
   failures to warnings only for a soft-rollout window. The frozen `*.lproj`
   folders are never compared. Matching counts do not prove matching meaning,

@@ -57,6 +57,10 @@ that change moves to 8.0.
   Japanese, Simplified Chinese, German, Spanish, and Russian translations
   are now notice pages that link their 6.0.0 versions.
 
+- Every English DocC article, including the five tutorials, has a Korean
+  mirror, and the localized documentation gate fails when an English article
+  has none.
+
 - New DocC guides, with Korean mirrors, map Factory and Swinject concepts to
   InnoDI and include compiled examples. `.spi.yml` points Swift Package Index
   at the hosted DocC documentation.
