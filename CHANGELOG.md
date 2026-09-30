@@ -198,6 +198,10 @@ that change moves to 8.0.
   position, so in 6.0 such a value made generated code fail to compile. A
   type named `InnoDI` was already rejected for every container.
 
+- The build plugin's shared-run validation cache key moves to version 10, so
+  a workspace validated by an earlier build is validated once more under the
+  7.0 rules. No action is required.
+
 ### Upgrade Actions
 
 - Rewrite named-root parent key paths to `\Self.member`. `\Self.member` also

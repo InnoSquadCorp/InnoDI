@@ -275,10 +275,12 @@ package enum BootIDProvider {
     }
 }
 
-// Version 9 preserves byte-stream hashing semantics across `combine` call
-// boundaries. Keep validator and digest behavior in the cache salt so an
+// Version 10 covers the 7.0 validator contract: canonical parent key paths,
+// asynchronous on-demand providers, and qualifier shadows of on-demand
+// storage. Version 9 preserved byte-stream hashing semantics across `combine`
+// call boundaries. Keep validator and digest behavior in the cache salt so an
 // unchanged workspace cannot reuse a result produced by an older contract.
-package let sharedRunCacheVersion = 9
+package let sharedRunCacheVersion = 10
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
