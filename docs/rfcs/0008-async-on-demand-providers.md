@@ -1,10 +1,10 @@
 # RFC 0008 — Asynchronous on-demand providers
 
-- **Status**: Draft (implemented on the 7.0.0 train branch; awaiting
-  maintainer acceptance)
+- **Status**: Accepted
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-09-29
 - **Last updated**: 2026-09-30
+- **Accepted**: 2026-09-30, explicit repository-owner approval for 7.0.0
 - **Target release**: 7.0.0
 - **Tracking plan**: [7.0.0 post-audit plan](../plans/7.0.0-post-audit.md), item R1
 
@@ -167,8 +167,8 @@ meaning. `provide.ondemand-async-unsupported` is removed.
 ## Open questions
 
 - Whether `closeAsyncProviders()` should also close `.shared` sub-containers.
-  This draft keeps closing local; a transitive variant can follow without a
-  breaking change.
+  7.0 keeps closing local; a transitive variant can follow without a breaking
+  change.
 
 ## Acceptance criteria
 

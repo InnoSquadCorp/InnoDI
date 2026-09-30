@@ -18,8 +18,8 @@ before a PR lands.
 | 0005 | [5.0 contract hardening](0005-5.0-contract-hardening.md) | Accepted |
 | 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | Accepted |
 | 0007 | [Symbol-graph semantic validation (spike)](0007-symbol-graph-semantic-validation.md) | Draft (recommendation: reject) |
-| 0008 | [Asynchronous on-demand providers](0008-async-on-demand-providers.md) | Draft (implemented on the 7.0.0 train, pending acceptance) |
-| 0009 | [7.0 source breaks](0009-7.0-source-breaks.md) | Draft |
+| 0008 | [Asynchronous on-demand providers](0008-async-on-demand-providers.md) | Accepted |
+| 0009 | [7.0 source breaks](0009-7.0-source-breaks.md) | Accepted |
 
 ## Conventions
 
