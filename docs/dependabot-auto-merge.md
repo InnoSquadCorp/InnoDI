@@ -60,7 +60,11 @@ InnoDI requires 17 successful jobs, including each reusable example, both
 sanitizers, platform loop, both compatibility lanes, clean coverage and the
 final **CI Required**, plus the explicitly non-target `append-perf-history`
 skip. Each job is bound to its GitHub Actions app, suite, job ID, details URL,
-head/test-merge SHA and validation steps. Missing/duplicate jobs, wrong apps,
+head/test-merge SHA and validation steps. The exact-SHA consumer job must also
+prove the isolated macro consumer uses matching prebuilt SwiftSyntax on the
+primary Xcode 26.6 lane; a combined macro/plugin build alone is insufficient.
+Source fallback, a missing proof or another toolchain cannot satisfy this step.
+Missing/duplicate jobs, wrong apps,
 foreign ready checks, unassociated current-suite results, failure, cancellation,
 neutral, pending and unexpected skips fail closed. Only the predefined PR
 Pages upload, published-main-only consumer guard and post-merge-origin guard

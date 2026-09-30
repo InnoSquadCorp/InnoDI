@@ -1,6 +1,8 @@
 """Exercise the checked-in CI conditions without dispatching a workflow."""
 from pathlib import Path
 import re
+import json
+import textwrap
 import os
 import subprocess
 import tempfile
@@ -17,6 +19,33 @@ def step(name, workflow="macro-tests.yml"):
 
 
 class PerformanceWorkflowTests(unittest.TestCase):
+    def test_required_isolated_prebuilt_proof_rejects_source_and_missing_metrics(self):
+        body = step("Verify isolated primary macro prebuilt", "remote-consumer-smoke.yml")
+        self.assertIn('--target consumer --bindings 100 --keep-user-cache', body)
+        self.assertIn('git -C "$benchmark_root" rev-parse HEAD', body)
+        self.assertIn('== "$INNODI_REVISION"', body)
+        condition = next(line.strip() for line in body.splitlines() if line.strip().startswith('[[ "$(jq'))
+        with tempfile.TemporaryDirectory() as directory:
+            metrics = Path(directory) / 'innodi-isolated-primary.json'
+            for mode in ['prebuilt', 'source', 'prebuilt-unavailable', 'not-observed', None]:
+                metrics.write_text(json.dumps({'swift_syntax_mode':mode}))
+                result = subprocess.run(['bash','-c',condition], env={**os.environ,'RUNNER_TEMP':directory}, capture_output=True)
+                self.assertEqual(result.returncode == 0, mode == 'prebuilt')
+
+    def test_isolated_proof_uses_unique_exact_dependency_checkout(self):
+        body = step("Verify isolated primary macro prebuilt", "remote-consumer-smoke.yml")
+        code = textwrap.dedent(body.split("<<'PY'\n",1)[1].split('\n          PY\n',1)[0])
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            graph = base / 'graph.json'
+            good = dict(identity='innodi', path=str(base / '.build/checkouts/InnoDI'))
+            for dependencies, ok in [([good],True), ([],False), ([good,good],False),
+                                     ([dict(good,path=str(base/'foreign'))],False)]:
+                graph.write_text(json.dumps({'dependencies':dependencies}))
+                result = subprocess.run(['python3','-c',code,str(graph),directory],
+                          env={**os.environ,'INNODI_CONSUMER_IDENTITY':'innodi'},capture_output=True)
+                self.assertEqual(result.returncode == 0, ok)
+
     def test_optional_cold_benchmark_preserves_primary_prebuilt_contract(self):
         source = (WORKFLOWS / "cold-build-benchmark.yml").read_text()
         triggers = source.split("on:\n", 1)[1].split("\npermissions:", 1)[0]
