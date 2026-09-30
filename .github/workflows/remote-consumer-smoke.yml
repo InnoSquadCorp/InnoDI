@@ -36,9 +36,8 @@ jobs:
             Tests/RemoteConsumerSmoke
             Tools
       - name: Select prebuilt-compatible Xcode 26.6
-        # SwiftSyntax 603.0.2 has a matching prebuilt on Swift 6.3.3. This
-        # exact-revision consumer proof should exercise that fast path instead
-        # of rebuilding SwiftSyntax with the older Swift 6.3.2 toolchain.
+        # Keep the primary toolchain fixed. The isolated proof below rejects
+        # a SwiftSyntax update that loses its matching macro-only prebuilt.
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"

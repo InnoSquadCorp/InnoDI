@@ -120,12 +120,16 @@ DocC packages, scratch consumers, or intentionally pinned negative contracts.
 `Tools/docc/Package.resolved` has no persistent companion manifest: update it
 through the documented DocC generator in a coordinated maintainer PR.
 
-SwiftSyntax stays exact `603.0.2`. A proposed bump must coordinate the root exact
+SwiftSyntax stays exact `604.0.0`. A proposed bump must coordinate the root exact
 requirement, DocC lock and injection regex, matching prebuilt consumer proof,
 Swift 6.2 minimum, Xcode 26.6 primary, Xcode 27 validation, and calibrated
 performance baselines. The public-operations guard rejects partial manifest/lock/
 generator changes. Review toolchain selection separately from low-risk dependency
 groups, and retain the `release-validation` label until those checks pass.
+The exact-revision remote consumer now verifies an isolated primary macro-only
+build with `Tools/cold-build-benchmark.sh` and requires `swift_syntax_mode=prebuilt`
+on unchanged Xcode 26.6 before running the combined macro/plugin consumer. A
+local Xcode 27 prebuilt observation is not evidence for that primary lane.
 
 Configured labels are `dependencies` plus `github-actions` or `swift`; both ecosystems
 also request `release-validation`. At the implementation baseline only
