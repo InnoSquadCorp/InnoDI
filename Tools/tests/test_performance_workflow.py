@@ -86,14 +86,15 @@ class PerformanceWorkflowTests(unittest.TestCase):
 
     def test_pull_requests_report_while_main_and_dispatch_enforce(self):
         # Evaluate the checked-in mode expressions for every trigger. Only a
-        # release-validation pull request may downgrade the gates to reports.
+        # pull request may downgrade the gates to reports.
         expectations = {
             "Macro Performance Check": ("MACRO_PERFORMANCE_MODE",
                                         {"pull_request": "--report-only", "push": "--enforce",
+                                         "merge_group": "--enforce",
                                          "workflow_dispatch": "--enforce"}),
             "Macro Performance Trend": ("TREND_MODE",
                                         {"pull_request": "--report-only", "push": "",
-                                         "workflow_dispatch": ""}),
+                                         "merge_group": "", "workflow_dispatch": ""}),
         }
         for name, (variable, by_event) in expectations.items():
             body = step(name)

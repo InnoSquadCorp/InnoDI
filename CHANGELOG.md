@@ -76,12 +76,13 @@ that change moves to 8.0.
 
 - The fast PR lane skips the unique-binding fix-it consumer build, a
   clean-build contract that compiles SwiftSyntax from source; the exhaustive
-  coverage gate still runs it. Main CI caches SwiftPM repository mirrors,
+  coverage gate still runs it, and CI Plan selects that gate for a pull
+  request that changes the test. Main CI caches SwiftPM repository mirrors,
   downloaded prebuilts, and the external consumer scratch per toolchain and
-  swift-syntax pin, while the Release Gate keeps cold consumer builds.
-  Release-validation pull requests report the macro performance gate and
-  trend instead of failing on hosted-runner variance; pushes to `main`, manual
-  dispatch, and the Release Gate still enforce them.
+  swift-syntax pin, while the Release Gate keeps cold consumer builds. Pull
+  requests report the macro performance gate and trend instead of failing on
+  hosted-runner variance; pushes to `main`, merge queue runs, manual dispatch,
+  and the Release Gate still enforce them.
 
 - The exhaustive CI lane runs the external consumer and strict-concurrency
   build contracts in their own job beside the coverage gate instead of inside

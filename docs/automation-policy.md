@@ -31,7 +31,7 @@ empty diff or an unknown path selects all jobs. Each job needs a successful plan
 | --- | --- |
 | Root manifest/lock, shared Xcode action, shared CI policy or unclassified build/release script | Full validation |
 | Runtime/macro/plugin source | Fast contracts, representative example, documentation contracts, DocC |
-| Tests / materialized consumer templates | Fast contracts; clean consumer fixtures select the Xcode 26.6 consumer contracts and both compatibility lanes; migration tests select the full suite; remote fixture also selects remote proof |
+| Tests / materialized consumer templates | Fast contracts; clean consumer fixtures select the Xcode 26.6 consumer contracts and both compatibility lanes; migration and mechanical fix-it tests select the full suite; remote fixture also selects remote proof |
 | Live example source/manifest | All examples |
 | README / ordinary Markdown | Compiled snippet, local link and localized README contracts |
 | DocC catalogs / `.spi.yml` / DocC generator or lock | Documentation contracts and DocC |

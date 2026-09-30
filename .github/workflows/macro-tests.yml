@@ -327,10 +327,11 @@ jobs:
           if-no-files-found: error
       - name: Macro Performance Check
         id: macro_performance
-        # Release-validation pull requests record the measurement without
-        # failing on hosted-runner variance. Pushes to main and manual
-        # dispatch keep the enforced gate, and the Release Gate enforces the
-        # pinned baseline again for the exact candidate SHA.
+        # Pull requests, whether labeled release-validation or selected by CI
+        # Plan, record the measurement without failing on hosted-runner
+        # variance. Pushes to main, merge queue runs, and manual dispatch keep
+        # the enforced gate, and the Release Gate enforces the pinned baseline
+        # again for the exact candidate SHA.
         env:
           MACRO_PERFORMANCE_MODE: ${{ github.event_name == 'pull_request' && '--report-only' || '--enforce' }}
         run: |

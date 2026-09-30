@@ -53,6 +53,9 @@ def path_impact(path):
                 "xcode-27-compatibility"}, "clean consumer contract"
     if path.startswith("Tests/InnoDIMigrationCoreTests/"):
         return {"fast-tests", "macro-tests"}, "migration including fresh consumer"
+    # The fast lane skips this file's clean consumer build; the coverage gate runs it.
+    if path == "Tests/InnoDIMacrosTests/MechanicalFixItTests.swift":
+        return {"fast-tests", "macro-tests"}, "fix-it including consumer build"
     if path.startswith("Tests/"):
         return {"fast-tests"}, "test/consumer fixture"
     if path.startswith("Examples/"):

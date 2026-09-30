@@ -290,8 +290,8 @@ sibling edge even when the container uses `validateDAG: false`.
   English structure and meaning. The Japanese, Simplified Chinese, German,
   Spanish, and Russian READMEs and `*.lproj` folders are notice pages frozen
   at 6.0.0; do not add content to them.
-- `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the
-  release gate. It compares H2 and swift-fence counts of `README.ko.md` with
+- `Tools/check-localized-readme-sync.sh` runs in strict mode whenever CI Plan
+  selects the documentation contracts and in the release gate. It compares H2 and swift-fence counts of `README.ko.md` with
   `README.md` and of every `ko.lproj/*.md` article with its English
   counterpart in `Sources/InnoDI/InnoDI.docc`, requires every English article
   there to have a Korean counterpart, and requires the Korean README to keep

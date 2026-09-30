@@ -78,17 +78,17 @@ do not add new content to them.
 The generated DocC archive currently builds from the English base catalog, so
 localized DocC files are maintained as source mirrors in the repository.
 
-`Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and
-release: a swift fence count or H2 header count drift between the English
-canonical and the Korean README, or between an English DocC article and its
-`ko.lproj` counterpart, fails the build, as do an English DocC article
-without a `ko.lproj` counterpart and a notice page that stops linking
-`README.md` and its 6.0.0 translation. The frozen `*.lproj` folders are not
-compared. When you add a DocC article, or add or remove an H2 or a Swift
-example in `README.md` or a DocC article, mirror the change into the Korean
-file in the same PR. The
-script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit soft-rollout
-window for canonical restructures.
+`Tools/check-localized-readme-sync.sh` runs in strict mode whenever CI Plan
+selects the documentation contracts and in every release: a swift fence count
+or H2 header count drift between the English canonical and the Korean README,
+or between an English DocC article and its `ko.lproj` counterpart, fails the
+build, as do an English DocC article without a `ko.lproj` counterpart and a
+notice page that stops linking `README.md` and its 6.0.0 translation. The
+frozen `*.lproj` folders are not compared. When you add a DocC article, or add
+or remove an H2 or a Swift example in `README.md` or a DocC article, mirror
+the change into the Korean file in the same PR. The script accepts
+`INNODI_README_SYNC_STRICT=0` only as an explicit soft-rollout window for
+canonical restructures.
 
 ## Code Coverage
 
