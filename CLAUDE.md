@@ -156,25 +156,30 @@ graph-derived availability checks. Local ownership cycles are always rejected,
 including cycles through `Lazy` or `Provider`. It never disables declaration
 validation or effect compatibility on explicit sibling edges.
 
-`Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
-every container `validateDAG: false` site plus any active
-`INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
-step summary. The script is informational — set `INNODI_ESCAPE_HATCH_FAIL=1`
-to flip it into a blocker for orgs that treat new opt-outs as release
-blockers.
+`Tools/report-validate-dag-escape-hatches.sh` runs in whichever of the
+`fast-tests` and `macro-tests` jobs CI Plan selects (neither for an unlabeled
+docs-only PR) and lists every container `validateDAG: false` site plus any
+active `INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the
+workflow's step summary. The script is informational — set
+`INNODI_ESCAPE_HATCH_FAIL=1` to flip it into a blocker for orgs that treat new
+opt-outs as release blockers.
 
 `Tools/measure-macro-performance.sh --enforce` keeps the single-PR
 regression gate against the pinned `macro-performance-baseline.json`, and
-`Tools/check-performance-trend.sh` runs alongside it on every PR to
+`Tools/check-performance-trend.sh` runs alongside it in `macro-tests` to
 compare against the rolling median of the `perf-history` branch (last 7
 entries, minimum 5 comparable entries, 20% threshold, same-toolchain and
-same-workload-version filters). Both compare `min_ms`, while reports retain
+same-workload-version filters). In `CI`, only that exhaustive job runs them:
+pull requests, whether labeled `release-validation` or selected by CI Plan,
+run them with `--report-only`, while pushes to `main`, merge queue runs, and
+manual dispatch enforce them. Both compare `min_ms`, while reports retain
 every raw sample and dispersion statistics. The successful-expansion workload
 is version 2; never relabel version-1 history or replace the pinned CI baseline
-with a developer-machine result. The `Macro Tests` workflow reuses the gated
-report for normal `main` history appends; `Perf History` is manual recovery.
-Missing/unreachable history or fewer than five comparable entries is
-insufficient trend evidence, not a measured trend pass.
+with a developer-machine result. The `CI` workflow reuses the gated
+report for normal `main` history appends after CI Required succeeds;
+`Perf History` is manual recovery. Missing/unreachable history or
+fewer than five comparable entries is insufficient trend evidence, not a
+measured trend pass.
 
 `Tools/measure-macro-features.sh` separately measures assisted factory, large
 multibinding, and mock generation. These independent v1 workloads are
@@ -280,8 +285,10 @@ sibling edge even when the container uses `validateDAG: false`.
   Workspace build support records `deferred-alias.workspace-finding` warnings
   in the validation summary. Spell `Lazy<T>` and `Provider<T>` directly at
   factory parameters to obtain soft/provider edges.
-  The PR pipeline runs the scanner and posts findings to the workflow's step
-  summary plus a `deferred-aliases-report` artifact.
+  The `CI` workflow runs the scanner in whichever of the `fast-tests` and
+  `macro-tests` jobs CI Plan selects and posts findings to the workflow's
+  step summary plus a `deferred-aliases-report-fast-pr` or
+  `deferred-aliases-report` artifact, respectively.
 
 ## Documentation Contract
 
