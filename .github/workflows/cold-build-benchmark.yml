@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   cold-build:
-    runs-on: macos-26
+    runs-on: ${{ matrix.xcode == '27.0' && 'xcode-27' || 'macos-26' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -35,12 +35,17 @@ jobs:
           - scenario: consumer-xcode-26.5
             target: consumer
             xcode: "26.5"
-            # Compatibility observation: Swift 6.3.2 has no matching 603.0.2
+            # Compatibility observation: Swift 6.3 has no matching 604.0.0
             # prebuilt and therefore compiles SwiftSyntax from source.
             expected_swift_syntax_mode: ""
           - scenario: consumer-xcode-26.6
             target: consumer
             xcode: "26.6"
+            # Compatibility observation, as for Xcode 26.5.
+            expected_swift_syntax_mode: ""
+          - scenario: consumer-xcode-27
+            target: consumer
+            xcode: "27.0"
             # This is the build-economy contract for the primary consumer
             # toolchain. Regressing to a source build must fail visibly.
             expected_swift_syntax_mode: prebuilt
@@ -50,9 +55,16 @@ jobs:
         with:
           persist-credentials: false
       - name: Select Xcode ${{ matrix.xcode }}
+        if: matrix.xcode != '27.0'
         uses: ./.github/actions/select-xcode
         with:
           version: ${{ matrix.xcode }}
+      - name: Verify Xcode 27 and Swift 6.4
+        if: matrix.xcode == '27.0'
+        run: |
+          set -euo pipefail
+          [[ "$(xcodebuild -version)" == Xcode\ 27* ]]
+          [[ "$(swift --version)" == *"Apple Swift version 6.4"* ]]
       - name: Run cold build benchmark
         env:
           BINDINGS: ${{ github.event.inputs.bindings || '100' }}

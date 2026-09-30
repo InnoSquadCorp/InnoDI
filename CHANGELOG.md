@@ -101,6 +101,17 @@ that change moves to 8.0.
   while Swift 6.3 attaches the members to the extended type. Baseline schema
   10 records the members and their `memberOf` relationships only.
 
+- SwiftSyntax moves to exact `604.0.0`, and Xcode 27 (Swift 6.4) becomes the
+  primary consumer toolchain. SwiftSyntax 604.0.0 has a matching prebuilt on
+  Swift 6.4 and none on Swift 6.3.
+  `Tools/cold-build-benchmark.sh --target consumer --keep-user-cache` with 100
+  bindings reported `prebuilt` on Xcode 27.0 (36.3 s on a local Apple silicon
+  Mac) and `source` on Xcode 26.6 (302.3 s on the hosted `macos-26` runner).
+  The exact-SHA remote consumer, the representative SampleApp example, and the
+  cold benchmark's primary scenario run on Xcode 27. The in-package test,
+  coverage, performance, sanitizer, platform, and documentation lanes stay on
+  Xcode 26.6, where the root package builds SwiftSyntax from source as before.
+
 ### Breaking or Behavior Changes
 
 - The macOS floor is 14. `DIContainerHostOwner` is an `@Observable` class
@@ -114,6 +125,12 @@ that change moves to 8.0.
   `@SubContainer(featureRoot:)` helpers or `@DIEnvironmentBridge`, must
   import SwiftUI. `InnoDI-Migrate` adds the import. See
   [RFC 0009](docs/rfcs/0009-7.0-source-breaks.md).
+
+- InnoDI requires SwiftSyntax exactly `604.0.0`; 6.x required `603.0.2`. Every
+  package in a consumer graph must agree on that version, so a graph that also
+  requires SwiftSyntax 603 no longer resolves. Xcode 27 (Swift 6.4) builds
+  InnoDI's macros with the matching SwiftSyntax prebuilt; Xcode 26.x
+  (Swift 6.3) and Swift 6.2 compile SwiftSyntax from source.
 
 - Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
   `@SubContainer(bindings:)` and `@SubContainerFactory(bindings:)` must be
@@ -274,6 +291,11 @@ that change moves to 8.0.
   involved. Qualify the attribute as `@InnoDI.SubContainer`, or add
   `--trust-module <name>` for each listed module that declares no
   InnoDI-named attribute or macro, typically the application's own modules.
+
+- Move the other macro packages in the graph to SwiftSyntax `604.0.0`, or stay
+  on InnoDI 6.x until they support it. Build with Xcode 27 to keep the
+  prebuilt SwiftSyntax macro build; Xcode 26.x builds work but compile
+  SwiftSyntax from source.
 
 ## 6.0.0
 

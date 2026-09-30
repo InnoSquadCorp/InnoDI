@@ -50,9 +50,14 @@ class PerformanceWorkflowTests(unittest.TestCase):
         source = (WORKFLOWS / "cold-build-benchmark.yml").read_text()
         triggers = source.split("on:\n", 1)[1].split("\npermissions:", 1)[0]
         self.assertEqual(re.findall(r"^  ([a-z_]+):", triggers, re.MULTILINE), ["schedule", "workflow_dispatch"])
-        primary = source.split("          - scenario: consumer-xcode-26.6", 1)[1].split("    steps:", 1)[0]
-        self.assertIn('xcode: "26.6"', primary)
+        primary = source.split("          - scenario: consumer-xcode-27", 1)[1].split("    steps:", 1)[0]
+        self.assertIn('xcode: "27.0"', primary)
         self.assertIn("expected_swift_syntax_mode: prebuilt", primary)
+        self.assertIn("runs-on: ${{ matrix.xcode == '27.0' && 'xcode-27' || 'macos-26' }}", source)
+        # Swift 6.3 has no SwiftSyntax 604.0.0 prebuilt; Xcode 26.x only observes.
+        for scenario in ("consumer-xcode-26.5", "consumer-xcode-26.6"):
+            observed = source.split("          - scenario: " + scenario, 1)[1].split("          - scenario:", 1)[0]
+            self.assertIn('expected_swift_syntax_mode: ""', observed)
         self.assertIn("fail-fast: false", source)
         self.assertIn("Verify expected SwiftSyntax mode", source)
         self.assertIn("actual=\"$(jq -r '.swift_syntax_mode'", source)

@@ -255,8 +255,10 @@ this document and the release-contract tests in the same change.
 InnoDI pins `swiftlang/swift-syntax` with `exact:`. SwiftPM uses a SwiftSyntax
 prebuilt only when the resolved version matches the one the toolchain ships, so
 the exact pin keeps the primary consumer toolchain on the prebuilt path. The
-5.0.0 notes record the measured effect of moving the pin to `603.0.2`. The cost
-is that every package in a consumer graph must agree on that exact version.
+5.0.0 notes record the measured effect of moving the pin to `603.0.2`, and the
+7.0.0 notes record moving it to `604.0.0` with Xcode 27 as the primary consumer
+toolchain. The cost is that every package in a consumer graph must agree on
+that exact version.
 
 Re-evaluate the pin when a supported toolchain ships a prebuilt for a newer
 swift-syntax release, or when a consumer reports a resolution conflict with

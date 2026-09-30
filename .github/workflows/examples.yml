@@ -18,19 +18,20 @@ on:
 
 jobs:
   sample-app:
-    runs-on: macos-26
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Select prebuilt-compatible Xcode 26.6
-        # SwiftSyntax 603.0.2 has a matching prebuilt on Swift 6.3.3. Keep the
-        # representative consumer lane on that toolchain so pull-request
-        # feedback does not pay the SwiftSyntax source-build tax.
-        uses: ./.github/actions/select-xcode
-        with:
-          version: "26.6"
+      - name: Verify prebuilt-compatible Xcode 27 and Swift 6.4
+        # SwiftSyntax 604.0.0 has a matching prebuilt on Swift 6.4, the primary
+        # consumer toolchain. Keep the representative consumer lane there so
+        # pull-request feedback does not pay the SwiftSyntax source-build tax.
+        run: |
+          set -euo pipefail
+          [[ "$(xcodebuild -version)" == Xcode\ 27* ]]
+          [[ "$(swift --version)" == *"Apple Swift version 6.4"* ]]
       - name: Build and Test SampleApp
         run: |
           cd Examples/SampleApp

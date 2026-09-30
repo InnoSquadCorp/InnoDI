@@ -1,5 +1,5 @@
 {
-  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it)",
+  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it); the representative example and the exact-SHA consumer verify the Xcode 27 primary consumer toolchain",
   "jobs": {
     "CI Plan": [
       {
@@ -347,7 +347,7 @@
         "conclusion": "success"
       },
       {
-        "name": "Select prebuilt-compatible Xcode 26.6",
+        "name": "Verify prebuilt-compatible Xcode 27 and Swift 6.4",
         "conclusion": "success"
       },
       {
@@ -393,7 +393,7 @@
         "conclusion": "success"
       },
       {
-        "name": "Select prebuilt-compatible Xcode 26.6",
+        "name": "Verify prebuilt-compatible Xcode 27 and Swift 6.4",
         "conclusion": "success"
       },
       {

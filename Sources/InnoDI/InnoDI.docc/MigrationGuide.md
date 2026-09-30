@@ -29,7 +29,7 @@ historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 ## 6.x → 7.0
 
 InnoDI 7.0 is unreleased and developed on `main`. Each item below lists a
-source change and how to apply it. Run the read-only check first.
+source or dependency change and how to apply it. Run the read-only check first.
 
 ### Parent key paths spell `\Self.member`
 
@@ -142,6 +142,15 @@ Moving an eager provider to `.onDemand` changes its accessor to
 it, and a sibling consumer with a non-throwing `async` factory must declare
 `async throws`. Call `closeAsyncProviders()` where the feature that owns the
 container ends. See <doc:Provide> for the lifetime contract.
+
+### SwiftSyntax 604.0.0
+
+InnoDI 7.0 requires SwiftSyntax exactly `604.0.0`. Every package in the
+dependency graph must agree on it, so move other macro packages to 604.0.0
+first, or stay on InnoDI 6.x until they support it. Xcode 27 (Swift 6.4)
+builds InnoDI's macros with the matching SwiftSyntax prebuilt. Xcode 26.x
+(Swift 6.3) and Swift 6.2 compile SwiftSyntax from source, which slows clean
+builds but changes no behavior.
 
 ---
 

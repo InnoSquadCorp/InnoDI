@@ -100,7 +100,7 @@ live for the duration of one operation.
 
 ## Requirements
 
-- Swift tools version `6.2` (CI validates Swift 6.2 / 6.3; Xcode 27 / Swift 6.4 compatibility lane)
+- Swift tools version `6.2` (CI validates Swift 6.2 / 6.3 / 6.4; macro builds use the SwiftSyntax prebuilt on Xcode 27 / Swift 6.4)
 - Platforms:
   - iOS 17+
   - macOS 14+

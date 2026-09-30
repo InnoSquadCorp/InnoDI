@@ -100,7 +100,7 @@ override가 필요할 때 꺼냅니다.
 
 ## 요구 사항
 
-- Swift tools version `6.2` (CI 검증: Swift 6.2 / 6.3, Xcode 27 / Swift 6.4 호환성 검사)
+- Swift tools version `6.2` (CI 검증: Swift 6.2 / 6.3 / 6.4. 매크로 빌드는 Xcode 27 / Swift 6.4에서 SwiftSyntax prebuilt를 씁니다)
 - 플랫폼:
   - iOS 17+
   - macOS 14+

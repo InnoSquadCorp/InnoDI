@@ -29,7 +29,7 @@ breaking change 표는
 ## 6.x → 7.0
 
 InnoDI 7.0은 미출시 상태이며 `main`에서 개발 중입니다. 아래 각 항목은 필요한
-소스 변경과 적용 방법을 적습니다. 먼저 읽기 전용 검사를 실행하세요.
+소스 또는 의존성 변경과 적용 방법을 적습니다. 먼저 읽기 전용 검사를 실행하세요.
 
 ### Parent key path는 `\Self.member`로 씁니다
 
@@ -137,6 +137,15 @@ eager provider를 `.onDemand`로 옮기면 accessor가 `get async throws`로 바
 factory를 쓰는 sibling consumer는 `async throws`를 선언해야 합니다. 컨테이너를
 소유한 기능이 끝나는 지점에서 `closeAsyncProviders()`를 호출하세요. 수명 계약은
 <doc:Provide>를 참고하세요.
+
+### SwiftSyntax 604.0.0
+
+InnoDI 7.0은 SwiftSyntax를 정확히 `604.0.0`으로 요구합니다. 의존성 그래프의 모든
+패키지가 이 버전에 맞아야 하므로, 다른 매크로 패키지를 먼저 604.0.0으로 올리거나
+그 패키지들이 지원할 때까지 InnoDI 6.x에 머무르세요. Xcode 27(Swift 6.4)은
+InnoDI의 매크로를 맞는 SwiftSyntax prebuilt로 빌드합니다. Xcode 26.x(Swift 6.3)와
+Swift 6.2는 SwiftSyntax를 source로 컴파일하므로 clean 빌드는 느려지지만 동작은
+달라지지 않습니다.
 
 ---
 

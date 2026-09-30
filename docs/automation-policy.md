@@ -122,14 +122,23 @@ through the documented DocC generator in a coordinated maintainer PR.
 
 SwiftSyntax stays exact `604.0.0`. A proposed bump must coordinate the root exact
 requirement, DocC lock and injection regex, matching prebuilt consumer proof,
-Swift 6.2 minimum, Xcode 26.6 primary, Xcode 27 validation, and calibrated
-performance baselines. The public-operations guard rejects partial manifest/lock/
-generator changes. Review toolchain selection separately from low-risk dependency
-groups, and retain the `release-validation` label until those checks pass.
-The exact-revision remote consumer now verifies an isolated primary macro-only
-build with `Tools/cold-build-benchmark.sh` and requires `swift_syntax_mode=prebuilt`
-on unchanged Xcode 26.6 before running the combined macro/plugin consumer. A
-local Xcode 27 prebuilt observation is not evidence for that primary lane.
+Swift 6.2 minimum, the Xcode 27 primary consumer toolchain, the Xcode 26.6
+in-package lanes, and calibrated performance baselines. The public-operations
+guard rejects partial manifest/lock/generator changes. Review toolchain selection
+separately from low-risk dependency groups, and retain the `release-validation`
+label until those checks pass.
+
+SwiftSyntax 604.0.0 has a matching prebuilt on Swift 6.4 and none on Swift 6.3,
+so Xcode 27 is the primary consumer toolchain. The exact-revision remote
+consumer, the representative SampleApp example, and the cold build benchmark's
+primary scenario run on the `xcode-27` runner. The remote consumer verifies an
+isolated primary macro-only build with `Tools/cold-build-benchmark.sh` and
+requires `swift_syntax_mode=prebuilt` there before running the combined
+macro/plugin consumer; on Xcode 26.6 the same build reports `source`. The
+in-package test, coverage, performance, sanitizer, platform, and documentation
+lanes stay on Xcode 26.6: the root package builds SwiftSyntax from source on
+every toolchain, and the performance baseline is calibrated there. A local
+prebuilt observation is not evidence for the runner's lane.
 
 Configured labels are `dependencies` plus `github-actions` or `swift`; both ecosystems
 also request `release-validation`. At the implementation baseline only

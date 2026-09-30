@@ -573,8 +573,14 @@ struct CIWorkflowHardeningTests {
         #expect(exampleWorkflow.contains("name: Examples Required"))
         #expect(exampleWorkflow.contains("Build and Test SwiftUIExample"))
         #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
-        #expect(exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.6"))
-        #expect(!exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.5"))
+        // The representative consumer runs on the primary consumer toolchain,
+        // where SwiftSyntax 604.0.0 has a matching prebuilt.
+        let sampleStart = try #require(exampleWorkflow.range(of: "  sample-app:\n"))
+        let sampleEnd = try #require(exampleWorkflow.range(of: "  swiftui-example:\n"))
+        let sampleJob = exampleWorkflow[sampleStart.lowerBound..<sampleEnd.lowerBound]
+        #expect(sampleJob.contains("runs-on: xcode-27"))
+        #expect(sampleJob.contains("Verify prebuilt-compatible Xcode 27 and Swift 6.4"))
+        #expect(!sampleJob.contains("select-xcode"))
         #expect(
             exampleWorkflow.components(
                 separatedBy: "if: github.event_name != 'pull_request'"
@@ -598,6 +604,8 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("build/benchmarks/cold-${{ matrix.scenario }}.json"))
         #expect(workflow.contains("scenario: consumer-xcode-26.5"))
         #expect(workflow.contains("scenario: consumer-xcode-26.6"))
+        #expect(workflow.contains("scenario: consumer-xcode-27"))
+        #expect(workflow.contains("runs-on: ${{ matrix.xcode == '27.0' && 'xcode-27' || 'macos-26' }}"))
         #expect(workflow.contains("expected_swift_syntax_mode: prebuilt"))
         #expect(workflow.contains("Verify expected SwiftSyntax mode"))
         #expect(workflow.contains("actual=\"$(jq -r '.swift_syntax_mode' \"$METRICS_PATH\")\""))
@@ -633,7 +641,10 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
         #expect(workflow.contains("cancel-in-progress: true"))
-        #expect(workflow.contains("version: \"26.6\""))
+        // The exact-revision proof runs on the primary consumer toolchain.
+        #expect(workflow.contains("runs-on: xcode-27"))
+        #expect(workflow.contains("Verify prebuilt-compatible Xcode 27 and Swift 6.4"))
+        #expect(!workflow.contains("select-xcode"))
         #expect(fixture.contains("revision: \"{{INNODI_REVISION}}\""))
         #expect(fixture.contains("https://github.com/InnoSquadCorp/InnoDI.git"))
         #expect(!fixture.contains(".package(path:"))
