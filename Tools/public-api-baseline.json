@@ -6877,44 +6877,6 @@
         {
           "kind": "conformsTo",
           "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
-          "swiftConstraints": [
-            {
-              "kind": "conformance",
-              "lhs": "Identity",
-              "rhs": "Hashable",
-              "rhsPrecise": "s:SH"
-            },
-            {
-              "kind": "conformance",
-              "lhs": "Identity",
-              "rhs": "Sendable",
-              "rhsPrecise": "s:s8SendableP"
-            }
-          ],
-          "target": "s:s8CopyableP"
-        },
-        {
-          "kind": "conformsTo",
-          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
-          "swiftConstraints": [
-            {
-              "kind": "conformance",
-              "lhs": "Identity",
-              "rhs": "Hashable",
-              "rhsPrecise": "s:SH"
-            },
-            {
-              "kind": "conformance",
-              "lhs": "Identity",
-              "rhs": "Sendable",
-              "rhsPrecise": "s:s8SendableP"
-            }
-          ],
-          "target": "s:s9EscapableP"
-        },
-        {
-          "kind": "conformsTo",
-          "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
           "target": "s:s8SendableP"
         },
         {
@@ -10469,5 +10431,5 @@
       ]
     }
   ],
-  "schemaVersion": 10
+  "schemaVersion": 11
 }

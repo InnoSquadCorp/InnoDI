@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -27,7 +27,10 @@ VOLATILE_SYMBOL_KEYS = {
 }
 VOLATILE_RELATIONSHIP_KEYS = {"sourceOrigin", "targetFallback"}
 IMPLICIT_GENERIC_CONSTRAINTS = {"s:s8CopyableP", "s:s9EscapableP"}
-TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS = {"s:s16SendableMetatypeP"}
+# Swift 6.4 also reports the implicit Copyable and Escapable conformances of a
+# constrained extension's conformance, such as the one @Observable writes. As
+# with generic constraints above, the gate does not record those requirements.
+TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS = {"s:s16SendableMetatypeP"} | IMPLICIT_GENERIC_CONSTRAINTS
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -650,6 +653,14 @@ def summarize_difference(baseline: dict[str, Any], current: dict[str, Any]) -> N
 
         if old_graph["relationships"] != new_graph["relationships"]:
             print(f"[{graph_name}] relationships changed", file=sys.stderr)
+            old_relationships = {json.dumps(r, sort_keys=True) for r in old_graph["relationships"]}
+            new_relationships = {json.dumps(r, sort_keys=True) for r in new_graph["relationships"]}
+            for label, identities in (
+                ("added", new_relationships - old_relationships),
+                ("removed", old_relationships - new_relationships),
+            ):
+                for identity in sorted(identities):
+                    print(f"  {label} relationship: {identity}", file=sys.stderr)
 
 
 def main() -> int:

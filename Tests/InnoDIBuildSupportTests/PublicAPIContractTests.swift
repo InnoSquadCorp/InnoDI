@@ -11,7 +11,7 @@ struct PublicAPIContractTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        #expect(payload["schemaVersion"] as? Int == 10)
+        #expect(payload["schemaVersion"] as? Int == 11)
 
         let graphs = try #require(payload["graphs"] as? [[String: Any]])
         let graphNames = Set(graphs.compactMap { $0["file"] as? String })
@@ -90,6 +90,7 @@ struct PublicAPIContractTests {
             } && relationships.allSatisfy { relationship in
                 relationship["kind"] as? String != "extensionTo"
                     && (relationship["target"] as? String)?.hasPrefix("s:e:") == false
+                    && !["s:s8CopyableP", "s:s9EscapableP"].contains(relationship["target"] as? String)
             }
         })
         let symbols = graphs.flatMap { $0["symbols"] as? [[String: Any]] ?? [] }

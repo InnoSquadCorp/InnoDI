@@ -98,8 +98,12 @@ that change moves to 8.0.
   extend, so one baseline holds on every CI toolchain. With SwiftUI no longer
   re-exported, SwiftPM on Swift 6.4 emits blocks for `InnoDISwiftUI`'s
   extensions of `EnvironmentValues` and `View` even when asked to omit them,
-  while Swift 6.3 attaches the members to the extended type. Baseline schema
-  10 records the members and their `memberOf` relationships only.
+  while Swift 6.3 attaches the members to the extended type. It also ignores
+  the implicit `Copyable` and `Escapable` conformances that Swift 6.4 reports
+  for a constrained extension's conformance, such as the one `@Observable`
+  writes for `DIContainerHostOwner`. Baseline schema 11 records the members
+  and their `memberOf` relationships only, and a mismatch lists each added and
+  removed relationship.
 
 - SwiftSyntax moves to exact `604.0.0`, and Xcode 27 (Swift 6.4) becomes the
   primary consumer toolchain. SwiftSyntax 604.0.0 has a matching prebuilt on
