@@ -370,7 +370,7 @@ def coordinator_check_ids(api, number, head, checks):
     """Exclude only proven coordinator transport, never CI or arbitrary names."""
     by_id = {c["id"]: c for c in checks}
     ids = set()
-    names = {"inspect", f"manual-ready ({number})", f"bot-ready ({number})", "post-merge"}
+    names = {"inspect", f"manual-ready ({number})", f"bot-ready ({number})", "post-merge-plan", "post-merge"}
     runs = coordinator_runs(api, number, head)
     sources = {r["id"]: r for r in runs}
     for check in checks:
@@ -570,22 +570,60 @@ def verify_post_merge(api, number, expected_sha):
     return pr
 
 
-def post_merge(api, enabled=False):
-    if enabled is not True:
-        return "standby: no post-merge dispatch"
+def post_merge_candidate(api):
+    """Read-only eligibility; API errors and ambiguous identities are errors."""
     main = api.get(route("git/ref/heads/main"))["object"]["sha"]
+    require(bool(SHA.fullmatch(main or "")), "invalid current main SHA")
     prs = api.pages(route(f"commits/{main}/pulls"))
-    merged = [p for p in prs if bot(p) and p.get("merged_at") and p.get("merge_commit_sha") == main]
-    if len(merged) != 1:
-        return "no unique Dependabot merge at current main"
+    merged = []
+    for pr in prs:
+        require("merged_at" in pr and "merge_commit_sha" in pr and pr.get("state") in {"open", "closed"} and
+                type(pr.get("number")) is int and pr["number"] > 0, "missing post-merge PR metadata")
+        user = pr.get("user", {})
+        require(isinstance(user, dict) and all(k in user for k in BOT), "missing post-merge author metadata")
+        if not pr.get("merged_at") or pr.get("merge_commit_sha") != main:
+            continue
+        if bot(pr):
+            merged.append(pr)
+        elif user.get("login") == BOT["login"] or user.get("id") == BOT["id"]:
+            raise Rejected("ambiguous post-merge bot identity")
+    require(len(merged) <= 1, "ambiguous Dependabot merge at current main")
+    if not merged:
+        return None, "no Dependabot merge at current main"
     number = merged[0]["number"]
     verify_post_merge(api, number, main)
     runs = api.pages(route(f"actions/workflows/macro-tests.yml/runs?branch=main&head_sha={main}"), "workflow_runs")
     for run in runs:
         if run.get("head_sha") == main and (run.get("event") == "push" or
                 (run.get("event") == "workflow_dispatch" and run.get("display_title") == PREFIX + str(number))):
-            return "main CI already exists; no duplicate or failed-run retry"
+            return None, "main CI already exists; no duplicate or failed-run retry"
     verify_post_merge(api, number, main)
+    return {"pr": number, "main": main}, "verified current-main CI recovery needed"
+
+
+def post_merge_plan(api, enabled=False, wait_for_merge=False):
+    if enabled is not True:
+        return None, "standby: no post-merge dispatch"
+    # Only a bot-coordination wake waits for native completion. Periodic/main
+    # recovery reads once. This preserves the old bounded native-merge window.
+    for attempt in range(7 if wait_for_merge else 1):
+        candidate, reason = post_merge_candidate(api)
+        if candidate is not None or reason != "no Dependabot merge at current main":
+            break
+        if wait_for_merge and attempt < 6:
+            time.sleep(5)
+    return candidate, reason
+
+
+def post_merge(api, enabled=False, expected_sha=None, expected_pr=None):
+    if enabled is not True:
+        return "standby: no post-merge dispatch"
+    candidate, reason = post_merge_candidate(api)
+    if candidate is None:
+        return reason
+    number, main = candidate["pr"], candidate["main"]
+    if expected_sha is not None or expected_pr is not None:
+        require(main == expected_sha and number == expected_pr, "post-merge plan changed before dispatch")
     # Exact workflow/ref hardcoded. No arbitrary dispatch supplied by a PR.
     try:
         api.mutate("POST", route("actions/workflows/macro-tests.yml/dispatches"),
@@ -622,14 +660,14 @@ def targets(api, event_name, event):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("targets", "coordinate", "post-merge", "verify-post-merge"))
+    parser.add_argument("command", choices=("targets", "coordinate", "post-merge-plan", "post-merge", "verify-post-merge"))
     parser.add_argument("--pr", type=int)
     parser.add_argument("--expected-sha")
     args = parser.parse_args()
     try:
-        if args.command in {"coordinate", "verify-post-merge"}:
+        if args.command in {"coordinate", "post-merge", "verify-post-merge"}:
             require(type(args.pr) is int and args.pr > 0, "missing/invalid PR number")
-        if args.command in {"coordinate", "post-merge"}:
+        if args.command in {"coordinate", "post-merge-plan", "post-merge"}:
             trusted_context(os.environ)
         api = GitHub()
         require(os.environ.get("GITHUB_REPOSITORY", REPOSITORY) == REPOSITORY, "foreign workflow repository")
@@ -638,16 +676,19 @@ def main():
             verify_post_merge(api, args.pr, args.expected_sha)
             print("Verified actual Dependabot merge at exact current main.")
             return 0
+        if args.command == "post-merge-plan":
+            candidate, reason = post_merge_plan(api, enabled, os.environ.get("WAIT_FOR_BOT_MERGE") == "true")
+            if "GITHUB_OUTPUT" in os.environ:
+                with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                    output.write("needed=" + str(candidate is not None).lower() + "\n")
+                    if candidate is not None:
+                        output.write("pr=" + str(candidate["pr"]) + "\n")
+                        output.write("main_sha=" + candidate["main"] + "\n")
+            print(reason)
+            return 0
         if args.command == "post-merge":
-            # Native completion may lag gate success; a bounded poll plus hourly
-            # reconciliation handles token-suppressed push/closed events.
-            for attempt in range(7):
-                result = post_merge(api, enabled)
-                if result != "no unique Dependabot merge at current main" or not enabled:
-                    break
-                if attempt < 6:
-                    time.sleep(5)
-            print(result)
+            require(bool(SHA.fullmatch(args.expected_sha or "")), "missing/invalid planned main SHA")
+            print(post_merge(api, enabled, args.expected_sha, args.pr))
             return 0
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
         numbers, notification = targets(api, os.environ["GITHUB_EVENT_NAME"], event)

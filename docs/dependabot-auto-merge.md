@@ -74,6 +74,24 @@ all checked. A name lookalike, foreign app/suite, unassociated check or arbitrar
 job is not exempt. Full CI, external checks, bot identity, major/toolchain proof,
 review guards and native strict rules are unchanged.
 
+The read-only `post-merge-plan` job prevents unrelated human PR activity from
+entering the global post-merge queue. Human PR lifecycle/CI notifications with no
+bot targets skip the planner; bot coordination and main/periodic recovery may
+run it. It reports `needed=true` only for one authoritatively verified actual bot
+merge at current main with no existing exact-main CI. Unmerged/human heads and
+already-existing CI are normal non-targets, so the write job is skipped. Missing
+or ambiguous metadata and API failures fail the planner and cannot masquerade as
+a successful no-op. The write job requires a successful positive plan, re-reads
+all authoritative metadata and CI state, and rejects a changed planned PR/SHA
+before dispatch. No failure is converted to success and no prior cancelled run
+is deleted or relabeled.
+
+PR #48's original main-based post-merge check recorded the annotation
+`Canceling since a higher priority waiting request for dependabot-post-merge exists`.
+That was a pending-queue replacement before any runner step, not a code failure.
+The repair is not used by PR-target runs until it reaches the trusted main
+workflow; a passing PR test is not a live observation of this behavior.
+
 Per-PR and post-merge concurrency use `queue: max` with `cancel-in-progress: false`
 to prevent ordinary notifications replacing the single pending reporter. GitHub
 caps this queue at 100; cancellation, queue overflow and runner failures are
@@ -178,7 +196,8 @@ limited to these explicit jobs:
 | inspect | contents/actions/checks/pull-requests read | Resolve current API targets |
 | manual-ready | contents/actions/pull-requests read, checks write | Complete human manual gate without enabling auto-merge |
 | bot-ready | contents/pull-requests/checks write, actions read | Managed readiness check and native enable/cancel after proof |
-| post-merge | contents/pull-requests read, actions write | Dispatch fixed CI/main recovery only |
+| post-merge-plan | contents/actions/pull-requests read | Verify that actual current-main bot recovery is needed |
+| post-merge | contents/pull-requests read, actions write | Revalidate the planned PR/SHA and dispatch fixed CI/main recovery only |
 | review notice | none | Constant message; no checkout or secrets |
 | CI Plan | contents/pull-requests read | Verify actual merged bot origin when recovery input exists |
 
@@ -192,9 +211,10 @@ permission guard rejects changes outside this reviewed map.
 ## Post-merge main CI and documentation
 
 A merge using `GITHUB_TOKEN` cannot be assumed to trigger ordinary push/closed
-workflows. The coordinator therefore checks for native completion with a bounded
-35-second poll; its independent hourly reconciliation provides recovery even if
-those events are suppressed. It considers only a unique actually merged bot PR
+workflows. The read-only planner therefore checks for native completion after bot
+coordination with at most seven reads spaced five seconds apart. Main/periodic
+recovery checks once; independent hourly reconciliation provides recovery even
+if completion events are suppressed. It considers only a unique actually merged bot PR
 whose merge commit equals **current main**, verifies it twice, and dispatches
 only `macro-tests.yml` on `main`. Existing exact-main push or marked recovery CI
 runs prevent duplicates, including failed runs; retries require operator review.

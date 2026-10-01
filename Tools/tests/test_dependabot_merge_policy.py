@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import re
+import tempfile
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -24,7 +25,7 @@ INVENTORY = json.loads((Path(__file__).parent / 'fixtures/dependabot-full-ci.jso
 class Transcript:
     def __init__(self):
         self.repo = dict(id=100, full_name=p.REPOSITORY, default_branch='main', allow_auto_merge=True, allow_squash_merge=True)
-        self.pr = dict(number=NUMBER, node_id='PR_node', user=dict(p.BOT), state='open', merged=False, draft=False,
+        self.pr = dict(number=NUMBER, node_id='PR_node', user=dict(p.BOT), state='open', merged=False, merged_at=None, draft=False,
                        mergeable=True, merge_commit_sha=MERGE, auto_merge=None, requested_reviewers=[], requested_teams=[],
                        base=dict(ref='main', sha=BASE, repo=self.repo), head=dict(ref="dependabot/test", sha=HEAD, repo=self.repo))
         self.base = BASE
@@ -476,6 +477,7 @@ class DependabotPolicyTests(unittest.TestCase):
         self.transport('inspect', 'completed', 'success')
         self.transport(f'bot-ready ({NUMBER})')
         self.transport('manual-ready', 'completed', 'skipped')
+        self.transport('post-merge-plan', 'queued')
         self.transport('post-merge', 'queued')
         self.assertIn('armed', p.coordinate(self.api, NUMBER, True))
         self.assertEqual(self.api.checks[-1]['conclusion'], 'success')
@@ -532,6 +534,152 @@ class DependabotPolicyTests(unittest.TestCase):
         self.assertEqual(len(self.api.mutations), 1)
         self.assertIn('standby', p.post_merge(self.api, False))
 
+    def merged_bot(self):
+        self.api.pr.update(state='closed', merged=True, merged_at='2026-10-01T00:00:00Z', merge_commit_sha=BASE)
+
+    def test_post_merge_plan_is_read_only_and_only_selects_actual_current_bot_merge(self):
+        self.assertEqual(p.post_merge_plan(self.api, True)[0], None)
+        self.merged_bot()
+        candidate, _ = p.post_merge_plan(self.api, True)
+        self.assertEqual(candidate, dict(pr=NUMBER, main=BASE))
+        self.api.pr['user'] = dict(login='human', id=1, type='User')
+        self.assertIsNone(p.post_merge_plan(self.api, True)[0])
+        self.assertFalse(self.api.mutations)
+        self.api.reads.clear()
+        self.assertIsNone(p.post_merge_plan(self.api, False)[0])
+        self.assertFalse(self.api.reads)
+
+    def test_post_merge_plan_existing_ci_never_retries_failed_runs(self):
+        self.merged_bot()
+        for conclusion in ['success', 'failure', 'cancelled', None]:
+            self.api.post_runs = [dict(event='push', head_sha=BASE, conclusion=conclusion)]
+            with mock.patch.object(p.time, 'sleep') as sleep:
+                candidate, reason = p.post_merge_plan(self.api, True, True)
+                self.assertIsNone(candidate)
+                self.assertIn('already exists', reason)
+                sleep.assert_not_called()
+        self.assertFalse(self.api.mutations)
+
+    def test_post_merge_plan_preserves_bounded_late_native_merge_recovery(self):
+        self.merged_bot()
+        original = self.api.pages
+        calls = 0
+        def delayed(route, key=None):
+            nonlocal calls
+            if route.endswith('/pulls'):
+                calls += 1
+                if calls < 3: return []
+            return original(route, key)
+        with mock.patch.object(self.api, 'pages', side_effect=delayed), mock.patch.object(p.time, 'sleep') as sleep:
+            candidate, _ = p.post_merge_plan(self.api, True, True)
+        self.assertEqual(candidate, dict(pr=NUMBER, main=BASE))
+        self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(5)])
+        self.assertFalse(self.api.mutations)
+        self.api = Transcript()
+        with mock.patch.object(p.time, 'sleep') as sleep:
+            self.assertIsNone(p.post_merge_plan(self.api, True, True)[0])
+            self.assertEqual(sleep.call_count, 6)
+        with mock.patch.object(p.time, 'sleep') as sleep:
+            self.assertIsNone(p.post_merge_plan(self.api, True, False)[0])
+            sleep.assert_not_called()
+
+    def test_post_merge_plan_ambiguity_missing_metadata_and_api_errors_fail_closed(self):
+        for alter in [lambda a: a.pr['user'].update(id=123), lambda a: a.pr.pop('merged_at'),
+                      lambda a: a.pr['user'].pop('type'), lambda a: a.pr.update(merged=False)]:
+            self.api = Transcript()
+            self.merged_bot()
+            alter(self.api)
+            with self.assertRaises(p.Rejected): p.post_merge_plan(self.api, True)
+            self.assertFalse(self.api.mutations)
+        self.api = Transcript()
+        self.merged_bot()
+        original = self.api.pages
+        def ambiguous(route, key=None):
+            result = original(route, key)
+            return result * 2 if route.endswith('/pulls') else result
+        with mock.patch.object(self.api, 'pages', side_effect=ambiguous):
+            with self.assertRaisesRegex(p.Rejected, 'ambiguous'):
+                p.post_merge_plan(self.api, True)
+        with mock.patch.object(self.api, 'get', side_effect=OSError('API unavailable')):
+            with self.assertRaises(OSError): p.post_merge_plan(self.api, True)
+        self.assertFalse(self.api.mutations)
+
+    def test_post_merge_writer_revalidates_plan_and_dedup_before_dispatch(self):
+        self.merged_bot()
+        candidate, _ = p.post_merge_plan(self.api, True)
+        self.api.post_runs = [dict(event='push', head_sha=BASE)]
+        self.assertIn('already exists', p.post_merge(self.api, True, candidate['main'], candidate['pr']))
+        self.assertFalse(self.api.mutations)
+        self.api.post_runs = []
+        with self.assertRaisesRegex(p.Rejected, 'plan changed'):
+            p.post_merge(self.api, True, 'd' * 40, candidate['pr'])
+        self.assertFalse(self.api.mutations)
+        self.api.pr.update(merged=False)
+        with self.assertRaises(p.Rejected): p.post_merge(self.api, True, candidate['main'], candidate['pr'])
+        self.assertFalse(self.api.mutations)
+
+    def test_post_merge_writer_rejects_actual_main_movement_after_plan(self):
+        self.merged_bot()
+        candidate, _ = p.post_merge_plan(self.api, True)
+        self.api.base = 'd' * 40
+        self.api.pr['merge_commit_sha'] = self.api.base
+        with self.assertRaisesRegex(p.Rejected, 'plan changed'):
+            p.post_merge(self.api, True, candidate['main'], candidate['pr'])
+        self.assertFalse(self.api.mutations)
+
+    def test_post_merge_plan_cli_publishes_only_verified_target(self):
+        for merged in [False, True]:
+            self.api = Transcript()
+            if merged: self.merged_bot()
+            with tempfile.TemporaryDirectory() as folder:
+                output = Path(folder) / 'outputs'
+                with mock.patch.dict(os.environ, GITHUB_OUTPUT=str(output), DEPENDABOT_AUTO_MERGE_ENABLED='true'), \
+                        mock.patch.object(p.sys, 'argv', ['policy', 'post-merge-plan']), \
+                        mock.patch.object(p, 'GitHub', return_value=self.api):
+                    self.assertEqual(p.main(), 0)
+                self.assertEqual(output.read_text(), f'needed=true\npr={NUMBER}\nmain_sha={BASE}\n' if merged else 'needed=false\n')
+            self.assertFalse(self.api.mutations)
+
+    def test_post_merge_plan_cli_does_not_publish_false_success_on_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / 'outputs'
+            with mock.patch.dict(os.environ, GITHUB_OUTPUT=str(output), DEPENDABOT_AUTO_MERGE_ENABLED='true'), \
+                    mock.patch.object(p.sys, 'argv', ['policy', 'post-merge-plan']), \
+                    mock.patch.object(p, 'GitHub', return_value=self.api), \
+                    mock.patch.object(p, 'post_merge_plan', side_effect=OSError('API unavailable')):
+                self.assertEqual(p.main(), 1)
+            self.assertFalse(output.exists())
+        with mock.patch.dict(os.environ, GITHUB_REF='refs/heads/untrusted'), \
+                mock.patch.object(p.sys, 'argv', ['policy', 'post-merge-plan']), \
+                mock.patch.object(p, 'GitHub') as api:
+            self.assertEqual(p.main(), 1)
+            api.assert_not_called()
+
+    def test_post_merge_job_conditions_skip_humans_and_require_successful_positive_plan(self):
+        source = (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text()
+        def condition(job, overrides):
+            expression = re.search(r'(?m)^  ' + job + r':\n    if: (.*)', source)[1]
+            expression = expression.removeprefix('${{ ').removesuffix(' }}')
+            values = {'always()':'True', 'github.repository':repr(p.REPOSITORY), 'github.ref':repr('refs/heads/main'),
+                      'github.workflow_ref':repr(p.REPOSITORY + '/.github/workflows/dependabot-auto-merge.yml@refs/heads/main'),
+                      'needs.inspect.result':repr('success'), 'needs.inspect.outputs.bot_prs':repr('[]'),
+                      'github.event_name':repr('pull_request_target'), 'vars.DEPENDABOT_AUTO_MERGE_ENABLED':repr('true'),
+                      'needs.post-merge-plan.result':repr('success'), 'needs.post-merge-plan.outputs.needed':repr('true')}
+            values.update({k:repr(v) for k,v in overrides.items()})
+            for name, value in values.items(): expression = expression.replace(name, value)
+            return eval(expression.replace('&&','and').replace('||','or'), {'__builtins__':{}})
+        for event in ['pull_request_target', 'workflow_run']:
+            self.assertFalse(condition('post-merge-plan', {'github.event_name':event}))
+            self.assertTrue(condition('post-merge-plan', {'github.event_name':event, 'needs.inspect.outputs.bot_prs':'[45]'}))
+        for event in ['schedule','push','workflow_dispatch']:
+            self.assertTrue(condition('post-merge-plan', {'github.event_name':event}))
+        for result, needed in [('skipped',''),('failure','true'),('cancelled','true'),('success','false'),('success','')]:
+            self.assertFalse(condition('post-merge', {'needs.post-merge-plan.result':result, 'needs.post-merge-plan.outputs.needed':needed}))
+        self.assertTrue(condition('post-merge', {}))
+        self.assertIn('post-merge --pr "$PLANNED_PR" --expected-sha "$PLANNED_MAIN"', source)
+        planner = source.split('  post-merge-plan:\n')[1].split('  post-merge:\n')[0]
+        self.assertNotIn(': write', planner)
+
     def test_post_merge_rejects_forged_or_stale_origin(self):
         for change in [lambda a: a.pr.update(merged=False), lambda a: a.pr['user'].update(id=123),
                        lambda a: a.pr['head'].update(repo=dict(id=101)), lambda a: a.pr.update(state='open')]:
@@ -554,9 +702,9 @@ class DependabotPolicyTests(unittest.TestCase):
         ci = (ROOT / '.github/workflows/macro-tests.yml').read_text()
         docc = (ROOT / '.github/workflows/docc-validation.yml').read_text()
         docs = (ROOT / '.github/workflows/docs.yml').read_text()
-        self.assertEqual(coordinator.count('ref: refs/heads/main'), 4)
+        self.assertEqual(coordinator.count('ref: refs/heads/main'), 5)
         self.assertEqual(coordinator.count('queue: max'), 3)
-        self.assertEqual(coordinator.count('persist-credentials: false'), 4)
+        self.assertEqual(coordinator.count('persist-credentials: false'), 5)
         for unsafe in ['pull_request.head', 'secrets.', 'download-artifact', 'cache@', 'gh pr merge', 'pip install']:
             self.assertNotIn(unsafe, coordinator)
         self.assertIn('permissions: {}', notice)
@@ -586,7 +734,8 @@ class DependabotPolicyTests(unittest.TestCase):
                     ('refs/heads/main', 'refs/heads/main', 'skipped', False)]:
                 values = {'always()':'True', 'github.repository':repr(p.REPOSITORY), 'github.ref':repr(ref),
                           'github.workflow_ref':repr(p.REPOSITORY + '/.github/workflows/dependabot-auto-merge.yml@' + workflow_ref),
-                          'needs.inspect.result':repr(inspect_result), 'needs.inspect.outputs.manual_prs':repr('[45]'),
+                          'needs.inspect.result':repr(inspect_result), 'needs.post-merge-plan.result':repr('success'),
+                          'needs.post-merge-plan.outputs.needed':repr('true'), 'needs.inspect.outputs.manual_prs':repr('[45]'),
                           'needs.inspect.outputs.bot_prs':repr('[45]'), 'vars.DEPENDABOT_AUTO_MERGE_ENABLED':repr('true')}
                 evaluated = expression
                 for name, value in values.items(): evaluated = evaluated.replace(name, value)
