@@ -14,7 +14,7 @@ JOBS = ("policy", "fast-tests", "macro-tests", "consumer-contracts", "sanitizers
 EXHAUSTIVE = {"macro-tests", "consumer-contracts", "sanitizers", "swift-62-compatibility",
               "xcode-27-compatibility", "apple-platform-builds", "path-identity"}
 SHA = re.compile(r"[0-9a-f]{40}")
-PR_ACTIONS = {"opened", "synchronize", "reopened", "labeled", "unlabeled", "ready_for_review"}
+PR_ACTIONS = {"opened", "synchronize", "reopened", "labeled", "unlabeled"}
 WORKFLOW_IMPACT = {
     "macro-tests.yml": set(JOBS),  # Orchestration changes must prove every branch.
     "examples.yml": {"examples"},
@@ -135,6 +135,11 @@ def make_plan(event_name, event, paths):
     # An empty/missing diff is never evidence that no verification is needed.
     if lane != "fast" or not paths:
         selected = set(JOBS)
+    # Exhaustive runs the same strict serialized suite with fewer skips and
+    # every fast API/DAG/report command; the executable superset test guards
+    # this relationship against future unique fast checks.
+    if "macro-tests" in selected:
+        selected.discard("fast-tests")
     return {"schema": 1, "lane": lane, "jobs": {j: j in selected for j in JOBS},
             "examples_full": lane != "fast" or "macro-tests" in selected or any(
                 r["reason"] in ("example", "workflow:examples.yml", "unknown path (full fallback)") for r in reasons),
@@ -152,14 +157,19 @@ def validate_plan(plan):
         raise ValueError("policy must always run")
     if not isinstance(plan["changes"], list):
         raise ValueError("invalid change evidence")
-    if plan["lane"] != "fast" and not all(plan["jobs"].values()):
-        raise ValueError("full lanes cannot opt out of required jobs")
-    if not plan["changes"] and not all(plan["jobs"].values()):
+    if plan["jobs"]["macro-tests"] and plan["jobs"]["fast-tests"]:
+        raise ValueError("exhaustive contracts must replace the duplicate fast lane")
+    full = {j: j != "fast-tests" for j in JOBS}
+    if plan["lane"] != "fast" and plan["jobs"] != full:
+        raise ValueError("full lanes cannot opt out of required contracts")
+    if not plan["changes"] and plan["jobs"] != full:
         raise ValueError("empty change evidence requires full validation")
     for change in plan["changes"]:
         if not isinstance(change, dict) or set(change) != {"path", "reason"}:
             raise ValueError("invalid change record")
         impact, reason = path_impact(change["path"])
+        if plan["jobs"]["macro-tests"]:
+            impact = impact - {"fast-tests"}
         if change["reason"] != reason or any(not plan["jobs"][j] for j in impact):
             raise ValueError("plan suppresses changed-path requirements")
     examples_full = plan["lane"] != "fast" or plan["jobs"]["macro-tests"] or any(

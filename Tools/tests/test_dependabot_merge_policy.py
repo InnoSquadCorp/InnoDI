@@ -1,5 +1,6 @@
 """Adversarial metadata transcripts for the privileged coordinator; no network."""
 import copy
+from datetime import datetime, timezone
 import importlib.util
 import json
 import os
@@ -16,6 +17,7 @@ spec.loader.exec_module(p)
 HEAD, BASE, MERGE = 'a' * 40, 'b' * 40, 'c' * 40
 NUMBER, RUN = 45, 900
 READY_RUN = 950
+NATIVE_RUN = 960
 TRUSTED = dict(GITHUB_REPOSITORY=p.REPOSITORY, GITHUB_REF="refs/heads/main",
                GITHUB_WORKFLOW_REF=p.REPOSITORY + "/.github/workflows/dependabot-auto-merge.yml@refs/heads/main",
                GITHUB_EVENT_NAME="pull_request_target", GITHUB_RUN_ID=str(READY_RUN), GITHUB_RUN_ATTEMPT="1")
@@ -32,6 +34,8 @@ class Transcript:
         self.rules = [dict(type='required_status_checks', ruleset_source_type='Repository', ruleset_source=p.REPOSITORY,
                            ruleset_id=123, parameters=dict(strict_required_status_checks_policy=True,
                            required_status_checks=[dict(context=n, integration_id=p.APP) for n in ['CI Required', p.READY]]))]
+        self.rules.append(dict(type='pull_request', ruleset_source_type='Repository', ruleset_source=p.REPOSITORY,
+            ruleset_id=123, parameters=dict(required_review_thread_resolution=True, required_approving_review_count=0)))
         self.ruleset = dict(enforcement='active', bypass_actors=[], current_user_can_bypass='never')
         self.workflow = dict(id=10, path=p.CI_PATH, state='active')
         self.run = dict(id=RUN, run_number=30, run_attempt=1, workflow_id=10, path=p.CI_PATH, check_suite_id=400,
@@ -49,7 +53,7 @@ class Transcript:
         self.jobs, self.checks = [], []
         for index, (name, steps) in enumerate(INVENTORY.items()):
             check_id, job_id = 1000 + index, 2000 + index
-            result = 'skipped' if name == 'append-perf-history' else 'success'
+            result = 'skipped' if name in p.FULL_SKIPPED else 'success'
             self.jobs.append(dict(id=job_id, name=name, status='completed', conclusion=result,
                                  check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/{check_id}',
                                  steps=[dict(s, status='completed') for s in steps]))
@@ -61,6 +65,22 @@ class Transcript:
         self.mutations, self.reads = [], []
         self.old_jobs, self.post_runs = [], []
         self.graph_fail = False
+        self.native_workflow = dict(id=12, path='.github/workflows/dependabot-ready.yml', state='active')
+        self.native_run = dict(self.ready_run, id=NATIVE_RUN, workflow_id=12, path=self.native_workflow['path'],
+                               check_suite_id=900, status='completed', conclusion='success',
+                               created_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'))
+        self.native_runs = [self.native_run]
+        self.native_job = dict(id=9001, name=p.READY, status='completed', conclusion='success',
+            check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/9000',
+            steps=[dict(name=name, status='completed', conclusion='success') for name in
+                   ['Checkout immutable trusted reporter source', 'Evaluate Ready snapshot from ' + BASE, 'Enforce Ready snapshot']])
+        self.native_jobs = {(NATIVE_RUN, 1): [self.native_job]}
+        self.native_check = dict(id=9000, name=p.READY, status='completed', conclusion='success',
+            app=dict(id=p.APP), head_sha=HEAD, check_suite=dict(id=900),
+            details_url=f'https://github.com/{p.REPOSITORY}/actions/runs/{NATIVE_RUN}/job/9001')
+        self.checks.append(self.native_check)
+        self.source_blobs = {}
+        self.refresh_writers = []
 
     def get(self, route):
         self.reads.append(route)
@@ -72,6 +92,13 @@ class Transcript:
         elif suffix == 'rulesets/123': value = self.ruleset
         elif suffix == 'actions/workflows/macro-tests.yml': value = self.workflow
         elif suffix == 'actions/workflows/dependabot-auto-merge.yml': value = self.ready_workflow
+        elif suffix == 'actions/workflows/dependabot-ready.yml': value = self.native_workflow
+        elif suffix.startswith('compare/'):
+            value = dict(status='identical' if self.base == BASE else 'ahead', merge_base_commit=dict(sha=BASE))
+        elif suffix.startswith('contents/'):
+            value = dict(sha=self.source_blobs.get(suffix, 'd' * 40))
+        elif suffix.startswith('actions/runs/') and suffix.count('/') == 2 and int(suffix.rsplit('/', 1)[1]) in {r['id'] for r in self.native_runs}:
+            value = next(r for r in self.native_runs if r['id'] == int(suffix.rsplit('/', 1)[1]))
         elif suffix.startswith('actions/runs/') and suffix.count('/') == 2 and int(suffix.rsplit('/', 1)[1]) != RUN:
             value = next(r for r in self.ready_runs if r['id'] == int(suffix.rsplit('/', 1)[1]))
         elif suffix == f'actions/runs/{RUN}': value = self.run
@@ -85,7 +112,11 @@ class Transcript:
         if suffix == 'rules/branches/main': value = self.rules
         elif suffix == f'pulls/{NUMBER}/reviews': value = self.review_list
         elif suffix.startswith('actions/workflows/macro-tests.yml/runs?event='): value = self.runs
+        elif suffix.startswith('actions/workflows/dependabot-ready.yml/runs?event='): value = self.native_runs
         elif suffix.startswith('actions/workflows/dependabot-auto-merge.yml/runs?event='): value = self.ready_runs
+        elif suffix.startswith('actions/workflows/dependabot-auto-merge.yml/runs?created='): value = self.refresh_writers
+        elif suffix.startswith('actions/runs/') and '/attempts/' in suffix and int(suffix.split('/')[2]) in {r['id'] for r in self.native_runs}:
+            value = self.native_jobs.get((int(suffix.split('/')[2]), int(suffix.split('/')[4])), [])
         elif suffix.startswith('actions/runs/') and '/attempts/' in suffix and int(suffix.split('/')[2]) != RUN:
             value = self.ready_jobs.get((int(suffix.split('/')[2]), int(suffix.split('/')[4])), [])
         elif suffix.startswith('actions/workflows/macro-tests.yml/runs?branch='): value = self.post_runs
@@ -145,6 +176,23 @@ class DependabotPolicyTests(unittest.TestCase):
             self.assertEqual((proof['head'], proof['base'], proof['run']), (HEAD, BASE, RUN))
         self.assertFalse(self.api.mutations)
 
+    def test_full_lane_requires_fast_skipped_and_every_unique_contract_success(self):
+        self.assertEqual(p.FULL_SKIPPED, {'Fast PR contracts', 'append-perf-history'})
+        self.assertNotIn('Fast PR contracts', p.CORE)
+        self.assertIn('Exhaustive release contracts', p.CORE)
+        for name in INVENTORY:
+            expected = 'skipped' if name in p.FULL_SKIPPED else 'success'
+            for result in ['failure', 'cancelled', 'skipped' if expected == 'success' else 'success']:
+                api = Transcript()
+                next(j for j in api.jobs if j['name'] == name)['conclusion'] = result
+                with self.subTest(name=name, result=result), self.assertRaises(p.Rejected):
+                    p.proof(api, NUMBER)
+        api = Transcript()
+        next(j for j in api.jobs if j['name'] == 'Fast PR contracts')['steps'] = [
+            dict(name='Unexpected execution', status='completed', conclusion='success')]
+        with self.assertRaises(p.Rejected):
+            p.proof(api, NUMBER)
+
     def test_author_repository_and_pr_state_controls(self):
         changes = [lambda a: a.pr['user'].update(login='human', type='User'),
                    lambda a: a.pr['user'].update(id=123), lambda a: a.pr['user'].update(type='User'),
@@ -166,6 +214,29 @@ class DependabotPolicyTests(unittest.TestCase):
                    lambda a: a.rules[0]['parameters']['required_status_checks'][0].update(integration_id=None)]
         for change in changes:
             with self.subTest(change=change): self.reject(change)
+
+    def test_native_review_barrier_and_runtime_no_bypass_visibility_are_required(self):
+        for mutate in [lambda a: a.rules.pop(),
+                       lambda a: a.rules[-1]['parameters'].update(required_review_thread_resolution=False),
+                       lambda a: a.rules[-1]['parameters'].pop('required_review_thread_resolution'),
+                       lambda a: a.rules[-1]['parameters'].update(required_approving_review_count=True),
+                       lambda a: a.rules[-1]['parameters'].update(required_approving_review_count=-1),
+                       lambda a: a.rules[-1].update(ruleset_source_type='Organization'),
+                       lambda a: a.rules[-1].update(ruleset_source='foreign/repo'),
+                       lambda a: a.ruleset.pop('current_user_can_bypass'),
+                       lambda a: a.ruleset.update(current_user_can_bypass='always'),
+                       lambda a: a.ruleset.update(current_user_can_bypass='pull_requests_only')]:
+            self.reject(mutate)
+        api = Transcript()
+        api.ruleset.pop('bypass_actors')
+        api.ruleset.pop('current_user_can_bypass')
+        with self.assertRaisesRegex(p.Rejected, 'no-bypass'): p.proof(api, NUMBER)
+        api = Transcript()
+        api.ruleset.pop('bypass_actors')  # Explicit runtime never still proves this token cannot bypass.
+        p.proof(api, NUMBER)
+        api.rules[-1]['parameters']['required_approving_review_count'] = 0
+        p.proof(api, NUMBER)
+        self.assertFalse(api.mutations)
 
     def test_wrong_or_stale_run_connections(self):
         changes = [lambda a: a.run.update(path='.github/workflows/release.yml'),
@@ -230,7 +301,7 @@ class DependabotPolicyTests(unittest.TestCase):
         with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER, dict(id=RUN, run_attempt=1))
 
     def test_ready_check_does_not_wait_on_itself_and_is_identity_pinned(self):
-        p.gate(self.api, NUMBER, HEAD, 'in_progress')
+        self.api.native_check.update(status='in_progress', conclusion=None)
         p.proof(self.api, NUMBER)
         self.api.checks[-1]['app']['id'] = 123
         with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
@@ -239,12 +310,12 @@ class DependabotPolicyTests(unittest.TestCase):
         self.api.pr.update(user=dict(id=1, login='human', type='User'), labels=[dict(name='dependencies')], draft=True)
         self.assertIn('manual PR', p.coordinate(self.api, NUMBER, True))
         self.assertFalse(any(m[0] == 'graphql' for m in self.api.mutations))
-        self.assertEqual(self.api.checks[-1]['conclusion'], 'success')
+        self.assertEqual(self.api.native_check['conclusion'], 'success')
 
     def test_standby_never_enables_auto_merge(self):
         self.assertIn('standby', p.coordinate(self.api, NUMBER, False))
         self.assertFalse(any(m[0] == 'graphql' for m in self.api.mutations))
-        self.assertEqual(self.api.checks[-1]['conclusion'], 'failure')
+        self.assertFalse(any(m[0] in {'POST', 'PATCH'} for m in self.api.mutations))
 
     def test_success_enables_native_expected_head_and_reuses_gate(self):
         self.assertIn('armed', p.coordinate(self.api, NUMBER, True))
@@ -265,27 +336,31 @@ class DependabotPolicyTests(unittest.TestCase):
                 self.assertIn('blocked', p.coordinate(self.api, NUMBER, True))
             self.assertFalse(any(m[0] == 'graphql' for m in self.api.mutations))
 
-    def test_failure_after_enable_cancels_native_request(self):
+    def test_third_proof_failure_precedes_native_enable(self):
         proof = p.proof(self.api, NUMBER)
         with mock.patch.object(p, 'proof', side_effect=[proof, proof, p.Rejected('review raced')]):
             self.assertIn('blocked', p.coordinate(self.api, NUMBER, True))
         self.assertIsNone(self.api.pr['auto_merge'])
+        self.assertFalse(self.api.mutations)
+        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
+        with mock.patch.object(p, 'proof', side_effect=[proof, proof, p.Rejected('review raced')]):
+            self.assertIn('blocked', p.coordinate(self.api, NUMBER, True))
+        self.assertIsNone(self.api.pr['auto_merge'])
         self.assertIn('disablePullRequestAutoMerge', self.api.mutations[-1][1])
-        self.assertEqual(self.api.checks[-1]['conclusion'], 'failure')
 
     def test_base_edit_cancels_only_verified_bot_auto_request(self):
         self.api.pr['base']['ref'] = 'develop'
         self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
         self.assertIn('wrong base', p.coordinate(self.api, NUMBER, True))
         self.assertIsNone(self.api.pr['auto_merge'])
-        self.assertEqual(self.api.checks[-1]['conclusion'], 'failure')
+        self.assertFalse(any(m[0] in {'POST', 'PATCH'} for m in self.api.mutations))
 
     def test_permission_denial_does_not_retry_enable_or_direct_merge(self):
         self.api.graph_fail = True
         self.assertIn('blocked', p.coordinate(self.api, NUMBER, True))
         self.assertEqual(len([m for m in self.api.mutations if m[0] == 'graphql']), 1)
         self.assertFalse(any(str(m[1]).endswith('/merge') for m in self.api.mutations))
-        self.assertEqual(self.api.checks[-1]['conclusion'], 'failure')
+        self.assertFalse(any(m[0] in {'POST', 'PATCH'} for m in self.api.mutations))
 
     def test_obsolete_notification_cannot_overwrite_gate(self):
         self.assertIn('obsolete', p.coordinate(self.api, NUMBER, True, dict(id=RUN, run_attempt=0)))
@@ -298,7 +373,6 @@ class DependabotPolicyTests(unittest.TestCase):
         with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
 
     def test_gate_failure_still_cancels_existing_native_request(self):
-        p.gate(self.api, NUMBER, HEAD, 'completed')
         self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
         with mock.patch.object(self.api, 'mutate', side_effect=PermissionError('checks write denied')):
             result = p.coordinate(self.api, NUMBER, False)
@@ -307,29 +381,11 @@ class DependabotPolicyTests(unittest.TestCase):
         self.assertIn('disablePullRequestAutoMerge', self.api.mutations[-1][1])
 
     def test_both_gate_and_cancel_failure_surface_uncertainty(self):
-        p.gate(self.api, NUMBER, HEAD, 'completed')
         self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
         self.api.graph_fail = True
         with mock.patch.object(self.api, 'mutate', side_effect=PermissionError('checks write denied')):
             with self.assertRaisesRegex(p.Rejected, 'cancellation unconfirmed'):
                 p.coordinate(self.api, NUMBER, False)
-
-    def test_uncertain_gate_write_is_read_back_without_retry(self):
-        check_id = p.gate(self.api, NUMBER, HEAD, 'in_progress')
-        original = self.api.mutate
-        def applied_then_timeout(method, route, payload):
-            original(method, route, payload)
-            raise TimeoutError('reply lost')
-        with mock.patch.object(self.api, 'mutate', side_effect=applied_then_timeout) as mutation:
-            self.assertEqual(p.gate(self.api, NUMBER, HEAD, 'completed', check_id), check_id)
-            self.assertEqual(mutation.call_count, 1)
-
-    def test_unknown_initial_create_is_not_repeated_in_failure_handler(self):
-        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
-        with mock.patch.object(self.api, 'mutate', side_effect=TimeoutError('reply lost')) as mutation:
-            self.assertIn('blocked', p.coordinate(self.api, NUMBER, True))
-            self.assertEqual(mutation.call_count, 1)
-        self.assertIsNone(self.api.pr['auto_merge'])
 
     def transport(self, name, status='in_progress', conclusion=None):
         check_id = 7000 + len(self.api.ready_jobs.get((READY_RUN, 1), []))
@@ -341,146 +397,15 @@ class DependabotPolicyTests(unittest.TestCase):
         self.api.checks.append(check)
         return job, check
 
-    def test_human_success_is_pending_first_and_bound_to_latest_pr_run(self):
-        self.api.pr['user'] = dict(id=1, login='human', type='User')
-        self.assertIn('manual PR', p.coordinate(self.api, NUMBER, True))
-        creation, completion = self.api.mutations
-        self.assertEqual(creation[0], 'POST')
-        self.assertEqual(creation[2]['status'], 'in_progress')
-        self.assertNotIn('conclusion', creation[2])
-        self.assertEqual(completion[0], 'PATCH')
-        check = self.api.checks[-1]
-        self.assertEqual(check['external_id'], f'dependabot-policy:{NUMBER}:{HEAD}:{READY_RUN}:1')
-        self.assertEqual(check['check_suite']['id'], 800)
-        self.assertEqual(check['conclusion'], 'success')
-
-    def test_wrong_created_suite_never_publishes_success(self):
-        self.api.pr['user'] = dict(id=1, login='human', type='User')
-        original = self.api.mutate
-        def wrong_suite(method, route, payload):
-            result = original(method, route, payload)
-            result['check_suite']['id'] = 999
-            return result
-        with mock.patch.object(self.api, 'mutate', side_effect=wrong_suite):
-            with self.assertRaisesRegex(p.Rejected, 'provenance'):
-                p.coordinate(self.api, NUMBER, True)
-        self.assertEqual(len(self.api.mutations), 1)
-        self.assertNotIn('conclusion', self.api.mutations[0][2])
-
-    def test_background_updates_only_existing_latest_pr_bound_check(self):
-        check_id = p.gate(self.api, NUMBER, HEAD, 'in_progress')
-        self.api.ready_run.update(status='completed', conclusion='success')
-        for event in ['schedule', 'workflow_run', 'workflow_dispatch', 'push']:
-            with mock.patch.dict(os.environ, GITHUB_EVENT_NAME=event, GITHUB_RUN_ID='9999'):
-                self.assertEqual(p.gate(self.api, NUMBER, HEAD, 'completed'), check_id)
-        self.assertEqual(sum(m[0] == 'POST' for m in self.api.mutations), 1)
-
-    def test_background_cannot_create_check_even_with_legacy_success(self):
-        self.api.checks.append(dict(id=7999, name=p.READY, app=dict(id=p.APP), head_sha=HEAD,
-                                   external_id=f'dependabot-policy:{NUMBER}:{HEAD}', status='completed', conclusion='success'))
-        with mock.patch.dict(os.environ, GITHUB_EVENT_NAME='schedule'):
-            with self.assertRaisesRegex(p.Rejected, 'missing'):
-                p.gate(self.api, NUMBER, HEAD, 'completed')
-        self.assertFalse(self.api.mutations)
-
-    def test_latest_cancelled_run_is_not_replaced_with_older_success(self):
-        old = copy.deepcopy(self.api.ready_run)
-        old.update(id=READY_RUN - 1, run_number=39, status='completed', conclusion='success')
-        self.api.ready_runs.append(old)
-        self.api.ready_run.update(status='completed', conclusion='cancelled')
-        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
-        with self.assertRaisesRegex(p.Rejected, 'failed/cancelled'):
-            p.coordinate(self.api, NUMBER, True)
-        self.assertIsNone(self.api.pr['auto_merge'])
-        self.assertFalse(any(m[0] in {'POST', 'PATCH'} for m in self.api.mutations))
-
-    def test_new_source_run_and_rerun_attempt_get_distinct_check(self):
-        old_id = p.gate(self.api, NUMBER, HEAD, 'completed')
-        self.api.ready_run['run_attempt'] = 2
-        with mock.patch.dict(os.environ, GITHUB_RUN_ATTEMPT='2'):
-            new_id = p.gate(self.api, NUMBER, HEAD, 'completed')
-        self.assertNotEqual(old_id, new_id)
-        p.proof(self.api, NUMBER)
-        with mock.patch.dict(os.environ, GITHUB_EVENT_NAME='schedule'):
-            self.api.ready_run['run_attempt'] = 3
-            with self.assertRaisesRegex(p.Rejected, 'missing'):
-                p.gate(self.api, NUMBER, HEAD, 'completed')
-
-    def test_superseded_pr_target_event_does_not_mutate_or_cancel(self):
-        newer = copy.deepcopy(self.api.ready_run)
-        newer.update(id=READY_RUN + 1, run_number=41, check_suite_id=801)
-        self.api.ready_runs.append(newer)
-        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
-        self.assertIn('obsolete', p.coordinate(self.api, NUMBER, True))
-        self.assertFalse(self.api.mutations)
-
-    def test_final_success_rechecks_current_run_attempt_and_head(self):
-        check_id = p.gate(self.api, NUMBER, HEAD, 'in_progress')
-        for change in [lambda: self.api.ready_run.update(run_attempt=2),
-                       lambda: self.api.pr['head'].update(sha='d' * 40)]:
-            with self.subTest(change=change):
-                self.api.ready_run['run_attempt'] = 1
-                self.api.pr['head']['sha'] = HEAD
-                change()
-                before = len(self.api.mutations)
-                with self.assertRaises(p.Rejected):
-                    p.gate(self.api, NUMBER, HEAD, 'completed', check_id)
-                self.assertEqual(len(self.api.mutations), before)
-
-    def test_binding_read_failure_still_cancels_but_untrusted_context_does_not(self):
-        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
-        with mock.patch.object(p, 'coordinator_runs', side_effect=OSError('API unavailable')):
-            with self.assertRaises(OSError): p.coordinate(self.api, NUMBER, True)
-        self.assertIsNone(self.api.pr['auto_merge'])
-        self.api = Transcript()
-        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
-        with mock.patch.dict(os.environ, GITHUB_REF='refs/heads/unsafe'):
-            with self.assertRaises(p.Rejected): p.coordinate(self.api, NUMBER, True)
-        self.assertFalse(self.api.mutations)
-
-    def test_untrusted_writer_context_cannot_post_or_patch(self):
-        for key, value in [('GITHUB_REF', 'refs/heads/feature'), ('GITHUB_EVENT_NAME', 'pull_request'),
-                           ('GITHUB_WORKFLOW_REF', 'foreign'), ('GITHUB_REPOSITORY', 'foreign/repo')]:
-            with mock.patch.dict(os.environ, **{key:value}):
-                with self.assertRaises(p.Rejected): p.gate(self.api, NUMBER, HEAD, 'completed')
-        self.assertFalse(self.api.mutations)
-
-    def test_foreign_existing_binding_is_rejected_before_patch(self):
-        p.gate(self.api, NUMBER, HEAD, 'in_progress')
-        for field, value in [('app', dict(id=123)), ('check_suite', dict(id=999)), ('details_url', 'https://evil.test')]:
-            original = self.api.checks[-1][field]
-            self.api.checks[-1][field] = value
-            count = len(self.api.mutations)
-            with self.assertRaises(p.Rejected): p.gate(self.api, NUMBER, HEAD, 'completed')
-            self.assertEqual(len(self.api.mutations), count)
-            self.api.checks[-1][field] = original
-
-    def test_missing_or_ambiguous_run_association_cannot_reuse_older_source(self):
-        old = copy.deepcopy(self.api.ready_run)
-        old.update(id=READY_RUN - 1, run_number=39)
-        self.api.ready_runs.append(old)
-        for connections in [[], self.api.ready_run['pull_requests'] * 2]:
-            self.api.ready_run['pull_requests'] = connections
-            with self.assertRaises(p.Rejected): p.gate(self.api, NUMBER, HEAD, 'completed')
-        self.assertFalse(self.api.mutations)
-
-    def test_manual_fork_missing_association_fails_closed(self):
-        self.api.pr['user'] = dict(id=1, login='human', type='User')
-        fork = dict(id=101, full_name='human/InnoDI')
-        self.api.pr['head']['repo'] = fork
-        self.api.ready_run.update(head_repository=fork, pull_requests=[])
-        with self.assertRaisesRegex(p.Rejected, 'association'):
-            p.coordinate(self.api, NUMBER, False)
-        self.assertFalse(self.api.mutations)
-
     def test_exact_coordinator_transport_has_no_self_cycle(self):
         self.transport('inspect', 'completed', 'success')
         self.transport(f'bot-ready ({NUMBER})')
-        self.transport('manual-ready', 'completed', 'skipped')
+        self.transport('ready-plan', 'completed', 'skipped')
+        self.transport('ready-refresh', 'completed', 'skipped')
         self.transport('post-merge-plan', 'queued')
         self.transport('post-merge', 'queued')
         self.assertIn('armed', p.coordinate(self.api, NUMBER, True))
-        self.assertEqual(self.api.checks[-1]['conclusion'], 'success')
+        self.assertEqual(self.api.native_check['conclusion'], 'success')
 
     def test_transport_lookalikes_foreign_provenance_and_unknown_jobs_rejected(self):
         for field, value in [('app', dict(id=123)), ('head_sha', BASE), ('check_suite', dict(id=999)),
@@ -507,14 +432,6 @@ class DependabotPolicyTests(unittest.TestCase):
             self.api.ready_run[field] = value
             with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
             self.assertFalse(self.api.mutations)
-
-    def test_custom_ready_in_actions_jobs_is_not_transport_or_proof_input(self):
-        p.gate(self.api, NUMBER, HEAD, 'in_progress')
-        check = self.api.checks[-1]
-        self.api.ready_jobs[(READY_RUN, 1)] = [dict(name=p.READY, check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/{check["id"]}')]
-        p.proof(self.api, NUMBER)
-        check['check_suite']['id'] = 999
-        with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
 
     def test_unassociated_notifications_reconcile_api_open_prs_without_approval(self):
         self.api.run['pull_requests'] = []
@@ -702,9 +619,9 @@ class DependabotPolicyTests(unittest.TestCase):
         ci = (ROOT / '.github/workflows/macro-tests.yml').read_text()
         docc = (ROOT / '.github/workflows/docc-validation.yml').read_text()
         docs = (ROOT / '.github/workflows/docs.yml').read_text()
-        self.assertEqual(coordinator.count('ref: refs/heads/main'), 5)
+        self.assertEqual(coordinator.count('ref: refs/heads/main'), 6)
         self.assertEqual(coordinator.count('queue: max'), 3)
-        self.assertEqual(coordinator.count('persist-credentials: false'), 5)
+        self.assertEqual(coordinator.count('persist-credentials: false'), 6)
         for unsafe in ['pull_request.head', 'secrets.', 'download-artifact', 'cache@', 'gh pr merge', 'pip install']:
             self.assertNotIn(unsafe, coordinator)
         self.assertIn('permissions: {}', notice)
@@ -723,7 +640,7 @@ class DependabotPolicyTests(unittest.TestCase):
 
     def test_actual_mutating_job_conditions_reject_branch_dispatch_and_inspect_failure(self):
         source = (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text()
-        for job in ['manual-ready', 'bot-ready', 'post-merge']:
+        for job in ['ready-refresh', 'bot-ready', 'post-merge']:
             expression = re.search(r'(?m)^  ' + job + r':\n    (?:needs:.*\n    )?if: (.*)', source)[1]
             expression = expression.removeprefix('${{ ').removesuffix(' }}')
             for ref, workflow_ref, inspect_result, allowed in [
@@ -734,12 +651,14 @@ class DependabotPolicyTests(unittest.TestCase):
                     ('refs/heads/main', 'refs/heads/main', 'skipped', False)]:
                 values = {'always()':'True', 'github.repository':repr(p.REPOSITORY), 'github.ref':repr(ref),
                           'github.workflow_ref':repr(p.REPOSITORY + '/.github/workflows/dependabot-auto-merge.yml@' + workflow_ref),
-                          'needs.inspect.result':repr(inspect_result), 'needs.post-merge-plan.result':repr('success'),
+                          'needs.inspect.result':repr(inspect_result), 'needs.ready-plan.result':repr('success'),
+                          'needs.bot-ready.result':repr('success'), 'needs.ready-plan.outputs.targets':repr('[{"pr":45}]'),
+                          'github.event_name':repr('workflow_run'), 'needs.post-merge-plan.result':repr('success'),
                           'needs.post-merge-plan.outputs.needed':repr('true'), 'needs.inspect.outputs.manual_prs':repr('[45]'),
                           'needs.inspect.outputs.bot_prs':repr('[45]'), 'vars.DEPENDABOT_AUTO_MERGE_ENABLED':repr('true')}
                 evaluated = expression
                 for name, value in values.items(): evaluated = evaluated.replace(name, value)
-                evaluated = evaluated.replace('&&', 'and')
+                evaluated = evaluated.replace('&&', 'and').replace('||', 'or')
                 with self.subTest(job=job, ref=ref, inspect=inspect_result):
                     self.assertEqual(eval(evaluated, {'__builtins__':{}}), allowed)
 
@@ -802,12 +721,12 @@ class WorkflowInventoryTests(unittest.TestCase):
     def test_core_skips_and_inventory_match_the_ci_workflow(self):
         # A new CI job or renamed step must update the policy and this inventory together.
         workflow = workflow_inventory()
-        self.assertEqual(set(p.CORE) | {'append-perf-history'}, set(workflow))
+        self.assertEqual(set(p.CORE) | p.FULL_SKIPPED, set(workflow))
         self.assertEqual(set(INVENTORY), set(workflow))
         for name, step in p.CORE.items():
             self.assertIn(step, workflow[name], name)
         for name, steps in INVENTORY.items():
-            if name != 'append-perf-history':
+            if name not in p.FULL_SKIPPED:
                 self.assertEqual([s['name'] for s in steps], workflow[name], name)
         skipped = {(name, s['name']) for name, steps in INVENTORY.items() for s in steps if s['conclusion'] == 'skipped'}
         self.assertLessEqual(skipped, p.ALLOWED_STEP_SKIP)

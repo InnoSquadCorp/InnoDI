@@ -36,19 +36,19 @@ class SelectionTests(unittest.TestCase):
             ([".github/workflows/remote-consumer-smoke.yml"], {"policy", "remote-consumer"}),
             (["Tests/ExternalConsumerFixtures/fail/invalid/Package.swift.fixture"], {"policy", "fast-tests", "consumer-contracts", "swift-62-compatibility", "xcode-27-compatibility"}),
             (["Tests/InnoDIBuildSupportTests/ExternalConsumerContractTests.swift"], {"policy", "fast-tests", "consumer-contracts", "swift-62-compatibility", "xcode-27-compatibility"}),
-            (["Tests/InnoDIMacrosTests/MechanicalFixItTests.swift"], {"policy", "fast-tests", "macro-tests"}),
+            (["Tests/InnoDIMacrosTests/MechanicalFixItTests.swift"], {"policy", "macro-tests"}),
             (["Tests/InnoDIMacrosTests/DIContainerMacroTests.swift"], {"policy", "fast-tests"}),
             (["Tools/materialize-remote-consumer.py"], {"policy", "remote-consumer"}),
             ([".github/workflows/runtime-trace-diagnostics.yml"], {"policy"}),
             ([".github/workflows/dependabot-auto-merge.yml"], {"policy"}),
             ([".github/workflows/dependabot-review-notice.yml"], {"policy"}),
             (["Sources/InnoDIMacros/ContainerMacro.swift"], {"policy", "fast-tests", "examples", "documentation-contracts", "docc"}),
-            (["Tools/run-coverage-gate.sh"], set(policy.JOBS)),
-            (["Package.swift"], set(policy.JOBS)),
-            ([".github/actions/select-xcode/action.yml"], set(policy.JOBS)),
-            (["future/new-script"], set(policy.JOBS)),
-            ([".github/workflows/future.yml"], set(policy.JOBS)),
-            ([], set(policy.JOBS)),
+            (["Tools/run-coverage-gate.sh"], (set(policy.JOBS) - {"fast-tests"})),
+            (["Package.swift"], (set(policy.JOBS) - {"fast-tests"})),
+            ([".github/actions/select-xcode/action.yml"], (set(policy.JOBS) - {"fast-tests"})),
+            (["future/new-script"], (set(policy.JOBS) - {"fast-tests"})),
+            ([".github/workflows/future.yml"], (set(policy.JOBS) - {"fast-tests"})),
+            ([], (set(policy.JOBS) - {"fast-tests"})),
         ]
         for paths, expected in cases:
             with self.subTest(paths=paths):
@@ -60,7 +60,7 @@ class SelectionTests(unittest.TestCase):
         for action in policy.PR_ACTIONS:
             for labels in ([], ["dependencies"], ["release-validation"]):
                 plan = policy.make_plan("pull_request", pr(labels, action), [".github/dependabot.yml"])
-                expected = set(policy.JOBS) if "release-validation" in labels else {"policy"}
+                expected = (set(policy.JOBS) - {"fast-tests"}) if "release-validation" in labels else {"policy"}
                 self.assertEqual({j for j, selected in plan["jobs"].items() if selected}, expected)
                 policy.evaluate(plan, results(plan))
 
@@ -69,7 +69,7 @@ class SelectionTests(unittest.TestCase):
                             ("merge_group", {"action": "checks_requested"}),
                             ("workflow_dispatch", {})]:
             plan = policy.make_plan(name, event, [".github/dependabot.yml"])
-            self.assertTrue(all(plan["jobs"].values()))
+            self.assertEqual({j for j, selected in plan["jobs"].items() if selected}, set(policy.JOBS) - {"fast-tests"})
             self.assertTrue(plan["examples_full"])
 
     def test_bad_inputs_fail_instead_of_emitting_an_empty_plan(self):
@@ -84,6 +84,20 @@ class SelectionTests(unittest.TestCase):
         for path in ["../Package.swift", "/Package.swift", "x/../../README.md", "a\nvalue=false", "a\x00b", "a\\b", "", None]:
             with self.assertRaises(ValueError):
                 policy.make_plan("pull_request", pr(), [path])
+
+    def test_unsupported_triggers_and_diff_anchors_fail_closed(self):
+        for action in ['ready_for_review', 'edited', 'closed', 'future']:
+            with self.assertRaises(ValueError):
+                policy.make_plan('pull_request', pr(action=action), ['README.md'])
+        for labels in [None, {}, ['release-validation'], [{'name': None}], [{'name': 42}]]:
+            event = pr()
+            event['pull_request']['labels'] = labels
+            with self.assertRaises(ValueError):
+                policy.make_plan('pull_request', event, ['README.md'])
+        for base, head in [('', 'a' * 40), ('b' * 40, ''), ('main', 'a' * 40),
+                           ('b' * 40, 'feature'), ('B' * 40, 'a' * 40), ('b' * 40, 'A' * 40)]:
+            with self.assertRaises(ValueError):
+                policy.changed_paths(ROOT, base, head)
 
     def test_real_git_deleted_and_renamed_paths_and_missing_anchor(self):
         with tempfile.TemporaryDirectory(prefix="innodi-ci-diff-") as directory:
@@ -146,6 +160,9 @@ class RequiredTests(unittest.TestCase):
         original = policy.make_plan("pull_request", pr(), ["Package.swift"])
         mutations = [lambda p: p["jobs"].pop("sanitizers"),
                      lambda p: p["jobs"].update(sanitizers=False),
+                     lambda p: p["jobs"].update(fast_tests=True),
+                     lambda p: p["jobs"].update({"fast-tests": True}),
+                     lambda p: p["jobs"].update({"macro-tests": False}),
                      lambda p: p["jobs"].update(policy=False),
                      lambda p: p["jobs"].update(policy="true"),
                      lambda p: p.update(schema=2),
@@ -191,6 +208,10 @@ class RequiredTests(unittest.TestCase):
             self.assertIn("      - " + job + "\n", aggregate)
             if job != "policy":
                 self.assertIn(f"if: needs.ci-plan.outputs.{job} == 'true'", source)
+        self.assertNotIn('ready_for_review', source)
+        self.assertIn('ready_for_review', (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text())
+        self.assertIn('concurrency:\n  group: macro-tests-${{ github.ref }}\n  cancel-in-progress: true', source)
+        self.assertIn('types: [opened, synchronize, reopened, labeled, unlabeled]', source)
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("      publish:\n", release)
         self.assertIn("        default: false\n        type: boolean", release)
