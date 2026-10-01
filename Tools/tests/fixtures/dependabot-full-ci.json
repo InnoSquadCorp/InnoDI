@@ -1,5 +1,5 @@
 {
-  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it); the representative example and the exact-SHA consumer verify the Xcode 27 primary consumer toolchain",
+  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it); the representative example and the exact-SHA consumer verify the Xcode 27 primary consumer toolchain; CI cache/full-lane dedup proposal: planned workflow inventory, hosted execution still required; Fast PR contracts is skipped only when exhaustive contracts run; fingerprint and reuse observations added without changing validation steps",
   "jobs": {
     "CI Plan": [
       {
@@ -29,52 +29,7 @@
         "conclusion": "success"
       }
     ],
-    "Fast PR contracts": [
-      {
-        "name": "Checkout",
-        "conclusion": "success"
-      },
-      {
-        "name": "Select Xcode 26.6",
-        "conclusion": "success"
-      },
-      {
-        "name": "Restore SwiftPM dependency cache",
-        "conclusion": "success"
-      },
-      {
-        "name": "Run in-process test contracts",
-        "conclusion": "success"
-      },
-      {
-        "name": "Summarize test suite durations",
-        "conclusion": "success"
-      },
-      {
-        "name": "Validate macro synthesis and CI policy",
-        "conclusion": "success"
-      },
-      {
-        "name": "Validate public API and Global DAG",
-        "conclusion": "success"
-      },
-      {
-        "name": "Report Build-Validation Escape Hatches",
-        "conclusion": "success"
-      },
-      {
-        "name": "Upload Escape Hatch Report",
-        "conclusion": "success"
-      },
-      {
-        "name": "Report Deferred-Wrapper Alias Findings",
-        "conclusion": "success"
-      },
-      {
-        "name": "Upload Deferred-Wrapper Alias Report",
-        "conclusion": "success"
-      }
-    ],
+    "Fast PR contracts": [],
     "Documentation contracts": [
       {
         "name": "Checkout",
@@ -99,11 +54,19 @@
         "conclusion": "success"
       },
       {
+        "name": "Fingerprint exact cache inputs",
+        "conclusion": "success"
+      },
+      {
         "name": "Restore SwiftPM dependency cache",
         "conclusion": "success"
       },
       {
         "name": "Restore external consumer build cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Observe restored cache products",
         "conclusion": "success"
       },
       {
@@ -116,6 +79,10 @@
       },
       {
         "name": "Report compiler canaries (informational)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report cache and validation observations",
         "conclusion": "success"
       }
     ],
@@ -161,7 +128,15 @@
         "conclusion": "success"
       },
       {
+        "name": "Fingerprint exact cache inputs",
+        "conclusion": "success"
+      },
+      {
         "name": "Restore SwiftPM dependency cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Observe restored cache products",
         "conclusion": "success"
       },
       {
@@ -235,6 +210,10 @@
       {
         "name": "Upload Macro Feature Performance Report",
         "conclusion": "success"
+      },
+      {
+        "name": "Report cache and validation observations",
+        "conclusion": "success"
       }
     ],
     "Exhaustive consumer contracts (Xcode 26.6)": [
@@ -247,6 +226,10 @@
         "conclusion": "success"
       },
       {
+        "name": "Fingerprint exact cache inputs",
+        "conclusion": "success"
+      },
+      {
         "name": "Restore SwiftPM dependency cache",
         "conclusion": "success"
       },
@@ -255,11 +238,19 @@
         "conclusion": "success"
       },
       {
+        "name": "Observe restored cache products",
+        "conclusion": "success"
+      },
+      {
         "name": "Run strict external compatibility contracts",
         "conclusion": "success"
       },
       {
         "name": "Summarize test suite durations",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report cache and validation observations",
         "conclusion": "success"
       }
     ],
@@ -291,11 +282,19 @@
         "conclusion": "success"
       },
       {
+        "name": "Fingerprint exact cache inputs",
+        "conclusion": "success"
+      },
+      {
         "name": "Restore SwiftPM dependency cache",
         "conclusion": "success"
       },
       {
         "name": "Restore external consumer build cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Observe restored cache products",
         "conclusion": "success"
       },
       {
@@ -309,6 +308,10 @@
       {
         "name": "Report compiler canaries (informational)",
         "conclusion": "skipped"
+      },
+      {
+        "name": "Report cache and validation observations",
+        "conclusion": "success"
       }
     ],
     "docc / docc": [

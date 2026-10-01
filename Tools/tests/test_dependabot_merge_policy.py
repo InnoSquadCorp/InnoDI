@@ -35,7 +35,7 @@ class Transcript:
         self.jobs, self.checks = [], []
         for index, (name, steps) in enumerate(INVENTORY.items()):
             check_id, job_id = 1000 + index, 2000 + index
-            result = 'skipped' if name == 'append-perf-history' else 'success'
+            result = 'skipped' if name in p.FULL_SKIPPED else 'success'
             self.jobs.append(dict(id=job_id, name=name, status='completed', conclusion=result,
                                  check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/{check_id}',
                                  steps=[dict(s, status='completed') for s in steps]))
@@ -120,6 +120,23 @@ class DependabotPolicyTests(unittest.TestCase):
             proof = p.proof(self.api, NUMBER)
             self.assertEqual((proof['head'], proof['base'], proof['run']), (HEAD, BASE, RUN))
         self.assertFalse(self.api.mutations)
+
+    def test_full_lane_requires_fast_skipped_and_every_unique_contract_success(self):
+        self.assertEqual(p.FULL_SKIPPED, {'Fast PR contracts', 'append-perf-history'})
+        self.assertNotIn('Fast PR contracts', p.CORE)
+        self.assertIn('Exhaustive release contracts', p.CORE)
+        for name in INVENTORY:
+            expected = 'skipped' if name in p.FULL_SKIPPED else 'success'
+            for result in ['failure', 'cancelled', 'skipped' if expected == 'success' else 'success']:
+                api = Transcript()
+                next(j for j in api.jobs if j['name'] == name)['conclusion'] = result
+                with self.subTest(name=name, result=result), self.assertRaises(p.Rejected):
+                    p.proof(api, NUMBER)
+        api = Transcript()
+        next(j for j in api.jobs if j['name'] == 'Fast PR contracts')['steps'] = [
+            dict(name='Unexpected execution', status='completed', conclusion='success')]
+        with self.assertRaises(p.Rejected):
+            p.proof(api, NUMBER)
 
     def test_author_repository_and_pr_state_controls(self):
         changes = [lambda a: a.pr['user'].update(login='human', type='User'),
@@ -438,12 +455,12 @@ class WorkflowInventoryTests(unittest.TestCase):
     def test_core_skips_and_inventory_match_the_ci_workflow(self):
         # A new CI job or renamed step must update the policy and this inventory together.
         workflow = workflow_inventory()
-        self.assertEqual(set(p.CORE) | {'append-perf-history'}, set(workflow))
+        self.assertEqual(set(p.CORE) | p.FULL_SKIPPED, set(workflow))
         self.assertEqual(set(INVENTORY), set(workflow))
         for name, step in p.CORE.items():
             self.assertIn(step, workflow[name], name)
         for name, steps in INVENTORY.items():
-            if name != 'append-perf-history':
+            if name not in p.FULL_SKIPPED:
                 self.assertEqual([s['name'] for s in steps], workflow[name], name)
         skipped = {(name, s['name']) for name, steps in INVENTORY.items() for s in steps if s['conclusion'] == 'skipped'}
         self.assertLessEqual(skipped, p.ALLOWED_STEP_SKIP)

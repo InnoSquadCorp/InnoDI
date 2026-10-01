@@ -91,7 +91,7 @@ struct CIWorkflowHardeningTests {
         #expect(consumerJob.contains("timeout-minutes: 90"))
         #expect(consumerJob.contains("--filter StrictConcurrencyBuildTests"))
         #expect(consumerJob.contains("--filter ExternalConsumerContractTests"))
-        #expect(consumerJob.contains("path: .build/external-consumer-contracts/dag-plugin-source"))
+        #expect(consumerJob.contains("path: ${{ steps.cache-inputs.outputs.consumer-paths }}"))
         #expect(!consumerJob.contains("--enable-code-coverage"))
     }
 
@@ -108,8 +108,8 @@ struct CIWorkflowHardeningTests {
         let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
         let exhaustiveJob = workflow[exhaustiveStart.lowerBound..<consumerStart.lowerBound]
 
-        // A release-validation PR runs both jobs in the same workflow run.
-        // Immutable upload-artifact outputs must not share or overwrite a name.
+        // Lane-specific artifacts remain distinct even though the planner now
+        // selects only exhaustive when it contains the complete fast contract.
         for report in ["escape-hatch-report", "deferred-aliases-report"] {
             #expect(fastJob.contains("          name: \(report)-fast-pr\n"))
             #expect(!fastJob.contains("          name: \(report)\n"))
@@ -190,7 +190,7 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  workflow_dispatch:\n"))
         #expect(
             workflowPolicy.contains(
-                "types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]"
+                "types: [opened, synchronize, reopened, labeled, unlabeled]"
             )
         )
         for job in ["macro-tests", "consumer-contracts", "sanitizers",
@@ -198,6 +198,12 @@ struct CIWorkflowHardeningTests {
                     "apple-platform-builds", "path-identity"] {
             #expect(workflow.contains("if: needs.ci-plan.outputs.\(job) == 'true'"))
         }
+        #expect(!workflowPolicy.contains("ready_for_review"))
+        let coordinator = try String(
+            contentsOf: packageRootURL().appendingPathComponent(".github/workflows/dependabot-auto-merge.yml"),
+            encoding: .utf8
+        )
+        #expect(coordinator.contains("ready_for_review"))
         #expect(workflow.contains("name: CI Required"))
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
@@ -255,20 +261,30 @@ struct CIWorkflowHardeningTests {
         }
         #expect(cacheSteps.count == 8)
         for step in cacheSteps {
-            #expect(step.contains("-xcode-"))
-            #expect(step.contains("${{ hashFiles('Package.resolved') }}"))
+            #expect(step.contains("key: ${{ steps.cache-inputs.outputs."))
+            #expect(!step.contains("hashFiles('Package.resolved')"))
             #expect(!step.contains("restore-keys"))
         }
-        let consumerKeys = cacheSteps.filter {
-            $0.contains("path: .build/external-consumer-contracts/dag-plugin-source")
-        }.compactMap { step in
-            step.split(separator: "\n").first { $0.contains("key: ") }.map(String.init)
+        let consumerSteps = cacheSteps.filter {
+            $0.contains("path: ${{ steps.cache-inputs.outputs.consumer-paths }}")
         }
-        #expect(consumerKeys.count == 3)
-        #expect(Set(consumerKeys).count == 3)
-        for version in ["xcode-26.6-", "xcode-26.2-", "xcode-27-"] {
-            #expect(consumerKeys.contains { $0.contains(version) })
+        #expect(consumerSteps.count == 3)
+        for step in consumerSteps {
+            #expect(step.contains("key: ${{ steps.cache-inputs.outputs.consumer-key }}"))
         }
+        #expect(workflow.components(separatedBy: "run: python3 -B Tools/ci-cache.py fingerprint").count - 1 == 5)
+        #expect(workflow.components(separatedBy: "run: python3 -B Tools/ci-cache.py restored").count - 1 == 5)
+        #expect(workflow.components(separatedBy: "run: python3 -B Tools/ci-cache.py report").count - 1 == 5)
+        // Execute exact compiler/build/pin/profile collision and empty-input
+        // controls, rather than assuming distinct literal Xcode labels are
+        // sufficient cache identity. Also pins exhaustive as a fast superset.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "-B", "Tools/tests/test_ci_cache.py"]
+        process.currentDirectoryURL = root
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
         // Release validation keeps cold consumer builds for the exact candidate.
         #expect(!release.contains("actions/cache@"))
     }
