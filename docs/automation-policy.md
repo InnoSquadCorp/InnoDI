@@ -8,16 +8,22 @@ controls before adapting it. No central repository or credentials are required.
 ## Validation levels and changed paths
 
 `CI` in `macro-tests.yml` always creates **CI Plan** and **CI Required** for
-`opened`, `synchronize`, `reopened`, `labeled`, `unlabeled`, and `ready_for_review`
-PR events, main pushes, manual validation, and merge queue `checks_requested`.
-There are no workflow-level path filters that could leave a required check pending.
+`opened`, `synchronize`, `reopened`, `labeled`, and `unlabeled` PR events, main
+pushes, manual validation, and merge queue `checks_requested`. Drafts receive
+the same path-selected validation as ready PRs. `ready_for_review` remains a
+coordinator eligibility wake-up but no longer repeats expensive CI for an
+unchanged revision. Label events intentionally retain their existing full
+replanning and concurrency behavior: filtering label-only no-ops requires a
+separate proof of required-check identity and lifecycle ordering, and is not
+part of this cache/duplicate-lane change. There are no workflow-level path
+filters that could leave a required check pending.
 
 | Level | Contract |
 | --- | --- |
 | Normal PR | Always run policy tests; select the affected fast jobs below. Source PRs retain strict in-process tests, public API, DAG, one representative example, compiled documentation, and DocC. |
-| Main | Every validation job, including coverage floors, the external consumer and strict-concurrency build contracts, TSAN/ASAN, Swift 6.2, Xcode 27/Swift 6.4, five Apple platforms, renamed path, all examples, and exact remote macro/plugin consumers. |
-| `release-validation` PR | Every validation job; label and unlabel events recalculate the current plan. No publication or history write. |
-| Merge queue / manual CI | Every validation job. Queue candidates are validated with the full merged tree. |
+| Main | Every unique validation contract, including coverage floors, the external consumer and strict-concurrency build contracts, TSAN/ASAN, Swift 6.2, Xcode 27/Swift 6.4, five Apple platforms, renamed path, all examples, and exact remote macro/plugin consumers. |
+| `release-validation` PR | Every unique validation contract; label and unlabel events recalculate the current plan. No publication or history write. |
+| Merge queue / manual CI | Every unique validation contract. Queue candidates are validated with the full merged tree. |
 | Release candidate | Dispatch `Release Gate` on main with stable version, full lowercase SHA, and `publish=false` (default). Complete candidate gates, compatibility matrix, packaged DocC/notes/checksums, and exact-SHA consumers; **Candidate Required** must succeed. |
 | Publication | A separate owner-approved dispatch with the same version/SHA and `publish=true`; revalidation and the existing `release` environment approval precede the public annotated tag. |
 
@@ -25,7 +31,14 @@ There are no workflow-level path filters that could leave a required check pendi
 name/status stream. It uses the PR merge base, includes deleted paths and both
 names of a rename/copy, and never downloads a truncated REST changed-file list.
 Missing anchors, invalid events/labels/paths, or Git failures fail the plan. An
-empty diff or an unknown path selects all jobs. Each job needs a successful plan.
+empty diff or an unknown path selects the full contract. Each job needs a
+successful plan. Whenever the exhaustive coverage job is selected, the duplicate
+fast job is unselected: the coverage pass uses the same strict compiler flags
+and serialization with fewer skipped suites, and the exhaustive job also runs
+every fast API, DAG, validation, and informational report command. Executable
+tests pin the skip-set inclusion and complete fast-step inventory. Consumer,
+TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
+separate requirements; no unique check is removed.
 
 | Changed path | Selected PR validation (policy always runs) |
 | --- | --- |
@@ -64,6 +77,32 @@ deployment its originating SHA must still equal remote main, so a stale run or
 rerun cannot roll documentation back. Main
 performance history appends only after CI Required succeeds. These existing
 post-validation writes are never part of candidate or PR validation.
+
+## Cache identity and measurements
+
+Root `Package.resolved` is ignored/untracked, so it is not a cache fingerprint.
+`Tools/ci-cache.py` requires tracked, nonempty `Package.swift` and fixture profile
+inputs and exact dependency pins. Keys include the actual complete Apple Swift
+compiler version, Xcode version/build, macOS product/build, host architecture,
+manifest and scratch-profile implementation. Unknown compiler profiles, empty
+inputs and unpinned dependencies fail before restore. There are no broad fallback
+restore prefixes, and old `v1` entries cannot match the `v2` keys.
+
+The dependency cache contains only repository mirrors and downloaded prebuilts;
+the root build stays cold. External consumer products use `shared-source` on
+Swift 6.2/6.3 and `dag-plugin-source` on Swift 6.4, matching the fixture code.
+Each profile keeps `pass`, `fail`, and `signature` scratch roots separate.
+Macro-only prebuilt products are never restored into a source profile. This
+change does not add shared scratch paths to strict-concurrency fixtures or change
+fixture execution/assertions. The `Release Gate` workflow remains uncached.
+
+Each cached lane reports its exact keys and cache-hit outcomes, elapsed restore
+and validation observation windows, restored dependency-product counts and how
+many retained their size/mtime afterward. Those observations support diagnosis;
+a hit or unchanged product is not proof that a consumer passed, and elapsed
+windows include surrounding steps. Use actual hosted step/suite durations for
+before/after comparisons. A new fingerprint first produces a cold miss; no
+percentage improvement is promised from the configuration alone.
 
 ## Release interface and boundaries
 

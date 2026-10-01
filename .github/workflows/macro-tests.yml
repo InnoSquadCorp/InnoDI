@@ -4,7 +4,7 @@ run-name: >-
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
@@ -159,15 +159,22 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Fingerprint exact cache inputs
+        id: cache-inputs
+        run: python3 -B Tools/ci-cache.py fingerprint
       - name: Restore SwiftPM dependency cache
-        # Repository mirrors and downloaded prebuilts only. Build products are
-        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        id: dependency-cache
+        # Repository mirrors/downloaded prebuilts only; root .build is cold.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm/repositories
             ~/Library/Caches/org.swift.swiftpm/prebuilts
-          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+          key: ${{ steps.cache-inputs.outputs.dependency-key }}
+      - name: Observe restored cache products
+        env:
+          DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
+        run: python3 -B Tools/ci-cache.py restored
       - name: Run in-process test contracts
         # Consumer, strict-concurrency, one migration smoke, and the unique
         # binding fix-it consumer contracts spawn clean SwiftPM builds. The
@@ -212,8 +219,7 @@ jobs:
             Tools/report-validate-dag-escape-hatches.sh
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Escape Hatch Report
-        # release-validation PRs also run the exhaustive job. Preserve both
-        # immutable reports instead of colliding with its canonical names.
+        # Keep lane-specific artifact names for targeted fast runs.
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: escape-hatch-report-fast-pr
@@ -230,6 +236,9 @@ jobs:
           name: deferred-aliases-report-fast-pr
           path: build/deferred-aliases.json
           if-no-files-found: error
+      - name: Report cache and validation observations
+        if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
+        run: python3 -B Tools/ci-cache.py report
 
   macro-tests:
     name: Exhaustive release contracts
@@ -245,15 +254,22 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Fingerprint exact cache inputs
+        id: cache-inputs
+        run: python3 -B Tools/ci-cache.py fingerprint
       - name: Restore SwiftPM dependency cache
-        # Repository mirrors and downloaded prebuilts only. Build products are
-        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        id: dependency-cache
+        # Repository mirrors/downloaded prebuilts only; root .build is cold.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm/repositories
             ~/Library/Caches/org.swift.swiftpm/prebuilts
-          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+          key: ${{ steps.cache-inputs.outputs.dependency-key }}
+      - name: Observe restored cache products
+        env:
+          DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
+        run: python3 -B Tools/ci-cache.py restored
       - name: Run clean coverage gate
         id: coverage
         # Shared with the release gate so both lanes measure one strict pass
@@ -383,6 +399,9 @@ jobs:
           name: macro-feature-performance-report
           path: build/macro-feature-performance-report.json
           if-no-files-found: error
+      - name: Report cache and validation observations
+        if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
+        run: python3 -B Tools/ci-cache.py report
 
   consumer-contracts:
     name: Exhaustive consumer contracts (Xcode 26.6)
@@ -403,26 +422,32 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Fingerprint exact cache inputs
+        id: cache-inputs
+        run: python3 -B Tools/ci-cache.py fingerprint
       - name: Restore SwiftPM dependency cache
-        # Repository mirrors and downloaded prebuilts only. Build products are
-        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        id: dependency-cache
+        # Repository mirrors/downloaded prebuilts only; root .build is cold.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm/repositories
             ~/Library/Caches/org.swift.swiftpm/prebuilts
-          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+          key: ${{ steps.cache-inputs.outputs.dependency-key }}
       - name: Restore external consumer build cache
-        # The contracts reuse this scratch root by design. Consumer sources are
-        # materialized fresh and InnoDI rebuilds from the checkout; the cache
-        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
-        # source. Only that profile is cached (about 1.8 GB per toolchain) so
-        # three toolchains stay inside the repository cache budget. Keys never
-        # cross toolchains or swift-syntax pins.
+        id: consumer-cache
+        # Swift 6.2/6.3 use shared-source; 6.4 uses dag-plugin-source.
+        # The pass/fail/signature roots remain separate. Macro-only prebuilt
+        # products never enter this source profile; no broad restore prefix.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .build/external-consumer-contracts/dag-plugin-source
-          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.6-${{ hashFiles('Package.resolved') }}
+          path: ${{ steps.cache-inputs.outputs.consumer-paths }}
+          key: ${{ steps.cache-inputs.outputs.consumer-key }}
+      - name: Observe restored cache products
+        env:
+          DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
+          CONSUMER_CACHE_HIT: ${{ steps.consumer-cache.outputs.cache-hit }}
+        run: python3 -B Tools/ci-cache.py restored
       - name: Run strict external compatibility contracts
         run: |
           set -euo pipefail
@@ -436,6 +461,9 @@ jobs:
         run: |
           Tools/summarize-test-durations.py build/consumer-contracts-output.log \
             --title "Slowest test suites (consumer contracts)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Report cache and validation observations
+        if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
+        run: python3 -B Tools/ci-cache.py report
 
   sanitizers:
     name: Thread and address sanitizers (Xcode 26.6)
@@ -494,26 +522,32 @@ jobs:
         uses: ./.github/actions/select-xcode
         with:
           version: "26.2"
+      - name: Fingerprint exact cache inputs
+        id: cache-inputs
+        run: python3 -B Tools/ci-cache.py fingerprint
       - name: Restore SwiftPM dependency cache
-        # Repository mirrors and downloaded prebuilts only. Build products are
-        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        id: dependency-cache
+        # Repository mirrors/downloaded prebuilts only; root .build is cold.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm/repositories
             ~/Library/Caches/org.swift.swiftpm/prebuilts
-          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.2-${{ hashFiles('Package.resolved') }}
+          key: ${{ steps.cache-inputs.outputs.dependency-key }}
       - name: Restore external consumer build cache
-        # The contracts reuse this scratch root by design. Consumer sources are
-        # materialized fresh and InnoDI rebuilds from the checkout; the cache
-        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
-        # source. Only that profile is cached (about 1.8 GB per toolchain) so
-        # three toolchains stay inside the repository cache budget. Keys never
-        # cross toolchains or swift-syntax pins.
+        id: consumer-cache
+        # Swift 6.2/6.3 use shared-source; 6.4 uses dag-plugin-source.
+        # The pass/fail/signature roots remain separate. Macro-only prebuilt
+        # products never enter this source profile; no broad restore prefix.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .build/external-consumer-contracts/dag-plugin-source
-          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-26.2-${{ hashFiles('Package.resolved') }}
+          path: ${{ steps.cache-inputs.outputs.consumer-paths }}
+          key: ${{ steps.cache-inputs.outputs.consumer-key }}
+      - name: Observe restored cache products
+        env:
+          DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
+          CONSUMER_CACHE_HIT: ${{ steps.consumer-cache.outputs.cache-hit }}
+        run: python3 -B Tools/ci-cache.py restored
       - name: Run strict external compatibility contracts
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
@@ -527,6 +561,9 @@ jobs:
         # the known-crashing control toolchain runs it on manual dispatch only.
         if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         run: Tools/run-compiler-canaries.sh
+      - name: Report cache and validation observations
+        if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
+        run: python3 -B Tools/ci-cache.py report
 
   xcode-27-compatibility:
     name: Xcode 27 compatibility preview
@@ -548,26 +585,32 @@ jobs:
           [[ "$swift_output" == *"Apple Swift version 6.4"* ]]
           printf '%s\n' "$xcode_output"
           printf '%s\n' "$swift_output"
+      - name: Fingerprint exact cache inputs
+        id: cache-inputs
+        run: python3 -B Tools/ci-cache.py fingerprint
       - name: Restore SwiftPM dependency cache
-        # Repository mirrors and downloaded prebuilts only. Build products are
-        # not cached here: a fresh checkout rebuilds every InnoDI module.
+        id: dependency-cache
+        # Repository mirrors/downloaded prebuilts only; root .build is cold.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm/repositories
             ~/Library/Caches/org.swift.swiftpm/prebuilts
-          key: swiftpm-deps-v1-${{ runner.os }}-${{ runner.arch }}-xcode-27-${{ hashFiles('Package.resolved') }}
+          key: ${{ steps.cache-inputs.outputs.dependency-key }}
       - name: Restore external consumer build cache
-        # The contracts reuse this scratch root by design. Consumer sources are
-        # materialized fresh and InnoDI rebuilds from the checkout; the cache
-        # keeps the SwiftSyntax products that DAG-plugin consumers compile from
-        # source. Only that profile is cached (about 1.8 GB per toolchain) so
-        # three toolchains stay inside the repository cache budget. Keys never
-        # cross toolchains or swift-syntax pins.
+        id: consumer-cache
+        # Swift 6.2/6.3 use shared-source; 6.4 uses dag-plugin-source.
+        # The pass/fail/signature roots remain separate. Macro-only prebuilt
+        # products never enter this source profile; no broad restore prefix.
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .build/external-consumer-contracts/dag-plugin-source
-          key: innodi-external-consumers-v1-${{ runner.os }}-${{ runner.arch }}-xcode-27-${{ hashFiles('Package.resolved') }}
+          path: ${{ steps.cache-inputs.outputs.consumer-paths }}
+          key: ${{ steps.cache-inputs.outputs.consumer-key }}
+      - name: Observe restored cache products
+        env:
+          DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
+          CONSUMER_CACHE_HIT: ${{ steps.consumer-cache.outputs.cache-hit }}
+        run: python3 -B Tools/ci-cache.py restored
       - name: Run strict external compatibility contracts
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
@@ -577,6 +620,9 @@ jobs:
       - name: Report compiler canaries (informational)
         if: always()
         run: Tools/run-compiler-canaries.sh
+      - name: Report cache and validation observations
+        if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
+        run: python3 -B Tools/ci-cache.py report
 
   apple-platform-builds:
     name: Apple platform builds (Xcode 26.6)
