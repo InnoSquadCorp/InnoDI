@@ -41,10 +41,10 @@ class NativeReadyTests(unittest.TestCase):
         self.api.native_job['steps'][1].update(status='in_progress', conclusion=None)
         self.api.native_job['steps'][-1].update(status='queued', conclusion=None)
 
-    def snapshot(self, enabled=True, overrides=None):
+    def snapshot(self, enabled=True, overrides=None, event_pr=None):
         with tempfile.TemporaryDirectory() as directory:
             event = Path(directory) / 'event.json'
-            event.write_text(json.dumps({'pull_request': {'number': NUMBER}}))
+            event.write_text(json.dumps({'pull_request': self.api.pr if event_pr is None else event_pr}))
             environment = dict(GITHUB_WORKFLOW_REF=p.REPOSITORY + '/' + n.REPORTER_PATH + '@refs/heads/main',
                                GITHUB_EVENT_NAME='pull_request_target', GITHUB_JOB='ready', GITHUB_RUN_ID=str(NATIVE_RUN),
                                GITHUB_WORKFLOW_SHA=BASE, GITHUB_EVENT_PATH=str(event))
@@ -63,6 +63,120 @@ class NativeReadyTests(unittest.TestCase):
             steps=[dict(name=n.REQUEST_STEP, status='in_progress', conclusion=None)])]
         os.environ.update(GITHUB_JOB='ready-refresh', GITHUB_EVENT_NAME='workflow_run', GITHUB_WORKFLOW_SHA=BASE)
         return target
+
+    def fork(self):
+        self.api.pr['user'] = dict(login='human', id=1, type='User')
+        self.api.pr['head']['repo'] = dict(id=101, full_name='contributor/InnoDI', fork=True)
+        self.api.native_run['head_repository'] = self.api.pr['head']['repo']
+        self.api.native_run['pull_requests'] = []
+        self.api.native_run['display_title'] = (
+            f'Ready v1 pr:{NUMBER} head:{HEAD} head-repo:101 base-repo:100 base:main source:{BASE}')
+        self.api.native_job['steps'][1]['name'] = (n.SOURCE_STEP + BASE + ' for ' +
+                                                  self.api.native_run['display_title'].rsplit(' source:', 1)[0])
+
+    def test_fork_without_rest_association_uses_trusted_event_binding(self):
+        self.fork()
+        self.assertEqual(n.latest(self.api, p, NUMBER, HEAD)['id'], NATIVE_RUN)
+        self.assertEqual(n.require_success(self.api, p, NUMBER, HEAD), (NATIVE_RUN, 1, 9000))
+        self.assertIsNone(n.refresh_plan(self.api, p, NUMBER, False))
+        self.running()
+        self.assertTrue(self.snapshot(False)[0])
+        self.assertFalse(self.api.mutations)
+
+    def test_fork_refresh_readback_preserves_event_binding_without_links(self):
+        self.fork()
+        target = self.writer()
+        def advance(method, path, payload):
+            self.api.mutations.append((method, path, payload))
+            self.api.native_run.update(run_attempt=2, status='queued', conclusion=None)
+        with mock.patch.object(self.api, 'mutate', side_effect=advance):
+            self.assertIn('Verified native reporter rerun requested', n.refresh(self.api, p, target, False))
+        self.assertEqual(len(self.api.mutations), 1)
+
+    def test_snapshot_rejects_stale_or_foreign_event_payload(self):
+        self.fork()
+        self.running()
+        for mutation in [lambda pr: pr['head'].update(sha=BASE), lambda pr: pr['head'].update(ref='other'),
+                         lambda pr: pr['head']['repo'].update(id=999), lambda pr: pr['base'].update(ref='other'),
+                         lambda pr: pr['base']['repo'].update(id=999), lambda pr: pr.update(number=NUMBER + 1)]:
+            event_pr = copy.deepcopy(self.api.pr)
+            mutation(event_pr)
+            with self.assertRaises(p.Rejected): self.snapshot(False, event_pr=event_pr)
+        self.assertFalse(self.api.mutations)
+
+    def test_fork_event_binding_rejects_mismatches_and_untrusted_source(self):
+        for old, replacement in [(f'pr:{NUMBER}', f'pr:{NUMBER + 1}'), (f'head:{HEAD}', f'head:{BASE}'),
+                                 ('head-repo:101', 'head-repo:102'), ('base-repo:100', 'base-repo:101'),
+                                 ('base:main', 'base:other'), (f'source:{BASE}', f'source:{HEAD}'),
+                                 ('Ready v1', 'PR title that looks like Ready v1')]:
+            self.api = Transcript()
+            self.fork()
+            self.api.native_run['display_title'] = self.api.native_run['display_title'].replace(old, replacement)
+            with self.subTest(old=old), self.assertRaises(p.Rejected):
+                n.require_success(self.api, p, NUMBER, HEAD)
+            self.assertFalse(self.api.mutations)
+        for field, value in [('head_branch', 'other'), ('event', 'workflow_dispatch'), ('workflow_id', 999)]:
+            self.api = Transcript()
+            self.fork()
+            self.api.native_run[field] = value
+            with self.subTest(field=field), self.assertRaises(p.Rejected):
+                n.require_success(self.api, p, NUMBER, HEAD)
+
+    def test_present_association_cannot_be_overridden_by_event_binding(self):
+        self.fork()
+        self.api.native_run['pull_requests'] = [dict(number=NUMBER, head=dict(sha=BASE),
+                                                    base=dict(ref='main', repo=self.api.repo))]
+        with self.assertRaises(p.Rejected): n.require_success(self.api, p, NUMBER, HEAD)
+
+    def test_fork_cannot_reuse_old_success_when_newer_binding_is_missing(self):
+        self.fork()
+        newer = copy.deepcopy(self.api.native_run)
+        newer.update(id=NATIVE_RUN + 1, run_number=41, display_title='unbound current reporter')
+        self.api.native_runs.append(newer)
+        with self.assertRaises(p.Rejected): n.require_success(self.api, p, NUMBER, HEAD)
+
+    def test_fork_binding_source_must_match_job_and_snapshot_environment(self):
+        self.fork()
+        self.api.native_job['steps'][1]['name'] = n.SOURCE_STEP + HEAD
+        with self.assertRaises(p.Rejected): n.require_success(self.api, p, NUMBER, HEAD)
+        self.running()
+        with self.assertRaises(p.Rejected): self.snapshot(False, overrides={'GITHUB_WORKFLOW_SHA': HEAD})
+
+    def test_fork_historical_binding_survives_policy_upgrade_but_latest_must_be_current(self):
+        self.fork()
+        old = copy.deepcopy(self.api.native_run)
+        old.update(id=NATIVE_RUN - 1, run_number=39, check_suite_id=901)
+        old_job = copy.deepcopy(self.api.native_job)
+        old_job.update(id=9101, check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/9100')
+        old_check = dict(self.api.native_check, id=9100, check_suite=dict(id=901),
+                        details_url=f'https://github.com/{p.REPOSITORY}/actions/runs/{NATIVE_RUN - 1}/job/9101')
+        self.api.native_runs.append(old)
+        self.api.native_jobs[(NATIVE_RUN - 1, 1)] = [old_job]
+        self.api.checks.append(old_check)
+        self.api.base = HEAD
+        self.api.source_blobs[f'contents/Tools/dependabot-ready-policy.py?ref={BASE}'] = 'e' * 40
+        self.api.native_run['display_title'] = self.api.native_run['display_title'].replace('source:' + BASE, 'source:' + HEAD)
+        self.api.native_job['steps'][1]['name'] = self.api.native_job['steps'][1]['name'].replace(BASE, HEAD)
+        original_get = self.api.get
+        def get(route):
+            if 'compare/' in route:
+                source = route.split('compare/', 1)[1].split('...')[0]
+                return dict(status='identical' if source == HEAD else 'ahead', merge_base_commit=dict(sha=source))
+            return original_get(route)
+        with mock.patch.object(self.api, 'get', side_effect=get):
+            self.assertEqual(n.verified_check_ids(self.api, p, NUMBER, HEAD), {9000, 9100})
+            self.assertEqual(n.require_success(self.api, p, NUMBER, HEAD), (NATIVE_RUN, 1, 9000))
+            with self.assertRaises(p.Rejected): n.source_compatible(self.api, p, BASE)
+
+    def test_run_title_alone_cannot_replace_native_event_step(self):
+        self.fork()
+        self.api.native_job['steps'][1]['name'] = n.SOURCE_STEP + BASE
+        with self.assertRaises(p.Rejected): n.require_success(self.api, p, NUMBER, HEAD)
+        with self.assertRaises(p.Rejected): n.verified_check_ids(self.api, p, NUMBER, HEAD)
+        self.assertFalse(self.api.mutations)
+        self.api = Transcript()
+        self.api.native_job['steps'][1]['name'] += ' unbound suffix'
+        with self.assertRaises(p.Rejected): n.require_success(self.api, p, NUMBER, HEAD)
 
     def test_reporter_only_succeeds_for_real_readonly_eligibility(self):
         self.running()
@@ -389,6 +503,10 @@ class NativeReadyTests(unittest.TestCase):
         self.assertNotIn('workflow_dispatch:', reporter)
         self.assertNotIn('workflow_run:', reporter)
         self.assertIn('ref: ${{ github.workflow_sha }}', reporter)
+        self.assertIn('run-name: \'Ready v1 pr:${{ github.event.pull_request.number }}', reporter)
+        self.assertIn('head-repo:${{ github.event.pull_request.head.repo.id }}', reporter)
+        self.assertNotIn('github.event.pull_request.title', reporter)
+        self.assertNotIn('github.event.pull_request.body', reporter)
         coordinator = (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text()
         self.assertNotIn('checks: write', coordinator)
         self.assertNotIn('statuses: write', coordinator)

@@ -90,6 +90,26 @@ fail evaluation; they cannot become a successful native job merely because the
 background `coordinate` command returns a human-readable blocked message.
 GitHub Actions alone owns the native check's status and final conclusion.
 
+Fork runs can omit REST `pull_requests` associations. The trusted reporter
+therefore records a versioned event binding in both its run name and its native
+evaluation-step name: PR number, head SHA, head/base repository IDs, base branch
+and immutable workflow source. These values come from GitHub's PR-target event,
+not a PR title, body, branch-name guess or an uploaded artifact. The resolver
+checks current PR metadata, the fixed workflow/event/repositories, trusted source
+ancestry and the native job/check/app/suite against that binding. A run title
+alone is insufficient. Present REST associations must still match exactly and
+cannot be overridden by this fallback. Foreign or incomplete metadata blocks.
+
+The executing snapshot also rechecks its original event head/base/repositories
+against the current PR. Latest verdicts and refresh writers require the exact
+current policy definition. Historical check attribution verifies its original
+event/job binding and trusted source ancestry without treating an old policy as
+a current verdict. This avoids retaining a permanent failure merely because a
+new reporter definition was deployed on the same PR head. A fresh lifecycle is
+still required to create a latest reporter from the current trusted definition.
+The fork path requires a hosted canary before restoring Ready as required; local
+transcript tests do not establish live fork association or required-check UI behavior.
+
 The main-based coordinator plans a refresh only when the latest exact-PR/head
 reporter is terminal with a controlled evaluated verdict and current eligibility
 differs. Running/queued reporters and unchanged failure/success spend no reruns.
@@ -132,6 +152,16 @@ Only exact API-verified coordinator transport and native reporter job/check
 pairs are excluded from full CI proof. An arbitrary Ready-name check, wrong app,
 suite, job URL or missing native job is never exempt. Historical native attempts
 are attributed by their real Actions jobs; they never replace the latest verdict.
+GitHub may expose the exact unevaluated matrix-name expression for a PR-target
+`ready-refresh` job that never expands. This transport is recognized only with
+terminal `skipped` job/check results and an empty step list, exact
+workflow/event/run/attempt/head/app/suite/URL binding, and a successful native
+`inspect` job carrying its immutable trusted source SHA. The inspector checks
+out `github.workflow_sha`; old source attribution must remain main ancestry.
+Names with different text, executed steps, missing source or other outcomes
+remain blocked. Legacy same-head coordinator runs without that source marker
+can require an explicitly approved fresh commit; a new metadata event alone
+cannot establish the missing historical source.
 Legacy API-created same-name checks are not adopted. Existing affected PR heads
 may need an explicitly approved fresh commit/lifecycle after deployment, and
 require a deliberate migration check before restoring the required rule.

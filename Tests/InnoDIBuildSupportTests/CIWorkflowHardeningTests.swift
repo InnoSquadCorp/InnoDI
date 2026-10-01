@@ -3,6 +3,30 @@ import Testing
 
 @Suite("CI workflow hardening contracts")
 struct CIWorkflowHardeningTests {
+    @Test("Main reuses bounded PR proof without importing publication artifacts")
+    func mainReuseKeepsFreshPublicationAndFinalProof() throws {
+        let workflow = try String(
+            contentsOf: packageRootURL().appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        #expect(workflow.contains("reuse-proof: ${{ steps.reuse.outputs.proof }}"))
+        #expect(workflow.contains("Tools/main-ci-reuse-policy.py --event \"$GITHUB_EVENT_PATH\""))
+        #expect(workflow.contains("CI_REUSE: ${{ needs.ci-plan.outputs.reuse-proof }}"))
+        #expect(workflow.contains("github.event_name == 'pull_request' && '--report-only' || '--enforce'"))
+        #expect(workflow.contains("revision: ${{ github.event.pull_request.head.sha || github.sha }}"))
+        let appendStart = try #require(workflow.range(of: "  append-perf-history:\n"))
+        let append = workflow[appendStart.lowerBound...]
+        #expect(append.contains("      - ci-required\n"))
+        #expect(append.contains("      - macro-tests\n"))
+        #expect(!append.contains("      - sanitizers\n"))
+        #expect(!append.contains("run-id:"))
+        let release = try String(
+            contentsOf: packageRootURL().appendingPathComponent(".github/workflows/release.yml"),
+            encoding: .utf8
+        )
+        #expect(!release.contains("main-ci-reuse"))
+    }
+
     @Test("Repository workflows use pinned actions and scoped credentials")
     func repositoryWorkflowsPass() throws {
         let result = try runCIActionPinCheck(arguments: [])
@@ -208,9 +232,15 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
-                "if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))"
+                "github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))"
             )
         )
+        #expect(appendJob.contains("always() && !cancelled()"))
+        for job in ["ci-plan", "ci-required", "macro-tests"] {
+            #expect(appendJob.contains("needs.\(job).result == 'success'"))
+        }
+        #expect(appendJob.contains("Verify performance history source context"))
+        #expect(appendJob.contains("INNODI_PERF_EXPECTED_SHA: ${{ github.sha }}"))
         // The additional dispatch path must prove an actual merged bot at
         // current main before it can reuse main's publication/history contract.
         #expect(appendJob.contains("      - ci-plan\n"))

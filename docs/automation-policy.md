@@ -51,6 +51,44 @@ tests pin the skip-set inclusion and complete fast-step inventory. Consumer,
 TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
 separate requirements; no unique check is removed.
 
+For a normal single-commit squash push to main, six jobs may reuse successful
+PR verification: primary consumer contracts, sanitizers, Swift 6.2 compatibility,
+Xcode 27 compatibility, Apple platform builds and path identity. The read-only
+admission check requires an unambiguous merged same-repository PR, the latest
+successful full CI run/attempt, exact native job/check/app/suite identities,
+and the immutable tested merge commit with parents `[previous main, PR head]`.
+Its complete Git tree must equal the new main tree, including workflow/action
+and policy code. Source validation must have completed before the merge and
+within 24 hours of both the merge and the current verification. No PR artifacts,
+cache state or precomputed success flag is imported.
+
+The plan retains every full logical requirement and carries explicit reuse
+evidence separately. Only those six physical jobs may skip; `CI Required`
+revalidates the identical source run/attempt/tree proof after the fresh jobs
+finish. Missing, stale, ambiguous or inaccessible evidence during admission
+selects ordinary full execution. Evidence revoked or changed after admission
+fails the aggregate and blocks downstream publication/history work. Fork,
+direct, multi-commit, forced, queue and manual runs remain full validation.
+
+Policy validation, exhaustive coverage and main performance enforcement/trends,
+examples, documentation contracts, DocC with main Pages artifacts, and the
+exact-main-SHA remote consumer still run fresh. Performance history depends on
+the successful aggregate and fresh exhaustive job, so intended physical skips
+cannot suppress or bypass it. Its explicit status guard also requires a
+successful plan and a non-cancelled run. The writer verifies its main checkout
+SHA and consumes only this run's named macro-performance report artifact;
+failure, missing artifacts and foreign run/repository overrides cannot supply
+history evidence. Release Gate never consumes this reuse proof.
+
+Cache observation commands are deliberately fail-closed. Invalid or unreadable
+fingerprint/state/profile data fails the job; a `restored` observation failure
+before validation can prevent subsequent tests from starting. A `report` failure
+after validation can fail the job even when those tests already passed. The
+workflow does not suppress these errors with `continue-on-error`. Cache hits,
+product size/mtime observations and elapsed times are diagnostic evidence only;
+they never substitute for successful current validation. A normal cache miss
+is valid and continues through a cold build.
+
 | Changed path | Selected PR validation (policy always runs) |
 | --- | --- |
 | Root manifest/lock, shared Xcode action, shared CI policy or unclassified build/release script | Full validation |
@@ -68,7 +106,9 @@ separate requirements; no unique check is removed.
 | CI orchestration workflow | All jobs (the orchestrator controls all validation) |
 
 The final evaluator requires exactly one result for every declared dependency.
-Selected jobs require `success`; only explicitly unselected jobs may be `skipped`.
+Selected jobs require fresh `success` or the final revalidated six-job reuse
+proof. Only those proof-backed physical skips and explicitly unselected jobs
+may be `skipped`.
 Failure, cancellation, unknown/missing results, malformed plans, and unexpected
 skips fail closed. `always()` prevents skipped `needs` propagation from suppressing
 the aggregate. Reusable Examples has its own aggregate; each required child must
