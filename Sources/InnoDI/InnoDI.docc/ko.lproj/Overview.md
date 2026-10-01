@@ -47,11 +47,18 @@ graph tooling에 초점을 둡니다.
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 
+### 다른 라이브러리에서 옮기기
+
+- <doc:MigratingFromFactory>
+- <doc:MigratingFromSwinject>
+
 ### Operations
 
 - <doc:lock-safety>
+- <doc:DAGValidation>
 - <doc:AsyncPreparation>
 - <doc:RuntimeTracing>
+- <doc:PluginOptOut>
 - <doc:MigrationGuide>
 
 ### Container API
@@ -61,10 +68,18 @@ graph tooling에 초점을 둡니다.
 - ``Input(_:escaping:)``
 - ``DIContainerRole(role:mainActor:validateDAG:)``
 
+### Experimental
+
+- <doc:AutoMock>
+
+### SwiftUI Preview Helper
+
+- <doc:SwiftUIPreviewHelper>
+
 ### Symbols
 
 - ``DIContainer(validateDAG:)``
-- ``Provide(_:_:with:initialization:effect:factory:asyncFactory:)``
+- ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``
 - ``Provider``

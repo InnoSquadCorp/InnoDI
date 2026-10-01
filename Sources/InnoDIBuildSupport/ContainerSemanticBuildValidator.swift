@@ -78,56 +78,80 @@ package enum ContainerSemanticBuildValidator {
             return declarationMatrix
         }
 
-        var collectorResults: [ContainerSemanticFileCollector] = []
+        // A manifest snapshot holds every target the build can see, including
+        // dependency targets and InnoDI's own sources, so an unqualified
+        // declaration path such as `Lazy` or `AppContainer` can repeat. Each
+        // target's records are validated against its own declarations, and
+        // another target's declaration only when no other target shares its
+        // path. A root-path snapshot is a single scope.
+        var scopes: [String?] = []
+        var collectorsByScope: [String?: [ContainerSemanticFileCollector]] = [:]
         for sourceFile in snapshot.files {
             let collector = ContainerSemanticFileCollector(
                 filePath: sourceFile.filePath,
                 syntax: sourceFile.syntax
             )
             collector.walk(sourceFile.syntax)
-            collectorResults.append(collector)
+            let scope = sourceFile.targetID?.rawValue
+            if collectorsByScope[scope] == nil {
+                scopes.append(scope)
+            }
+            collectorsByScope[scope, default: []].append(collector)
         }
-
-        let nominalTypes = collectorResults.flatMap(\.nominalTypes)
-        let typeAliases = collectorResults.flatMap(\.typeAliases)
-        let containers = collectorResults.flatMap(\.containers)
-        let subContainers = collectorResults.flatMap(\.subContainers)
-        let assistedFactories = collectorResults.flatMap(\.assistedFactories)
-        let multibindings = collectorResults.flatMap(\.multibindings)
-        let wrapperParameters = collectorResults.flatMap(\.wrapperParameters)
-        let wrapperDeclarations = collectorResults.flatMap(\.wrapperDeclarations)
-        let wrapperAliases = collectorResults.flatMap(\.wrapperAliases)
+        let collectorResults = scopes.flatMap { collectorsByScope[$0] ?? [] }
 
         let semanticResolver = SemanticResolverIndex(
-            nominalTypes: nominalTypes,
-            topLevelTypeAliases: typeAliases
+            nominalTypes: collectorResults.flatMap(\.nominalTypes),
+            topLevelTypeAliases: collectorResults.flatMap(\.typeAliases)
         )
-        let containerInputsByPath = Dictionary(uniqueKeysWithValues: containers.map { ($0.path, $0) })
-        let containerCandidatePaths = Set(containerInputsByPath.keys)
-        let wrapperDeclarationsByPath = Dictionary(uniqueKeysWithValues: wrapperDeclarations.map { ($0.path, $0) })
-        let wrapperAliasesByPath = Dictionary(uniqueKeysWithValues: wrapperAliases.map { ($0.path, $0) })
+        let containers = ScopedDeclarations(
+            scopes: scopes,
+            collectorsByScope: collectorsByScope,
+            records: \.containers,
+            path: \.path
+        )
+        let wrapperDeclarations = ScopedDeclarations(
+            scopes: scopes,
+            collectorsByScope: collectorsByScope,
+            records: \.wrapperDeclarations,
+            path: \.path
+        )
+        let wrapperAliases = ScopedDeclarations(
+            scopes: scopes,
+            collectorsByScope: collectorsByScope,
+            records: \.wrapperAliases,
+            path: \.path
+        )
+        let containerCandidatePaths = containers.paths
 
-        var issues = validateSubContainerBindings(
-            subContainers,
-            semanticResolver: semanticResolver,
-            containerInputsByPath: containerInputsByPath,
-            containerCandidatePaths: containerCandidatePaths
-        )
-        issues.append(contentsOf: validateAssistedFactoryBindings(
-            assistedFactories,
-            semanticResolver: semanticResolver,
-            containersByPath: containerInputsByPath,
-            containerCandidatePaths: containerCandidatePaths
-        ))
-        issues.append(contentsOf: validateMultibindings(
-            multibindings,
-            containersByPath: containerInputsByPath
-        ))
-        issues.append(contentsOf: validateDeferredWrapperParameters(
-            wrapperParameters,
-            wrapperDeclarationsByPath: wrapperDeclarationsByPath,
-            wrapperAliasesByPath: wrapperAliasesByPath
-        ))
+        var issues: [ValidationIssue] = []
+        for scope in scopes {
+            let collectors = collectorsByScope[scope] ?? []
+            let visibleContainers = containers.visible(from: scope)
+            issues.append(contentsOf: validateSubContainerBindings(
+                collectors.flatMap(\.subContainers),
+                semanticResolver: semanticResolver,
+                containerInputsByPath: visibleContainers,
+                containerCandidatePaths: containerCandidatePaths
+            ))
+            issues.append(contentsOf: validateAssistedFactoryBindings(
+                collectors.flatMap(\.assistedFactories),
+                semanticResolver: semanticResolver,
+                containersByPath: visibleContainers,
+                containerCandidatePaths: containerCandidatePaths
+            ))
+            issues.append(contentsOf: validateMultibindings(
+                collectors.flatMap(\.multibindings),
+                containersByPath: containers.local(to: scope)
+            ))
+            // Only a same-module declaration shadows InnoDI's wrapper; the
+            // compiler reports an imported one as ambiguous by itself.
+            issues.append(contentsOf: validateDeferredWrapperParameters(
+                collectors.flatMap(\.wrapperParameters),
+                wrapperDeclarationsByPath: wrapperDeclarations.local(to: scope),
+                wrapperAliasesByPath: wrapperAliases.visible(from: scope)
+            ))
+        }
 
         issues.sort {
             if $0.location.filePath != $1.location.filePath { return $0.location.filePath < $1.location.filePath }
@@ -212,6 +236,67 @@ struct WrapperAliasRecord: Equatable {
     let path: String
     let targetHeadReference: SemanticTypeReference
     let location: ValidationIssueLocation
+}
+
+/// Declarations of one kind, grouped by the target that declares them.
+private struct ScopedDeclarations<Record> {
+    private let entriesByScope: [String?: [(path: String, record: Record)]]
+    private let declarationCountsByPath: [String: Int]
+
+    /// Every declared path, in any target.
+    let paths: Set<String>
+
+    init(
+        scopes: [String?],
+        collectorsByScope: [String?: [ContainerSemanticFileCollector]],
+        records recordsKeyPath: KeyPath<ContainerSemanticFileCollector, [Record]>,
+        path pathKeyPath: KeyPath<Record, String>
+    ) {
+        var entriesByScope: [String?: [(path: String, record: Record)]] = [:]
+        var declarationCountsByPath: [String: Int] = [:]
+        for scope in scopes {
+            var entries: [(path: String, record: Record)] = []
+            for collector in collectorsByScope[scope] ?? [] {
+                for record in collector[keyPath: recordsKeyPath] {
+                    let path = record[keyPath: pathKeyPath]
+                    entries.append((path: path, record: record))
+                    declarationCountsByPath[path, default: 0] += 1
+                }
+            }
+            entriesByScope[scope] = entries
+        }
+        self.entriesByScope = entriesByScope
+        self.declarationCountsByPath = declarationCountsByPath
+        paths = Set(declarationCountsByPath.keys)
+    }
+
+    /// The declarations of `scope`. A path it declares twice is ambiguous and
+    /// left out.
+    func local(to scope: String?) -> [String: Record] {
+        var result: [String: Record] = [:]
+        var repeatedPaths: Set<String> = []
+        for entry in entriesByScope[scope] ?? [] {
+            if result.updateValue(entry.record, forKey: entry.path) != nil {
+                repeatedPaths.insert(entry.path)
+            }
+        }
+        for path in repeatedPaths {
+            result[path] = nil
+        }
+        return result
+    }
+
+    /// The declarations `scope` can name: its own, and another target's
+    /// declaration when its path appears nowhere else in the snapshot.
+    func visible(from scope: String?) -> [String: Record] {
+        var result = local(to: scope)
+        for (otherScope, entries) in entriesByScope where otherScope != scope {
+            for entry in entries where declarationCountsByPath[entry.path] == 1 {
+                result[entry.path] = entry.record
+            }
+        }
+        return result
+    }
 }
 
 private final class ContainerSemanticFileCollector: SyntaxVisitor {
@@ -582,10 +667,12 @@ private final class ContainerSemanticFileCollector: SyntaxVisitor {
                         guard parentName == nil else {
                             return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
                         }
+                        // Named roots resolve here so the compiler's fix-it,
+                        // not a build-plugin failure, reports them.
                         guard let keyPath = tupleElement.expression.as(KeyPathExprSyntax.self),
-                              let property = keyPath.components.last?
-                                .component.as(KeyPathPropertyComponentSyntax.self)?
-                                .declName.baseName.text else {
+                              let property = parentMemberKeyPathSpelling(
+                                tupleElement.expression
+                              ).memberName else {
                             return .invalid(sourceLocation(for: tupleElement.expression.positionAfterSkippingLeadingTrivia))
                         }
                         parentName = property

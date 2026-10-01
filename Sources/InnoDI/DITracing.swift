@@ -80,11 +80,19 @@ public protocol DITraceSink: Sendable {
 /// Opt-in trace context. ``disabled`` stores no sink, allocates no buffer, and
 /// does not evaluate event autoclosures.
 public struct DITraceContext: Sendable {
-    public static let disabled = Self(sink: nil)
+    /// The context generated initializers and `withOverrides` use by default.
+    ///
+    /// Swift evaluates a default argument in the calling module, so this
+    /// value is built in the caller. A module that constructs another
+    /// module's container therefore does not need to link InnoDI itself,
+    /// which matters for Xcode test bundles that link a framework containing
+    /// containers but not InnoDI.
+    @_alwaysEmitIntoClient
+    public static var disabled: Self { Self(disabledContext: ()) }
 
-    private let sink: (any DITraceSink)?
-    private let targetIDsByModule: [String: String]
-    private let generation: UInt64
+    @usableFromInline let sink: (any DITraceSink)?
+    @usableFromInline let targetIDsByModule: [String: String]
+    @usableFromInline let generation: UInt64
 
     public init(
         sink: any DITraceSink,
@@ -96,8 +104,9 @@ public struct DITraceContext: Sendable {
         self.generation = generation
     }
 
-    private init(sink: (any DITraceSink)?) {
-        self.sink = sink
+    @_alwaysEmitIntoClient
+    init(disabledContext: Void) {
+        sink = nil
         targetIDsByModule = [:]
         generation = 0
     }

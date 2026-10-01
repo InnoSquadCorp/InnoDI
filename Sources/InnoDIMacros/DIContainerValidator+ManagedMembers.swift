@@ -45,6 +45,15 @@ extension DIContainerValidator {
                 memberByName: memberByName,
                 context: context
             ) || hadErrors
+            if member.assistedFactoryChildType != nil {
+                // As for @SubContainer, a named parent root keeps its member
+                // name, so the rest of the container is still validated.
+                hadErrors = emitNoncanonicalParentKeyPathDiagnostics(
+                    memberName: member.name,
+                    attribute: member.attribute,
+                    context: context
+                ) || hadErrors
+            }
 
             if member.isMultibinding {
                 hadErrors = validateMultibinding(
@@ -312,15 +321,6 @@ extension DIContainerValidator {
         if member.initialization == .onDemand, member.scope != .shared {
             context.emit(
                 SimpleDiagnostic.provideInitializationInvalidScope(
-                    memberName: member.name
-                ),
-                at: Syntax(member.attribute)
-            )
-            hadErrors = true
-        }
-        if member.initialization == .onDemand, member.asyncFactory != nil {
-            context.emit(
-                SimpleDiagnostic.provideOnDemandAsyncUnsupported(
                     memberName: member.name
                 ),
                 at: Syntax(member.attribute)

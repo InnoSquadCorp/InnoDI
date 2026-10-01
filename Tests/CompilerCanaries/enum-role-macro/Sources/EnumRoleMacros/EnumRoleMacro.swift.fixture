@@ -1,0 +1,47 @@
+import SwiftCompilerPlugin
+import SwiftSyntax
+import SwiftSyntaxMacros
+
+public struct EnumRoleMacro: MemberAttributeMacro, MemberMacro, PeerMacro, ExtensionMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingAttributesFor member: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AttributeSyntax] {
+        []
+    }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        []
+    }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        []
+    }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        guard !protocols.isEmpty else { return [] }
+        return [try ExtensionDeclSyntax("extension \(type.trimmed): EnumRole.CanaryRoleMarker {}")]
+    }
+}
+
+@main
+struct EnumRolePlugin: CompilerPlugin {
+    let providingMacros: [any Macro.Type] = [EnumRoleMacro.self]
+}

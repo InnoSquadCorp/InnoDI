@@ -1,0 +1,53 @@
+import FeatureKit
+import InnoDI
+
+struct Token: Sendable, Equatable {
+    let value: Int
+}
+
+struct LazyClient {
+    let token: Lazy<Token>
+}
+
+struct TokenSource {
+    let next: Provider<Token>
+}
+
+@DIContainer
+struct FeatureContainer {
+    @Input var token: Token
+}
+
+// Unqualified `Lazy<T>` and `Provider<T>` are the documented spellings. The
+// build plugin also scans InnoDI's own sources as a dependency target and
+// must not treat those declarations as same-module shadows.
+@DIContainer
+struct AppContainer {
+    @Input var seed: Int
+
+    @Provide(.shared, factory: { (seed: Int) in Token(value: seed) })
+    var token: Token
+
+    @Provide(.transient, factory: { (seed: Int) in Token(value: seed + 1) })
+    var freshToken: Token
+
+    @Provide(.shared, factory: { (token: Lazy<Token>) in LazyClient(token: token) })
+    var lazyClient: LazyClient
+
+    @Provide(.shared, factory: { (freshToken: Provider<Token>) in TokenSource(next: freshToken) })
+    var tokenSource: TokenSource
+
+    @SubContainer(scope: .shared, with: [\Self.token])
+    var feature: FeatureContainer
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        let container = AppContainer(seed: 1)
+        precondition(container.lazyClient.token() == Token(value: 1))
+        precondition(container.tokenSource.next() == Token(value: 2))
+        precondition(container.feature.token == Token(value: 1))
+        precondition(makeFeatureConfig() == FeatureConfig(value: 7))
+    }
+}

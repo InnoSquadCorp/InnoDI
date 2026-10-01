@@ -8,15 +8,19 @@ public struct MigrationOptions: Sendable, Equatable {
     public let rootPath: String
     public let mode: MigrationMode
     public let outputPath: String?
+    /// Imported modules the user asserts declare no InnoDI-named attributes.
+    public let trustedModules: [String]
 
     public init(
         rootPath: String,
         mode: MigrationMode,
-        outputPath: String? = nil
+        outputPath: String? = nil,
+        trustedModules: [String] = []
     ) {
         self.rootPath = rootPath
         self.mode = mode
         self.outputPath = outputPath
+        self.trustedModules = trustedModules
     }
 }
 
@@ -68,6 +72,7 @@ public func parseMigrationArguments(_ arguments: [String]) -> MigrationArgumentP
     var reportCount = 0
     var writeCount = 0
     var outputPath: String?
+    var trustedModules: [String] = []
     var index = 0
 
     while index < arguments.count {
@@ -115,6 +120,17 @@ public func parseMigrationArguments(_ arguments: [String]) -> MigrationArgumentP
             }
             outputPath = arguments[valueIndex]
             index += 2
+        case "--trust-module":
+            let valueIndex = index + 1
+            guard arguments.indices.contains(valueIndex),
+                  !arguments[valueIndex].isEmpty,
+                  !arguments[valueIndex].hasPrefix("--") else {
+                return .failure(.missingOptionValue("--trust-module"))
+            }
+            if !trustedModules.contains(arguments[valueIndex]) {
+                trustedModules.append(arguments[valueIndex])
+            }
+            index += 2
         default:
             if argument.hasPrefix("-") {
                 return .failure(.unknownOption(argument))
@@ -150,7 +166,8 @@ public func parseMigrationArguments(_ arguments: [String]) -> MigrationArgumentP
         MigrationOptions(
             rootPath: rootPath,
             mode: mode,
-            outputPath: outputPath
+            outputPath: outputPath,
+            trustedModules: trustedModules
         )
     )
 }

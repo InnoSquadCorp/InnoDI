@@ -1,0 +1,13 @@
+import EnumRole
+
+// Fully qualified members, the spelling InnoDI 6.0 prototyped before the
+// string-token workaround.
+@CanaryContainerRole(role: CanaryRole.component, isolation: CanaryIsolation.mainActor)
+struct QualifiedComponent {}
+
+// Shorthand members, the spelling an enum-backed 7.x or 8.0 API would allow.
+@CanaryContainerRole(role: .root)
+struct ShorthandRoot {}
+
+let markers: [any CanaryRoleMarker.Type] = [QualifiedComponent.self, ShorthandRoot.self]
+print("enum role canary compiled with \(markers.count) conformances")

@@ -30,9 +30,10 @@ InnoDI는 의존성 정의를 여러 단계에서 검증합니다.
 아닌 factory와 property initializer는 opaque한 zero-edge source이며 sibling
 member를 참조할 수 없습니다.
 
-`validateDAG: false`는 선언 검증이나 효과 호환성 검증을 끄지 않습니다. global
-DAG와 로컬 graph-derived 가용성 검사만 건너뜁니다. 로컬 소유권 순환은 항상 거부됩니다.
-`Lazy`나 `Provider`를 통하는 순환도 예외가 아닙니다.
+`validateDAG: false`는 선언 검증이나 명시적 edge의 효과 호환성 검증을 끄지
+않습니다. global DAG와 로컬 graph-derived 가용성 검사만 건너뜁니다. 로컬
+소유권 순환은 항상 거부됩니다. `Lazy`나 `Provider`를 통하는 순환도 예외가
+아닙니다.
 
 ## Build Validation
 
@@ -45,6 +46,8 @@ coordinated build pipeline은 다음을 추가합니다.
 5. metrics / summary artifact emission
 
 ## Global DAG Validation
+
+Global graph 검증에는 CLI를 사용하세요.
 
 ```bash
 swift run InnoDI-DependencyGraph --root . --validate-dag
@@ -64,3 +67,10 @@ build validation은 다음 산출물을 생성합니다.
 - `dag-validation-summary.md`
 
 이 산출물은 `RELEASING.md`에 문서화된 릴리즈 계약의 일부입니다.
+
+## See Also
+
+- <doc:DIContainer>
+- <doc:Provide>
+- <doc:PolicyBoundaries>
+- <doc:ModuleWideInitDetection>

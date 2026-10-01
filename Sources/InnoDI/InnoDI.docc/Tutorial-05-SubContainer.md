@@ -38,7 +38,7 @@ struct AppContainer {
     @Input
     var config: AppConfig
 
-    @SubContainer(scope: .shared, with: [\AppContainer.config])
+    @SubContainer(scope: .shared, with: [\Self.config])
     var feature: FeatureContainer
 }
 
@@ -48,7 +48,7 @@ print(container.feature.service.describe())
 
 ## What the macro adds
 
-* `@SubContainer(scope: .shared, with: [\AppContainer.config])` tells the
+* `@SubContainer(scope: .shared, with: [\Self.config])` tells the
   macro to construct one `FeatureContainer` per parent instance and to
   forward the parent's `config` member as the same-named child input.
 * The parent's nested `Overrides` builder now exposes two slots for the
@@ -57,7 +57,7 @@ print(container.feature.service.describe())
   available even when the child has no overrideable members yet.
 * Because the wiring uses `with:`, the parent and child member names line
   up. If the labels differ, switch to `bindings:`:
-  `bindings: [(child: \FeatureContainer.config, parent: \AppContainer.config)]`.
+  `bindings: [(child: \FeatureContainer.config, parent: \Self.config)]`.
 
 ## When to choose `.shared` vs `.transient`
 

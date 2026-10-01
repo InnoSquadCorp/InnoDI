@@ -2,7 +2,7 @@
 
 Version-by-version upgrade notes. For full release-time
 highlights and breaking-change tables, read
-[`RELEASING.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md);
+[`CHANGELOG.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md);
 this article reorganizes the same information by **what
 changes a consumer must make**.
 
@@ -11,17 +11,146 @@ changes a consumer must make**.
 | From → To | Change category | Required actions |
 |---|---|---|
 | 1.x → 2.x | Validation policy hardening | Re-run macro tests; resolve any new diagnostics raised by the stricter validator. |
-| 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read `RELEASING.md` sections instead of legacy notes. |
+| 2.x → 3.x | OSS baseline + governance | No code change required. Update internal release tooling to read version sections (in `CHANGELOG.md` since 7.0, `RELEASING.md` before) instead of legacy notes. |
 | 3.x → 4.0 | Public-contract consolidation | Adopt the new `withNames:`/`with:`/`bindings:` matrix on `@SubContainer`. Stop importing `_LazyCell`. Rename any container member starting with one of the reserved `_storage_` / `_override_sub_` / `_innoDISubBuild_` prefixes. |
 | 4.0 → 4.1 | DX hardening | No `@SubContainer(... withNames:)` migration is required. Continue using `withNames:` in stacked peer-macro contexts and prefer `with:` for new single-macro sites where Swift's type-checker accepts key paths. Update parsers of the lock-timeout stderr block to read structured fields. |
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
+| 6.x → 7.0 (unreleased) | Canonical parent key paths, explicit SwiftUI imports, lazy async providers | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Raise macOS targets to 14 and move host-owner observation to Observation. Optionally move eager async `.shared` providers to `initialization: .onDemand`; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 → 4.1 operational hardening, then the 5.0 surface and older hops.
+
+---
+
+## 6.x → 7.0
+
+InnoDI 7.0 is unreleased and developed on `main`. Each item below lists a
+source or dependency change and how to apply it. Run the read-only check first.
+
+### Parent key paths spell `\Self.member`
+
+`@SubContainer(with:)` and the `parent:` side of `@SubContainer(bindings:)` and
+`@SubContainerFactory(bindings:)` require `\Self.member`. InnoDI always read
+only the member name, so a named root such as `\AppContainer.config` was
+never checked against the declaring container. 7.0 rejects it with
+`sub.noncanonical-parent-key-path` and a fix-it. A nested component such as
+`\Self.config.baseURL` used to wire only its last component; 7.0 rejects it as
+`sub.invalid-same-name-wiring` or `sub.invalid-bindings`.
+
+`InnoDI-Migrate` rewrites named roots to `\Self` and blocks nested
+components:
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check
+swift run InnoDI-Migrate --root /path/to/consumer --write
+```
+
+When the check reports `migrate.unqualified-ownership-ambiguous`, the file
+imports a module that could declare an attribute with the same name, such as
+another `SubContainer` or `Provide` macro. The message lists those modules.
+Qualify the attribute, for example as `@InnoDI.SubContainer`, or rerun with
+`--trust-module <name>` for each listed module that declares no InnoDI-named
+attribute or macro. An application usually trusts its own modules this way:
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check --trust-module Domain --trust-module Features
+```
+
+Trust never overrides a same-named declaration the migrator finds in the
+scanned sources. `\Self.member` also compiles
+with InnoDI 6.0, so the rewrite can land before the upgrade.
+
+The migrator also blocks instead of guessing in two more cases. A legacy
+spelling that no rewrite reaches, for example inside an `#if` clause of an
+attribute list or inside a macro argument, reports
+`migrate.legacy-form-unsupported`; migrate it by hand. A rewrite that would
+produce a name the scanned sources declare themselves, such as `Input` or
+`ContainerRole`, reports `migrate.rewrite-target-ambiguous`; qualify the
+attribute with `InnoDI.` or rename the local declaration.
+
+### InnoDISwiftUI no longer re-exports SwiftUI
+
+`import InnoDISwiftUI` used to make every SwiftUI name visible. In 7.0 it
+still re-exports InnoDI, but a file that uses SwiftUI must import SwiftUI
+itself. That includes a file whose only SwiftUI use is generated code: a
+`@SubContainer(featureRoot:)` helper or `@DIEnvironmentBridge` expands to
+`SwiftUI.`-qualified names, which resolve only when the file imports
+SwiftUI. Without the import, such a file fails with errors such as
+`cannot find type 'Text' in scope`.
+
+`InnoDI-Migrate` gives each file that imports `InnoDISwiftUI` a full
+`import SwiftUI` with the same visibility. It inserts one after the
+`InnoDISwiftUI` import with that import's access level, and an
+`@_exported import InnoDISwiftUI` gets an `@_exported import SwiftUI`, so the
+file's own clients keep seeing SwiftUI. An existing `import SwiftUI` is raised
+to that visibility instead. A scoped import such as `import struct
+SwiftUI.Text`, or one inside an `#if` clause, does not provide every SwiftUI
+name, so such a file still gains a full import. The rule reruns cleanly, and
+the same commands shown above cover it.
+
+### macOS 14 and an Observation-based host owner
+
+The macOS floor rises from 13 to 14 so `InnoDISwiftUI` can use the
+Observation framework on every platform. The other floors are unchanged:
+iOS 17, tvOS 17, watchOS 10, and visionOS 1.
+
+`DIContainerHostOwner` is now an `@Observable` class instead of an
+`ObservableObject`. Its `phase` is still the only observed property, and
+`DIContainerHost` keeps the owner in `@State` instead of `@StateObject`.
+Apply these changes by hand; each depends on application settings:
+
+- Raise every macOS deployment target below 14 that links InnoDI.
+- Replace `owner.$phase` and `owner.objectWillChange` subscriptions with
+  `withObservationTracking`, or read `owner.phase` from a SwiftUI view.
+- Replace `@StateObject var owner = DIContainerHostOwner()` with
+  `@State var owner = DIContainerHostOwner()`.
+
+Observation calls an `onChange` handler before the new value is stored, as
+`@Published` did. Read `owner.phase` after the change, for example from a
+view or a task, instead of inside the handler.
+
+### Asynchronous parents are rejected as child inputs
+
+A `@SubContainer` child input wired to an asynchronous parent member now fails
+with `sub.async-parent-member`. In 6.0 the same wiring failed to compile with
+an unrelated missing-member error inside the generated child construction, so
+no compiling source changes. Wire a synchronous parent member, or construct
+the child after awaiting the parent member. `@SubContainerFactory(bindings:)`
+reports the same code instead of
+`provide.with-dependency-requires-synchronous-provider`; make that child input
+`@Input(.assisted)` and pass the awaited value to the factory.
+
+### Choose when asynchronous shared work starts
+
+7.0 accepts `initialization: .onDemand` together with `asyncFactory:`. Nothing
+changes for an existing eager provider. Use this table to choose a shape for
+asynchronous construction:
+
+| Need | Declaration |
+|---|---|
+| Start during initialization and never cancel | `@Provide(.shared, asyncFactory:)` |
+| Start on the first read, and let the owner close it | `@Provide(.shared, initialization: .onDemand, asyncFactory:)` |
+| Construct a fresh value on every read | `@Provide(.transient, asyncFactory:)` |
+| Observe status, prepare a selected graph, or retry after failure | Inject a ``DIAsyncScope`` as an `@Input` |
+
+Moving an eager provider to `.onDemand` changes its accessor to
+`get async throws`. A consumer that read the provider without `try` must add
+it, and a sibling consumer with a non-throwing `async` factory must declare
+`async throws`. Call `closeAsyncProviders()` where the feature that owns the
+container ends. See <doc:Provide> for the lifetime contract.
+
+### SwiftSyntax 604.0.0
+
+InnoDI 7.0 requires SwiftSyntax exactly `604.0.0`. Every package in the
+dependency graph must agree on it, so move other macro packages to 604.0.0
+first, or stay on InnoDI 6.x until they support it. Xcode 27 (Swift 6.4)
+builds InnoDI's macros with the matching SwiftSyntax prebuilt. Xcode 26.x
+(Swift 6.3) and Swift 6.2 compile SwiftSyntax from source, which slows clean
+builds but changes no behavior.
 
 ---
 
@@ -31,7 +160,7 @@ historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
 
 ```swift
 // Before
-@SubContainer(scope: .shared, with: [\.config])
+@SubContainer(scope: .shared, with: [\Self.config])
 @DIFeatureRoot(DashboardRootView.self)
 @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
 var dashboard: DashboardContainer
@@ -39,7 +168,7 @@ var dashboard: DashboardContainer
 // After
 @SubContainer(
     scope: .shared,
-    with: [\.config],
+    with: [\Self.config],
     featureRoots: [
         FeatureRoot(DashboardRootView.self),
         FeatureRoot(DashboardShellView.self, as: "dashboardShell")
@@ -51,7 +180,7 @@ var dashboard: DashboardContainer
 For the common single-root case, prefer the shorter form:
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config], featureRoot: DashboardRootView.self)
+@SubContainer(scope: .shared, with: [\Self.config], featureRoot: DashboardRootView.self)
 var dashboard: DashboardContainer
 ```
 
@@ -101,7 +230,7 @@ old call sites but removes the reviewability and graph validation that make the
 var feature: FeatureContainer
 
 // After
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -234,7 +363,10 @@ struct FeatureContainer {
 ```
 
 Use `@DIContainerRole(role: ContainerRole.root)` in place of `@DIHierarchyRoot`
-combined with `@DIContainer(root: true)`. For 6.0, `InnoDI-Migrate --check`,
+combined with `@DIContainer(root: true)`. A container with neither marker that
+used `@DIContainer(mainActor: true)` becomes
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`, because the
+role macro requires `role:`. For 6.0, `InnoDI-Migrate --check`,
 `--report`, and `--write` apply the new spelling mechanically, preserve
 `validateDAG` and `escaping`, and are idempotent. The migrator leaves commented,
 dynamic, or conflicting role sites unchanged and emits a blocking diagnostic
@@ -376,7 +508,9 @@ rewrites are pending. `--report` performs the same read-only preflight and emits
 a deterministic schema-v1 JSON inventory to standard output, or atomically to
 the path supplied with `--output`. The report contains relative paths, stable
 codes, counts, status, and diagnostic messages, but never original or migrated
-source bodies. Its exit codes are `0` for clean, `1` for changes required, and
+source bodies. Each change also lists the `rules` that rewrote the file, such
+as `migrate.parent-key-path` or `migrate.swiftui-import` for 7.0, and the
+`MIGRATE` and `MIGRATED` lines print the same rule codes. Its exit codes are `0` for clean, `1` for changes required, and
 `2` for blocked. `--write` parses and preflights the complete source tree
 before its first atomic file exchange, then preserves an existing UTF-8
 byte-order mark and POSIX access mode independently of umask. Ambiguous ownership, unsupported legacy arguments, parse
@@ -602,7 +736,7 @@ unsupported sites fail closed before adopting 5.0.
 
 ## 3.x → 4.0
 
-Covered in detail in [`RELEASING.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md).
+Covered in detail in [`CHANGELOG.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md#400).
 The high-impact items:
 
 - New `@SubContainer` wiring matrix at the time: `with:` / `withNames:` /

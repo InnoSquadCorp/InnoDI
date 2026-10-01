@@ -26,8 +26,8 @@ struct CrossModuleParent {
     @SubContainer(
         scope: .shared,
         bindings: [
-            (child: \CrossModuleChild.second, parent: \CrossModuleParent.parentSecond),
-            (child: \CrossModuleChild.first, parent: \CrossModuleParent.parentFirst),
+            (child: \CrossModuleChild.second, parent: \Self.parentSecond),
+            (child: \CrossModuleChild.first, parent: \Self.parentFirst),
         ]
     )
     var child: CrossModuleChild

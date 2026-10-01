@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 PUBLIC_PRODUCT_MODULES = ("InnoDI", "InnoDISwiftUI", "InnoDITesting")
 VOLATILE_SYMBOL_KEYS = {
     "declarationFragments",
@@ -27,7 +27,10 @@ VOLATILE_SYMBOL_KEYS = {
 }
 VOLATILE_RELATIONSHIP_KEYS = {"sourceOrigin", "targetFallback"}
 IMPLICIT_GENERIC_CONSTRAINTS = {"s:s8CopyableP", "s:s9EscapableP"}
-TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS = {"s:s16SendableMetatypeP"}
+# Swift 6.4 also reports the implicit Copyable and Escapable conformances of a
+# constrained extension's conformance, such as the one @Observable writes. As
+# with generic constraints above, the gate does not record those requirements.
+TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS = {"s:s16SendableMetatypeP"} | IMPLICIT_GENERIC_CONSTRAINTS
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -525,12 +528,21 @@ def normalize_product_graph(output_directory: Path, module: str, module_director
         for path in product_graph_paths(output_directory, module)
     ]
     symbols_by_identifier: dict[str, dict[str, Any]] = {}
+    extension_blocks: set[str] = set()
     aliases = None
     for payload in payloads:
         symbol_payload = payload.get("symbols", [])
         if isinstance(symbol_payload, dict):
             symbol_payload = symbol_payload.values()
         for symbol in symbol_payload:
+            # SwiftPM on Swift 6.4 emits extension block symbols for
+            # extensions of external types even with
+            # --omit-extension-block-symbols, while Swift 6.3 follows that
+            # documented default and attaches the members to the extended
+            # type. The members carry the API, so fold each block into it.
+            if symbol["kind"]["identifier"] == "swift.extension":
+                extension_blocks.add(symbol["identifier"]["precise"])
+                continue
             if not is_product_declaration(symbol, module):
                 continue
             alias_rhs = None
@@ -544,15 +556,31 @@ def normalize_product_graph(output_directory: Path, module: str, module_director
     if not symbols_by_identifier:
         raise SystemExit(f"No source-authored public symbols found for {module}.")
 
+    extended_types = {
+        relationship["source"]: relationship["target"]
+        for payload in payloads
+        for relationship in payload.get("relationships", [])
+        if relationship.get("kind") == "extensionTo"
+        and relationship.get("source") in extension_blocks
+    }
+
     symbol_identifiers = set(symbols_by_identifier)
     relationships_by_identity: dict[str, dict[str, Any]] = {}
     for payload in payloads:
         for relationship in payload.get("relationships", []):
+            # A block's own relationships (extensionTo, and conformances that
+            # the omitted form reports on the external type) are not
+            # sourced from a product symbol.
             if relationship.get("source") not in symbol_identifiers:
                 continue
             if relationship.get("target") in TOOLCHAIN_SYNTHESIZED_RELATIONSHIP_TARGETS:
                 continue
             normalized = normalize_relationship(relationship)
+            target = normalized.get("target", "")
+            if target in extension_blocks or target.startswith("s:e:"):
+                if target not in extended_types:
+                    raise SystemExit(f"Extension block without an extended type: {target}")
+                normalized["target"] = extended_types[target]
             identity = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
             relationships_by_identity[identity] = normalized
 
@@ -625,6 +653,14 @@ def summarize_difference(baseline: dict[str, Any], current: dict[str, Any]) -> N
 
         if old_graph["relationships"] != new_graph["relationships"]:
             print(f"[{graph_name}] relationships changed", file=sys.stderr)
+            old_relationships = {json.dumps(r, sort_keys=True) for r in old_graph["relationships"]}
+            new_relationships = {json.dumps(r, sort_keys=True) for r in new_graph["relationships"]}
+            for label, identities in (
+                ("added", new_relationships - old_relationships),
+                ("removed", old_relationships - new_relationships),
+            ):
+                for identity in sorted(identities):
+                    print(f"  {label} relationship: {identity}", file=sys.stderr)
 
 
 def main() -> int:

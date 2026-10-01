@@ -1,5 +1,6 @@
 import InnoDI
 import InnoDISwiftUI
+import SwiftUI
 
 let _innoDITrap = 24
 

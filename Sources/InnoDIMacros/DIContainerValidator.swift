@@ -49,6 +49,11 @@ struct DIContainerValidator {
             declaration: declaration,
             context: context
         ) || hadErrors
+        hadErrors = validateCloseAsyncProvidersNameConflict(
+            model: model,
+            declaration: declaration,
+            context: context
+        ) || hadErrors
         hadErrors = validateReservedQualifierScopes(
             declaration: declaration,
             context: context
@@ -86,6 +91,29 @@ struct DIContainerValidator {
         }
         context.emit(
             SimpleDiagnostic.containerPrewarmNameConflict(),
+            at: conflict.anchor
+        )
+        return true
+    }
+
+    private static func validateCloseAsyncProvidersNameConflict(
+        model: DIContainerExpansionModel,
+        declaration: some DeclGroupSyntax,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        guard model.asyncOnDemandMembers.contains(where: {
+            $0.hasLocallyValidConstructionConfiguration
+        }) else {
+            return false
+        }
+        guard let conflict = directContainerDeclarationNames(in: declaration)
+            .first(where: {
+                $0.namespace == .value && $0.name == closeAsyncProvidersMethodName
+            }) else {
+            return false
+        }
+        context.emit(
+            SimpleDiagnostic.containerCloseAsyncProvidersNameConflict(),
             at: conflict.anchor
         )
         return true
@@ -261,9 +289,11 @@ struct DIContainerValidator {
         // Warn when a closure parameter uses a typealias that
         // aliases `Lazy<T>` or `Provider<T>`. The macro resolves deferred
         // wrapper kinds from written syntax, so typealiased spellings fall
-        // through to `.hard` silently. This check collects same-file
-        // typealiases and flags any closure parameter whose bare identifier
-        // matches one of them. Cross-file aliases stay invisible.
+        // through to `.hard`. This check collects typealiases from the
+        // source the macro is expanded with and flags any closure parameter
+        // whose bare identifier matches one of them. A real compiler passes
+        // only the attached declaration, so file-scope aliases stay
+        // invisible there; the build plugin's workspace scan covers them.
         //
         // Anchor selection: we need any managed member's attribute syntax to
         // walk up to `SourceFileSyntax`. A container with no managed members

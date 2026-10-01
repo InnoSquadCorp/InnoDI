@@ -9,10 +9,27 @@ public enum MigrationReportStatus: String, Codable, Sendable, Equatable {
 public struct MigrationReportChange: Codable, Sendable, Equatable {
     public let code: String
     public let path: String
+    /// Sorted codes of the rules whose rewrite changed this file. Reports
+    /// written before this field existed decode it as empty.
+    public let rules: [String]
 
-    public init(code: String, path: String) {
+    public init(code: String, path: String, rules: [String] = []) {
         self.code = code
         self.path = path
+        self.rules = rules
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case path
+        case rules
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(String.self, forKey: .code)
+        path = try container.decode(String.self, forKey: .path)
+        rules = try container.decodeIfPresent([String].self, forKey: .rules) ?? []
     }
 }
 
@@ -49,7 +66,13 @@ public struct MigrationReport: Codable, Sendable, Equatable {
         requiresChanges = plan.requiresChanges
         canWrite = plan.canWrite
         changes = plan.changes
-            .map { MigrationReportChange(code: "migrate.source-update", path: $0.path) }
+            .map {
+                MigrationReportChange(
+                    code: "migrate.source-update",
+                    path: $0.path,
+                    rules: $0.rules
+                )
+            }
             .sorted { ($0.path, $0.code) < ($1.path, $1.code) }
         diagnostics = plan.diagnostics
             .map {

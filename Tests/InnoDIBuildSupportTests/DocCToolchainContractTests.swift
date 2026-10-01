@@ -14,13 +14,7 @@ struct DocCToolchainContractTests {
             contentsOf: root.appendingPathComponent("Package.swift"),
             encoding: .utf8
         )
-
-        #expect(
-            manifest.contains(
-                #".package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2")"#
-            )
-        )
-        #expect(!manifest.contains("603.0.1"))
+        let syntaxVersion = try exactSwiftSyntaxVersion(manifest)
         #expect(source.contains(#"DOCC_PLUGIN_VERSION="1.5.0""#))
         #expect(
             source.contains(
@@ -39,7 +33,8 @@ struct DocCToolchainContractTests {
             )
         )
         #expect(source.contains(#"exact: "{docc_plugin_version}""#))
-        #expect(source.contains(#"swift-syntax\.git\", exact: \"603\.0\.2\""#))
+        let escapedVersion = syntaxVersion.replacingOccurrences(of: ".", with: #"\."#)
+        #expect(source.contains(#"swift-syntax\.git\", exact: \""# + escapedVersion + #"\""#))
         #expect(source.contains("--disable-automatic-resolution"))
         #expect(source.contains(#"--allow-writing-to-directory "$OUTPUT_DIR""#))
         #expect(!source.contains(#"from: "1.4.0""#))
@@ -58,10 +53,7 @@ struct DocCToolchainContractTests {
         )
 
         #expect(resolved.version == 3)
-        #expect(
-            resolved.originHash
-                == "8abd2d2bd3b65148be10d6988a158f723070727f13ece23ac698ca62876ad0a7"
-        )
+        #expect(resolved.originHash.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil)
         #expect(
             Set(pins.keys) == [
                 "swift-docc-plugin",
@@ -85,9 +77,32 @@ struct DocCToolchainContractTests {
         let swiftSyntax = try #require(pins["swift-syntax"])
         #expect(swiftSyntax.kind == "remoteSourceControl")
         #expect(swiftSyntax.location == "https://github.com/swiftlang/swift-syntax.git")
-        #expect(swiftSyntax.state.revision == "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1")
-        #expect(swiftSyntax.state.version == "603.0.2")
+        let root = packageRootURL()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let syntaxVersion = try exactSwiftSyntaxVersion(manifest)
+        // Compare against the graph SwiftPM actually resolved for the build,
+        // rather than repeating a soon-stale version/revision literal.
+        let rootResolved = try JSONDecoder().decode(
+            DocCResolvedFile.self,
+            from: Data(contentsOf: root.appendingPathComponent("Package.resolved"))
+        )
+        let rootSyntax = try #require(rootResolved.pins.first { $0.identity == "swift-syntax" })
+        #expect(swiftSyntax.state.version == syntaxVersion)
+        #expect(rootSyntax.state.version == syntaxVersion)
+        #expect(swiftSyntax.state.revision == rootSyntax.state.revision)
+        #expect(swiftSyntax.state.revision.range(of: #"^[0-9a-f]{40}$"#, options: .regularExpression) != nil)
     }
+}
+
+private func exactSwiftSyntaxVersion(_ manifest: String) throws -> String {
+    let regex = try NSRegularExpression(
+        pattern: #"swift-syntax\.git", exact: "([0-9]+\.[0-9]+\.[0-9]+)""#
+    )
+    let matches = regex.matches(in: manifest, range: NSRange(manifest.startIndex..., in: manifest))
+    #expect(matches.count == 1)
+    let match = try #require(matches.first)
+    let range = try #require(Range(match.range(at: 1), in: manifest))
+    return String(manifest[range])
 }
 
 private struct DocCResolvedFile: Decodable {

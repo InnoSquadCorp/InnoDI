@@ -84,11 +84,21 @@ Tools/record-cli-snapshots.sh InnoDIDependencyGraphCLITests
    - shared parsing and graph utilities
 4. `InnoDIBuildSupport`
    - coordinated validation, artifact writing, cache and lock handling
+   - a plugin snapshot holds every dependency target, InnoDI's own sources
+     among them, so key semantic lookups by declaring target, not by an
+     unqualified path, and never build them with
+     `Dictionary(uniqueKeysWithValues:)`, which traps on a repeated path
 5. `InnoDIWorkspaceAnalysis`, `InnoDIDependencyGraphCore`, `InnoDIDependencyGraphCLI`
    - full-source analysis, graph collection/query/contracts, JSON/Mermaid/DOT/ASCII rendering
    - `InnoDI-DependencyGraph` is the executable entry point
 6. `InnoDISwiftUI`
    - environment bridge, feature-root helpers, and explicit host lifecycle
+   - re-exports InnoDI but not SwiftUI; files that use SwiftUI, including
+     through generated `SwiftUI.` qualifiers, import it themselves
+   - `DIContainerHostOwner` is `@Observable` and observes only `phase`; keep
+     every other stored property `@ObservationIgnored`. Observation notifies
+     before the store, so `publish(_:)` must keep draining re-entrant
+     publications instead of assigning `phase` from inside a notification
 7. `InnoDITesting`, `InnoDIMigrationCore`, `InnoDIDoctorCore`
    - test support, migration planning/rollback, and project diagnostics
    - `InnoDI-Migrate`, `InnoDI-Doctor`, and `InnoDI-DeferredAliasScan` are CLI tools
@@ -146,25 +156,30 @@ graph-derived availability checks. Local ownership cycles are always rejected,
 including cycles through `Lazy` or `Provider`. It never disables declaration
 validation or effect compatibility on explicit sibling edges.
 
-`Tools/report-validate-dag-escape-hatches.sh` runs on every PR and lists
-every container `validateDAG: false` site plus any active
-`INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the workflow's
-step summary. The script is informational — set `INNODI_ESCAPE_HATCH_FAIL=1`
-to flip it into a blocker for orgs that treat new opt-outs as release
-blockers.
+`Tools/report-validate-dag-escape-hatches.sh` runs in whichever of the
+`fast-tests` and `macro-tests` jobs CI Plan selects (neither for an unlabeled
+docs-only PR) and lists every container `validateDAG: false` site plus any
+active `INNODI_DISABLE_BUILD_VALIDATION=1` environment override in the
+workflow's step summary. The script is informational — set
+`INNODI_ESCAPE_HATCH_FAIL=1` to flip it into a blocker for orgs that treat new
+opt-outs as release blockers.
 
 `Tools/measure-macro-performance.sh --enforce` keeps the single-PR
 regression gate against the pinned `macro-performance-baseline.json`, and
-`Tools/check-performance-trend.sh` runs alongside it on every PR to
+`Tools/check-performance-trend.sh` runs alongside it in `macro-tests` to
 compare against the rolling median of the `perf-history` branch (last 7
 entries, minimum 5 comparable entries, 20% threshold, same-toolchain and
-same-workload-version filters). Both compare `min_ms`, while reports retain
+same-workload-version filters). In `CI`, only that exhaustive job runs them:
+pull requests, whether labeled `release-validation` or selected by CI Plan,
+run them with `--report-only`, while pushes to `main`, merge queue runs, and
+manual dispatch enforce them. Both compare `min_ms`, while reports retain
 every raw sample and dispersion statistics. The successful-expansion workload
 is version 2; never relabel version-1 history or replace the pinned CI baseline
-with a developer-machine result. The `Macro Tests` workflow reuses the gated
-report for normal `main` history appends; `Perf History` is manual recovery.
-Missing/unreachable history or fewer than five comparable entries is
-insufficient trend evidence, not a measured trend pass.
+with a developer-machine result. The `CI` workflow reuses the gated
+report for normal `main` history appends after CI Required succeeds;
+`Perf History` is manual recovery. Missing/unreachable history or
+fewer than five comparable entries is insufficient trend evidence, not a
+measured trend pass.
 
 `Tools/measure-macro-features.sh` separately measures assisted factory, large
 multibinding, and mock generation. These independent v1 workloads are
@@ -203,6 +218,15 @@ Never feed their samples into the composite-v2 baseline/history.
   is not actually a non-optional function.
 - `.shared`: container-lifetime cached dependency; exactly one of `factory:`,
   `asyncFactory:`, `Type.self`, or a property initializer
+- `.shared` with `initialization: .onDemand` and `asyncFactory:` constructs on
+  the first read through `_InnoDIAsyncSharedCell`, which wraps a
+  `DIAsyncScope`. The initializer starts nothing. The accessor is always
+  `get async throws`, so use `providerEffect`, not `constructionEffect`,
+  wherever the member acts as a provider. Such a container gains
+  `closeAsyncProviders()`: `nonisolated(nonsending)`, or `@MainActor` with
+  `mainActor: true`. The operation closure is `@Sendable`, or main-actor
+  isolated in a `mainActor: true` container. Reserve the method name with
+  `container.close-async-providers-name-conflict`.
 - `.transient`: fresh dependency on every access; exactly one of `factory:`,
   `asyncFactory:`, `Type.self`, or a property initializer
 - the declared property type determines storage shape: concrete nominal types
@@ -235,22 +259,58 @@ sibling edge even when the container uses `validateDAG: false`.
 - Public collection metadata preserves `AnyKeyPath & Sendable`; do not erase
   it to `AnyKeyPath` or reintroduce unchecked metadata conformance.
 - `@SubContainer` adds ownership edges plus child override forwarding.
-- `swift run InnoDI-DeferredAliasScan --root .` lists every
+  Child inputs are synchronous in both child scopes; reject every asynchronous
+  parent member, eager, on-demand, or transient, with
+  `sub.async-parent-member`, including a `@SubContainerFactory(bindings:)`
+  parent. Validation recovery keeps such a member's accessor synchronous
+  whenever a sibling key path names it, so that diagnostic must stay terminal.
+- Parent key paths in `@SubContainer(with:)` and on the `parent:` side of
+  `bindings:` (including `@SubContainerFactory`) name one direct member as
+  `\Self.member`. The macro rejects named roots with
+  `sub.noncanonical-parent-key-path` and a fix-it from the validator, not the
+  parser, so the rest of the container is still validated. The macro and build
+  support reject nested components and `InnoDI-Migrate` blocks them; the graph
+  CLI records no edge for them. Build support deliberately resolves named
+  roots by member name so the compiler fix-it, not a plugin failure, reports
+  them. Classify spellings only through `parentMemberKeyPathSpelling` in
+  `InnoDICore`, and never call `filter` on a syntax collection when the result
+  anchors a diagnostic, because it builds a modified tree.
+- `swift run InnoDI-DeferredAliasScan --root .` lists every top-level
   `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
-  The macro plugin only warns for directly recognizable same-file aliases;
-  warning does not change hard-edge classification. Nested/qualified/chained
-  forms are not a general alias-resolution mechanism. Workspace build support
-  also reports `deferred-alias.workspace-finding` warnings. Spell `Lazy<T>` and
-  `Provider<T>` directly at factory parameters to obtain soft/provider edges.
-  The PR pipeline runs the scanner and posts findings to the workflow's step
-  summary plus a `deferred-aliases-report` artifact.
+  InnoDI never resolves aliases: a factory parameter typed with one is a hard
+  edge, and the generated call usually fails to type-check. The macro-level
+  `provide.lazy-aliased` / `provide.provider-aliased` check only sees the
+  source it is expanded with. A real compiler passes the attached declaration
+  alone, so the check does not fire for file-scope aliases outside unit tests.
+  Workspace build support records `deferred-alias.workspace-finding` warnings
+  in the validation summary. Spell `Lazy<T>` and `Provider<T>` directly at
+  factory parameters to obtain soft/provider edges.
+  The `CI` workflow runs the scanner in whichever of the `fast-tests` and
+  `macro-tests` jobs CI Plan selects and posts findings to the workflow's
+  step summary plus a `deferred-aliases-report-fast-pr` or
+  `deferred-aliases-report` artifact, respectively.
 
 ## Documentation Contract
 
 - `README.md` is the English canonical README.
-- Localized README files and localized DocC mirrors must match the English structure and meaning.
-- `Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and the release gate; H2 or swift-fence drift fails the build.
-- `RELEASING.md` is the single source for release notes and upgrade notes.
+- `README.ko.md` and `Sources/InnoDI/InnoDI.docc/ko.lproj` must match the
+  English structure and meaning. The Japanese, Simplified Chinese, German,
+  Spanish, and Russian READMEs and `*.lproj` folders are notice pages frozen
+  at 6.0.0; do not add content to them.
+- `Tools/check-localized-readme-sync.sh` runs in strict mode whenever CI Plan
+  selects the documentation contracts and in the release gate. It compares H2
+  and swift-fence counts of `README.ko.md` with `README.md` and of every
+  `ko.lproj/*.md` article with its English counterpart in
+  `Sources/InnoDI/InnoDI.docc`, requires every English article
+  there to have a Korean counterpart, and requires the Korean README to keep
+  its critical tokens. Any drift, or a notice page that stops linking
+  its 6.0.0 translation, fails the build; `INNODI_README_SYNC_STRICT=0` demotes
+  failures to warnings only for a soft-rollout window. The frozen `*.lproj`
+  folders are never compared. Matching counts do not prove matching meaning,
+  so mirror English prose edits in the same change.
+- `CHANGELOG.md` is the single source for release notes and upgrade notes, and
+  holds the latest-stable and development-train metadata. `RELEASING.md`
+  defines the release process.
 - If behavior changes, update docs in the same change.
 
 ## Review and release evidence

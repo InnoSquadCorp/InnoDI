@@ -145,7 +145,7 @@ struct OnDemandFixedParentContainer {
 
     @SubContainer(
         scope: .shared,
-        with: [\OnDemandFixedParentContainer.service]
+        with: [\Self.service]
     )
     var child: OnDemandFixedChildContainer
 }

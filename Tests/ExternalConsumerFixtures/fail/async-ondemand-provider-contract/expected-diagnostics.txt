@@ -1,0 +1,10 @@
+Dependency 'token' used by 'client' can throw, but 'client' uses a non-throwing asyncFactory. Mark its asyncFactory closure async throws.
+Dependency 'token' used by 'client' can throw, but 'client' uses a non-throwing asyncFactory. Mark its asyncFactory closure async throws.
+Dependency 'token' used by 'client' is asynchronous and throwing. Declare 'client' with asyncFactory: and an async throws closure.
+@SubContainer 'child' cannot pass parent member 'token' to a child input because 'token' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting 'token'.
+@SubContainer 'child' cannot pass parent member 'token' to a child input because 'token' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting 'token'.
+A @DIContainer with an asynchronous on-demand provider synthesizes closeAsyncProviders(), but a direct declaration already uses the name 'closeAsyncProviders'. Rename that declaration so the generated close API remains unambiguous.
+@SubContainer 'child' cannot pass parent member 'token' to a child input because 'token' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting 'token'.
+@SubContainer 'child' cannot pass parent member 'asyncToken' to a child input because 'asyncToken' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting 'asyncToken'.
+@SubContainerFactory 'session' cannot pass parent member 'asyncToken' to a child input because 'asyncToken' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or make the child input @Input(.assisted) and pass the awaited value to the factory.
+@Multibinding member 'services' cannot synchronously collect async contributor 'first'.

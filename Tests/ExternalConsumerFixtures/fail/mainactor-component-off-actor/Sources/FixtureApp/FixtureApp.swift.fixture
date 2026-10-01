@@ -20,7 +20,7 @@ struct MainActorRootContainer {
 
     @SubContainer(
         scope: .shared,
-        with: [\MainActorRootContainer.config]
+        with: [\Self.config]
     )
     var child: MainActorContainer
 }

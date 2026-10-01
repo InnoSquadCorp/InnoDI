@@ -24,24 +24,24 @@ concurrency:
 jobs:
   exact-revision-consumer:
     name: Exact-SHA macro and plugin consumer
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - name: Checkout smoke fixture only
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: |
-            .github/actions/select-xcode
             Tests/RemoteConsumerSmoke
             Tools
-      - name: Select prebuilt-compatible Xcode 26.6
-        # SwiftSyntax 603.0.2 has a matching prebuilt on Swift 6.3.3. This
-        # exact-revision consumer proof should exercise that fast path instead
-        # of rebuilding SwiftSyntax with the older Swift 6.3.2 toolchain.
-        uses: ./.github/actions/select-xcode
-        with:
-          version: "26.6"
+      - name: Verify prebuilt-compatible Xcode 27 and Swift 6.4
+        # Xcode 27 is the primary consumer toolchain: SwiftSyntax 604.0.0 has a
+        # matching prebuilt on Swift 6.4 and none on Swift 6.3. The isolated
+        # proof below rejects a SwiftSyntax update that loses that prebuilt.
+        run: |
+          set -euo pipefail
+          [[ "$(xcodebuild -version)" == Xcode\ 27* ]]
+          [[ "$(swift --version)" == *"Apple Swift version 6.4"* ]]
       - name: Confirm the revision is the published main tip
         env:
           INNODI_REPOSITORY_URL: ${{ inputs.repository_url || 'https://github.com/InnoSquadCorp/InnoDI.git' }}

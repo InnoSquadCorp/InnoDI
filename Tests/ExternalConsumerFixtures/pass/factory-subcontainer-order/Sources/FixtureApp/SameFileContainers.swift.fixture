@@ -17,8 +17,8 @@ struct SameFileParent {
     @SubContainer(
         scope: .shared,
         bindings: [
-            (child: \SameFileChild.second, parent: \SameFileParent.parentSecond),
-            (child: \SameFileChild.first, parent: \SameFileParent.parentFirst),
+            (child: \SameFileChild.second, parent: \Self.parentSecond),
+            (child: \SameFileChild.first, parent: \Self.parentFirst),
         ]
     )
     var child: SameFileChild

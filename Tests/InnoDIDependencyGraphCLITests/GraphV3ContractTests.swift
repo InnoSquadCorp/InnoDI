@@ -9,6 +9,63 @@ import Testing
 
 @Suite("Graph JSON v6 contract")
 struct GraphV3ContractTests {
+    @Test("async on-demand providers reuse the existing initialization and effect values")
+    func asyncOnDemandProvidersKeepSchemaVocabulary() throws {
+        let source = Parser.parse(source: """
+        @DIContainer
+        struct AppContainer {
+            @Input var client: APIClient
+
+            @Provide(.shared, initialization: .onDemand, asyncFactory: { (client: APIClient) async in
+                Session(client: client)
+            })
+            var session: Session
+
+            @Provide(.shared, initialization: .onDemand, asyncFactory: { (session: Session) async throws in
+                try await Profile.load(session: session)
+            })
+            var profile: Profile
+        }
+        """)
+        let root = URL(fileURLWithPath: "/workspace")
+        let snapshot = WorkspaceSourceSnapshot(
+            rootPath: root.path,
+            rootURL: root,
+            files: [
+                WorkspaceSourceFile(
+                    relativePath: "Sources/App/AppContainer.swift",
+                    fileURL: root.appendingPathComponent(
+                        "Sources/App/AppContainer.swift"
+                    ),
+                    syntax: source
+                )
+            ]
+        )
+        let graph = collectDependencyGraph(snapshot: snapshot, validateDAG: true)
+        let rendered = try renderJSON(
+            scope: GraphJSON.Scope(primaryTargetID: "App", rootPruning: .all),
+            nodes: graph.nodes,
+            edges: graph.edges,
+            providers: graph.providers
+        )
+        let document = try JSONDecoder().decode(
+            GraphJSON.Document.self,
+            from: Data(rendered.utf8)
+        )
+        #expect(document.schemaVersion == 6)
+
+        let session = try #require(document.providers.first { $0.name == "session" })
+        #expect(session.lifetime == .shared)
+        #expect(session.initialization == .onDemand)
+        #expect(session.effect == .async)
+        #expect(session.dependencies == ["client"])
+
+        let profile = try #require(document.providers.first { $0.name == "profile" })
+        #expect(profile.initialization == .onDemand)
+        #expect(profile.effect == .asyncThrows)
+        #expect(profile.dependencies == ["session"])
+    }
+
     @Test("assisted inputs, factory ownership, and contributions are explicit")
     func collectsVersionThreeSemantics() throws {
         let source = Parser.parse(source: """

@@ -43,7 +43,7 @@ internal func diagnoseIncompatibleDependencyEffects(
               provider.hasLocallyValidConstructionConfiguration,
               let mismatch = dependencyEffectMismatch(
                   consumer: member.constructionEffect,
-                  provider: provider.constructionEffect
+                  provider: provider.providerEffect
               ) else {
             continue
         }
@@ -77,7 +77,7 @@ internal func diagnoseIncompatibleDependencyEffects(
             continue
         }
         let providerThrows: Bool
-        switch provider.constructionEffect {
+        switch provider.providerEffect {
         case .synchronous:
             continue
         case .asynchronous:
@@ -87,14 +87,19 @@ internal func diagnoseIncompatibleDependencyEffects(
         }
 
         diagnosedNames.insert(reference.name)
-        context.emit(
-            SimpleDiagnostic.provideWithDependencyRequiresSynchronousProvider(
+        // `@SubContainerFactory` shares the `Type.self` wiring IR, but its
+        // user-facing contract is a child input, not a `with:` provider.
+        let message: SimpleDiagnostic = member.assistedFactoryChildType != nil
+            ? .subFactoryAsyncParentMember(
+                memberName: member.name,
+                parentMemberName: reference.name
+            )
+            : .provideWithDependencyRequiresSynchronousProvider(
                 memberName: member.name,
                 dependencyName: reference.name,
                 providerThrows: providerThrows
-            ),
-            at: Syntax(reference.anchorExpression)
-        )
+            )
+        context.emit(message, at: Syntax(reference.anchorExpression))
     }
 
     return diagnosedNames

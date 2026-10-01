@@ -57,7 +57,7 @@ struct RuntimeParentWithSubsetContainer {
     @Input var config: RuntimeParentConfig
     @Input var extra: String
 
-    @SubContainer(scope: .shared, with: [\RuntimeParentWithSubsetContainer.config])
+    @SubContainer(scope: .shared, with: [\Self.config])
     var child: RuntimeSubsetChildContainer
 }
 
@@ -94,7 +94,7 @@ struct RuntimeParentWithBindingsContainer {
 
     @SubContainer(
         scope: .shared,
-        bindings: [(child: \RuntimeBindingsChildContainer.featureConfig, parent: \RuntimeParentWithBindingsContainer.config)]
+        bindings: [(child: \RuntimeBindingsChildContainer.featureConfig, parent: \Self.config)]
     )
     var child: RuntimeBindingsChildContainer
 }
@@ -105,7 +105,7 @@ struct RuntimeParentWithTransientBindingsContainer {
 
     @SubContainer(
         scope: .transient,
-        bindings: [(child: \RuntimeBindingsChildContainer.featureConfig, parent: \RuntimeParentWithTransientBindingsContainer.config)]
+        bindings: [(child: \RuntimeBindingsChildContainer.featureConfig, parent: \Self.config)]
     )
     var child: RuntimeBindingsChildContainer
 }
@@ -161,7 +161,7 @@ struct OverrideTransientBindingsParentContainer {
 
     @SubContainer(
         scope: .transient,
-        bindings: [(child: \OverrideTransientBindingsChild.featureConfig, parent: \OverrideTransientBindingsParentContainer.config)]
+        bindings: [(child: \OverrideTransientBindingsChild.featureConfig, parent: \Self.config)]
     )
     var feature: OverrideTransientBindingsChild
 }

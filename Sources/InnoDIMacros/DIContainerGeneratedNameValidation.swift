@@ -33,17 +33,20 @@ let reservedGeneratedMemberPrefixes = [
 ]
 
 enum ManagedGeneratedSymbolShape {
-    case provide(scope: ProvideScope, isAsync: Bool)
+    /// `storesTask` is true only for an eager asynchronous `.shared`
+    /// provider. An asynchronous on-demand provider stores its cell in
+    /// `_storage_` like a synchronous provider.
+    case provide(scope: ProvideScope, storesTask: Bool)
     case subContainer(scope: SubContainerScopeValue)
 
     /// A conservative superset used only to rule out collisions before
     /// parsing every sibling's full provider arguments. A possible collision
     /// still goes through the original scope/configuration-aware validation.
     static let possiblePrefixes: Set<String> = Set([
-        Self.provide(scope: .input, isAsync: false),
-        .provide(scope: .shared, isAsync: false),
-        .provide(scope: .shared, isAsync: true),
-        .provide(scope: .transient, isAsync: false),
+        Self.provide(scope: .input, storesTask: false),
+        .provide(scope: .shared, storesTask: false),
+        .provide(scope: .shared, storesTask: true),
+        .provide(scope: .transient, storesTask: false),
         .subContainer(scope: .shared),
         .subContainer(scope: .transient),
     ].flatMap { $0.symbolNames(for: "") })
@@ -107,7 +110,7 @@ func generatedPeerSymbolCollisions(
                 memberName: member.name,
                 shape: .provide(
                     scope: member.scope,
-                    isAsync: member.isAsyncFactory
+                    storesTask: member.isAsyncFactory && !member.isAsyncOnDemand
                 ),
                 sourceOrder: member.sourceOrder,
                 anchor: managedMemberNameAnchor(member.bindingSyntax)
@@ -266,7 +269,8 @@ private func rawManagedGeneratedSymbolSources(
                 memberName: memberName,
                 shape: .provide(
                     scope: scope,
-                    isAsync: arguments.asyncFactoryExpr != nil
+                    storesTask: arguments.asyncFactoryExpr != nil
+                        && arguments.initialization != .onDemand
                 ),
                 sourceOrder: sourceOrder,
                 anchor: anchor

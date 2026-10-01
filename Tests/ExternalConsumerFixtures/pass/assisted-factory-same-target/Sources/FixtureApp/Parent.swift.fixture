@@ -17,11 +17,11 @@ struct AppContainer {
         bindings: [
             (
                 child: \SessionContainer.repository,
-                parent: \AppContainer.repository
+                parent: \Self.repository
             ),
             (
                 child: \SessionContainer.callback,
-                parent: \AppContainer.callback
+                parent: \Self.callback
             ),
         ]
     )

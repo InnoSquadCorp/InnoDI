@@ -8,7 +8,7 @@ if [[ $# -ne 1 ]]; then
 fi
 
 tag="$1"
-release_doc="RELEASING.md"
+release_doc="CHANGELOG.md"
 
 if [[ ! -f "$release_doc" ]]; then
   echo "missing $release_doc" >&2

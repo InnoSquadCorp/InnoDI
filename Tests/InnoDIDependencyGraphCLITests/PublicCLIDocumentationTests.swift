@@ -6,25 +6,43 @@ struct PublicCLIDocumentationTests {
     @Test("Release upgrade diagnostics provide a consumer root without applying changes")
     func releaseUpgradeCommandsAreReadOnlyAndComplete() throws {
         let source = try String(
-            contentsOf: packageRootURL().appendingPathComponent("RELEASING.md"),
+            contentsOf: packageRootURL().appendingPathComponent("CHANGELOG.md"),
             encoding: .utf8
         )
-        let upgradeStart = try #require(source.range(of: "### Upgrade Actions\n"))
-        let currentUpgrade = source[upgradeStart.upperBound...]
-            .components(separatedBy: "\n## ")[0]
-        let commands = currentUpgrade.split(separator: "\n").map {
-            $0.trimmingCharacters(in: .whitespaces)
-        }.filter {
-            $0.hasPrefix("swift run InnoDI-Doctor ") || $0.hasPrefix("swift run InnoDI-Migrate ")
+        // The latest published release owns the complete upgrade commands.
+        // An Unreleased section may accumulate its own commands during a train;
+        // they must follow the same read-only placeholder contract.
+        let stableMarker = "Latest stable public release: `"
+        let markerRange = try #require(source.range(of: stableMarker))
+        let versionEnd = try #require(
+            source[markerRange.upperBound...].firstIndex(of: "`")
+        )
+        let stableVersion = String(source[markerRange.upperBound..<versionEnd])
+        let stableCommands = try upgradeCommands(in: source, section: stableVersion)
+        #expect(stableCommands.contains("swift run InnoDI-Doctor --root /path/to/consumer"))
+        #expect(stableCommands.contains("swift run InnoDI-Migrate --root /path/to/consumer --check"))
+        #expect(stableCommands.contains("swift run InnoDI-Migrate --root /path/to/consumer --report"))
+
+        var commands = stableCommands
+        if source.contains("\n## Unreleased\n") {
+            commands += try upgradeCommands(in: source, section: "Unreleased")
         }
-        #expect(commands.contains("swift run InnoDI-Doctor --root /path/to/consumer"))
-        #expect(commands.contains("swift run InnoDI-Migrate --root /path/to/consumer --check"))
-        #expect(commands.contains("swift run InnoDI-Migrate --root /path/to/consumer --report"))
         for command in commands {
             #expect(command.contains("--root /path/to/consumer"))
             #expect(!command.contains("--write"))
             #expect(!command.contains("--apply"))
             #expect(!command.contains("--verify"))
+        }
+    }
+
+    private func upgradeCommands(in source: String, section: String) throws -> [String] {
+        let sectionStart = try #require(source.range(of: "\n## \(section)\n"))
+        let body = source[sectionStart.upperBound...].components(separatedBy: "\n## ")[0]
+        let upgradeStart = try #require(body.range(of: "### Upgrade Actions\n"))
+        return body[upgradeStart.upperBound...].split(separator: "\n").map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }.filter {
+            $0.hasPrefix("swift run InnoDI-Doctor ") || $0.hasPrefix("swift run InnoDI-Migrate ")
         }
     }
 
@@ -34,11 +52,6 @@ struct PublicCLIDocumentationTests {
         let documentationPaths = [
             "README.md",
             "README.ko.md",
-            "README.ja.md",
-            "README.zh-Hans.md",
-            "README.de.md",
-            "README.es.md",
-            "README.ru.md",
             "Examples/README.md",
             "AGENTS.md",
         ]

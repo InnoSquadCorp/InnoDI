@@ -1278,6 +1278,65 @@ struct ValidationCoordinatorTests {
         #expect(runner.invocationCount == 0)
     }
 
+    @Test("Semantic validation rejects nested parent key paths but leaves named roots to the compiler")
+    func semanticValidationClassifiesParentKeyPathSpelling() async throws {
+        func coordinate(parentKeyPath: String) async throws -> (
+            outcome: ValidationExecutionOutcome,
+            invocationCount: Int
+        ) {
+            let fixture = try makeFixture()
+            defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+            try """
+            struct AppConfig { var value: AppConfig? }
+
+            @DIContainer
+            struct FeatureContainer {
+                @Input
+                var config: AppConfig
+            }
+
+            @DIContainer
+            struct AppContainer {
+                @Input
+                var appConfig: AppConfig
+
+                @SubContainer(scope: .shared, bindings: [(child: \\FeatureContainer.config, parent: \(parentKeyPath))])
+                var feature: FeatureContainer
+            }
+            """.write(
+                to: fixture.rootURL.appendingPathComponent("ParentKeyPaths.swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+            let runner = MockValidationRunner(
+                results: [
+                    ValidationCommandResult(exitCode: 0, stdout: "DAG validation passed.\n", stderr: "")
+                ]
+            )
+            let outcome = try await ValidationCoordinator.coordinate(
+                rootPath: fixture.rootURL.path(percentEncoded: false),
+                toolPath: "/usr/bin/true",
+                stateDirectoryPath: fixture.stateURL.path(percentEncoded: false),
+                outputDirectoryPath: fixture.outputAURL.path(percentEncoded: false),
+                runner: runner
+            )
+            return (outcome, runner.invocationCount)
+        }
+
+        // A nested component would otherwise wire only its last component.
+        let nested = try await coordinate(parentKeyPath: "\\Self.appConfig.value")
+        #expect(nested.outcome.result.exitCode == 1)
+        #expect(nested.outcome.result.stderr.contains("sub.invalid-bindings"))
+        #expect(nested.invocationCount == 0)
+
+        // The attached macro reports a named root with a fix-it, so the build
+        // plugin resolves the member name instead of failing first.
+        let named = try await coordinate(parentKeyPath: "\\AppContainer.appConfig")
+        #expect(named.outcome.metricsArtifact.issues.isEmpty)
+        #expect(named.outcome.result.exitCode == 0)
+        #expect(named.invocationCount == 1)
+    }
+
     @Test("Semantic validation rejects duplicate binding tuple labels before DAG runner executes")
     func semanticValidationRejectsDuplicateBindingTupleLabels() async throws {
         let fixture = try makeFixture()

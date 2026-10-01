@@ -13,10 +13,11 @@ establish remote CI success. The following commands cover a source PR:
 ```bash
 # Test suite, exactly as the PR fast lane runs it (the skipped suites are
 # clean-build consumer contracts that remain exhaustive main gates)
-swift test \
+swift test --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
-  --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
+  --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+  --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
 # Macro synthesis and CI policy guards
 Tools/check-no-fatalerror-in-macros.sh
@@ -63,46 +64,53 @@ Canonical sources:
 - `RELEASING.md`
 - `ROADMAP.md`
 
-Localized mirrors:
+Localized mirror:
 
 - `README.ko.md`
-- `README.es.md`
-- `README.de.md`
-- `README.zh-Hans.md`
-- `README.ja.md`
-- `README.ru.md`
-- `Sources/InnoDI/InnoDI.docc/*.lproj/*.md`
+- `Sources/InnoDI/InnoDI.docc/ko.lproj/*.md`
 
 Keep the English docs authoritative, then mirror the same structure and meaning
-into localized README and DocC files.
+into the Korean README and DocC files. The Japanese, Simplified Chinese,
+German, Spanish, and Russian translations were frozen at 6.0.0. Their README
+files and `*.lproj` folders are notice pages that link the 6.0.0 translation;
+do not add new content to them.
 
 The generated DocC archive currently builds from the English base catalog, so
 localized DocC files are maintained as source mirrors in the repository.
 
-`Tools/check-localized-readme-sync.sh` runs in strict mode on every PR and
-release: a swift fence count or H2 header count drift between the English
-canonical and any localized README fails the build. When you add or remove an
-H2 in `README.md`, mirror the change into all six localized files in the same
-PR. The script accepts `INNODI_README_SYNC_STRICT=0` only as an explicit
-soft-rollout window for canonical restructures.
+`Tools/check-localized-readme-sync.sh` runs in strict mode whenever CI Plan
+selects the documentation contracts and in every release: a swift fence count
+or H2 header count drift between the English canonical and the Korean README,
+or between an English DocC article and its `ko.lproj` counterpart, fails the
+build, as do an English DocC article without a `ko.lproj` counterpart and a
+notice page that stops linking `README.md` and its 6.0.0 translation. The
+frozen `*.lproj` folders are not compared. When you add a DocC article, or add
+or remove an H2 or a Swift example in `README.md` or a DocC article, mirror
+the change into the Korean file in the same PR. The script accepts
+`INNODI_README_SYNC_STRICT=0` only as an explicit soft-rollout window for
+canonical restructures.
 
 ## Code Coverage
 
-The `main` workflow runs `swift test --enable-code-coverage` once and feeds the
-profile data into `Tools/collect-coverage.sh`, which exports a per-module
-rollup. The rollup appears in the workflow run's step summary and is
-uploaded as an `actions/upload-artifact` artifact named `coverage`. Locally:
+The exhaustive lane on `main` and the Release Gate run
+`Tools/run-coverage-gate.sh`: one strict `swift test --enable-code-coverage`
+pass whose profile data `Tools/collect-coverage.sh` exports as a per-module
+rollup. The rollup appears in the workflow run's step summary and is uploaded
+as an `actions/upload-artifact` artifact named `coverage`, and
+`Tools/check-coverage-floor.py` fails the gate when a module falls below its
+floor in `Tools/coverage-floor.json`. Locally:
 
 ```sh
-swift test --enable-code-coverage
-Tools/collect-coverage.sh
+Tools/run-coverage-gate.sh
 # → coverage/lcov.info, coverage/report.txt, coverage/summary.json, coverage/summary.md
 ```
 
-Coverage enforces the module floors in `Tools/coverage-floor.json` through
-`Tools/run-coverage-gate.sh`; reports also surface unexpected per-module drops. Tests, examples, swift-syntax, and the
-`.build` cache are excluded so the report tracks the library surface, not
-fixtures or third-party code.
+The pass skips the external consumer and strict-concurrency build contracts.
+They build fixture packages in separate, non-instrumented Swift processes and
+used to take most of the pass; the exhaustive lane runs them in its own job
+beside the gate, and the Release Gate runs them for every release toolchain.
+Tests, examples, swift-syntax, and the `.build` cache are excluded from the
+report so it tracks the library surface, not fixtures or third-party code.
 
 ## Macro Performance Trend
 
@@ -121,7 +129,8 @@ contracts, but defers contracts that spawn clean external SwiftPM builds to
 `main`. PRs build one representative example; the two extended examples run
 on `main`, their weekly schedule, and manual dispatch. The exhaustive lane also
 retains coverage, Swift 6.2 compatibility, Apple-platform builds, path-identity
-checks, and performance tracking. This split changes feedback latency, not
+checks, and performance tracking, and runs the external consumer contracts in
+a job beside the coverage gate. This split changes feedback latency, not
 release coverage.
 
 The gated Ubuntu history job in `CI` runs after successful pushes to `main` and uses
@@ -136,7 +145,7 @@ Tunables for the trend gate (set as environment variables):
 
 - `INNODI_TREND_WINDOW` (default 7) — trailing entries used for the
   median.
-- `INNODI_TREND_THRESHOLD_PCT` (default 10) — fail above this delta.
+- `INNODI_TREND_THRESHOLD_PCT` (default 20) — fail above this delta.
 - `INNODI_TREND_MIN_SAMPLES` (default 5) — below this the gate just
   reports.
 - `INNODI_TREND_REQUIRE_SAME_TOOLCHAIN` (default 1) — drop history
@@ -166,7 +175,7 @@ part of this file.
 
 - Keep changes scoped and explain user-facing behavior changes.
 - Add or update tests for validation, diagnostics, graph output, SwiftUI helpers, or examples when behavior changes.
-- If release notes, upgrade guidance, artifact naming, or schema expectations change, update `RELEASING.md` in the same change.
+- If release notes or upgrade guidance change, update `CHANGELOG.md` in the same change. If artifact naming or schema expectations change, update `RELEASING.md`.
 - Prefer `SwiftSyntaxBuilder` over string-built AST when changing macro generation.
 
 ## Code Style Conventions

@@ -1,0 +1,24 @@
+import InnoDISwiftUI
+
+struct OnDemandToken: Sendable {}
+
+// On-demand storage constructs InnoDI cells in expression position, so an
+// enclosing member named `InnoDI` shadows that qualifier even though no
+// type spells it.
+enum OnDemandHost {
+    static let InnoDI = 0
+
+    @DIContainer
+    struct SynchronousContainer {
+        @Provide(.shared, initialization: .onDemand, factory: { OnDemandToken() })
+        var token: OnDemandToken
+    }
+
+    @DIContainer
+    struct AsynchronousContainer {
+        @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in
+            OnDemandToken()
+        })
+        var token: OnDemandToken
+    }
+}

@@ -57,6 +57,11 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:ModuleWideInitDetection>
 - <doc:DiagnosticsGuide>
 
+### Migrating from Other Libraries
+
+- <doc:MigratingFromFactory>
+- <doc:MigratingFromSwinject>
+
 ### Operations
 
 - <doc:lock-safety>

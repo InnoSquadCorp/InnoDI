@@ -4,14 +4,36 @@ This document tracks the live roadmap after the 4.0.0 baseline, the 4.1.0
 release-hardening pass, and the 4.2.0 wiring/observability simplification
 release.
 
-## Current 6.0.0 candidate
+## 7.0.0 train
 
-The [final-hardening plan](docs/plans/6.0.0-final-hardening.md) tracks the
-September 22 audit findings, the selected rejection of deferred ownership
-cycles, and new candidate-bound verification. Earlier shipped-version and
-T42 pass records below/elsewhere remain historical; they do not approve this
-candidate for release. Mulbyul is the only product-consumer verification in
-scope and its original working tree remains test-only and unchanged.
+InnoDI 6.0.0 shipped on 2026-09-29 as an immutable GitHub Release. The
+[7.0.0 post-audit plan](docs/plans/7.0.0-post-audit.md) tracks the
+2026-09-29 audit follow-up as one train: CI feedback time, asynchronous
+on-demand providers with an explicit close path, a `@GenerateMock` renderer
+built with SwiftSyntaxBuilder, canonical key paths, SwiftUI re-export
+removal, the macOS 14 floor with an Observation-based host owner, and
+documentation consolidation. 7.0.0 supersedes 6.0.0; the 6.0.0 tag is not
+moved or republished.
+
+The symbol-graph semantic validator spike ended with a no-go, and
+[RFC 0007](docs/rfcs/0007-symbol-graph-semantic-validation.md) was rejected
+on 2026-09-30. The syntax-only whole-source preflight remains the build
+validator. The compile-time `Lazy`/`Provider` alias probe that RFC 0007
+recommends instead is scheduled for 7.1: generated code would call a probe
+for each hard factory parameter, so the compiler warns when an alias names a
+deferred wrapper. It replaces the macro-level alias check, which never fires
+in a real build.
+
+`ContainerRole` stays a string-backed token in 7.0.0 because Swift 6.2
+remains the minimum toolchain and Swift 6.2.3 crashes on enum-typed arguments
+of the multi-role `@DIContainerRole` macro. The informational
+[compiler canary](Tests/CompilerCanaries/README.md) reports whether each CI
+toolchain accepts that shape; an enum-typed role returns only after every
+supported toolchain compiles it. No matching upstream issue was found in
+`swiftlang/swift` as of 2026-09-29.
+
+The [6.0.0 final-hardening plan](docs/plans/6.0.0-final-hardening.md) remains
+the historical record for the 6.0.0 candidate.
 
 ## Shipped in 4.0.0
 
@@ -393,7 +415,7 @@ following hold on `main`:
    blockers, captured as references in the RFC.
 5. **Promotion PR.** A maintainer opens a PR that flips the docstring from
    "Experimental" to the stable description, removes the experimental marker
-   from the ROADMAP table, and bumps the relevant minor in `RELEASING.md`.
+   from the ROADMAP table, and records the promotion under the relevant minor in `CHANGELOG.md`.
    The PR sits open for a 7-day cooldown before merge so existing adopters
    can object.
 

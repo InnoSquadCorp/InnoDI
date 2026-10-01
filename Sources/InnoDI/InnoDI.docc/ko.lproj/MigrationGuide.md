@@ -2,7 +2,7 @@
 
 버전별 업그레이드 노트입니다. 릴리스 시점의 전체 하이라이트와
 breaking change 표는
-[`RELEASING.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md)
+[`CHANGELOG.md`](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md)
 를 참고하세요. 이 문서는 같은 정보를 **컨슈머가 무엇을 바꿔야 하는가**를
 기준으로 재구성한 것입니다.
 
@@ -11,16 +11,141 @@ breaking change 표는
 | From → To | 변경 카테고리 | 필요한 작업 |
 |---|---|---|
 | 1.x → 2.x | Validation 정책 강화 | 매크로 테스트를 다시 실행하고, 더 엄격해진 validator가 새로 발생시키는 진단을 해결하세요. |
-| 2.x → 3.x | OSS baseline + governance | 코드 변경은 필요 없습니다. 내부 릴리스 도구가 legacy notes 대신 `RELEASING.md` 섹션을 읽도록 갱신하세요. |
+| 2.x → 3.x | OSS baseline + governance | 코드 변경은 필요 없습니다. 내부 릴리스 도구가 legacy notes 대신 버전 섹션(7.0부터 `CHANGELOG.md`, 이전에는 `RELEASING.md`)을 읽도록 갱신하세요. |
 | 3.x → 4.0 | 공개 계약 정리 | `@SubContainer`의 새로운 `withNames:`/`with:`/`bindings:` 매트릭스를 채택하세요. `_LazyCell` import를 중단하고, `_storage_` / `_override_sub_` / `_innoDISubBuild_` 예약 prefix로 시작하는 컨테이너 멤버의 이름을 변경하세요. |
 | 4.0 → 4.1 | DX 강화 | `@SubContainer(... withNames:)` 마이그레이션은 필수 아닙니다. 스택드 peer-macro 컨텍스트에서는 `withNames:`를 계속 쓰고, Swift 타입 체커가 key-path를 받아주는 단일 매크로 사이트는 `with:`로 옮기세요. lock-timeout stderr 블록을 파싱하는 곳은 구조화된 필드를 읽도록 갱신하세요. |
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
+| 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001의 1-3단계는 **experimental**로 제공됩니다. Attribute는 안정적이지만 생성되는 mock 형태는 바뀔 수 있습니다. 도입은 opt-in입니다. <doc:AutoMock>을 참고하세요. |
+| 6.x → 7.0 (미출시) | Parent key path 정규화, 명시적 SwiftUI import, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
 단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0 surface와
 이전 버전 hop — 으로 펼쳐집니다.
+
+---
+
+## 6.x → 7.0
+
+InnoDI 7.0은 미출시 상태이며 `main`에서 개발 중입니다. 아래 각 항목은 필요한
+소스 또는 의존성 변경과 적용 방법을 적습니다. 먼저 읽기 전용 검사를 실행하세요.
+
+### Parent key path는 `\Self.member`로 씁니다
+
+`@SubContainer(with:)`와 `@SubContainer(bindings:)`, `@SubContainerFactory(bindings:)`의
+`parent:` 쪽은 `\Self.member`를 요구합니다. InnoDI는 항상 멤버 이름만
+읽었으므로 `\AppContainer.config` 같은 이름 있는 루트는 선언 컨테이너와
+대조된 적이 없습니다. 7.0은 이를 `sub.noncanonical-parent-key-path`와
+fix-it으로 거부합니다. `\Self.config.baseURL` 같은 중첩 컴포넌트는 예전에
+마지막 컴포넌트만 연결했습니다. 7.0은 이를 `sub.invalid-same-name-wiring`
+또는 `sub.invalid-bindings`로 거부합니다.
+
+`InnoDI-Migrate`는 이름 있는 루트를 `\Self`로 바꾸고 중첩 컴포넌트는
+막습니다.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check
+swift run InnoDI-Migrate --root /path/to/consumer --write
+```
+
+검사가 `migrate.unqualified-ownership-ambiguous`를 보고하면, 그 파일이 다른
+`SubContainer`나 `Provide` 매크로처럼 같은 이름의 속성을 선언할 수 있는 모듈을
+import한다는 뜻입니다. 메시지에 그 모듈이 나열됩니다. 속성을
+`@InnoDI.SubContainer`처럼 한정하거나, InnoDI와 같은 이름의 속성이나 매크로를
+선언하지 않는 모듈마다 `--trust-module <name>`을 붙여 다시 실행하세요. 앱은 보통
+자기 모듈을 이렇게 신뢰합니다.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/consumer --check --trust-module Domain --trust-module Features
+```
+
+신뢰한 모듈이 있어도, 검사한 소스에서 같은 이름의 선언을 찾으면 그대로
+차단합니다. `\Self.member`는
+InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 수 있습니다.
+
+다음 두 경우에도 추측하지 않고 차단합니다. 속성 목록의 `#if` 절이나 macro 인자
+안처럼 재작성이 닿지 않는 레거시 표기는 `migrate.legacy-form-unsupported`를
+보고하므로 직접 옮기세요. 재작성 결과가 검사한 소스에 이미 선언된 `Input`이나
+`ContainerRole` 같은 이름을 만들게 되면 `migrate.rewrite-target-ambiguous`를
+보고하므로, 속성을 `InnoDI.`로 한정하거나 해당 선언의 이름을 바꾸세요.
+
+### InnoDISwiftUI가 더 이상 SwiftUI를 re-export하지 않습니다
+
+예전에는 `import InnoDISwiftUI`만으로 모든 SwiftUI 이름이 보였습니다. 7.0에서도
+InnoDI는 계속 re-export하지만, SwiftUI를 쓰는 파일은 SwiftUI를 직접 import해야
+합니다. SwiftUI를 생성 코드에서만 쓰는 파일도 마찬가지입니다.
+`@SubContainer(featureRoot:)` helper와 `@DIEnvironmentBridge`는 `SwiftUI.`로
+한정한 이름으로 확장되고, 이 이름은 파일이 SwiftUI를 import할 때만 해석됩니다.
+import가 없으면 `cannot find type 'Text' in scope` 같은 오류로 실패합니다.
+
+`InnoDI-Migrate`는 `InnoDISwiftUI`를 import하는 각 파일에 같은 가시성의 전체
+`import SwiftUI`를 둡니다. `InnoDISwiftUI` import 뒤에 그 import와 같은 접근
+수준으로 추가하고, `@_exported import InnoDISwiftUI`에는
+`@_exported import SwiftUI`를 추가하므로 그 파일의 client도 계속 SwiftUI를
+봅니다. 이미 `import SwiftUI`가 있으면 그 import를 같은 가시성으로 올립니다.
+`import struct SwiftUI.Text` 같은 범위 import나 `#if` 안의 import는 SwiftUI의
+모든 이름을 제공하지 않으므로, 이런 파일에도 전체 import를 추가합니다. 이
+규칙은 다시 실행해도 결과가 같고, 위의 명령으로 함께 처리됩니다.
+
+### macOS 14와 Observation 기반 host owner
+
+`InnoDISwiftUI`가 모든 플랫폼에서 Observation framework를 쓸 수 있도록 macOS
+최소 버전이 13에서 14로 올라갑니다. 다른 최소 버전은 그대로입니다. iOS 17,
+tvOS 17, watchOS 10, visionOS 1입니다.
+
+`DIContainerHostOwner`는 이제 `ObservableObject` 대신 `@Observable` class입니다.
+관찰되는 property는 여전히 `phase` 하나이고, `DIContainerHost`는 owner를
+`@StateObject` 대신 `@State`에 보관합니다. 아래 변경은 앱 설정에 따라 다르므로
+직접 적용하세요.
+
+- InnoDI를 링크하는 macOS deployment target이 14보다 낮다면 올리세요.
+- `owner.$phase`와 `owner.objectWillChange` 구독을 `withObservationTracking`으로
+  바꾸거나, SwiftUI view에서 `owner.phase`를 읽으세요.
+- `@StateObject var owner = DIContainerHostOwner()`를
+  `@State var owner = DIContainerHostOwner()`로 바꾸세요.
+
+Observation은 `@Published`와 마찬가지로 새 값이 저장되기 전에 `onChange`
+handler를 호출합니다. handler 안이 아니라 변경 뒤에, 예를 들어 view나 task에서
+`owner.phase`를 읽으세요.
+
+### 비동기 parent는 child input으로 쓸 수 없습니다
+
+`@SubContainer` child input을 비동기 parent member에 연결하면 이제
+`sub.async-parent-member`로 실패합니다. 6.0에서는 같은 연결이 생성된 child
+생성 코드 안에서 무관한 missing-member 오류로 컴파일에 실패했으므로, 컴파일되던
+소스가 바뀌지는 않습니다. 동기 parent member를 연결하거나, parent member를
+await한 뒤 child를 직접 생성하세요. `@SubContainerFactory(bindings:)`는
+`provide.with-dependency-requires-synchronous-provider` 대신 같은 코드로
+보고합니다. 그 child input을 `@Input(.assisted)`로 바꾸고 await한 값을
+factory에 전달하세요.
+
+### 비동기 shared 작업의 시작 시점 선택
+
+7.0은 `initialization: .onDemand`와 `asyncFactory:`를 함께 받습니다. 기존 eager
+provider는 바뀌지 않습니다. 비동기 생성 형태는 아래 표로 고르세요.
+
+| 필요 | 선언 |
+|---|---|
+| 초기화 중에 시작하고 취소하지 않음 | `@Provide(.shared, asyncFactory:)` |
+| 첫 읽기에서 시작하고 소유자가 닫을 수 있음 | `@Provide(.shared, initialization: .onDemand, asyncFactory:)` |
+| 읽을 때마다 새 값 생성 | `@Provide(.transient, asyncFactory:)` |
+| 상태 관찰, 선택한 그래프 준비, 실패 후 재시도 | ``DIAsyncScope``를 `@Input`으로 주입 |
+
+eager provider를 `.onDemand`로 옮기면 accessor가 `get async throws`로 바뀝니다.
+`try` 없이 읽던 consumer는 `try`를 추가해야 하고, throw하지 않는 `async`
+factory를 쓰는 sibling consumer는 `async throws`를 선언해야 합니다. 컨테이너를
+소유한 기능이 끝나는 지점에서 `closeAsyncProviders()`를 호출하세요. 수명 계약은
+<doc:Provide>를 참고하세요.
+
+### SwiftSyntax 604.0.0
+
+InnoDI 7.0은 SwiftSyntax를 정확히 `604.0.0`으로 요구합니다. 의존성 그래프의 모든
+패키지가 이 버전에 맞아야 하므로, 다른 매크로 패키지를 먼저 604.0.0으로 올리거나
+그 패키지들이 지원할 때까지 InnoDI 6.x에 머무르세요. Xcode 27(Swift 6.4)은
+InnoDI의 매크로를 맞는 SwiftSyntax prebuilt로 빌드합니다. Xcode 26.x(Swift 6.3)와
+Swift 6.2는 SwiftSyntax를 source로 컴파일하므로 clean 빌드는 느려지지만 동작은
+달라지지 않습니다.
 
 ---
 
@@ -30,7 +155,7 @@ breaking change 표는
 
 ```swift
 // Before
-@SubContainer(scope: .shared, with: [\.config])
+@SubContainer(scope: .shared, with: [\Self.config])
 @DIFeatureRoot(DashboardRootView.self)
 @DIFeatureRoot(DashboardShellView.self, as: "dashboardShell")
 var dashboard: DashboardContainer
@@ -38,7 +163,7 @@ var dashboard: DashboardContainer
 // After
 @SubContainer(
     scope: .shared,
-    with: [\.config],
+    with: [\Self.config],
     featureRoots: [
         FeatureRoot(DashboardRootView.self),
         FeatureRoot(DashboardShellView.self, as: "dashboardShell")
@@ -50,7 +175,7 @@ var dashboard: DashboardContainer
 단일 root view만 필요한 일반 케이스는 더 짧은 형태를 권장합니다.
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config], featureRoot: DashboardRootView.self)
+@SubContainer(scope: .shared, with: [\Self.config], featureRoot: DashboardRootView.self)
 var dashboard: DashboardContainer
 ```
 
@@ -101,7 +226,7 @@ InnoSquad나 뱅크샐러드식 monorepo에서 초기 InnoDI를 이미 쓰고 �
 var feature: FeatureContainer
 
 // After
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -205,15 +330,83 @@ validation metrics JSON artifact를 파싱한다면 `unsafe-filesystem`
 
 ---
 
-## 5.x → 6.0 그래프 계약
+## 5.x → 6.0 어휘
 
-`@Multibinding`으로 표현할 수 없는 keyed/provider collection은
-`@Provide(collection:)`에 `.ordered`, `.keyed`, `.providers`,
-`.keyedProviders` 중 하나의 닫힌 literal metadata를 선언합니다. keyed entry는
-`.init(key: "id", contributor: \Self.member)`만 허용하며 explicit empty는
-metadata 생략과 구별됩니다. key·순서·canonical contributor ID·실제 provider
-lifetime은 graph 계약입니다. InnoDI는 factory body나 module을 검색하지 않고
-암묵적 last-wins도 적용하지 않습니다.
+6.0 소스 어휘는 외부 input을 provider lifetime과 분리하고 hierarchy/isolation
+의도를 `@DIContainer`에 포함합니다.
+
+```swift
+// Before
+@DIComponent
+@DIContainer(mainActor: true)
+struct FeatureContainer {
+    @Provide(.input) var config: FeatureConfig
+}
+
+// After
+@DIContainerRole(
+    role: ContainerRole.component,
+    mainActor: true
+)
+struct FeatureContainer {
+    @Input var config: FeatureConfig
+}
+```
+
+`@DIHierarchyRoot`와 `@DIContainer(root: true)`의 조합 대신
+`@DIContainerRole(role: ContainerRole.root)`를 사용하세요. 어느 marker도 없이
+`@DIContainer(mainActor: true)`를 쓰던 container는 role 매크로가 `role:`을
+요구하므로 `@DIContainerRole(role: ContainerRole.local, mainActor: true)`가
+됩니다. 6.0에서 `InnoDI-Migrate --check`, `--report`, `--write`는 새
+spelling을 기계적으로 적용하고 `validateDAG`와 `escaping`을 보존하며, 여러 번
+실행해도 결과가 같습니다. Migrator는 주석 처리됐거나 동적이거나 충돌하는 role
+site를 그대로 두고, 의도를 추측하는 대신 차단 진단을 출력합니다.
+
+`@Input(.assisted)`는 값이 child factory를 호출할 때 전달된다는 것을
+기록합니다. 6.0에서는 source-visible nested
+`@AssistedFactory(...static:...assisted:...) struct AssistedFactory {}`를
+선언하고, parent가 `@SubContainerFactory(Child.self, bindings: ...)`로 이를
+소유하게 하세요. Whole-source validation은 모든 일반 child input을 정확히 한
+번씩 binding하도록 요구하고, static binding 목록에 들어간 assisted input은
+거부합니다. RFC 0006은 이 spelling을 승인합니다. 5.x에 고정한 pilot 프로젝트는
+안정된 6.0 계약을 채택하기 전에 마이그레이션하세요.
+
+`_InnoDIMultibindingPrototype(members: ["first", "second"])`는 주입 가능한
+direct collection 선언으로 바꾸세요.
+
+```swift
+@Multibinding([\Self.first, \Self.second])
+var services: [any Service]
+```
+
+Contributor key path 순서가 곧 출력 순서입니다. Contributor는 작성된 타입이
+배열 원소 타입과 정확히 일치하는 동기 direct managed dependency여야 합니다.
+Collection은 contributor의 lifetime과 override를 보존하고, 그 자체도 다른
+provider에 주입할 수 있으며, 자체 테스트 override를 가집니다. 대체된 SPI는
+공개 `@Multibinding`이 그 ordered-collection 계약을 넘겨받은 뒤 제거됐습니다.
+Preparation 버전에 고정한 consumer는 6.0을 채택하기 전에 공개 spelling으로
+마이그레이션해야 합니다.
+
+Keyed·provider 기반 collection이나 그 밖에 factory로 만든 collection은 graph
+identity를 runtime 조합과 분리해 선언합니다.
+
+```swift
+@Provide(
+    .transient,
+    collection: .keyedProviders([
+        .init(key: "auth", contributor: \Self.auth),
+        .init(key: "logging", contributor: \Self.logging),
+    ]),
+    factory: makeProviders()
+)
+var providers: DIKeyedProviderCollection<String, any Service>
+```
+
+`@Provide(collection:)`에는 닫힌 literal 형태인 `.ordered`, `.keyed`,
+`.providers`, `.keyedProviders`만 허용됩니다. Explicit empty 배열도 유효하며
+metadata 생략과 구별됩니다. Key·순서·canonical contributor ID·contributor가
+선언한 lifetime은 graph 계약입니다. InnoDI는 factory body를 검사하거나 module
+member를 탐색하지 않고 암묵적 last-wins 규칙도 적용하지 않습니다.
 
 Graph JSON consumer는 schema v6로 옮겨야 합니다. v5는 v4 provider 계약에
 더해 각 factory parameter의 canonical provider ID와 eager/`Lazy`/`Provider`
@@ -301,7 +494,9 @@ swift run InnoDI-Migrate --root . --check
 실행한 뒤 deterministic schema-v1 JSON inventory를 표준 출력 또는 `--output`으로
 지정한 경로에 atomic하게 기록합니다. 리포트에는 상대 경로, 안정적인 code, count,
 status, diagnostic message만 포함하며 원본 또는 변환된 source 본문은 포함하지
-않습니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 먼저
+않습니다. 각 change에는 그 파일을 바꾼 `rules`도 적힙니다. 예를 들어 7.0에서는
+`migrate.parent-key-path`나 `migrate.swiftui-import`이며, `MIGRATE`와 `MIGRATED`
+줄에도 같은 rule code가 출력됩니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 먼저
 전체 source tree를 parse·preflight하고 UTF-8 BOM과 POSIX mode를 보존합니다.
 소유권이 모호한 attribute, 지원하지 않는 legacy argument, parse error,
 source symlink 등 preflight 실패는 파일을 쓰지 않습니다.
@@ -509,7 +704,7 @@ release candidate에 포함됩니다. Write mode 변경을 검토한 뒤 `--chec
 
 ## 3.x → 4.0
 
-자세한 내용은 [`RELEASING.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/RELEASING.md)
+자세한 내용은 [`CHANGELOG.md` § 4.0.0](https://github.com/InnoSquadCorp/InnoDI/blob/main/CHANGELOG.md#400)
 을 참고하세요. 영향이 큰 항목은 다음과 같습니다.
 
 - 당시의 새 `@SubContainer` wiring 매트릭스: `with:` / `withNames:` /

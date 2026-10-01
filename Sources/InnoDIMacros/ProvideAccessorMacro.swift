@@ -79,6 +79,16 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
                 )
             ]
         case .shared:
+            if parseResult.asyncFactoryExpr != nil,
+               parseResult.initialization == .onDemand {
+                return [
+                    providerOnDemandStoragePeerDecl(
+                        name: "_storage_\(memberName)",
+                        type: type,
+                        isAsync: true
+                    )
+                ]
+            }
             if parseResult.asyncFactoryExpr != nil {
                 return [
                     providerTraceOwnerPeerDecl(name: memberName),
@@ -259,6 +269,13 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
 
         switch parseResult.scope {
         case .shared:
+            if parseResult.asyncFactoryExpr != nil,
+               parseResult.initialization == .onDemand {
+                return isolateProvideAccessors(
+                    [asyncOnDemandProvideGetter(storageName: "_storage_\(memberName)")],
+                    isMainActor: isMainActor
+                )
+            }
             if parseResult.asyncFactoryExpr != nil {
                 let storageName = "_storage_task_\(memberName)"
                 let valueExpr = ExprSyntax(MemberAccessExprSyntax(
@@ -332,6 +349,17 @@ public struct InnoDIProvideAccessorMacro: AccessorMacro, PeerMacro {
             ]
         }
     }
+}
+
+/// Every read can observe reader cancellation or a closed provider, so the
+/// accessor throws even when the factory itself does not.
+private func asyncOnDemandProvideGetter(storageName: String) -> AccessorDeclSyntax {
+    let expression: ExprSyntax = "try await self.\(raw: storageName)!.value()"
+    return makeGetter(
+        statements: [returnStmt(expr: expression)],
+        isAsync: true,
+        isThrowing: true
+    )
 }
 
 private func onDemandProvideGetter(storageName: String) -> AccessorDeclSyntax {

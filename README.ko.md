@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> 이 체크아웃은 **미출시 7.0.0** 문서입니다. 예제와 규칙은 공개된 6.0.0 패키지가 아니라 7.0 개발 체크아웃이 필요합니다.
+> [안정 버전 6.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
+
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
 
@@ -35,9 +39,12 @@ var metrics: MetricsClient
 ```
 
 생성되는 `prewarm` 메서드는 선택한 on-demand provider만 준비하며 `Lazy`와
-`Provider` 의존성은 계속 지연합니다. 비동기 소유 작업에는 `DIAsyncScope`를
-사용해 개별 waiter 취소와 owner 종료를 분리하고, `DIAsyncPreparationPlan`으로
-실패와 downstream 차단 상태를 구조적으로 확인할 수 있습니다.
+`Provider` 의존성은 계속 지연합니다. 같은 `initialization: .onDemand` 옵션을
+`asyncFactory:`에도 쓸 수 있으며, 이때 컨테이너에 `closeAsyncProviders()`가
+생성됩니다. 상태 관찰이나 재시도가 필요한 비동기 소유 작업에는
+`DIAsyncScope`를 사용해 개별 waiter 취소와 owner 종료를 분리하고,
+`DIAsyncPreparationPlan`으로 실패와 downstream 차단 상태를 구조적으로 확인할 수
+있습니다.
 
 ## 왜 InnoDI인가
 
@@ -72,6 +79,11 @@ artifact로 점검 가능해야 한다면 InnoDI가 잘 맞습니다.
 | feature ownership hierarchy와 graph visibility | InnoDI, [Needle](https://github.com/uber/needle), [SafeDI](https://github.com/dfed/SafeDI) | `@SubContainer`와 graph CLI ownership edge로 parent-owned child container를 표현합니다. |
 | 기존 앱의 최저 도입 비용 | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), incremental InnoDI | InnoDI는 container 정의와 macro/build validation을 요구합니다. payoff는 wiring 가시성과 graph check가 필요한 시점에 커집니다. |
 
+기존 앱을 옮긴다면
+[Factory에서 옮기기](Sources/InnoDI/InnoDI.docc/ko.lproj/MigratingFromFactory.md)나
+[Swinject에서 옮기기](Sources/InnoDI/InnoDI.docc/ko.lproj/MigratingFromSwinject.md)의
+개념 대응표, 옮기는 순서, 컴파일되는 예제를 참고하세요.
+
 실무에서는 공존도 가능합니다. 검증된 application graph는 InnoDI에 두고,
 feature 내부의 runtime 값은 `swift-dependencies`나 작은 factory로 처리할 수
 있습니다.
@@ -88,46 +100,21 @@ override가 필요할 때 꺼냅니다.
 
 ## 요구 사항
 
-- Swift tools version `6.2` (CI 검증: Swift 6.2 / 6.3, Xcode 27 / Swift 6.4 호환성 검사)
+- Swift tools version `6.2` (CI 검증: Swift 6.2 / 6.3 / 6.4. 매크로 빌드는 Xcode 27 / Swift 6.4에서 SwiftSyntax prebuilt를 씁니다)
 - 플랫폼:
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+
 
-### 빌드 타임 validator의 파일시스템 요구 사항
+InnoDI는 Apple 플랫폼만 지원합니다. CI는 Linux를 빌드하거나 테스트하지 않으며,
+`InnoDITesting`은 Apple `os` 모듈을 조건 없이 import합니다.
 
-빌드 플러그인은 live DAG validation을 Swift Package Manager scratch
-디렉터리 아래의 layered POSIX lock으로 직렬화합니다.
-
-1. `open(O_CREAT | O_EXCL | O_RDWR)`가 단일 lock file을 만듭니다.
-2. `flock(LOCK_EX | LOCK_NB)`가 descriptor에 advisory exclusive lock을 더합니다.
-
-InnoDI는 lock directory의 파일시스템을 자동 감지합니다. APFS, HFS+, ext4,
-btrfs, xfs, tmpfs 같은 로컬 파일시스템은 지원합니다. NFS mount, SMB/CIFS,
-WebDAV, FUSE 계열 파일시스템은 lock atomicity가 신뢰할 수 없을 때 shared
-validation cache가 손상될 수 있으므로 기본적으로 거부합니다.
-
-빌드 시스템이 derived data를 shared volume에 둬야 한다면, SPM의
-`--scratch-path` 또는 Xcode derived-data 위치를 로컬 디렉터리로 지정하세요.
-
-```sh
-swift build --scratch-path /tmp/innodi-cache
-```
-
-운영자는 `INNODI_ALLOW_UNSAFE_LOCK=1`로 unsafe-filesystem fail-fast를
-우회할 수 있지만, InnoDI는 감사 가능한 경고를 남기며 위험은 해당 build
-environment에 남습니다. 자세한 진단과 복구 절차, 전체 파일시스템 표는
+빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
+디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE
+mount는 기본적으로 거부합니다. 파일시스템 표와 복구 절차는
 [Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)를 참고하세요.
-
-빌드 시점 검증기는 빠른 반복 또는 제약된 환경을 위한 두 개의 opt-out escape
-hatch 를 제공합니다. `@DIContainer(validateDAG: false)` 는 컨테이너 단위로,
-`INNODI_DISABLE_BUILD_VALIDATION=1` 은 빌드 플러그인 전체를 단락시킵니다. 모든
-PR 은 `Tools/report-validate-dag-escape-hatches.sh` 를 실행해 이러한 escape
-hatch 사용처를 워크플로 step summary 에 노출시키므로, 별도 CI 게이트 없이도
-escape hatch 누적이 가시화됩니다. 프로덕션 CI 는 두 옵션 모두 unset 으로 유지
-해야 합니다.
 
 ## 개인정보 보호
 
@@ -141,7 +128,23 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 ## 설치
 
+설치는 세 단계입니다. 패키지를 추가하고, 검증 플러그인을 연결하고, 첫 컨테이너를
+작성합니다.
+
+### 1. 패키지 추가
+
 `Package.swift`에 InnoDI를 추가합니다.
+
+```swift
+dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+이 페이지의 예제에는 위의 **7.0 개발 체크아웃**을 사용합니다. `../InnoDI`를 해당 경로로 바꾸세요. 아직 7.0.0 릴리스 태그는 없습니다.
+
+공개된 **6.0.0** 패키지를 사용하려면 아래 의존성을 추가하고 이 페이지의 7.0 예제 대신 연결된 안정 버전 문서를 따르세요.
+[안정 버전 6.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
 
 ```swift
 dependencies: [
@@ -149,12 +152,14 @@ dependencies: [
 ]
 ```
 
-이 페이지의 예제는 **InnoDI 6.0.0**을 기준으로 합니다.
-[6.0.0 버전 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
-5.x에서 올릴 때는 소스 변경이 필요하므로
-[마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary)를 따르세요.
+이하 product·plugin·API 예제는 모두 **7.0 개발 체크아웃**을 기준으로 합니다.
+6.x에서 필요한 소스 변경은
+[마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
-그 다음 필요한 product를 타깃에 연결합니다.
+그 다음 필요한 product를 연결합니다. `InnoDI`가 핵심입니다. SwiftUI helper가
+필요하면 `InnoDISwiftUI`를 추가하고, `InnoDITesting`은 생성 mock이나 override
+preset을 쓰는 테스트 또는 프리뷰 지원 target에만 추가하세요.
+[Auto Mock](Sources/InnoDI/InnoDI.docc/AutoMock.md)을 참고하세요.
 
 ```swift
 .target(
@@ -164,8 +169,6 @@ dependencies: [
     ]
 )
 ```
-
-SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
 
 ```swift
 .target(
@@ -177,32 +180,13 @@ SwiftUI helper가 필요할 때만 `InnoDISwiftUI`를 함께 추가합니다.
 )
 ```
 
-생성된 `Sendable` mock, 재사용 override preset, strict interaction 검증이 필요한
-테스트 또는 프리뷰 지원 target에만 `InnoDITesting`을 추가하세요. 이 product는
-`InnoDI`에만 의존하며 Swift Testing이나 SwiftSyntax에는 의존하지 않습니다.
-생성 mock의 `.calls` reset은 stub을 유지하고 `.all`은 stub을 미설정 상태로
-되돌립니다. 반환되는 generation snapshot은 reset과 경합한 호출의 순서를
-선형화합니다.
-`@Provide(effect: .sideEffect, ...)`로 명시한 provider는 생성 override 요구사항도
-노출합니다. 컨테이너를 만들기 전에 typed preset을 검증하면 미설정 live factory
-실행을 차단할 수 있습니다. 표시하지 않은 opaque factory를 순수하거나 effectful한
-것으로 추론하지 않으며 production 기본 동작은 바뀌지 않습니다.
+### 2. 검증 플러그인 연결
 
 InnoDI 컨테이너 또는 standalone `@DIEnvironmentBridge`를 선언하는 모든 target에
-build-time validation plugin을 연결합니다. 이는 선택적인 graph 시각화 단계가
-아니라 5.0 정확성 계약의 필수 구성입니다. target-scoped full-source pass는
-attached macro가 단독으로 확인할 수 없는 sibling extension의 custom initializer,
-enclosing 또는 같은 target의 generated qualifier shadow, 현재 target에서 보이는
-imported dependency target의 `public` 또는 `package` qualifier shadow, bridge의
-direct-extension attachment와 standalone local target을 compile 전에 차단합니다.
-
-Generated site가 class이거나 class 안에 중첩되면 superclass가 올 수 있는 첫
-inherited type이 source-visible declaration과 typealias를 통해 해소되어야 합니다.
-SDK 또는 binary에만 있거나, 해소되지 않거나, 모호한 첫 inherited type은
-`generated-qualifier.inheritance-unverifiable`로 fail closed합니다. Generated
-site를 struct/enum 또는 source-visible adapter로 옮기거나 target-scoped source
-snapshot이 superclass chain을 볼 수 있게 하세요. 이 preflight는 Swift
-type checker를 대신하는 semantic index가 아니라 보수적인 syntactic index입니다.
+`InnoDIDAGValidationPlugin`을 연결합니다. 이 플러그인은 정확성 계약의
+일부입니다. Swift가 target을 컴파일하기 전에, 다른 파일의 custom initializer,
+qualifier shadow, 전역 의존성 그래프처럼 attached macro가 볼 수 없는 것을
+검사합니다.
 
 ```swift
 .target(
@@ -216,19 +200,19 @@ type checker를 대신하는 semantic index가 아니라 보수적인 syntactic 
 )
 ```
 
-5.1부터 같은 product가 네이티브 Xcode build-tool plugin API도 지원합니다.
-네이티브 Xcode project와 Tuist가 생성한 project는 package plugin을 각 container
-target에 직접 연결할 수 있습니다. Tuist workspace에서는 plugin이 workspace root를
-찾아 모든 production Swift source를 검증하므로 교차 project container 참조도 source
-DAG에 포함됩니다.
+같은 플러그인이 native Xcode 프로젝트와 Tuist 프로젝트에서도 동작합니다.
+[Integration Guide](Sources/InnoDI/InnoDI.docc/ko.lproj/IntegrationGuide.md#빌드-플러그인)는
+Xcode와 Tuist의 한계, `generated-qualifier.inheritance-unverifiable` 뒤의
+superclass 규칙, scratch path 요구 사항을 다룹니다.
+[Plugin Opt-Out](Sources/InnoDI/InnoDI.docc/PluginOptOut.md)은 컨테이너 단위
+`validateDAG: false`와 빌드 전체 `INNODI_DISABLE_BUILD_VALIDATION=1` escape
+hatch를 설명하며, 프로덕션 CI는 두 옵션을 모두 설정하지 않아야 합니다.
 
-Xcode plugin API는 Tuist의 전체 교차 project target dependency topology를 제공하지
-않습니다. 따라서 5.1 fallback은 full-source DAG와 declaration 검증을 보존하지만
-Xcode만으로 모든 module-edge hierarchy 규칙을 증명할 수는 없습니다.
-component/root `@DIContainerRole` module 관계가 release gate라면 topology-aware
-SwiftPM 또는 CI hierarchy 검증을 유지하세요. multi-destination variant가 같은 plugin
-work directory를 공유하므로 Xcode 검증은 output file을 선언하지 않으며, 그 결과
-Xcode가 매 build마다 validation command를 실행한다고 표시할 수 있습니다.
+### 3. 첫 컨테이너 작성
+
+아래 빠른 시작으로 이어가세요.
+[튜토리얼](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md)은 컨테이너를 단계별로
+만듭니다.
 
 ## 빠른 시작
 
@@ -278,7 +262,7 @@ var apiClient: any APIClientProtocol
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ko.lproj/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/ko.lproj/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ko.lproj/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## 핵심 API
@@ -466,9 +450,20 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 | sync | 허용 | 허용 | 허용 |
 | `async` | 거부 | 허용 | 허용 |
 | `async throws` | 거부 | 거부 | 허용 |
+| `async` 또는 `async throws`, `.onDemand` | 거부 | 거부 | 허용 |
 
 `Lazy<T>`와 `Provider<T>`는 동기 deferred wrapper입니다. Async target은
 거부됩니다.
+
+`asyncFactory:`로 만드는 `.shared` provider는 어떤 읽기보다 먼저 컨테이너
+initializer 안에서 생성 task를 시작하고, 컨테이너는 그 task를 취소하지
+않습니다. 그래서 `.transient` `@SubContainer`를 읽을 때마다 자식의 eager 비동기
+작업이 다시 시작됩니다. 첫 읽기에서 생성하려면 `initialization: .onDemand`를
+추가하세요. 이 provider의 accessor는 항상 throw하며, 생성된
+`closeAsyncProviders()`가 진행 중인 작업을 취소하고 provider를 닫습니다. 취소
+계약과 대안은
+[비동기 shared 수명](Sources/InnoDI/InnoDI.docc/ko.lproj/Provide.md#비동기-shared-수명)을
+참고하세요.
 
 ## 검증 모델
 
@@ -552,7 +547,7 @@ var logger: RequestLogger
 `@SubContainer`는 parent가 소유하는 child container를 모델링합니다.
 
 ```swift
-@SubContainer(scope: .shared, with: [\.config, \.apiClient])
+@SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 var feature: FeatureContainer
 ```
 
@@ -567,6 +562,11 @@ var feature: FeatureContainer
 - parent 후보가 여러 개면 `with:` 또는 `bindings:`로 명시 wiring해야 합니다.
 - `with:`는 같은 이름 subset/order를 forward합니다.
 - `bindings:`는 child input label과 parent member 이름이 다를 때 remap합니다.
+- `with:`와 `bindings:`의 `parent:` 쪽 key path는 직접 멤버 하나를
+  `\Self.member`로 지정합니다. `\AppContainer.member` 같은 이름 있는 루트는
+  `sub.noncanonical-parent-key-path`와 fix-it으로 거부되고, 중첩 컴포넌트는
+  잘못된 wiring입니다. `child:` 쪽은 child container 타입(모듈 한정 가능)을 통해
+  child input을 지정합니다.
 - `featureRoot:` / `featureRoots:`는 같은 property에 별도 peer macro를 쌓지
   않고 parent에 SwiftUI root helper를 생성합니다.
 - `with:` 또는 `bindings:` 중 정확히 하나의 wiring form만 사용합니다.
@@ -677,8 +677,10 @@ swift run InnoDI-Doctor --root . --json
 기본 모드는 resolve, build, write, cache 삭제, process 종료를 하지 않습니다.
 Swift package에서는 literal target source root와 plugin 배열을 parse하므로 주석,
 문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. Dynamic manifest와 Tuist
-target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. `--apply`는 migrator의
-atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
+target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. migration 검사가 자기
+모듈 때문에 `migrate.unqualified-ownership-ambiguous`를 보고하면
+`InnoDI-Migrate`에 주는 `--trust-module <name>` 옵션을 그대로 넘기세요.
+`--apply`는 migrator의 atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
 보존하므로 editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요.
 POSIX mode는 유지하지만 ACL/xattr 보존이나 파일시스템 전체 트랜잭션은 보장하지 않습니다.
 SwiftPM `--verify`는 `swift build`를 실행하고,
@@ -724,7 +726,7 @@ DocC 생성:
 Tools/generate-docc.sh
 ```
 
-릴리즈 노트와 업그레이드 노트는 [RELEASING.md](RELEASING.md)에 모여 있습니다.
+릴리즈 노트와 업그레이드 노트는 [CHANGELOG.md](CHANGELOG.md)에 모여 있습니다.
 
 ## 예제
 
@@ -732,3 +734,5 @@ Tools/generate-docc.sh
 - [Examples/SwiftUIExample](Examples/SwiftUIExample)
 - [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
 - [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
+- [InnoSample](https://github.com/InnoSquadCorp/InnoSample): InnoDI를 InnoFlow,
+  InnoNetwork, InnoRouter와 함께 쓰는 멀티 모듈 Tuist 앱
