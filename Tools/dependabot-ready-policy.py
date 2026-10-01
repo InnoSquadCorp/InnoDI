@@ -15,6 +15,7 @@ REPORTER_PATH = ".github/workflows/dependabot-ready.yml"
 SOURCE_STEP = "Evaluate Ready snapshot from "
 ENFORCE_STEP = "Enforce Ready snapshot"
 REQUEST_STEP = "Request verified native Ready refresh"
+BINDING = re.compile(r"Ready v1 pr:([1-9][0-9]*) head:([a-f0-9]{40}) head-repo:([1-9][0-9]*) base-repo:([1-9][0-9]*) base:main source:([a-f0-9]{40})")
 
 
 def policy_module():
@@ -24,9 +25,43 @@ def policy_module():
     return policy
 
 
+def event_binding(api, p, run, pr, number, head):
+    # The fixed trusted workflow formats these GitHub event fields, never the
+    # PR title/body. A matching branch/SHA alone cannot establish PR identity.
+    match = BINDING.fullmatch(run.get("display_title", ""))
+    p.require(match is not None, "native reporter lacks trusted event binding")
+    identity = (int(match[1]), match[2], int(match[3]), int(match[4]))
+    p.require(identity == (number, head, pr["head"]["repo"]["id"], pr["base"]["repo"]["id"]),
+              "native reporter event binding disagrees with current PR")
+    # Historical checks need their original trusted identity, not current policy
+    # equality. Latest verdicts/writers separately require source_compatible.
+    source_ancestor(api, p, match[5])
+    return match[5]
+
+
+def validate_run(api, p, run, workflow, repo, pr, number, head):
+    links = run.get("pull_requests", [])
+    p.require(isinstance(links, list), "malformed native reporter PR associations")
+    p.require(run.get("workflow_id") == workflow["id"] and run.get("path", "").split("@")[0] == REPORTER_PATH and
+              run.get("event") == "pull_request_target" and run.get("head_sha") == head and
+              run.get("head_branch") == pr["head"]["ref"] and
+              run.get("repository", {}).get("id") == repo["id"] and
+              run.get("head_repository", {}).get("id") == pr["head"]["repo"]["id"] and
+              pr["base"]["repo"]["id"] == repo["id"] and pr["base"]["ref"] == "main" and
+              type(run.get("run_attempt")) is int and run["run_attempt"] > 0 and type(run.get("check_suite_id")) is int,
+              "invalid native reporter PR/head/workflow provenance")
+    if links:
+        p.require([x.get("number") for x in links] == [number] and links[0].get("head", {}).get("sha") == head and
+                  links[0].get("base", {}).get("ref") == "main" and
+                  links[0].get("base", {}).get("repo", {}).get("id") == repo["id"],
+                  "invalid native reporter PR association")
+    if not links or run.get("display_title", "").startswith("Ready v1 "):
+        event_binding(api, p, run, pr, number, head)
+
+
 def runs(api, p, number, head):
     repo = api.get(p.route(""))
-    pr = api.get(p.route(f"pulls/{number}"))
+    pr = current_pr(api, p, number, head)
     workflow = api.get(p.route("actions/workflows/dependabot-ready.yml"))
     p.require(workflow.get("path") == REPORTER_PATH and workflow.get("state") == "active", "native reporter missing/inactive")
     candidates = api.pages(p.route(f"actions/workflows/dependabot-ready.yml/runs?event=pull_request_target&head_sha={head}"), "workflow_runs")
@@ -34,21 +69,15 @@ def runs(api, p, number, head):
     for item in candidates:
         numbers = [x.get("number") for x in item.get("pull_requests", [])]
         if number not in numbers:
-            p.require(numbers or item.get("head_branch") != pr["head"].get("ref") or
-                      item.get("head_repository", {}).get("id") != pr["head"].get("repo", {}).get("id"),
-                      "native reporter lacks current PR association")
-            continue
+            match = BINDING.fullmatch(item.get("display_title", ""))
+            relevant = not numbers and ((match and int(match[1]) == number) or
+                (item.get("head_branch") == pr["head"].get("ref") and
+                 item.get("head_repository", {}).get("id") == pr["head"].get("repo", {}).get("id")))
+            if not relevant:
+                continue
         run = api.get(p.route(f"actions/runs/{item['id']}"))
-        links = run.get("pull_requests", [])
-        p.require(run.get("workflow_id") == workflow["id"] and run.get("path", "").split("@")[0] == REPORTER_PATH and
-                  run.get("event") == "pull_request_target" and run.get("head_sha") == head and
-                  run.get("repository", {}).get("id") == repo["id"] and
-                  run.get("head_repository", {}).get("id") == pr["head"]["repo"]["id"] and
-                  [x.get("number") for x in links] == [number] and links[0].get("head", {}).get("sha") == head and
-                  links[0].get("base", {}).get("ref") == "main" and
-                  links[0].get("base", {}).get("repo", {}).get("id") == repo["id"] and
-                  type(run.get("run_attempt")) is int and run["run_attempt"] > 0 and type(run.get("check_suite_id")) is int,
-                  "invalid native reporter PR/head/workflow provenance")
+        p.require(run.get("id") == item["id"], "native reporter detail changed identity")
+        validate_run(api, p, run, workflow, repo, pr, number, head)
         result.append(run)
     return result
 
@@ -74,21 +103,34 @@ def job_record(api, p, run, attempt=None, require_steps=True):
               check.get("check_suite", {}).get("id") == run["check_suite_id"] and
               check.get("details_url") == f"https://github.com/{p.REPOSITORY}/actions/runs/{run['id']}/job/{job['id']}",
               "native reporter check has wrong job/app/head/suite provenance")
-    if not require_steps:
-        return job, check, None
     steps = job.get("steps") or []
     source_steps = [s for s in steps if str(s.get("name", "")).startswith(SOURCE_STEP)]
-    p.require(len(source_steps) == 1 and p.SHA.fullmatch(source_steps[0]["name"][len(SOURCE_STEP):]) and
+    binding = BINDING.fullmatch(run.get("display_title", ""))
+    if binding:
+        expected = SOURCE_STEP + binding[5] + " for " + run["display_title"].rsplit(" source:", 1)[0]
+        p.require(len(source_steps) == 1 and source_steps[0]["name"] == expected,
+                  "native event/job source binding mismatch")
+    if not require_steps:
+        return job, check, None
+    p.require(len(source_steps) == 1 and p.SHA.fullmatch(source_steps[0]["name"][len(SOURCE_STEP):].split(" ", 1)[0]) and
+              (binding is not None or p.SHA.fullmatch(source_steps[0]["name"][len(SOURCE_STEP):])) and
               sum(s.get("name") == ENFORCE_STEP for s in steps) == 1, "native reporter evaluation/enforce steps missing")
-    return job, check, source_steps[0]["name"][len(SOURCE_STEP):]
+    source = source_steps[0]["name"][len(SOURCE_STEP):].split(" ", 1)[0]
+    p.require(binding is None or binding[5] == source, "native event/job source mismatch")
+    return job, check, source
 
 
-def source_compatible(api, p, source):
+def source_ancestor(api, p, source):
     main = api.get(p.route("git/ref/heads/main"))["object"]["sha"]
     p.require(bool(p.SHA.fullmatch(main or "")), "invalid trusted main SHA")
     comparison = api.get(p.route(f"compare/{source}...{main}"))
     p.require(comparison.get("status") in {"identical", "ahead"} and
               comparison.get("merge_base_commit", {}).get("sha") == source, "reporter source is not trusted main ancestry")
+    return main
+
+
+def source_compatible(api, p, source):
+    main = source_ancestor(api, p, source)
     # Re-running preserves the old workflow definition and privileges. Do not
     # rerun an obsolete definition while checking out newer policy code.
     for path in (REPORTER_PATH, p.COORDINATOR_PATH, "Tools/dependabot-ready-policy.py", "Tools/dependabot-merge-policy.py"):
@@ -114,7 +156,7 @@ def controlled_verdict(p, run, job, check):
 
 def current_pr(api, p, number, head=None):
     pr = api.get(p.route(f"pulls/{number}"))
-    p.require(pr.get("state") == "open" and pr.get("base", {}).get("ref") == "main" and
+    p.require(pr.get("number") == number and pr.get("state") == "open" and pr.get("base", {}).get("ref") == "main" and
               pr.get("base", {}).get("repo", {}).get("full_name") == p.REPOSITORY and
               bool(p.SHA.fullmatch(pr.get("head", {}).get("sha", ""))) and
               (head is None or pr["head"]["sha"] == head), "PR/head/base changed")
@@ -145,6 +187,13 @@ def snapshot(api, p, number, enabled):
     p.require(event.get("pull_request", {}).get("number") == number, "native snapshot event/PR mismatch")
     pr = current_pr(api, p, number)
     head = pr["head"]["sha"]
+    event_pr = event["pull_request"]
+    p.require(event_pr.get("head", {}).get("sha") == head and
+              event_pr.get("head", {}).get("ref") == pr["head"]["ref"] and
+              event_pr.get("head", {}).get("repo", {}).get("id") == pr["head"]["repo"]["id"] and
+              event_pr.get("base", {}).get("ref") == "main" and
+              event_pr.get("base", {}).get("repo", {}).get("id") == pr["base"]["repo"]["id"],
+              "native snapshot event head/base/repository changed")
     run = latest(api, p, number, head)
     p.require(str(run["id"]) == env.get("GITHUB_RUN_ID") and str(run["run_attempt"]) == env.get("GITHUB_RUN_ATTEMPT"),
               "obsolete native reporter run/attempt")
@@ -153,6 +202,8 @@ def snapshot(api, p, number, enabled):
     job, check, _ = job_record(api, p, run, require_steps=False)
     source = env.get("GITHUB_WORKFLOW_SHA", "")
     p.require(bool(p.SHA.fullmatch(source)), "invalid immutable reporter source")
+    binding = BINDING.fullmatch(run.get("display_title", ""))
+    p.require(binding is None or binding[5] == source, "native event/environment source mismatch")
     p.require(run.get("status") == job.get("status") == check.get("status") == "in_progress" and
               run.get("conclusion") is None and check.get("conclusion") is None, "native reporter is no longer running")
     source_compatible(api, p, source)
@@ -295,11 +346,10 @@ def refresh(api, p, target, enabled):
     for index in range(4):
         live = api.get(p.route(f"actions/runs/{target['run']}"))
         if live.get("run_attempt", 0) > target["attempt"]:
-            p.require(live.get("id") == target["run"] and live.get("head_sha") == target["head"] and
-                      live.get("workflow_id") == run["workflow_id"] and live.get("path", "").split("@")[0] == REPORTER_PATH and
-                      live.get("event") == "pull_request_target" and
-                      [x.get("number") for x in live.get("pull_requests", [])] == [target["pr"]],
-                      "rerun reporter identity/head changed")
+            p.require(live.get("id") == target["run"] and live.get("display_title") == run.get("display_title"),
+                      "rerun reporter identity/binding changed")
+            validate_run(api, p, live, {"id": run["workflow_id"]}, api.get(p.route("")),
+                         current_pr(api, p, target["pr"], target["head"]), target["pr"], target["head"])
             return "Verified native reporter rerun requested; final readiness remains pending."
         if index < 3:
             time.sleep(2)

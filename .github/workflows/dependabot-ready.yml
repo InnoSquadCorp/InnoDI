@@ -1,4 +1,5 @@
 name: Dependabot Ready
+run-name: 'Ready v1 pr:${{ github.event.pull_request.number }} head:${{ github.event.pull_request.head.sha }} head-repo:${{ github.event.pull_request.head.repo.id }} base-repo:${{ github.event.pull_request.base.repo.id }} base:${{ github.event.pull_request.base.ref }} source:${{ github.workflow_sha }}'
 
 on:
   pull_request_target:
@@ -31,7 +32,7 @@ jobs:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
           sparse-checkout: Tools
-      - name: Evaluate Ready snapshot from ${{ github.workflow_sha }}
+      - name: 'Evaluate Ready snapshot from ${{ github.workflow_sha }} for Ready v1 pr:${{ github.event.pull_request.number }} head:${{ github.event.pull_request.head.sha }} head-repo:${{ github.event.pull_request.head.repo.id }} base-repo:${{ github.event.pull_request.base.repo.id }} base:${{ github.event.pull_request.base.ref }}'
         id: snapshot
         env:
           GH_TOKEN: ${{ github.token }}

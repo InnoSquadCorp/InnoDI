@@ -11,6 +11,10 @@
         "conclusion": "skipped"
       },
       {
+        "name": "Admit exact-tree PR verification",
+        "conclusion": "success"
+      },
+      {
         "name": "Classify exact event changes",
         "conclusion": "success"
       }

@@ -137,7 +137,8 @@ for workflow_path in workflow_files:
         }
     elif workflow_path.name == "macro-tests.yml":
         expected_job_permissions = {
-            "ci-plan": {"contents": "read", "pull-requests": "read"},
+            "ci-plan": {"contents": "read", "pull-requests": "read", "actions": "read", "checks": "read"},
+            "ci-required": {"contents": "read", "pull-requests": "read", "actions": "read", "checks": "read"},
             "append-perf-history": {"contents": "write"},
         }
     elif workflow_path.name == "dependabot-auto-merge.yml":

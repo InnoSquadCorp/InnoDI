@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Repository-local CI selection and fail-closed result evaluation (stdlib only)."""
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,25 @@ EXHAUSTIVE = {"macro-tests", "consumer-contracts", "sanitizers", "swift-62-compa
               "xcode-27-compatibility", "apple-platform-builds", "path-identity"}
 SHA = re.compile(r"[0-9a-f]{40}")
 PR_ACTIONS = {"opened", "synchronize", "reopened", "labeled", "unlabeled"}
+
+
+def reuse_policy():
+    spec = importlib.util.spec_from_file_location("main_ci_reuse_policy", Path(__file__).with_name("main-ci-reuse-policy.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def reused_jobs(plan, proof):
+    reuse = reuse_policy()
+    reuse.validate_proof(proof)
+    if not proof:
+        return set()
+    if plan["lane"] != "full" or plan["jobs"] != {job: job != "fast-tests" for job in JOBS}:
+        raise ValueError("reuse must preserve every full logical requirement")
+    return set(reuse.REUSED_JOBS)
+
+
 WORKFLOW_IMPACT = {
     "macro-tests.yml": set(JOBS),  # Orchestration changes must prove every branch.
     "examples.yml": {"examples"},
@@ -178,14 +198,15 @@ def validate_plan(plan):
         raise ValueError("plan suppresses extended example requirements")
 
 
-def evaluate(plan, needs):
+def evaluate(plan, needs, proof=None):
     validate_plan(plan)
+    reused = reused_jobs(plan, proof or {})
     if not isinstance(needs, dict) or set(needs) != set(JOBS) | {"ci-plan"}:
         raise ValueError("missing or unexpected CI result")
     required = {"ci-plan": True, **plan["jobs"]}
     for job, selected in required.items():
         result = needs[job].get("result") if isinstance(needs[job], dict) else None
-        expected = "success" if selected else "skipped"
+        expected = "success" if selected and job not in reused else "skipped"
         if result != expected:
             raise ValueError(f"{job}: expected {expected}, got {result!r}")
 
@@ -197,9 +218,11 @@ def main():
     plan_cmd.add_argument("--event", required=True, type=Path)
     plan_cmd.add_argument("--root", type=Path, default=Path("."))
     plan_cmd.add_argument("--output", type=Path, required=True)
+    plan_cmd.add_argument("--reuse-proof-json", default=os.environ.get("CI_REUSE", "{}"))
     evaluate_cmd = sub.add_parser("evaluate")
     evaluate_cmd.add_argument("--plan-json", default=os.environ.get("CI_PLAN", ""))
     evaluate_cmd.add_argument("--needs-json", default=os.environ.get("CI_NEEDS", ""))
+    evaluate_cmd.add_argument("--reuse-proof-json", default=os.environ.get("CI_REUSE", "{}"))
     strict_cmd = sub.add_parser("require")
     strict_cmd.add_argument("--jobs", nargs="+", required=True)
     strict_cmd.add_argument("--skipped", nargs="*", default=[])
@@ -215,6 +238,10 @@ def main():
                 paths = changed_paths(args.root, pr["base"]["sha"], pr["head"]["sha"])
             plan = make_plan(event_name, event, paths)
             validate_plan(plan)
+            proof = json.loads(args.reuse_proof_json)
+            reused = reused_jobs(plan, proof)
+            if reused and (event_name != "push" or proof["main"] != event.get("after")):
+                raise ValueError("reused proof is not for this main push")
             payload = json.dumps(plan, separators=(",", ":"))
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(payload + "\n")
@@ -222,12 +249,22 @@ def main():
                 with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
                     stream.write("plan=" + payload + "\n")
                     for job, selected in plan["jobs"].items():
-                        stream.write(job + "=" + str(selected).lower() + "\n")
+                        # Keep jobs[] as the complete logical contract; only
+                        # physical execution is suppressed by explicit proof.
+                        stream.write(job + "=" + str(selected and job not in reused).lower() + "\n")
                     stream.write("examples_full=" + str(plan["examples_full"]).lower() + "\n")
             print(json.dumps(plan, indent=2))
         elif args.command == "evaluate":
-            evaluate(json.loads(args.plan_json), json.loads(args.needs_json))
-            print("CI Required: every planned job succeeded; only declared non-targets skipped.")
+            proof = json.loads(args.reuse_proof_json)
+            reuse = reuse_policy()
+            reuse.validate_proof(proof)
+            if proof:
+                event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+                # Re-read authoritative metadata after the main jobs finish.
+                # Lost/raced proof is an aggregate failure, never a green skip.
+                reuse.revalidate(proof, event, os.environ)
+            evaluate(json.loads(args.plan_json), json.loads(args.needs_json), proof)
+            print("CI Required: every contract has fresh success or revalidated exact-tree PR evidence; no unexplained skips.")
         else:
             needs = json.loads(args.needs_json)
             all_jobs = args.jobs + args.skipped
