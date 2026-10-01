@@ -152,6 +152,16 @@ Only exact API-verified coordinator transport and native reporter job/check
 pairs are excluded from full CI proof. An arbitrary Ready-name check, wrong app,
 suite, job URL or missing native job is never exempt. Historical native attempts
 are attributed by their real Actions jobs; they never replace the latest verdict.
+GitHub may expose the exact unevaluated matrix-name expression for a PR-target
+`ready-refresh` job that never expands. This transport is recognized only with
+terminal `skipped` job/check results and an empty step list, exact
+workflow/event/run/attempt/head/app/suite/URL binding, and a successful native
+`inspect` job carrying its immutable trusted source SHA. The inspector checks
+out `github.workflow_sha`; old source attribution must remain main ancestry.
+Names with different text, executed steps, missing source or other outcomes
+remain blocked. Legacy same-head coordinator runs without that source marker
+can require an explicitly approved fresh commit; a new metadata event alone
+cannot establish the missing historical source.
 Legacy API-created same-name checks are not adopted. Existing affected PR heads
 may need an explicitly approved fresh commit/lifecycle after deployment, and
 require a deliberate migration check before restoring the required rule.
