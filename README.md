@@ -4,6 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+> [!IMPORTANT]
+> This checkout documents **unreleased 7.0.0**. Its examples and rules require the 7.0 development checkout, not the published 6.0.0 package.
+> [Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
+
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 
@@ -35,9 +39,12 @@ var metrics: MetricsClient
 ```
 
 The generated `prewarm` method resolves only selected on-demand providers;
-`Lazy` and `Provider` dependencies remain deferred. For asynchronous owned
-work, `DIAsyncScope` separates waiter cancellation from owner shutdown, while
-`DIAsyncPreparationPlan` reports failure and blocked downstream providers.
+`Lazy` and `Provider` dependencies remain deferred. The same
+`initialization: .onDemand` option works with `asyncFactory:`, and the
+container then gains `closeAsyncProviders()`. For asynchronous owned work that
+needs status or retry, `DIAsyncScope` separates waiter cancellation from owner
+shutdown, while `DIAsyncPreparationPlan` reports failure and blocked downstream
+providers.
 
 ## Why InnoDI
 
@@ -72,6 +79,11 @@ before runtime, and inspectable as a graph artifact.
 | Hierarchical feature ownership and graph visibility | InnoDI, [Needle](https://github.com/uber/needle), or [SafeDI](https://github.com/dfed/SafeDI) | InnoDI models parent-owned child containers with `@SubContainer` and renders ownership edges in the graph CLI. Needle and SafeDI are strong options when their component/dependency-tree architecture matches your app. |
 | Lowest adoption cost for an existing app | [Factory](https://github.com/hmlongco/Factory), [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), or incremental InnoDI adoption | InnoDI asks you to define containers and accept macro/build validation. That cost pays off most when you want reviewable wiring, generated overrides, and graph checks rather than only localized dependency access. |
 
+Moving an existing app? Follow
+[Migrating from Factory](Sources/InnoDI/InnoDI.docc/MigratingFromFactory.md) or
+[Migrating from Swinject](Sources/InnoDI/InnoDI.docc/MigratingFromSwinject.md)
+for a concept map, migration steps, and a compiled example.
+
 In practice, InnoDI can also coexist with runtime tools: use InnoDI for the
 validated application graph, then use `swift-dependencies` or small factories
 inside feature logic when scoped runtime values are the better abstraction.
@@ -88,54 +100,22 @@ live for the duration of one operation.
 
 ## Requirements
 
-- Swift tools version `6.2` (CI validates Swift 6.2 / 6.3; Xcode 27 / Swift 6.4 compatibility lane)
+- Swift tools version `6.2` (CI validates Swift 6.2 / 6.3 / 6.4; macro builds use the SwiftSyntax prebuilt on Xcode 27 / Swift 6.4)
 - Platforms:
   - iOS 17+
-  - macOS 13+
+  - macOS 14+
   - watchOS 10+
   - tvOS 17+
   - visionOS 1+
 
-### Filesystem requirements for the build-time validator
+InnoDI supports Apple platforms only. CI does not build or test Linux, and
+`InnoDITesting` imports Apple's `os` module unconditionally.
 
-The build plugin serializes live DAG validation runs through a layered
-POSIX lock under SwiftPM's plugin work directory, which follows the Swift
-Package Manager scratch directory:
-
-1. `open(O_CREAT | O_EXCL | O_RDWR)` creates a single lock file.
-2. `flock(LOCK_EX | LOCK_NB)` adds an advisory exclusive lock on the
-   descriptor.
-
-InnoDI auto-detects the filesystem backing that lock directory. Local
-filesystems such as APFS, HFS+, ext4, btrfs, xfs, and tmpfs are supported.
-NFS mounts, SMB/CIFS, WebDAV, and FUSE-style filesystems are refused by default
-because concurrent builds can corrupt the shared validation cache when lock
-atomicity is not reliable.
-
-If your build system must place derived data on a shared volume, point SPM's
-`--scratch-path` (or Xcode's derived-data location) at a local directory:
-
-```sh
-swift build --scratch-path /tmp/innodi-cache
-```
-
-The plugin does not create lock/cache state under the package root
-`.build/innodi-dag-validation`; moving the scratch path moves the validation
-state as well.
-
-Operators can bypass the unsafe-filesystem fail-fast with
-`INNODI_ALLOW_UNSAFE_LOCK=1`, but InnoDI still emits an auditable warning and
-the risk stays with that build environment. For diagnostics, recovery steps,
-and the full filesystem table, see
-[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md).
-
-The build-time validator exposes two opt-out escape hatches for fast iteration
-or constrained environments: `@DIContainer(validateDAG: false)` per container,
-and `INNODI_DISABLE_BUILD_VALIDATION=1` to short-circuit the entire build
-plugin. Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
-lists every site that uses these escape hatches in the workflow's step summary
-so escape-hatch creep stays visible without a separate CI gate. Production CI
-must leave both unset.
+The build-time validator keeps its lock and cache under SwiftPM's scratch
+directory, which must be on a local filesystem such as APFS. It refuses NFS,
+SMB, WebDAV, and FUSE mounts by default; see
+[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md) for the filesystem
+table and recovery steps.
 
 ## Privacy
 
@@ -150,7 +130,23 @@ your aggregated privacy report.
 
 ## Installation
 
+Installation takes three steps: add the package, attach the validation
+plugin, and write a first container.
+
+### 1. Add the package
+
 Add InnoDI to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(name: "InnoDI", path: "../InnoDI")
+]
+```
+
+For the examples on this page, use the local **7.0 development checkout** above (adjust `../InnoDI` to its path). No 7.0.0 release tag is available yet.
+
+For the published **6.0.0** package, use the dependency below and follow the linked stable documentation, not this page's 7.0 examples.
+[Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
 
 ```swift
 dependencies: [
@@ -158,12 +154,14 @@ dependencies: [
 ]
 ```
 
-The examples on this page target **InnoDI 6.0.0**.
-[Versioned 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
-For the source-breaking upgrade from 5.x, follow the
-[migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#5x--60-vocabulary).
+The remaining product, plugin, and API examples on this page use the **7.0 development checkout**.
+For the source changes from 6.x, follow the
+[migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
-Then add the products you need:
+Then add the products you need. `InnoDI` is the core. Add `InnoDISwiftUI` for
+the SwiftUI helpers, and add `InnoDITesting` only to test or preview-support
+targets that use generated mocks or override presets; see
+[Auto Mock](Sources/InnoDI/InnoDI.docc/AutoMock.md).
 
 ```swift
 .target(
@@ -173,8 +171,6 @@ Then add the products you need:
     ]
 )
 ```
-
-Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 
 ```swift
 .target(
@@ -186,35 +182,13 @@ Add `InnoDISwiftUI` only if you also need the SwiftUI helpers:
 )
 ```
 
-Add `InnoDITesting` only to test or preview-support targets that use generated
-`Sendable` mocks, reusable override presets, or strict interaction validation.
-It depends on `InnoDI` but does not depend on Swift Testing or SwiftSyntax.
-Generated mocks distinguish `.calls` reset, which preserves stubs, from `.all`,
-which returns stubs to the missing state. The returned generation snapshot
-linearizes calls that race with reset.
-Providers explicitly marked `@Provide(effect: .sideEffect, ...)` also expose
-generated override requirements: validate a typed preset before constructing
-the container to prevent an unconfigured live factory from running. Unmarked
-opaque factories are not inferred as pure or effectful, and production defaults
-remain unchanged.
+### 2. Attach the validation plugin
 
-Attach the build-time validation plugin to every target that declares InnoDI
-containers or a standalone `@DIEnvironmentBridge`. This is a required part of
-the 5.0 correctness contract, not only an optional graph visualization step.
-The target-scoped full-source pass rejects custom initializers in sibling
-extensions, generated-qualifier shadows in enclosing or other same-target
-declarations, visible qualifier shadows with `public` or `package` access in
-imported dependency targets, and direct-extension or standalone-local bridge
-targets that attached macros cannot validate alone.
-
-When a generated site is a class or is nested inside a class, the first
-inherited type (the position that can name its superclass) must resolve through
-source-visible declarations and typealiases. An SDK-only, binary-only,
-unresolved, or ambiguous first inherited type fails closed with
-`generated-qualifier.inheritance-unverifiable`; move the generated site to a
-struct/enum or a source-visible adapter, or make the superclass chain available
-to the target-scoped source snapshot. This preflight is a conservative
-syntactic index, not a replacement for Swift's type checker.
+Attach `InnoDIDAGValidationPlugin` to every target that declares an InnoDI
+container or a standalone `@DIEnvironmentBridge`. The plugin is part of the
+correctness contract: before Swift compiles the target, it checks what an
+attached macro cannot see, such as custom initializers in other files,
+qualifier shadows, and the global dependency graph.
 
 ```swift
 .target(
@@ -228,20 +202,20 @@ syntactic index, not a replacement for Swift's type checker.
 )
 ```
 
-As of 5.1, the same product also conforms to the native Xcode build-tool plugin
-API. Native Xcode projects and Tuist-generated projects can attach the package
-plugin directly to each container target. For a Tuist workspace, the plugin
-discovers the workspace root and validates all production Swift sources so
-cross-project container references are included in the source DAG.
+The same plugin works in native Xcode and Tuist projects. The
+[Integration Guide](Sources/InnoDI/InnoDI.docc/IntegrationGuide.md#build-plugin)
+covers the Xcode and Tuist limits, the superclass rule behind
+`generated-qualifier.inheritance-unverifiable`, and the scratch-path
+requirement. [Plugin Opt-Out](Sources/InnoDI/InnoDI.docc/PluginOptOut.md)
+describes the per-container `validateDAG: false` and build-wide
+`INNODI_DISABLE_BUILD_VALIDATION=1` escape hatches, which production CI must
+leave unset.
 
-The Xcode plugin API does not expose Tuist's complete cross-project target
-dependency topology. The 5.1 fallback therefore preserves full-source DAG and
-declaration validation but cannot prove every module-edge hierarchy rule from
-Xcode alone; keep a topology-aware SwiftPM or CI hierarchy check when
-component/root `@DIContainerRole` module relationships are a release gate.
-Xcode validation intentionally declares no output files because
-multi-destination variants share a plugin work directory, so Xcode may report
-that the validation command runs during every build.
+### 3. Write your first container
+
+Continue with the Quick Start below. The
+[tutorial](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md) builds a container
+step by step.
 
 ## Quick Start
 
@@ -291,7 +265,7 @@ Start with these documents in order:
 3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md)
 4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
 5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
-6. [RELEASING.md](RELEASING.md)
+6. [CHANGELOG.md](CHANGELOG.md)
 7. [ROADMAP.md](ROADMAP.md)
 
 ## Core API
@@ -492,9 +466,20 @@ compatibility is validated on every explicit edge even with
 | sync | allowed | allowed | allowed |
 | `async` | rejected | allowed | allowed |
 | `async throws` | rejected | rejected | allowed |
+| `async` or `async throws`, `.onDemand` | rejected | rejected | allowed |
 
 `Lazy<T>` and `Provider<T>` are synchronous deferred wrappers. Their targets
 must use synchronous construction; an async target is rejected.
+
+A `.shared` provider built by `asyncFactory:` starts its construction task in
+the container initializer, before any read, and the container never cancels
+that task. Each read of a `.transient` `@SubContainer` therefore starts the
+child's eager asynchronous work again. Add `initialization: .onDemand` to
+start construction on the first read instead. Its accessor always throws, and
+the generated `closeAsyncProviders()` cancels in-flight work and closes the
+provider. See
+[Asynchronous Shared Lifetime](Sources/InnoDI/InnoDI.docc/Provide.md#asynchronous-shared-lifetime)
+for the cancellation contract and alternatives.
 
 ## Validation Model
 
@@ -584,7 +569,7 @@ target an `asyncFactory` member.
 ```swift
 @SubContainer(
     scope: .shared,
-    with: [\.config, \.apiClient],
+    with: [\Self.config, \Self.apiClient],
     featureRoot: FeatureRootScene.self
 )
 var feature: FeatureContainer
@@ -605,6 +590,11 @@ Key rules:
   computed array elements are unsupported.
 - `with: []` is an explicit empty subset and calls `Child()`.
 - `bindings:` remaps child input labels to different parent member names.
+- Parent key paths in `with:` and on the `parent:` side of `bindings:` name one
+  direct member as `\Self.member`. A named root such as `\AppContainer.member`
+  is rejected with `sub.noncanonical-parent-key-path` and a fix-it, and nested
+  components are invalid wiring. The `child:` side names a child input through
+  the child container type, which may be module-qualified.
 - `featureRoot:` / `featureRoots:` generate SwiftUI root helpers on the parent
   container without stacking another peer macro on the same property.
 - Choose exactly one wiring form: `with:` or `bindings:`.
@@ -720,8 +710,10 @@ The default mode does not resolve, build, write, delete caches, or stop
 processes. For Swift packages, Doctor parses literal target source roots and
 plugin arrays, so a comment, string, or another target's plugin cannot hide a
 missing attachment. Dynamic manifests and Tuist target mappings remain
-explicitly incomplete instead of being reported healthy. `--apply` uses the
-migrator's preserving atomic-exchange checks. Successful writes retain displaced
+explicitly incomplete instead of being reported healthy. Pass the same
+`--trust-module <name>` options you give `InnoDI-Migrate` when the migration
+check reports `migrate.unqualified-ownership-ambiguous` for your own modules.
+`--apply` uses the migrator's preserving atomic-exchange checks. Successful writes retain displaced
 files at reported `RECOVERY` paths; review those files after closing editors
 before removing them. Doctor schema v3 includes `recoveryPaths`.
 SwiftPM `--verify` runs `swift build`; Tuist
@@ -770,7 +762,7 @@ Generate DocC:
 Tools/generate-docc.sh
 ```
 
-Release notes and upgrade notes live in [RELEASING.md](RELEASING.md).
+Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ## Examples
 
@@ -778,3 +770,5 @@ Release notes and upgrade notes live in [RELEASING.md](RELEASING.md).
 - [Examples/SwiftUIExample](Examples/SwiftUIExample)
 - [Examples/PreviewInjectionExample](Examples/PreviewInjectionExample)
 - [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
+- [InnoSample](https://github.com/InnoSquadCorp/InnoSample): a multi-module
+  Tuist app that combines InnoDI with InnoFlow, InnoNetwork, and InnoRouter

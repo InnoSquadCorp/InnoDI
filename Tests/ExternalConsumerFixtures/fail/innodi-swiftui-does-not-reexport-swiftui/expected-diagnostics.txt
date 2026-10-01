@@ -1,0 +1,2 @@
+cannot find type 'Text' in scope
+? cannot find 'Text' in scope

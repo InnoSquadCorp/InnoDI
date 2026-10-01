@@ -18,6 +18,55 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `InnoDI.validation.*` — 파싱 이후 validator가 발견하는 의미적
   오류 (factory 누락, 순환, 알 수 없는 의존성, 계층 위반).
 
+## Assisted factory 진단
+
+- `assisted-factory.invalid-declaration`: `@AssistedFactory`는 이름이
+  `AssistedFactory`인 비어 있는 non-generic nested struct에 붙여야 합니다.
+- `assisted-factory.missing-declaration`: assisted input이 있지만
+  source-visible nested factory bridge가 없습니다.
+- `assisted-factory.invalid-arguments`: child type이나 literal static·assisted
+  key-path 목록이 없거나 형식이 잘못됐습니다.
+- `assisted-factory.duplicate-input`: 한 input이 static 목록과 assisted 목록을
+  통틀어 두 번 이상 나타납니다.
+- `assisted-factory.input-partition-mismatch`: factory 목록이 child 선언과
+  비교해 input을 빠뜨리거나, 잘못 분류하거나, 추가했습니다.
+- `assisted-factory.access-level-mismatch`: factory의 접근 수준이 child
+  container나 child input bridge 중 하나 이상보다 넓습니다.
+
+## Multibinding 진단
+
+- `multibinding.invalid-contributors`: 인자가 canonical `\Self.member` key
+  path로 이루어진 literal 배열 하나가 아닙니다.
+- `multibinding.empty-contributors`: contributor 목록이 비어 있습니다.
+- `multibinding.duplicate-contributor`: 한 contributor가 두 번 이상
+  나타납니다.
+- `multibinding.collection-type-required`: `@Multibinding`을 붙인 member가
+  배열 타입을 사용하지 않습니다.
+- `multibinding.unknown-contributor`: key path가 같은 컨테이너의 direct
+  managed dependency를 가리키지 않습니다.
+- `multibinding.async-contributor`: 동기 collection이 비동기 provider를
+  참조합니다.
+- `multibinding.type-mismatch`: contributor에 작성된 타입이 collection 원소
+  타입과 다릅니다.
+
+## 명시적 collection metadata 진단
+
+- `provide.invalid-collection-metadata`: `collection:`이 닫힌 literal 형태인
+  `.ordered([\Self.member])`,
+  `.providers([\Self.member])`,
+  `.keyed([.init(key: "id", contributor: \Self.member)])`,
+  `.keyedProviders(...)` 중 하나가 아닙니다. 매크로는 코드나 factory body를
+  평가하지 않으므로 runtime 변수, 외부 factory 호출, qualified entry
+  initializer, escape되거나 보간된 key, 계산된 key path는 거부됩니다.
+- `provide.duplicate-collection-key`: keyed metadata 계약이 같은 literal key를
+  두 번 이상 선언합니다. 중복된 key를 바꾸거나 제거하세요. InnoDI에는
+  암묵적인 last-wins 동작이 없습니다.
+- `provide.unknown-collection-contributor`: metadata 항목이 같은 컨테이너의
+  다른 direct managed provider를 가리키지 않습니다.
+- `provide.async-collection-contributor`: 동기 collection metadata가 async
+  provider를 참조합니다. 비동기 생성을 동기 group 뒤에 숨기지 말고 명시적인
+  async aggregation 경계를 두세요.
+
 ## 자주 보이는 복구 패턴
 
 대부분의 진단은 메시지 안에 fix를 직접 담고 있습니다. 반복적으로
@@ -28,8 +77,8 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - **"`Lazy<T>`를 직접 표기하세요."** — deferred wrapper에 대해
   `typealias`를 썼습니다. 매크로는 syntax를 읽기 때문에, alias된 형태는
   silent하게 hard edge가 됩니다.
-- **"factory 파라미터 하나를 `Lazy<T>`로 감싸세요."** — 의존성 순환은
-  edge 하나를 deferred로 만들면 구조 변경 없이 끊을 수 있습니다.
+- **"그래프를 재구성해 순환을 제거하세요."** — `Lazy<T>`와 `Provider<T>`는
+  소유권이 아니라 해소를 지연하므로 순환 그래프는 거부됩니다.
 - **"사용자 정의 `Overrides` 타입을 제거하세요."** — 컨테이너의 nested
   타입이 합성된 overrides 빌더와 충돌합니다.
 - **"root factory 클로저의 이름 있는 파라미터를 사용하세요."** — sibling DI
@@ -67,9 +116,6 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   부작용을 추론하지 않습니다.
 - `provide.initialization-invalid-scope` — `.shared`가 아닌 scope에
   `.onDemand`를 사용했습니다.
-- `provide.ondemand-async-unsupported` — `.onDemand`와 `asyncFactory:`를 함께
-  사용했습니다. 비동기 작업에 명시적 prepare·취소·재시도 소유권이 필요하면
-  ``DIAsyncScope``를 사용하세요.
 - `provide.input-invalid-configuration` — `@Input` 멤버는 factory,
   type, async factory, dependency wiring 설정을 가질 수 없습니다.
 - `provide.escaping-invalid-scope` — `@Input`이 아닌 scope에서
@@ -161,6 +207,11 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `provide.lazy-aliased` / `provide.provider-aliased` — `Lazy<T>` /
   `Provider<T>`에 대한 `typealias`를 썼습니다. 직접 표기로 다시
   쓰세요.
+- `provide.deferred-wrapper-qualification-required` (build plugin) — factory
+  파라미터가 `Lazy<T>`나 `Provider<T>`로 적혀 있는데 같은 모듈이 그 이름의
+  타입을 선언해, 그 이름이 InnoDI의 wrapper를 가리키지 않습니다.
+  `InnoDI.Lazy<T>`나 `InnoDI.Provider<T>`로 쓰세요. 다른 모듈에 있는 같은
+  이름의 타입으로는 발생하지 않습니다.
 - `transient-factory.unnamed-parameters` — transient factory closure가
   shorthand나 와일드카드 파라미터를 썼습니다. InnoDI가 주입할 수 있도록
   파라미터에 이름을 붙이세요.
@@ -212,6 +263,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.prewarm-name-conflict` — on-demand 컨테이너에 `prewarm`이라는
   direct value 또는 function이 이미 있습니다. 생성되는 선택적 prewarm API가
   모호하지 않도록 이름을 바꾸세요.
+- `container.close-async-providers-name-conflict` — 비동기 on-demand
+  provider가 있는 컨테이너에 `closeAsyncProviders`라는 direct value 또는
+  function이 이미 있습니다. 생성되는 close API가 모호하지 않도록 이름을
+  바꾸세요.
 - `container.mainactor-conflict` — main-actor `@DIContainerRole`이 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
   제거하거나 `mainActor` 생성을 비활성화하세요.
@@ -299,7 +354,12 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `sub.invalid-same-name-wiring` — `with:`가 매크로가 읽을 수 있는
   literal key-path 배열이 아닙니다 (런타임 변수와 계산된 원소는 거부).
 - `sub.invalid-bindings` — `bindings:`가 literal `(child:parent:)`
-  key-path tuple 배열이 아닙니다.
+  key-path tuple 배열이 아니거나, `parent:` key path에 컴포넌트가 둘 이상 있습니다.
+- `sub.noncanonical-parent-key-path` — `with:` 또는 `bindings:`의 `parent:`
+  쪽 key path가 `\AppContainer.config` 같은 이름 있는 루트를 씁니다. InnoDI는
+  멤버 이름만 읽으므로 루트는 검사된 적이 없습니다. fix-it이 `\Self.config`로
+  바꾸며, `InnoDI-Migrate`도 같은 재작성을 적용합니다.
+  `@SubContainerFactory(bindings:)`에도 같은 규칙이 적용됩니다.
 - `sub.auto-wiring-ambiguous` — parent에 여러 `@Provide` 후보가 있어
   implicit same-name wiring을 추론할 수 없습니다. 명시적 `with:` /
   `bindings:`를 추가하거나, child가 parent input을 받지 않는 경우
@@ -307,6 +367,12 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `sub.duplicate-child-binding` — 같은 child input이 두 번 바인딩됐습니다.
 - `sub.shared-parent-must-not-be-transient` — `.shared`
   sub-container는 `.transient` parent를 읽을 수 없습니다.
+- `sub.async-parent-member` — sub-container input이 비동기 parent member에
+  연결됐습니다. child input은 두 child scope 모두에서 동기 값입니다. 동기
+  parent member를 연결하거나, parent member를 await한 뒤 child를 직접
+  생성하세요. `@SubContainerFactory(bindings:)`도 같은 코드로 보고합니다.
+  이때는 그 child input을 `@Input(.assisted)`로 바꾸고 await한 값을 factory에
+  전달하세요.
 
 ## 그래프 단위 진단 (build plugin)
 
@@ -406,8 +472,10 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `mock.unsupported-member` — static/class requirement, subscript,
   associated type, `inout` parameter, `rethrows`/typed `throws`,
   opaque `some` return type 등 때문에 mock synthesis가 불가능합니다.
-  메시지에 최대 다섯 개의 member 이름이 표시되며, 해당 mock은 수동
-  구현해야 합니다.
+  메시지에 최대 다섯 개의 member 이름이 표시되며, 다음 RFC 0001 단계가
+  적용될 때까지 해당 mock은 수동으로 구현해야 합니다.
+
+지원하는 member 형태와 생성 storage layout은 <doc:AutoMock>을 참고하세요.
 
 ## Preview macro 진단
 

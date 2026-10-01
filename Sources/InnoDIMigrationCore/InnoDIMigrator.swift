@@ -4,7 +4,13 @@ import SwiftParser
 import SwiftSyntax
 
 public struct InnoDIMigrator {
-    public init() {}
+    /// Imported modules treated like Apple frameworks: the user asserts they
+    /// declare no attribute or macro named like an InnoDI attribute.
+    public let trustedModules: Set<String>
+
+    public init(trustedModules: Set<String> = []) {
+        self.trustedModules = trustedModules
+    }
 
     public func plan(root: URL) throws -> MigrationPlan {
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
@@ -85,6 +91,15 @@ public struct InnoDIMigrator {
             let rewritten = rewriter.rewrite(parsed.syntax)
             let migratedSource = rewritten.description
             diagnostics.append(contentsOf: rewriter.diagnostics)
+            if migratedSource != parsed.source, migratedSourceHasSyntaxErrors(migratedSource) {
+                diagnostics.append(
+                    MigrationDiagnostic(
+                        code: "migrate.output-parse-error",
+                        path: parsed.path,
+                        message: "The migrated source would contain invalid Swift syntax, which is an InnoDI-Migrate defect; no files were written. Please report it with this file."
+                    )
+                )
+            }
 
             if migratedSource != parsed.source {
                 changes.append(
@@ -92,7 +107,8 @@ public struct InnoDIMigrator {
                         path: parsed.path,
                         originalSource: parsed.source,
                         migratedSource: migratedSource,
-                        hadUTF8ByteOrderMark: parsed.hadUTF8ByteOrderMark
+                        hadUTF8ByteOrderMark: parsed.hadUTF8ByteOrderMark,
+                        rules: rewriter.appliedRules.sorted()
                     )
                 )
             }
@@ -226,4 +242,11 @@ public struct InnoDIMigrator {
             recoveryPaths: recoveryPaths
         )
     }
+}
+
+/// Every rewrite rebuilds syntax, so a defect in one could emit text that no
+/// longer parses. Planning checks the output again and blocks the run
+/// instead of writing it.
+func migratedSourceHasSyntaxErrors(_ source: String) -> Bool {
+    Syntax(Parser.parse(source: source)).hasError
 }

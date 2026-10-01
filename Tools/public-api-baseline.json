@@ -6858,7 +6858,21 @@
         {
           "kind": "conformsTo",
           "source": "s:13InnoDISwiftUI20DIContainerHostOwnerC",
-          "target": "s:7Combine16ObservableObjectP"
+          "swiftConstraints": [
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Hashable",
+              "rhsPrecise": "s:SH"
+            },
+            {
+              "kind": "conformance",
+              "lhs": "Identity",
+              "rhs": "Sendable",
+              "rhsPrecise": "s:s8SendableP"
+            }
+          ],
+          "target": "s:11Observation10ObservableP"
         },
         {
           "kind": "conformsTo",
@@ -6869,6 +6883,11 @@
           "kind": "conformsTo",
           "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO",
           "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV",
+          "target": "s:SQ"
         },
         {
           "kind": "conformsTo",
@@ -6949,6 +6968,11 @@
           "kind": "memberOf",
           "source": "s:13InnoDISwiftUI20DIContainerHostPhaseO7loadingyACyxq_Gx_tcAEmSHRzs8SendableRzr0_lF",
           "target": "s:13InnoDISwiftUI20DIContainerHostPhaseO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDISwiftUI21DIContainerHostHandleV2eeoiySbAC_ACtFZ",
+          "target": "s:13InnoDISwiftUI21DIContainerHostHandleV"
         },
         {
           "kind": "memberOf",
@@ -7536,7 +7560,6 @@
             "isolationModifiers": [],
             "mutatingGetter": false,
             "namedAttributes": [
-              "s:7Combine9PublishedV",
               "s:ScM"
             ],
             "nonmutatingSetter": false,
@@ -7936,6 +7959,28 @@
           },
           "pathComponents": [
             "DIContainerHostHandle"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDISwiftUI21DIContainerHostHandleV2eeoiySbAC_ACtFZ"
+          },
+          "kind": {
+            "identifier": "swift.func.op"
+          },
+          "parameterDefaults": [
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIContainerHostHandle",
+            "==(_:_:)"
           ]
         },
         {
@@ -10386,5 +10431,5 @@
       ]
     }
   ],
-  "schemaVersion": 9
+  "schemaVersion": 11
 }

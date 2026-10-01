@@ -14,14 +14,16 @@ extension InnoDIMigrator {
             }
         )
         let collector = InnoDIAttributeOwnershipCollector(
-            topLevelImportOffsets: topLevelImportOffsets
+            topLevelImportOffsets: topLevelImportOffsets,
+            trustedModules: trustedModules
         )
         collector.walk(source)
         return UnqualifiedInnoDIAttributeContext(
             availableNames: collector.availableNames,
             ambiguousNames: collector.conditionalImportNames
                 .union(collector.untrustedImportNames)
-                .union(additionalAmbiguousNames)
+                .union(additionalAmbiguousNames),
+            untrustedModules: collector.untrustedModules.sorted()
         )
     }
 
@@ -29,7 +31,8 @@ extension InnoDIMigrator {
         in source: SourceFileSyntax
     ) -> Set<String> {
         let collector = InnoDIAttributeOwnershipCollector(
-            topLevelImportOffsets: []
+            topLevelImportOffsets: [],
+            trustedModules: trustedModules
         )
         collector.walk(source)
         return collector.shadowedNames
@@ -40,6 +43,8 @@ extension InnoDIMigrator {
 struct UnqualifiedInnoDIAttributeContext {
     let availableNames: Set<String>
     let ambiguousNames: Set<String>
+    /// Imported modules that made InnoDI attribute names ambiguous.
+    var untrustedModules: [String] = []
 
     func allows(_ name: String) -> Bool {
         availableNames.contains(name) && !ambiguousNames.contains(name)
@@ -55,6 +60,7 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
         "Input",
         "Provide",
         "SubContainer",
+        "SubContainerFactory",
     ]
     private static let innoDISwiftUINames: Set<String> = [
         "DIContainer",
@@ -65,6 +71,7 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
         "Input",
         "Provide",
         "SubContainer",
+        "SubContainerFactory",
     ]
 
     private(set) var availableNames: Set<String> = []
@@ -72,16 +79,22 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
     private(set) var untrustedImportNames: Set<String> = []
     private(set) var exportedUntrustedImportNames: Set<String> = []
     private(set) var shadowedNames: Set<String> = []
+    private(set) var untrustedModules: Set<String> = []
     private let topLevelImportOffsets: Set<Int>
+    private let trustedModules: Set<String>
 
-    init(topLevelImportOffsets: Set<Int>) {
+    init(topLevelImportOffsets: Set<Int>, trustedModules: Set<String>) {
         self.topLevelImportOffsets = topLevelImportOffsets
+        self.trustedModules = trustedModules
         super.init(viewMode: .sourceAccurate)
     }
 
     override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
         let importedNames = innoDIAttributeNames(importedBy: node)
         if importsUntrustedMacroNamespace(node) {
+            if let module = node.path.first.map({ canonicalIdentifier($0.name) }) {
+                untrustedModules.insert(module)
+            }
             untrustedImportNames.formUnion(Self.innoDINames)
             untrustedImportNames.formUnion(Self.innoDISwiftUINames)
             if isExportedImport(node) {
@@ -144,6 +157,7 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
             return false
         }
         return !Self.trustedMacroFreeModules.contains(module)
+            && !trustedModules.contains(module)
             && module != "InnoDI"
             && module != "InnoDISwiftUI"
     }
@@ -177,6 +191,39 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
 
     override func visit(_ node: MacroDeclSyntax) -> SyntaxVisitorContinueKind {
         recordShadow(canonicalIdentifier(node.name))
+        return .visitChildren
+    }
+
+    // A rewritten role spells `ContainerRole.x` unqualified, so any type of
+    // that name in the scanned sources would capture it.
+    override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    override func visit(_ node: TypeAliasDeclSyntax) -> SyntaxVisitorContinueKind {
+        recordTypeShadow(node.name)
+    }
+
+    private func recordTypeShadow(_ name: TokenSyntax) -> SyntaxVisitorContinueKind {
+        if canonicalIdentifier(name) == "ContainerRole" {
+            shadowedNames.insert("ContainerRole")
+        }
         return .visitChildren
     }
 
@@ -261,11 +308,29 @@ private final class ConditionalContainerProvideCollector: SyntaxVisitor {
     override func visit(_: MacroExpansionExprSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
 }
 
+/// Rule codes a migration report lists for each changed file.
+enum MigrationRule {
+    /// 4.3: `@DIFeatureRoot` moves into `@SubContainer(featureRoot:)`.
+    static let featureRoot = "migrate.feature-root"
+    /// 5.0: the removed `concrete:` argument is dropped.
+    static let concreteArgument = "migrate.concrete-argument"
+    /// 6.0: legacy container options become `@DIContainerRole`.
+    static let containerRole = "migrate.container-role"
+    /// 6.0: `@Provide(.input)` becomes `@Input`.
+    static let inputAttribute = "migrate.input-attribute"
+    /// 7.0: named-root parent key paths become `\Self.member`.
+    static let parentKeyPath = "migrate.parent-key-path"
+    /// 7.0: a file that relied on the SwiftUI re-export imports SwiftUI.
+    static let swiftUIImport = "migrate.swiftui-import"
+}
+
 final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     private let path: String
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private var migratableProvideOffsets: Set<Int> = []
     private(set) var diagnostics: [MigrationDiagnostic] = []
+    /// Rules whose rewrite changed this file, for the migration report.
+    private(set) var appliedRules: Set<String> = []
 
     init(
         path: String,
@@ -286,7 +351,10 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 MigrationDiagnostic(
                     code: "migrate.unqualified-ownership-ambiguous",
                     path: path,
-                    message: "Cannot prove that unqualified legacy attribute(s) \(ambiguityCollector.names.sorted().joined(separator: ", ")) belong to InnoDI. Qualify them with their module before rerunning; no files were written."
+                    message: ownershipAmbiguityMessage(
+                        names: ambiguityCollector.names.sorted(),
+                        untrustedModules: attributeContext.untrustedModules
+                    )
                 )
             )
         }
@@ -325,7 +393,24 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
-        return rewritten
+        // The rewrites read only direct attributes, so a legacy spelling in an
+        // attribute-list `#if` clause or a macro argument survives them.
+        let residue = LegacyResidueCollector(attributeContext: attributeContext)
+        residue.walk(rewritten)
+        if diagnostics.isEmpty, !residue.forms.isEmpty {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.legacy-form-unsupported",
+                    path: path,
+                    message: "Cannot migrate \(residue.forms.sorted().joined(separator: ", ")) automatically where the rewrite cannot reach it, such as inside an #if clause of an attribute list or a macro argument. Migrate it manually before rerunning; no files were written."
+                )
+            )
+        }
+        let imported = addingSwiftUIImportForInnoDISwiftUI(to: rewritten)
+        if imported.description != rewritten.description {
+            appliedRules.insert(MigrationRule.swiftUIImport)
+        }
+        return imported
     }
 
     override func visit(_ node: MacroExpansionDeclSyntax) -> DeclSyntax {
@@ -342,6 +427,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
               let migrated = migrateContainerDeclaration(visitedStruct) else {
             return visited
         }
+        appliedRules.insert(MigrationRule.containerRole)
         return DeclSyntax(migrated)
     }
 
@@ -385,27 +471,25 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             return super.visit(node)
         }
 
-        let subContainerOffset = subContainers[0].position.utf8Offset
-        let featureRootOffsets = Set(featureRoots.map { $0.position.utf8Offset })
-        var migratedAttributes: [AttributeListSyntax.Element] = []
-        for element in node.attributes {
-            if let attribute = element.as(AttributeSyntax.self) {
-                let offset = attribute.position.utf8Offset
-                if featureRootOffsets.contains(offset) {
-                    continue
-                }
-                if offset == subContainerOffset {
-                    migratedAttributes.append(.attribute(migratedSubContainer))
-                    continue
-                }
-            }
-            migratedAttributes.append(element)
-        }
-        let attributes = AttributeListSyntax(migratedAttributes)
-        return super.visit(node.with(\.attributes, attributes))
+        let migrated = removingAttributes(
+            at: Set(featureRoots.map { $0.position.utf8Offset }),
+            replacing: [subContainers[0].position.utf8Offset: migratedSubContainer],
+            from: node,
+            keyword: \.bindingSpecifier
+        )
+        appliedRules.insert(MigrationRule.featureRoot)
+        return super.visit(migrated)
     }
 
     override func visit(_ node: AttributeSyntax) -> AttributeSyntax {
+        if isInnoDIAttribute(node, named: "SubContainer", context: attributeContext)
+            || isInnoDIAttribute(node, named: "SubContainerFactory", context: attributeContext) {
+            let migrated = migrateParentKeyPaths(in: node)
+            if migrated.description != node.description {
+                appliedRules.insert(MigrationRule.parentKeyPath)
+            }
+            return super.visit(migrated)
+        }
         guard migratableProvideOffsets.contains(node.position.utf8Offset),
               isInnoDIAttribute(
                 node,
@@ -417,7 +501,22 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         }
 
         if isInputScope(arguments.first(where: { $0.label == nil })?.expression) {
-            guard !containsComment(node),
+            // An unqualified `@Input` binds to whatever `Input` the file
+            // sees, so a same-named declaration would capture the rewrite.
+            if node.attributeName.is(IdentifierTypeSyntax.self),
+               !attributeContext.allows("Input") {
+                diagnostics.append(
+                    MigrationDiagnostic(
+                        code: "migrate.rewrite-target-ambiguous",
+                        path: path,
+                        message: "Cannot rewrite @Provide(.input) to @Input, because the scanned sources or an import declare another Input. Write @InnoDI.Provide(.input) or rename that declaration before rerunning; no files were written."
+                    )
+                )
+                return super.visit(node)
+            }
+            // The rewrite keeps the attribute's leading and trailing trivia,
+            // so only a comment between its tokens would be lost.
+            guard !containsComment(node.trimmed),
                   arguments.allSatisfy({ argument in
                     argument.label == nil
                         || canonicalIdentifier(argument.label!) == "escaping"
@@ -431,6 +530,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
                 return super.visit(node)
             }
+            appliedRules.insert(MigrationRule.inputAttribute)
             return super.visit(makeInputAttribute(from: node, arguments: arguments))
         }
 
@@ -464,9 +564,95 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             filteredArguments[filteredArguments.index(before: filteredArguments.endIndex)] = last
         }
         let filtered = LabeledExprListSyntax(filteredArguments)
+        appliedRules.insert(MigrationRule.concreteArgument)
         return super.visit(
             node.with(\.arguments, .argumentList(filtered))
         )
+    }
+
+    /// 7.0 spells parent-side sub-container key paths as `\Self.member`.
+    /// InnoDI always read only the member name, so replacing a named root
+    /// keeps behavior unchanged. A nested component was silently reduced to
+    /// its last component, so its intent cannot be recovered automatically.
+    private func migrateParentKeyPaths(in attribute: AttributeSyntax) -> AttributeSyntax {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+            return attribute
+        }
+        var didChange = false
+        var blocked = false
+        func migrate(_ expression: ExprSyntax) -> ExprSyntax {
+            guard let keyPath = expression.as(KeyPathExprSyntax.self) else {
+                return expression
+            }
+            switch parentMemberKeyPathSpelling(expression) {
+            case .canonical:
+                return expression
+            case .namedRoot:
+                // Only the root is replaced, so only comments in its trivia
+                // could be lost.
+                guard let root = keyPath.root, !containsComment(root) else {
+                    blocked = true
+                    return expression
+                }
+                didChange = true
+                let selfRoot = TypeSyntax(
+                    IdentifierTypeSyntax(name: .keyword(.Self))
+                )
+                return ExprSyntax(keyPath.with(\.root, selfRoot))
+            case .invalid:
+                blocked = true
+                return expression
+            }
+        }
+        let rebuilt = arguments.map { argument -> LabeledExprSyntax in
+            guard let array = argument.expression.as(ArrayExprSyntax.self) else {
+                return argument
+            }
+            switch argument.label.map(canonicalIdentifier) {
+            case "with":
+                let elements = array.elements.map { element in
+                    element.with(\.expression, migrate(element.expression))
+                }
+                return argument.with(
+                    \.expression,
+                    ExprSyntax(array.with(\.elements, ArrayElementListSyntax(elements)))
+                )
+            case "bindings":
+                let elements = array.elements.map { element -> ArrayElementSyntax in
+                    guard let tuple = element.expression.as(TupleExprSyntax.self) else {
+                        return element
+                    }
+                    let parts = tuple.elements.map { part -> LabeledExprSyntax in
+                        guard part.label.map(canonicalIdentifier) == "parent" else {
+                            return part
+                        }
+                        return part.with(\.expression, migrate(part.expression))
+                    }
+                    return element.with(
+                        \.expression,
+                        ExprSyntax(tuple.with(\.elements, LabeledExprListSyntax(parts)))
+                    )
+                }
+                return argument.with(
+                    \.expression,
+                    ExprSyntax(array.with(\.elements, ArrayElementListSyntax(elements)))
+                )
+            default:
+                return argument
+            }
+        }
+        if blocked {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.parent-key-path-unsupported",
+                    path: path,
+                    message: "Cannot safely rewrite a commented, nested, or non-member parent key path in @SubContainer or @SubContainerFactory. Spell each parent key path as \\Self.member; no files were written."
+                )
+            )
+            return attribute
+        }
+        guard didChange else { return attribute }
+        return attribute.with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
     }
 
     private func migrateContainerDeclaration(
@@ -504,7 +690,23 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             )
             return nil
         }
-        guard !containsComment(container),
+        // A current 6.0 container has nothing to rewrite, so comments near it,
+        // such as its documentation comment, must not block the whole run.
+        let hasLegacyContainerOption = (
+            container.arguments?.as(LabeledExprListSyntax.self) ?? []
+        ).contains {
+            let label = $0.label.map(canonicalIdentifier)
+            return label == "root" || label == "mainActor"
+        }
+        guard hasLegacyContainerOption
+            || !componentMarkers.isEmpty
+            || !rootMarkers.isEmpty else {
+            return nil
+        }
+        // The container attribute keeps its surrounding trivia, so only a
+        // comment between its tokens is at risk. Removed markers take their
+        // attached comments with them, so any comment on them blocks.
+        guard !containsComment(container.trimmed),
               !componentMarkers.contains(where: containsComment),
               !rootMarkers.contains(where: containsComment) else {
             diagnostics.append(
@@ -545,11 +747,28 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             return nil
         }
 
+        // 5.x let a component also be a render entry point through
+        // `root: true`, but a 6.0 container has exactly one role.
+        if !componentMarkers.isEmpty && rootValue == true {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.container-role-conflict",
+                    path: path,
+                    message: "A container cannot migrate as both .component and .root; choose one role before rerunning. No files were written."
+                )
+            )
+            return nil
+        }
+
         let role: String?
         if !componentMarkers.isEmpty {
             role = "component"
         } else if !rootMarkers.isEmpty || rootValue == true {
             role = "root"
+        } else if mainActorValue == true {
+            // The role macro requires a role, and an isolated container
+            // without a hierarchy marker was a local container in 5.x.
+            role = "local"
         } else {
             role = nil
         }
@@ -561,6 +780,18 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         guard needsMigration else { return nil }
 
         let moduleQualified = container.attributeName.is(MemberTypeSyntax.self)
+        if role != nil, !moduleQualified,
+           !attributeContext.allows("DIContainerRole")
+            || attributeContext.ambiguousNames.contains("ContainerRole") {
+            diagnostics.append(
+                MigrationDiagnostic(
+                    code: "migrate.rewrite-target-ambiguous",
+                    path: path,
+                    message: "Cannot rewrite legacy container options to @DIContainerRole(role: ContainerRole...), because the scanned sources or an import declare another DIContainerRole or ContainerRole. Write @InnoDI.DIContainer or rename that declaration before rerunning; no files were written."
+                )
+            )
+            return nil
+        }
         var rebuilt: [LabeledExprSyntax] = []
         if let role {
             rebuilt.append(
@@ -590,41 +821,122 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             let label = argument.label.map(canonicalIdentifier)
             return label != "root" && label != "mainActor"
         }.map { $0.with(\.leadingTrivia, []) })
+        // A multi-line legacy argument list keeps one argument per line. The
+        // comment guard leaves only whitespace in the first argument's trivia.
+        let argumentLineTrivia = existing.first.map(\.leadingTrivia).flatMap {
+            $0.contains(where: \.isNewline) ? $0 : nil
+        }
         rebuilt = rebuilt.enumerated().map { index, argument in
-            argument.with(
-                \.trailingComma,
-                index == rebuilt.index(before: rebuilt.endIndex)
-                    ? nil
-                    : .commaToken(trailingTrivia: .space)
-            )
+            let isLast = index == rebuilt.index(before: rebuilt.endIndex)
+            guard let argumentLineTrivia else {
+                return argument.with(
+                    \.trailingComma,
+                    isLast ? nil : .commaToken(trailingTrivia: .space)
+                )
+            }
+            return argument
+                .with(\.leadingTrivia, argumentLineTrivia)
+                .with(\.trailingComma, isLast ? nil : .commaToken())
         }
 
-        let migratedContainer = container
-            .with(\.attributeName, roleContainerAttributeName(from: container))
-            .with(
-            \.arguments,
-            rebuilt.isEmpty ? nil : .argumentList(LabeledExprListSyntax(rebuilt))
+        let migratedContainer: AttributeSyntax
+        if role != nil {
+            // A marker-only legacy container such as `@DIComponent @DIContainer`
+            // has no parentheses, and its trailing comment sits on the name.
+            migratedContainer = container
+                .with(\.attributeName, roleContainerAttributeName(from: container))
+                .with(\.leftParen, container.leftParen ?? .leftParenToken())
+                .with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
+                .with(\.rightParen, container.rightParen ?? .rightParenToken())
+                .with(\.trailingTrivia, container.trailingTrivia)
+        } else if rebuilt.isEmpty {
+            // Only default-valued options such as `root: false` were left, so
+            // the ordinary container keeps no argument list. The comment
+            // guard allows a trailing comment, which `)` carried.
+            migratedContainer = container
+                .with(\.leftParen, nil)
+                .with(\.arguments, nil)
+                .with(\.rightParen, nil)
+                .with(\.trailingTrivia, container.trailingTrivia)
+        } else {
+            migratedContainer = container
+                .with(\.arguments, .argumentList(LabeledExprListSyntax(rebuilt)))
+        }
+        return removingAttributes(
+            at: Set((componentMarkers + rootMarkers).map { $0.position.utf8Offset }),
+            replacing: [container.position.utf8Offset: migratedContainer],
+            from: node,
+            keyword: \.structKeyword
         )
-        let removedOffsets = Set(
-            (componentMarkers + rootMarkers).map { $0.position.utf8Offset }
-        )
-        let containerOffset = container.position.utf8Offset
-        var migratedAttributes: [AttributeListSyntax.Element] = []
-        for element in node.attributes {
+    }
+
+    /// Removes the attributes at `removedOffsets` and substitutes
+    /// `replacements` by offset. A removed attribute takes its line with it,
+    /// so the blank lines above it move to the next kept attribute or, when
+    /// it ended the list, to the first modifier or `keyword`. Callers block
+    /// comments on a removed attribute, so only whitespace moves.
+    private func removingAttributes<Declaration: WithAttributesSyntax & WithModifiersSyntax>(
+        at removedOffsets: Set<Int>,
+        replacing replacements: [Int: AttributeSyntax],
+        from declaration: Declaration,
+        keyword: WritableKeyPath<Declaration, TokenSyntax>
+    ) -> Declaration {
+        var kept: [AttributeListSyntax.Element] = []
+        var removedTrivia: Trivia?
+        // An attribute removed from the end of a line leaves the space that
+        // separated it from the previous one.
+        var removedSharedLine = false
+        func trimTrailingSpaceIfLineEnds(before leadingTrivia: Trivia) {
+            guard removedSharedLine, leadingTrivia.first?.isNewline == true,
+                  let last = kept.indices.last else { return }
+            var pieces = Array(kept[last].trailingTrivia)
+            while pieces.last?.isSpaceOrTab == true {
+                pieces.removeLast()
+            }
+            kept[last].trailingTrivia = Trivia(pieces: pieces)
+        }
+        for var element in declaration.attributes {
             if let attribute = element.as(AttributeSyntax.self) {
                 let offset = attribute.position.utf8Offset
-                if removedOffsets.contains(offset) { continue }
-                if offset == containerOffset {
-                    migratedAttributes.append(.attribute(migratedContainer))
+                if removedOffsets.contains(offset) {
+                    if !attribute.leadingTrivia.contains(where: \.isNewline) {
+                        removedSharedLine = true
+                    }
+                    removedTrivia = removedTrivia.map {
+                        triviaAfterRemovedLine($0, before: attribute.leadingTrivia)
+                    } ?? attribute.leadingTrivia
                     continue
                 }
+                if let replacement = replacements[offset] {
+                    element = .attribute(replacement)
+                }
             }
-            migratedAttributes.append(element)
+            if let trivia = removedTrivia {
+                element.leadingTrivia = triviaAfterRemovedLine(trivia, before: element.leadingTrivia)
+                removedTrivia = nil
+            }
+            trimTrailingSpaceIfLineEnds(before: element.leadingTrivia)
+            removedSharedLine = false
+            kept.append(element)
         }
-        return node.with(
-            \.attributes,
-            AttributeListSyntax(migratedAttributes)
-        )
+        var result = declaration
+        if let trivia = removedTrivia {
+            if result.modifiers.isEmpty {
+                result[keyPath: keyword].leadingTrivia = triviaAfterRemovedLine(
+                    trivia,
+                    before: result[keyPath: keyword].leadingTrivia
+                )
+                trimTrailingSpaceIfLineEnds(before: result[keyPath: keyword].leadingTrivia)
+            } else {
+                result.modifiers.leadingTrivia = triviaAfterRemovedLine(
+                    trivia,
+                    before: result.modifiers.leadingTrivia
+                )
+                trimTrailingSpaceIfLineEnds(before: result.modifiers.leadingTrivia)
+            }
+        }
+        result.attributes = AttributeListSyntax(kept)
+        return result
     }
 
     private func roleContainerAttributeName(
@@ -691,12 +1003,13 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         let escaping = arguments.filter {
             $0.label.map(canonicalIdentifier) == "escaping"
         }
+        // Reusing the parentheses keeps a multi-line list's closing line.
         var migrated = AttributeSyntax(
             atSign: provide.atSign,
             attributeName: name,
-            leftParen: escaping.isEmpty ? nil : .leftParenToken(),
+            leftParen: escaping.isEmpty ? nil : provide.leftParen ?? .leftParenToken(),
             arguments: escaping.isEmpty ? nil : .argumentList(escaping),
-            rightParen: escaping.isEmpty ? nil : .rightParenToken()
+            rightParen: escaping.isEmpty ? nil : provide.rightParen ?? .rightParenToken()
         )
         migrated = migrated
             .with(\.leadingTrivia, provide.leadingTrivia)
@@ -727,7 +1040,9 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         into subContainer: AttributeSyntax,
         propertyName: String
     ) -> AttributeSyntax? {
-        guard !containsComment(subContainer),
+        // The kept @SubContainer attribute preserves its surrounding trivia;
+        // each removed @DIFeatureRoot would drop its attached comments.
+        guard !containsComment(subContainer.trimmed),
               !legacyAttributes.contains(where: { containsComment($0) }),
               let existingArguments = subContainer.arguments?.as(LabeledExprListSyntax.self),
               !existingArguments.contains(where: {
@@ -807,17 +1122,26 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             )
         }
 
+        // A multi-line argument list gets the new argument on its own line.
+        // The comment guard leaves only whitespace in that trivia.
         var arguments = Array(existingArguments)
+        let argumentLineTrivia = arguments.first.map(\.leadingTrivia).flatMap {
+            $0.contains(where: \.isNewline) ? $0 : nil
+        }
         if var last = arguments.last {
             if last.trailingComma == nil {
                 last = last.with(
                     \.trailingComma,
-                    .commaToken(trailingTrivia: .space)
+                    argumentLineTrivia == nil
+                        ? .commaToken(trailingTrivia: .space)
+                        : .commaToken()
                 )
                 arguments[arguments.index(before: arguments.endIndex)] = last
             }
         }
-        arguments.append(newArgument)
+        arguments.append(
+            argumentLineTrivia.map { newArgument.with(\.leadingTrivia, $0) } ?? newArgument
+        )
 
         return subContainer.with(
             \.arguments,
@@ -890,6 +1214,44 @@ private final class LegacyConcreteArgumentCollector: SyntaxVisitor {
     }
 }
 
+/// Legacy InnoDI spellings that survived the rewrites.
+private final class LegacyResidueCollector: SyntaxVisitor {
+    private let attributeContext: UnqualifiedInnoDIAttributeContext
+    private(set) var forms: Set<String> = []
+
+    init(attributeContext: UnqualifiedInnoDIAttributeContext) {
+        self.attributeContext = attributeContext
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: AttributeSyntax) -> SyntaxVisitorContinueKind {
+        let arguments = node.arguments?.as(LabeledExprListSyntax.self)
+        for marker in ["DIComponent", "DIHierarchyRoot"]
+        where isInnoDIAttribute(node, named: marker, context: attributeContext) {
+            forms.insert("@\(marker)")
+        }
+        if isInnoDIAttribute(node, named: "DIContainer", context: attributeContext),
+           arguments?.contains(where: {
+               let label = $0.label.map(canonicalIdentifier)
+               return label == "root" || label == "mainActor" || label == "isolation"
+           }) == true {
+            forms.insert("@DIContainer(root:mainActor:)")
+        }
+        if isInnoDIAttribute(node, named: "Provide", context: attributeContext),
+           arguments?.first(where: { $0.label == nil }).map({
+               isLegacyInputScopeExpression($0.expression)
+           }) == true {
+            forms.insert("@Provide(.input)")
+        }
+        for owner in ["SubContainer", "SubContainerFactory"]
+        where isInnoDIAttribute(node, named: owner, context: attributeContext)
+            && hasNonCanonicalParentKeyPath(node) {
+            forms.insert("a @\(owner) parent key path")
+        }
+        return .visitChildren
+    }
+}
+
 private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private(set) var names: Set<String> = []
@@ -906,6 +1268,10 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
         let name = canonicalIdentifier(identifier.name)
         if name == "DIFeatureRoot", !attributeContext.allows(name) {
             names.insert("@DIFeatureRoot")
+        } else if name == "SubContainer" || name == "SubContainerFactory",
+                  !attributeContext.allows(name),
+                  hasNonCanonicalParentKeyPath(node) {
+            names.insert("@\(name) parent key path")
         } else if name == "Provide",
                   !attributeContext.allows(name),
                   let arguments = node.arguments?.as(LabeledExprListSyntax.self),
@@ -971,6 +1337,40 @@ private final class LegacyFeatureRootCollector: SyntaxVisitor {
     }
 }
 
+/// Whether `with:` or a `bindings:` parent side names a root other than `Self`.
+/// Whether a parent-side key path literal needs a rewrite or blocks one: a
+/// named root, a nested component, or any other non-member spelling.
+private func hasNonCanonicalParentKeyPath(_ attribute: AttributeSyntax) -> Bool {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+        return false
+    }
+    for argument in arguments {
+        guard let array = argument.expression.as(ArrayExprSyntax.self) else { continue }
+        let label = argument.label.map(canonicalIdentifier)
+        for element in array.elements {
+            let parents: [ExprSyntax]
+            if label == "with" {
+                parents = [element.expression]
+            } else if label == "bindings",
+                      let tuple = element.expression.as(TupleExprSyntax.self) {
+                parents = tuple.elements
+                    .filter { $0.label.map(canonicalIdentifier) == "parent" }
+                    .map(\.expression)
+            } else {
+                parents = []
+            }
+            if parents.contains(where: { parent in
+                guard parent.is(KeyPathExprSyntax.self) else { return false }
+                if case .canonical = parentMemberKeyPathSpelling(parent) { return false }
+                return true
+            }) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 private func isInnoDIAttribute(
     _ attribute: AttributeSyntax,
     named name: String,
@@ -1025,7 +1425,47 @@ private func isValidSwiftIdentifier(_ value: String) -> Bool {
     }
 }
 
+/// The leading trivia left for `next` after the line of a removed token
+/// whose leading trivia was `removed`: the blank lines above the removed
+/// line stay, and `next` keeps its own comments and indentation. A removed
+/// token that shared a line with the previous token leaves `next` unchanged.
+private func triviaAfterRemovedLine(_ removed: Trivia, before next: Trivia) -> Trivia {
+    guard removed.contains(where: \.isNewline) else { return next }
+    var above = Array(removed)
+    while above.last?.isSpaceOrTab == true {
+        above.removeLast()
+    }
+    var below = Array(next)
+    if let newline = below.firstIndex(where: \.isNewline) {
+        let remaining: TriviaPiece? = switch below[newline] {
+        case .newlines(let count) where count > 1: .newlines(count - 1)
+        case .carriageReturns(let count) where count > 1: .carriageReturns(count - 1)
+        case .carriageReturnLineFeeds(let count) where count > 1: .carriageReturnLineFeeds(count - 1)
+        default: nil
+        }
+        below.removeSubrange(...newline)
+        if let remaining {
+            below.insert(remaining, at: 0)
+        }
+    }
+    return Trivia(pieces: above + below)
+}
+
 private func containsComment(_ syntax: some SyntaxProtocol) -> Bool {
     let source = syntax.description
     return source.contains("//") || source.contains("/*")
+}
+
+/// Names the imports behind an ownership ambiguity, so the user can either
+/// qualify the attributes or trust modules that declare no InnoDI names.
+private func ownershipAmbiguityMessage(
+    names: [String],
+    untrustedModules: [String]
+) -> String {
+    let attributes = names.joined(separator: ", ")
+    guard !untrustedModules.isEmpty else {
+        return "Cannot prove that unqualified legacy attribute(s) \(attributes) belong to InnoDI. Qualify them with their module before rerunning; no files were written."
+    }
+    let modules = untrustedModules.joined(separator: ", ")
+    return "Cannot prove that unqualified legacy attribute(s) \(attributes) belong to InnoDI, because this file imports \(modules), which could declare attributes with the same names. Qualify the attributes with InnoDI., or rerun with --trust-module <name> for each listed module that declares no InnoDI-named attribute or macro; no files were written."
 }

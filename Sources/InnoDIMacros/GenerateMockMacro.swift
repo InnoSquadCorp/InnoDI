@@ -16,6 +16,7 @@
 import Foundation
 import SwiftDiagnostics
 import SwiftSyntax
+import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 public struct GenerateMockMacro: PeerMacro {
@@ -38,12 +39,12 @@ public struct GenerateMockMacro: PeerMacro {
         ) != nil
         let isSendable = inheritsSendable(protocolDecl)
         let usesConcurrentStorage = isSendable && !isMainActor
-        var bodyLines: [String] = []
+        var sections: [MockMembers] = []
         var unsupportedMembers: [String] = []
-        var missingStubExpressions: [String] = []
-        var recordedCallCountExpressions: [String] = []
-        var resetCallStatements: [String] = []
-        var resetStubStatements: [String] = []
+        var missingStubExpressions: [ExprSyntax] = []
+        var recordedCallCounts: [DictionaryElementSyntax] = []
+        var resetCallStatements: [CodeBlockItemSyntax] = []
+        var resetStubStatements: [CodeBlockItemSyntax] = []
         var usesNotStubbedError = false
         if let isolation = unsupportedMockIsolation(in: protocolDecl.attributes) {
             unsupportedMembers.append(isolation)
@@ -74,14 +75,12 @@ public struct GenerateMockMacro: PeerMacro {
                     names: names,
                     concurrent: usesConcurrentStorage
                 ) {
-                    bodyLines.append(rendered.snippet)
+                    sections.append(rendered.members)
                     usesNotStubbedError = usesNotStubbedError || rendered.usesNotStubbedError
                     if let expression = rendered.missingStubExpression {
                         missingStubExpressions.append(expression)
                     }
-                    recordedCallCountExpressions.append(
-                        rendered.recordedCallCountExpression
-                    )
+                    recordedCallCounts.append(rendered.recordedCallCount)
                     resetCallStatements.append(rendered.resetCallStatement)
                     resetStubStatements.append(
                         contentsOf: rendered.resetStubStatements
@@ -94,7 +93,7 @@ public struct GenerateMockMacro: PeerMacro {
                     variable: variable,
                     concurrent: usesConcurrentStorage
                 ) {
-                    bodyLines.append(rendered.snippet)
+                    sections.append(rendered.members)
                     missingStubExpressions.append(
                         rendered.missingStubExpression
                     )
@@ -128,7 +127,7 @@ public struct GenerateMockMacro: PeerMacro {
         let declaredMemberNames = declaredPropertyNames.union(
             declaredFunctionNames
         )
-        if !recordedCallCountExpressions.isEmpty,
+        if !recordedCallCounts.isEmpty,
            declaredMemberNames.contains("recordedCallCounts") {
             unsupportedMembers.append("recordedCallCounts generated-helper collision")
         }
@@ -162,143 +161,196 @@ public struct GenerateMockMacro: PeerMacro {
         }
 
         if usesNotStubbedError {
-            bodyLines.insert(
-                """
+            sections.insert(
+                MockMembers("""
                     struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
                         let selector: String
                         var description: String { "InnoDI mock selector '\\(selector)' was not stubbed before invocation." }
                     }
-                """,
+                """),
                 at: 0
             )
         }
         if hasResetSurface {
-            bodyLines.insert(
+            sections.insert(
                 usesConcurrentStorage
-                    ? "    private let __innodiMockState = InnoDITesting.DIConcurrentMockState()"
-                    : "    private var __innodiMockGeneration: UInt64 = 0",
+                    ? MockMembers("""
+                        private let __innodiMockState = InnoDITesting.DIConcurrentMockState()
+                    """)
+                    : MockMembers("""
+                        private var __innodiMockGeneration: UInt64 = 0
+                    """),
                 at: 0
             )
         }
         if !missingStubExpressions.isEmpty {
-            let expressions = missingStubExpressions.joined(separator: ",\n            ")
             if usesConcurrentStorage {
-                bodyLines.append(
-                    """
-                        var missingStubSelectors: [String] {
-                            __innodiMockState.withCriticalRegion { _ in
-                                [
-                                    \(expressions)
-                                ].compactMap { $0 }
-                            }
-                        }
-                    """
-                )
-            } else {
-                bodyLines.append(
-                    """
-                        var missingStubSelectors: [String] {
-                            [
-                                \(expressions)
+                let expressions = lineSeparatedElements(missingStubExpressions, indentation: 16)
+                sections.append(MockMembers("""
+                    var missingStubSelectors: [String] {
+                        __innodiMockState.withCriticalRegion { _ in
+                            [\(expressions)
                             ].compactMap { $0 }
                         }
-                    """
-                )
+                    }
+                """))
+            } else {
+                let expressions = lineSeparatedElements(missingStubExpressions, indentation: 12)
+                sections.append(MockMembers("""
+                    var missingStubSelectors: [String] {
+                        [\(expressions)
+                        ].compactMap { $0 }
+                    }
+                """))
             }
         }
-        if !recordedCallCountExpressions.isEmpty {
-            let expressions = recordedCallCountExpressions.joined(
-                separator: ",\n            "
-            )
+        if !recordedCallCounts.isEmpty {
             if usesConcurrentStorage {
-                bodyLines.append(
-                    """
-                        var recordedCallCounts: [String: Int] {
-                            __innodiMockState.withCriticalRegion { _ in
-                                [
-                                    \(expressions)
-                                ]
-                            }
-                        }
-                    """
-                )
-            } else {
-                bodyLines.append(
-                    """
-                        var recordedCallCounts: [String: Int] {
-                            [
-                                \(expressions)
+                let entries = lineSeparatedElements(recordedCallCounts, indentation: 16)
+                sections.append(MockMembers("""
+                    var recordedCallCounts: [String: Int] {
+                        __innodiMockState.withCriticalRegion { _ in
+                            [\(entries)
                             ]
                         }
-                    """
-                )
+                    }
+                """))
+            } else {
+                let entries = lineSeparatedElements(recordedCallCounts, indentation: 12)
+                sections.append(MockMembers("""
+                    var recordedCallCounts: [String: Int] {
+                        [\(entries)
+                        ]
+                    }
+                """))
             }
         }
         if hasResetSurface {
-            bodyLines.append(
-                renderMockResetSurface(
-                    concurrent: usesConcurrentStorage,
-                    recordedCallCountExpressions: recordedCallCountExpressions,
-                    resetCallStatements: resetCallStatements,
-                    resetStubStatements: resetStubStatements
+            sections.append(
+                MockMembers(
+                    renderMockResetSurface(
+                        concurrent: usesConcurrentStorage,
+                        recordedCallCounts: recordedCallCounts,
+                        resetCallStatements: resetCallStatements,
+                        resetStubStatements: resetStubStatements
+                    )
                 )
             )
-        }
-
-        let bodyJoined = bodyLines.joined(separator: "\n\n")
-        let renderedBody: String
-        if bodyJoined.isEmpty {
-            renderedBody = "    // RFC 0001: no supported members yet — replace with the protocol's full member set."
-        } else {
-            renderedBody = bodyJoined
         }
 
         let accessPrefix = mockTypeAccessPrefix(for: protocolDecl)
         let isolationPrefix = isMainActor ? "@MainActor\n" : ""
-        let mockDecl: DeclSyntax = """
-        /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
-        \(raw: isolationPrefix)\(raw: accessPrefix)final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
-            init() {}
+        let body = mockBodyMembers(sections)
+        let mockDecl: DeclSyntax
+        if body.isEmpty {
+            mockDecl = """
+            /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
+            \(raw: isolationPrefix)\(raw: accessPrefix)final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
+                init() {}
 
-        \(raw: renderedBody)
+                // RFC 0001: no supported members yet — replace with the protocol's full member set.
+            }
+            """
+        } else {
+            mockDecl = """
+            /// Auto-generated mock for `\(raw: protocolDecl.name.text)` (RFC 0001 stage 2).
+            \(raw: isolationPrefix)\(raw: accessPrefix)final class \(raw: mockTypeName): \(raw: protocolDecl.name.text) {
+                init() {}\(body)
+            }
+            """
         }
-        """
         return [mockDecl]
     }
 }
 
+/// The class members after `init() {}`, with a blank line before each
+/// section.
+private func mockBodyMembers(_ sections: [MockMembers]) -> MemberBlockItemListSyntax {
+    MemberBlockItemListSyntax(
+        sections.flatMap { section in
+            section.items.enumerated().map { index, member in
+                index == 0
+                    ? member.with(\.leadingTrivia, .newlines(2) + member.leadingTrivia)
+                    : member
+            }
+        }
+    )
+}
+
+/// Array elements, one per line at `indentation`. The literal interpolates
+/// them right after `[` so the builder does not re-indent them.
+private func lineSeparatedElements(
+    _ expressions: [ExprSyntax],
+    indentation: Int
+) -> ArrayElementListSyntax {
+    ArrayElementListSyntax(
+        expressions.enumerated().map { index, expression in
+            ArrayElementSyntax(
+                leadingTrivia: .newline + .spaces(indentation),
+                expression: expression,
+                trailingComma: index == expressions.count - 1 ? nil : .commaToken()
+            )
+        }
+    )
+}
+
+/// Dictionary entries, spaced like ``lineSeparatedElements(_:indentation:)``.
+private func lineSeparatedElements(
+    _ entries: [DictionaryElementSyntax],
+    indentation: Int
+) -> DictionaryElementListSyntax {
+    DictionaryElementListSyntax(
+        entries.enumerated().map { index, entry in
+            entry
+                .with(\.leadingTrivia, .newline + .spaces(indentation))
+                .with(\.trailingComma, index == entries.count - 1 ? nil : .commaToken())
+        }
+    )
+}
+
+/// The snapshot's call counts, one per line at 16 spaces, or the `:` of an
+/// empty dictionary literal when no requirement records calls.
+private func resetSnapshotCounts(_ entries: [DictionaryElementSyntax]) -> Syntax {
+    guard !entries.isEmpty else {
+        return Syntax(TokenSyntax.colonToken(leadingTrivia: .spaces(16)))
+    }
+    return Syntax(
+        DictionaryElementListSyntax(
+            entries.enumerated().map { index, entry in
+                entry
+                    .with(\.leadingTrivia, index == 0 ? .spaces(16) : .newline + .spaces(16))
+                    .with(\.trailingComma, index == entries.count - 1 ? nil : .commaToken())
+            }
+        )
+    )
+}
+
+/// `statements`, one per line at `spaces`.
+private func lineIndentedStatements(
+    _ statements: [CodeBlockItemSyntax],
+    spaces: Int
+) -> CodeBlockItemListSyntax {
+    CodeBlockItemListSyntax(
+        statements.enumerated().map { index, statement in
+            statement.with(
+                \.leadingTrivia,
+                index == 0 ? .spaces(spaces) : .newline + .spaces(spaces)
+            )
+        }
+    )
+}
+
 private func renderMockResetSurface(
     concurrent: Bool,
-    recordedCallCountExpressions: [String],
-    resetCallStatements: [String],
-    resetStubStatements: [String]
-) -> String {
-    func indented(
-        _ lines: [String],
-        spaces: Int,
-        separatorSuffix: String = ""
-    ) -> String {
-        let prefix = String(repeating: " ", count: spaces)
-        return lines.enumerated().map { index, line in
-            let suffix = index == lines.count - 1 ? "" : separatorSuffix
-            return prefix + line + suffix
-        }.joined(separator: "\n")
-    }
-
-    let countExpressions = recordedCallCountExpressions.isEmpty
-        ? [":"]
-        : recordedCallCountExpressions
-    let counts = indented(
-        countExpressions,
-        spaces: 16,
-        separatorSuffix: ","
-    )
-    let concurrentCallReset = indented(resetCallStatements, spaces: 12)
-    let concurrentStubReset = indented(resetStubStatements, spaces: 16)
-    let ordinaryCallReset = indented(resetCallStatements, spaces: 8)
-    let ordinaryStubReset = indented(resetStubStatements, spaces: 12)
+    recordedCallCounts: [DictionaryElementSyntax],
+    resetCallStatements: [CodeBlockItemSyntax],
+    resetStubStatements: [CodeBlockItemSyntax]
+) -> MemberBlockItemListSyntax {
+    let counts = resetSnapshotCounts(recordedCallCounts)
 
     if concurrent {
+        let callReset = lineIndentedStatements(resetCallStatements, spaces: 12)
+        let stubReset = lineIndentedStatements(resetStubStatements, spaces: 16)
         return """
             enum InnoDIResetScope: Sendable {
                 case calls
@@ -334,9 +386,9 @@ private func renderMockResetSurface(
         \(counts)
                         ]
                     )
-        \(concurrentCallReset)
+        \(callReset)
                     if scope == .all {
-        \(concurrentStubReset)
+        \(stubReset)
                     }
                     return snapshot
                 }
@@ -344,6 +396,8 @@ private func renderMockResetSurface(
         """
     }
 
+    let callReset = lineIndentedStatements(resetCallStatements, spaces: 8)
+    let stubReset = lineIndentedStatements(resetStubStatements, spaces: 12)
     return """
         enum InnoDIResetScope: Sendable {
             case calls
@@ -371,9 +425,9 @@ private func renderMockResetSurface(
         @discardableResult
         func innoDIReset(_ scope: InnoDIResetScope) -> InnoDICallHistorySnapshot {
             let snapshot = innoDICallHistorySnapshot
-    \(ordinaryCallReset)
+    \(callReset)
             if scope == .all {
-    \(ordinaryStubReset)
+    \(stubReset)
             }
             __innodiMockGeneration &+= 1
             return snapshot

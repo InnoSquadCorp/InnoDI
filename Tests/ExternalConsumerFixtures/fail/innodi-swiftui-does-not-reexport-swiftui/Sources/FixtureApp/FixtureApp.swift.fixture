@@ -1,0 +1,14 @@
+import InnoDISwiftUI
+
+// InnoDI 7.0 no longer re-exports SwiftUI from InnoDISwiftUI. A file that
+// uses SwiftUI names must import SwiftUI itself.
+struct GreetingFactory {
+    func make() -> Text {
+        Text("Hello")
+    }
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

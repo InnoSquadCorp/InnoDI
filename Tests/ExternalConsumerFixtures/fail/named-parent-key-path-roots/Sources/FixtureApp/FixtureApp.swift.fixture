@@ -1,0 +1,70 @@
+import InnoDI
+
+struct Config: Sendable {}
+
+struct Token: Sendable {}
+
+@DIContainer
+struct FeatureContainer {
+    @Input var config: Config
+}
+
+@DIContainer
+struct SessionContainer {
+    @Input var config: Config
+    @Input var token: Token
+    @Input(.assisted) var name: String
+
+    @AssistedFactory(
+        SessionContainer.self,
+        static: [\SessionContainer.config, \SessionContainer.token],
+        assisted: [\SessionContainer.name]
+    )
+    struct AssistedFactory {}
+}
+
+// A named parent root is rejected with a fix-it to `\Self.member`. The member
+// name still resolves, so every other problem in the container is reported in
+// the same pass and generated code adds no follow-on error.
+@DIContainer
+struct NamedWithRoot {
+    @Input var config: Config
+
+    @SubContainer(scope: .shared, with: [\NamedWithRoot.config])
+    var feature: FeatureContainer
+}
+
+@DIContainer
+struct NamedBindingRoot {
+    @Input var settings: Config
+
+    @SubContainer(
+        scope: .shared,
+        bindings: [(child: \FeatureContainer.config, parent: \NamedBindingRoot.settings)]
+    )
+    var feature: FeatureContainer
+}
+
+@DIContainer
+struct NamedFactoryRoot {
+    @Input var config: Config
+
+    @Provide(.shared, asyncFactory: { () async in
+        Token()
+    })
+    var token: Token
+
+    @SubContainerFactory(
+        SessionContainer.self,
+        bindings: [
+            (child: \SessionContainer.config, parent: \NamedFactoryRoot.config),
+            (child: \SessionContainer.token, parent: \Self.token),
+        ]
+    )
+    var session: SessionContainer.AssistedFactory
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

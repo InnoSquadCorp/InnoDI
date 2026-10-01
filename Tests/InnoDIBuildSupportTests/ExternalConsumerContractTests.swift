@@ -430,7 +430,7 @@ struct ExternalConsumerContractTests {
                 == URL(fileURLWithPath: "/tmp/custom-innodi-scratch", isDirectory: true)
         )
 
-        #if compiler(>=6.3.3)
+        #if compiler(>=6.4)
         #expect(macroOnly.scratchProfile == .macroOnlyPrebuilt)
         #expect(plugin.scratchProfile == .dagPluginSource)
         #expect(
@@ -590,15 +590,15 @@ private func externalConsumerScratchProfile(
         )
     }
     let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
-    #if compiler(>=6.3.3)
-    // SwiftSyntax 603.0.2 first has a matching Apple prebuilt on Swift 6.3.3.
+    #if compiler(>=6.4)
+    // SwiftSyntax 604.0.0 first has a matching Apple prebuilt on Swift 6.4.
     // A DAG plugin loads non-macro SwiftSyntax clients and therefore remains a
     // source graph; do not let its products contaminate macro-only fixtures.
     return manifest.contains("InnoDIDAGValidationPlugin")
         ? .dagPluginSource
         : .macroOnlyPrebuilt
     #else
-    // Swift 6.2 and 6.3.2 compile both graphs from source, so sharing avoids a
+    // Swift 6.2 and 6.3 compile both graphs from source, so sharing avoids a
     // second cold SwiftSyntax build without mixing binary modes.
     return .sharedSource
     #endif

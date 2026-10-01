@@ -95,7 +95,7 @@ public struct MainActorAppContainer {
 
     @SubContainer(
         scope: .shared,
-        with: [\MainActorAppContainer.config],
+        with: [\Self.config],
         featureRoot: MainActorFeatureScene.self
     )
     public var feature: MainActorFeatureContainer
@@ -107,7 +107,7 @@ public struct MainActorParentWithNonisolatedChild {
 
     @SubContainer(
         scope: .shared,
-        with: [\MainActorParentWithNonisolatedChild.config]
+        with: [\Self.config]
     )
     public var feature: FeatureContainer
 }

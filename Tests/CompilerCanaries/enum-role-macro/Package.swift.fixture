@@ -1,0 +1,29 @@
+// swift-tools-version: 6.2
+
+import CompilerPluginSupport
+import PackageDescription
+
+// Compiler canary for the Swift 6.2.3 signal 11 that InnoDI avoids with the
+// string-backed `ContainerRole` token. The macro declaration mirrors the
+// roles of `@DIContainerRole` and takes enum-typed arguments. The crash
+// happened while the type checker matched those arguments, before any
+// expansion, so the macro implementation stays minimal.
+let package = Package(
+    name: "EnumRoleCanary",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2"),
+    ],
+    targets: [
+        .macro(
+            name: "EnumRoleMacros",
+            dependencies: [
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+            ]
+        ),
+        .target(name: "EnumRole", dependencies: ["EnumRoleMacros"]),
+        .executableTarget(name: "EnumRoleCanary", dependencies: ["EnumRole"]),
+    ]
+)

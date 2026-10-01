@@ -21,7 +21,7 @@ class PublicAPIAliasTests(unittest.TestCase):
         info = json.loads(subprocess.check_output(["swiftc", "-print-target-info"], text=True))
         # Use the package's minimum macOS deployment target in both paths;
         # standalone toolchains can otherwise default above the selected SDK.
-        target = info["target"]["unversionedTriple"] + "13.0"
+        target = info["target"]["unversionedTriple"] + "14.0"
         sdk = os.environ.get("SDKROOT") or subprocess.check_output(
             ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True).strip()
         return ["-target", target, "-sdk", sdk]

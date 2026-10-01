@@ -15,7 +15,7 @@ There are no workflow-level path filters that could leave a required check pendi
 | Level | Contract |
 | --- | --- |
 | Normal PR | Always run policy tests; select the affected fast jobs below. Source PRs retain strict in-process tests, public API, DAG, one representative example, compiled documentation, and DocC. |
-| Main | Every validation job, including coverage floors, TSAN/ASAN, Swift 6.2, Xcode 27/Swift 6.4, five Apple platforms, renamed path, all examples, and exact remote macro/plugin consumers. |
+| Main | Every validation job, including coverage floors, the external consumer and strict-concurrency build contracts, TSAN/ASAN, Swift 6.2, Xcode 27/Swift 6.4, five Apple platforms, renamed path, all examples, and exact remote macro/plugin consumers. |
 | `release-validation` PR | Every validation job; label and unlabel events recalculate the current plan. No publication or history write. |
 | Merge queue / manual CI | Every validation job. Queue candidates are validated with the full merged tree. |
 | Release candidate | Dispatch `Release Gate` on main with stable version, full lowercase SHA, and `publish=false` (default). Complete candidate gates, compatibility matrix, packaged DocC/notes/checksums, and exact-SHA consumers; **Candidate Required** must succeed. |
@@ -31,7 +31,7 @@ empty diff or an unknown path selects all jobs. Each job needs a successful plan
 | --- | --- |
 | Root manifest/lock, shared Xcode action, shared CI policy or unclassified build/release script | Full validation |
 | Runtime/macro/plugin source | Fast contracts, representative example, documentation contracts, DocC |
-| Tests / materialized consumer templates | Fast contracts; clean consumer fixtures select both compatibility lanes; migration tests select the full suite; remote fixture also selects remote proof |
+| Tests / materialized consumer templates | Fast contracts; clean consumer fixtures select the Xcode 26.6 consumer contracts and both compatibility lanes; migration and mechanical fix-it tests select the full suite; remote fixture also selects remote proof |
 | Live example source/manifest | All examples |
 | README / ordinary Markdown | Compiled snippet, local link and localized README contracts |
 | DocC catalogs / `.spi.yml` / DocC generator or lock | Documentation contracts and DocC |
@@ -120,12 +120,25 @@ DocC packages, scratch consumers, or intentionally pinned negative contracts.
 `Tools/docc/Package.resolved` has no persistent companion manifest: update it
 through the documented DocC generator in a coordinated maintainer PR.
 
-SwiftSyntax stays exact `603.0.2`. A proposed bump must coordinate the root exact
+SwiftSyntax stays exact `604.0.0`. A proposed bump must coordinate the root exact
 requirement, DocC lock and injection regex, matching prebuilt consumer proof,
-Swift 6.2 minimum, Xcode 26.6 primary, Xcode 27 validation, and calibrated
-performance baselines. The public-operations guard rejects partial manifest/lock/
-generator changes. Review toolchain selection separately from low-risk dependency
-groups, and retain the `release-validation` label until those checks pass.
+Swift 6.2 minimum, the Xcode 27 primary consumer toolchain, the Xcode 26.6
+in-package lanes, and calibrated performance baselines. The public-operations
+guard rejects partial manifest/lock/generator changes. Review toolchain selection
+separately from low-risk dependency groups, and retain the `release-validation`
+label until those checks pass.
+
+SwiftSyntax 604.0.0 has a matching prebuilt on Swift 6.4 and none on Swift 6.3,
+so Xcode 27 is the primary consumer toolchain. The exact-revision remote
+consumer, the representative SampleApp example, and the cold build benchmark's
+primary scenario run on the `xcode-27` runner. The remote consumer verifies an
+isolated primary macro-only build with `Tools/cold-build-benchmark.sh` and
+requires `swift_syntax_mode=prebuilt` there before running the combined
+macro/plugin consumer; on Xcode 26.6 the same build reports `source`. The
+in-package test, coverage, performance, sanitizer, platform, and documentation
+lanes stay on Xcode 26.6: the root package builds SwiftSyntax from source on
+every toolchain, and the performance baseline is calibrated there. A local
+prebuilt observation is not evidence for the runner's lane.
 
 Configured labels are `dependencies` plus `github-actions` or `swift`; both ecosystems
 also request `release-validation`. At the implementation baseline only
@@ -172,10 +185,13 @@ follow-up; a local build is not hosted-documentation evidence.
 Keep the MIT 2026 InnoSquad license, existing private advisory reporting URL, and
 latest-stable-major security support principle. SECURITY's stale `5.x` annotation
 is aligned to current stable `6.x`; no older-line support or response-time promise
-is introduced. English README and its six localized mirrors preserve installation,
+is introduced. The English README and its Korean mirror preserve installation,
 requirements and structure; release/license badges and SPI links point to evidence.
-CONTRIBUTING, issue forms, PR template and RELEASING remain the contribution,
-triage, review and release-note sources. No duplicate changelog is created.
+The five translations frozen at 6.0.0 are notice pages that link the English
+README and their 6.0.0 text.
+CONTRIBUTING, issue forms, the PR template, `CHANGELOG.md` and RELEASING remain
+the contribution, triage, review, release-note and release-process sources.
+`CHANGELOG.md` is the single release-note source; no second changelog is created.
 
 Repository description, homepage and topics were empty at the read-only baseline.
 Propose a short package description, DocC homepage and relevant Swift/DI/macros

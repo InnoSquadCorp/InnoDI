@@ -13,7 +13,7 @@ struct GeneratedPeerCollisionPrefilterTests {
     func everyShapeIsIncluded() {
         for scope: ProvideScope in [.input, .shared, .transient] {
             for isAsync in [false, true] {
-                let shape = ManagedGeneratedSymbolShape.provide(scope: scope, isAsync: isAsync)
+                let shape = ManagedGeneratedSymbolShape.provide(scope: scope, storesTask: isAsync)
                 #expect(Set(shape.symbolNames(for: "")).isSubset(of: ManagedGeneratedSymbolShape.possiblePrefixes))
             }
         }

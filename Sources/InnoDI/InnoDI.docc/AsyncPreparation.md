@@ -73,3 +73,15 @@ The status report records only a provider ID, generation, state, and reflected
 error *type*. Direct waiters still receive the original application error, but
 the report never serializes error values, input values, tokens, or other
 application payloads. Cancellation is reported without an error payload.
+
+## Choosing a Container Provider or a Scope
+
+A container member declared with
+`@Provide(.shared, initialization: .onDemand, asyncFactory:)` already owns a
+scope-backed provider. It starts on the first read, coalesces concurrent
+readers, and closes through the generated `closeAsyncProviders()`. Choose it
+when a container member only needs lazy construction that its owner can
+close. Inject a ``DIAsyncScope`` as an `@Input` instead when the application
+needs observable status, selected preparation through
+``DIAsyncPreparationPlan``, or retry after a failure. See <doc:Provide> for
+the provider lifetime.

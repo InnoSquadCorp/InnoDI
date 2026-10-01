@@ -1,5 +1,5 @@
 {
-  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step",
+  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it); the representative example and the exact-SHA consumer verify the Xcode 27 primary consumer toolchain",
   "jobs": {
     "CI Plan": [
       {
@@ -39,7 +39,15 @@
         "conclusion": "success"
       },
       {
+        "name": "Restore SwiftPM dependency cache",
+        "conclusion": "success"
+      },
+      {
         "name": "Run in-process test contracts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Summarize test suite durations",
         "conclusion": "success"
       },
       {
@@ -91,11 +99,23 @@
         "conclusion": "success"
       },
       {
+        "name": "Restore SwiftPM dependency cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Restore external consumer build cache",
+        "conclusion": "success"
+      },
+      {
         "name": "Run strict external compatibility contracts",
         "conclusion": "success"
       },
       {
         "name": "Validate source-authored public API baseline",
+        "conclusion": "success"
+      },
+      {
+        "name": "Report compiler canaries (informational)",
         "conclusion": "success"
       }
     ],
@@ -138,6 +158,10 @@
       },
       {
         "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Restore SwiftPM dependency cache",
         "conclusion": "success"
       },
       {
@@ -213,6 +237,32 @@
         "conclusion": "success"
       }
     ],
+    "Exhaustive consumer contracts (Xcode 26.6)": [
+      {
+        "name": "Checkout",
+        "conclusion": "success"
+      },
+      {
+        "name": "Select Xcode 26.6",
+        "conclusion": "success"
+      },
+      {
+        "name": "Restore SwiftPM dependency cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Restore external consumer build cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run strict external compatibility contracts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Summarize test suite durations",
+        "conclusion": "success"
+      }
+    ],
     "path-identity": [
       {
         "name": "Checkout",
@@ -241,12 +291,24 @@
         "conclusion": "success"
       },
       {
+        "name": "Restore SwiftPM dependency cache",
+        "conclusion": "success"
+      },
+      {
+        "name": "Restore external consumer build cache",
+        "conclusion": "success"
+      },
+      {
         "name": "Run strict external compatibility contracts",
         "conclusion": "success"
       },
       {
         "name": "Validate minimum-toolchain public API semantics",
         "conclusion": "success"
+      },
+      {
+        "name": "Report compiler canaries (informational)",
+        "conclusion": "skipped"
       }
     ],
     "docc / docc": [
@@ -285,7 +347,7 @@
         "conclusion": "success"
       },
       {
-        "name": "Select prebuilt-compatible Xcode 26.6",
+        "name": "Verify prebuilt-compatible Xcode 27 and Swift 6.4",
         "conclusion": "success"
       },
       {
@@ -331,7 +393,7 @@
         "conclusion": "success"
       },
       {
-        "name": "Select prebuilt-compatible Xcode 26.6",
+        "name": "Verify prebuilt-compatible Xcode 27 and Swift 6.4",
         "conclusion": "success"
       },
       {

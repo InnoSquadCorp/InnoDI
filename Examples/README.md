@@ -1,9 +1,10 @@
 # InnoDI Examples
 
-This folder contains runnable examples for the current 5.0 development train,
-including mandatory target-scoped DAG validation and SwiftUI helpers. Public
-installation snippets remain pinned to the latest stable 4.3.0 release until
-5.0.0 is published.
+This folder contains runnable examples for the `main` branch, including
+mandatory target-scoped DAG validation and SwiftUI helpers. Each example
+depends on the repository checkout through a local package path, so it always
+builds against the current sources. Public installation snippets in the
+[README](../README.md) pin the latest published release.
 
 ## Core Macro Usage
 

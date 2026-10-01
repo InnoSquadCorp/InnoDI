@@ -24,7 +24,7 @@ def current_release_section(source):
 class ReleaseNotesTests(unittest.TestCase):
     def extract(self, source, version="6.0.0", *, raw=False):
         with tempfile.TemporaryDirectory(prefix="innodi-release-notes-") as directory:
-            Path(directory, "RELEASING.md").write_text(source)
+            Path(directory, "CHANGELOG.md").write_text(source)
             return subprocess.run(
                 ["/bin/bash", str(SCRIPT), version],
                 cwd=directory,
@@ -42,7 +42,7 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertEqual(result.stdout, body.rstrip("\n") + "\n")
 
     def test_current_release_section_is_extracted_exactly(self):
-        source = (ROOT / "RELEASING.md").read_text()
+        source = (ROOT / "CHANGELOG.md").read_text()
         version, body = current_release_section(source)
         result = self.extract(source, version)
         self.assertEqual(result.returncode, 0, result.stderr)

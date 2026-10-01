@@ -1015,16 +1015,20 @@ public func parseKeyPathArrayArgumentState(_ expression: ExprSyntax) -> KeyPathA
     return .parsed(names)
 }
 
-/// Strictly parses a `with: [\.foo, \.bar]` array for `@SubContainer`.
+/// Strictly parses a `with: [\Self.foo, \Self.bar]` array for `@SubContainer`.
 /// Returns `nil` when the expression is not a literal array or any element is
-/// not a simple key path whose final component is a property.
+/// not a parent member key path with exactly one property component. See
+/// ``ParentMemberKeyPathSpelling`` for the accepted roots.
 public func parseStrictKeyPathArrayArgument(_ expression: ExprSyntax) -> [String]? {
-    switch parseKeyPathArrayArgumentState(expression) {
-    case let .parsed(dependencies):
-        return dependencies
-    case .omitted, .invalid:
-        return nil
+    guard let arrayExpr = expression.as(ArrayExprSyntax.self) else { return nil }
+    var names: [String] = []
+    for element in arrayExpr.elements {
+        guard let name = parentMemberKeyPathSpelling(element.expression).memberName else {
+            return nil
+        }
+        names.append(name)
     }
+    return names
 }
 
 /// Parses `bindings: [(child: \.foo, parent: \.bar)]` into semantic names.
@@ -1058,6 +1062,10 @@ public func parseSubContainerBindingsArgumentState(_ expression: ExprSyntax) -> 
                 guard childName == nil else {
                     return .invalid
                 }
+                // A child root may be module-qualified, such as
+                // `\FeatureKit.FeatureContainer.input`, which SwiftSyntax
+                // parses as extra components. Only the input name matters;
+                // build validation checks that the child declares it.
                 guard let parsed = finalKeyPathComponentName(from: tupleElement.expression) else {
                     return .invalid
                 }
@@ -1066,7 +1074,7 @@ public func parseSubContainerBindingsArgumentState(_ expression: ExprSyntax) -> 
                 guard parentName == nil else {
                     return .invalid
                 }
-                guard let parsed = finalKeyPathComponentName(from: tupleElement.expression) else {
+                guard let parsed = parentMemberKeyPathSpelling(tupleElement.expression).memberName else {
                     return .invalid
                 }
                 parentName = parsed
@@ -1211,6 +1219,67 @@ public func parseBoolArgument(_ expr: ExprSyntax) -> BoolArgumentParseState {
         if reference.baseName.text == "false" { return .parsed(false) }
     }
     return .invalid
+}
+
+/// Spelling of a key path that names a member of the declaring container on
+/// the parent side of `@SubContainer(with:)`, `@SubContainer(bindings:)`, and
+/// `@SubContainerFactory(bindings:)`.
+///
+/// InnoDI reads only the member name, so the canonical spelling is exactly one
+/// property component rooted at `Self`. The rootless `\.member` form cannot be
+/// type-checked against `AnyKeyPath` in source, but macro fixtures use it, so
+/// it is canonical here as well. The attached macro rejects a named root such
+/// as `\AppContainer.member` with a fix-it. Build-time analysis still resolves
+/// its member name so the build plugin does not preempt that compiler
+/// diagnostic. Every layer rejects nested components, subscripts, and
+/// optional chaining, because InnoDI would otherwise silently read only the
+/// last component.
+public enum ParentMemberKeyPathSpelling: Equatable, Sendable {
+    /// `\Self.member` or `\.member`.
+    case canonical(member: String)
+    /// `\Root.member` with a root other than `Self`.
+    case namedRoot(root: String, member: String)
+    /// Any other expression.
+    case invalid
+
+    /// The referenced member for both accepted spellings.
+    public var memberName: String? {
+        switch self {
+        case let .canonical(member), let .namedRoot(_, member):
+            member
+        case .invalid:
+            nil
+        }
+    }
+}
+
+/// Classifies a parent member key path. See ``ParentMemberKeyPathSpelling``.
+public func parentMemberKeyPathSpelling(
+    _ expression: ExprSyntax
+) -> ParentMemberKeyPathSpelling {
+    guard let member = singlePropertyKeyPathName(expression),
+          let keyPath = expression.as(KeyPathExprSyntax.self) else {
+        return .invalid
+    }
+    guard let root = keyPath.root else {
+        return .canonical(member: member)
+    }
+    let rootName = root.trimmedDescription
+    return rootName == "Self"
+        ? .canonical(member: member)
+        : .namedRoot(root: rootName, member: member)
+}
+
+/// Returns the member name when `expression` is a key path with exactly one
+/// property component, such as `\Self.member` or `\.member`.
+public func singlePropertyKeyPathName(_ expression: ExprSyntax) -> String? {
+    guard let keyPath = expression.as(KeyPathExprSyntax.self),
+          keyPath.components.count == 1 else {
+        return nil
+    }
+    return keyPath.components.first?
+        .component.as(KeyPathPropertyComponentSyntax.self)?
+        .declName.baseName.text
 }
 
 private func finalKeyPathComponentName(from expression: ExprSyntax) -> String? {

@@ -2,15 +2,15 @@
 //  InnoDI-DeferredAliasScan / main.swift
 //
 //  Workspace-wide scanner for `typealias` declarations that rename
-//  `Lazy<T>` or `Provider<T>`. The macro plugin's same-file
-//  `DILazyProviderAliasCheck` already warns when the alias lives in the
-//  same file as the factory parameter, but a cross-file alias silently
-//  behaves as a hard edge — the macro's canonical-identifier detection
-//  never recognizes the renamed wrapper, and deferred wiring stops working.
+//  `Lazy<T>` or `Provider<T>`. InnoDI classifies a factory parameter by its
+//  written spelling and never resolves aliases, so a parameter typed with
+//  one is a hard edge instead of a deferred handle. The macro-level
+//  `DILazyProviderAliasCheck` cannot see file-scope aliases in a real build,
+//  because the compiler hands the macro only the attached declaration.
 //
-//  This executable surfaces those cross-file findings so PRs can audit
-//  the canonical-identifier convention without the macro itself growing
-//  workspace awareness. It is informational by default; consumers can
+//  This executable surfaces those aliases so PRs can audit the
+//  written-spelling convention without the macro growing workspace
+//  awareness. It is informational by default; consumers can
 //  treat any finding as a release blocker by checking the JSON output.
 //
 

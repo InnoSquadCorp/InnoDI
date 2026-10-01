@@ -23,17 +23,21 @@ public struct MigrationFileChange: Sendable, Equatable {
     public let originalSource: String
     public let migratedSource: String
     public let hadUTF8ByteOrderMark: Bool
+    /// Sorted codes of the rules whose rewrite changed this file.
+    public let rules: [String]
 
     public init(
         path: String,
         originalSource: String,
         migratedSource: String,
-        hadUTF8ByteOrderMark: Bool = false
+        hadUTF8ByteOrderMark: Bool = false,
+        rules: [String] = []
     ) {
         self.path = path
         self.originalSource = originalSource
         self.migratedSource = migratedSource
         self.hadUTF8ByteOrderMark = hadUTF8ByteOrderMark
+        self.rules = rules
     }
 }
 

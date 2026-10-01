@@ -17,8 +17,8 @@ struct Parent {
     @SubContainer(
         scope: .shared,
         bindings: [
-            (child: \Child.first, parent: \Parent.parentFirst),
-            (child: \Child.second, parent: \Parent.parentSecond),
+            (child: \Child.first, parent: \Self.parentFirst),
+            (child: \Child.second, parent: \Self.parentSecond),
         ]
     )
     var child: Child

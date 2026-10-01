@@ -115,7 +115,7 @@ done
     printf '%s\n' '    name: "InnoDIDocSnippets",'
     printf '%s\n' '    platforms: ['
     printf '%s\n' '        .iOS(.v17),'
-    printf '%s\n' '        .macOS(.v13),'
+    printf '%s\n' '        .macOS(.v14),'
     printf '%s\n' '        .watchOS(.v10),'
     printf '%s\n' '        .tvOS(.v17),'
     printf '%s\n' '        .visionOS(.v1),'

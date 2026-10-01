@@ -1,3 +1,5 @@
+import Foundation
+import Observation
 import SwiftUI
 
 /// The observable lifecycle state of a ``DIContainerHost``.
@@ -19,17 +21,28 @@ public enum DIContainerHostPhase<Identity, Container> where Identity: Hashable &
 /// path. `DIContainerHost` deliberately does not infer permanent closure from
 /// `onDisappear`, because a temporary cover or navigation transition can also
 /// make a view disappear.
-public struct DIContainerHostHandle: Sendable {
+///
+/// Each owner creates its handle once and passes the same value on every body
+/// evaluation. Two handles are equal when they operate on the same owner, so
+/// SwiftUI does not treat a host redraw as an environment change.
+public struct DIContainerHostHandle: Sendable, Equatable {
+    private let ownerID: UUID
     private let closeOperation: @MainActor @Sendable () async -> Void
     private let retryOperation: @MainActor @Sendable () -> Void
 
     @MainActor
     init(
+        ownerID: UUID,
         close: @escaping @MainActor @Sendable () async -> Void,
         retry: @escaping @MainActor @Sendable () -> Void
     ) {
+        self.ownerID = ownerID
         closeOperation = close
         retryOperation = retry
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.ownerID == rhs.ownerID
     }
 
     /// Closes the current container and waits for its configured close hook.
@@ -69,30 +82,57 @@ public extension EnvironmentValues {
 /// it without reverse-engineering SwiftUI's private view tree. Factories are
 /// executed only by ``start(identity:factory:close:)``; constructing the owner
 /// itself never constructs a child container.
+///
+/// The owner is `@Observable`, and ``phase`` is its only observed property.
+/// Read it from a SwiftUI view, or register `withObservationTracking`.
+/// Observation calls `onChange` before the new value is stored, so read
+/// ``phase`` after the change rather than inside the handler.
 @MainActor
-public final class DIContainerHostOwner<Identity, Container>: ObservableObject
+@Observable
+public final class DIContainerHostOwner<Identity, Container>
 where Identity: Hashable & Sendable {
     public typealias Factory = @MainActor @Sendable (Identity) async throws -> Container
     public typealias Close = @MainActor @Sendable (Container) async -> Void
 
-    @Published public private(set) var phase: DIContainerHostPhase<Identity, Container> = .idle
+    public private(set) var phase: DIContainerHostPhase<Identity, Container> = .idle
 
-    // Published sends in willSet. Decisions must use the committed transition,
-    // not the old public value still visible inside a synchronous subscriber.
-    private var transitionPhase: DIContainerHostPhase<Identity, Container> = .idle
-    private var pendingPhase: DIContainerHostPhase<Identity, Container>?
-    private var isPublishingPhase = false
+    // Observation notifies observers before `phase` stores its new value, as
+    // `@Published` did. Decisions use this committed transition instead of the
+    // old public value still visible inside a synchronous observer.
+    @ObservationIgnored
+    private(set) var transitionPhase: DIContainerHostPhase<Identity, Container> = .idle
+    @ObservationIgnored private var pendingPhase: DIContainerHostPhase<Identity, Container>?
+    @ObservationIgnored private var isPublishingPhase = false
 
-    private var identity: Identity?
-    private var generation: UInt64 = 0
-    private var operation: Task<Void, Never>?
-    private var currentContainer: Container?
-    private var currentContainerClose: Close?
-    private var factory: Factory?
-    private var closeOperation: Close?
-    private var cleanupBarrier: Task<Void, Never>?
+    @ObservationIgnored private var identity: Identity?
+    @ObservationIgnored private var generation: UInt64 = 0
+    @ObservationIgnored private var operation: Task<Void, Never>?
+    @ObservationIgnored private var currentContainer: Container?
+    @ObservationIgnored private var currentContainerClose: Close?
+    @ObservationIgnored private var factory: Factory?
+    @ObservationIgnored private var closeOperation: Close?
+    @ObservationIgnored private var cleanupBarrier: Task<Void, Never>?
+
+    private let handleID = UUID()
+    // Created during a view's body. Observing it would make the first body
+    // evaluation invalidate itself.
+    @ObservationIgnored private var cachedHandle: DIContainerHostHandle?
 
     public init() {}
+
+    /// The owner's lifecycle handle. It is created on first use and then
+    /// reused, so hosted content and the environment receive one stable value.
+    /// The handle captures the owner weakly and becomes a no-op after release.
+    var handle: DIContainerHostHandle {
+        if let cachedHandle { return cachedHandle }
+        let handle = DIContainerHostHandle(
+            ownerID: handleID,
+            close: { [weak self] in await self?.close() },
+            retry: { [weak self] in self?.retry() }
+        )
+        cachedHandle = handle
+        return handle
+    }
 
     /// Starts the identity if it is not already loading or ready.
     ///
@@ -230,6 +270,9 @@ where Identity: Hashable & Sendable {
         publish(.loading(identity: newIdentity))
     }
 
+    /// Stores `next`, draining publications that observers start from inside
+    /// a notification. Observation runs `onChange` before the store, so a
+    /// nested assignment there would be overwritten by the outer store.
     private func publish(_ next: DIContainerHostPhase<Identity, Container>) {
         transitionPhase = next
         pendingPhase = next
@@ -294,7 +337,7 @@ where Identity: Hashable & Sendable, Content: View, Loading: View, Failure: View
     private let loading: @MainActor () -> Loading
     private let failure: @MainActor (any Error, DIContainerHostHandle) -> Failure
 
-    @StateObject private var owner = DIContainerHostOwner<Identity, Container>()
+    @State private var owner = DIContainerHostOwner<Identity, Container>()
 
     public init(
         identity: Identity,
@@ -329,10 +372,5 @@ where Identity: Hashable & Sendable, Content: View, Loading: View, Failure: View
         }
     }
 
-    private var handle: DIContainerHostHandle {
-        DIContainerHostHandle(
-            close: { [weak owner] in await owner?.close() },
-            retry: { [weak owner] in owner?.retry() }
-        )
-    }
+    private var handle: DIContainerHostHandle { owner.handle }
 }

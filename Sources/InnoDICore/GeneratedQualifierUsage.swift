@@ -85,6 +85,20 @@ package struct GeneratedQualifierUsage {
             ])
         }
 
+        // On-demand storage peers name `InnoDI` cells in type position, and a
+        // generated initializer constructs those cells and `prewarm` throws
+        // `InnoDI.DIPrewarmError`, both expression lookups.
+        if validProvides.contains(where: {
+            $0.scope == .shared && $0.initialization == .onDemand
+        }) {
+            memberBodies.insert(
+                .init(
+                    "InnoDI",
+                    namespace: containerGenerationIsLocallyViable ? .typeOrValue : .typeOnly
+                )
+            )
+        }
+
         let validTargetsByName = Dictionary(
             validProvides.map { ($0.name, $0) },
             uniquingKeysWith: { first, _ in first }
@@ -176,6 +190,7 @@ private struct ManagedProvideMember {
     let sourceOrder: Int
     let name: String
     let scope: ProvideScope
+    let initialization: ProvideInitializationValue?
     let factory: ExprSyntax?
     let asyncFactory: ExprSyntax?
     let withDependencies: [String]
@@ -264,6 +279,7 @@ private final class DirectManagedMemberCollector: SyntaxVisitor {
                     sourceOrder: sourceOrder,
                     name: identifier.identifier.text,
                     scope: scope,
+                    initialization: arguments.initialization,
                     factory: arguments.factoryExpr,
                     asyncFactory: arguments.asyncFactoryExpr,
                     withDependencies: arguments.dependencies,

@@ -64,7 +64,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case provideUnknownCollectionContributor = "provide.unknown-collection-contributor"
     case provideAsyncCollectionContributor = "provide.async-collection-contributor"
     case provideInitializationInvalidScope = "provide.initialization-invalid-scope"
-    case provideOnDemandAsyncUnsupported = "provide.ondemand-async-unsupported"
     case provideRequiresDirectContainerMember = "provide.requires-direct-container-member"
     case provideConditionalDeclarationUnsupported = "provide.conditional-declaration-unsupported"
     case provideDuplicateAttribute = "provide.duplicate-attribute"
@@ -121,6 +120,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerUnmanagedStoredProperty = "container.unmanaged-stored-property"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
     case containerPrewarmNameConflict = "container.prewarm-name-conflict"
+    case containerCloseAsyncProvidersNameConflict = "container.close-async-providers-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
     case containerReservedModuleName = "container.reserved-module-name"
     case containerDuplicateMemberName = "container.duplicate-member-name"
@@ -140,10 +140,12 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case subBindingsConflictsWithWith = "sub.bindings-conflicts-with-with"
     case subInvalidSameNameWiring = "sub.invalid-same-name-wiring"
     case subInvalidBindings = "sub.invalid-bindings"
+    case subNoncanonicalParentKeyPath = "sub.noncanonical-parent-key-path"
     case subDuplicateChildBinding = "sub.duplicate-child-binding"
     case subUnknownChildInput = "sub.unknown-child-input"
     case subAutoWiringAmbiguous = "sub.auto-wiring-ambiguous"
     case subSharedParentMustNotBeTransient = "sub.shared-parent-must-not-be-transient"
+    case subAsyncParentMember = "sub.async-parent-member"
     case provideLazyAliased = "provide.lazy-aliased"
     case provideProviderAliased = "provide.provider-aliased"
     case swiftUIFeatureRootDuplicateDefault = "swiftui.feature-root-duplicate-default"
@@ -208,7 +210,6 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideFactoryConflict, .provideConstructionSourceConflict,
                 .provideWithRequiresTypeConstruction,
                 .provideInitializationInvalidScope,
-                .provideOnDemandAsyncUnsupported,
                 .assistedFactoryMissingDeclaration,
                 .assistedFactoryDuplicateInput,
                 .assistedFactoryInputPartitionMismatch,
@@ -242,6 +243,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerPrewarmNameConflict,
+                .containerCloseAsyncProvidersNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,
                 .containerDuplicateMemberName,
                 .containerGeneratedSymbolCollision,
@@ -250,8 +252,10 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .subScopeRequired, .subUnknownScope, .subConflictsWithProvide, .subOverridesNameConflict,
                 .subUnknownParentMember, .subBindingsConflictsWithWith,
                 .subInvalidSameNameWiring, .subInvalidBindings,
+                .subNoncanonicalParentKeyPath,
                 .subDuplicateChildBinding, .subUnknownChildInput, .subAutoWiringAmbiguous,
                 .subSharedParentMustNotBeTransient,
+                .subAsyncParentMember,
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootDuplicateDefault, .swiftUIFeatureRootInvalidAlias,
                 .swiftUIFeatureRootInvalidRoot,

@@ -41,6 +41,11 @@ extension DIContainerValidator {
                 state: state,
                 context: context
             ) || hadErrors
+            hadErrors = validateSubContainerAsyncParents(
+                member: subContainer,
+                state: state,
+                context: context
+            ) || hadErrors
         }
         return hadErrors
     }
@@ -75,6 +80,14 @@ extension DIContainerValidator {
             )
             hadErrors = true
         }
+        if emitNoncanonicalParentKeyPathDiagnostics(
+            memberName: member.name,
+            attribute: member.attribute,
+            context: context
+        ) {
+            hadErrors = true
+        }
+
         if !hasBindingWiringConflict, member.hasInvalidBindings {
             context.emit(
                 SimpleDiagnostic.subInvalidBindings(memberName: member.name),
@@ -239,6 +252,41 @@ extension DIContainerValidator {
         return hadErrors
     }
 
+    /// A child input is a synchronous value in both child scopes. Neither the
+    /// shared child built in `init` nor a transient builder can await a
+    /// parent provider, so every wired parent must be synchronous.
+    private static func validateSubContainerAsyncParents(
+        member: SubContainerMemberModel,
+        state: SubContainerValidationState,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        let wiredParents = resolvedParentNames(
+            for: member,
+            autoWireParentMemberNames: state.parentMemberNames
+        )
+        var hadErrors = false
+        var diagnosed: Set<String> = []
+        for parentName in wiredParents
+        where state.asyncParentMemberNames.contains(parentName)
+            && diagnosed.insert(parentName).inserted {
+            let diagnosticNode = member.parentBindingKeyPathSyntax(
+                for: parentName
+            ).map(Syntax.init)
+                ?? member.parentReferenceSyntax(for: parentName)
+                    .map(Syntax.init)
+                ?? Syntax(member.attribute)
+            context.emit(
+                SimpleDiagnostic.subAsyncParentMember(
+                    memberName: member.name,
+                    parentMemberName: parentName
+                ),
+                at: diagnosticNode
+            )
+            hadErrors = true
+        }
+        return hadErrors
+    }
+
     private static func resolvedParentNames(
         for member: SubContainerMemberModel,
         autoWireParentMemberNames: [String]
@@ -263,9 +311,41 @@ extension DIContainerValidator {
     }
 }
 
+/// Rejects `\Root.member` parent key paths with a fix-it to `\Self.member`.
+/// Parsing still resolves the member name, so reference and scope validation
+/// can continue and report every other problem in the same pass.
+func emitNoncanonicalParentKeyPathDiagnostics(
+    memberName: String,
+    attribute: AttributeSyntax,
+    context: some MacroExpansionContext
+) -> Bool {
+    let keyPaths = extractNoncanonicalParentKeyPaths(from: attribute)
+    for keyPath in keyPaths {
+        let replacement = "\\Self.\(keyPath.memberName)"
+        context.emit(
+            SimpleDiagnostic.subNoncanonicalParentKeyPath(
+                memberName: memberName,
+                root: keyPath.root,
+                parentMemberName: keyPath.memberName
+            ),
+            at: Syntax(keyPath.keyPath),
+            fixIts: [
+                makeTextReplacementFixIt(
+                    replacing: keyPath.keyPath,
+                    with: replacement,
+                    message: "Replace with '\(replacement)'",
+                    code: .subNoncanonicalParentKeyPath
+                ),
+            ]
+        )
+    }
+    return !keyPaths.isEmpty
+}
+
 private struct SubContainerValidationState {
     let memberScopeByName: [String: ProvideScope]
     let knownParentMemberNames: Set<String>
+    let asyncParentMemberNames: Set<String>
     let reservedMemberNames: Set<String>
     let parentMemberNames: [String]
 
@@ -274,6 +354,9 @@ private struct SubContainerValidationState {
         memberByName: [String: ProvideMemberModel]
     ) {
         memberScopeByName = memberByName.mapValues(\.scope)
+        asyncParentMemberNames = Set(
+            memberByName.values.filter(\.isAsyncFactory).map(\.name)
+        )
         knownParentMemberNames = Set(memberScopeByName.keys)
         reservedMemberNames = Set(
             model.members.map(\.name) + model.subContainerMembers.map(\.name)

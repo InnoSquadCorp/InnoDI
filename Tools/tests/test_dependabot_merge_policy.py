@@ -407,4 +407,48 @@ class DependabotPolicyTests(unittest.TestCase):
             with self.assertRaises(p.Rejected): p.reviews(self.api, NUMBER)
 
 
+
+def workflow_jobs(text):
+    body = text.split('\njobs:\n', 1)[1]
+    jobs = {}
+    for block in re.split(r'(?m)^  (?=[A-Za-z0-9_-]+:\n)', body):
+        match = re.match(r'([A-Za-z0-9_-]+):\n', block)
+        if match:
+            name = re.search(r'(?m)^    name: (.+)$', block)
+            uses = re.search(r'(?m)^    uses: \./\.github/workflows/(.+\.yml)$', block)
+            jobs[match[1]] = dict(name=name[1].strip() if name else match[1], uses=uses[1] if uses else None,
+                                  steps=re.findall(r'(?m)^      - name: (.+)$', block))
+    return jobs
+
+
+def workflow_inventory():
+    """Check-run and step names as GitHub reports them for the CI workflow."""
+    workflows = ROOT / '.github/workflows'
+    inventory = {}
+    for job in workflow_jobs((workflows / 'macro-tests.yml').read_text()).values():
+        if job['uses']:
+            for child in workflow_jobs((workflows / job['uses']).read_text()).values():
+                inventory[f"{job['name']} / {child['name']}"] = child['steps']
+        else:
+            inventory[job['name']] = job['steps']
+    return inventory
+
+
+class WorkflowInventoryTests(unittest.TestCase):
+    def test_core_skips_and_inventory_match_the_ci_workflow(self):
+        # A new CI job or renamed step must update the policy and this inventory together.
+        workflow = workflow_inventory()
+        self.assertEqual(set(p.CORE) | {'append-perf-history'}, set(workflow))
+        self.assertEqual(set(INVENTORY), set(workflow))
+        for name, step in p.CORE.items():
+            self.assertIn(step, workflow[name], name)
+        for name, steps in INVENTORY.items():
+            if name != 'append-perf-history':
+                self.assertEqual([s['name'] for s in steps], workflow[name], name)
+        skipped = {(name, s['name']) for name, steps in INVENTORY.items() for s in steps if s['conclusion'] == 'skipped'}
+        self.assertLessEqual(skipped, p.ALLOWED_STEP_SKIP)
+        for name, step in p.ALLOWED_STEP_SKIP:
+            self.assertIn(step, workflow[name], (name, step))
+
+
 if __name__ == '__main__': unittest.main()

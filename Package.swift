@@ -19,7 +19,7 @@ let package = Package(
     name: "InnoDI",
     platforms: [
         .iOS(.v17),
-        .macOS(.v13),
+        .macOS(.v14),
         .watchOS(.v10),
         .tvOS(.v17),
         .visionOS(.v1)
@@ -34,7 +34,7 @@ let package = Package(
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
     targets: [
         .target(

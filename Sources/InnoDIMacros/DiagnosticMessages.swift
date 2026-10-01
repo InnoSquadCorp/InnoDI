@@ -31,13 +31,6 @@ extension SimpleDiagnostic {
         )
     }
 
-    static func provideOnDemandAsyncUnsupported(memberName: String) -> Self {
-        Self(
-            "@Provide member '\(memberName)' cannot combine initialization: .onDemand with asyncFactory yet; use the async scope API or eager initialization.",
-            code: .provideOnDemandAsyncUnsupported
-        )
-    }
-
     static func assistedFactoryInvalidDeclaration() -> Self {
         Self(
             "@AssistedFactory must annotate an empty, non-generic nested struct named 'AssistedFactory'.",
@@ -743,6 +736,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func containerCloseAsyncProvidersNameConflict() -> Self {
+        Self(
+            "A @DIContainer with an asynchronous on-demand provider synthesizes closeAsyncProviders(), but a direct declaration already uses the name 'closeAsyncProviders'. Rename that declaration so the generated close API remains unambiguous.",
+            code: .containerCloseAsyncProvidersNameConflict
+        )
+    }
+
     // MARK: - @SubContainer diagnostics
 
     static func subScopeRequired(memberName: String) -> Self {
@@ -794,7 +794,7 @@ extension SimpleDiagnostic {
         switch label {
         case .with:
             return Self(
-                "@SubContainer on '\(memberName)' requires with: to be a literal array of key paths, such as with: [\\.config] or with: [] for an explicit empty subset. Runtime variables and computed elements are not supported.",
+                "@SubContainer on '\(memberName)' requires with: to be a literal array of direct parent member key paths, such as with: [\\Self.config] or with: [] for an explicit empty subset. Runtime variables, computed elements, and nested components are not supported.",
                 code: .subInvalidSameNameWiring
             )
         }
@@ -806,6 +806,17 @@ extension SimpleDiagnostic {
                 memberName: memberName
             ),
             code: .subInvalidBindings
+        )
+    }
+
+    static func subNoncanonicalParentKeyPath(
+        memberName: String,
+        root: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "'\(memberName)' reads parent member '\(parentMemberName)' through \\\(root).\(parentMemberName). InnoDI reads only the member name, so a named root is never checked against the declaring container. Spell parent key paths as \\Self.\(parentMemberName).",
+            code: .subNoncanonicalParentKeyPath
         )
     }
 
@@ -954,6 +965,26 @@ extension SimpleDiagnostic {
         Self(
             "@SubContainer(scope: .shared) '\(memberName)' cannot read parent member '\(parentMemberName)' because it has .transient scope — the child is built inside init where transient accessors are not yet callable. Use @SubContainer(scope: .transient) instead, or restructure the parent so '\(parentMemberName)' is .shared or @Input.",
             code: .subSharedParentMustNotBeTransient
+        )
+    }
+
+    static func subAsyncParentMember(
+        memberName: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "@SubContainer '\(memberName)' cannot pass parent member '\(parentMemberName)' to a child input because '\(parentMemberName)' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or construct the child after awaiting '\(parentMemberName)'.",
+            code: .subAsyncParentMember
+        )
+    }
+
+    static func subFactoryAsyncParentMember(
+        memberName: String,
+        parentMemberName: String
+    ) -> Self {
+        Self(
+            "@SubContainerFactory '\(memberName)' cannot pass parent member '\(parentMemberName)' to a child input because '\(parentMemberName)' is asynchronous. Child inputs are synchronous values: wire a synchronous parent member instead, or make the child input @Input(.assisted) and pass the awaited value to the factory.",
+            code: .subAsyncParentMember
         )
     }
 

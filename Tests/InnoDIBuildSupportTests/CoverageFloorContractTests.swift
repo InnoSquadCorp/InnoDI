@@ -99,7 +99,10 @@ struct CoverageFloorContractTests {
         #expect(coverageGate.contains("-Xswiftc -warnings-as-errors"))
         #expect(coverageGate.contains("--enable-code-coverage"))
         #expect(coverageGate.contains("--no-parallel"))
-        #expect(!coverageGate.contains("--skip"))
+        // The subprocess build contracts run in parallel jobs beside the
+        // gate; every other test stays in the one coverage pass.
+        #expect(coverageGate.components(separatedBy: "--skip ").count - 1 == 1)
+        #expect(coverageGate.contains(Self.subprocessContractSkip))
         #expect(!coverageGate.contains("--filter"))
         #expect(coverageGate.contains("BUILD_DIR=\"$(swift build"))
         #expect(coverageGate.contains("--show-bin-path)\""))
@@ -142,6 +145,40 @@ struct CoverageFloorContractTests {
         #expect(macroWorkflow.contains(diagnosticUploadCondition))
         #expect(releaseWorkflow.contains(diagnosticUploadCondition))
     }
+
+    @Test("Main and release run the subprocess contracts beside the coverage gate")
+    func subprocessContractsRunBesideCoverage() throws {
+        let root = packageRootURL()
+        let macroWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let releaseWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/release.yml"),
+            encoding: .utf8
+        )
+        let consumerStart = try #require(macroWorkflow.range(of: "  consumer-contracts:\n"))
+        let sanitizerStart = try #require(macroWorkflow.range(of: "  sanitizers:\n"))
+        let consumerJob = macroWorkflow[consumerStart.lowerBound..<sanitizerStart.lowerBound]
+        #expect(consumerJob.contains("needs: ci-plan"))
+        #expect(consumerJob.contains("if: needs.ci-plan.outputs.consumer-contracts == 'true'"))
+        #expect(consumerJob.contains("version: \"26.6\""))
+        for suite in ["StrictConcurrencyBuildTests", "ExternalConsumerContractTests"] {
+            #expect(consumerJob.contains("-Xswiftc -warnings-as-errors --filter \(suite)"))
+        }
+        #expect(consumerJob.contains("set -euo pipefail"))
+        #expect(!consumerJob.contains("--enable-code-coverage"))
+
+        let compatibilityStart = try #require(releaseWorkflow.range(of: "  release-compatibility:\n"))
+        let revisionStart = try #require(releaseWorkflow.range(of: "  exact-revision-consumer:\n"))
+        let compatibilityJob = releaseWorkflow[compatibilityStart.lowerBound..<revisionStart.lowerBound]
+        #expect(compatibilityJob.contains("- scenario: xcode-26.6\n            xcode: \"26.6\""))
+        #expect(compatibilityJob.contains("--filter StrictConcurrencyBuildTests"))
+        #expect(compatibilityJob.contains("--filter ExternalConsumerContractTests"))
+    }
+
+    private static let subprocessContractSkip =
+        "--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'"
 
     @Test("Checker accepts floors and rejects module regressions")
     func checkerFailsClosed() throws {

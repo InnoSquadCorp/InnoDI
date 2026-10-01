@@ -46,6 +46,7 @@
 README*.md                                       @ethan-is
 ROADMAP.md                                       @ethan-is
 RELEASING.md                                     @ethan-is
+CHANGELOG.md                                     @ethan-is
 CONTRIBUTING.md                                  @ethan-is
 
 # CI pipelines, workflow scripts, package manifest.

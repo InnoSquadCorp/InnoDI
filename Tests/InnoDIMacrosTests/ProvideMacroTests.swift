@@ -1047,21 +1047,6 @@ struct ProvideMacroTests {
         )
     }
 
-    @Test("On-demand initialization rejects async factories")
-    func onDemandAsyncDiagnostic() {
-        assertMacroExpansionDiagnosticCodes(
-            """
-            @DIContainer
-            struct AppContainer {
-                @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in Service() })
-                var service: Service
-            }
-            """,
-            expectedCodes: [InnoDIDiagnosticCode.provideOnDemandAsyncUnsupported.messageID],
-            macros: Self.macros
-        )
-    }
-
     @Test("On-demand containers reserve the generated prewarm API name")
     func onDemandPrewarmNameConflictDiagnostic() {
         assertMacroExpansionDiagnosticCodes(

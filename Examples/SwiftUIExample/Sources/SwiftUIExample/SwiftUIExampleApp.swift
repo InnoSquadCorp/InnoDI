@@ -190,7 +190,7 @@ struct AppContainer {
 
     @SubContainer(
         scope: .shared,
-        with: [\AppContainer.username, \AppContainer.greetingService, \AppContainer.activityService]
+        with: [\Self.username, \Self.greetingService, \Self.activityService]
     )
     var dashboard: DashboardFeatureContainer
 }

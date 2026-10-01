@@ -2,12 +2,14 @@
 """Actual compiler/consumer contracts for isolation, setters, and mutation."""
 import copy
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("gate", Path(__file__).resolve().parents[1] / "check-public-api.py")
@@ -102,6 +104,88 @@ class PublicAPISemanticsTests(unittest.TestCase):
                                 with self.assertRaises(ValueError):
                                     GATE.normalize_symbol(malformed)
                 self.assertNotEqual(contracts[0], contracts[1], name)
+
+    def test_extension_blocks_fold_into_the_extended_type(self):
+        # SwiftPM on Swift 6.4 emits extension block symbols for extensions of
+        # external types even when omission is requested; Swift 6.3 omits them.
+        source_text = ("extension Swift.Int {\n"
+                       "    public var probeDouble: Int { self * 2 }\n"
+                       "    public func probeTriple() -> Int { self * 3 }\n"
+                       "}\n"
+                       "public struct Local { public init() {} }\n")
+        with tempfile.TemporaryDirectory(prefix="innodi-api-extensions-") as directory:
+            contracts = {}
+            for mode in ("emit", "omit"):
+                folder = Path(directory) / mode
+                source = folder / "Sources" / "APIProbe" / "API.swift"
+                source.parent.mkdir(parents=True)
+                source.write_text(source_text)
+                compilation = subprocess.run([
+                    "swiftc", "-swift-version", "6", "-strict-concurrency=complete", "-warnings-as-errors",
+                    "-emit-module", "-module-name", "APIProbe", "-emit-module-path", str(folder / "APIProbe.swiftmodule"),
+                    "-emit-symbol-graph", "-emit-symbol-graph-dir", str(folder),
+                    "-" + mode + "-extension-block-symbols", str(source)
+                ], capture_output=True, text=True)
+                self.assertEqual(compilation.returncode, 0, compilation.stderr)
+                contracts[mode] = GATE.normalize_product_graph(folder, "APIProbe")
+            extension_path = Path(directory) / "emit" / "APIProbe@Swift.symbols.json"
+            extension_graph = json.loads(extension_path.read_text())
+            self.assertIn("swift.extension", {symbol["kind"]["identifier"] for symbol in extension_graph["symbols"]})
+            self.assertEqual(contracts["emit"], contracts["omit"])
+            self.assertFalse(any(symbol["kind"]["identifier"] == "swift.extension"
+                                 for symbol in contracts["emit"]["symbols"]))
+            members = [relationship for relationship in contracts["emit"]["relationships"]
+                       if relationship["kind"] == "memberOf" and relationship["target"] == "s:Si"]
+            self.assertEqual(len(members), 2)
+            # A block without a source location still folds into its type.
+            located = copy.deepcopy(extension_graph)
+            for symbol in extension_graph["symbols"]:
+                if symbol["kind"]["identifier"] == "swift.extension":
+                    symbol.pop("location", None)
+            extension_path.write_text(json.dumps(extension_graph))
+            self.assertEqual(GATE.normalize_product_graph(Path(directory) / "emit", "APIProbe"), contracts["omit"])
+            extension_graph = located
+            # A block whose extended type is missing fails instead of dropping members.
+            extension_graph["relationships"] = [relationship for relationship in extension_graph["relationships"]
+                                                if relationship["kind"] != "extensionTo"]
+            extension_path.write_text(json.dumps(extension_graph))
+            with self.assertRaises(SystemExit):
+                GATE.normalize_product_graph(Path(directory) / "emit", "APIProbe")
+
+    def test_implicit_conformances_of_constrained_extensions_are_not_recorded(self):
+        # Swift 6.4 reports Copyable and Escapable for a constrained extension's
+        # conformance, as @Observable writes for a generic class.
+        source_text = ("public protocol Marker {}\n"
+                       "public final class Box<Value: Hashable & Sendable> { public init() {} }\n"
+                       "extension Box: Marker {}\n")
+        with tempfile.TemporaryDirectory(prefix="innodi-api-implicit-") as directory:
+            folder = Path(directory)
+            source = folder / "Sources" / "APIProbe" / "API.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text(source_text)
+            compilation = subprocess.run([
+                "swiftc", "-swift-version", "6", "-strict-concurrency=complete", "-warnings-as-errors",
+                "-emit-module", "-module-name", "APIProbe", "-emit-module-path", str(folder / "APIProbe.swiftmodule"),
+                "-emit-symbol-graph", "-emit-symbol-graph-dir", str(folder), str(source)
+            ], capture_output=True, text=True)
+            self.assertEqual(compilation.returncode, 0, compilation.stderr)
+            contract = GATE.normalize_product_graph(folder, "APIProbe")
+            targets = {relationship["target"] for relationship in contract["relationships"]
+                       if relationship["kind"] == "conformsTo"}
+            self.assertIn("s:8APIProbe6MarkerP", targets)
+            self.assertFalse(targets & {"s:s8CopyableP", "s:s9EscapableP"})
+
+    def test_relationship_differences_are_itemized(self):
+        relationship = {"kind": "conformsTo", "source": "s:8APIProbe3BoxC", "target": "s:8APIProbe6MarkerP"}
+        graph = {"file": "APIProbe.symbols.json", "symbols": [], "relationships": [relationship]}
+        changed = copy.deepcopy(graph)
+        changed["relationships"][0]["target"] = "s:8APIProbe5OtherP"
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            GATE.summarize_difference({"graphs": [graph]}, {"graphs": [changed]})
+        output = stderr.getvalue()
+        self.assertIn("[APIProbe.symbols.json] relationships changed", output)
+        self.assertIn('added relationship: {"kind": "conformsTo", "source": "s:8APIProbe3BoxC", "target": "s:8APIProbe5OtherP"}', output)
+        self.assertIn('removed relationship: {"kind": "conformsTo", "source": "s:8APIProbe3BoxC", "target": "s:8APIProbe6MarkerP"}', output)
 
 
 if __name__ == "__main__":

@@ -147,7 +147,9 @@ public enum DIPrewarmError: Error, Equatable, Sendable {
 ///
 /// The tokens are strings because Swift 6.2.3 crashes while matching a public
 /// enum value passed to a multi-role attached macro. `@DIContainerRole`
-/// validates that callers use one of these named tokens.
+/// validates that callers use one of these named tokens. The informational
+/// `Tests/CompilerCanaries/enum-role-macro` canary tracks when every supported
+/// toolchain accepts an enum-typed role again.
 public enum ContainerRole {
     /// A container used only inside its declaring feature or module.
     public static let local = "local"
@@ -625,7 +627,7 @@ public struct FeatureRoot {
 ///
 ///     // Explicit same-name wiring calls
 ///     // `FeatureContainer.init(config:apiClient:)`.
-///     @SubContainer(scope: .shared, with: [\.config, \.apiClient])
+///     @SubContainer(scope: .shared, with: [\Self.config, \Self.apiClient])
 ///     var feature: FeatureContainer
 /// }
 /// ```
@@ -635,15 +637,25 @@ public struct FeatureRoot {
 ///   no default because the two lifetimes have very different runtime
 ///   implications (cached vs fresh), and forcing the author to pick makes the
 ///   intent visible at every declaration site.
-/// - `with`: Optional keypath list used to restrict or reorder which same-name
-///   parent members are forwarded to the child. Each `\.parentMember` keypath
-///   is passed with the same label on the child side. This must be a literal
-///   array the macro can read, for example `with: [\.config]` or `with: []`.
+/// - `with`: Optional key-path list used to restrict or reorder which same-name
+///   parent members are forwarded to the child. Each `\Self.parentMember` key
+///   path is passed with the same label on the child side. This must be a
+///   literal array the macro can read, for example `with: [\Self.config]` or
+///   `with: []`.
 /// - `bindings`: Optional explicit remapping tuples used when child `@Input`
 ///   labels differ from the parent member names. Each tuple spells
-///   `(child: \.childInput, parent: \.parentMember)`. List tuples in the
-///   child's `@Input` declaration order; the build validator reports the first
-///   out-of-order child key path before Swift diagnoses the generated call.
+///   `(child: \FeatureContainer.childInput, parent: \Self.parentMember)`.
+///   List tuples in the child's `@Input` declaration order; the build
+///   validator reports the first out-of-order child key path before Swift
+///   diagnoses the generated call.
+///
+/// Parent key paths in `with:` and on the `parent:` side of `bindings:` name
+/// exactly one direct member as `\Self.member`. InnoDI reads only the member
+/// name, so a named root such as `\AppContainer.member` is rejected with
+/// `sub.noncanonical-parent-key-path` and a fix-it, and nested components,
+/// subscripts, and optional chaining are rejected as invalid wiring. The
+/// `child:` side names a child input through the child container type, which
+/// may be module-qualified.
 /// - `featureRoot`: Optional SwiftUI root view type. When provided, the
 ///   parent container receives `<propertyName>RootView()`, which calls
 ///   `RootView(container: <propertyName>)`. Targets that import
@@ -699,8 +711,8 @@ public struct FeatureRoot {
 ///
 /// > Note: `with:` and `bindings:` are the supported wiring forms. The
 /// > legacy string-literal `withNames:` parameter was removed in 4.2 — use
-/// > `with: [\.member]` for same-name forwarding or `bindings: [(child:
-/// > \.x, parent: \.y)]` for explicit relabeling. See <doc:MigrationGuide>
+/// > `with: [\Self.member]` for same-name forwarding or `bindings: [(child:
+/// > \Child.x, parent: \Self.y)]` for explicit relabeling. See <doc:MigrationGuide>
 /// > for the rationale and a stacked-peer-macro recipe.
 @attached(peer)
 public macro SubContainer(

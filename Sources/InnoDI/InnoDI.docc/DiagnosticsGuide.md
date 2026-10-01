@@ -11,6 +11,14 @@ This page groups the codes by category, explains what triggers each one, and
 links to the recovery path. Code IDs are intended to be grep-able; message
 text may be refined between releases without changing the ID.
 
+The category prefix reflects the stage that emits the diagnostic:
+
+- `InnoDI.usage.*` — structural errors about *how* the macro is attached
+  (wrong declaration kind, missing type annotation, conflicting attributes).
+- `InnoDI.validation.*` — semantic errors detected by the validator that
+  runs after parsing (missing factories, cycles, unknown dependencies,
+  hierarchy violations).
+
 ## Assisted factory diagnostics
 
 - `assisted-factory.invalid-declaration`: `@AssistedFactory` must annotate an
@@ -59,14 +67,6 @@ text may be refined between releases without changing the ID.
   references an async provider. Introduce an explicit async aggregation
   boundary instead of hiding async construction behind a synchronous group.
 
-The category prefix reflects the stage that emits the diagnostic:
-
-- `InnoDI.usage.*` — structural errors about *how* the macro is attached
-  (wrong declaration kind, missing type annotation, conflicting attributes).
-- `InnoDI.validation.*` — semantic errors detected by the validator that
-  runs after parsing (missing factories, cycles, unknown dependencies,
-  hierarchy violations).
-
 ## Common recovery patterns
 
 Most diagnostics embed the fix directly in the message. Patterns you'll see
@@ -114,9 +114,6 @@ Most frequently-hit codes:
   evaluated or inferred by the macro.
 - `provide.initialization-invalid-scope` — `.onDemand` was used with a scope
   other than `.shared`.
-- `provide.ondemand-async-unsupported` — `.onDemand` was combined with
-  `asyncFactory:`. Use ``DIAsyncScope`` when asynchronous work needs explicit
-  prepare, cancellation, and retry ownership.
 - `provide.input-invalid-configuration` — `@Input` members cannot carry
   factory, type, async factory, or dependency wiring configuration.
 - `provide.escaping-invalid-scope` — `escaping: true` was used outside
@@ -208,6 +205,11 @@ Most frequently-hit codes:
   time, which defeats its purpose.
 - `provide.lazy-aliased` / `provide.provider-aliased` — a `typealias` for
   `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling.
+- `provide.deferred-wrapper-qualification-required` (build plugin) — a
+  factory parameter spells `Lazy<T>` or `Provider<T>` while its own module
+  declares a type with that name, so the name no longer means InnoDI's
+  wrapper. Spell `InnoDI.Lazy<T>` or `InnoDI.Provider<T>`. A type with that
+  name in another module does not trigger it.
 - `transient-factory.unnamed-parameters` — a transient factory closure used
   shorthand or wildcard parameters; name parameters so InnoDI can inject them.
 
@@ -260,6 +262,10 @@ Most frequently-hit codes:
 - `container.prewarm-name-conflict` — an on-demand container already has a
   direct value or function named `prewarm`. Rename it so the generated
   selective prewarm API remains unambiguous.
+- `container.close-async-providers-name-conflict` — a container with an
+  asynchronous on-demand provider already has a direct value or function named
+  `closeAsyncProviders`. Rename it so the generated close API remains
+  unambiguous.
 - `container.mainactor-conflict` — a main-actor `@DIContainerRole` is combined
   with another global actor on the container or a dependency member. Remove
   the custom actor or disable `mainActor` generation.
@@ -346,7 +352,14 @@ Most frequently-hit codes:
 - `sub.invalid-same-name-wiring` — `with:` is not a literal key-path array the
   macro can read (runtime variables and computed elements are rejected).
 - `sub.invalid-bindings` — `bindings:` is not a literal array of
-  `(child:parent:)` key-path tuples.
+  `(child:parent:)` key-path tuples, or a `parent:` key path has more than
+  one component.
+- `sub.noncanonical-parent-key-path` — a parent key path in `with:` or on the
+  `parent:` side of `bindings:` uses a named root such as
+  `\AppContainer.config`. InnoDI reads only the member name, so the root was
+  never checked. The fix-it rewrites it to `\Self.config`; `InnoDI-Migrate`
+  applies the same rewrite. `@SubContainerFactory(bindings:)` follows the same
+  rule.
 - `sub.auto-wiring-ambiguous` — implicit same-name wiring cannot be
   inferred because the parent has multiple `@Provide` candidates. Add
   explicit `with:` / `bindings:`, or use `with: []` if the child takes no
@@ -354,6 +367,12 @@ Most frequently-hit codes:
 - `sub.duplicate-child-binding` — the same child input is bound twice.
 - `sub.shared-parent-must-not-be-transient` — `.shared` sub-container
   cannot read a `.transient` parent.
+- `sub.async-parent-member` — a sub-container input is wired to an
+  asynchronous parent member. Child inputs are synchronous values in both
+  child scopes; wire a synchronous parent member, or construct the child after
+  awaiting the parent member. `@SubContainerFactory(bindings:)` reports the
+  same code; make that child input `@Input(.assisted)` and pass the awaited
+  value to the factory instead.
 
 ## Graph-level diagnostics (build plugin)
 

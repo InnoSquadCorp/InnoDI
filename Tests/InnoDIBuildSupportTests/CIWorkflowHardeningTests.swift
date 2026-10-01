@@ -37,12 +37,18 @@ struct CIWorkflowHardeningTests {
         )
         let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
         let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
+        let consumerStart = try #require(
+            workflow.range(of: "  consumer-contracts:\n")
+        )
         let sanitizerStart = try #require(
             workflow.range(of: "  sanitizers:\n")
         )
         let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
         let exhaustiveJob = workflow[
-            exhaustiveStart.lowerBound..<sanitizerStart.lowerBound
+            exhaustiveStart.lowerBound..<consumerStart.lowerBound
+        ]
+        let consumerJob = workflow[
+            consumerStart.lowerBound..<sanitizerStart.lowerBound
         ]
 
         #expect(fastJob.contains("name: Fast PR contracts"))
@@ -59,6 +65,13 @@ struct CIWorkflowHardeningTests {
                 "--skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'"
             )
         )
+        // The fix-it consumer build is a clean-build contract like the
+        // suites above; the exhaustive coverage gate still runs it unskipped.
+        #expect(
+            fastJob.contains(
+                "--skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'"
+            )
+        )
         #expect(fastJob.contains("Tools/check-public-api.py"))
         #expect(fastJob.contains("--validate-dag"))
         #expect(!fastJob.contains("--enable-code-coverage"))
@@ -69,6 +82,17 @@ struct CIWorkflowHardeningTests {
         #expect(exhaustiveJob.contains("Tools/run-coverage-gate.sh"))
         #expect(exhaustiveJob.contains("Tools/measure-macro-performance.sh"))
         #expect(!exhaustiveJob.contains("--skip 'InnoDIBuildSupportTests."))
+        #expect(!exhaustiveJob.contains("external-consumer-contracts"))
+
+        // The subprocess build contracts run beside the coverage gate.
+        #expect(consumerJob.contains("name: Exhaustive consumer contracts (Xcode 26.6)"))
+        #expect(consumerJob.contains("needs: ci-plan"))
+        #expect(consumerJob.contains("if: needs.ci-plan.outputs.consumer-contracts == 'true'"))
+        #expect(consumerJob.contains("timeout-minutes: 90"))
+        #expect(consumerJob.contains("--filter StrictConcurrencyBuildTests"))
+        #expect(consumerJob.contains("--filter ExternalConsumerContractTests"))
+        #expect(consumerJob.contains("path: .build/external-consumer-contracts/dag-plugin-source"))
+        #expect(!consumerJob.contains("--enable-code-coverage"))
     }
 
     @Test("Fast PR and exhaustive jobs preserve distinct diagnostic artifacts")
@@ -80,9 +104,9 @@ struct CIWorkflowHardeningTests {
         )
         let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
         let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
-        let sanitizerStart = try #require(workflow.range(of: "  sanitizers:\n"))
+        let consumerStart = try #require(workflow.range(of: "  consumer-contracts:\n"))
         let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
-        let exhaustiveJob = workflow[exhaustiveStart.lowerBound..<sanitizerStart.lowerBound]
+        let exhaustiveJob = workflow[exhaustiveStart.lowerBound..<consumerStart.lowerBound]
 
         // A release-validation PR runs both jobs in the same workflow run.
         // Immutable upload-artifact outputs must not share or overwrite a name.
@@ -169,8 +193,9 @@ struct CIWorkflowHardeningTests {
                 "types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]"
             )
         )
-        for job in ["macro-tests", "sanitizers", "swift-62-compatibility",
-                    "xcode-27-compatibility", "apple-platform-builds", "path-identity"] {
+        for job in ["macro-tests", "consumer-contracts", "sanitizers",
+                    "swift-62-compatibility", "xcode-27-compatibility",
+                    "apple-platform-builds", "path-identity"] {
             #expect(workflow.contains("if: needs.ci-plan.outputs.\(job) == 'true'"))
         }
         #expect(workflow.contains("name: CI Required"))
@@ -212,6 +237,82 @@ struct CIWorkflowHardeningTests {
         #expect(job.contains("--filter StrictConcurrencyBuildTests"))
         #expect(job.contains("--filter ExternalConsumerContractTests"))
         #expect(job.contains("Tools/check-public-api.py"))
+    }
+
+    @Test("CI caches stay toolchain-scoped and release validation stays cold")
+    func cachesAreToolchainScoped() throws {
+        let root = packageRootURL()
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let release = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/release.yml"),
+            encoding: .utf8
+        )
+        let cacheSteps = workflow.components(separatedBy: "      - name: ").filter {
+            $0.contains("uses: actions/cache@")
+        }
+        #expect(cacheSteps.count == 8)
+        for step in cacheSteps {
+            #expect(step.contains("-xcode-"))
+            #expect(step.contains("${{ hashFiles('Package.resolved') }}"))
+            #expect(!step.contains("restore-keys"))
+        }
+        let consumerKeys = cacheSteps.filter {
+            $0.contains("path: .build/external-consumer-contracts/dag-plugin-source")
+        }.compactMap { step in
+            step.split(separator: "\n").first { $0.contains("key: ") }.map(String.init)
+        }
+        #expect(consumerKeys.count == 3)
+        #expect(Set(consumerKeys).count == 3)
+        for version in ["xcode-26.6-", "xcode-26.2-", "xcode-27-"] {
+            #expect(consumerKeys.contains { $0.contains(version) })
+        }
+        // Release validation keeps cold consumer builds for the exact candidate.
+        #expect(!release.contains("actions/cache@"))
+    }
+
+    @Test("Compiler canaries stay informational and hidden from repository scans")
+    func compilerCanariesAreInformational() throws {
+        let root = packageRootURL()
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let minimumStart = try #require(workflow.range(of: "  swift-62-compatibility:\n"))
+        let previewStart = try #require(workflow.range(of: "  xcode-27-compatibility:\n"))
+        let platformStart = try #require(workflow.range(of: "  apple-platform-builds:\n"))
+        let minimumJob = workflow[minimumStart.lowerBound..<previewStart.lowerBound]
+        let previewJob = workflow[previewStart.lowerBound..<platformStart.lowerBound]
+
+        #expect(minimumJob.contains("- name: Report compiler canaries (informational)"))
+        #expect(
+            minimumJob.contains(
+                "if: ${{ always() && github.event_name == 'workflow_dispatch' }}"
+            )
+        )
+        #expect(previewJob.contains("- name: Report compiler canaries (informational)"))
+        #expect(previewJob.contains("run: Tools/run-compiler-canaries.sh"))
+        #expect(!workflow.contains("run-compiler-canaries.sh\n        continue-on-error"))
+
+        let script = try String(
+            contentsOf: root.appendingPathComponent("Tools/run-compiler-canaries.sh"),
+            encoding: .utf8
+        )
+        #expect(script.contains("A canary result never fails the job."))
+
+        let canaries = root.appendingPathComponent("Tests/CompilerCanaries")
+        let enumerator = try #require(
+            FileManager.default.enumerator(at: canaries, includingPropertiesForKeys: nil)
+        )
+        var fixtureCount = 0
+        for case let url as URL in enumerator {
+            let name = url.lastPathComponent
+            #expect(!name.hasSuffix(".swift"), "canary source must use a .fixture suffix: \(name)")
+            if name.hasSuffix(".fixture") { fixtureCount += 1 }
+        }
+        #expect(fixtureCount >= 4)
     }
 
     @Test("Mutable action revisions are rejected")
@@ -351,6 +452,46 @@ struct CIWorkflowHardeningTests {
         #expect(appendJob.contains("--report build/performance/macro-performance-report.json"))
     }
 
+    @Test("Fast PR lane and coverage gate publish test suite durations")
+    func testSuiteDurationsAreSummarized() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "python3", "-B", "-m", "unittest", "discover",
+            "-s", "Tools/tests", "-p", "test_summarize_test_durations.py",
+        ]
+        process.currentDirectoryURL = packageRootURL()
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+
+        let workflow = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent(".github/workflows/macro-tests.yml"),
+            encoding: .utf8
+        )
+        let fastStart = try #require(workflow.range(of: "  fast-tests:\n"))
+        let exhaustiveStart = try #require(workflow.range(of: "  macro-tests:\n"))
+        let fastJob = workflow[fastStart.lowerBound..<exhaustiveStart.lowerBound]
+        #expect(fastJob.contains("set -o pipefail"))
+        #expect(fastJob.contains("2>&1 | tee build/fast-pr-test-output.log"))
+        #expect(fastJob.contains("- name: Summarize test suite durations"))
+        #expect(
+            fastJob.contains(
+                "if: ${{ always() && hashFiles('build/fast-pr-test-output.log') != '' }}"
+            )
+        )
+
+        let coverageGate = try String(
+            contentsOf: packageRootURL()
+                .appendingPathComponent("Tools/run-coverage-gate.sh"),
+            encoding: .utf8
+        )
+        #expect(coverageGate.contains("trap summarize_test_durations EXIT"))
+        #expect(coverageGate.contains("2>&1 | tee \"$TEST_LOG\""))
+        #expect(coverageGate.contains("Tools/summarize-test-durations.py"))
+    }
+
     @Test("Independent performance checks survive failure without weakening the job")
     func performanceFailureDoesNotSuppressOtherEvidence() throws {
         let process = Process()
@@ -432,8 +573,14 @@ struct CIWorkflowHardeningTests {
         #expect(exampleWorkflow.contains("name: Examples Required"))
         #expect(exampleWorkflow.contains("Build and Test SwiftUIExample"))
         #expect(exampleWorkflow.contains("Build and Test PreviewInjectionExample"))
-        #expect(exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.6"))
-        #expect(!exampleWorkflow.contains("Select prebuilt-compatible Xcode 26.5"))
+        // The representative consumer runs on the primary consumer toolchain,
+        // where SwiftSyntax 604.0.0 has a matching prebuilt.
+        let sampleStart = try #require(exampleWorkflow.range(of: "  sample-app:\n"))
+        let sampleEnd = try #require(exampleWorkflow.range(of: "  swiftui-example:\n"))
+        let sampleJob = exampleWorkflow[sampleStart.lowerBound..<sampleEnd.lowerBound]
+        #expect(sampleJob.contains("runs-on: xcode-27"))
+        #expect(sampleJob.contains("Verify prebuilt-compatible Xcode 27 and Swift 6.4"))
+        #expect(!sampleJob.contains("select-xcode"))
         #expect(
             exampleWorkflow.components(
                 separatedBy: "if: github.event_name != 'pull_request'"
@@ -457,6 +604,8 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("build/benchmarks/cold-${{ matrix.scenario }}.json"))
         #expect(workflow.contains("scenario: consumer-xcode-26.5"))
         #expect(workflow.contains("scenario: consumer-xcode-26.6"))
+        #expect(workflow.contains("scenario: consumer-xcode-27"))
+        #expect(workflow.contains("runs-on: ${{ matrix.xcode == '27.0' && 'xcode-27' || 'macos-26' }}"))
         #expect(workflow.contains("expected_swift_syntax_mode: prebuilt"))
         #expect(workflow.contains("Verify expected SwiftSyntax mode"))
         #expect(workflow.contains("actual=\"$(jq -r '.swift_syntax_mode' \"$METRICS_PATH\")\""))
@@ -492,7 +641,10 @@ struct CIWorkflowHardeningTests {
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))
         #expect(workflow.contains("cancel-in-progress: true"))
-        #expect(workflow.contains("version: \"26.6\""))
+        // The exact-revision proof runs on the primary consumer toolchain.
+        #expect(workflow.contains("runs-on: xcode-27"))
+        #expect(workflow.contains("Verify prebuilt-compatible Xcode 27 and Swift 6.4"))
+        #expect(!workflow.contains("select-xcode"))
         #expect(fixture.contains("revision: \"{{INNODI_REVISION}}\""))
         #expect(fixture.contains("https://github.com/InnoSquadCorp/InnoDI.git"))
         #expect(!fixture.contains(".package(path:"))

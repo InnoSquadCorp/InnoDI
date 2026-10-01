@@ -1,19 +1,18 @@
 import Foundation
 import InnoDIWorkspaceAnalysis
 
-/// Surfaces workspace-level `typealias` declarations that rename `Lazy<T>` or
-/// `Provider<T>` so contributors learn that the macro plugin resolves
-/// deferred-wrapper kinds by canonical identifier at the factory parameter
-/// site. An alias declared in a different file from the consuming `@Provide`
-/// is silently treated as a hard edge by the macro and re-introduces the
-/// cycle the wrapper was meant to break.
+/// Surfaces top-level `typealias` declarations that rename `Lazy<T>` or
+/// `Provider<T>`. InnoDI classifies a factory parameter by its written
+/// spelling and never resolves aliases, in any file, so a parameter typed
+/// with such an alias is a hard edge rather than a deferred handle.
 ///
 /// The validator runs alongside the other build-support passes through
 /// `ValidationCoordinator`. Findings are emitted as `warning` severity so a
 /// build does not fail when an alias might be intentional sugar — they
 /// surface in the structured metrics artifact and in stderr if the
-/// coordinator is rendering warnings — but they do flag the most common
-/// silent regression path the same-file lint rule cannot reach.
+/// coordinator is rendering warnings. The macro-level alias check cannot
+/// cover this case in a real build, because the compiler hands the macro
+/// only the attached declaration.
 ///
 /// Warnings are emitted unconditionally per coordinator invocation, so they
 /// surface in the metrics artifact even when an upstream validator failure
@@ -47,7 +46,7 @@ package enum DeferredWrapperAliasBuildValidator {
         return ValidationIssue(
             code: "deferred-alias.workspace-finding",
             severity: .warning,
-            message: "typealias '\(finding.aliasName)' renames \(wrapper)<...> at the workspace level. The macro resolves deferred-wrapper kinds by canonical identifier at the factory parameter site, so referencing this alias from another file is silently treated as a hard edge and re-introduces the cycle the wrapper was meant to break.",
+            message: "typealias '\(finding.aliasName)' renames \(wrapper)<...>. InnoDI classifies a factory parameter by its written spelling and never resolves aliases, so a parameter typed with this alias is a hard edge to the member of that name instead of a deferred handle, and the generated call usually fails to type-check.",
             location: ValidationIssueLocation(
                 filePath: finding.relativePath,
                 line: finding.line,
@@ -55,10 +54,10 @@ package enum DeferredWrapperAliasBuildValidator {
             ),
             notes: [
                 ValidationIssueNote(
-                    message: "Use \(wrapper)<T> directly at the factory parameter site, or co-locate this typealias with the @Provide member that consumes it."
+                    message: "Spell \(wrapper)<T> directly at the factory parameter. Moving the alias into the consuming file does not change how InnoDI reads it."
                 )
             ],
-            remediation: "Inline the wrapper at the factory parameter, or move the alias into the same file as the consuming @Provide.",
+            remediation: "Spell the wrapper directly at the factory parameter.",
             metadata: [
                 "aliasKind": finding.kind.rawValue,
                 "aliasName": finding.aliasName

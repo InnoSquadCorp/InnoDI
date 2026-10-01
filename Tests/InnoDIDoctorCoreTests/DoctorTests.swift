@@ -82,6 +82,28 @@ struct DoctorTests {
         #expect(DoctorCLI.run(arguments: ["--root", root.path, "--apply"]) == 0)
     }
 
+    @Test("trusted modules reach the migration check")
+    func trustedModulesReachMigration() throws {
+        let root = try temporaryPackage(
+            manifest: packageManifest(swiftVersion: "6.2", appHasPlugin: true),
+            source: "import Domain\nimport InnoDI\n@DIContainer struct App { @Provide(.input) var value: Int }"
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let untrusted = try InnoDIDoctor().inspect(root: root)
+        #expect(untrusted.diagnostics.map(\.id).contains("migrate.unqualified-ownership-ambiguous"))
+        #expect(untrusted.proposedChangePaths.isEmpty)
+
+        let trusted = try InnoDIDoctor(trustedModules: ["Domain"]).inspect(root: root)
+        #expect(!trusted.diagnostics.map(\.id).contains("migrate.unqualified-ownership-ambiguous"))
+        #expect(trusted.proposedChangePaths == ["Sources/App/App.swift"])
+
+        #expect(DoctorCLI.run(arguments: ["--root", root.path, "--trust-module"]) == 64)
+        #expect(DoctorCLI.run(arguments: ["--root", root.path, "--apply"]) == 1)
+        #expect(DoctorCLI.run(arguments: ["--root", root.path, "--apply", "--trust-module", "Domain"]) == 0)
+        #expect(try String(contentsOf: root.appendingPathComponent("Sources/App/App.swift"), encoding: .utf8).contains("@Input"))
+    }
+
     @Test("opt-in verification builds a healthy package")
     func verifiesBuildSeparately() throws {
         let root = try temporaryPackage(
@@ -463,7 +485,7 @@ struct DoctorTests {
                     destinations: [.mac],
                     product: .framework,
                     bundleId: "dev.innosquad.doctorfixture",
-                    deploymentTargets: .macOS("13.0"),
+                    deploymentTargets: .macOS("14.0"),
                     infoPlist: .default,
                     sources: ["Sources/App/**"],
                     settings: .settings(base: ["SWIFT_VERSION": "6.2"])
