@@ -50,6 +50,8 @@ jobs:
     concurrency:
       group: dependabot-ready-${{ matrix.pr }}
       cancel-in-progress: false
+      # Keep pending PR reporters; default single-slot queues replace them.
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -81,6 +83,8 @@ jobs:
     concurrency:
       group: dependabot-ready-${{ matrix.pr }}
       cancel-in-progress: false
+      # Keep pending PR reporters; default single-slot queues replace them.
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -102,12 +106,41 @@ jobs:
           DEPENDABOT_AUTO_MERGE_ENABLED: ${{ vars.DEPENDABOT_AUTO_MERGE_ENABLED }}
         run: python3 -B Tools/dependabot-merge-policy.py coordinate --pr "$PR_NUMBER"
 
-  post-merge:
-    if: ${{ always() && needs.inspect.result == 'success' && github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true' }}
+  post-merge-plan:
+    if: ${{ always() && needs.inspect.result == 'success' && github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true' && ((needs.inspect.outputs.bot_prs != '[]' && needs.inspect.outputs.bot_prs != '') || github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
     needs: [inspect, manual-ready, bot-ready]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      needed: ${{ steps.plan.outputs.needed }}
+      pr: ${{ steps.plan.outputs.pr }}
+      main_sha: ${{ steps.plan.outputs.main_sha }}
+    steps:
+      - name: Checkout trusted coordinator only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+          sparse-checkout: Tools
+      - name: Plan only verified current-main bot recovery
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDABOT_AUTO_MERGE_ENABLED: ${{ vars.DEPENDABOT_AUTO_MERGE_ENABLED }}
+          WAIT_FOR_BOT_MERGE: ${{ needs.inspect.outputs.bot_prs != '[]' && needs.inspect.outputs.bot_prs != '' }}
+        run: python3 -B Tools/dependabot-merge-policy.py post-merge-plan
+
+  post-merge:
+    if: ${{ always() && needs.inspect.result == 'success' && needs.post-merge-plan.result == 'success' && needs.post-merge-plan.outputs.needed == 'true' && github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true' }}
+    needs: [inspect, post-merge-plan]
     concurrency:
       group: dependabot-post-merge
       cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -125,4 +158,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DEPENDABOT_AUTO_MERGE_ENABLED: ${{ vars.DEPENDABOT_AUTO_MERGE_ENABLED }}
-        run: python3 -B Tools/dependabot-merge-policy.py post-merge
+          PLANNED_MAIN: ${{ needs.post-merge-plan.outputs.main_sha }}
+          PLANNED_PR: ${{ needs.post-merge-plan.outputs.pr }}
+        run: python3 -B Tools/dependabot-merge-policy.py post-merge --pr "$PLANNED_PR" --expected-sha "$PLANNED_MAIN"

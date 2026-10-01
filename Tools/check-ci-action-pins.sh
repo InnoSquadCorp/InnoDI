@@ -145,6 +145,7 @@ for workflow_path in workflow_files:
             "inspect": {"contents": "read", "actions": "read", "checks": "read", "pull-requests": "read"},
             "manual-ready": {"contents": "read", "actions": "read", "checks": "write", "pull-requests": "read"},
             "bot-ready": {"contents": "write", "actions": "read", "checks": "write", "pull-requests": "write"},
+            "post-merge-plan": {"contents": "read", "actions": "read", "pull-requests": "read"},
             "post-merge": {"contents": "read", "actions": "write", "pull-requests": "read"},
         }
     elif workflow_path.name == "perf-history.yml":
