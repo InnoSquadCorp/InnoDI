@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Trusted metadata-only Dependabot coordinator. Never downloads PR code/artifacts."""
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -143,27 +144,45 @@ def native_rules(api, repo):
             "native auto-merge/squash feature disabled")
     rules = api.pages(route("rules/branches/main"))
     status = [r for r in rules if r.get("type") == "required_status_checks"]
+    review = [r for r in rules if r.get("type") == "pull_request" and
+              r.get("parameters", {}).get("required_review_thread_resolution") is True]
     require(bool(status), "native required checks absent")
+    require(bool(review), "standby: native required-PR/resolved-thread rule missing or unverified")
     contexts = set()
+    rulesets = {}
+
+    def verify_source(rule):
+        require(rule.get("ruleset_source_type") == "Repository" and rule.get("ruleset_source") == REPOSITORY,
+                "unverified inherited protection")
+        identifier = rule.get("ruleset_id")
+        require(type(identifier) is int and identifier > 0, "missing protection ruleset identity")
+        if identifier not in rulesets:
+            rulesets[identifier] = api.get(route(f"rulesets/{identifier}"))
+        ruleset = rulesets[identifier]
+        require(ruleset.get("enforcement") == "active", "inactive protection")
+        # This signal describes THIS coordinator token, not an owner/admin's
+        # connector read. Redacted bypass_actors is not an empty list. Without
+        # a verified runtime never-bypass signal remain in standby; never ask
+        # for an Administration credential to manufacture that assurance.
+        require(ruleset.get("current_user_can_bypass") == "never",
+                "standby: coordinator no-bypass capability missing or unsafe")
+        if "bypass_actors" in ruleset:
+            require(not any(a.get("actor_type") == "Integration" and a.get("actor_id") == APP
+                            for a in ruleset["bypass_actors"]), "GitHub Actions has protection bypass")
+
     for rule in status:
+        verify_source(rule)
         parameters = rule.get("parameters", {})
         require(parameters.get("strict_required_status_checks_policy") is True, "loose native CI policy")
         for check in parameters.get("required_status_checks", []):
             require(check.get("integration_id") == APP, "required check has wrong app or any source")
             contexts.add(check.get("context"))
-        source = rule.get("ruleset_source")
-        require(rule.get("ruleset_source_type") == "Repository" and source == REPOSITORY,
-                "unverified inherited protection")
-        ruleset = api.get(route(f"rulesets/{rule['ruleset_id']}"))
-        require(ruleset.get("enforcement") == "active", "inactive protection")
-        # Bypass actors are redacted without Administration write. Activation
-        # verifies the app has no bypass once; never interpret a missing list as
-        # empty or add an admin credential just to audit unrelated actors.
-        if "current_user_can_bypass" in ruleset:
-            require(ruleset["current_user_can_bypass"] == "never", "coordinator token can bypass protection")
-        if "bypass_actors" in ruleset:
-            require(not any(a.get("actor_type") == "Integration" and a.get("actor_id") == APP
-                            for a in ruleset["bypass_actors"]), "GitHub Actions has protection bypass")
+    for rule in review:
+        verify_source(rule)
+        count = rule.get("parameters", {}).get("required_approving_review_count")
+        require(type(count) is int and count >= 0, "unverified native approval-count policy")
+        # Zero remains allowed: this checks the native PR/thread barrier,
+        # not a new human-approval count or a repository setting mutation.
     require({"CI Required", READY} <= contexts, "native CI/ready requirement missing")
 
 
@@ -285,9 +304,7 @@ def proof(api, number, notification=None):
     transport_ids = coordinator_check_ids(api, number, head, checks)
     for check in sorted(checks, key=lambda c: c["id"], reverse=True):
         if check.get("name") == READY:
-            require(check.get("app", {}).get("id") == APP and check.get("head_sha") == head and
-                    bool(re.fullmatch(rf"dependabot-policy:{number}:{head}(?::[1-9][0-9]*:[1-9][0-9]*)?", check.get("external_id", ""))),
-                    "foreign ready-check identity")
+            require(check["id"] in transport_ids, "unassociated/legacy Ready check; fresh native reporter head required")
             continue
         if check["id"] in job_ids or check["id"] in historical_ids or check["id"] in transport_ids:
             continue
@@ -344,60 +361,33 @@ def coordinator_runs(api, number, head):
     return runs
 
 
-def ready_source(api, number, head):
-    trusted_context(os.environ)
-    pr = api.get(route(f"pulls/{number}"))
-    require(pr.get("state") == "open" and pr.get("head", {}).get("sha") == head and
-            pr.get("base", {}).get("repo", {}).get("full_name") == REPOSITORY,
-            "Ready head/PR changed")
-    run = max(coordinator_runs(api, number, head), key=lambda r: (r["run_number"], r["id"]))
-    require(run.get("status") in {"queued", "pending", "waiting", "requested", "in_progress", "completed"} and
-            ((run["status"] == "completed" and run.get("conclusion") == "success") or
-             (run["status"] != "completed" and run.get("conclusion") is None)),
-            "latest PR-bound Ready run failed/cancelled; rerun that run")
-    event = os.environ.get("GITHUB_EVENT_NAME")
-    require(event in {"pull_request_target", "workflow_run", "push", "schedule", "workflow_dispatch"},
-            "unsupported Ready writer event")
-    creating = event == "pull_request_target"
-    if creating:
-        if (str(run["id"]) != os.environ.get("GITHUB_RUN_ID") or
-                str(run["run_attempt"]) != os.environ.get("GITHUB_RUN_ATTEMPT")):
-            raise Superseded("obsolete PR-bound Ready run/attempt")
-    return run, creating
+def ready_policy():
+    spec = importlib.util.spec_from_file_location("native_ready_policy", Path(__file__).with_name("dependabot-ready-policy.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-def ready_identity(number, head, run):
-    return f"dependabot-policy:{number}:{head}:{run['id']}:{run['run_attempt']}"
+def this_policy():
+    # importlib-loaded test modules need not be registered in sys.modules.
+    class Policy:
+        pass
+    policy = Policy()
+    policy.__dict__.update(globals())
+    return policy
 
 
 def coordinator_check_ids(api, number, head, checks):
     """Exclude only proven coordinator transport, never CI or arbitrary names."""
     by_id = {c["id"]: c for c in checks}
     ids = set()
-    names = {"inspect", f"manual-ready ({number})", f"bot-ready ({number})", "post-merge-plan", "post-merge"}
+    names = {"inspect", f"bot-ready ({number})", "ready-plan", "ready-refresh", "post-merge-plan", "post-merge"}
     runs = coordinator_runs(api, number, head)
-    sources = {r["id"]: r for r in runs}
-    for check in checks:
-        if check.get("name") != READY:
-            continue
-        identity = check.get("external_id", "")
-        if identity == f"dependabot-policy:{number}:{head}":
-            continue  # Legacy evidence only; gate never selects this identity.
-        match = re.fullmatch(rf"dependabot-policy:{number}:{head}:([1-9][0-9]*):([1-9][0-9]*)", identity)
-        require(match is not None, "foreign Ready identity")
-        source_id, attempt = map(int, match.groups())
-        source = sources.get(source_id, {})
-        require(attempt <= source.get("run_attempt", 0) and
-                check.get("check_suite", {}).get("id") == source.get("check_suite_id") and
-                check.get("details_url") == f"https://github.com/{REPOSITORY}/actions/runs/{source_id}/attempts/{attempt}",
-                "unverified historical Ready provenance")
     for run in runs:
         for attempt in range(1, run["run_attempt"] + 1):
             jobs = api.pages(route(f"actions/runs/{run['id']}/attempts/{attempt}/jobs"), "jobs")
             for job in jobs:
-                if job.get("name") == READY:
-                    continue  # Checks API-created Ready also appears in Actions jobs.
-                bare_skip = job.get("name") in {"manual-ready", "bot-ready"} and job.get("status") == "completed" and job.get("conclusion") == "skipped"
+                bare_skip = job.get("name") == "bot-ready" and job.get("status") == "completed" and job.get("conclusion") == "skipped"
                 require(job.get("name") in names or bare_skip, "unexpected coordinator transport job")
                 url = job.get("check_run_url", "")
                 require(url.startswith(f"https://api.github.com/repos/{REPOSITORY}/check-runs/"),
@@ -409,64 +399,8 @@ def coordinator_check_ids(api, number, head, checks):
                         check.get("details_url") == f"https://github.com/{REPOSITORY}/actions/runs/{run['id']}/job/{job['id']}",
                         "unverified coordinator transport check")
                 ids.add(check_id)
+    ids.update(ready_policy().verified_check_ids(api, this_policy(), number, head))
     return ids
-
-
-def gate(api, number, head, status, check_id=None, reason="Metadata verification"):
-    run, can_create = ready_source(api, number, head)
-    identity = ready_identity(number, head, run)
-    details = f"https://github.com/{REPOSITORY}/actions/runs/{run['id']}/attempts/{run['run_attempt']}"
-    payload = {"name": READY, "head_sha": head, "status": status,
-               "external_id": identity, "details_url": details,
-               "output": {"title": READY, "summary": reason}}
-    if status == "completed":
-        payload["conclusion"] = "success"
-    if status == "failure":
-        payload.update(status="completed", conclusion="failure")
-
-    def confirmed(observed):
-        require(observed.get("name") == READY and observed.get("app", {}).get("id") == APP and
-                observed.get("head_sha") == head and observed.get("external_id") == identity and
-                observed.get("check_suite", {}).get("id") == run["check_suite_id"] and
-                observed.get("details_url") == details, "Ready check has wrong PR/run/attempt/suite provenance")
-        require(observed.get("status") == payload["status"] and
-                ("conclusion" not in payload or observed.get("conclusion") == payload["conclusion"]),
-                "Ready write not confirmed")
-        return observed["id"]
-
-    existing = [c for c in api.pages(route(f"commits/{head}/check-runs?filter=all"), "check_runs")
-                if c.get("name") == READY and c.get("external_id") == identity]
-    require(len(existing) <= 1, "duplicate managed Ready checks for this run/attempt")
-    if check_id is not None:
-        require(len(existing) == 1 and existing[0]["id"] == check_id, "Ready binding changed; no mutation")
-    if not existing:
-        require(can_create, "latest PR-bound Ready check missing; rerun that pull_request_target run")
-        # Never publish success before the API's suite assignment is verified.
-        payload["status"] = "in_progress"
-        payload.pop("conclusion", None)
-        try:
-            observed = api.mutate("POST", route("check-runs"), payload)
-        except Exception:
-            matches = [c for c in api.pages(route(f"commits/{head}/check-runs?filter=all"), "check_runs")
-                       if c.get("external_id") == identity and c.get("name") == READY]
-            require(len(matches) == 1, "Ready creation outcome unconfirmed; no retry")
-            observed = matches[0]
-        created_id = confirmed(observed)
-        if status != "in_progress":
-            return gate(api, number, head, status, created_id, reason)
-        return created_id
-    observed = existing[0]
-    # Validate identity before PATCH, not only after a potentially wrong write.
-    require(observed.get("app", {}).get("id") == APP and observed.get("head_sha") == head and
-            observed.get("check_suite", {}).get("id") == run["check_suite_id"] and
-            observed.get("details_url") == details, "refusing foreign Ready check update")
-    check_id = observed["id"]
-    payload.pop("head_sha")
-    try:
-        observed = api.mutate("PATCH", route(f"check-runs/{check_id}"), payload)
-    except Exception:
-        observed = api.get(route(f"check-runs/{check_id}"))
-    return confirmed(observed)
 
 
 def coordinate(api, number, enabled=False, notification=None):
@@ -478,24 +412,10 @@ def coordinate(api, number, enabled=False, notification=None):
     head = pr.get("head", {}).get("sha", "")
     require(bool(SHA.fullmatch(head)), "invalid gate head")
     if pr["base"].get("ref") != "main":
-        if bot(pr):
-            try:
-                gate(api, number, head, "failure", reason="Base changed: only protected main is eligible.")
-            finally:
-                cancel_auto_merge(api, pr)
+        cancel_auto_merge(api, pr)
         return "wrong base: auto-merge ineligible"
-    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request_target":
-        try:
-            ready_source(api, number, head)
-        except Superseded:
-            return "obsolete PR-bound Ready run/attempt; no mutation"
-        except Exception:
-            if bot(pr):
-                cancel_auto_merge(api, api.get(route(f"pulls/{number}")))
-            raise
     if not bot(pr):
-        gate(api, number, head, "completed", reason="Manual PR: automation ineligible; normal CI/review requirements remain.")
-        return "manual PR; auto-merge not requested"
+        return "manual PR; native read-only reporter owns Ready, auto-merge not requested"
     # Notifications are only wake-ups. Obsolete run events do not overwrite a
     # newer decision; current pending/failure events invalidate readiness.
     if notification:
@@ -505,47 +425,40 @@ def coordinate(api, number, enabled=False, notification=None):
         runs = api.pages(route(f"actions/workflows/macro-tests.yml/runs?event=pull_request&head_sha={head}"), "workflow_runs")
         if not runs or max(runs, key=lambda r: (r["run_number"], r["id"]))["id"] != notification["id"]:
             return "obsolete notification; no mutation"
-    check_id = None
     try:
-        check_id = gate(api, number, head, "in_progress", reason="Awaiting verified full CI and current metadata.")
         require(enabled is True, "standby: new auto-merge approvals disabled")
         first = proof(api, number, notification)
         require(first["head"] == head, "head changed before native enable")
+        readiness = ready_policy()
+        binding = readiness.require_success(api, this_policy(), number, head)
         second = proof(api, number, notification)
         same(first, second)
-        if not second["pr"].get("auto_merge"):
+        require(readiness.require_success(api, this_policy(), number, head) == binding, "native Ready changed before arming")
+        # Native Ready is already green. All authoritative proof reads must
+        # precede enable: GitHub can merge as soon as that request is accepted.
+        third = proof(api, number, notification)
+        same(second, third)
+        require(readiness.require_success(api, this_policy(), number, head) == binding, "native Ready changed at final arming guard")
+        if not third["pr"].get("auto_merge"):
             query = '''mutation($id:ID!,$head:GitObjectID!) {
               enablePullRequestAutoMerge(input:{pullRequestId:$id,expectedHeadOid:$head,mergeMethod:SQUASH}) {
                 pullRequest { id headRefOid autoMergeRequest { enabledAt } }
               }
             }'''
             try:
-                api.graphql(query, {"id": second["node"], "head": head})
+                api.graphql(query, {"id": third["node"], "head": head})
             except Exception:
                 # Unknown mutation outcome: read once, never blind retry/fallback.
                 observed = api.get(route(f"pulls/{number}"))
                 require(observed.get("head", {}).get("sha") == head and observed.get("auto_merge") is not None,
                         "native enable outcome not confirmed")
-        third = proof(api, number, notification)
-        same(second, third)
-        gate(api, number, head, "completed", check_id, "Verified full CI, exact head/base and latest attempt; native strict requirements apply.")
         return "native auto-merge armed; server owns actual merge"
     except Exception as error:
         reason = "blocked: " + str(error)
         try:
-            # An unconfirmed initial POST/PATCH must not lead to a second
-            # creation. Cancel independently and let a later read reconcile it.
-            if check_id is not None:
-                gate(api, number, head, "failure", check_id, "Auto-merge rejected: " + str(error))
-        except Exception as gate_error:
-            reason += "; ready update unconfirmed: " + str(gate_error)
-        finally:
-            try:
-                cancel_auto_merge(api, api.get(route(f"pulls/{number}")))
-            except Exception as cancel_error:
-                # No claim that a previously armed request was stopped when
-                # both APIs are unavailable. Surface an operator-visible failure.
-                raise Rejected(reason + "; cancellation unconfirmed: " + str(cancel_error)) from cancel_error
+            cancel_auto_merge(api, api.get(route(f"pulls/{number}")))
+        except Exception as cancel_error:
+            raise Rejected(reason + "; cancellation unconfirmed: " + str(cancel_error)) from cancel_error
         return reason
 
 
@@ -647,10 +560,12 @@ def targets(api, event_name, event):
         live = api.get(route(f"actions/runs/{alert['id']}"))
         require(live.get("repository", {}).get("full_name") == REPOSITORY, "foreign notification")
         path = live.get("path", "").split("@")[0]
-        require(path in {CI_PATH, NOTICE_PATH}, "unrecognized notification workflow")
+        require(path in {CI_PATH, NOTICE_PATH, ".github/workflows/dependabot-ready.yml"}, "unrecognized notification workflow")
         if path == CI_PATH and live.get("event") != "pull_request":
             return [], None
-        require(live.get("event") in {"pull_request", "pull_request_review", "pull_request_review_comment"}, "wrong notification event")
+        allowed_events = {CI_PATH: {"pull_request"}, NOTICE_PATH: {"pull_request_review", "pull_request_review_comment"},
+                          ".github/workflows/dependabot-ready.yml": {"pull_request_target"}}
+        require(live.get("event") in allowed_events[path], "wrong notification event")
         numbers = [p["number"] for p in live.get("pull_requests", [])]
         if len(numbers) != 1:
             # Some review and fork workflow runs omit PR associations. Reconcile

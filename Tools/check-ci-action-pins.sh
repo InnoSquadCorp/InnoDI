@@ -143,10 +143,15 @@ for workflow_path in workflow_files:
     elif workflow_path.name == "dependabot-auto-merge.yml":
         expected_job_permissions = {
             "inspect": {"contents": "read", "actions": "read", "checks": "read", "pull-requests": "read"},
-            "manual-ready": {"contents": "read", "actions": "read", "checks": "write", "pull-requests": "read"},
-            "bot-ready": {"contents": "write", "actions": "read", "checks": "write", "pull-requests": "write"},
+            "ready-plan": {"contents": "read", "actions": "read", "checks": "read", "pull-requests": "read"},
+            "ready-refresh": {"contents": "read", "actions": "write", "checks": "read", "pull-requests": "read"},
+            "bot-ready": {"contents": "write", "actions": "read", "checks": "read", "pull-requests": "write"},
             "post-merge-plan": {"contents": "read", "actions": "read", "pull-requests": "read"},
             "post-merge": {"contents": "read", "actions": "write", "pull-requests": "read"},
+        }
+    elif workflow_path.name == "dependabot-ready.yml":
+        expected_job_permissions = {
+            "ready": {"contents": "read", "actions": "read", "checks": "read", "pull-requests": "read"},
         }
     elif workflow_path.name == "perf-history.yml":
         expected_job_permissions = {

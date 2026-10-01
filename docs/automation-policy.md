@@ -18,6 +18,17 @@ separate proof of required-check identity and lifecycle ordering, and is not
 part of this cache/duplicate-lane change. There are no workflow-level path
 filters that could leave a required check pending.
 
+A base-branch retarget is an `edited` event and does not automatically rerun heavy
+CI in this change. Broadening every title/body edit into expensive validation
+would defeat the latency policy, and a safe base-only dispatcher remains separate
+work. After retargeting, the owner must obtain fresh PR-context CI with the current
+base/head, for example through an actual head-changing update or an explicitly
+requested reopen. Do not treat the old same-head check as fresh-base evidence.
+Re-running an old Actions run retains its original event SHA/ref, and a generic
+manual dispatch is not bot PR proof. The bot coordinator still requires current
+main/test-merge parents and exact run head/base association; stale or unverified
+proof stays blocked. No automatic retarget/reopen/head mutation is introduced.
+
 | Level | Contract |
 | --- | --- |
 | Normal PR | Always run policy tests; select the affected fast jobs below. Source PRs retain strict in-process tests, public API, DAG, one representative example, compiled documentation, and DocC. |
