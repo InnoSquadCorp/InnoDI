@@ -14,6 +14,13 @@ def writer():
     return (ROOT / ".github/workflows/macro-tests.yml").read_text().split("  append-perf-history:\n", 1)[1]
 
 
+def guard_scripts(script):
+    # A conditional function caller makes Bash ignore errexit even when the
+    # function sets -e. Guards must explicitly reject rather than depend on
+    # version-specific handling of failed [[ compound commands (macOS Bash).
+    return (script, "guard() {\n" + script + "\n}\nif guard; then exit 0; else exit $?; fi\n")
+
+
 class HistoryWriterTests(unittest.TestCase):
     def test_actual_condition_requires_all_success_and_never_runs_after_cancellation(self):
         expression = " ".join(writer().split("    if: >-\n", 1)[1].split("    needs:\n", 1)[0].split())
@@ -62,15 +69,16 @@ class HistoryWriterTests(unittest.TestCase):
         script = step.split("        run: |\n", 1)[1]
         with tempfile.TemporaryDirectory(prefix="innodi-history-context-") as directory:
             git = Path(directory) / "git"
-            git.write_text('#!/bin/sh\nprintf "%s\\n" "$FIXTURE_HEAD"\n')
+            git.write_text('#!/bin/sh\nprintf "%s\\n" "$FIXTURE_HEAD"\nexit "${FIXTURE_GIT_EXIT:-0}"\n')
             git.chmod(0o755)
             valid = {"PATH": directory + ":" + os.environ["PATH"], "GITHUB_REPOSITORY": "InnoSquadCorp/InnoDI",
                      "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": SHA, "FIXTURE_HEAD": SHA}
             cases = [{}, {"GITHUB_REPOSITORY": "foreign/repo"}, {"GITHUB_REF": "refs/pull/49/merge"},
-                     {"GITHUB_SHA": ""}, {"GITHUB_SHA": "main"}, {"FIXTURE_HEAD": "b" * 40}]
+                     {"GITHUB_SHA": ""}, {"GITHUB_SHA": "main"}, {"FIXTURE_HEAD": "b" * 40}, {"FIXTURE_GIT_EXIT": "1"}]
             for change in cases:
-                result = subprocess.run(["bash", "-c", script], env={**valid, **change}, capture_output=True)
-                self.assertEqual(result.returncode == 0, not change, change)
+                for command in guard_scripts(script):
+                    result = subprocess.run(["bash", "-c", command], env={**valid, **change}, capture_output=True)
+                    self.assertEqual(result.returncode == 0, not change, (change, result.stderr))
 
     def test_append_rechecks_report_context_before_adding_commit_or_writing_history(self):
         script = (ROOT / "Tools/append-performance-history.sh").read_text()
@@ -82,16 +90,17 @@ class HistoryWriterTests(unittest.TestCase):
         self.assertLess(end, script.index('git fetch origin "$PERF_BRANCH"'))
         with tempfile.TemporaryDirectory(prefix="innodi-history-recheck-") as directory:
             git = Path(directory) / "git"
-            git.write_text('#!/bin/sh\nprintf "%s\\n" "$FIXTURE_HEAD"\n')
+            git.write_text('#!/bin/sh\nprintf "%s\\n" "$FIXTURE_HEAD"\nexit "${FIXTURE_GIT_EXIT:-0}"\n')
             git.chmod(0o755)
             valid = {"PATH": directory + ":" + os.environ["PATH"], "INNODI_PERF_EXPECTED_SHA": SHA,
                      "GITHUB_SHA": SHA, "FIXTURE_HEAD": SHA, "GITHUB_REPOSITORY": "InnoSquadCorp/InnoDI",
                      "GITHUB_REF": "refs/heads/main"}
             for change in [{}, {"FIXTURE_HEAD": "b" * 40}, {"GITHUB_SHA": "b" * 40},
                            {"GITHUB_REPOSITORY": "fork/repo"}, {"GITHUB_REF": "refs/heads/topic"},
-                           {"INNODI_PERF_EXPECTED_SHA": "main"}]:
-                result = subprocess.run(["bash", "-c", "set -euo pipefail\n" + guard], env={**valid, **change}, capture_output=True)
-                self.assertEqual(result.returncode == 0, not change, change)
+                           {"INNODI_PERF_EXPECTED_SHA": "main"}, {"FIXTURE_GIT_EXIT": "1"}]:
+                for command in guard_scripts("set -euo pipefail\n" + guard):
+                    result = subprocess.run(["bash", "-c", command], env={**valid, **change}, capture_output=True)
+                    self.assertEqual(result.returncode == 0, not change, (change, result.stderr))
 
 
 if __name__ == "__main__":
