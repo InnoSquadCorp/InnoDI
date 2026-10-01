@@ -25,7 +25,6 @@ PREFIX = "CI / Dependabot merge #"
 CORE = {
     "CI Plan": "Classify exact event changes",
     "CI and public operations policy": "Validate repository automation policy",
-    "Fast PR contracts": "Run in-process test contracts",
     "Documentation contracts": "Validate copyable documentation and mirrors",
     "Xcode 27 compatibility preview": "Run strict external compatibility contracts",
     "Thread and address sanitizers (Xcode 26.6)": "Run address sanitizer suite",
@@ -42,6 +41,9 @@ CORE = {
     "examples / Examples Required": "Require selected example jobs",
     "CI Required": "Require every planned result",
 }
+# Exhaustive contracts are a tested superset of fast; no other validation
+# job may skip in bot proof. Preserve the fast job in the exact inventory.
+FULL_SKIPPED = {"append-perf-history", "Fast PR contracts"}
 ALLOWED_STEP_SKIP = {("docc / docc", "Upload GitHub Pages Artifact"),
                      ("CI Plan", "Verify actual post-merge main origin"),
                      # Swift 6.2 runs its informational compiler canary on manual dispatch only.
@@ -230,7 +232,7 @@ def proof(api, number, notification=None):
                 "obsolete run/attempt notification")
     require(run.get("status") == "completed" and run.get("conclusion") == "success", "latest CI incomplete or failed")
     jobs = api.pages(route(f"actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs"), "jobs")
-    require(len(jobs) == len(CORE) + 1 and {j.get("name") for j in jobs} == set(CORE) | {"append-perf-history"},
+    require(len(jobs) == len(CORE) + len(FULL_SKIPPED) and {j.get("name") for j in jobs} == set(CORE) | FULL_SKIPPED,
             "missing, duplicate or unexpected full CI job")
     checks = []
     for sha in dict.fromkeys((head, merge_sha)):
@@ -245,7 +247,7 @@ def proof(api, number, notification=None):
     job_ids = set()
     for job in jobs:
         name = job["name"]
-        expected = "skipped" if name == "append-perf-history" else "success"
+        expected = "skipped" if name in FULL_SKIPPED else "success"
         require(job.get("status") == "completed" and job.get("conclusion") == expected, "job failed/cancelled/missing/unexpected skip: " + name)
         check_url = job.get("check_run_url", "")
         require(check_url.startswith(f"https://api.github.com/repos/{REPOSITORY}/check-runs/"), "missing job/check association")
@@ -257,6 +259,8 @@ def proof(api, number, notification=None):
                 check.get("details_url") == f"https://github.com/{REPOSITORY}/actions/runs/{run['id']}/job/{job['id']}" and
                 check.get("status") == "completed" and check.get("conclusion") == expected,
                 "wrong app/suite/job/head proof: " + name)
+        if name in FULL_SKIPPED:
+            require(not job.get("steps"), "skipped job contains executable steps: " + name)
         if name in CORE:
             steps = job.get("steps", [])
             require(CORE[name] in {s.get("name") for s in steps}, "missing validation step: " + name)
