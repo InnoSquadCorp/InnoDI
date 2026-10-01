@@ -232,9 +232,15 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
-                "if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))"
+                "github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))"
             )
         )
+        #expect(appendJob.contains("always() && !cancelled()"))
+        for job in ["ci-plan", "ci-required", "macro-tests"] {
+            #expect(appendJob.contains("needs.\(job).result == 'success'"))
+        }
+        #expect(appendJob.contains("Verify performance history source context"))
+        #expect(appendJob.contains("INNODI_PERF_EXPECTED_SHA: ${{ github.sha }}"))
         // The additional dispatch path must prove an actual merged bot at
         // current main before it can reuse main's publication/history contract.
         #expect(appendJob.contains("      - ci-plan\n"))

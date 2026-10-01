@@ -92,6 +92,15 @@ fi
 python3 Tools/validate-macro-performance-report.py "$TMP_BASELINE" >/dev/null
 
 current_sha=$(git rev-parse HEAD)
+if [[ -n "${INNODI_PERF_EXPECTED_SHA:-}" ]]; then
+    # Main CI has already checked its event/results and downloaded the exact
+    # report from this run. Refuse to relabel it if checkout identity changed.
+    [[ "$INNODI_PERF_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+    [[ "${GITHUB_REPOSITORY:-}" == 'InnoSquadCorp/InnoDI' ]]
+    [[ "${GITHUB_REF:-}" == 'refs/heads/main' ]]
+    [[ "${GITHUB_SHA:-}" == "$INNODI_PERF_EXPECTED_SHA" ]]
+    [[ "$current_sha" == "$INNODI_PERF_EXPECTED_SHA" ]]
+fi
 short_sha=$(git rev-parse --short=12 HEAD)
 commit_iso=$(git show -s --format=%cI "$current_sha")
 date_part=$(echo "$commit_iso" | cut -c1-10)

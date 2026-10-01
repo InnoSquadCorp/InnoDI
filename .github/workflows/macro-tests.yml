@@ -753,13 +753,19 @@ jobs:
         run: python3 Tools/ci-policy.py evaluate
 
   append-perf-history:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))
+    if: >-
+      always() && !cancelled() &&
+      needs.ci-plan.result == 'success' &&
+      needs.ci-required.result == 'success' &&
+      needs.macro-tests.result == 'success' &&
+      github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && needs.ci-plan.outputs.post_merge == 'true'))
     needs:
       - ci-plan
       - ci-required
       - macro-tests
-    # CI Required revalidates reused proof. Depending on physical skipped jobs
-    # would suppress this writer despite successful logical verification.
+    # CI Required revalidates reused proof. always() avoids transitive skipped
+    # validation jobs suppressing this writer; explicit successes and the
+    # cancellation guard still block any failed, incomplete or cancelled run.
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -772,6 +778,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+      - name: Verify performance history source context
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == 'InnoSquadCorp/InnoDI' ]]
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
       - name: Download validated macro performance report
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -781,6 +794,7 @@ jobs:
         env:
           GIT_USER_NAME: github-actions[bot]
           GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          INNODI_PERF_EXPECTED_SHA: ${{ github.sha }}
         run: |
           Tools/append-performance-history.sh \
             --report build/performance/macro-performance-report.json

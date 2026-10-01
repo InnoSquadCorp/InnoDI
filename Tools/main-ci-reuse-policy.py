@@ -63,6 +63,17 @@ def route(suffix):
     return f"repos/{REPOSITORY}/" + suffix
 
 
+def job_check_id(job):
+    url = job.get("check_run_url")
+    prefix = "https://api.github.com/" + route("check-runs/")
+    require(isinstance(url, str) and url.startswith(prefix) and
+            re.fullmatch(r"[0-9]+", url[len(prefix):]) is not None,
+            "missing or foreign job/check binding")
+    check_id = int(url[len(prefix):])
+    require(check_id > 0, "invalid job/check identity")
+    return check_id
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise Rejected("GitHub metadata redirect is not reusable evidence")
@@ -234,10 +245,7 @@ def prove(api, event, context, now=None):
                 job.get("status") == "completed" and job.get("conclusion") == expected and
                 job.get("run_id") == run["id"] and job.get("run_attempt") == run["run_attempt"] and
                 job.get("head_sha") == head, "wrong source job outcome/attempt/head: " + name)
-        check_url = job.get("check_run_url", "")
-        prefix = "https://api.github.com/" + route("check-runs/")
-        require(check_url.startswith(prefix) and check_url[len(prefix):].isdigit(), "missing job/check binding")
-        check_id = int(check_url[len(prefix):])
+        check_id = job_check_id(job)
         require(check_id not in job_check_ids, "duplicate source job check")
         job_check_ids.add(check_id)
         check = by_id.get(check_id, {})
@@ -265,7 +273,7 @@ def prove(api, event, context, now=None):
     previous_ids = set()
     for attempt in range(1, run["run_attempt"]):
         previous = api.pages(route(f"actions/runs/{run['id']}/attempts/{attempt}/jobs"), "jobs")
-        previous_ids.update(int(job["check_run_url"].rsplit("/", 1)[1]) for job in previous)
+        previous_ids.update(job_check_id(job) for job in previous)
     require(set(by_id) == job_check_ids | previous_ids, "unassociated checks in source CI suite")
     merged_at = timestamp(pr.get("merged_at"))
     require(all(timedelta(0) <= merged_at - ended <= timedelta(hours=24) for ended in completion),

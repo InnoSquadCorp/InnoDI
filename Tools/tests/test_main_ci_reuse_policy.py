@@ -112,6 +112,20 @@ def proven(transcript=None):
     return p.prove(t, t.event, CONTEXT, now=t.now)
 
 
+def successful_rerun():
+    t = Transcript()
+    t.previous = copy.deepcopy(t.jobs)
+    t.run["run_attempt"] = 2
+    for job, old_check in zip(t.jobs, list(t.checks)):
+        job["run_attempt"] = 2
+        job["id"] += 100
+        check_id = old_check["id"] + 100
+        job["check_run_url"] = f"https://api.github.com/{p.route('check-runs/')}{check_id}"
+        t.checks.append(dict(old_check, id=check_id,
+                            details_url=f"https://github.com/{p.REPOSITORY}/actions/runs/{RUN}/job/{job['id']}"))
+    return t
+
+
 class AdmissionTests(unittest.TestCase):
     def test_same_tree_squash_with_empty_post_merge_run_association_is_proven(self):
         t = Transcript()
@@ -192,17 +206,19 @@ class AdmissionTests(unittest.TestCase):
             proven(t)  # Returned attempt-1 jobs are not current proof.
 
     def test_latest_successful_attempt_can_coexist_with_historical_checks(self):
-        t = Transcript()
-        t.previous = copy.deepcopy(t.jobs)
-        t.run["run_attempt"] = 2
-        for job, old_check in zip(t.jobs, list(t.checks)):
-            job["run_attempt"] = 2
-            job["id"] += 100
-            check_id = old_check["id"] + 100
-            job["check_run_url"] = f"https://api.github.com/{p.route('check-runs/')}{check_id}"
-            t.checks.append(dict(old_check, id=check_id,
-                                details_url=f"https://github.com/{p.REPOSITORY}/actions/runs/{RUN}/job/{job['id']}"))
-        self.assertEqual(proven(t)["attempt"], 2)
+        self.assertEqual(proven(successful_rerun())["attempt"], 2)
+
+    def test_historical_check_urls_cannot_smuggle_unassociated_check_ids(self):
+        prefix = f"https://api.github.com/{p.route('check-runs/')}"
+        for url in [None, "", "https://evil.invalid/1000", "https://api.github.com/repos/foreign/repo/check-runs/1000",
+                    prefix, prefix + "abc", prefix + "1000?foreign=true", prefix + "0", prefix + "１０００"]:
+            t = successful_rerun()
+            t.previous[0]["check_run_url"] = url
+            with self.subTest(url=url), self.assertRaises(p.Rejected):
+                proven(t)
+        t = successful_rerun()
+        t.previous[0].pop("check_run_url")
+        with self.assertRaises(p.Rejected): proven(t)
 
     def test_native_check_provenance_cannot_be_spoofed(self):
         mutations = [lambda t: t.checks[0]["app"].update(id=1),

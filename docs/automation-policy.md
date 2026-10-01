@@ -74,7 +74,11 @@ Policy validation, exhaustive coverage and main performance enforcement/trends,
 examples, documentation contracts, DocC with main Pages artifacts, and the
 exact-main-SHA remote consumer still run fresh. Performance history depends on
 the successful aggregate and fresh exhaustive job, so intended physical skips
-cannot suppress or bypass it. Release Gate never consumes this reuse proof.
+cannot suppress or bypass it. Its explicit status guard also requires a
+successful plan and a non-cancelled run. The writer verifies its main checkout
+SHA and consumes only this run's named macro-performance report artifact;
+failure, missing artifacts and foreign run/repository overrides cannot supply
+history evidence. Release Gate never consumes this reuse proof.
 
 Cache observation commands are deliberately fail-closed. Invalid or unreadable
 fingerprint/state/profile data fails the job; a `restored` observation failure
