@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 import unittest
@@ -13,6 +14,10 @@ p = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(p)
 HEAD, BASE, MERGE = 'a' * 40, 'b' * 40, 'c' * 40
 NUMBER, RUN = 45, 900
+READY_RUN = 950
+TRUSTED = dict(GITHUB_REPOSITORY=p.REPOSITORY, GITHUB_REF="refs/heads/main",
+               GITHUB_WORKFLOW_REF=p.REPOSITORY + "/.github/workflows/dependabot-auto-merge.yml@refs/heads/main",
+               GITHUB_EVENT_NAME="pull_request_target", GITHUB_RUN_ID=str(READY_RUN), GITHUB_RUN_ATTEMPT="1")
 INVENTORY = json.loads((Path(__file__).parent / 'fixtures/dependabot-full-ci.json').read_text())['jobs']
 
 
@@ -21,7 +26,7 @@ class Transcript:
         self.repo = dict(id=100, full_name=p.REPOSITORY, default_branch='main', allow_auto_merge=True, allow_squash_merge=True)
         self.pr = dict(number=NUMBER, node_id='PR_node', user=dict(p.BOT), state='open', merged=False, draft=False,
                        mergeable=True, merge_commit_sha=MERGE, auto_merge=None, requested_reviewers=[], requested_teams=[],
-                       base=dict(ref='main', sha=BASE, repo=self.repo), head=dict(sha=HEAD, repo=self.repo))
+                       base=dict(ref='main', sha=BASE, repo=self.repo), head=dict(ref="dependabot/test", sha=HEAD, repo=self.repo))
         self.base = BASE
         self.rules = [dict(type='required_status_checks', ruleset_source_type='Repository', ruleset_source=p.REPOSITORY,
                            ruleset_id=123, parameters=dict(strict_required_status_checks_policy=True,
@@ -32,6 +37,14 @@ class Transcript:
                         event='pull_request', head_sha=HEAD, head_repository=self.repo, repository=self.repo,
                         status='completed', conclusion='success', pull_requests=[dict(number=NUMBER, head=dict(sha=HEAD), base=dict(sha=BASE))])
         self.runs = [self.run]
+        self.ready_workflow = dict(id=11, path=p.COORDINATOR_PATH, state='active')
+        self.ready_run = dict(id=READY_RUN, run_number=40, run_attempt=1, workflow_id=11,
+                              path=p.COORDINATOR_PATH, check_suite_id=800, event='pull_request_target',
+                              head_sha=HEAD, head_branch='dependabot/test', repository=self.repo, head_repository=self.repo,
+                              status='in_progress', conclusion=None,
+                              pull_requests=[dict(number=NUMBER, head=dict(sha=HEAD), base=dict(ref='main', repo=self.repo))])
+        self.ready_runs = [self.ready_run]
+        self.ready_jobs = {}
         self.jobs, self.checks = [], []
         for index, (name, steps) in enumerate(INVENTORY.items()):
             check_id, job_id = 1000 + index, 2000 + index
@@ -57,6 +70,9 @@ class Transcript:
         elif suffix == f'git/commits/{MERGE}': value = dict(parents=[dict(sha=BASE), dict(sha=HEAD)])
         elif suffix == 'rulesets/123': value = self.ruleset
         elif suffix == 'actions/workflows/macro-tests.yml': value = self.workflow
+        elif suffix == 'actions/workflows/dependabot-auto-merge.yml': value = self.ready_workflow
+        elif suffix.startswith('actions/runs/') and suffix.count('/') == 2 and int(suffix.rsplit('/', 1)[1]) != RUN:
+            value = next(r for r in self.ready_runs if r['id'] == int(suffix.rsplit('/', 1)[1]))
         elif suffix == f'actions/runs/{RUN}': value = self.run
         elif suffix.startswith('check-runs/'): value = next(c for c in self.checks if c['id'] == int(suffix.rsplit('/', 1)[1]))
         else: raise AssertionError('Unexpected read: ' + route)
@@ -68,6 +84,9 @@ class Transcript:
         if suffix == 'rules/branches/main': value = self.rules
         elif suffix == f'pulls/{NUMBER}/reviews': value = self.review_list
         elif suffix.startswith('actions/workflows/macro-tests.yml/runs?event='): value = self.runs
+        elif suffix.startswith('actions/workflows/dependabot-auto-merge.yml/runs?event='): value = self.ready_runs
+        elif suffix.startswith('actions/runs/') and '/attempts/' in suffix and int(suffix.split('/')[2]) != RUN:
+            value = self.ready_jobs.get((int(suffix.split('/')[2]), int(suffix.split('/')[4])), [])
         elif suffix.startswith('actions/workflows/macro-tests.yml/runs?branch='): value = self.post_runs
         elif suffix == f'actions/runs/{RUN}/attempts/{self.run["run_attempt"]}/jobs': value = self.jobs
         elif suffix.startswith(f'actions/runs/{RUN}/attempts/'): value = self.old_jobs
@@ -93,7 +112,7 @@ class Transcript:
     def mutate(self, method, route, payload):
         self.mutations.append((method, route, copy.deepcopy(payload)))
         if route.endswith('/check-runs'):
-            check = dict(payload, id=8000, app=dict(id=p.APP), check_suite=dict(id=800))
+            check = dict(payload, id=8000 + len(self.checks), app=dict(id=p.APP), check_suite=dict(id=self.ready_run["check_suite_id"]))
             self.checks.append(check)
             return copy.deepcopy(check)
         if '/check-runs/' in route:
@@ -105,7 +124,11 @@ class Transcript:
 
 
 class DependabotPolicyTests(unittest.TestCase):
-    def setUp(self): self.api = Transcript()
+    def setUp(self):
+        self.api = Transcript()
+        self.environment = mock.patch.dict(os.environ, TRUSTED, clear=True)
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
 
     def reject(self, alter):
         api = Transcript()
@@ -307,6 +330,197 @@ class DependabotPolicyTests(unittest.TestCase):
             self.assertEqual(mutation.call_count, 1)
         self.assertIsNone(self.api.pr['auto_merge'])
 
+    def transport(self, name, status='in_progress', conclusion=None):
+        check_id = 7000 + len(self.api.ready_jobs.get((READY_RUN, 1), []))
+        job = dict(id=check_id, name=name, status=status, conclusion=conclusion,
+                   check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/{check_id}')
+        self.api.ready_jobs.setdefault((READY_RUN, 1), []).append(job)
+        check = dict(job, app=dict(id=p.APP), head_sha=HEAD, check_suite=dict(id=800),
+                     details_url=f'https://github.com/{p.REPOSITORY}/actions/runs/{READY_RUN}/job/{check_id}')
+        self.api.checks.append(check)
+        return job, check
+
+    def test_human_success_is_pending_first_and_bound_to_latest_pr_run(self):
+        self.api.pr['user'] = dict(id=1, login='human', type='User')
+        self.assertIn('manual PR', p.coordinate(self.api, NUMBER, True))
+        creation, completion = self.api.mutations
+        self.assertEqual(creation[0], 'POST')
+        self.assertEqual(creation[2]['status'], 'in_progress')
+        self.assertNotIn('conclusion', creation[2])
+        self.assertEqual(completion[0], 'PATCH')
+        check = self.api.checks[-1]
+        self.assertEqual(check['external_id'], f'dependabot-policy:{NUMBER}:{HEAD}:{READY_RUN}:1')
+        self.assertEqual(check['check_suite']['id'], 800)
+        self.assertEqual(check['conclusion'], 'success')
+
+    def test_wrong_created_suite_never_publishes_success(self):
+        self.api.pr['user'] = dict(id=1, login='human', type='User')
+        original = self.api.mutate
+        def wrong_suite(method, route, payload):
+            result = original(method, route, payload)
+            result['check_suite']['id'] = 999
+            return result
+        with mock.patch.object(self.api, 'mutate', side_effect=wrong_suite):
+            with self.assertRaisesRegex(p.Rejected, 'provenance'):
+                p.coordinate(self.api, NUMBER, True)
+        self.assertEqual(len(self.api.mutations), 1)
+        self.assertNotIn('conclusion', self.api.mutations[0][2])
+
+    def test_background_updates_only_existing_latest_pr_bound_check(self):
+        check_id = p.gate(self.api, NUMBER, HEAD, 'in_progress')
+        self.api.ready_run.update(status='completed', conclusion='success')
+        for event in ['schedule', 'workflow_run', 'workflow_dispatch', 'push']:
+            with mock.patch.dict(os.environ, GITHUB_EVENT_NAME=event, GITHUB_RUN_ID='9999'):
+                self.assertEqual(p.gate(self.api, NUMBER, HEAD, 'completed'), check_id)
+        self.assertEqual(sum(m[0] == 'POST' for m in self.api.mutations), 1)
+
+    def test_background_cannot_create_check_even_with_legacy_success(self):
+        self.api.checks.append(dict(id=7999, name=p.READY, app=dict(id=p.APP), head_sha=HEAD,
+                                   external_id=f'dependabot-policy:{NUMBER}:{HEAD}', status='completed', conclusion='success'))
+        with mock.patch.dict(os.environ, GITHUB_EVENT_NAME='schedule'):
+            with self.assertRaisesRegex(p.Rejected, 'missing'):
+                p.gate(self.api, NUMBER, HEAD, 'completed')
+        self.assertFalse(self.api.mutations)
+
+    def test_latest_cancelled_run_is_not_replaced_with_older_success(self):
+        old = copy.deepcopy(self.api.ready_run)
+        old.update(id=READY_RUN - 1, run_number=39, status='completed', conclusion='success')
+        self.api.ready_runs.append(old)
+        self.api.ready_run.update(status='completed', conclusion='cancelled')
+        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
+        with self.assertRaisesRegex(p.Rejected, 'failed/cancelled'):
+            p.coordinate(self.api, NUMBER, True)
+        self.assertIsNone(self.api.pr['auto_merge'])
+        self.assertFalse(any(m[0] in {'POST', 'PATCH'} for m in self.api.mutations))
+
+    def test_new_source_run_and_rerun_attempt_get_distinct_check(self):
+        old_id = p.gate(self.api, NUMBER, HEAD, 'completed')
+        self.api.ready_run['run_attempt'] = 2
+        with mock.patch.dict(os.environ, GITHUB_RUN_ATTEMPT='2'):
+            new_id = p.gate(self.api, NUMBER, HEAD, 'completed')
+        self.assertNotEqual(old_id, new_id)
+        p.proof(self.api, NUMBER)
+        with mock.patch.dict(os.environ, GITHUB_EVENT_NAME='schedule'):
+            self.api.ready_run['run_attempt'] = 3
+            with self.assertRaisesRegex(p.Rejected, 'missing'):
+                p.gate(self.api, NUMBER, HEAD, 'completed')
+
+    def test_superseded_pr_target_event_does_not_mutate_or_cancel(self):
+        newer = copy.deepcopy(self.api.ready_run)
+        newer.update(id=READY_RUN + 1, run_number=41, check_suite_id=801)
+        self.api.ready_runs.append(newer)
+        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
+        self.assertIn('obsolete', p.coordinate(self.api, NUMBER, True))
+        self.assertFalse(self.api.mutations)
+
+    def test_final_success_rechecks_current_run_attempt_and_head(self):
+        check_id = p.gate(self.api, NUMBER, HEAD, 'in_progress')
+        for change in [lambda: self.api.ready_run.update(run_attempt=2),
+                       lambda: self.api.pr['head'].update(sha='d' * 40)]:
+            with self.subTest(change=change):
+                self.api.ready_run['run_attempt'] = 1
+                self.api.pr['head']['sha'] = HEAD
+                change()
+                before = len(self.api.mutations)
+                with self.assertRaises(p.Rejected):
+                    p.gate(self.api, NUMBER, HEAD, 'completed', check_id)
+                self.assertEqual(len(self.api.mutations), before)
+
+    def test_binding_read_failure_still_cancels_but_untrusted_context_does_not(self):
+        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
+        with mock.patch.object(p, 'coordinator_runs', side_effect=OSError('API unavailable')):
+            with self.assertRaises(OSError): p.coordinate(self.api, NUMBER, True)
+        self.assertIsNone(self.api.pr['auto_merge'])
+        self.api = Transcript()
+        self.api.pr['auto_merge'] = dict(enabled_by=dict(p.BOT))
+        with mock.patch.dict(os.environ, GITHUB_REF='refs/heads/unsafe'):
+            with self.assertRaises(p.Rejected): p.coordinate(self.api, NUMBER, True)
+        self.assertFalse(self.api.mutations)
+
+    def test_untrusted_writer_context_cannot_post_or_patch(self):
+        for key, value in [('GITHUB_REF', 'refs/heads/feature'), ('GITHUB_EVENT_NAME', 'pull_request'),
+                           ('GITHUB_WORKFLOW_REF', 'foreign'), ('GITHUB_REPOSITORY', 'foreign/repo')]:
+            with mock.patch.dict(os.environ, **{key:value}):
+                with self.assertRaises(p.Rejected): p.gate(self.api, NUMBER, HEAD, 'completed')
+        self.assertFalse(self.api.mutations)
+
+    def test_foreign_existing_binding_is_rejected_before_patch(self):
+        p.gate(self.api, NUMBER, HEAD, 'in_progress')
+        for field, value in [('app', dict(id=123)), ('check_suite', dict(id=999)), ('details_url', 'https://evil.test')]:
+            original = self.api.checks[-1][field]
+            self.api.checks[-1][field] = value
+            count = len(self.api.mutations)
+            with self.assertRaises(p.Rejected): p.gate(self.api, NUMBER, HEAD, 'completed')
+            self.assertEqual(len(self.api.mutations), count)
+            self.api.checks[-1][field] = original
+
+    def test_missing_or_ambiguous_run_association_cannot_reuse_older_source(self):
+        old = copy.deepcopy(self.api.ready_run)
+        old.update(id=READY_RUN - 1, run_number=39)
+        self.api.ready_runs.append(old)
+        for connections in [[], self.api.ready_run['pull_requests'] * 2]:
+            self.api.ready_run['pull_requests'] = connections
+            with self.assertRaises(p.Rejected): p.gate(self.api, NUMBER, HEAD, 'completed')
+        self.assertFalse(self.api.mutations)
+
+    def test_manual_fork_missing_association_fails_closed(self):
+        self.api.pr['user'] = dict(id=1, login='human', type='User')
+        fork = dict(id=101, full_name='human/InnoDI')
+        self.api.pr['head']['repo'] = fork
+        self.api.ready_run.update(head_repository=fork, pull_requests=[])
+        with self.assertRaisesRegex(p.Rejected, 'association'):
+            p.coordinate(self.api, NUMBER, False)
+        self.assertFalse(self.api.mutations)
+
+    def test_exact_coordinator_transport_has_no_self_cycle(self):
+        self.transport('inspect', 'completed', 'success')
+        self.transport(f'bot-ready ({NUMBER})')
+        self.transport('manual-ready', 'completed', 'skipped')
+        self.transport('post-merge', 'queued')
+        self.assertIn('armed', p.coordinate(self.api, NUMBER, True))
+        self.assertEqual(self.api.checks[-1]['conclusion'], 'success')
+
+    def test_transport_lookalikes_foreign_provenance_and_unknown_jobs_rejected(self):
+        for field, value in [('app', dict(id=123)), ('head_sha', BASE), ('check_suite', dict(id=999)),
+                             ('details_url', 'https://evil.test'), ('name', 'CI Required')]:
+            self.api = Transcript()
+            _, check = self.transport(f'bot-ready ({NUMBER})')
+            check[field] = value
+            with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+        self.api = Transcript()
+        self.transport('unexpected coordinator job')
+        with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+        self.api = Transcript()
+        self.transport('bot-ready', 'in_progress')
+        with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+        self.api = Transcript()
+        _, check = self.transport(f'bot-ready ({NUMBER})')
+        self.api.ready_jobs.clear()  # A lookalike not in authenticated Actions jobs.
+        with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+
+    def test_wrong_coordinator_workflow_event_repo_and_head_rejected(self):
+        for field, value in [('workflow_id', 99), ('path', p.CI_PATH), ('event', 'workflow_dispatch'),
+                             ('repository', dict(id=101)), ('head_repository', dict(id=101)), ('head_sha', BASE)]:
+            self.api = Transcript()
+            self.api.ready_run[field] = value
+            with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+            self.assertFalse(self.api.mutations)
+
+    def test_custom_ready_in_actions_jobs_is_not_transport_or_proof_input(self):
+        p.gate(self.api, NUMBER, HEAD, 'in_progress')
+        check = self.api.checks[-1]
+        self.api.ready_jobs[(READY_RUN, 1)] = [dict(name=p.READY, check_run_url=f'https://api.github.com/repos/{p.REPOSITORY}/check-runs/{check["id"]}')]
+        p.proof(self.api, NUMBER)
+        check['check_suite']['id'] = 999
+        with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+
+    def test_unassociated_notifications_reconcile_api_open_prs_without_approval(self):
+        self.api.run['pull_requests'] = []
+        self.assertEqual(p.targets(self.api, 'workflow_run', dict(workflow_run=dict(id=RUN))), ([NUMBER], None))
+        self.api.run['pull_requests'] = [dict(number=NUMBER), dict(number=NUMBER + 1)]
+        self.assertEqual(p.targets(self.api, 'workflow_run', dict(workflow_run=dict(id=RUN))), ([NUMBER], None))
+        with self.assertRaises(p.Rejected): p.proof(self.api, NUMBER)
+
     def test_post_merge_exact_bot_main_fixed_dispatch_and_dedup(self):
         self.api.pr.update(state='closed', merged=True, merged_at='2026-09-30T00:00:00Z', merge_commit_sha=BASE)
         self.assertIn('dispatched', p.post_merge(self.api, True))
@@ -341,6 +555,7 @@ class DependabotPolicyTests(unittest.TestCase):
         docc = (ROOT / '.github/workflows/docc-validation.yml').read_text()
         docs = (ROOT / '.github/workflows/docs.yml').read_text()
         self.assertEqual(coordinator.count('ref: refs/heads/main'), 4)
+        self.assertEqual(coordinator.count('queue: max'), 3)
         self.assertEqual(coordinator.count('persist-credentials: false'), 4)
         for unsafe in ['pull_request.head', 'secrets.', 'download-artifact', 'cache@', 'gh pr merge', 'pip install']:
             self.assertNotIn(unsafe, coordinator)

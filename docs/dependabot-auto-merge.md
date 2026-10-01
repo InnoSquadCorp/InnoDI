@@ -9,10 +9,12 @@ review policies continue to apply.
 
 ## Standby versus activation
 
-The implementation PR does not change repository settings. At the inspected
-baseline, `allow_auto_merge=false` and main ruleset `15303479` contains deletion
-and non-fast-forward rules with no bypass actors. The prepared coordinator will
-refuse to arm a bot PR unless all of these conditions are true:
+The implementation PR does not change repository settings. The original
+preparation baseline had native auto-merge disabled. During the 2026-10-01
+Ready-reporting incident, the owner removed only the Ready required-check entry
+to merge PR #43; strict **CI Required** and the other protections remained.
+The reporting repair does not restore that entry or activate automation.
+The coordinator refuses to arm a bot PR unless all of these conditions are true:
 
 - `DEPENDABOT_AUTO_MERGE_ENABLED` repository Actions variable equals `true`.
 - Repository native auto-merge and squash merging are enabled.
@@ -40,6 +42,63 @@ ineligible**. They still require CI and the existing review/protection policy
 for manual merging. The manual job has no contents or PR write permissions,
 never enables auto-merge, and also handles draft human PRs. Ready never includes
 itself in its proof inputs, so there is no required-check cycle.
+
+## PR-bound Ready reporting and recovery
+
+A successful Checks API response alone does not prove that GitHub evaluates the
+check for the PR's required-check rule. GitHub documents an event eligibility
+restriction for checks created by Actions workflow jobs. The reporter therefore
+creates Ready **only inside the latest exact-head `pull_request_target` run** of
+the trusted coordinator. Its identity includes PR number, head SHA, run ID and
+attempt; its details link names that attempt. It first creates an `in_progress`
+check, verifies the returned app, SHA, identity and suite, then re-reads current
+PR/run metadata before publishing success. The Checks API does not accept a
+suite selector, so a different returned suite is rejected rather than assumed
+correct. The API checks are necessary provenance checks, not proof of GitHub's
+internal required-check evaluation.
+
+`workflow_run`, schedule, push and manual-dispatch reconciliation can update only
+an already-issued check bound to that latest PR run/attempt. They cannot create a
+replacement in their own suite or reuse a historical successful check. A newer
+run/attempt, changed head, failed or cancelled latest source, missing association
+or missing issued check fails closed. Existing legacy/historical Ready checks
+remain evidence only and are never selected for updates. Superseded PR-target
+notifications do not overwrite the newer decision. Bot binding failures still
+protectively cancel an outstanding verified bot auto-merge request.
+
+The coordinator's own transport jobs cannot be CI inputs: the running bot job
+and waiting post-merge job would wait for themselves. Only exact job/check pairs
+from API-verified coordinator PR-target runs are excluded, with workflow ID/path,
+repository, event, PR/head, app, suite, job check URL and canonical job details URL
+all checked. A name lookalike, foreign app/suite, unassociated check or arbitrary
+job is not exempt. Full CI, external checks, bot identity, major/toolchain proof,
+review guards and native strict rules are unchanged.
+
+Per-PR and post-merge concurrency use `queue: max` with `cancel-in-progress: false`
+to prevent ordinary notifications replacing the single pending reporter. GitHub
+caps this queue at 100; cancellation, queue overflow and runner failures are
+still possible. Missing or ambiguous CI/review notification PR arrays trigger
+read-only target enumeration from the live open-main PR API. They do not supply
+approval evidence; each bot still must pass its own exact full-CI proof.
+
+After merging this repair, bootstrap an existing PR through a fresh PR lifecycle
+event, or rerun its latest PR-target issuer using the updated trusted script.
+Rerunning only post-merge advances the run attempt without issuing a new Ready;
+rerun all jobs (or the actual Ready issuer) to recover. Manual dispatch and the
+hourly schedule cannot bootstrap a missing PR-bound check. Manual fork PRs whose
+Actions run omits its PR association also fail closed; do not treat an older
+success as recovery or re-enable a globally required Ready rule until that path
+has been validated for the repository's supported PR sources.
+
+Before the owner restores Ready as required, verify on a real PR that its latest
+check is visible in the PR checks section and recognized by GitHub's required
+check evaluation. Transcript tests do not establish that platform behavior.
+No rule, permission, credential or repository setting is changed by this repair.
+
+Current GitHub documentation supports `queue: max`. Actionlint 1.7.12 does not
+parse that newer key (upstream [issue #680](https://github.com/rhysd/actionlint/issues/680));
+the repository guards and YAML parsing still apply. Do not globally disable
+syntax checking to hide this isolated tool-version limitation.
 
 ## Authoritative proof
 
@@ -158,9 +217,10 @@ and CI do not substitute for that observation.
 
 1. Review this implementation PR's exact-head CI and manually merge the prepared
    code. Do not enable automation on the implementation PR or any human PR.
-2. Keep the flag absent/false. Run the trusted coordinator on main to establish
-   human Ready check contexts for already-open main PRs; confirm there is no
-   pending-check bootstrap cycle before making Ready required.
+2. Keep the flag absent/false. Trigger or rerun a trusted PR-target issuer for
+   each already-open main PR as described above. Verify latest-run provenance
+   and actual PR required-check recognition before making Ready required. A
+   coordinator manual dispatch cannot create the initial PR-bound check.
 3. Preserve the existing main deletion/non-fast-forward rules and no-bypass
    policy. Add one `required_status_checks` rule to ruleset `15303479` with
    `strict_required_status_checks_policy: true`, and contexts `CI Required` and
@@ -184,6 +244,8 @@ updates before reporting that automatic merging is operational.
 
 References: [Dependabot Actions automation](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions),
 [workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
+[Checks API suite assignment](https://docs.github.com/en/rest/guides/using-the-rest-api-to-interact-with-checks),
+[concurrency queue limits](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency),
 [GITHUB_TOKEN recursion limits](https://docs.github.com/en/actions/concepts/security/github_token),
 [native auto-merge input](https://docs.github.com/en/graphql/reference/input-objects#enablepullrequestautomergeinput),
 [strict required checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).

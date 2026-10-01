@@ -50,6 +50,8 @@ jobs:
     concurrency:
       group: dependabot-ready-${{ matrix.pr }}
       cancel-in-progress: false
+      # Keep pending PR reporters; default single-slot queues replace them.
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -81,6 +83,8 @@ jobs:
     concurrency:
       group: dependabot-ready-${{ matrix.pr }}
       cancel-in-progress: false
+      # Keep pending PR reporters; default single-slot queues replace them.
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -108,6 +112,7 @@ jobs:
     concurrency:
       group: dependabot-post-merge
       cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
