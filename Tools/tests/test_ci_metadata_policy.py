@@ -40,6 +40,7 @@ class MetadataAPI:
                                     head_sha=head, status='completed', conclusion='skipped',
                                     details_url=f'https://github.com/{bot.p.REPOSITORY}/actions/runs/{META}/job/{job["id"]}'))
         self.base.runs.append(self.run)
+        self.jobs_by_attempt = {1: self.jobs}
         self.finish_mutation = None
         self.run_reads = 0
 
@@ -59,8 +60,8 @@ class MetadataAPI:
     def pages(self, route, key=None):
         if f'check-suites/{SUITE}/' in route:
             return copy.deepcopy(self.checks)
-        if f'actions/runs/{META}/attempts/1/jobs' in route:
-            return copy.deepcopy(self.jobs)
+        if f'actions/runs/{META}/attempts/' in route and route.endswith('/jobs'):
+            return copy.deepcopy(self.jobs_by_attempt[int(route.split('/')[-2])])
         result = self.base.pages(route, key)
         if f'commits/{self.head}/check-runs?' in route:
             result += copy.deepcopy(self.checks)
@@ -68,6 +69,22 @@ class MetadataAPI:
 
     def graphql(self, query, variables):
         return self.base.graphql(query, variables)
+
+    def rerun(self):
+        attempt = self.run['run_attempt'] + 1
+        self.run['run_attempt'] = attempt
+        self.jobs = copy.deepcopy(self.jobs)
+        current_checks = []
+        for job in self.jobs:
+            check_id = int(job['check_run_url'].rsplit('/', 1)[1])
+            check = copy.deepcopy(next(c for c in self.checks if c['id'] == check_id))
+            job.update(id=job['id'] + 100000, run_attempt=attempt,
+                       check_run_url=job['check_run_url'].rsplit('/', 1)[0] + '/' + str(check_id + 100000))
+            check.update(id=check_id + 100000,
+                         details_url=f'https://github.com/{bot.p.REPOSITORY}/actions/runs/{META}/job/{job["id"]}')
+            current_checks.append(check)
+        self.checks.extend(current_checks)
+        self.jobs_by_attempt[attempt] = self.jobs
 
 
 def reuse_api(expanded=False):
@@ -221,3 +238,16 @@ class MetadataProofTests(unittest.TestCase):
                 result = bot.p.coordinate(b, bot.NUMBER, True, dict(id=META, run_attempt=1))
             self.assertNotIn('armed', result)
             self.assertFalse(b.base.mutations)
+
+    def test_metadata_rerun_requires_the_current_attempt_and_rechecks_real_ci(self):
+        b = MetadataAPI(bot.Transcript(), bot.NUMBER, bot.HEAD, bot.BASE, bot.MERGE)
+        b.rerun()
+        with mock.patch.dict(bot.os.environ, bot.TRUSTED, clear=True):
+            self.assertIn('obsolete', bot.p.coordinate(b, bot.NUMBER, True, dict(id=META, run_attempt=1)))
+            self.assertFalse(b.base.mutations)
+            self.assertIn('armed', bot.p.coordinate(b, bot.NUMBER, True, dict(id=META, run_attempt=2)))
+            b.base.run.update(conclusion='failure')
+            self.assertIn('blocked:', bot.p.coordinate(b, bot.NUMBER, True, dict(id=META, run_attempt=2)))
+        self.assertEqual(len(b.base.mutations), 2)
+        self.assertIn('enablePullRequestAutoMerge', b.base.mutations[0][1])
+        self.assertIn('disablePullRequestAutoMerge', b.base.mutations[1][1])

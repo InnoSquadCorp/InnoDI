@@ -74,7 +74,9 @@ every workflow. Optional host-installed shellcheck/pyflakes integrations are
 disabled so the result does not depend on the runner image. The unsupported
 `concurrency.queue` diagnostic is narrowly exempted only after checking that
 the three known coordinator writer queues retain their exact `max` values and
-locations. A changed queue requires reviewing this exception. Download,
+locations. Parsed diagnostics must match those exact files, lines, columns and
+messages; a new queue in block or flow syntax is not covered by a global ignore
+pattern. A changed queue requires reviewing this exception. Download,
 checksum and lint failures fail the policy job.
 
 Every runner job has an explicit timeout. The previously unbounded exhaustive

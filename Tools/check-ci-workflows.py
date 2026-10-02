@@ -2,6 +2,7 @@
 """Run the pinned workflow linter without optional, host-dependent linters."""
 import hashlib
 import io
+import json
 from pathlib import Path
 import platform
 import re
@@ -19,16 +20,16 @@ ARCHIVES = {
     ('Linux', 'x86_64'): ('linux_amd64', '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'),
 }
 QUEUE_JOBS = {'ready-refresh', 'bot-ready', 'post-merge'}
-QUEUE_DIAGNOSTIC = r'^unexpected key "queue" for "concurrency" section\.'
+QUEUE_DIAGNOSTIC = 'unexpected key "queue" for "concurrency" section. expected one of "cancel-in-progress", "group"'
 
 
 def check_queue_compatibility(workflows):
     # actionlint 1.7.12 predates concurrency.queue. Exempt only the three
     # reviewed max queues; spelling/value/location changes must be reviewed.
-    seen = set()
+    seen, locations = set(), set()
     for path in workflows:
         job = None
-        for line in path.read_text().splitlines():
+        for number, line in enumerate(path.read_text().splitlines(), 1):
             match = re.fullmatch(r'  ([\w-]+):', line)
             if match:
                 job = match[1]
@@ -37,8 +38,34 @@ def check_queue_compatibility(workflows):
                         line != '      queue: max' or job in seen):
                     raise ValueError('unreviewed concurrency.queue exception: ' + str(path))
                 seen.add(job)
+                locations.add((str(path.resolve()), number, 7))
     if seen != QUEUE_JOBS:
         raise ValueError('review the actionlint queue exception when writer queues change')
+    return locations
+
+
+def require_clean_diagnostics(result, allowed, root):
+    # Filter parsed diagnostics by exact source position, not a global ignore
+    # regex that could hide a new queue in YAML flow syntax or another job.
+    if result.returncode not in (0, 1) or result.stderr:
+        raise ValueError('actionlint failed: ' + result.stderr)
+    errors = json.loads(result.stdout)
+    if not isinstance(errors, list) or (result.returncode == 0) != (not errors):
+        raise ValueError('unexpected actionlint result')
+    remaining = set(allowed)
+    failures = []
+    for error in errors:
+        path = Path(error['filepath'])
+        location = (str((root / path).resolve()), error['line'], error['column'])
+        if (location in remaining and error['kind'] == 'syntax-check' and
+                error['message'] == QUEUE_DIAGNOSTIC):
+            remaining.remove(location)
+        else:
+            failures.append(f"{path}:{error['line']}:{error['column']}: {error['message']}")
+    if failures:
+        raise ValueError('\n'.join(failures))
+    if remaining:
+        raise ValueError('actionlint did not report every expected queue compatibility diagnostic')
 
 
 def unpack_verified(archive, digest, destination):
@@ -58,7 +85,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     workflows = sorted((root / '.github/workflows').glob('*.yml'))
     workflows += sorted((root / '.github/workflows').glob('*.yaml'))
-    check_queue_compatibility(workflows)
+    allowed = check_queue_compatibility(workflows)
     target, digest = ARCHIVES[(platform.system(), platform.machine())]
     url = f'https://github.com/rhysd/actionlint/releases/download/v{VERSION}/actionlint_{VERSION}_{target}.tar.gz'
     with urllib.request.urlopen(url, timeout=30) as response:
@@ -67,8 +94,9 @@ def main():
         raise ValueError('actionlint archive exceeds the download limit')
     with tempfile.TemporaryDirectory(prefix='innodi-actionlint-') as directory:
         executable = unpack_verified(archive, digest, Path(directory))
-        subprocess.run([str(executable), '-shellcheck=', '-pyflakes=', '-ignore', QUEUE_DIAGNOSTIC,
-                        *map(str, workflows)], cwd=root, check=True)
+        result = subprocess.run([str(executable), '-shellcheck=', '-pyflakes=', '-format', '{{json .}}',
+                                 *map(str, workflows)], cwd=root, capture_output=True, text=True)
+        require_clean_diagnostics(result, allowed, root)
     print(f'actionlint {VERSION}: checked {len(workflows)} workflows')
 
 

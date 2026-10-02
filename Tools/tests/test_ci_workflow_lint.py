@@ -2,7 +2,9 @@
 import hashlib
 import importlib.util
 import io
+import json
 from pathlib import Path
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -58,3 +60,23 @@ class WorkflowLintTests(unittest.TestCase):
                 path.write_text(changed)
                 with self.assertRaises(ValueError):
                     p.check_queue_compatibility([path])
+
+    def test_diagnostics_exempt_only_exact_reviewed_queue_locations(self):
+        paths = [ROOT / '.github/workflows/dependabot-auto-merge.yml']
+        allowed = p.check_queue_compatibility(paths)
+        errors = [dict(filepath=path, line=line, column=column, kind='syntax-check', message=p.QUEUE_DIAGNOSTIC)
+                  for path, line, column in sorted(allowed)]
+        def result(values, code=1, stderr=''):
+            return subprocess.CompletedProcess([], code, json.dumps(values), stderr)
+        p.require_clean_diagnostics(result(errors), allowed, ROOT)
+        # YAML flow syntax can introduce queue on a different line/column
+        # without matching the compatibility precheck's block-syntax pattern.
+        for extra in (dict(errors[0], line=999), dict(errors[0], column=40),
+                      dict(errors[0], filepath=str(ROOT / '.github/workflows/other.yml')),
+                      dict(errors[0], message='invalid workflow'), dict(errors[0], kind='expression')):
+            with self.assertRaises(ValueError):
+                p.require_clean_diagnostics(result(errors + [extra]), allowed, ROOT)
+        for output in (result(errors + [errors[0]]), result(errors[1:]), result([], 0),
+                       result(None), result(errors, 2), result(errors, stderr='fatal error')):
+            with self.assertRaises(ValueError):
+                p.require_clean_diagnostics(output, allowed, ROOT)
