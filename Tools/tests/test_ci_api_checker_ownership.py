@@ -1,7 +1,6 @@
 """Prove the compiler checker has one owner without weakening local/release runs."""
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import tempfile

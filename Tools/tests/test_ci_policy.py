@@ -15,7 +15,10 @@ spec.loader.exec_module(policy)
 
 
 def pr(labels=(), action="opened"):
-    return {"action": action, "pull_request": {"labels": [{"name": x} for x in labels]}}
+    event = {"action": action, "pull_request": {"labels": [{"name": x} for x in labels]}}
+    if action == "edited":
+        event["changes"] = {"base": {"ref": {"from": "develop"}}}
+    return event
 
 
 def results(plan):
@@ -25,6 +28,41 @@ def results(plan):
 
 
 class SelectionTests(unittest.TestCase):
+    def test_retarget_replans_the_new_base_without_running_title_edits(self):
+        with tempfile.TemporaryDirectory(prefix='innodi-retarget-ci-') as directory:
+            root = Path(directory)
+            env = dict(os.environ, GIT_AUTHOR_NAME='Fixture', GIT_COMMITTER_NAME='Fixture',
+                       GIT_AUTHOR_EMAIL='fixture@example.invalid', GIT_COMMITTER_EMAIL='fixture@example.invalid')
+            def git(*args):
+                return subprocess.check_output(['git', '-C', directory, '-c', 'commit.gpgsign=false', *args], env=env, text=True).strip()
+            git('init', '-q', '-b', 'main')
+            (root / 'README.md').write_text('base\n')
+            git('add', 'README.md'); git('commit', '-qm', 'main')
+            main = git('rev-parse', 'HEAD')
+            (root / 'Sources').mkdir()
+            (root / 'Sources/Changed.swift').write_text('struct Changed {}\n')
+            git('add', 'Sources/Changed.swift'); git('commit', '-qm', 'integration')
+            integration = git('rev-parse', 'HEAD')
+            (root / 'README.md').write_text('docs\n')
+            git('add', 'README.md'); git('commit', '-qm', 'head')
+            head = git('rev-parse', 'HEAD')
+            before = policy.make_plan('pull_request', pr(), policy.changed_paths(root, integration, head))
+            self.assertFalse(before['jobs']['fast-tests'])
+            event = pr(action='edited')
+            event['pull_request'].update(base={'sha': main}, head={'sha': head})
+            (root / 'event.json').write_text(json.dumps(event))
+            result = subprocess.run(['python3', str(ROOT / 'Tools/ci-policy.py'), 'plan',
+                '--event', str(root / 'event.json'), '--root', directory, '--output', str(root / 'plan.json')],
+                env={**env, 'GITHUB_EVENT_NAME': 'pull_request'}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            after = json.loads((root / 'plan.json').read_text())
+            for job in ['fast-tests', 'examples', 'documentation-contracts', 'docc']:
+                self.assertTrue(after['jobs'][job])
+            policy.evaluate(after, results(after))
+            event['changes'] = {'title': {'from': 'old title'}}
+            with self.assertRaisesRegex(ValueError, 'metadata-only'):
+                policy.make_plan('pull_request', event, ['README.md'])
+
     def test_impact_matrix(self):
         cases = [
             (["README.md"], {"policy", "documentation-contracts"}),
@@ -86,7 +124,7 @@ class SelectionTests(unittest.TestCase):
                 policy.make_plan("pull_request", pr(), [path])
 
     def test_unsupported_triggers_and_diff_anchors_fail_closed(self):
-        for action in ['ready_for_review', 'edited', 'closed', 'future']:
+        for action in ['ready_for_review', 'closed', 'future']:
             with self.assertRaises(ValueError):
                 policy.make_plan('pull_request', pr(action=action), ['README.md'])
         for labels in [None, {}, ['release-validation'], [{'name': None}], [{'name': 42}]]:
@@ -203,15 +241,16 @@ class RequiredTests(unittest.TestCase):
         self.assertNotIn("    paths:", source)
         self.assertIn("  merge_group:\n    types: [checks_requested]", source)
         aggregate = source.split("  ci-required:\n", 1)[1].split("  append-perf-history:\n", 1)[0]
-        self.assertIn("if: ${{ always() }}", aggregate)
+        self.assertIn("if: ${{ always() && !(", aggregate)
         for job in policy.JOBS:
             self.assertIn("      - " + job + "\n", aggregate)
             if job != "policy":
                 self.assertIn(f"if: needs.ci-plan.outputs.{job} == 'true'", source)
         self.assertNotIn('ready_for_review', source)
         self.assertIn('ready_for_review', (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text())
-        self.assertIn('concurrency:\n  group: macro-tests-${{ github.ref }}\n  cancel-in-progress: true', source)
-        self.assertIn('types: [opened, synchronize, reopened, labeled, unlabeled]', source)
+        self.assertIn("format('metadata-{0}', github.run_id) || github.ref", source)
+        self.assertIn('  cancel-in-progress: true', source)
+        self.assertIn('types: [opened, synchronize, reopened, labeled, unlabeled, edited]', source)
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("      publish:\n", release)
         self.assertIn("        default: false\n        type: boolean", release)

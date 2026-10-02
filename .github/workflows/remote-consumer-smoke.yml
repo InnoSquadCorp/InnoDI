@@ -45,7 +45,7 @@ jobs:
       - name: Confirm the revision is the published main tip
         env:
           INNODI_REPOSITORY_URL: ${{ inputs.repository_url || 'https://github.com/InnoSquadCorp/InnoDI.git' }}
-          INNODI_BRANCH_REF: ${{ inputs.branch_ref || 'refs/heads/main' }}
+          INNODI_BRANCH_REF: ${{ inputs.branch_ref || github.ref }}
           INNODI_REVISION: ${{ inputs.revision || github.sha }}
         run: |
           set -euo pipefail

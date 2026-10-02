@@ -100,8 +100,11 @@ struct CoverageFloorContractTests {
         #expect(coverageGate.contains("--enable-code-coverage"))
         #expect(coverageGate.contains("--no-parallel"))
         // The subprocess build contracts run in parallel jobs beside the
-        // gate; every other test stays in the one coverage pass.
-        #expect(coverageGate.components(separatedBy: "--skip ").count - 1 == 1)
+        // gate. CI can additionally delegate the compiler checker to policy;
+        // local and Release Gate retain it. Executable shell tests prove both.
+        #expect(coverageGate.components(separatedBy: "--skip ").count - 1 == 2)
+        #expect(macroWorkflow.contains("run: Tools/run-coverage-gate.sh --api-checker-in-policy"))
+        #expect(!releaseWorkflow.contains("--api-checker-in-policy"))
         #expect(coverageGate.contains(Self.subprocessContractSkip))
         #expect(!coverageGate.contains("--filter"))
         #expect(coverageGate.contains("BUILD_DIR=\"$(swift build"))

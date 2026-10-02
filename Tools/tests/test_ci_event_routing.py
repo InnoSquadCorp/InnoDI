@@ -16,11 +16,60 @@ def condition(source, job):
     return value.removeprefix('${{ ').removesuffix(' }}')
 
 
-def evaluate(expression, values):
+def expression_value(expression, values):
     for key in sorted(values, key=len, reverse=True):
         expression = expression.replace(key, repr(values[key]))
     expression = expression.replace('&&', ' and ').replace('||', ' or ')
-    return bool(eval(expression, {'__builtins__': {}}))
+    expression = re.sub(r'!(?!=)', ' not ', expression).replace('always()', 'True')
+    return eval(expression.strip(), {'__builtins__': {}, 'format': lambda value, *args: value.format(*args)})
+
+
+def evaluate(expression, values):
+    return bool(expression_value(expression, values))
+
+
+class PRMetadataAdmissionTests(unittest.TestCase):
+    def test_noop_cannot_cancel_validation_or_publish_ci_required(self):
+        source = (ROOT / '.github/workflows/macro-tests.yml').read_text()
+        title = source.split('run-name: >-\n', 1)[1].split('\non:', 1)[0].strip()[3:-3]
+        concurrency = source.split('  group: macro-tests-${{ ', 1)[1].split(' }}', 1)[0]
+        required = source.split('  ci-required:\n', 1)[1]
+        name = required.split('    name: ${{ ', 1)[1].split(' }}', 1)[0]
+        for action, label, base, ignored in [
+                ('opened', '', '', False), ('synchronize', '', '', False), ('reopened', '', '', False),
+                ('labeled', 'release-validation', '', False), ('unlabeled', 'release-validation', '', False),
+                ('labeled', 'documentation', '', True), ('unlabeled', 'bug', '', True),
+                ('labeled', '', '', False), ('edited', '', '', True),
+                ('edited', '', {'ref': {'from': 'develop'}}, False)]:
+            values = {'github.event_name': 'pull_request', 'github.event.action': action,
+                      'github.event.label.name': label, 'github.event.changes.base': base,
+                      'github.event.pull_request.number': 45, 'github.event.pull_request.head.sha': 'a' * 40,
+                      'github.event.pull_request.base.sha': 'b' * 40, 'github.workflow_sha': 'c' * 40,
+                      'github.run_id': 123, 'github.ref': 'refs/pull/45/merge', 'inputs.dependabot_merge_pr': ''}
+            with self.subTest(action=action, label=label, base=base):
+                self.assertEqual(evaluate(condition(source, 'ci-plan'), values), not ignored)
+                self.assertEqual(evaluate(condition(source, 'ci-required'), values), not ignored)
+                self.assertEqual(expression_value(name, values), 'CI Metadata Only' if ignored else 'CI Required')
+                self.assertEqual(expression_value(title, values).startswith('CI metadata-only v1 '), ignored)
+                self.assertEqual(expression_value(concurrency, values), 'metadata-123' if ignored else values['github.ref'])
+        for event in ['push', 'merge_group', 'workflow_dispatch']:
+            values.update({'github.event_name': event, 'github.event.action': 'edited', 'github.event.changes.base': ''})
+            self.assertTrue(evaluate(condition(source, 'ci-plan'), values))
+            self.assertTrue(evaluate(condition(source, 'ci-required'), values))
+            self.assertEqual(expression_value(name, values), 'CI Required')
+
+    def test_metadata_runs_allocate_no_other_runner(self):
+        source = (ROOT / '.github/workflows/macro-tests.yml').read_text()
+        # Every other entrypoint depends on the skipped plan. The only jobs
+        # using always() are independently guarded against a skipped plan.
+        jobs = re.split(r'\n  ([\w-]+):\n', source.split('\njobs:\n', 1)[1])
+        for job, block in zip(jobs[1::2], jobs[2::2]):
+            if job in {'ci-plan', 'ci-required'}:
+                continue
+            if job == 'append-perf-history':
+                self.assertIn("needs.ci-plan.result == 'success'", condition(source, job))
+            else:
+                self.assertIn('    needs: ci-plan\n', block)
 
 
 class CoordinatorAdmissionTests(unittest.TestCase):

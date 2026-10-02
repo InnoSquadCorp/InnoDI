@@ -7,27 +7,36 @@ controls before adapting it. No central repository or credentials are required.
 
 ## Validation levels and changed paths
 
-`CI` in `macro-tests.yml` always creates **CI Plan** and **CI Required** for
-`opened`, `synchronize`, `reopened`, `labeled`, and `unlabeled` PR events, main
+`CI` in `macro-tests.yml` creates **CI Plan** and **CI Required** for
+`opened`, `synchronize`, and `reopened` PR events, adding/removing
+`release-validation`, base-branch retargets (`edited` with `changes.base`), main
 pushes, manual validation, and merge queue `checks_requested`. Drafts receive
 the same path-selected validation as ready PRs. `ready_for_review` remains a
 coordinator eligibility wake-up but no longer repeats expensive CI for an
-unchanged revision. Label events intentionally retain their existing full
-replanning and concurrency behavior: filtering label-only no-ops requires a
-separate proof of required-check identity and lifecycle ordering, and is not
-part of this cache/duplicate-lane change. There are no workflow-level path
-filters that could leave a required check pending.
+unchanged revision. Other label changes and title/body edits create a native
+metadata-only run with every job skipped. Its unique concurrency group cannot
+cancel real validation, and its aggregate is named **CI Metadata Only**, so it
+cannot publish a new **CI Required** verdict. There are no workflow-level path
+filters that could leave a required check pending. Adding or removing
+`release-validation` still replaces the previous plan for that PR.
 
-A base-branch retarget is an `edited` event and does not automatically rerun heavy
-CI in this change. Broadening every title/body edit into expensive validation
-would defeat the latency policy, and a safe base-only dispatcher remains separate
-work. After retargeting, the owner must obtain fresh PR-context CI with the current
-base/head, for example through an actual head-changing update or an explicitly
-requested reopen. Do not treat the old same-head check as fresh-base evidence.
+Base retargets compare the new event base/head and reselect affected checks.
 Re-running an old Actions run retains its original event SHA/ref, and a generic
 manual dispatch is not bot PR proof. The bot coordinator still requires current
 main/test-merge parents and exact run head/base association; stale or unverified
 proof stays blocked. No automatic retarget/reopen/head mutation is introduced.
+
+Metadata-only runs are never validation evidence. When selecting the latest
+actual CI run, the bot and main-reuse policies authenticate newer metadata runs
+against their immutable workflow blob and event merge parents, complete native
+job/check inventories, skipped outcomes without steps, app/suite/URLs, and stable
+attempt metadata. The event-bound run title alone cannot exempt a check. Missing,
+pending, changed or unrecognized evidence blocks bot approval or falls back to
+full main execution; a failed real CI run never becomes green. Older terminal
+runs retain the existing historical attribution rules once a newer real
+validation supersedes them. Hosted confirmation of the skipped-job inventory,
+concurrency isolation and required-check identity is a deployment gate; local
+transcript tests do not establish GitHub UI behavior.
 
 | Level | Contract |
 | --- | --- |
@@ -47,7 +56,8 @@ successful plan. Whenever the exhaustive coverage job is selected, the duplicate
 fast job is unselected: the coverage pass uses the same strict compiler flags
 and serialization with fewer skipped suites, and the exhaustive job also runs
 every fast API, DAG, validation, and informational report command. Executable
-tests pin the skip-set inclusion and complete fast-step inventory. The policy job owns `test_public_api*.py` on Xcode 26.6; fast and exhaustive
+tests pin the skip-set inclusion and complete fast-step inventory.
+The policy job owns `test_public_api*.py` on Xcode 26.6; fast and exhaustive
 CI skip only its duplicate Swift subprocess wrapper, and sanitizer runs skip
 that non-instrumented compiler subprocess. The default local coverage command
 and Release Gate retain the wrapper once. Swift 6.2 keeps its separate compiler
@@ -123,7 +133,9 @@ separate metadata-only Dependabot coordinator uses `pull_request_target` and
 trusted main code; it never executes PR source. Public fork consumers resolve the exact fork
 head through its public URL with normalized package identity; main retains the
 exact-tip check, queue validation uses its temporary `head_ref`, and manual
-branch validation uses the selected branch ref. Moving branches
+branch validation uses the selected branch ref, including direct dispatch of
+the reusable remote-consumer workflow without an explicit `branch_ref` input.
+An explicit input must still match the selected SHA. Moving branches
 can invalidate a run and require a fresh one.
 
 Docs publication consumes the Pages artifact of a successful main push **CI**

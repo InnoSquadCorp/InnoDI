@@ -122,8 +122,9 @@ Reporter completion is a metadata wake-up for the coordinator, which still
 requires fresh full proof before any native auto-merge request.
 
 Reruns retain their original workflow definition. The resolver verifies trusted
-source ancestry and compares the exact blob IDs of both workflow definitions and both
-runtime policy scripts against current main. An incompatible old definition
+source ancestry and compares the exact blob IDs of both workflow definitions,
+both reporter/coordinator policy scripts and their shared CI metadata policy
+against current main. An incompatible old definition
 requires a fresh PR lifecycle event rather than repeatedly rerunning old code.
 Cancelled, missing, ambiguous, neutral/skipped or infrastructure-failed reporters
 also require operator recovery. The implementation stops before 30 days and at
@@ -148,8 +149,9 @@ it or explicitly rerun the native reporter to obtain a new attempt; do not rerun
 the refresh writer blindly. There are no new comments, cache claims, tokens or
 status-check writes used as a journal.
 
-Only exact API-verified coordinator transport and native reporter job/check
-pairs are excluded from full CI proof. An arbitrary Ready-name check, wrong app,
+Only exact API-verified coordinator transport, native reporter job/check pairs,
+and authenticated CI metadata-only skips described below are excluded from
+full CI proof. An arbitrary Ready-name check, wrong app,
 suite, job URL or missing native job is never exempt. Historical native attempts
 are attributed by their real Actions jobs; they never replace the latest verdict.
 GitHub may expose the exact unevaluated matrix-name expression for a PR-target
@@ -209,11 +211,25 @@ wake-ups, not approval evidence. Author must be `dependabot[bot]`, user ID
 head and base `main`. Labels, actor, branch name, title and update size do not
 establish identity or eligibility.
 
-The latest exact-head `pull_request` run of the active
+The latest exact-head validation `pull_request` run of the active
 `.github/workflows/macro-tests.yml` is re-read by ID and attempt. Its repository,
 workflow ID/path, PR association, recorded head/base SHA and current test-merge
 parents must agree with current head/main. An older base run, failed rerun,
 pending newer run, ambiguous connection or unavailable metadata blocks approval.
+
+Ordinary labels and title/body edits use a separately named **CI Metadata Only**
+aggregate and an isolated concurrency group. They allocate no runners and do not
+replace **CI Required**. Before excluding a newer such run from latest-validation
+selection, `Tools/ci-metadata-policy.py` verifies the event-bound PR/head/base and
+immutable merge/workflow definition, complete native skipped job/check inventory
+without executed steps, GitHub Actions app/suite/job URLs, all attempts and stable
+run metadata. A title prefix alone is insufficient. Pending, cancelled, foreign,
+incomplete or changed metadata is a controlled blocked result, never permission
+to adopt older success; main CI reuse instead falls back to full execution on
+failed admission. A newer real validation supersedes older terminal runs through
+the existing historical attribution rules. Release-label transitions and base
+retargets remain real validation. Hosted required-check recognition and native
+skipped-job representation must be confirmed after deployment.
 
 All REST jobs/checks/statuses and GraphQL review-thread pages are collected.
 InnoDI requires 17 successful jobs, including each reusable example, both

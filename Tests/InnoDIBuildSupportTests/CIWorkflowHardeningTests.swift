@@ -47,7 +47,7 @@ struct CIWorkflowHardeningTests {
 
         #expect(
             workflowPolicy.contains(
-                "concurrency:\n  group: macro-tests-${{ github.ref }}\n  cancel-in-progress: true"
+                "format('metadata-{0}', github.run_id) || github.ref"
             )
         )
     }
@@ -214,7 +214,7 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  workflow_dispatch:\n"))
         #expect(
             workflowPolicy.contains(
-                "types: [opened, synchronize, reopened, labeled, unlabeled]"
+                "types: [opened, synchronize, reopened, labeled, unlabeled, edited]"
             )
         )
         for job in ["macro-tests", "consumer-contracts", "sanitizers",
@@ -228,7 +228,7 @@ struct CIWorkflowHardeningTests {
             encoding: .utf8
         )
         #expect(coordinator.contains("ready_for_review"))
-        #expect(workflow.contains("name: CI Required"))
+        #expect(workflow.contains("'CI Metadata Only' || 'CI Required'"))
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
@@ -682,7 +682,7 @@ struct CIWorkflowHardeningTests {
         )
 
         #expect(workflow.contains("INNODI_REVISION: ${{ inputs.revision || github.sha }}"))
-        #expect(workflow.contains("INNODI_BRANCH_REF: ${{ inputs.branch_ref || 'refs/heads/main' }}"))
+        #expect(workflow.contains("INNODI_BRANCH_REF: ${{ inputs.branch_ref || github.ref }}"))
         #expect(workflow.contains("Package.resolved"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))

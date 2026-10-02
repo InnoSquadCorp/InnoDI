@@ -133,7 +133,8 @@ def source_compatible(api, p, source):
     main = source_ancestor(api, p, source)
     # Re-running preserves the old workflow definition and privileges. Do not
     # rerun an obsolete definition while checking out newer policy code.
-    for path in (REPORTER_PATH, p.COORDINATOR_PATH, "Tools/dependabot-ready-policy.py", "Tools/dependabot-merge-policy.py"):
+    for path in (REPORTER_PATH, p.COORDINATOR_PATH, "Tools/dependabot-ready-policy.py",
+                 "Tools/dependabot-merge-policy.py", "Tools/ci-metadata-policy.py"):
         old = api.get(p.route(f"contents/{path}?ref={source}"))
         current = api.get(p.route(f"contents/{path}?ref={main}"))
         p.require(isinstance(old.get("sha"), str) and p.SHA.fullmatch(old["sha"]) and old["sha"] == current.get("sha"),
