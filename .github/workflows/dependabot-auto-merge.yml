@@ -17,7 +17,11 @@ permissions:
 
 jobs:
   inspect:
-    if: github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' && github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main'
+    # Main CI notifications cannot identify a PR; push/schedule still reconcile bot merges.
+    if: >-
+      github.repository == 'InnoSquadCorp/InnoDI' && github.ref == 'refs/heads/main' &&
+      github.workflow_ref == 'InnoSquadCorp/InnoDI/.github/workflows/dependabot-auto-merge.yml@refs/heads/main' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.path != '.github/workflows/macro-tests.yml' || github.event.workflow_run.event == 'pull_request')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -44,7 +48,7 @@ jobs:
 
   ready-plan:
     needs: inspect
-    if: needs.inspect.result == 'success' && github.event_name != 'pull_request_target'
+    if: needs.inspect.result == 'success' && github.event_name != 'pull_request_target' && needs.inspect.outputs.prs != '[]' && needs.inspect.outputs.prs != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

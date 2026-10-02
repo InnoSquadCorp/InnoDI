@@ -365,3 +365,12 @@ References: [Dependabot Actions automation](https://docs.github.com/en/code-secu
 [GITHUB_TOKEN recursion limits](https://docs.github.com/en/actions/concepts/security/github_token),
 [native auto-merge input](https://docs.github.com/en/graphql/reference/input-objects#enablepullrequestautomergeinput),
 [strict required checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
+
+### Avoiding empty reconciliation work
+
+The coordinator skips runner allocation for notifications from non-PR `CI`
+runs: the target resolver cannot associate those with an eligible PR. The
+independent main push and periodic recovery entrypoints remain enabled, including
+when the open PR list is empty after an actual bot merge. `ready-plan` only runs
+with a nonempty target list. These filters do not remove current-head pending
+or failure notifications, Ready refresh completion, or review reconciliation.
