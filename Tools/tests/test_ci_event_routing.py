@@ -16,13 +16,28 @@ def condition(source, job):
     return value.removeprefix('${{ ').removesuffix(' }}')
 
 
+class GitHubString(str):
+    # GitHub compares strings case-insensitively. Use its documented semantics
+    # for these string-only predicates, not Python's default string equality.
+    def __eq__(self, other):
+        if not isinstance(other, str):
+            return NotImplemented
+        return self.lower() == other.lower()
+
+    def __ne__(self, other):
+        equal = self.__eq__(other)
+        return NotImplemented if equal is NotImplemented else not equal
+
+
 def expression_value(expression, values):
     for key in sorted(values, key=len, reverse=True):
-        expression = expression.replace(key, repr(values[key]))
+        value = repr(values[key])
+        expression = expression.replace(key, 'string(' + value + ')' if isinstance(values[key], str) else value)
     expression = expression.replace('&&', ' and ').replace('||', ' or ')
     expression = re.sub(r'!(?!=)', ' not ', expression).replace('always()', 'True')
-    return eval(expression.strip(), {'__builtins__': {}, 'format': lambda value, *args: value.format(*args),
-                                    'startsWith': lambda value, prefix: value.startswith(prefix)})
+    return eval(expression.strip(), {'__builtins__': {}, 'string': GitHubString,
+                                    'format': lambda value, *args: value.format(*args),
+                                    'startsWith': lambda value, prefix: value.lower().startswith(prefix.lower())})
 
 
 def evaluate(expression, values):
@@ -39,6 +54,7 @@ class PRMetadataAdmissionTests(unittest.TestCase):
         for action, label, base, ignored in [
                 ('opened', '', '', False), ('synchronize', '', '', False), ('reopened', '', '', False),
                 ('labeled', 'release-validation', '', False), ('unlabeled', 'release-validation', '', False),
+                ('labeled', 'Release-Validation', '', False), ('unlabeled', 'RELEASE-VALIDATION', '', False),
                 ('labeled', 'documentation', '', True), ('unlabeled', 'bug', '', True),
                 ('labeled', '', '', False), ('edited', '', '', True),
                 ('edited', '', {'ref': {'from': 'develop'}}, False)]:

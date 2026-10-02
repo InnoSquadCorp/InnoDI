@@ -102,6 +102,18 @@ class SelectionTests(unittest.TestCase):
                 self.assertEqual({j for j, selected in plan["jobs"].items() if selected}, expected)
                 policy.evaluate(plan, results(plan))
 
+    def test_release_label_case_matches_native_workflow_selection(self):
+        # Native GitHub comparisons accept each spelling and start real CI.
+        # Its Python plan must keep the full gate even for a policy-only diff.
+        for label in ('release-validation', 'Release-Validation', 'RELEASE-VALIDATION'):
+            with self.subTest(label=label):
+                plan = policy.make_plan('pull_request', pr([label], 'labeled'), ['.github/dependabot.yml'])
+                self.assertEqual(plan['lane'], 'release-validation')
+                self.assertEqual({j for j, selected in plan['jobs'].items() if selected}, set(policy.JOBS) - {'fast-tests'})
+        for label in ('release-validation-other', 'release-validation ', 'documentation'):
+            plan = policy.make_plan('pull_request', pr([label], 'labeled'), ['.github/dependabot.yml'])
+            self.assertEqual(plan['lane'], 'fast')
+
     def test_main_queue_dispatch_keep_full_level(self):
         for name, event in [("push", {"ref": "refs/heads/main"}),
                             ("merge_group", {"action": "checks_requested"}),

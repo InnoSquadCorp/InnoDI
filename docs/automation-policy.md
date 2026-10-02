@@ -18,7 +18,9 @@ metadata-only run with every job skipped. Its unique concurrency group cannot
 cancel real validation, and its aggregate is named **CI Metadata Only**, so it
 cannot publish a new **CI Required** verdict. There are no workflow-level path
 filters that could leave a required check pending. Adding or removing
-`release-validation` still replaces the previous plan for that PR.
+`release-validation` still replaces the previous plan for that PR. Its spelling
+is matched without case sensitivity in both the native workflow and the Python
+planner, so a case-only label rename cannot downgrade full validation.
 
 Base retargets compare the new event base/head and reselect affected checks.
 Re-running an old Actions run retains its original event SHA/ref, and a generic
