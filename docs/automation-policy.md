@@ -164,6 +164,11 @@ deployment its originating SHA must still equal remote main, so a stale run or
 rerun cannot roll documentation back. Main
 performance history appends only after CI Required succeeds. These existing
 post-validation writes are never part of candidate or PR validation.
+The Docs trigger filters originating branches to main, and only its eligible
+deployment job enters the `pages` concurrency group after artifact preparation
+succeeds. PR/metadata-only/failed/ordinary-manual CI notices cannot occupy that
+deployment queue or replace a pending deployment. Actual hosted queue ordering
+remains part of deployment verification.
 
 ## Cache identity and measurements
 

@@ -21,7 +21,8 @@ def expression_value(expression, values):
         expression = expression.replace(key, repr(values[key]))
     expression = expression.replace('&&', ' and ').replace('||', ' or ')
     expression = re.sub(r'!(?!=)', ' not ', expression).replace('always()', 'True')
-    return eval(expression.strip(), {'__builtins__': {}, 'format': lambda value, *args: value.format(*args)})
+    return eval(expression.strip(), {'__builtins__': {}, 'format': lambda value, *args: value.format(*args),
+                                    'startsWith': lambda value, prefix: value.startswith(prefix)})
 
 
 def evaluate(expression, values):
@@ -101,3 +102,34 @@ class CoordinatorAdmissionTests(unittest.TestCase):
         self.assertNotIn('needs.inspect.outputs.prs', recovery)
         for event in ['push', 'schedule', 'workflow_dispatch']:
             self.assertIn("github.event_name == '" + event + "'", recovery)
+
+
+class DocsAdmissionTests(unittest.TestCase):
+    def test_only_eligible_deployment_jobs_enter_the_pages_queue(self):
+        source = (ROOT / '.github/workflows/docs.yml').read_text()
+        # The default concurrency queue replaces an existing pending item.
+        # No-op workflow_run notices must never participate in that queue.
+        self.assertNotIn('\nconcurrency:', source)
+        deploy = source.split('  deploy-pages:\n', 1)[1]
+        self.assertIn('    needs: docc\n', deploy)
+        self.assertIn('    concurrency:\n      group: pages\n      cancel-in-progress: false', deploy)
+        self.assertEqual(source.count('group: pages'), 1)
+        self.assertIn('    branches: [main]\n', source)
+        base = {'github.repository': 'InnoSquadCorp/InnoDI',
+                'github.event.workflow_run.repository.full_name': 'InnoSquadCorp/InnoDI',
+                'github.event.workflow_run.path': '.github/workflows/macro-tests.yml',
+                'github.event.workflow_run.head_branch': 'main',
+                'github.event.workflow_run.conclusion': 'success',
+                'github.event.workflow_run.event': 'push',
+                'github.event.workflow_run.display_title': 'CI validation / push / refs/heads/main'}
+        admission = condition(source, 'docc')
+        self.assertTrue(evaluate(admission, base))
+        recovery = {**base, 'github.event.workflow_run.event': 'workflow_dispatch',
+                    'github.event.workflow_run.display_title': 'CI / Dependabot merge #50'}
+        self.assertTrue(evaluate(admission, recovery))
+        for field, value in (
+                ('event', 'pull_request'), ('event', 'merge_group'), ('event', 'workflow_dispatch'),
+                ('conclusion', 'failure'), ('conclusion', 'cancelled'), ('conclusion', 'skipped'),
+                ('head_branch', 'topic'), ('path', '.github/workflows/foreign.yml'),
+                ('repository.full_name', 'other/repository')):
+            self.assertFalse(evaluate(admission, {**base, 'github.event.workflow_run.' + field: value}))

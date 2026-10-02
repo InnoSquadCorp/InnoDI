@@ -4,13 +4,10 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   docc:
@@ -47,6 +44,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: docc
+    # Only artifact-backed deployments share this queue. An unrelated CI
+    # completion must not replace a pending deployment with a skipped run.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     steps:
       - name: Reject stale main documentation
         env:
