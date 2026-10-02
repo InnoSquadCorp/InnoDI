@@ -47,8 +47,12 @@ successful plan. Whenever the exhaustive coverage job is selected, the duplicate
 fast job is unselected: the coverage pass uses the same strict compiler flags
 and serialization with fewer skipped suites, and the exhaustive job also runs
 every fast API, DAG, validation, and informational report command. Executable
-tests pin the skip-set inclusion and complete fast-step inventory. Consumer,
-TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
+tests pin the skip-set inclusion and complete fast-step inventory. The policy job owns `test_public_api*.py` on Xcode 26.6; fast and exhaustive
+CI skip only its duplicate Swift subprocess wrapper, and sanitizer runs skip
+that non-instrumented compiler subprocess. The default local coverage command
+and Release Gate retain the wrapper once. Swift 6.2 keeps its separate compiler
+contract, and every applicable aggregate still requires the owner to succeed.
+Consumer, TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
 separate requirements; no unique check is removed.
 
 For a normal single-commit squash push to main, six jobs may reuse successful
