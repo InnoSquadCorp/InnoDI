@@ -65,6 +65,26 @@ contract, and every applicable aggregate still requires the owner to succeed.
 Consumer, TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
 separate requirements; no unique check is removed.
 
+The existing required policy job also runs `Tools/check-ci-workflows.py`; lint
+does not allocate a separate runner. It downloads actionlint 1.7.12 for the host,
+verifies a reviewed SHA-256 digest before extracting its executable, and checks
+every workflow. Optional host-installed shellcheck/pyflakes integrations are
+disabled so the result does not depend on the runner image. The unsupported
+`concurrency.queue` diagnostic is narrowly exempted only after checking that
+the three known coordinator writer queues retain their exact `max` values and
+locations. A changed queue requires reviewing this exception. Download,
+checksum and lint failures fail the policy job.
+
+Every runner job has an explicit timeout. The previously unbounded exhaustive
+CI pass now has 60 minutes; Examples and DocC have 30 minutes; lightweight
+aggregates have 5 minutes, artifact/history transport 10 minutes, Pages deployment
+15 minutes, and manual performance reconstruction 60 minutes. Existing dedicated
+consumer/sanitizer/release budgets are retained. These initial bounds leave
+headroom above the observed PR #50 exhaustive pass (22m04s), current-main pass
+(17m13s), and 2–4 minute example/DocC jobs; they are not estimates of worst-case
+cold runs. Revisit them with hosted distributions if legitimate runs approach
+the limit. Timeout is a failure, never reusable success.
+
 For a normal single-commit squash push to main, six jobs may reuse successful
 PR verification: primary consumer contracts, sanitizers, Swift 6.2 compatibility,
 Xcode 27 compatibility, Apple platform builds and path identity. The read-only

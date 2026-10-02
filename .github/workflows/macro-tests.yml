@@ -109,6 +109,7 @@ jobs:
         run: |
           Tools/check-ci-validation-opt-out.sh
           Tools/check-ci-action-pins.sh
+          python3 -B Tools/check-ci-workflows.py
           python3 -B -m unittest discover -s Tools/tests
           python3 Tools/check-public-operations.py
 
@@ -264,6 +265,7 @@ jobs:
     needs: ci-plan
     if: needs.ci-plan.outputs.macro-tests == 'true'
     runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -773,6 +775,7 @@ jobs:
     # validation jobs suppressing this writer; explicit successes and the
     # cancellation guard still block any failed, incomplete or cancelled run.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     concurrency:
