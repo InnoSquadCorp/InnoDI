@@ -32,7 +32,9 @@ private func makeWithOverridesMethod(
 ) -> DeclSyntax {
     let modifiersFromAccessLevel = accessModifiers(model.accessLevel)
     var modifiers = modifiersFromAccessLevel
-    if isAsync && !model.options.mainActor {
+    // An explicitly annotated enclosing type already isolates its generated
+    // initializer. Do not override that inherited isolation on async helpers.
+    if isAsync && !model.options.mainActor && !model.explicitlyMainActor {
         modifiers.append(
             DeclModifierSyntax(
                 name: .keyword(.nonisolated),

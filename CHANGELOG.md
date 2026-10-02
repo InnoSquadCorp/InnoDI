@@ -19,6 +19,14 @@ that change moves to 8.0.
 
 ### Next-major prototype (release unassigned)
 
+- Async `withOverrides` overloads now preserve a source-written `@MainActor`
+  on the container instead of emitting a conflicting `nonisolated(nonsending)`
+  modifier. Calls to an explicitly actor-isolated container stay on MainActor;
+  no `Sendable` constraint or unchecked conversion is added. The existing
+  `DIContainerRole(..., mainActor: true)` path is unchanged. Consumers using an
+  explicit actor annotation no longer need to duplicate that isolation option
+  merely to make the generated override helpers compile.
+
 - `generateOwned: true` adds a separate `makeOwned` construction path with typed
   async preparation, selected running-work cancellation, retry, status, and
   idempotent close. The distinct generated view preserves typed service access;

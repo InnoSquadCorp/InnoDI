@@ -41,6 +41,14 @@ swiftc "${FLAGS[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI -lOwnedPubli
 "$OUT/PublicClient" > "$OUT/public-client-run.log" 2>&1
 cat "$OUT/public-client-run.log"
 
+# A source-written @MainActor must not be erased by async withOverrides helpers.
+cp "$ROOT/Tests/OwnedPortablePluginFixtures/ExplicitActorOverrides.swift.fixture" "$OUT/ExplicitActorOverrides.swift"
+swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI \
+  -Xlinker -rpath -Xlinker "$OUT" "$OUT/ExplicitActorOverrides.swift" -o "$OUT/ExplicitActorOverrides" \
+  > "$OUT/explicit-actor-overrides-compile.log" 2>&1
+"$OUT/ExplicitActorOverrides" > "$OUT/explicit-actor-overrides-run.log" 2>&1
+cat "$OUT/explicit-actor-overrides-run.log"
+
 negative() {
   local name="$1" source="$2" expected="$3"
   cp "$source" "$OUT/$name.swift"
