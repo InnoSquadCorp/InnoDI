@@ -228,7 +228,13 @@ incomplete or changed metadata is a controlled blocked result, never permission
 to adopt older success; main CI reuse instead falls back to full execution on
 failed admission. A newer real validation supersedes older terminal runs through
 the existing historical attribution rules. Release-label transitions and base
-retargets remain real validation. Hosted required-check recognition and native
+retargets remain real validation. A verified metadata-only completion is a
+reconciliation wake-up for the current full CI and native Ready, never validation
+evidence itself. This recovers a real CI completion that was blocked while the
+metadata run was pending, even when an already-green Ready needs no refresh.
+Stale attempts and unverified notifications cannot request this reconciliation;
+repeated completion events do not enable an already-armed request again.
+Hosted required-check recognition and native
 skipped-job representation must be confirmed after deployment.
 
 All REST jobs/checks/statuses and GraphQL review-thread pages are collected.

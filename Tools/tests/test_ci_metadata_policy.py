@@ -1,11 +1,13 @@
 """Native metadata no-ops cannot replace, green, cancel or hide real CI evidence."""
 import copy
 import importlib.util
+import itertools
 from pathlib import Path
 import unittest
 from unittest import mock
 
 import test_dependabot_merge_policy as bot
+import test_dependabot_ready_policy as ready
 import test_main_ci_reuse_policy as reuse
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +76,24 @@ def reuse_api(expanded=False):
 
 
 class MetadataProofTests(unittest.TestCase):
+    def test_skipped_inventories_match_actual_workflow_job_names(self):
+        # Independently derive both native reusable-call representations from
+        # the workflow files, so a new/renamed job cannot silently break proof.
+        workflows = ROOT / '.github/workflows'
+        direct, calls = set(), []
+        for job in bot.workflow_jobs((workflows / 'macro-tests.yml').read_text()).values():
+            if job['uses']:
+                children = bot.workflow_jobs((workflows / job['uses']).read_text()).values()
+                calls.append(({job['name']}, {job['name'] + ' / ' + child['name'] for child in children}))
+            else:
+                name = job['name']
+                if name.startswith('${{ '):
+                    self.assertIn("'CI Metadata Only' || 'CI Required'", name)
+                    name = 'CI Metadata Only'
+                direct.add(name)
+        expected = {frozenset(direct.union(*children)) for children in itertools.product(*calls)}
+        self.assertEqual({frozenset(names) for names in m.INVENTORIES}, expected)
+
     def test_latest_real_ci_is_preserved_for_main_reuse_and_bot_readiness(self):
         for expanded in (False, True):
             api = reuse_api(expanded)
@@ -147,3 +167,57 @@ class MetadataProofTests(unittest.TestCase):
             result = bot.p.coordinate(b, bot.NUMBER, True, dict(id=bot.RUN, run_attempt=1))
         self.assertIn('blocked:', result)
         self.assertEqual(b.base.mutations, [])
+
+    def test_metadata_completion_recovers_a_blocked_real_ci_notification(self):
+        for already_armed in (False, True):
+            with self.subTest(already_armed=already_armed):
+                b = MetadataAPI(bot.Transcript(), bot.NUMBER, bot.HEAD, bot.BASE, bot.MERGE)
+                if already_armed:
+                    b.base.pr['auto_merge'] = dict(enabled_by=dict(bot.p.BOT))
+                b.run.update(status='in_progress', conclusion=None)
+                with mock.patch.dict(bot.os.environ, bot.TRUSTED, clear=True):
+                    blocked = bot.p.coordinate(b, bot.NUMBER, True, dict(id=bot.RUN, run_attempt=1))
+                    self.assertIn('blocked:', blocked)
+                    self.assertFalse(b.base.pr.get('auto_merge'))
+                    b.run.update(status='completed', conclusion='success')
+                    # A still-green reporter produces no refresh/completion
+                    # event to rescue a discarded metadata wake-up.
+                    self.assertIsNone(ready.n.refresh_plan(b, bot.p, bot.NUMBER, True))
+                    notification = dict(id=META, run_attempt=1)
+                    self.assertIn('armed', bot.p.coordinate(b, bot.NUMBER, True, notification))
+                    self.assertIn('armed', bot.p.coordinate(b, bot.NUMBER, True, notification))
+                enables = [m for m in b.base.mutations if 'enablePullRequestAutoMerge' in m[1]]
+                self.assertEqual(len(enables), 1)
+                self.assertEqual(enables[0][2]['head'], bot.HEAD)
+
+    def test_metadata_completion_requires_current_full_ci_and_native_ready(self):
+        for state in ('failure', 'cancelled', 'in_progress', 'missing', 'ready-pending', 'standby'):
+            with self.subTest(state=state):
+                b = MetadataAPI(bot.Transcript(), bot.NUMBER, bot.HEAD, bot.BASE, bot.MERGE)
+                if state == 'missing':
+                    b.base.runs = [b.run]
+                elif state == 'ready-pending':
+                    b.base.native_run.update(status='in_progress', conclusion=None)
+                elif state != 'standby':
+                    b.base.run.update(status='in_progress' if state == 'in_progress' else 'completed',
+                                      conclusion=None if state == 'in_progress' else state)
+                with mock.patch.dict(bot.os.environ, bot.TRUSTED, clear=True):
+                    result = bot.p.coordinate(b, bot.NUMBER, state != 'standby', dict(id=META, run_attempt=1))
+                self.assertIn('blocked:', result)
+                self.assertFalse(b.base.mutations)
+
+    def test_stale_foreign_unlisted_or_unverified_metadata_notification_cannot_arm(self):
+        for change in (
+                lambda b: b.run.update(head_sha='0' * 40),
+                lambda b: b.run.update(run_attempt=2),
+                lambda b: b.base.runs.remove(b.run),
+                lambda b: b.run.update(display_title=m.PREFIX + 'forged'),
+                lambda b: setattr(b, 'blob', '0' * 40),
+                lambda b: b.jobs[0].update(steps=[dict(name='executed')]),
+                lambda b: setattr(b, 'finish_mutation', lambda r: r.update(run_attempt=2))):
+            b = MetadataAPI(bot.Transcript(), bot.NUMBER, bot.HEAD, bot.BASE, bot.MERGE)
+            change(b)
+            with mock.patch.dict(bot.os.environ, bot.TRUSTED, clear=True):
+                result = bot.p.coordinate(b, bot.NUMBER, True, dict(id=META, run_attempt=1))
+            self.assertNotIn('armed', result)
+            self.assertFalse(b.base.mutations)

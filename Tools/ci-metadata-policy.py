@@ -25,9 +25,9 @@ INVENTORIES = [DIRECT.union(*children) for children in itertools.product(*CALLS)
 
 
 def partition(api, runs, *, repository, repository_id, workflow_id, number, head, source, require):
-    """Return validation runs and check IDs of proven metadata-only transports."""
+    """Return validation runs, exempt check IDs and verified (run, attempt) pairs."""
     route = 'repos/' + repository + '/'
-    validations, ignored = [], set()
+    validations, ignored, metadata_runs = [], set(), set()
     expected_blob = None
     require(all(type(r.get('id')) is int and r['id'] > 0 and
                 type(r.get('run_number')) is int and r['run_number'] > 0 for r in runs),
@@ -101,4 +101,5 @@ def partition(api, runs, *, repository, repository_id, workflow_id, number, head
             'head_sha', 'repository', 'head_repository', 'check_suite_id', 'status', 'conclusion')),
             'metadata run changed while reading proof')
         ignored.update(observed)
-    return validations, ignored
+        metadata_runs.add((run['id'], run['run_attempt']))
+    return validations, ignored, metadata_runs

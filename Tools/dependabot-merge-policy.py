@@ -245,7 +245,7 @@ def proof(api, number, notification=None):
     workflow = api.get(route("actions/workflows/macro-tests.yml"))
     require(workflow.get("path") == CI_PATH and workflow.get("state") == "active", "wrong/inactive CI workflow")
     runs = api.pages(route(f"actions/workflows/macro-tests.yml/runs?event=pull_request&head_sha={head}"), "workflow_runs")
-    runs, metadata_check_ids = validation_runs(api, runs, workflow["id"], repo["id"], number, head, merge_sha)
+    runs, metadata_check_ids, _ = validation_runs(api, runs, workflow["id"], repo["id"], number, head, merge_sha)
     require(bool(runs), "missing exact-head CI")
     run = max(runs, key=lambda r: (r["run_number"], r["id"]))
     run = api.get(route(f"actions/runs/{run['id']}"))
@@ -469,9 +469,14 @@ def coordinate(api, number, enabled=False, notification=None):
                 return "obsolete notification; no mutation"
             runs = api.pages(route(f"actions/workflows/macro-tests.yml/runs?event=pull_request&head_sha={head}"), "workflow_runs")
             workflow = api.get(route("actions/workflows/macro-tests.yml"))
-            runs, _ = validation_runs(api, runs, workflow["id"], pr["base"]["repo"]["id"],
-                                      number, head, pr["merge_commit_sha"])
-            if not runs or max(runs, key=lambda r: (r["run_number"], r["id"]))["id"] != notification["id"]:
+            runs, _, metadata_runs = validation_runs(api, runs, workflow["id"], pr["base"]["repo"]["id"],
+                                                     number, head, pr["merge_commit_sha"])
+            if (notification["id"], notification["run_attempt"]) in metadata_runs:
+                # A verified no-op can finish after real CI was blocked on it.
+                # Reconcile current facts without binding proof to the no-op:
+                # only the latest actual full CI and native Ready can arm.
+                notification = None
+            elif not runs or max(runs, key=lambda r: (r["run_number"], r["id"]))["id"] != notification["id"]:
                 return "obsolete notification; no mutation"
         require(enabled is True, "standby: new auto-merge approvals disabled")
         first = proof(api, number, notification)
