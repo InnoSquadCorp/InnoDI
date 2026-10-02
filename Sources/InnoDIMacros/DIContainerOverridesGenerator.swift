@@ -81,6 +81,10 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         memberDecls.append(MemberBlockItemSyntax(decl: applySlot))
     }
 
+    // Keep the outer optional as the override-presence bit, even when Value
+    // itself is optional. These methods inherit the builder's actor isolation.
+    memberDecls.append(contentsOf: makeOverrideSlotMutationMethods(model: model))
+
     if !effectCandidates.isEmpty {
         let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
         let requirements = effectCandidates.map {
@@ -146,6 +150,50 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
     )
 
     return DeclSyntax(structDecl)
+}
+
+private func makeOverrideSlotMutationMethods(
+    model: DIContainerExpansionModel
+) -> [MemberBlockItemSyntax] {
+    var modifiers = accessModifiers(model.accessLevel)
+    modifiers.append(DeclModifierSyntax(name: .keyword(.mutating)))
+
+    func method(name: String, setsValue: Bool) -> MemberBlockItemSyntax {
+        var parameters = FunctionParameterListSyntax([
+            FunctionParameterSyntax(
+                firstName: .wildcardToken(), secondName: .identifier("keyPath"),
+                type: TypeSyntax("Swift.WritableKeyPath<Self, Value?>"),
+                trailingComma: setsValue ? .commaToken() : nil
+            )
+        ])
+        if setsValue {
+            parameters.append(FunctionParameterSyntax(
+                firstName: .identifier("to"), secondName: .identifier("value"),
+                type: TypeSyntax("Value")
+            ))
+        }
+        return MemberBlockItemSyntax(decl: FunctionDeclSyntax(
+            modifiers: modifiers,
+            name: .identifier(name),
+            genericParameterClause: GenericParameterClauseSyntax(
+                parameters: GenericParameterListSyntax([
+                    GenericParameterSyntax(name: .identifier("Value"))
+                ])
+            ),
+            signature: FunctionSignatureSyntax(
+                parameterClause: FunctionParameterClauseSyntax(parameters: parameters)
+            ),
+            body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+                setsValue
+                    ? "self[keyPath: keyPath] = .some(value)"
+                    : "self[keyPath: keyPath] = .none"
+            ]))
+        ))
+    }
+    return [
+        method(name: "set", setsValue: true),
+        method(name: "useDefault", setsValue: false)
+    ]
 }
 
 /// Stable child-mount ABI used by parent `@SubContainer` code. Valid

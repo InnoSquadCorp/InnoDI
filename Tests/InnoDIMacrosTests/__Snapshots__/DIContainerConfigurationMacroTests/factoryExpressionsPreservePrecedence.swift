@@ -50,6 +50,12 @@ struct AppContainer {
         var required: Service? = nil
         var selected: Service? = nil
         var optional: Service?? = nil
+        mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
     }
 
     typealias _InnoDIMountOverrides = Overrides

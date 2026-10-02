@@ -346,6 +346,16 @@ public struct DIOverridePreset<Overrides>: Sendable {
 }
 
 extension DIOverridePreset where Overrides: DIOverrideEffectValidating {
+    /// Applies this preset and checks every marked effect before construction.
+    /// Pass `preset.applyValidated` directly to a throwing override builder,
+    /// such as the `overrides:` argument of a generated `withPrepared` helper.
+    /// The caller-owned builder retains the applied mutations if validation
+    /// throws. Use `validated(base:profile:)` for a custom policy.
+    public func applyValidated(to overrides: inout Overrides) throws {
+        apply(to: &overrides)
+        try DIOverrideEffectValidation.validate(overrides)
+    }
+
     /// Applies this preset to a caller-owned builder, then validates it before
     /// the caller constructs a container.
     public func validated(
@@ -360,6 +370,15 @@ extension DIOverridePreset where Overrides: DIOverrideEffectValidating {
 }
 
 extension DIOverridePreset where Overrides: DIMainActorOverrideEffectValidating {
+    /// Main-actor strict preflight for a generated throwing override builder.
+    /// Preset mutations retain their existing `@Sendable` closure contract;
+    /// use an isolated override closure for actor-bound values instead.
+    @MainActor
+    public func applyValidated(to overrides: inout Overrides) throws {
+        apply(to: &overrides)
+        try DIOverrideEffectValidation.validate(overrides)
+    }
+
     /// Main-actor counterpart for containers declared with `mainActor: true`.
     @MainActor
     public func validated(

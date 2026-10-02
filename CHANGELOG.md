@@ -19,6 +19,12 @@ that change moves to 8.0.
 
 ### Next-major prototype (release unassigned)
 
+- Typed Overrides gain `set(_:to:)` and `useDefault(_:)` to distinguish an
+  explicit optional nil from leaving a live factory enabled. Transient value
+  overrides still return the stored value. `DIOverridePreset.applyValidated`
+  serves directly as a strict throwing preflight callback for marked effects;
+  unmarked effects remain unverified.
+
 - Public Lazy/Provider examples and deferred candidate diagnostics now reflect
   the same non-caching, scope and effect rules as actual provider resolution.
   Parameter-only rename fixes are withheld when binding uses or capture risks

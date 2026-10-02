@@ -260,6 +260,12 @@ struct DIContainerMacroTests {
                     // MARK: - Overrides Builder
                     package struct Overrides {
                         package var apiClient: APIClient? = nil
+                        package mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+                            self[keyPath: keyPath] = .some(value)
+                        }
+                        package mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+                            self[keyPath: keyPath] = .none
+                        }
                     }
 
                     package typealias _InnoDIMountOverrides = Overrides
