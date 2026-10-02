@@ -131,6 +131,32 @@ public struct DIAsyncPreparationReport: Equatable, Sendable {
     public var isReady: Bool {
         entries.allSatisfy { $0.disposition == .ready }
     }
+
+    /// Requires every selected preparation entry to be ready.
+    ///
+    /// Preparation records provider failures in this report rather than
+    /// throwing them. Use this check for proceed-or-fail callers. The error
+    /// preserves structured status and blocking dependencies, not arbitrary
+    /// factory error payloads. This synchronous check does not inspect the
+    /// calling task's cancellation state.
+    public func requireReady() throws {
+        guard isReady else { throw DIAsyncPreparationFailure(report: self) }
+    }
+}
+
+/// Selected asynchronous providers did not all reach readiness.
+///
+/// Inspect the report to distinguish failed, blocked, cancelled and closed
+/// providers. While a scope remains open, its provider read can still throw
+/// the original factory error. A prepared operation closes before throwing
+/// this failure, so its escaped view instead reports closed. This error keeps
+/// only the preparation snapshot, not arbitrary factory error payloads.
+public struct DIAsyncPreparationFailure: Error, Equatable, Sendable {
+    public let report: DIAsyncPreparationReport
+
+    public init(report: DIAsyncPreparationReport) {
+        self.report = report
+    }
 }
 
 /// Validated, explicit dependency graph for selected asynchronous preparation.

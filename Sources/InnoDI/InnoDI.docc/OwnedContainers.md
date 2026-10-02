@@ -41,6 +41,62 @@ its own concrete storage; it does not initialize a legacy container and adopt
 its tasks. There is no second registration DSL and no automatic shutdown on
 scope exit.
 
+## One Prepared Operation
+
+For a short operation, use the generated `withPrepared` instead of manually
+checking a preparation report and closing in both success and error branches:
+
+```swift
+try await Services.withPrepared(.service, seed: 40, overrides: { overrides in
+    overrides.service = 99
+}) { services in
+    let value = try await services.service
+    print(value)
+}
+```
+
+The helper is generated only for `generateOwned: true` containers with async
+shared providers. The typed selections have the same meaning as `prepare`;
+additional selections precede the labeled input arguments. The `overrides:`
+closure defaults to an empty mutation and may throw. It runs before any live
+factory, child, or owned task is constructed. The operation is nonescaping; its result
+does not gain a `Sendable` requirement. MainActor isolation is preserved.
+
+`withPrepared` creates a fresh owner, prepares the selected subgraph, and enters
+its operation only when every report entry is ready. A failed, blocked,
+cancelled, or closed entry throws ``DIAsyncPreparationFailure`` carrying the
+preparation snapshot. The helper awaits `close()` before returning a result or
+throwing from preparation or the operation. There is no detached cleanup task.
+Independent eager providers still start according to their existing policy;
+selecting one provider does not prove unrelated eager providers are healthy.
+
+Cancellation and error precedence are explicit:
+
+- A call already cancelled on entry is rejected before the override callback
+  and live work; cancellation inside the callback is checked before live construction
+- After preparation, caller cancellation is checked before the readiness report
+- An operation-thrown error is preserved even if the caller is also cancelled
+- A successful operation checks cancellation after close completes, so a
+  cancelled caller receives `CancellationError` rather than its successful value
+
+Cancellation is cooperative. An operation that ignores cancellation and never
+returns keeps the helper suspended. Close does not drain cancellation-ignoring
+factories, close arbitrary application tasks, or call a service's `shutdown()`.
+It owns only the generated async scopes. Borrowed inputs, synchronous values and
+children remain borrowed. Swift can return or capture a dependency view from the
+operation: later async reads fail as closed, but synchronous values and already
+returned service objects are not revoked.
+
+For a long-lived screen that keeps its owner across a retry UI, use
+`try await owner.requireReady(.service)`. This checks cancellation and throws on
+a non-ready report without closing the owner. `retryAndRequireReady(.service)`
+performs exactly one existing retry transaction and then the same check; it is
+not a refresh operation or an automatic retry loop. Existing `prepare` and
+`retry` report methods remain available for detailed loading state. A report's
+synchronous `requireReady()` checks only its snapshot, not task cancellation.
+Original factory errors can still be obtained from an open provider read; after
+`withPrepared` has closed its owner, an escaped view instead reports closed.
+
 ## Admission, Readiness, and Selection
 
 `makeOwned` is `async throws`. It completes setup and admits each eager async

@@ -37,7 +37,8 @@ func validateOwnedContainer(
         hadErrors = true
     }
     if let conflict = directContainerDeclarationNames(in: declaration)
-        .first(where: { $0.name == "makeOwned" || $0.name == "makeOwnedWithOverrides" }) {
+        .first(where: { $0.name == "makeOwned" || $0.name == "makeOwnedWithOverrides"
+            || (!model.asyncSharedMembers.isEmpty && $0.name == "withPrepared") }) {
         context.emit(SimpleDiagnostic.containerOwnedNameConflict(name: conflict.name), at: conflict.anchor)
         hadErrors = true
     }

@@ -40,6 +40,52 @@ await owner.close()
 storage를 만들며 기존 컨테이너를 생성한 뒤 task를 인수하지 않습니다.
 별도의 registration DSL이나 scope 종료 시 자동 정리도 없습니다.
 
+## 준비된 작업 한 번 실행하기
+
+짧은 작업에는 report 검사와 성공·실패별 close 대신 생성된 `withPrepared`를 사용합니다.
+
+```swift
+try await Services.withPrepared(.service, seed: 40, overrides: { overrides in
+    overrides.service = 99
+}) { services in
+    let value = try await services.service
+    print(value)
+}
+```
+
+이 helper는 `generateOwned: true`이며 async shared provider가 있는 container에만
+생성됩니다. typed selection은 `prepare`와 같으며, 추가 선택은 이름 붙은 input 인자보다
+앞에 놓습니다. `overrides:`는 기본적으로 아무것도 바꾸지 않고, throw할 수 있으며,
+어떤 live factory·child·owned task보다 먼저 실행됩니다. operation은 nonescaping이고 결과에
+Sendable 요구를 추가하지 않습니다. MainActor 격리도 유지합니다.
+
+새 owner를 만들고 선택한 subgraph의 모든 entry가 ready일 때에만 operation에 들어갑니다.
+failed·blocked·cancelled·closed entry는 준비 당시 snapshot을 담은
+``DIAsyncPreparationFailure``를 던집니다. 준비 실패·operation 오류·정상 반환 모두
+`close()` 완료를 기다립니다. detached cleanup task는 만들지 않습니다. 선택하지 않은
+독립 eager provider도 기존 정책대로 시작하므로 선택한 부분의 성공이 전체 graph의
+정상 상태를 뜻하지는 않습니다.
+
+- 호출 시작 시 이미 취소되어 있으면 override callback과 live 작업을 막습니다.
+  callback 안에서 발생한 취소는 callback 종료 뒤 live 생성 전에 확인합니다
+- 준비 뒤에는 report 검사보다 caller 취소를 먼저 확인합니다
+- operation이 던진 오류는 동시 취소가 있더라도 그대로 보존합니다
+- operation이 성공했어도 close 뒤 caller가 취소되었으면 CancellationError를 던집니다
+
+취소는 협력적입니다. 취소를 무시하고 반환하지 않는 operation은 helper도 계속 대기하게
+합니다. close는 취소를 무시하는 factory를 drain하거나 임의 앱 task를 종료하거나 서비스의
+shutdown()을 호출하지 않습니다. 생성된 async scope만 소유하며 input·동기 값·child는
+빌린 값입니다. operation에서 view가 반환되거나 밖으로 capture될 수도 있습니다.
+그 뒤 async read는 closed로 실패하지만 동기 값과 이미 반환된 서비스는 회수되지 않습니다.
+
+재시도 화면처럼 owner를 오래 보관할 때에는 `try await owner.requireReady(.service)`를
+사용합니다. owner를 닫지 않고 취소와 readiness를 검사합니다.
+`retryAndRequireReady(.service)`는 기존 retry transaction을 정확히 한 번 실행한 뒤
+검사하며 refresh나 자동 반복 재시도가 아닙니다. 기존 prepare/retry report API는
+상세한 loading UI에 계속 사용할 수 있습니다. report의 동기 requireReady()는 snapshot만
+검사하고 task 취소는 확인하지 않습니다. 열린 scope의 provider read는 원래 factory 오류를
+던질 수 있지만 withPrepared 종료 후 escaped view에서는 closed가 우선합니다.
+
 ## 시작 허용과 준비 완료, 선택
 
 `makeOwned`는 `async throws`입니다. 설정을 끝내고 각 eager async provider의

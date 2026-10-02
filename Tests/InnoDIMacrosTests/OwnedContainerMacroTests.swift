@@ -406,7 +406,7 @@ struct OwnedContainerMacroTests {
         let result = try makeOwnedContainerDecls(model: model)
         let hasSelf = (model.members.map(\.type) + model.subContainerMembers.map(\.type))
             .contains { $0.tokens(viewMode: .sourceAccurate).contains { $0.text == "Self" } }
-        #expect(result.count == (model.asyncSharedMembers.isEmpty ? 4 : 5) + (hasSelf ? 1 : 0))
+        #expect(result.count == (model.asyncSharedMembers.isEmpty ? 4 : 6) + (hasSelf ? 1 : 0))
         return result
     }
 }

@@ -49,10 +49,32 @@ swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI
 "$OUT/ExplicitActorOverrides" > "$OUT/explicit-actor-overrides-run.log" 2>&1
 cat "$OUT/explicit-actor-overrides-run.log"
 
+# Prepared-operation consumer coverage uses the real eager async storage on
+# Linux. Exact on-demand coverage is wired into InnoDIRuntimeTests on Apple.
+python3 "$ROOT/Tools/validate-prepared-fixture-parity.py"
+for fixture in Prepared PreparedInputNames; do
+  cp "$ROOT/Tests/OwnedPortablePluginFixtures/$fixture.swift.fixture" "$OUT/$fixture.swift"
+  swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI \
+    -Xlinker -rpath -Xlinker "$OUT" "$OUT/$fixture.swift" -o "$OUT/$fixture" \
+    > "$OUT/$fixture-compile.log" 2>&1
+  if timeout 40s "$OUT/$fixture" > "$OUT/$fixture-run.log" 2>&1; then
+    cat "$OUT/$fixture-run.log"
+  else
+    status=$?
+    cat "$OUT/$fixture-run.log" >&2
+    if [[ "$status" == 124 ]]; then
+      echo "$fixture exceeded its 40-second bound; unmatched pending resource release lines identify a release failure" >&2
+    fi
+    exit "$status"
+  fi
+done
+
 negative() {
   local name="$1" source="$2" expected="$3"
+  local mode=(-typecheck)
+  if [[ "${4:-}" == "compile" ]]; then mode=(-c -o "$OUT/$name.o"); fi
   cp "$source" "$OUT/$name.swift"
-  if swiftc "${FLAGS[@]}" "${LOAD[@]}" -typecheck -I "$OUT" "$OUT/$name.swift" > "$OUT/$name.log" 2>&1; then
+  if swiftc "${FLAGS[@]}" "${LOAD[@]}" "${mode[@]}" -I "$OUT" "$OUT/$name.swift" > "$OUT/$name.log" 2>&1; then
     echo "Expected $name to fail" >&2; exit 1
   fi
   if grep -F 'Stack dump:' "$OUT/$name.log" >/dev/null; then
@@ -64,6 +86,10 @@ negative() {
   echo "Expected diagnostic passed: $name"
 }
 FIXTURES="$ROOT/Tests/OwnedPortablePluginFixtures"
+negative PreparedNoOwned "$FIXTURES/PreparedNoOwned.swift.fixture" "has no member 'withPrepared'" compile
+negative PreparedNoAsync "$FIXTURES/PreparedNoAsync.swift.fixture" "has no member 'withPrepared'" compile
+negative PreparedWrongContainer "$FIXTURES/PreparedWrongContainer.swift.fixture" "cannot convert value of type 'Second._InnoDIOwnedProvider'" compile
+negative PreparedReservedName "$FIXTURES/PreparedReservedName.swift.fixture" "already uses 'withPrepared'" compile
 negative SelfWitnessCollision "$FIXTURES/SelfWitnessCollision.swift.fixture" "uses the reserved generated prefix"
 negative OwnedOverridesNameCollision "$FIXTURES/OwnedOverridesNameCollision.swift.fixture" "already uses 'makeOwnedWithOverrides'"
 negative DeferredSendable "$FIXTURES/DeferredSendable.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'"

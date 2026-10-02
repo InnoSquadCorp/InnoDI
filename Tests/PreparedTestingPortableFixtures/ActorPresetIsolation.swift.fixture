@@ -1,0 +1,16 @@
+import InnoDITesting
+
+final class ActorLocalValue {}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+struct ActorPresetServices {
+    @Provide(.shared, effect: .sideEffect, factory: ActorLocalValue())
+    var service: ActorLocalValue
+}
+
+@MainActor
+func makeInvalidPreset() {
+    _ = DIOverridePreset<ActorPresetServices.Overrides>(name: "invalid") {
+        $0.service = ActorLocalValue()
+    }
+}

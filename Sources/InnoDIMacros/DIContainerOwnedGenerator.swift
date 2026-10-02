@@ -19,6 +19,7 @@ func makeOwnedContainerDecls(model: DIContainerExpansionModel) throws -> [DeclSy
         factory
     ]
     if !model.asyncSharedMembers.isEmpty {
+        declarations.insert(makeWithPreparedFactory(model, directFactory: factory), at: declarations.count - 1)
         declarations.insert(makeOwnedProviderEnum(model), at: 0)
     }
     let declaredTypes = model.members.map(\.type) + model.subContainerMembers.map(\.type)
@@ -85,6 +86,76 @@ private func makeOwnedOverridesFactory(
         "var _innoDIOverrides = Self.Overrides()",
         "try _innoDIApplyOverrides(&_innoDIOverrides)",
         "return try await \(call)"
+    ]))
+    return DeclSyntax(function)
+}
+
+/// One structured consumer operation, using the same concrete owned factory.
+/// Keep cleanup outside the successful do block so post-cleanup cancellation
+/// cannot enter the catch path and call close a second time.
+private func makeWithPreparedFactory(
+    _ model: DIContainerExpansionModel,
+    directFactory: DeclSyntax
+) -> DeclSyntax {
+    let actor = model.ownedMainActor ? "@_Concurrency.MainActor " : ""
+    let result = "_InnoDIPreparedResult"
+    var function = directFactory.cast(FunctionDeclSyntax.self)
+    function.name = .identifier("withPrepared")
+    function.genericParameterClause = GenericParameterClauseSyntax(parameters: GenericParameterListSyntax([
+        GenericParameterSyntax(name: .identifier(result))
+    ]))
+    function.signature.returnClause = ReturnClauseSyntax(type: TypeSyntax(stringLiteral: result))
+    let inputs = Set(model.inputMembers.map(\.name))
+    let forwarded = function.signature.parameterClause.parameters.filter {
+        inputs.contains($0.firstName.text) || $0.firstName.text == "_innoDITrace"
+    }
+    var parameters = FunctionParameterListSyntax([
+        FunctionParameterSyntax(firstName: .wildcardToken(), secondName: .identifier("_innoDIProvider"),
+                                type: TypeSyntax(stringLiteral: ownedProviderTypeName)),
+        FunctionParameterSyntax(firstName: .wildcardToken(), secondName: .identifier("_innoDIAdditional"),
+                                type: TypeSyntax(stringLiteral: ownedProviderTypeName), ellipsis: .ellipsisToken())
+    ] + Array(forwarded))
+    parameters.append(FunctionParameterSyntax(
+        firstName: .identifier("overrides"), secondName: .identifier("_innoDIApplyOverrides"),
+        type: TypeSyntax(stringLiteral: "\(actor)(inout Self.Overrides) throws -> Void"),
+        defaultValue: InitializerClauseSyntax(value: ExprSyntax("{ _ in }"))
+    ))
+    parameters.append(FunctionParameterSyntax(
+        firstName: .identifier("operation"), secondName: .identifier("_innoDIOperation"),
+        type: TypeSyntax(stringLiteral: "\(model.ownedMainActor ? actor : "nonisolated(nonsending) ")(\(ownedViewTypeName)) async throws -> \(result)")
+    ))
+    for index in parameters.indices.dropLast() { parameters[index].trailingComma = .commaToken() }
+    function.signature.parameterClause.parameters = parameters
+    var arguments = forwarded.map { parameter in
+        LabeledExprSyntax(label: .identifier(parameter.firstName.text), colon: .colonToken(),
+                          expression: ExprSyntax(DeclReferenceExprSyntax(baseName: parameter.firstName)),
+                          trailingComma: .commaToken())
+    }
+    arguments.append(LabeledExprSyntax(expression: ExprSyntax("_innoDIApplyOverrides")))
+    let create = FunctionCallExprSyntax(
+        calledExpression: ExprSyntax("Self.makeOwnedWithOverrides"),
+        leftParen: .leftParenToken(), arguments: LabeledExprListSyntax(arguments), rightParen: .rightParenToken()
+    )
+    function.body = CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+        "try _Concurrency.Task.checkCancellation()",
+        "let _innoDIOwner = try await \(create)",
+        "let _innoDIResult: \(raw: result)",
+        """
+        do {
+            let _innoDIReport = try await _innoDIOwner._innoDICoordinator.prepare(
+                ([_innoDIProvider] + _innoDIAdditional).map { $0._innoDIProviderID }
+            )
+            try _Concurrency.Task.checkCancellation()
+            try _innoDIReport.requireReady()
+            _innoDIResult = try await _innoDIOperation(_innoDIOwner.container)
+        } catch {
+            await _innoDIOwner.close()
+            throw error
+        }
+        """,
+        "await _innoDIOwner.close()",
+        "try _Concurrency.Task.checkCancellation()",
+        "return _innoDIResult"
     ]))
     return DeclSyntax(function)
 }
@@ -255,6 +326,24 @@ private func makeOwnedOwner(_ model: DIContainerExpansionModel) -> DeclSyntax {
             @discardableResult
             \(access)\(isolation)func retry(\(tokens)) async throws -> InnoDI.DIAsyncPreparationReport {
                 try await _innoDICoordinator.retry(([provider] + additional).map { $0._innoDIProviderID })
+            }
+
+            /// Returns only after selected providers are ready. Caller
+            /// cancellation wins over a non-ready preparation report.
+            \(access)\(isolation)func requireReady(\(tokens)) async throws {
+                try _Concurrency.Task.checkCancellation()
+                let report = try await _innoDICoordinator.prepare(([provider] + additional).map { $0._innoDIProviderID })
+                try _Concurrency.Task.checkCancellation()
+                try report.requireReady()
+            }
+
+            /// Retries the existing failed/cancelled subgraph, then requires
+            /// readiness. It is not refresh and does not close this owner.
+            \(access)\(isolation)func retryAndRequireReady(\(tokens)) async throws {
+                try _Concurrency.Task.checkCancellation()
+                let report = try await _innoDICoordinator.retry(([provider] + additional).map { $0._innoDIProviderID })
+                try _Concurrency.Task.checkCancellation()
+                try report.requireReady()
             }
 
             /// Cancels only selected scopes that are running at each individual

@@ -32,6 +32,19 @@ func verifyPublicSelf(_ owner: PublicNamespace.Same._InnoDIOwner) {
         precondition(overriddenService == 20 && overridden.container.fresh == 30)
         precondition(overridden.container.freshHandle.value() == 30)
         await overridden.close()
+        let preparedView = try await PublicNamespace.Container.withPrepared(.service, seed: 4, overrides: {
+            $0.set(\.service, to: 70)
+        }) { services in
+            let value = try await services.service
+            precondition(value == 70)
+            return services
+        }
+        precondition(preparedView.seed == 4)
+        do { _ = try await preparedView.service; preconditionFailure("prepared escaped view remained open") }
+        catch DIAsyncScopeError.closed(providerID: "service") {}
+        let required = try await PublicNamespace.Container.makeOwned(seed: 5)
+        try await required.requireReady(.service)
+        await required.close()
         print("real plugin cross-module owned API passed")
     }
 }

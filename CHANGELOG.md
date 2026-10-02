@@ -19,6 +19,15 @@ that change moves to 8.0.
 
 ### Next-major prototype (release unassigned)
 
+- Owned async graphs gain `withPrepared`: selected readiness gates the consumer
+  operation, and close is awaited on success, preparation failure and operation
+  failure. `DIAsyncPreparationFailure` carries a structured report. Caller
+  cancellation and operation-error precedence are explicit; borrowed values,
+  escaped views and cancellation-ignoring factories keep their existing limits.
+  `requireReady` and one-shot `retryAndRequireReady` support explicit long-lived
+  owners. A user declaration named `withPrepared` now conflicts only in an
+  owned async graph where the helper is generated.
+
 - Typed Overrides gain `set(_:to:)` and `useDefault(_:)` to distinguish an
   explicit optional nil from leaving a live factory enabled. Transient value
   overrides still return the stored value. `DIOverridePreset.applyValidated`
